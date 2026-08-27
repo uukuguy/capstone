@@ -23,7 +23,7 @@ def _imported_modules(path: Path) -> list[str]:
         if isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            imports.append(node.module)
+            imports.extend(f"{node.module}.{alias.name}" for alias in node.names)
     return imports
 
 
@@ -32,6 +32,16 @@ def _starts_with_forbidden_prefix(module: str) -> bool:
         module == forbidden or module.startswith(f"{forbidden}.")
         for forbidden in FORBIDDEN_PREFIXES
     )
+
+
+def test_imported_modules_expands_import_from_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "imports_builtin_profile.py"
+    source.write_text(
+        "from grid_agent.domains import pandapower\n",
+        encoding="utf-8",
+    )
+
+    assert _imported_modules(source) == ["grid_agent.domains.pandapower"]
 
 
 def test_neutral_domain_modules_do_not_import_grid_runtime_boundaries() -> None:
@@ -47,4 +57,4 @@ def test_neutral_domain_modules_do_not_import_grid_runtime_boundaries() -> None:
 def test_generic_composer_does_not_select_builtin_pandapower_profile() -> None:
     imported = _imported_modules(COMPOSITION)
 
-    assert "grid_agent.domains.pandapower" not in imported
+    assert not any(_starts_with_forbidden_prefix(module) for module in imported)

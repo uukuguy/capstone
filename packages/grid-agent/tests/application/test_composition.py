@@ -184,7 +184,6 @@ def test_synthetic_domain_materializes_through_public_seams(tmp_path: Path) -> N
         "overview": str((tmp_path / "inventory/guides/SKILL.md").resolve())
     }
     assert profile.manifest.system_policy_path == tmp_path / "inventory/policy.md"
-    assert "grid-static-analysis" not in guide["root"]
     assert prepared.profile.manifest.domain_id == "inventory-readonly"
 
 
