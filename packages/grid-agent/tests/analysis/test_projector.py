@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from grid_agent.analysis.integrity import ContentReferenceVerifier, SimulatorIntegrityError
 from grid_agent.analysis.capabilities import CapabilityContextCatalog
+from grid_agent.analysis.integrity import SimulatorIntegrityError
 from grid_agent.analysis.models import ContextEventDraft, VerifiedFact
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.domain import (
+    ArtifactAuthority,
+    DomainProjector,
+    DomainProjectorRegistry,
+    VerifiedArtifact,
+    VerifiedReferenceSet,
+)
+from grid_agent.domains import build_pandapower_profile
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 
 
@@ -29,6 +38,54 @@ RUNTIME = {
     "grid_capability_protocol": "1.0",
     "pandapower_version": "3.4.0",
 }
+ROOT = Path(__file__).resolve().parents[4]
+
+
+@dataclass
+class SpyArtifactAuthority:
+    delegate: ArtifactAuthority
+    authority_id: str = field(init=False)
+    workspace_root: Path = field(init=False)
+    admit_calls: list[tuple[str, Mapping[str, object], tuple[str, ...]]] = field(
+        default_factory=list
+    )
+    verify_result_calls: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        self.authority_id = self.delegate.authority_id
+        self.workspace_root = self.delegate.workspace_root
+
+    def admit(
+        self,
+        capability: str,
+        result: Mapping[str, object],
+        evidence_refs: tuple[str, ...],
+    ) -> VerifiedReferenceSet:
+        self.admit_calls.append((capability, result, evidence_refs))
+        return self.delegate.admit(capability, result, evidence_refs)
+
+    def verify_result(self, reference: str) -> VerifiedArtifact:
+        self.verify_result_calls.append(reference)
+        return self.delegate.verify_result(reference)
+
+    def audit_answer_references(
+        self,
+        claim_evidence_refs: tuple[str, ...],
+        result_refs: tuple[str, ...],
+    ) -> tuple[object, ...]:
+        return self.delegate.audit_answer_references(
+            claim_evidence_refs, result_refs
+        )
+
+
+@dataclass
+class SpyProjectorRegistry:
+    delegate: DomainProjectorRegistry
+    require_calls: list[str] = field(default_factory=list)
+
+    def require(self, projector_id: str) -> DomainProjector:
+        self.require_calls.append(projector_id)
+        return self.delegate.require(projector_id)
 
 
 @dataclass(frozen=True)
@@ -36,6 +93,8 @@ class ContextHarness:
     workspace: AnalysisWorkspace
     store: AnalysisContextStore
     projector: AnalysisContextProjector
+    authority: SpyArtifactAuthority
+    projector_registry: SpyProjectorRegistry
 
     def start_turn(self, turn_id: str, *, ordinal: int) -> None:
         self.store.append(
@@ -77,16 +136,22 @@ class OpenedContext:
 def context_harness(tmp_path: Path) -> ContextHarness:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
     store = AnalysisContextStore.initialize(workspace, input_record=INPUT, runtime_record=RUNTIME)
-    definition_root = Path(__file__).resolve().parents[4] / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
+    profile = build_pandapower_profile(ROOT)
+    authority = SpyArtifactAuthority(profile.create_authority(workspace.root_path))
+    projector_registry = SpyProjectorRegistry(profile.projector_registry)
+    definition_root = ROOT / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
     documents = tuple(json.loads(path.read_text(encoding="utf-8")) for path in sorted(definition_root.glob("*.json")))
     return ContextHarness(
         workspace=workspace,
         store=store,
         projector=AnalysisContextProjector(
             store,
-            ContentReferenceVerifier(workspace.root_path),
+            authority,
             CapabilityContextCatalog.from_documents(documents),
+            projector_registry,
         ),
+        authority=authority,
+        projector_registry=projector_registry,
     )
 
 
@@ -112,6 +177,50 @@ def test_projector_registers_powerflow_and_ranking_dependency(context_harness: C
         tool_result("call-1", "analysis.powerflow.ac.run", powerflow_result, evidence_refs=[powerflow_evidence_ref]),
         turn_id="analysis-test-t001",
     )
+    assert context_harness.authority.admit_calls == [
+        (
+            "analysis.powerflow.ac.run",
+            powerflow_result,
+            (powerflow_evidence_ref,),
+        )
+    ]
+    assert context_harness.projector_registry.require_calls == ["powerflow-ac-v1"]
+
+    projected_event = next(
+        json.loads(line)
+        for line in context_harness.workspace.context_events_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if json.loads(line)["event_type"] == "domain.state.projected"
+    )
+    assert projected_event["payload"] == {
+        "artifacts": [],
+        "calculations": [
+            {
+                "artifact_path": (
+                    "evidence/results/powerflow-"
+                    f"{powerflow_result['result_ref'].removeprefix('result:sha256:')}.json"
+                ),
+                "context_ref": opened.context_ref,
+                "evidence_refs": [powerflow_evidence_ref],
+                "kind": "powerflow.ac",
+                "producer_capability": "analysis.powerflow.ac.run",
+                "producer_turn_id": "analysis-test-t001",
+                "result_ref": powerflow_result["result_ref"],
+                "revision_ref": opened.revision_ref,
+                "scenario_refs": [],
+                "solver": {},
+                "status": "converged",
+                "summary": {"total_active_loss": 1.25},
+            }
+        ],
+        "capabilities": [],
+        "constraints": [],
+        "model": None,
+        "operating_state": None,
+        "projector": "powerflow-ac-v1",
+        "scenarios": [],
+    }
     context_harness.complete_turn("analysis-test-t001")
     context_harness.start_turn("analysis-test-t002", ordinal=2)
     context_harness.projector.observe(
@@ -229,6 +338,7 @@ def test_projector_treats_generic_result_views_as_consumers_not_producers(
     assert views[0].consumed_refs == [result_ref]
     assert views[0].produced_refs == []
     assert list(state.results) == [result_ref]
+    assert context_harness.authority.verify_result_calls == [result_ref]
 
 
 def test_projector_stops_on_integrity_failure_but_records_normal_tool_error(
@@ -265,6 +375,9 @@ def test_projector_stops_on_integrity_failure_but_records_normal_tool_error(
             ),
             turn_id="analysis-test-t001",
         )
+    state = context_harness.store.snapshot
+    assert not state.results
+    assert not state.domain_state.calculations
 
 
 def test_projector_keeps_compatibility_observation_disjoint_from_native_sidecar(

@@ -8,10 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from grid_agent.analysis.capabilities import CapabilityContextCatalog
-from grid_agent.analysis.domain_projection import project_domain_result
-from grid_agent.analysis.integrity import ContentReferenceVerifier, SimulatorIntegrityError, VerifiedArtifact
+from grid_agent.analysis.integrity import SimulatorIntegrityError
 from grid_agent.analysis.models import ContextEventDraft, ResultRecord
 from grid_agent.analysis.store import AnalysisContextStore
+from grid_agent.domain import (
+    ArtifactAuthority,
+    DomainProjectorRegistry,
+    VerifiedArtifact,
+    VerifiedInvocation,
+)
 
 
 PROMOTED_FACT_FIELDS: Mapping[str, tuple[str, ...]] = {
@@ -56,12 +61,14 @@ class AnalysisContextProjector:
     def __init__(
         self,
         store: AnalysisContextStore,
-        verifier: ContentReferenceVerifier,
+        authority: ArtifactAuthority,
         capability_catalog: CapabilityContextCatalog,
+        projector_registry: DomainProjectorRegistry,
     ) -> None:
         self._store = store
-        self._verifier = verifier
+        self._authority = authority
         self._capability_catalog = capability_catalog
+        self._projector_registry = projector_registry
         self._starts: dict[str, Mapping[str, Any]] = {}
 
     def observe(self, event: Mapping[str, Any], *, turn_id: str, trace_sequence: int | None = None) -> None:
@@ -117,7 +124,7 @@ class AnalysisContextProjector:
             evidence_artifacts = ()
             ranking_source_artifact = None
         else:
-            references = self._verifier.admit_successful_tool_references(
+            references = self._authority.admit(
                 capability,
                 result,
                 tuple(evidence_refs),
@@ -170,7 +177,9 @@ class AnalysisContextProjector:
     ) -> None:
         spec = self._capability_catalog.require(capability)
         result_paths = {
-            artifact.reference: _relative_path(artifact.path, self._verifier.workspace_root)
+            artifact.reference: _relative_path(
+                artifact.path, self._authority.workspace_root
+            )
             for artifact in result_artifacts
         }
         context_ref = result.get("context_ref")
@@ -189,13 +198,18 @@ class AnalysisContextProjector:
                     "trafo": baseline.network.get("trafo_count", 0),
                 },
             )
-        delta = project_domain_result(
-            spec,
-            result=projection_result,
-            arguments=_start_args(start),
-            turn_id=turn_id,
-            result_paths=result_paths,
-            active_revision_ref=active_revision_ref,
+        domain_projector = self._projector_registry.require(spec.projector)
+        delta = domain_projector.project(
+            VerifiedInvocation(
+                capability=capability,
+                projector_id=spec.projector,
+                result_kind=spec.result_kind,
+                result=projection_result,
+                arguments=_start_args(start),
+                turn_id=turn_id,
+                result_paths=result_paths,
+                active_revision_ref=active_revision_ref,
+            )
         )
         self._store.append(
             ContextEventDraft(
@@ -274,7 +288,7 @@ class AnalysisContextProjector:
         for artifact in sorted(context_artifacts, key=lambda item: item.reference):
             if artifact.reference in self._store.snapshot.baselines:
                 continue
-            payload = _baseline_payload(artifact, self._verifier.workspace_root)
+            payload = _baseline_payload(artifact, self._authority.workspace_root)
             if capability == "context.open":
                 if isinstance(result.get("revision_ref"), str):
                     payload["revision_ref"] = result["revision_ref"]
@@ -316,7 +330,9 @@ class AnalysisContextProjector:
                 trace_sequence=trace_sequence,
                 payload={
                     "observation_ref": observation_ref,
-                    "path": _relative_path(result_path, self._verifier.workspace_root),
+                    "path": _relative_path(
+                        result_path, self._authority.workspace_root
+                    ),
                     "summary": _projection_summary(capability, result, event),
                     "producer_observation": _producer_observation(capability, start, call_id),
                     "consumed_refs": consumed_refs,
@@ -328,7 +344,7 @@ class AnalysisContextProjector:
 
     def _tool_result_path(self, turn_id: str, call_id: str) -> Path:
         return (
-            self._verifier.workspace_root
+            self._authority.workspace_root
             / "tool-results"
             / turn_id
             / "compatibility"
@@ -362,7 +378,9 @@ class AnalysisContextProjector:
                     payload={
                         "result_ref": artifact.reference,
                         "revision_ref": str(document["revision_ref"]),
-                        "path": _relative_path(artifact.path, self._verifier.workspace_root),
+                        "path": _relative_path(
+                            artifact.path, self._authority.workspace_root
+                        ),
                         "evidence_refs": evidence_refs,
                         "solver_summary": _solver_summary(document),
                         "producer_observation": {
@@ -388,7 +406,9 @@ class AnalysisContextProjector:
                     event_type="evidence.registered",
                     payload={
                         "evidence_ref": artifact.reference,
-                        "path": _relative_path(artifact.path, self._verifier.workspace_root),
+                        "path": _relative_path(
+                            artifact.path, self._authority.workspace_root
+                        ),
                         "kind": "simulator",
                         "refs": refs,
                         "summary": {
@@ -448,7 +468,7 @@ class AnalysisContextProjector:
             raise SimulatorIntegrityError("result.branches.rank requires started result_ref")
         if result_ref not in self._store.snapshot.results:
             raise SimulatorIntegrityError(f"result.branches.rank references unregistered result: {result_ref}")
-        return self._verifier.verify_result(result_ref)
+        return self._authority.verify_result(result_ref)
 
     def _verify_result_consumers(
         self,
@@ -468,7 +488,7 @@ class AnalysisContextProjector:
         for result_ref in requested:
             if result_ref not in self._store.snapshot.results:
                 raise SimulatorIntegrityError(f"{capability} references unregistered result: {result_ref}")
-            artifacts[result_ref] = self._verifier.verify_result(result_ref)
+            artifacts[result_ref] = self._authority.verify_result(result_ref)
         single_ref = args.get("result_ref")
         if isinstance(single_ref, str):
             returned_ref = result.get("result_ref")
