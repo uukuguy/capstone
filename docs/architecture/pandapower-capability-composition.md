@@ -155,6 +155,29 @@ grid-agent controller
 - [`packages/grid-simulator/src/grid_simulator/bindings/__init__.py`](../../packages/grid-simulator/src/grid_simulator/bindings/__init__.py)：汇总潮流、OPF、短路、估计、诊断、拓扑和保护等操作绑定。
 - [`packages/grid-simulator/src/grid_simulator/creators.py`](../../packages/grid-simulator/src/grid_simulator/creators.py)：发现并约束声明式网络元素创建器。
 
+### 4.3 Domain runtime profile seam
+
+当前实现已经把运行时装配收敛到一个显式选择的领域 Profile，但仍保持 `grid-agent` 的既有 CLI、工具名、协议和证据契约不变。实际所有权流如下：
+
+```text
+CLI selects build_pandapower_profile(repo_root)
+  -> prepare_domain_runtime(profile, workspace, executable)
+     -> CapabilityContractSource.load()
+     -> CapabilityExecutor.invoke("environment.describe", {})
+     -> ToolCatalog + GuideIndex materialization
+     -> ArtifactAuthority scoped to current run
+  -> Pi invokes the unchanged grid_* tools through gridctl
+  -> DomainProjectorRegistry projects admitted results
+```
+
+`grid_agent.domain` 是中立运行时接口层，仍随 `grid-agent` 发行包一起打包；它只定义 `DomainRuntimeProfile`、`CapabilityContractSource`、`CapabilityExecutor`、`DomainProjectorRegistry`、`ArtifactAuthority` 等协议和值对象，不导入 `grid_agent.simulator`、pandapower 投影实现或具体能力定义路径。
+
+`grid_agent.domains.pandapower` 是当前 pandapower 静态分析产品的兼容 Domain Pack。它把现有 `GridctlClient` 包装成 `CapabilityExecutor`，把 `ContentReferenceVerifier` 包装成当前运行的 `ArtifactAuthority`，并把既有领域投影函数挂到 `DomainProjectorRegistry` 后面。因此 `GridctlClient`、当前证据校验器和投影函数仍是 simulator/grid 实现，只是已经位于适配器之后。
+
+通用组合器 `prepare_domain_runtime(...)` 不选择默认 Profile，也不自己拼接 pandapower 的合同、指南或系统策略路径。CLI 仍显式选择内建 `build_pandapower_profile(repo_root)`；Profile 再提供合同源、执行器工厂、投影注册表、权威对象工厂、系统策略和指南根目录。
+
+这只是 Workstream A 的 seam extraction：尚未把中立内核拆成独立发行包，尚未完成多领域运行时，也没有增加第二个生产领域。模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生。
+
 ## 5. 基于注册工具的组合推理
 
 ### 5.1 组合器是什么

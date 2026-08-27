@@ -111,6 +111,21 @@ make run-llm PROVIDER=deepseek QUESTION="IEEE-39节点系统中线路11连接哪
 
 若日志出现 `401 ... authentication_error`，表示当前 provider 的 API key 无效、过期或与所选 provider 不匹配；更新 `.env` 中对应的密钥后重新运行。该错误不会重试。若出现 `Request timed out`，先确认日志首行的超时和重试参数，再检查 provider 服务状态或提高 `GRID_AGENT_LLM_TIMEOUT_SECONDS`；运行原始事件保存在 `runs/<question_id>/events.jsonl`，可用于进一步诊断。
 
+### 启动阶段领域运行时故障
+
+`grid-agent run` 和连续 `analysis` 在模型执行前会物化内建 pandapower Profile。以下故障沿用当前 stderr 诊断和 stdout 错误 envelope 行为；其中发生在 Profile、合同、指南、策略或 `environment.describe` 阶段的错误不会启动模型执行：
+
+| 故障类型 | 常见含义 |
+| --- | --- |
+| invalid Profile/manifest | `DomainManifest` 字段非法，或 manifest 声明的资源、协议、工具前缀与运行环境不兼容 |
+| protocol mismatch from `environment.describe` | `gridctl` 返回的 `protocol` 或 `protocol_version` 与 Profile 声明不一致 |
+| missing capability contract root | Profile 指向的 capability contract 目录不存在、为空或包含无法解析的合同 |
+| missing guide or system policy resource | `guide_root` 或 `system_policy_path` 缺失，导致 Pi 工具指南或系统策略无法物化 |
+| existing gridctl transport errors | `gridctl` 无法启动、超时、stdout 不是单条匹配请求的 JSON 协议响应，或返回 typed simulator error |
+| evidence-integrity errors | 当前运行结果、证据、authority 或 lineage 未通过现有内容引用校验，不能被跨回合复用或绑定到答案 |
+
+当前没有领域选择命令；CLI 固定选择内建 pandapower 静态分析 Profile。需要切换领域时必须先经过后续 Workstream 的设计和命令契约变更。
+
 ## Skill 与工具边界
 
 Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具描述由发布的 capability 契约生成；`skills/grid-static-analysis/` 说明如何组合不可变模型、完整网络/结果数据集、分析和证据。模型不得在回答正文中暴露内部 result/evidence/context/asset/constraint/path/nonce 标识；运行时根据当前回合已消费和已产生的 lineage 提交答案。
