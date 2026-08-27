@@ -43,6 +43,7 @@ def test_client_invokes_named_capability(tmp_path: Path) -> None:
     assert request["protocol"] == "grid-capability"
     assert request["protocol_version"] == "1.0"
     assert request["capability"] == "model.list"
+    assert request["arguments"] == {}
     assert "operation" not in request
 
 

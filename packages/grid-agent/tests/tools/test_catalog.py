@@ -40,6 +40,37 @@ def test_catalog_filters_to_environment_executable_capabilities(
     ]
 
 
+def test_grid_catalog_characterization_preserves_names_and_schemas(
+    capability_documents: tuple[dict[str, object], ...],
+) -> None:
+    executable = [
+        {"id": document["id"]}
+        for document in capability_documents
+        if document["availability"] == "published"
+    ]
+
+    catalog = ToolCatalog.from_environment(
+        capability_documents,
+        {"executable_capabilities": executable},
+    )
+
+    expected = {
+        str(document["tool_name"]): (
+            str(document["id"]),
+            document["input_schema"],
+        )
+        for document in capability_documents
+    }
+    expected["grid_record_decision"] = (
+        "grid_record_decision",
+        catalog.require("grid_record_decision").input_schema,
+    )
+    assert {
+        tool.name: (tool.capability, tool.input_schema)
+        for tool in catalog.tools
+    } == expected
+
+
 def test_catalog_materializes_deterministic_sorted_json(
     capability_documents: tuple[dict[str, object], ...], tmp_path: Path
 ) -> None:

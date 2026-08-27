@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,23 @@ def test_guide_index_loads_overview_and_reference_documents() -> None:
     assert "Capability Status" in overview.text
     assert topology.title == "Topology Analysis"
     assert "topology.branch.endpoints.get" in topology.text
+
+
+def test_guide_index_materializes_current_protocol_and_root(tmp_path: Path) -> None:
+    skill_root = ROOT / "skills/grid-static-analysis"
+    guide = GuideIndex.load(skill_root)
+
+    payload = json.loads(
+        guide.materialize(tmp_path / "guide-index.json").read_text(encoding="utf-8")
+    )
+
+    assert payload["protocol"] == "grid-guide-index"
+    assert payload["version"] == "1.0"
+    assert "overview" in payload["resources"]
+    assert all(
+        Path(path).is_relative_to(skill_root.resolve())
+        for path in payload["resources"].values()
+    )
 
 
 @pytest.mark.parametrize(

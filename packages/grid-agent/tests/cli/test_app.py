@@ -59,6 +59,7 @@ def test_analysis_cli_emits_one_envelope_and_uses_self_contained_paths(
     result = runner.invoke(app, ["analysis", "--instructions", str(instructions)])
 
     assert result.exit_code == 0
+    assert result.stderr == ""
     assert len(result.stdout.splitlines()) == 1
     envelope = AnswerEnvelope.model_validate_json(result.stdout)
     assert set(json.loads(result.stdout)) == {"question_id", "answer_output"}
