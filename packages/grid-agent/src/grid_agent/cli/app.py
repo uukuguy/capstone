@@ -4,25 +4,26 @@ import json
 import os
 import time
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 from pathlib import Path
 
 import typer
 from dotenv import dotenv_values
 
 from grid_agent.analysis.capabilities import CapabilityContextCatalog
-from grid_agent.analysis.integrity import ContentReferenceVerifier
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from grid_agent.analysis.store import AnalysisContextStore
-from grid_agent.analysis.turns import TurnController
+from grid_agent.analysis.turns import AuditCallback, TurnController
 from grid_agent.analysis.workspace import AnalysisWorkspace
-from grid_agent.contracts import AnswerEnvelope, RunRequest
-from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
-from grid_agent.simulator.client import GridctlClient
-from grid_agent.simulator.locator import GridctlLocator
+from grid_agent.application.composition import prepare_domain_runtime
 from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.workspace import RunWorkspace
+from grid_agent.contracts import AnswerEnvelope, RunRequest
+from grid_agent.domain import ArtifactAuthority
+from grid_agent.domains import build_pandapower_profile
+from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
+from grid_agent.simulator.locator import GridctlLocator
 from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.locator import PiRuntimeLocator
 from grid_agent.runtime.rpc import PiRpcClient
@@ -35,8 +36,6 @@ from grid_agent.runtime.installer import PiRuntimeInstaller
 from grid_agent.runtime.lock import PiRuntimeLock
 from grid_agent.auth.service import AuthService
 from grid_agent.auth.store import CODEX_PROVIDER, ProjectAuthStore
-from grid_agent.tools.catalog import ToolCatalog, load_packaged_capability_documents
-from grid_agent.tools.guide import GuideIndex
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.capture import NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge
@@ -227,7 +226,9 @@ def _message_text(message: Mapping[str, Any]) -> str:
     )
 
 
-def _admit_successful_tool_references(workspace: RunWorkspace, event: Mapping[str, Any]) -> None:
+def _admit_successful_tool_references(
+    authority: ArtifactAuthority, event: Mapping[str, Any]
+) -> None:
     details = _tool_result_details(event)
     if not isinstance(details, Mapping):
         return
@@ -245,7 +246,7 @@ def _admit_successful_tool_references(workspace: RunWorkspace, event: Mapping[st
     evidence_refs = details.get("evidence_refs", [])
     if not isinstance(evidence_refs, list):
         evidence_refs = []
-    ContentReferenceVerifier(workspace.root_path).admit_successful_tool_references(
+    authority.admit(
         capability,
         result,
         tuple(reference for reference in evidence_refs if isinstance(reference, str)),
@@ -331,6 +332,7 @@ def _execute_analysis(
     provider: str | None,
     model: str | None,
 ) -> AnalysisOutcome:
+    profile = build_pandapower_profile(_repo_root())
     project_paths = ProjectPaths.from_root(Path.cwd())
     root = _resolve_artifact_root(project_paths.root, artifact_root)
     workspace = AnalysisWorkspace.create(root)
@@ -348,19 +350,12 @@ def _execute_analysis(
     runtime_lock = PiRuntimeLock.load(project_paths.runtime_lock)
     command = PiRuntimeInstaller(runtime_lock, project_paths.pi_runtime_dir).ensure()
     _install_gridctl(workspace)
-    gridctl = GridctlClient(
-        executable=workspace.bin_path / "gridctl",
+    domain_runtime = prepare_domain_runtime(
+        profile,
+        executable=workspace.bin_path / profile.manifest.executable_name,
         workspace=workspace.root_path,
-        timeout_seconds=60,
-    )
-    environment_description = gridctl.invoke("environment.describe", {})
-    capability_documents = load_packaged_capability_documents(_repo_root())
-    tool_catalog_path = ToolCatalog.from_environment(
-        capability_documents,
-        environment_description,
-    ).materialize(workspace.root_path / "tool-catalog.json")
-    guide_index_path = GuideIndex.load(_repo_root() / "skills/grid-static-analysis").materialize(
-        workspace.root_path / "guide-index.json"
+        tool_catalog_path=workspace.root_path / "tool-catalog.json",
+        guide_index_path=workspace.root_path / "guide-index.json",
     )
     PiConfigMaterializer(project_paths.pi_agent_dir).materialize(resolved)
     secret_values = (
@@ -386,7 +381,7 @@ def _execute_analysis(
             runtime_record=_runtime_record(
                 resolved.config.provider,
                 resolved.config.model,
-                environment_description,
+                domain_runtime.environment_description,
             ),
             transition_commit=bridge.commit,
         )
@@ -407,9 +402,9 @@ def _execute_analysis(
                 workspace=workspace.root_path,
                 gridctl_dir=workspace.bin_path,
                 extension_path=_repo_root() / "packages/pi-grid-tools/src/domain-tools.mjs",
-                tool_catalog_path=tool_catalog_path,
-                guide_index_path=guide_index_path,
-                system_policy_path=_repo_root() / "configs/agent/system-policy.md",
+                tool_catalog_path=domain_runtime.tool_catalog_path,
+                guide_index_path=domain_runtime.guide_index_path,
+                system_policy_path=profile.manifest.system_policy_path,
                 active_turn_path=workspace.active_turn_path,
                 analysis_context_view_path=workspace.context_view_path,
                 trajectory_requests_path=workspace.requests_path,
@@ -421,7 +416,6 @@ def _execute_analysis(
             ),
             base_environment=runtime_env,
         )
-        verifier = ContentReferenceVerifier(workspace.root_path)
         trace = JsonlTraceWriter(
             workspace.trace_path,
             secret_values=secret_values,
@@ -438,20 +432,32 @@ def _execute_analysis(
             turn_controller=TurnController(
                 workspace,
                 store,
-                audit_callback=lambda claimed, results: verifier.audit_answer_references(claimed, results),
+                audit_callback=cast(
+                    AuditCallback,
+                    domain_runtime.authority.audit_answer_references,
+                ),
                 recorder=recorder,
             ),
             pi_client=PiRpcClient(launch, workspace, trace),
             projector=AnalysisContextProjector(
                 store,
-                verifier,
-                CapabilityContextCatalog.from_documents(capability_documents),
+                domain_runtime.authority,
+                CapabilityContextCatalog.from_documents(
+                    domain_runtime.capability_documents
+                ),
+                profile.projector_registry,
             ),
             environment={
                 "provider": resolved.config.provider,
                 "model": resolved.config.model,
-                "pandapower": str(environment_description.get("pandapower_version", "3.4.0")),
-                "gridctl": str(workspace.bin_path / "gridctl"),
+                "pandapower": str(
+                    domain_runtime.environment_description.get(
+                        "pandapower_version", "3.4.0"
+                    )
+                ),
+                "gridctl": str(
+                    workspace.bin_path / profile.manifest.executable_name
+                ),
             },
             progress_callback=progress.on_event,
             trace=trace,
@@ -541,6 +547,7 @@ def run(
     progress = _ProgressReporter(request.question)
     project_paths = ProjectPaths.from_root(Path.cwd())
     try:
+        profile = build_pandapower_profile(_repo_root())
         if not offline:
             workspace = RunWorkspace.create(project_paths.runs_dir, run_id=request.question_id)
             trace = JsonlTraceWriter(workspace.events_path)
@@ -568,18 +575,12 @@ def run(
             runtime_lock = PiRuntimeLock.load(project_paths.runtime_lock)
             command = PiRuntimeLocator(project_paths.pi_runtime_dir, runtime_environment, runtime_lock=runtime_lock).resolve()
             _install_gridctl(workspace)
-            gridctl = GridctlClient(
-                executable=workspace.bin_path / "gridctl",
+            domain_runtime = prepare_domain_runtime(
+                profile,
+                executable=workspace.bin_path / profile.manifest.executable_name,
                 workspace=workspace.root_path,
-                timeout_seconds=60,
-            )
-            environment_description = gridctl.invoke("environment.describe", {})
-            tool_catalog_path = ToolCatalog.from_environment(
-                load_packaged_capability_documents(_repo_root()),
-                environment_description,
-            ).materialize(workspace.root_path / "tool-catalog.json")
-            guide_index_path = GuideIndex.load(_repo_root() / "skills/grid-static-analysis").materialize(
-                workspace.root_path / "guide-index.json"
+                tool_catalog_path=workspace.root_path / "tool-catalog.json",
+                guide_index_path=workspace.root_path / "guide-index.json",
             )
             PiConfigMaterializer(project_pi_dir).materialize(resolved)
             launch = build_pi_launch(
@@ -591,9 +592,9 @@ def run(
                     workspace=workspace.root_path,
                     gridctl_dir=workspace.bin_path,
                     extension_path=_repo_root() / "packages/pi-grid-tools/src/domain-tools.mjs",
-                    tool_catalog_path=tool_catalog_path,
-                    guide_index_path=guide_index_path,
-                    system_policy_path=_repo_root() / "configs/agent/system-policy.md",
+                    tool_catalog_path=domain_runtime.tool_catalog_path,
+                    guide_index_path=domain_runtime.guide_index_path,
+                    system_policy_path=profile.manifest.system_policy_path,
                 ),
                 base_environment=runtime_environment,
             )
@@ -601,7 +602,9 @@ def run(
             rpc.start()
             try:
                 def on_pi_event(event: dict[str, Any]) -> None:
-                    _admit_successful_tool_references(workspace, event)
+                    _admit_successful_tool_references(
+                        domain_runtime.authority, event
+                    )
                     progress.on_event(event)
 
                 answer = rpc.prompt_and_wait(
@@ -624,8 +627,10 @@ def run(
             else:
                 executable = GridctlLocator(_repo_root()).resolve()
                 workspace = RunWorkspace.create(project_paths.runs_dir, run_id=request.question_id)
-                client = GridctlClient(executable=executable, workspace=workspace.root_path, timeout_seconds=60)
-                answer = answer_diagnostic(request.question, client)
+                executor = profile.create_executor(
+                    executable, workspace.root_path, 60
+                )
+                answer = answer_diagnostic(request.question, executor)
         envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
         typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
     except Exception as exc:
