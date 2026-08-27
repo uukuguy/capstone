@@ -36,3 +36,12 @@ def test_filesystem_contract_source_rejects_invalid_documents(
 
     with pytest.raises(CapabilityContractSourceError, match="capability contract"):
         FilesystemCapabilityContractSource(root).load()
+
+
+def test_filesystem_contract_source_wraps_malformed_utf8(tmp_path: Path) -> None:
+    root = tmp_path / "contracts"
+    root.mkdir()
+    (root / "invalid.json").write_bytes(b"\xff")
+
+    with pytest.raises(CapabilityContractSourceError, match="capability contract"):
+        FilesystemCapabilityContractSource(root).load()

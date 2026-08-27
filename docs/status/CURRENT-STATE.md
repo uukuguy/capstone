@@ -3,7 +3,6 @@
 ## Project Snapshot
 
 - Project: grid-static-analysis
-- Current branch: feature/domain-kernel-seams
 - Theme-level focus: general domain-agent framework upgrade by seam extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`

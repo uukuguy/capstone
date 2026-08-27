@@ -22,7 +22,8 @@ class DomainStateDelta(Protocol):
 
 
 class DomainProjector(Protocol):
-    projector_id: str
+    @property
+    def projector_id(self) -> str: ...
 
     def project(self, invocation: VerifiedInvocation) -> DomainStateDelta: ...
 

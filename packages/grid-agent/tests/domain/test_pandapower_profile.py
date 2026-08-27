@@ -9,6 +9,7 @@ from grid_agent.analysis.integrity import ContentReferenceVerifier
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile
+from grid_agent.simulator.client import GridctlClient
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -36,6 +37,7 @@ def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> 
     executor = profile.create_executor(tmp_path / "gridctl", tmp_path / "run", 17)
     authority = profile.create_authority(tmp_path / "run")
 
+    assert isinstance(executor, GridctlClient)
     assert executor.executable == tmp_path / "gridctl"
     assert executor.workspace == tmp_path / "run"
     assert executor.timeout_seconds == 17
@@ -159,10 +161,11 @@ def test_pandapower_projector_delegates_verified_invocation() -> None:
     )
 
     delta = profile.projector_registry.require("model-context-v1").project(invocation)
+    dumped = delta.model_dump()
 
-    assert delta.projector == "model-context-v1"
-    assert delta.model is not None
-    assert delta.model.model_id == "case9"
+    assert dumped["projector"] == "model-context-v1"
+    assert dumped["model"] is not None
+    assert dumped["model"]["model_id"] == "case9"
 
 
 def _canonical_json(document: object) -> str:

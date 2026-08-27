@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -39,7 +40,11 @@ def test_client_invokes_named_capability(tmp_path: Path) -> None:
     result = GridctlClient(executable=executable, workspace=tmp_path).invoke("model.list", {})
 
     request = json.loads(request_path.read_text(encoding="utf-8"))
-    assert result["models"][0]["model_id"] == "ieee39"
+    models = result["models"]
+    assert isinstance(models, list)
+    model = models[0]
+    assert isinstance(model, Mapping)
+    assert model["model_id"] == "ieee39"
     assert request["protocol"] == "grid-capability"
     assert request["protocol_version"] == "1.0"
     assert request["capability"] == "model.list"

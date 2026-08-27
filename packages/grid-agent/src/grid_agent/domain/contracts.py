@@ -28,7 +28,7 @@ class FilesystemCapabilityContractSource:
         for path in paths:
             try:
                 value = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise CapabilityContractSourceError(
                     f"invalid capability contract: {path.name}"
                 ) from exc

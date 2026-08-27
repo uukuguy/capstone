@@ -6,15 +6,25 @@ from typing import Any, Protocol
 
 
 class VerifiedArtifact(Protocol):
-    reference: str
-    document: Mapping[str, Any]
-    path: Path
+    @property
+    def reference(self) -> str: ...
+
+    @property
+    def document(self) -> Mapping[str, Any]: ...
+
+    @property
+    def path(self) -> Path: ...
 
 
 class VerifiedReferenceSet(Protocol):
-    context: tuple[VerifiedArtifact, ...]
-    results: tuple[VerifiedArtifact, ...]
-    evidence: tuple[VerifiedArtifact, ...]
+    @property
+    def context(self) -> tuple[VerifiedArtifact, ...]: ...
+
+    @property
+    def results(self) -> tuple[VerifiedArtifact, ...]: ...
+
+    @property
+    def evidence(self) -> tuple[VerifiedArtifact, ...]: ...
 
 
 class ArtifactAuthority(Protocol):
