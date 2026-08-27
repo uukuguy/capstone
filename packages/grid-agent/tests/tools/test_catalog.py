@@ -5,7 +5,40 @@ from pathlib import Path
 
 import pytest
 
-from grid_agent.tools.catalog import ToolCatalog, ToolCatalogError
+from grid_agent.tools.catalog import ToolCatalog, ToolCatalogError, ToolDocument
+
+
+def valid_document(
+    *,
+    capability: str = "asset.list",
+    tool_name: str = "grid_asset_list",
+    projector: str = "asset-list-v1",
+) -> dict[str, object]:
+    return {
+        "id": capability,
+        "tool_name": tool_name,
+        "availability": "published",
+        "context_effect": {
+            "requires_state": [],
+            "consumes_state": [],
+            "produces_state": [],
+            "invalidates_state": [],
+            "result_kind": "asset-list",
+            "projector": projector,
+        },
+        "purpose": "List assets",
+        "applies_to": ["asset inventory"],
+        "not_for": [],
+        "input_schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {},
+        },
+        "requires": [],
+        "produces": ["asset records"],
+        "common_next": [],
+        "recovery": {},
+    }
 
 
 def test_catalog_preserves_semantic_tool_description(
@@ -185,4 +218,46 @@ def test_catalog_rejects_non_published_executable_document(
         ToolCatalog.from_environment(
             [unpublished],
             {"executable_capabilities": [{"id": "environment.describe"}]},
+        )
+
+
+def test_catalog_accepts_an_injected_non_grid_tool_prefix() -> None:
+    document = valid_document(
+        capability="asset.list",
+        tool_name="inventory_asset_list",
+        projector="inventory-list-v1",
+    )
+
+    catalog = ToolCatalog.from_environment(
+        [document],
+        {"executable_capabilities": [{"id": "asset.list"}]},
+        tool_name_prefix="inventory_",
+    )
+
+    assert [tool.name for tool in catalog.tools] == [
+        "inventory_asset_list",
+        "inventory_record_decision",
+    ]
+
+
+def test_catalog_rejects_a_tool_outside_the_selected_prefix() -> None:
+    with pytest.raises(ToolCatalogError, match="tool_name_prefix"):
+        ToolCatalog.from_documents(
+            [valid_document(tool_name="grid_asset_list")],
+            tool_name_prefix="inventory_",
+        )
+
+
+def test_catalog_constructor_rejects_a_tool_outside_the_selected_prefix() -> None:
+    with pytest.raises(ToolCatalogError, match="tool_name_prefix"):
+        ToolCatalog(
+            (
+                ToolDocument(
+                    name="grid_asset_list",
+                    capability="asset.list",
+                    description="List assets",
+                    input_schema={"type": "object"},
+                ),
+            ),
+            tool_name_prefix="inventory_",
         )

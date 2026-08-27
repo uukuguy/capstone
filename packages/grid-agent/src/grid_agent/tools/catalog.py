@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from grid_agent.domain.contracts import FilesystemCapabilityContractSource
+
 
 _CAPABILITY_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]+$")
-_TOOL_NAME_PATTERN = re.compile(r"^grid_[a-z0-9_]+$")
+_TOOL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+_TOOL_NAME_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*_$")
 _JSON_SCHEMA_TYPES = {"array", "boolean", "integer", "null", "number", "object", "string"}
 
 
@@ -34,8 +37,16 @@ class ToolDocument:
 
 
 class ToolCatalog:
-    def __init__(self, tools: tuple[ToolDocument, ...]) -> None:
-        tools = (*tools, _decision_tool())
+    def __init__(
+        self,
+        tools: tuple[ToolDocument, ...],
+        *,
+        tool_name_prefix: str = "grid_",
+    ) -> None:
+        _validate_tool_name_prefix(tool_name_prefix)
+        for tool in tools:
+            _validate_tool_name(tool.name, tool_name_prefix)
+        tools = (*tools, _decision_tool(tool_name_prefix))
         names = [tool.name for tool in tools]
         if len(set(names)) != len(names):
             raise ToolCatalogError("tool names must be unique")
@@ -46,15 +57,30 @@ class ToolCatalog:
         self._by_name = {tool.name: tool for tool in self.tools}
 
     @classmethod
-    def from_documents(cls, documents: tuple[dict[str, object], ...] | list[dict[str, object]]) -> "ToolCatalog":
-        return cls(tuple(_materialize_tool(document) for document in documents))
+    def from_documents(
+        cls,
+        documents: tuple[dict[str, object], ...] | list[dict[str, object]],
+        *,
+        tool_name_prefix: str = "grid_",
+    ) -> "ToolCatalog":
+        _validate_tool_name_prefix(tool_name_prefix)
+        return cls(
+            tuple(
+                _materialize_tool(document, tool_name_prefix)
+                for document in documents
+            ),
+            tool_name_prefix=tool_name_prefix,
+        )
 
     @classmethod
     def from_environment(
         cls,
         documents: tuple[dict[str, object], ...] | list[dict[str, object]],
         environment_description: dict[str, object],
+        *,
+        tool_name_prefix: str = "grid_",
     ) -> "ToolCatalog":
+        _validate_tool_name_prefix(tool_name_prefix)
         executable = environment_description.get("executable_capabilities")
         if not isinstance(executable, list):
             raise ToolCatalogError("environment.describe result must include executable_capabilities")
@@ -80,7 +106,7 @@ class ToolCatalog:
             for field in ("availability", "context_effect"):
                 if field in announced and announced[field] != document.get(field):
                     raise ToolCatalogError(f"environment {field} does not match capability document: {capability_id}")
-        return cls.from_documents(selected)
+        return cls.from_documents(selected, tool_name_prefix=tool_name_prefix)
 
     def require(self, name: str) -> ToolDocument:
         try:
@@ -103,18 +129,17 @@ class ToolCatalog:
 
 
 def load_packaged_capability_documents(repository_root: Path) -> tuple[dict[str, object], ...]:
-    definitions = (
+    root = (
         Path(repository_root)
         / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
     )
-    return tuple(
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in sorted(definitions.glob("*.json"), key=lambda item: item.name)
-    )
+    return FilesystemCapabilityContractSource(root).load()
 
 
-def _materialize_tool(document: dict[str, object]) -> ToolDocument:
-    _validate_document(document)
+def _materialize_tool(
+    document: dict[str, object], tool_name_prefix: str
+) -> ToolDocument:
+    _validate_document(document, tool_name_prefix)
     input_schema = document["input_schema"]
     assert isinstance(input_schema, dict)
     return ToolDocument(
@@ -125,11 +150,12 @@ def _materialize_tool(document: dict[str, object]) -> ToolDocument:
     )
 
 
-def _decision_tool() -> ToolDocument:
+def _decision_tool(tool_name_prefix: str) -> ToolDocument:
     bounded_text = {"type": "string", "minLength": 1, "maxLength": 500}
+    tool_name = f"{tool_name_prefix}record_decision"
     return ToolDocument(
-        name="grid_record_decision",
-        capability="grid_record_decision",
+        name=tool_name,
+        capability=tool_name,
         description=(
             "Declare bounded agent intent and its next action. "
             "This declaration is agent intent, not simulator truth, and cannot "
@@ -153,7 +179,9 @@ def _decision_tool() -> ToolDocument:
     )
 
 
-def _validate_document(document: dict[str, object]) -> None:
+def _validate_document(
+    document: dict[str, object], tool_name_prefix: str
+) -> None:
     required = (
         "id",
         "tool_name",
@@ -173,8 +201,7 @@ def _validate_document(document: dict[str, object]) -> None:
             raise ToolCatalogError(f"capability document missing {field}")
     if not isinstance(document["id"], str) or not _CAPABILITY_ID_PATTERN.fullmatch(document["id"]):
         raise ToolCatalogError("capability id is invalid")
-    if not isinstance(document["tool_name"], str) or not _TOOL_NAME_PATTERN.fullmatch(document["tool_name"]):
-        raise ToolCatalogError("tool_name is invalid")
+    _validate_tool_name(document["tool_name"], tool_name_prefix)
     if document["availability"] != "published":
         raise ToolCatalogError(f"capability {document['id']} is not published")
     context_effect = document["context_effect"]
@@ -214,6 +241,24 @@ def _validate_document(document: dict[str, object]) -> None:
     if not isinstance(input_schema, dict):
         raise ToolCatalogError("input_schema must be a JSON object")
     _validate_json_schema(input_schema, path="input_schema")
+
+
+def _validate_tool_name_prefix(tool_name_prefix: str) -> None:
+    if not isinstance(tool_name_prefix, str) or not _TOOL_NAME_PREFIX_PATTERN.fullmatch(
+        tool_name_prefix
+    ):
+        raise ToolCatalogError("tool_name_prefix is invalid")
+
+
+def _validate_tool_name(tool_name: object, tool_name_prefix: str) -> None:
+    if isinstance(tool_name, str) and not tool_name.startswith(tool_name_prefix):
+        raise ToolCatalogError("tool_name must begin with tool_name_prefix")
+    if (
+        not isinstance(tool_name, str)
+        or not _TOOL_NAME_PATTERN.fullmatch(tool_name)
+        or len(tool_name) == len(tool_name_prefix)
+    ):
+        raise ToolCatalogError("tool_name is invalid")
 
 
 def _validate_json_schema(schema: dict[str, Any], *, path: str) -> None:
