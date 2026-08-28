@@ -11,11 +11,12 @@ def main() -> None:
     parser.add_argument("--local-eval-json", required=True, type=Path)
     args = parser.parse_args()
     score = json.loads(args.local_eval_json.read_text(encoding="utf-8"))
-    ready = bool(score["release_ready"])
+    total = float(score.get("total", 0.0))
+    ready = bool(score.get("release_ready")) and total >= 100.0
     print(json.dumps({
         "decision": "PUSH" if ready else "CONTINUE",
         "reason": "100% release gate met" if ready else "matrix incomplete; advance next implementation hypothesis",
-        "local_total": score["total"],
+        "local_total": total,
         "action_next": "run release closure" if ready else "advance hypothesis pool",
     }, sort_keys=True))
 

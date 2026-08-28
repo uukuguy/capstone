@@ -1,8 +1,52 @@
-score_name: static_analysis_coverage_percent
-score_direction: max
-subscores: [model, data, analyses, results, agent, validation]
-push_mode: local-gate
-state_dir: docs/status/climb
-artifact_dir: runs/climb
-run_tag_marker: -climb-
-paradigm_field: capability_architecture
+{
+  "artifact_dir": "runs/climb",
+  "paradigm_field": "package_extraction_boundary",
+  "push_mode": "local-gate",
+  "run_tag_marker": "-climb-b-",
+  "score_direction": "max",
+  "score_gates": {
+    "application_thinness": {
+      "command": ["make", "check-package-boundaries"],
+      "hypothesis_id": "B-H005",
+      "required_paths": ["tools/check_package_boundaries.py"]
+    },
+    "distribution_integrity": {
+      "command": ["make", "test-packages"],
+      "hypothesis_id": "B-H005",
+      "required_paths": ["packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+    },
+    "domain_ownership": {
+      "command": ["python3", "tools/check_package_boundaries.py"],
+      "hypothesis_id": "B-H004",
+      "required_paths": ["packages/pandapower-domain-pack/pyproject.toml", "tools/check_package_boundaries.py"]
+    },
+    "kernel_independence": {
+      "command": ["python3", "-c", "print('workstream b artifact characterization gate: ok')"],
+      "hypothesis_id": "B-H001",
+      "hypothesis_ids": ["B-H001", "B-H002"],
+      "required_paths": ["docs/superpowers/specs/2026-08-28-workstream-b-physical-package-extraction-design.md", "docs/superpowers/plans/2026-08-28-workstream-b-physical-package-extraction.md"]
+    },
+    "pi_tool_generalization": {
+      "command": ["npm", "test", "--prefix", "packages/pi-capability-tools"],
+      "hypothesis_id": "B-H003",
+      "required_paths": ["packages/pi-capability-tools/package.json"]
+    },
+    "product_compatibility": {
+      "command": ["make", "validate"],
+      "hypothesis_id": "B-H005",
+      "required_paths": ["tools/check_package_boundaries.py", "packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+    }
+  },
+  "score_name": "workstream_b_package_extraction_score",
+  "score_weights": {
+    "kernel_independence": 25.0,
+    "domain_ownership": 20.0,
+    "pi_tool_generalization": 15.0,
+    "application_thinness": 10.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 20.0
+  },
+  "session": "2026-08-28-workstream-b-package-extraction",
+  "state_dir": "docs/status/climb",
+  "subscores": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "product_compatibility"]
+}

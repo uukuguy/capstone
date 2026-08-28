@@ -9,18 +9,19 @@
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |
 | `DECISIONS.md` | Active architectural decision ledger. |
-| `climb/research-tree.md` | Generated full-capability hypothesis and scoring summary; resume-load. |
-| `climb/session-state.json` | Completed Climb session state and terminal next action. |
+| `climb/research-tree.md` | Generated Workstream B package extraction hypothesis and scoring summary; resume-load. |
+| `climb/session-state.json` | Active Workstream B Climb session state and next action. |
 
 ## Climb storage and configuration
 
 | Path | Purpose |
 | --- | --- |
-| `climb/config.yaml` | Project-specific climb adapter configuration. |
-| `climb/session-target.md` | Machine-readable 100% static-analysis coverage target. |
-| `climb/hypotheses.yaml` | Append-only capability architecture hypothesis state. |
-| `climb/runs.csv` | Append-only local coverage experiment ledger. |
+| `climb/config.yaml` | Workstream B package extraction climb adapter configuration. |
+| `climb/session-target.md` | Machine-readable 100% Workstream B package extraction target. |
+| `climb/hypotheses.yaml` | Append-only package extraction hypothesis state. |
+| `climb/runs.csv` | Append-only local package extraction score ledger. |
 | `climb/calibration.json` | Local/online calibration state. |
 | `climb/pending-lb.json` | Pending external score state; empty for local-gate mode. |
 | `climb/adjudicator-log.md` | Append-only hypothesis decision record. |
 | `climb/research-tree.json` | Machine-readable generated research tree. |
+| `climb/_archive/2026-08-18-full-capability/` | Completed 2026-08-18 full-capability climb session snapshot. |

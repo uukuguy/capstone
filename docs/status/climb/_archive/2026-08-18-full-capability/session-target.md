@@ -1,7 +1,6 @@
 # Climb session target
 
-Workstream B closes only when all physical package extraction score gates pass
-and the session phase is complete.
+The session closes only when every in-scope matrix row is published and all release gates pass.
 
 <!-- TARGET-BEGIN (machine-readable, check-target.py reads) -->
 target_metric: local
