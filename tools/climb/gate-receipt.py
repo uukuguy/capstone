@@ -9,11 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from climb_evidence import (
-    JsonObject,
-    canonical_json_bytes,
     artifact_dir as resolve_artifact_dir,
     load_attestation_key,
     load_json_object,
+    policy_sha256,
     release_source_tree_sha256,
     require_clean_release_source,
     receipt_output_path_for,
@@ -24,6 +23,7 @@ from climb_evidence import (
     source_revision,
     stable_path,
     state_dir as resolve_state_dir,
+    validate_release_policy,
 )
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +47,10 @@ def main() -> int:
 
     state_dir = _state_dir(root)
     config = load_json_object(state_dir / "config.yaml")
+    canonical_state = (root / "docs/status/climb").resolve()
+    canonical_policy = state_dir.resolve() == canonical_state
+    if canonical_policy:
+        validate_release_policy(config)
     score_gates = config.get("score_gates", {})
     receipt_gates = config.get("receipt_gates", {})
     if not isinstance(score_gates, dict) or not isinstance(receipt_gates, dict):
@@ -65,6 +69,7 @@ def main() -> int:
     require_clean_release_source(config, root)
     revision = source_revision(config, root)
     source_tree_sha256 = release_source_tree_sha256(config, revision, root)
+    command_policy_sha256 = policy_sha256(config)
     receipt_path = receipt_path_for(config, args.gate_key, revision, root=root)
     output_path = receipt_output_path_for(config, args.gate_key, revision, root=root)
     if receipt_path.exists() or output_path.exists():
@@ -92,6 +97,16 @@ def main() -> int:
         stderr=subprocess.PIPE,
         check=False,
     )
+    require_clean_release_source(config, root)
+    if source_revision(config, root) != revision:
+        raise SystemExit("release source revision changed while the gate ran")
+    if release_source_tree_sha256(config, revision, root) != source_tree_sha256:
+        raise SystemExit("release source tree changed while the gate ran")
+    current_config = load_json_object(state_dir / "config.yaml")
+    if canonical_policy:
+        validate_release_policy(current_config)
+    if policy_sha256(current_config) != command_policy_sha256:
+        raise SystemExit("release command policy changed while the gate ran")
     output_bytes = (
         "\n".join(
             [
@@ -115,10 +130,12 @@ def main() -> int:
             "gate_key": args.gate_key,
             "output_artifact_path": stable_path(output_path, root=root, state=state_dir, artifact=artifact_dir),
             "output_sha256": sha256_bytes(output_bytes),
+            "policy_sha256": command_policy_sha256,
             "release_source_revision": revision,
             "release_source_tree_sha256": source_tree_sha256,
             "returncode": completed.returncode,
             "status": "passed" if completed.returncode == 0 else "failed",
+            "trust_scope": "same-user HMAC integrity only; not a release trust root",
         },
         key,
     )

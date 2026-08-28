@@ -85,6 +85,10 @@ def _score_evidence_links(score: JsonObject, config: JsonObject) -> list[JsonObj
                 "score_key": key,
                 "source": str(evidence.get("status", "unknown")),
                 "attestation_id": str(evidence.get("attestation_id") or ""),
+                "closure_digest": str(evidence.get("closure_digest") or ""),
+                "policy_sha256": str(evidence.get("policy_sha256") or ""),
+                "stderr_sha256": str(evidence.get("stderr_sha256") or ""),
+                "stdout_sha256": str(evidence.get("stdout_sha256") or ""),
             }
         prerequisites = evidence.get("prerequisite_receipts")
         if isinstance(prerequisites, dict):
@@ -92,15 +96,19 @@ def _score_evidence_links(score: JsonObject, config: JsonObject) -> list[JsonObj
                 {
                     "artifact_path": str(item.get("artifact_path") or ""),
                     "attestation_id": str(item.get("attestation_id") or ""),
+                    "closure_digest": str(item.get("closure_digest") or ""),
                     "command": [str(part) for part in item.get("command", [])],
                     "output_artifact_path": str(item.get("output_artifact_path") or ""),
                     "output_sha256": str(item.get("output_sha256") or ""),
+                    "policy_sha256": str(item.get("policy_sha256") or ""),
                     "receipt_digest": str(item.get("receipt_digest") or ""),
                     "receipt_key": str(prerequisite_key),
                     "release_source_revision": str(item.get("release_source_revision") or ""),
                     "release_source_tree_sha256": str(item.get("release_source_tree_sha256") or ""),
                     "returncode": item.get("returncode"),
                     "source": str(item.get("status", "unknown")),
+                    "stderr_sha256": str(item.get("stderr_sha256") or ""),
+                    "stdout_sha256": str(item.get("stdout_sha256") or ""),
                 }
                 for prerequisite_key, item in prerequisites.items()
                 if isinstance(item, dict)
@@ -121,6 +129,10 @@ def _update_manifest(run_dir: Path, eval_json: Path, decision_json: Path, score:
             "release_blockers": score.get("release_blockers", []),
             "release_ready": bool(score.get("release_ready")),
             "release_source_revision": str(score.get("release_source_revision") or ""),
+            "release_source_tree_sha256": str(score.get("release_source_tree_sha256") or ""),
+            "policy_sha256": str(score.get("policy_sha256") or ""),
+            "closure_artifact_path": str(score.get("closure_artifact_path") or ""),
+            "closure_digest": str(score.get("closure_digest") or ""),
             "score_evidence": _score_evidence_links(score, config),
         }
     )
@@ -157,7 +169,7 @@ def main() -> int:
     if not isinstance(focused_evidence, dict):
         focused_evidence = {}
     focused_status = focused_evidence.get("status")
-    if score.get("hypothesis_gate_passed") and focused_status == "passed":
+    if score.get("hypothesis_gate_passed") and focused_status in {"passed", "closure-passed"}:
         status = "confirmed"
         verdict = "confirmed: owned deterministic Workstream B gate passed"
     else:

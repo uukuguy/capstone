@@ -185,6 +185,16 @@ make test-packages
 `make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-packages` 构建并安装干净发行工件，验证四个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
 
+Workstream B 的最终本地 release closure 必须从已提交且干净的 release-source revision 运行：
+
+```sh
+tools/climb/cycle.sh B-H005
+```
+
+该入口不接受 gate 或 command 覆盖。它按 `docs/status/climb/config.yaml` 中受固定 allowlist 校验的顺序，现场执行 kernel、Domain Pack、通用 Pi、应用边界、发行工件、`make doctor`、`make test`、`make test-e2e` 和 focused `make validate` 共九个门。策略文件本身、精确命令、权重、前置图和 release pathspec 都进入 policy/source tree digest；每个门前后都重新检查 clean revision、tree digest 和 policy digest。只读 closure 链记录命令、rc、stdout/stderr digest 和完整输出 digest，最终 100 分不读取 carry-forward receipt。
+
+`tools/climb/gate-receipt.py <gate-key>` 仍可为同一 revision 生成内容寻址的机械记录。其 mode-0600 HMAC 只用于发现意外损坏；密钥和验证器对同一 OS 用户可见，因此它不是独立信任根，也不能证明同一用户无法重签。release closure 会现场重跑全部门，不以这些 HMAC receipt 代替执行。该本地链只证明本次本机命令的可复核执行，不宣称具有 CI/外部签名者的跨主体不可伪造性。
+
 可选 provider validation 会产生真实模型调用，必须显式给出 provider 且环境中已有对应凭证：
 
 ```sh

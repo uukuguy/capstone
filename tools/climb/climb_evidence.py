@@ -15,6 +15,67 @@ ROOT = Path(__file__).resolve().parents[2]
 JsonObject = dict[str, object]
 T = TypeVar("T")
 
+CANONICAL_RELEASE_INCLUDE = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "Makefile",
+    "README.md",
+    "README.zh-CN.md",
+    "packages",
+    "tools",
+    "validation",
+    "configs",
+    "schemas",
+    "skills",
+    "docs/RUNBOOK.md",
+    "docs/architecture",
+    "docs/status/climb/config.yaml",
+)
+CANONICAL_RELEASE_EXCLUDE = (".superpowers",)
+CLOSURE_GATE_ORDER = (
+    "kernel_independence",
+    "domain_ownership",
+    "pi_tool_generalization",
+    "application_thinness",
+    "distribution_integrity",
+    "doctor",
+    "test",
+    "test-e2e",
+    "product_compatibility",
+)
+CANONICAL_GATE_COMMANDS: dict[str, tuple[str, ...]] = {
+    "kernel_independence": (
+        "uv",
+        "run",
+        "--project",
+        "packages/grid-agent",
+        "pytest",
+        "packages/capability-agent-kernel/tests",
+        "-q",
+    ),
+    "domain_ownership": ("make", "test-domain-package"),
+    "pi_tool_generalization": (
+        "npm",
+        "test",
+        "--prefix",
+        "packages/pi-capability-tools",
+    ),
+    "application_thinness": ("make", "check-package-boundaries"),
+    "distribution_integrity": ("make", "test-packages"),
+    "doctor": ("make", "doctor"),
+    "test": ("make", "test"),
+    "test-e2e": ("make", "test-e2e"),
+    "product_compatibility": ("make", "validate"),
+}
+CANONICAL_SCORE_WEIGHTS = {
+    "kernel_independence": 25.0,
+    "domain_ownership": 20.0,
+    "pi_tool_generalization": 15.0,
+    "application_thinness": 10.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 20.0,
+}
+
 
 def as_object(value: object, name: str) -> JsonObject:
     if not isinstance(value, dict):
@@ -40,6 +101,64 @@ def as_string_list(value: object, name: str) -> list[str]:
 
 def load_json_object(path: Path) -> JsonObject:
     return as_object(json.loads(path.read_text(encoding="utf-8")), str(path))
+
+
+def policy_sha256(config: JsonObject) -> str:
+    """Digest the complete committed scoring and command policy document."""
+
+    return sha256_bytes(canonical_json_bytes(config))
+
+
+def validate_release_policy(config: JsonObject) -> None:
+    """Reject a weakened Workstream B release policy before any gate runs."""
+
+    try:
+        closure = as_object(config.get("closure"), "closure")
+        if closure != {
+            "gate_order": list(CLOSURE_GATE_ORDER),
+            "mode": "rerun-all-gates-v1",
+        }:
+            raise ValueError("closure mode or gate order changed")
+        release_source = as_object(config.get("release_source"), "release_source")
+        if release_source != {
+            "enforce_clean": True,
+            "include_pathspecs": list(CANONICAL_RELEASE_INCLUDE),
+            "exclude_pathspecs": list(CANONICAL_RELEASE_EXCLUDE),
+        }:
+            raise ValueError("release-source pathspec policy changed")
+        weights = as_object(config.get("score_weights"), "score_weights")
+        if set(weights) != set(CANONICAL_SCORE_WEIGHTS) or any(
+            float(str(weights[key])) != expected
+            for key, expected in CANONICAL_SCORE_WEIGHTS.items()
+        ):
+            raise ValueError("score weights changed")
+        if config.get("subscores") != list(CANONICAL_SCORE_WEIGHTS):
+            raise ValueError("score key order changed")
+        score_gates = as_object(config.get("score_gates"), "score_gates")
+        receipt_gates = as_object(config.get("receipt_gates"), "receipt_gates")
+        for key, expected in CANONICAL_GATE_COMMANDS.items():
+            section = receipt_gates if key in {"doctor", "test", "test-e2e"} else score_gates
+            gate = as_object(section.get(key), f"gate {key}")
+            if gate.get("command") != list(expected):
+                raise ValueError(f"gate command changed: {key}")
+        for key in (
+            "kernel_independence",
+            "domain_ownership",
+            "pi_tool_generalization",
+            "application_thinness",
+            "distribution_integrity",
+        ):
+            gate = as_object(score_gates.get(key), f"gate {key}")
+            if gate.get("receipt_required") is not True:
+                raise ValueError(f"receipt gate policy changed: {key}")
+        product = as_object(
+            score_gates.get("product_compatibility"),
+            "gate product_compatibility",
+        )
+        if product.get("prerequisite_receipts") != ["doctor", "test", "test-e2e"]:
+            raise ValueError("product prerequisite graph changed")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"release policy is not canonical: {exc}") from exc
 
 
 def state_dir(root: Path = ROOT) -> Path:
@@ -69,6 +188,8 @@ def stable_path(path: Path, *, root: Path = ROOT, state: Path | None = None, art
 
 
 def release_source_pathspecs(config: JsonObject) -> list[str]:
+    if config.get("closure") is not None:
+        validate_release_policy(config)
     release_source = optional_object(config.get("release_source"), "release_source")
     include = as_string_list(
         release_source.get(
@@ -137,6 +258,8 @@ def release_source_tree_sha256(
     revision: str,
     root: Path = ROOT,
 ) -> str:
+    if config.get("closure") is not None:
+        validate_release_policy(config)
     release_source = optional_object(config.get("release_source"), "release_source")
     include = as_string_list(
         release_source.get(
@@ -301,6 +424,7 @@ def sign_receipt(receipt: JsonObject, key: bytes) -> JsonObject:
         "attestation": {
             "algorithm": "hmac-sha256",
             "key_id": attestation_key_id(key),
+            "purpose": "same-user-integrity-only",
             "signature": signature,
         },
     }
@@ -320,6 +444,7 @@ def verify_receipt_attestation(receipt: JsonObject, key: bytes) -> bool:
         receipt.get("receipt_digest") == digest
         and attestation.get("algorithm") == "hmac-sha256"
         and attestation.get("key_id") == attestation_key_id(key)
+        and attestation.get("purpose") == "same-user-integrity-only"
         and isinstance(attestation.get("signature"), str)
         and hmac.compare_digest(str(attestation["signature"]), expected_signature)
     )

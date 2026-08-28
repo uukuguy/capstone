@@ -34,6 +34,7 @@ from climb_evidence import (  # noqa: E402
     contained_artifact_path,
     load_attestation_key,
     load_json_object,
+    policy_sha256,
     receipt_output_path_for,
     receipt_path_for,
     release_source_tree_sha256,
@@ -43,6 +44,7 @@ from climb_evidence import (  # noqa: E402
     source_revision,
     stable_path as stable_artifact_path,
     verify_receipt_attestation,
+    validate_release_policy,
 )
 
 
@@ -74,6 +76,52 @@ if focused_gate not in weights:
     raise SystemExit(f"unknown focused gate for {hypothesis_id}: {focused_gate}")
 artifact_base = configured_artifact_dir(config, root)
 release_revision = source_revision(config, root)
+
+if (
+    state_dir.resolve() == (root / "docs/status/climb").resolve()
+    and config.get("closure") is not None
+    and hypothesis_id == "B-H005"
+):
+    validate_release_policy(config)
+    require_clean_release_source(config, root)
+    tree_sha256 = release_source_tree_sha256(config, release_revision, root)
+    command_policy_sha256 = policy_sha256(config)
+    per_task = {key: 0.0 for key in weights}
+    gate_evidence = {
+        key: {
+            "status": "release-closure-required",
+            "command": [str(part) for part in object_or_empty(gates.get(key)).get("command", [])],
+            "policy_sha256": command_policy_sha256,
+            "release_source_revision": release_revision,
+            "release_source_tree_sha256": tree_sha256,
+        }
+        for key in weights
+    }
+    print(
+        json.dumps(
+            {
+                "total": 0.0,
+                "per_task": per_task,
+                "release_ready": False,
+                "release_blockers": [
+                    f"{key}: release-closure-required" for key in weights
+                ],
+                "hypothesis_gate_passed": False,
+                "gate_evidence": gate_evidence,
+                "score_name": config["score_name"],
+                "session": config["session"],
+                "hypothesis_id": hypothesis_id,
+                "focused_gate": focused_gate,
+                "policy_sha256": command_policy_sha256,
+                "release_source_revision": release_revision,
+                "release_source_tree_sha256": tree_sha256,
+                "trust_scope": "eval-local cannot issue final release closure",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    raise SystemExit(0)
 
 
 def stable_path(path: Path) -> str:

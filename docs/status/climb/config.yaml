@@ -6,8 +6,12 @@
   "score_direction": "max",
   "release_source": {
     "enforce_clean": true,
-    "include_pathspecs": ["Makefile", "packages", "tools", "validation", "configs", "schemas", "skills"],
-    "exclude_pathspecs": ["docs/status", ".superpowers"]
+    "include_pathspecs": ["AGENTS.md", "CLAUDE.md", "Makefile", "README.md", "README.zh-CN.md", "packages", "tools", "validation", "configs", "schemas", "skills", "docs/RUNBOOK.md", "docs/architecture", "docs/status/climb/config.yaml"],
+    "exclude_pathspecs": [".superpowers"]
+  },
+  "closure": {
+    "gate_order": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "doctor", "test", "test-e2e", "product_compatibility"],
+    "mode": "rerun-all-gates-v1"
   },
   "score_gates": {
     "application_thinness": {
