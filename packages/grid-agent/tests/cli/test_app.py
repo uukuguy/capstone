@@ -243,7 +243,10 @@ def test_run_selects_builtin_profile_before_pi_launch(
         cli_module, "prepare_domain_runtime", prepare, raising=False
     )
 
-    result = CliRunner().invoke(app, ["run", "列出可用网络"])
+    result = CliRunner().invoke(
+        app,
+        ["run", "列出可用网络", "--question-id", "stdout-byte-contract"],
+    )
 
     assert result.exit_code == 0, result.stderr
     assert len(selected) == 1
@@ -270,6 +273,38 @@ def test_run_selects_builtin_profile_before_pi_launch(
     assert AnswerEnvelope.model_validate_json(result.stdout).answer_output == (
         "prepared answer"
     )
+    assert result.stdout == (
+        '{"question_id": "stdout-byte-contract", '
+        '"answer_output": "prepared answer"}\n'
+    )
+
+
+@pytest.mark.parametrize(
+    "question_id",
+    (
+        "../escape",
+        "/tmp/escape",
+        "nested/name",
+        r"nested\name",
+        "x" * 129,
+    ),
+)
+def test_run_invalid_question_id_preserves_single_json_stdout_envelope(
+    question_id: str,
+) -> None:
+    result = CliRunner().invoke(
+        app,
+        ["run", "列出可用网络", "--question-id", question_id],
+    )
+
+    assert result.exit_code == 1
+    assert len(result.stdout.splitlines()) == 1
+    payload = json.loads(result.stdout)
+    assert set(payload) == {"question_id", "answer_output"}
+    assert payload["question_id"] == question_id
+    assert "execution limitation" in payload["answer_output"]
+    assert "grid-agent error:" in result.stderr
+    assert "Traceback" not in result.stderr
 
 
 def test_analysis_uses_prepared_runtime_for_all_domain_resources(
