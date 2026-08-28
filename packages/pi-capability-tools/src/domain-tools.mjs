@@ -512,7 +512,8 @@ function validateContract(contract, descriptor) {
   }
   if (
     !contract.name.startsWith(descriptor.toolNamePrefix) ||
-    contract.name.length === descriptor.toolNamePrefix.length
+    contract.name.length === descriptor.toolNamePrefix.length ||
+    contract.name === `${descriptor.toolNamePrefix}query`
   ) {
     throw new TypeError("capability contract name must use the descriptor tool prefix");
   }

@@ -43,7 +43,7 @@ test("package surface admits canonical request hook without expanding grid tools
       JSON.stringify({
         tools: [
           gridToolContract("grid_model_list", "context.models.list"),
-          gridToolContract("topology_branch_endpoints_get", "topology.branch.endpoints.get"),
+          gridToolContract("grid_topology_branch_endpoints_get", "topology.branch.endpoints.get"),
           gridToolContract("grid_record_decision", "grid_record_decision"),
         ],
       }),
@@ -86,7 +86,7 @@ test("package surface admits canonical request hook without expanding grid tools
 
     assert.deepEqual(registeredTools, [
       "grid_model_list",
-      "topology_branch_endpoints_get",
+      "grid_topology_branch_endpoints_get",
       "grid_guide_open",
     ]);
     const legacyQuery = "grid" + "_query";

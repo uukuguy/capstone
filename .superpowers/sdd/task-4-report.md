@@ -21,14 +21,15 @@ Implemented the approved Task 4 extraction only:
 - RED: `npm test --prefix packages/pi-capability-tools` failed with `ENOENT`
   because the new package and `package.json` did not exist.
 - GREEN: focused generic tests pass (11 tests).
-- GREEN: compatibility tests pass (30 tests).
+- GREEN: compatibility tests pass (31 tests, including the non-prefix/legacy
+  rejection coverage).
 
 ## Verification
 
 - `npm run check --prefix packages/pi-capability-tools`
 - `npm test --prefix packages/pi-capability-tools` — 11 passed
 - `npm run check --prefix packages/pi-grid-tools`
-- `npm test --prefix packages/pi-grid-tools` — 30 passed
+- `npm test --prefix packages/pi-grid-tools` — 31 passed
 - `git diff --check -- packages/pi-capability-tools packages/pi-grid-tools`
 
 Ruff and provider validation were not run. The npm install output reports
@@ -52,9 +53,19 @@ changeset; the final hash is reported in the handoff message.
 
 ## Security review follow-up
 
+- Second review RED: the grid compatibility adapter's broad legacy rewrite
+  accepted arbitrary non-prefixed names. A focused grid test failed for
+  `python`, `exec`, `file_read`, `grid_query`, and
+  `topology_branch_endpoints_get`.
+- Second review GREEN: the adapter now delegates directly to the generic
+  prefix validator; all five names fail closed while the existing prefixed
+  catalog surface remains unchanged.
 - Contract names are now required to begin with the descriptor's
   `toolNamePrefix` and contain a suffix; `shell`, another-prefix names, and a
   name equal to the prefix fail before tool creation.
+- The grid adapter no longer rewrites or exposes unprefixed catalog names. It
+  delegates directly to the generic validator, so `python`, `exec`,
+  `file_read`, `grid_query`, and other legacy/non-`grid_` names fail closed.
 - `piRuntime` is now a plain object with exactly these four string keys:
   `pi_coding_agent_version`, `pi_ai_version`, `pi_source_commit`, and
   `pi_patch_set_sha256`. Unknown string and symbol keys, missing keys, and
@@ -77,6 +88,8 @@ authoritative Pi 0.80.6 version pin and patch contract. The risk is accepted
 for this extraction because the same findings exist in the baseline
 `pi-grid-tools` package, child execution uses a fixed descriptor executable and
 argument vector without a shell, and the model capability surface is not
-expanded. Revisit when the Pi patch/runtime upgrade workflow is explicitly
-validated, including request-capture and compatibility tests; do not use
-`npm audit fix --force` as an unreviewed upgrade path.
+expanded: catalog registration and `createGridTool` now require the
+descriptor-owned `grid_` prefix and reject the legacy query alias. Revisit
+when the Pi patch/runtime upgrade workflow is explicitly validated, including
+request-capture and compatibility tests; do not use `npm audit fix --force` as
+an unreviewed upgrade path.

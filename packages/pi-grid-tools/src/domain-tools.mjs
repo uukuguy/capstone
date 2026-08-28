@@ -18,7 +18,6 @@ const GRID_DESCRIPTOR = Object.freeze({
   contextToolName: "grid_analysis_context_get",
   decisionToolName: "grid_record_decision",
 });
-const LEGACY_FORBIDDEN_TOOL_NAMES = new Set(["bash", "shell", "read", "write", "edit"]);
 
 export function sanitizeEnvironment(env, selectedNames = []) {
   return sanitizeCapabilityEnvironment(env, ["GRID_AGENT_SECRET_ENV_NAMES", ...selectedNames]);
@@ -30,9 +29,9 @@ export function buildGridRequest(capability, params, requestId) {
 
 export function createGridTool(contract, runner) {
   if (runner !== undefined) {
-    return createCompatibleGridTool(GRID_DESCRIPTOR, contract, runner);
+    return createCapabilityTool(GRID_DESCRIPTOR, contract, runner);
   }
-  return createCompatibleGridTool(GRID_DESCRIPTOR, contract, (payload) => {
+  return createCapabilityTool(GRID_DESCRIPTOR, contract, (payload) => {
     const workspacePath = requiredExistingRealPath(process.env, "GRID_AGENT_WORKSPACE");
     return runCapability(
       payload,
@@ -47,27 +46,7 @@ export function createGridTool(contract, runner) {
 
 export default function domainToolsExtension(pi) {
   const paths = runtimePaths(process.env);
-  return createDomainToolsExtension(gridDescriptor(paths), {
-    createTool: createCompatibleGridTool,
-  })(pi);
-}
-
-function createCompatibleGridTool(descriptor, contract, runner) {
-  const originalName = contract.name;
-  if (originalName.startsWith(descriptor.toolNamePrefix)) {
-    return createCapabilityTool(descriptor, contract, runner);
-  }
-  if (LEGACY_FORBIDDEN_TOOL_NAMES.has(originalName)) {
-    throw new TypeError("capability contract name must use the descriptor tool prefix");
-  }
-  const tool = createCapabilityTool(
-    descriptor,
-    { ...contract, name: `${descriptor.toolNamePrefix}${originalName}` },
-    runner,
-  );
-  tool.name = originalName;
-  tool.label = originalName;
-  return tool;
+  return createDomainToolsExtension(gridDescriptor(paths))(pi);
 }
 
 function gridDescriptor(paths) {

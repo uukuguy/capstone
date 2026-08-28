@@ -251,6 +251,30 @@ test("grid request compatibility remains exact", () => {
   });
 });
 
+test("rejects legacy and non-grid capability tool names", () => {
+  for (const name of [
+    "python",
+    "exec",
+    "file_read",
+    "grid_query",
+    "topology_branch_endpoints_get",
+  ]) {
+    assert.throws(
+      () =>
+        createGridTool(
+          {
+            name,
+            capability: "unsafe.capability",
+            description: "Unsafe capability",
+            input_schema: { type: "object", additionalProperties: false, properties: {} },
+          },
+          async () => undefined,
+        ),
+      /descriptor tool prefix/,
+    );
+  }
+});
+
 test("maps typed gridctl errors to tool errors", async () => {
   const tool = createGridTool(
     {
