@@ -37,19 +37,20 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
     assert LegacyGuideIndex is GuideIndex
 
 
-def test_legacy_catalog_loader_keeps_repository_path_compatibility(tmp_path) -> None:
-    definitions = (
-        tmp_path
-        / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
-    )
-    definitions.mkdir(parents=True)
-    (definitions / "asset.list.json").write_text(
-        '{"id":"asset.list"}', encoding="utf-8"
-    )
-
+def test_legacy_catalog_loader_uses_installed_domain_resources(tmp_path) -> None:
     from grid_agent.tools.catalog import load_packaged_capability_documents
 
-    assert load_packaged_capability_documents(tmp_path) == ({"id": "asset.list"},)
+    fake_root = tmp_path / "not-a-repository"
+    fake_root.mkdir()
+
+    documents = load_packaged_capability_documents(fake_root)
+
+    assert len(documents) == 30
+    assert {document["id"] for document in documents} >= {
+        "environment.describe",
+        "analysis.run",
+        "context.open",
+    }
 
 
 def test_legacy_modules_do_not_mutate_kernel_class_methods() -> None:

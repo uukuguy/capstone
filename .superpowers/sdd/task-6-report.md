@@ -84,6 +84,27 @@ uv run --project packages/grid-agent pytest \
 87 passed
 ```
 
+The compatibility assertions were then updated to call the legacy builder with
+its former root argument while checking that all three manifest resources equal
+the installed `PandapowerResourceSet` and do not live below checkout-owned
+simulator, policy, or guide paths. The legacy catalog loader now ignores its
+root argument and reads the 30 installed simulator contracts through the Domain
+Pack. The focused compatibility/profile and kernel public-API tests pass:
+
+```text
+uv run --project packages/grid-agent pytest \
+  packages/grid-agent/tests/domain/test_pandapower_profile.py \
+  packages/capability-agent-kernel/tests/test_public_api.py -q
+9 passed
+```
+
+The complete application suite is green after this compatibility fix:
+
+```text
+make test-agent
+634 passed, 1 warning
+```
+
 Boundary and forbidden-import checks:
 
 ```text
@@ -109,10 +130,12 @@ clean-domain-wheel: ok
 The Domain Pack wheel contained policy and all guide files and had no
 `grid_agent`, source-checkout, test-fixture, cache, or secret leakage.
 
-`make test-agent` reached 626 passing tests. Its eight failures included the
-expected stale old-resource/profile assertions from the intentional ownership
-move and two unrelated trajectory compatibility tests already changing in the
-shared worktree; no trajectory files were modified or staged for this task.
+The one warning is the existing Starlette/httpx deprecation warning from the
+test environment; no trajectory files were modified or staged for this task.
+
+The follow-up compatibility check also confirms that the legacy profile and
+catalog loader contain no checkout-resource literals, and the boundary,
+forbidden-import, Ruff, Pyright, and `git diff --check` gates remain clean.
 
 ## Commit
 

@@ -11,6 +11,7 @@ from grid_agent.domain import DomainRuntimeProfile
 from grid_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile
 from grid_agent.simulator.client import GridctlClient
+from pandapower_domain import PandapowerResourceSet
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
     profile = build_pandapower_profile(ROOT)
+    resources = PandapowerResourceSet.load()
 
     assert isinstance(profile, DomainRuntimeProfile)
     assert profile.manifest.domain_id == "pandapower-static-analysis"
@@ -26,11 +28,24 @@ def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
     assert profile.manifest.executable_name == "gridctl"
     assert profile.manifest.tool_name_prefix == "grid_"
     assert profile.manifest.authority_id == "gridctl"
-    assert profile.manifest.capability_contract_root == (
-        ROOT / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
+    assert profile.manifest.capability_contract_root == resources.capability_contract_root
+    assert profile.manifest.system_policy_path == resources.system_policy_path
+    assert profile.manifest.guide_root == resources.guide_root
+
+    legacy_owner_paths = (
+        ROOT / "packages/grid-simulator/src",
+        ROOT / "configs/agent",
+        ROOT / "skills/grid-static-analysis",
     )
-    assert profile.manifest.system_policy_path == ROOT / "configs/agent/system-policy.md"
-    assert profile.manifest.guide_root == ROOT / "skills/grid-static-analysis"
+    for resource_path in (
+        profile.manifest.capability_contract_root,
+        profile.manifest.system_policy_path,
+        profile.manifest.guide_root,
+    ):
+        assert all(
+            not resource_path.is_relative_to(legacy_owner_path)
+            for legacy_owner_path in legacy_owner_paths
+        )
 
 
 def test_pandapower_profile_public_runtime_surface_is_preserved() -> None:

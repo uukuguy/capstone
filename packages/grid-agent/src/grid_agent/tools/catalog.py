@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from capability_agent.domain.contracts import FilesystemCapabilityContractSource
 from capability_agent.tools.catalog import (
     ToolCatalog,
     ToolCatalogError,
     ToolDocument,
 )
 from pandapower_domain.capabilities import build_pandapower_tool_description
+from pandapower_domain.capabilities import FilesystemCapabilityContractSource
+from pandapower_domain.resources import PandapowerResourceSet
 
 
 __all__ = [
@@ -27,8 +28,11 @@ def build_grid_tool_description(document: dict[str, object]) -> str:
 def load_packaged_capability_documents(
     repository_root: Path,
 ) -> tuple[dict[str, object], ...]:
-    root = (
-        Path(repository_root)
-        / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
-    )
-    return FilesystemCapabilityContractSource(root).load()
+    """Load simulator contracts from the installed pandapower resources.
+
+    ``repository_root`` remains accepted for source compatibility, but the
+    domain profile owns resource discovery and deliberately ignores it.
+    """
+
+    del repository_root
+    return FilesystemCapabilityContractSource(PandapowerResourceSet.load()).load()
