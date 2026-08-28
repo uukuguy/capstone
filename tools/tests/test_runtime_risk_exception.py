@@ -36,6 +36,21 @@ def test_runtime_risk_exception_rejects_expiry_and_a_worsened_lock(tmp_path: Pat
     assert "vulnerability baseline changed" in worsened.stderr
 
 
+def test_runtime_risk_exception_rejects_an_installed_graph_that_drifted_from_lock(
+    tmp_path: Path,
+) -> None:
+    write_fixture(tmp_path)
+    write_json(
+        tmp_path / "packages/pi-grid-tools/node_modules/@earendil-works/pi-ai/package.json",
+        {"name": "@earendil-works/pi-ai", "version": "0.80.10"},
+    )
+
+    result = run_checker(tmp_path, "2026-08-28")
+
+    assert result.returncode == 1
+    assert "installed graph" in result.stderr
+
+
 def run_checker(root: Path, today: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(CHECKER), "--root", str(root), "--today", today],
@@ -81,21 +96,43 @@ def write_fixture(root: Path) -> None:
         {"package": {"name": "@earendil-works/pi-coding-agent", "version": "0.80.6"}},
     )
     for package in ("pi-capability-tools", "pi-grid-tools"):
+        dependencies = {
+            "@earendil-works/pi-ai": "0.80.6",
+            "@earendil-works/pi-coding-agent": "0.80.6",
+        }
+        if package == "pi-grid-tools":
+            dependencies["@capability-agent/pi-tools"] = "file:../pi-capability-tools"
         write_json(
             root / f"packages/{package}/package.json",
-            {"dependencies": {"@earendil-works/pi-coding-agent": "0.80.6"}},
+            {"name": f"@fixture/{package}", "version": "0.1.0", "dependencies": dependencies},
         )
+        locked_packages: dict[str, dict[str, object]] = {
+            "node_modules/@earendil-works/pi-ai": {"version": "0.80.6"},
+            "node_modules/@earendil-works/pi-coding-agent": {"version": "0.80.6"},
+            "node_modules/@earendil-works/pi-coding-agent/node_modules/brace-expansion": {"version": "5.0.6"},
+            "node_modules/@earendil-works/pi-coding-agent/node_modules/protobufjs": {"version": "7.6.4"},
+            "node_modules/@earendil-works/pi-coding-agent/node_modules/undici": {"version": "8.5.0"},
+        }
+        if package == "pi-grid-tools":
+            locked_packages["node_modules/@capability-agent/pi-tools"] = {
+                "resolved": "../pi-capability-tools",
+                "link": True,
+            }
         write_json(
             root / f"packages/{package}/package-lock.json",
-            {
-                "packages": {
-                    "node_modules/@earendil-works/pi-coding-agent": {"version": "0.80.6"},
-                    "node_modules/@earendil-works/pi-coding-agent/node_modules/brace-expansion": {"version": "5.0.6"},
-                    "node_modules/@earendil-works/pi-coding-agent/node_modules/protobufjs": {"version": "7.6.4"},
-                    "node_modules/@earendil-works/pi-coding-agent/node_modules/undici": {"version": "8.5.0"},
-                }
-            },
+            {"packages": locked_packages},
         )
+        for relative, locked in locked_packages.items():
+            if locked.get("link") is True:
+                continue
+            name = relative.rsplit("node_modules/", 1)[-1]
+            write_json(
+                root / f"packages/{package}/{relative}/package.json",
+                {"name": name, "version": locked["version"]},
+            )
+    local_link = root / "packages/pi-grid-tools/node_modules/@capability-agent/pi-tools"
+    local_link.parent.mkdir(parents=True, exist_ok=True)
+    local_link.symlink_to(root / "packages/pi-capability-tools", target_is_directory=True)
 
 
 def write_json(path: Path, document: object) -> None:

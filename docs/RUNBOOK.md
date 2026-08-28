@@ -14,7 +14,7 @@ make setup
 make doctor
 ```
 
-`make setup` 分别同步 `grid-agent`、`grid-simulator`、`capability-agent-kernel` 与 `pandapower-domain-pack` 的本地 path 依赖，并安装两个 Pi npm 包所需依赖。`make doctor` 不发送模型请求。
+`make setup` 分别同步 `grid-agent`、`grid-simulator`、`capability-agent-kernel` 与 `pandapower-domain-pack` 的本地 path 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。
 
 ## 包模式与安装验证
 
@@ -64,7 +64,7 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 
 `runs/` 是操作者可检查的运行记录，已被 Git 忽略。`.grid-agent/` 只存放项目内部 Pi OAuth、托管 Pi runtime、会话状态等内部状态，同样被 Git 忽略。版本化运行配置位于 `configs/runtime/`，例如 `configs/runtime/pi-runtime.lock.json`。
 
-当前 Pi 0.80.6 依赖树仍有 2 个 High 和 2 个 Moderate 已知漏洞；它们没有被修复，也不能表述为已消失。临时受理记录是 [`configs/runtime/pi-security-risk-exception-v1.json`](../configs/runtime/pi-security-risk-exception-v1.json)，绝对到期日为 2026-09-30，列出了 provider HTTP/解析攻击面、缓解措施、责任人和升级触发条件。`make check-runtime-risk` 会确定性检查 Pi pin、两个 npm lock 中的脆弱版本、基线计数和到期日；任一漂移或到期都使 gate 失败。目标仍是验证并升级到安全的 Pi >=0.84.3，而不是续期来替代升级。
+当前 Pi 0.80.6 依赖树仍有 2 个 High 和 2 个 Moderate 已知漏洞；它们没有被修复，也不能表述为已消失。临时受理记录是 [`configs/runtime/pi-security-risk-exception-v1.json`](../configs/runtime/pi-security-risk-exception-v1.json)，绝对到期日为 2026-09-30，列出了 provider HTTP/解析攻击面、缓解措施、责任人和升级触发条件。`make check-runtime-risk` 会确定性检查 Pi pin、两个 npm lock 中的脆弱版本、实际 `node_modules` 安装图与 lock 的逐包版本一致性、基线计数和到期日；任一漂移或到期都使 gate 失败。该本地门不声称发现锁版本后来新增的 advisory；release 操作者仍须复核可信 registry/audit 信息。目标仍是验证并升级到安全的 Pi >=0.84.3，而不是续期来替代升级。
 
 ## 连续分析报告
 

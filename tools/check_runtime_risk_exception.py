@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import stat
 import sys
 from datetime import date
 from pathlib import Path
@@ -98,6 +99,61 @@ def verify(root: Path, today: date) -> None:
                 raise ValueError(
                     f"{package} vulnerability baseline changed for {dependency}"
                 )
+        verify_installed_graph(package_root, packages)
+
+
+def verify_installed_graph(
+    package_root: Path,
+    locked_packages: dict[str, Any],
+) -> None:
+    installed_root = package_root / "node_modules"
+    try:
+        installed_status = installed_root.lstat()
+    except FileNotFoundError as exc:
+        raise ValueError(
+            f"{package_root.name} installed graph is unavailable; run make setup-tools"
+        ) from exc
+    if not stat.S_ISDIR(installed_status.st_mode) or stat.S_ISLNK(installed_status.st_mode):
+        raise ValueError(f"{package_root.name} installed graph root is unsafe")
+
+    checked = 0
+    for manifest_path in installed_root.rglob("package.json"):
+        package_dir = manifest_path.parent
+        relative = package_dir.relative_to(package_root).as_posix()
+        tail = relative.rsplit("node_modules/", 1)[-1].split("/")
+        if len(tail) != (2 if tail[0].startswith("@") else 1):
+            continue
+        locked = locked_packages.get(relative)
+        if not isinstance(locked, dict):
+            raise ValueError(
+                f"{package_root.name} installed graph contains unlocked package {relative}"
+            )
+        installed = load_object(manifest_path)
+        if installed.get("version") != locked.get("version"):
+            raise ValueError(
+                f"{package_root.name} installed graph drift for {relative}: "
+                f"{installed.get('version')} != {locked.get('version')}"
+            )
+        checked += 1
+    if checked == 0:
+        raise ValueError(f"{package_root.name} installed graph contains no locked packages")
+
+    local_key = "node_modules/@capability-agent/pi-tools"
+    local_lock = locked_packages.get(local_key)
+    if isinstance(local_lock, dict) and local_lock.get("link") is True:
+        local_path = package_root / local_key
+        try:
+            local_status = local_path.lstat()
+        except FileNotFoundError as exc:
+            raise ValueError("pi-grid-tools installed graph is missing the local owning package") from exc
+        if not stat.S_ISLNK(local_status.st_mode):
+            raise ValueError("pi-grid-tools local owning package must be a workspace link")
+        expected = (package_root / str(local_lock.get("resolved"))).resolve()
+        if local_path.resolve() != expected:
+            raise ValueError("pi-grid-tools local owning package link escaped its locked target")
+        local_manifest = load_object(local_path / "package.json")
+        if local_manifest.get("version") != "0.1.0":
+            raise ValueError("pi-grid-tools local owning package version drifted")
 
 
 def load_object(path: Path) -> dict[str, Any]:

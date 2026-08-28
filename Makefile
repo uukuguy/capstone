@@ -31,7 +31,7 @@ setup-simulator:
 
 setup-tools:
 	npm ci --prefix packages/pi-capability-tools
-	npm install --prefix packages/pi-grid-tools --no-package-lock --no-save ./packages/pi-capability-tools
+	npm ci --prefix packages/pi-grid-tools
 
 setup-workbench:
 	npm ci --prefix packages/trajectory-workbench

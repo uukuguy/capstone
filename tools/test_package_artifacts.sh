@@ -6,13 +6,14 @@ temporary_root="$(mktemp -d)"
 artifact_dir="$temporary_root/artifacts"
 venv_dir="$temporary_root/venv"
 run_dir="$temporary_root/run"
+grid_pack_dir="$temporary_root/pi-grid-tools-pack"
 
 cleanup() {
   rm -rf -- "$temporary_root"
 }
 trap cleanup EXIT
 
-mkdir -p "$artifact_dir" "$run_dir"
+mkdir -p "$artifact_dir" "$run_dir" "$grid_pack_dir"
 
 cd "$repo_root"
 
@@ -23,7 +24,23 @@ uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/grid-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
-npm pack --prefix packages/pi-grid-tools ./packages/pi-grid-tools --pack-destination "$artifact_dir" >/dev/null
+cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
+cp -R packages/pi-grid-tools/src "$grid_pack_dir/src"
+python3 - "$grid_pack_dir/package.json" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+manifest = json.loads(path.read_text(encoding="utf-8"))
+if manifest["dependencies"].get("@capability-agent/pi-tools") != "file:../pi-capability-tools":
+    raise SystemExit("source wrapper must use the frozen local owning-package dependency")
+manifest["dependencies"]["@capability-agent/pi-tools"] = "0.1.0"
+path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+npm pack --prefix "$grid_pack_dir" "$grid_pack_dir" --pack-destination "$artifact_dir" >/dev/null
 
 python_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl

@@ -15,8 +15,8 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@capability-agent/pi-tools": "0.1.0",
-    "@earendil-works/pi-ai": "^0.80.6",
+    "@capability-agent/pi-tools": "file:../pi-capability-tools",
+    "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.80.6"
   },
   "engines": {
