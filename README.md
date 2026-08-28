@@ -7,9 +7,8 @@ analysis of registered power-system networks. An LLM interprets the request and
 composes project-defined tools; `gridctl` and the pinned pandapower simulator
 perform every deterministic network calculation.
 
-`v1.0.0` is the first stable release of the declared static-analysis product
-scope. The executable capability matrix remains the authority for current
-coverage.
+`v1.0.1` is the stable release of the declared static-analysis product scope.
+The executable capability matrix remains the authority for current coverage.
 
 ## What It Does
 
@@ -53,6 +52,35 @@ The LLM chooses from registered semantic tools; it never receives shell,
 arbitrary Python, raw pandapower objects, DataFrames, or generic filesystem
 access. Numerical and network-specific claims must come back through the
 simulator boundary.
+
+## Package Assembly
+
+The repository is assembled from four Python distributions and two Pi npm
+packages:
+
+| Distribution | Responsibility |
+| --- | --- |
+| `capability-agent-kernel` | Domain-neutral manifest, contract, executor, projection, authority, tool-catalog, guide, trajectory, and composition interfaces |
+| `grid-simulator` | `gridctl`, registered pandapower networks, deterministic calculations, result datasets, and simulator evidence |
+| `pandapower-domain-pack` | Pandapower static-analysis domain profile, policy, guides, capability contracts, resource ownership, and compatibility adapters |
+| `grid-agent` | CLI, provider/Pi runtime setup, authentication, continuous analysis, reporting, workbench service, and final JSON answer envelope |
+| `@capability-agent/pi-tools` | Generic descriptor-driven Pi capability request transport and request capture |
+| `@grid-static-analysis/pi-grid-tools` | Grid-compatible Pi extension wrapper that preserves existing `grid_*` tools and guide behavior |
+
+Source-mode development uses the local path dependencies pinned in the package
+manifests. Install-mode verification builds all four Python wheels plus both npm
+tarballs, installs them outside the repository, and runs smoke checks without
+importing from source paths:
+
+```sh
+make test-packages
+```
+
+The external CLI, Pi tool names, `grid-capability/1.0` protocol, stdout JSON
+envelope, stderr diagnostics, `runs/` evidence layout, and simulator-owned truth
+contract remain unchanged. Workstreams C-E are not implemented yet; the current
+system is the extracted pandapower static-analysis application, not a
+business-agnostic multi-domain framework.
 
 ## Quick Start
 
@@ -138,6 +166,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make test-packages
 ```
 
 `make validate-provider PROVIDER=<id> [MODEL=<id>]` is optional, requires
@@ -147,9 +176,12 @@ explicit credentials, and may incur provider charges.
 
 | Path | Responsibility |
 | --- | --- |
-| `packages/grid-agent/` | CLI, Pi/LLM runtime, context, trajectory, reports, and answer envelope |
+| `packages/capability-agent-kernel/` | Domain-neutral Python kernel contracts, composition, tools, guides, and trajectory primitives |
 | `packages/grid-simulator/` | `gridctl`, registered models, pandapower execution, results, and evidence |
-| `packages/pi-grid-tools/` | Project-scoped Pi tools, guides, and request capture |
+| `packages/pandapower-domain-pack/` | Pandapower domain profile, contracts, policy, guides, resources, and adapters |
+| `packages/grid-agent/` | CLI, Pi/LLM runtime, context, reports, workbench service, and answer envelope |
+| `packages/pi-capability-tools/` | Generic descriptor-driven Pi capability transport and request capture |
+| `packages/pi-grid-tools/` | Grid-compatible Pi tools wrapper, guides, and request capture |
 | `packages/trajectory-workbench/` | Read-only React/TypeScript trajectory investigation UI |
 | `configs/` | Versioned capabilities, policies, provider catalog, and runtime configuration |
 | `validation/` | Offline, scripted-Pi, semantic, and optional provider validation suites |

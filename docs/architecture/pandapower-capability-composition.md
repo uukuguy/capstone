@@ -148,19 +148,22 @@ grid-agent controller
 
 相关实现：
 
-- [`packages/grid-agent/src/grid_agent/tools/catalog.py`](../../packages/grid-agent/src/grid_agent/tools/catalog.py)：加载、校验、筛选和物化统一工具目录。
-- [`packages/pi-grid-tools/src/domain-tools.mjs`](../../packages/pi-grid-tools/src/domain-tools.mjs)：遍历工具目录并注册 Pi 工具，同时提供指南工具。
-- [`packages/grid-simulator/src/grid_simulator/operations.py`](../../packages/grid-simulator/src/grid_simulator/operations.py)：校验 capability、输入、调度结果和输出契约。
+- [`packages/capability-agent-kernel/src/capability_agent/tools/catalog.py`](../../packages/capability-agent-kernel/src/capability_agent/tools/catalog.py)：加载、校验、筛选和物化统一工具目录。
+- [`packages/capability-agent-kernel/src/capability_agent/application/composition.py`](../../packages/capability-agent-kernel/src/capability_agent/application/composition.py)：按注入 Profile 物化工具目录、指南索引、执行器和 authority。
+- [`packages/pandapower-domain-pack/src/pandapower_domain/profile.py`](../../packages/pandapower-domain-pack/src/pandapower_domain/profile.py)：声明当前 pandapower 静态分析领域 Profile 和兼容适配器。
+- [`packages/pi-capability-tools/src/domain-tools.mjs`](../../packages/pi-capability-tools/src/domain-tools.mjs)：按运行时描述符构造通用 Pi capability tools。
+- [`packages/pi-grid-tools/src/domain-tools.mjs`](../../packages/pi-grid-tools/src/domain-tools.mjs)：保留当前 grid 产品的 Pi 扩展入口和工具名兼容。
+- [`packages/grid-simulator/src/grid_simulator/cli.py`](../../packages/grid-simulator/src/grid_simulator/cli.py)：校验 capability、输入、调度结果和输出契约。
 - [`packages/grid-simulator/src/grid_simulator/analysis_registry.py`](../../packages/grid-simulator/src/grid_simulator/analysis_registry.py)：管理通用分析操作注册表及操作选项 Schema。
 - [`packages/grid-simulator/src/grid_simulator/bindings/__init__.py`](../../packages/grid-simulator/src/grid_simulator/bindings/__init__.py)：汇总潮流、OPF、短路、估计、诊断、拓扑和保护等操作绑定。
 - [`packages/grid-simulator/src/grid_simulator/creators.py`](../../packages/grid-simulator/src/grid_simulator/creators.py)：发现并约束声明式网络元素创建器。
 
-### 4.3 Domain runtime profile seam
+### 4.3 Extracted domain runtime package assembly
 
-当前实现已经把运行时装配收敛到一个显式选择的领域 Profile，但仍保持 `grid-agent` 的既有 CLI、工具名、协议和证据契约不变。实际所有权流如下：
+当前实现已经把运行时装配收敛到一个显式选择的领域 Profile，并把中立内核、pandapower 领域资源、应用 CLI、Pi 通用工具和 grid 兼容 Pi 包拆成独立发行边界，同时保持 `grid-agent` 的既有 CLI、工具名、协议和证据契约不变。实际所有权流如下：
 
 ```text
-CLI selects build_pandapower_profile(repo_root)
+CLI selects pandapower_domain.build_pandapower_profile()
   -> prepare_domain_runtime(profile, workspace, executable)
      -> CapabilityContractSource.load()
      -> CapabilityExecutor.invoke("environment.describe", {})
@@ -170,13 +173,15 @@ CLI selects build_pandapower_profile(repo_root)
   -> DomainProjectorRegistry projects admitted results
 ```
 
-`grid_agent.domain` 是中立运行时接口层，仍随 `grid-agent` 发行包一起打包；它只定义 `DomainRuntimeProfile`、`CapabilityContractSource`、`CapabilityExecutor`、`DomainProjectorRegistry`、`ArtifactAuthority` 等协议和值对象，不导入 `grid_agent.simulator`、pandapower 投影实现或具体能力定义路径。
+`capability_agent.domain` 是中立运行时接口层，位于 `capability-agent-kernel` Python distribution。它只定义 `DomainRuntimeProfile`、`CapabilityContractSource`、`CapabilityExecutor`、`DomainProjectorRegistry`、`ArtifactAuthority` 等协议和值对象，不导入 `grid_agent.simulator`、pandapower 投影实现或具体能力定义路径。`grid_agent.domain` 仅保留兼容导入出口。
 
-`grid_agent.domains.pandapower` 是当前 pandapower 静态分析产品的兼容 Domain Pack。它把现有 `GridctlClient` 包装成 `CapabilityExecutor`，把 `ContentReferenceVerifier` 包装成当前运行的 `ArtifactAuthority`，并把既有领域投影函数挂到 `DomainProjectorRegistry` 后面。因此 `GridctlClient`、当前证据校验器和投影函数仍是 simulator/grid 实现，只是已经位于适配器之后。
+`pandapower_domain` 是当前 pandapower 静态分析产品的 Domain Pack。它拥有领域 manifest、capability 契约、模型策略、指南、资源定位、`GridctlClient` executor 适配器、当前运行 `ArtifactAuthority` 适配器和领域投影注册表。`grid-simulator` 仍拥有 `gridctl`、已登记网络、pandapower 3.4.0 计算、结果数据集和证据；这些事实不会进入中立内核。
 
-通用组合器 `prepare_domain_runtime(...)` 不选择默认 Profile，也不自己拼接 pandapower 的合同、指南或系统策略路径。CLI 仍显式选择内建 `build_pandapower_profile(repo_root)`；Profile 再提供合同源、执行器工厂、投影注册表、权威对象工厂、系统策略和指南根目录。
+通用组合器 `prepare_domain_runtime(...)` 来自 `capability-agent-kernel`，不选择默认 Profile，也不自己拼接 pandapower 的合同、指南或系统策略路径。CLI 仍显式选择 `build_pandapower_profile()`；Profile 再提供合同源、执行器工厂、投影注册表、权威对象工厂、系统策略和指南根目录。
 
-这只是 Workstream A 的 seam extraction：尚未把中立内核拆成独立发行包，尚未完成多领域运行时，也没有增加第二个生产领域。模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生。
+Pi 侧同样分成两个 npm 包：`@capability-agent/pi-tools` 提供描述符驱动的通用能力请求传输、运行时身份校验、相关性检查和模型请求捕获；`@grid-static-analysis/pi-grid-tools` 是当前 grid 产品的兼容包装，继续发布既有 `grid_*` 工具和 `grid_guide_open`。
+
+Workstream B 的物理包抽取已完成；Workstreams C-E 尚未实现。因此当前系统仍是 pandapower 静态分析应用，不是业务无关的多领域成品框架。模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生。
 
 ## 5. 基于注册工具的组合推理
 
@@ -328,4 +333,4 @@ grid-agent 控制器提交答案、result_refs、claim_evidence_refs
 - [Pandapower 3.4.0 Static-Analysis Full-Capability Design](../superpowers/specs/2026-08-18-pandapower-static-analysis-full-capability-design.md)
 - [Analysis Context Architecture](analysis-context.md)
 - [Trajectory Event Architecture](trajectory-events.md)
-- [`grid-agent` system policy](../../configs/agent/system-policy.md)
+- [`grid-agent` system policy](../../packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md)

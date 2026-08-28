@@ -14,7 +14,28 @@ make setup
 make doctor
 ```
 
-`make setup` 分别创建 agent 与 simulator 的隔离环境，并安装 Pi grid domain tools 扩展依赖。`make doctor` 不发送模型请求。
+`make setup` 分别同步 `grid-agent`、`grid-simulator`、`capability-agent-kernel` 与 `pandapower-domain-pack` 的本地 path 依赖，并安装两个 Pi npm 包所需依赖。`make doctor` 不发送模型请求。
+
+## 包模式与安装验证
+
+本仓库现在按四个 Python 发行包和两个 Pi npm 包组装：
+
+| 发行包 | 资源所有权 |
+| --- | --- |
+| `capability-agent-kernel` | 领域无关的 Profile、契约源、执行器、投影、authority、工具目录、指南、轨迹和组合接口 |
+| `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和证据 |
+| `pandapower-domain-pack` | pandapower 静态分析 Profile、能力契约、系统策略、指南、资源定位和兼容适配器 |
+| `grid-agent` | CLI、Provider/Pi 运行时、认证、连续分析、报告、工作台服务和 stdout 答案封装 |
+| `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
+| `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
+
+源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建四个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
+
+```sh
+make test-packages
+```
+
+该门禁也会运行 package boundary 检查并检查 npm tarball 成员，拒绝测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部 CLI、Pi 工具名、`grid-capability/1.0`、stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界。
 
 ## 主路径：执行自然语言分析问题
 
@@ -156,9 +177,10 @@ Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具�
 make test
 make test-e2e
 make validate
+make test-packages
 ```
 
-`make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。
+`make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-packages` 构建并安装干净发行工件，验证四个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
 
 可选 provider validation 会产生真实模型调用，必须显式给出 provider 且环境中已有对应凭证：

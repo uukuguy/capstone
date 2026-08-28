@@ -2,11 +2,11 @@
 
 **Date:** 2026-08-27
 
-**Status:** design direction approved in conversation; written specification pending review
+**Status:** Workstreams A and B implemented for the pandapower static-analysis application; Workstreams C-E remain unimplemented
 
-**Current product:** `grid-agent` 1.0.1 with the pandapower 3.4.0 static-analysis domain
+**Current product:** `grid-agent` 1.0.1 assembled from extracted kernel, simulator, pandapower domain, application, and Pi tool packages
 
-**First controlled increment:** introduce domain-runtime seams without changing current grid behavior
+**Completed controlled increments:** domain-runtime seams plus physical package extraction without changing current grid behavior
 
 ## 1. Executive decision
 
@@ -32,9 +32,7 @@ This design deliberately separates four levels of work:
 4. **Enterprise actions:** add approval, tenant, authorization, idempotency,
    compensation, data classification, and asynchronous-operation semantics.
 
-Only level 1 belongs in the first implementation plan. This prevents a single
-change from combining framework extraction, package relocation, behavior
-changes, a new business domain, and write-side governance.
+Workstreams A and B implement levels 1 and 2 for the existing pandapower static-analysis application. Levels 3 and 4 are still future work. The repository therefore has extracted package boundaries, but it is not yet a business-agnostic multi-domain framework.
 
 ## 2. Product assessment
 
@@ -85,12 +83,12 @@ kernel.
 | Target | Current state | Assessment |
 | --- | --- | --- |
 | Copy the repository and replace grid-specific code | Supported | Practical template reuse |
-| Install one domain package on a shared kernel | Not supported | Requires the seams in this design |
-| Load multiple domains in one runtime | Not supported | Later program level |
-| Execute enterprise write operations safely | Not supported | Requires enterprise-action semantics |
+| Install the pandapower domain package on the shared kernel | Supported | Proven by clean wheel installation smoke tests |
+| Add a second domain package without kernel changes | Not implemented | Workstream C |
+| Load multiple domains in one runtime | Not implemented | Workstream E |
+| Execute enterprise write operations safely | Not implemented | Workstream D |
 
-The current system is therefore a mature, framework-shaped vertical product,
-not yet a plugin-instantiated general framework.
+The current system is therefore an extracted pandapower static-analysis application on a reusable kernel, not yet a plugin-instantiated general framework.
 
 ## 3. Existing architecture and concrete coupling
 
@@ -195,28 +193,24 @@ Adding that domain must not require edits to the Agent Kernel, generic Pi tool
 materializer, native event spine, answer commit, replay service, or workbench
 core.
 
-### 4.2 First-increment goals
+### 4.2 Completed Workstream A/B goals
 
-The first increment will:
+The completed Workstream A/B increments:
 
-1. define neutral domain-runtime interfaces inside the existing `grid-agent`
-   distribution;
-2. express the current pandapower runtime through a built-in descriptor and
-   adapters;
-3. route existing CLI composition through those interfaces;
+1. define neutral domain-runtime interfaces in `capability-agent-kernel`;
+2. express the current pandapower runtime through `pandapower-domain-pack`;
+3. route existing CLI composition through those interfaces from `grid-agent`;
 4. preserve every current external contract;
-5. add a provider-free conformance fixture proving that discovery and tool
-   materialization are not tied to pandapower document paths;
-6. retain the current package layout so extraction remains reviewable and
-   reversible.
+5. keep the provider-free conformance fixture proving discovery and tool materialization are not tied to pandapower document paths;
+6. split Pi transport into generic `@capability-agent/pi-tools` and grid-compatible `@grid-static-analysis/pi-grid-tools`;
+7. prove install-mode compatibility by building four Python wheels and two npm tarballs outside the repository with `make test-packages`.
 
-### 4.3 First-increment non-goals
+### 4.3 Remaining non-goals
 
-The first increment will not:
+The completed Workstream A/B increments still do not:
 
 - rename `grid-agent`, `gridctl`, `grid-capability/1.0`, existing tools, schemas,
   environment variables, run artifacts, or CLI commands;
-- move pandapower source files into a new package;
 - support multiple simultaneously active domain packs;
 - add a second production business domain;
 - add business write tools or approval workflows;
@@ -300,12 +294,10 @@ analysis bindings, and simulator evidence.
 
 ## 6. Domain-runtime interfaces
 
-The first increment keeps all new code inside the existing `grid-agent`
-distribution. This avoids a packaging migration before the interfaces have been
-proved. The module layout is fixed as follows:
+Workstream B moved the proved seams into separately versioned distributions. The module layout is fixed as follows:
 
 ```text
-packages/grid-agent/src/grid_agent/domain/
+packages/capability-agent-kernel/src/capability_agent/domain/
   __init__.py       public domain-runtime interface exports
   manifest.py       DomainManifest and manifest validation
   contracts.py      CapabilityContractSource protocol and filesystem source
@@ -314,22 +306,37 @@ packages/grid-agent/src/grid_agent/domain/
   authority.py      ArtifactAuthority protocol
   profile.py        DomainRuntimeProfile composition root
 
-packages/grid-agent/src/grid_agent/domains/
-  __init__.py       built-in domain profile exports
-  pandapower.py     compatibility profile for current grid behavior
+packages/capability-agent-kernel/src/capability_agent/application/
+  composition.py    shared profile-driven runtime materialization
 
-packages/grid-agent/src/grid_agent/application/
-  composition.py    shared run/analysis profile-driven assembly
+packages/capability-agent-kernel/src/capability_agent/tools/
+  catalog.py        domain-neutral tool catalog and guide index materialization
+
+packages/capability-agent-kernel/src/capability_agent/trajectory/
+  *.py              native event spine, artifacts, recorder, replay, and readers
+
+packages/pandapower-domain-pack/src/pandapower_domain/
+  profile.py        pandapower static-analysis profile and adapters
+  resources/        system policy, guides, and capability contracts
+
+packages/grid-agent/src/grid_agent/
+  cli/              compatibility CLI and answer envelope
+  runtime/          provider, Pi, auth, process, and workspace setup
+  analysis/         continuous analysis orchestration and reporting
+  trajectory/api/   read-only workbench service
+
+packages/pi-capability-tools/src/
+  domain-tools.mjs          generic descriptor-driven Pi capability transport
+  model-request-capture.mjs provider-independent request capture
+
+packages/pi-grid-tools/src/
+  domain-tools.mjs          grid-compatible Pi extension wrapper
+  model-request-capture.mjs grid-compatible request-capture wrapper
 ```
 
-The `domain` namespace contains neutral interfaces. The `domains` namespace
-contains product integrations and may import existing grid modules. Neutral
-`domain` modules must not import `grid_agent.simulator`, pandapower-oriented
-analysis models, grid capability definitions, or the pandapower profile.
+The `capability_agent` namespace contains neutral interfaces and runtime primitives. The `pandapower_domain` namespace contains product integration and may import grid simulator adapters. Compatibility modules under `grid_agent.domain`, `grid_agent.application.composition`, `grid_agent.trajectory.*`, `grid_agent.tools.*`, and `grid_agent.domains.pandapower` re-export or route to the extracted packages where needed for existing callers.
 
-Physical extraction into separately versioned distributions is Workstream B;
-these module boundaries are intentionally designed so that movement can occur
-without changing their public signatures.
+Neutral kernel modules must not import `grid_agent`, `grid_simulator`, `pandapower_domain`, or `pandapower`. The pandapower domain pack must not depend on `grid-agent`; it owns domain resources and depends only on the kernel plus `grid-simulator`.
 
 ### 6.1 DomainManifest
 
@@ -488,6 +495,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make test-packages
 ```
 
 Provider-backed validation remains optional and must not run without explicit
@@ -525,11 +533,12 @@ passes this invariant:
 
 ### Workstream A — Kernel seams
 
-Deliver neutral interfaces and built-in pandapower adapters inside the existing
-package. Route CLI composition through them with zero product behavior change.
+Deliver neutral interfaces and pandapower adapters behind the existing CLI.
+Route CLI composition through them with zero product behavior change.
 
-**Exit gate:** all current gates pass, the synthetic conformance fixture avoids
-pandapower imports, and no current public contract changes.
+**Status:** implemented. The seams now live in `capability-agent-kernel`, with compatibility exports preserving existing callers.
+
+**Exit gate:** all current gates pass, the synthetic conformance fixture avoids pandapower imports, and no current public contract changes.
 
 ### Workstream B — Physical package extraction
 
@@ -537,13 +546,16 @@ After Workstream A is stable, move reusable modules into an independently
 versioned Agent Kernel/Capability SDK distribution and move grid ownership into
 a pandapower domain package.
 
-**Exit gate:** `grid-agent` is assembled from the extracted kernel and domain
-package while producing compatible tools, runs, and answers.
+**Status:** implemented for the pandapower static-analysis application. `grid-agent` is assembled from `capability-agent-kernel`, `grid-simulator`, `pandapower-domain-pack`, `@capability-agent/pi-tools`, and `@grid-static-analysis/pi-grid-tools`.
+
+**Exit gate:** `grid-agent` is assembled from the extracted kernel and domain package while producing compatible tools, runs, and answers; `make test-packages` proves clean install-mode packaging outside the source tree.
 
 ### Workstream C — Non-grid reference domain
 
 Implement a bounded read-only inventory or ticket domain using only the public
 Domain Pack SPI.
+
+**Status:** not implemented.
 
 **Exit gate:** no kernel modifications, conformance tests pass, and domain facts
 are admitted from its own authority adapter.
@@ -554,6 +566,8 @@ Extend contracts and runtime policy for side effects, approvals, actor/tenant
 scope, idempotency, compensation, asynchronous completion, and data
 classification.
 
+**Status:** not implemented.
+
 **Exit gate:** a write-capable reference domain proves safe retry, approval,
 audit, authorization, and compensation behavior.
 
@@ -562,47 +576,33 @@ audit, authorization, and compensation behavior.
 Add namespaced capability resolution, cross-domain policy, credential isolation,
 and explicit data-sharing rules only after single-domain packs are stable.
 
+**Status:** not implemented.
+
 **Exit gate:** capability collisions, tenant isolation, evidence authority, and
 cross-domain reference flow have deterministic tests.
 
-## 12. First implementation-plan boundary
+## 12. Implemented Workstream A/B boundary
 
-The first implementation plan will cover only Workstream A. It will be divided
-into independently reviewable tasks:
+Workstream A introduced the seams behind the existing `grid-agent` distribution. Workstream B then moved the proved seams and resources into separately installable distributions. The implemented boundary is:
 
-1. lock current assembly behavior with characterization tests;
-2. introduce `DomainManifest` and built-in pandapower profile;
-3. inject capability contract sources;
-4. inject capability executors while retaining `GridctlClient`;
-5. register projector and artifact-authority adapters around existing behavior;
-6. route `run` and continuous `analysis` assembly through one shared profile
-   composition path;
-7. add the provider-free synthetic-domain conformance fixture;
-8. run repository gates and update architecture/runbook documentation.
+1. `capability-agent-kernel` owns neutral domain-runtime contracts, composition, tools, guides, and trajectory primitives.
+2. `pandapower-domain-pack` owns the pandapower static-analysis Profile, resources, policy, guides, capability contracts, and compatibility adapters.
+3. `grid-simulator` continues to own `gridctl`, registered network access, deterministic pandapower calculations, result datasets, and simulator evidence.
+4. `grid-agent` owns the compatibility CLI, Pi/runtime setup, authentication, analysis runner, reporting, workbench service, and answer envelope.
+5. `@capability-agent/pi-tools` owns generic descriptor-driven Pi capability transport and request capture.
+6. `@grid-static-analysis/pi-grid-tools` owns the grid-compatible Pi extension entrypoint and keeps existing tool names stable.
 
-Each task must use test-driven development, preserve current external behavior,
-and end with an atomic commit. Package relocation, public renaming, second-domain
-production code, and enterprise write semantics are explicitly deferred to
-separate reviewed specifications and plans.
+The implemented package relocation does not rename `grid-agent`, `gridctl`, `grid_*` tools, `grid-capability/1.0`, environment variables, run artifacts, or the stdout answer envelope. Second-domain production code, enterprise write semantics, and multi-domain composition remain deferred to Workstreams C-E.
 
-## 13. Success criteria
+## 13. Remaining Program Success Criteria
 
-Workstream A is complete only when all statements below are true:
+The overall framework program is complete only when all statements below are true:
 
-1. `grid-agent` obtains domain metadata, contracts, executor, projectors,
-   authority, policy, and guides from one built-in profile object.
-2. Core orchestration no longer constructs repository-relative capability or
-   guide paths independently.
-3. Core orchestration depends on executor and authority protocols rather than
-   concrete `GridctlClient` and `ContentReferenceVerifier` types.
-4. Existing grid CLI, protocol, tool names, schemas, artifacts, evidence, and
-   answer envelope remain compatible.
-5. A synthetic non-pandapower fixture materializes and validates capabilities
-   through the neutral seams without production-domain shortcuts.
-6. The synthetic fixture requires no changes to generic catalog or tool
-   materialization code.
-7. Focused tests and all supported repository gates pass.
-8. No provider-backed or billed validation is required for completion.
+1. A non-grid reference domain can be added without modifying Agent Kernel, generic Pi tool materialization, event schemas, answer commit, replay, or Workbench core.
+2. Domain facts are admitted through that domain's own authority adapter and evidence rules.
+3. Enterprise write operations have approval, actor/tenant scope, authorization, idempotency, compensation, asynchronous completion, and data classification semantics.
+4. Multiple domains can be composed with deterministic namespace, credential, policy, evidence, and cross-domain sharing rules.
+5. Existing grid CLI, protocol, tool names, schemas, artifacts, evidence, and answer envelope remain compatible throughout those later workstreams.
 
 ## 14. Rejected approaches
 

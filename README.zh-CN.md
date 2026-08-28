@@ -4,7 +4,7 @@
 
 `grid-agent` 是一个能力优先、证据闭环的命令行代理，用于对已登记的电力系统网络执行静态分析。LLM 负责理解请求并组合项目定义的工具；`gridctl` 与固定版本的 pandapower 模拟器负责全部确定性网络计算。
 
-`v1.0.0` 是声明的静态分析产品范围内首个稳定版本。当前覆盖情况始终以可执行能力矩阵为准。
+`v1.0.1` 是声明的静态分析产品范围内的稳定版本。当前覆盖情况始终以可执行能力矩阵为准。
 
 ## 功能范围
 
@@ -37,6 +37,27 @@ runs/<question_id>/       操作者可见的当前运行证据
 ```
 
 LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、原始 pandapower 对象、DataFrame 或通用文件系统访问权。所有数值和网络特定结论都必须跨越模拟器边界返回。
+
+## 包组装
+
+仓库由四个 Python 发行包和两个 Pi npm 包组装：
+
+| 发行包 | 职责 |
+| --- | --- |
+| `capability-agent-kernel` | 领域无关的 manifest、contract、executor、projection、authority、tool-catalog、guide、trajectory 与 composition 接口 |
+| `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和模拟器证据 |
+| `pandapower-domain-pack` | pandapower 静态分析领域 Profile、策略、指南、能力契约、资源所有权和兼容适配器 |
+| `grid-agent` | CLI、Provider/Pi 运行时初始化、认证、连续分析、报告、工作台服务和最终 JSON 答案封装 |
+| `@capability-agent/pi-tools` | 通用的描述符驱动 Pi 能力请求传输与请求捕获 |
+| `@grid-static-analysis/pi-grid-tools` | 保留现有 `grid_*` 工具和指南行为的 grid 兼容 Pi 扩展包装 |
+
+源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建四个 Python wheel 与两个 npm tarball，在仓库外安装并执行冒烟检查，确保不会从源码路径导入：
+
+```sh
+make test-packages
+```
+
+外部 CLI、Pi 工具名、`grid-capability/1.0` 协议、stdout JSON 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。Workstreams C-E 尚未实现；当前系统是已抽取包边界的 pandapower 静态分析应用，不是业务无关的多领域成品框架。
 
 ## 快速开始
 
@@ -106,6 +127,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make test-packages
 ```
 
 `make validate-provider PROVIDER=<id> [MODEL=<id>]` 是可选命令，需要显式凭据，并可能产生 Provider 费用。
@@ -114,9 +136,12 @@ make validate
 
 | 路径 | 职责 |
 | --- | --- |
-| `packages/grid-agent/` | CLI、Pi/LLM 运行时、上下文、轨迹、报告和答案封装 |
+| `packages/capability-agent-kernel/` | 领域无关 Python 内核契约、组合、工具、指南和轨迹原语 |
 | `packages/grid-simulator/` | `gridctl`、登记模型、pandapower 执行、结果和证据 |
-| `packages/pi-grid-tools/` | 项目限定的 Pi 工具、指南和请求捕获 |
+| `packages/pandapower-domain-pack/` | pandapower 领域 Profile、契约、策略、指南、资源和适配器 |
+| `packages/grid-agent/` | CLI、Pi/LLM 运行时、上下文、报告、工作台服务和答案封装 |
+| `packages/pi-capability-tools/` | 通用描述符驱动 Pi 能力传输与请求捕获 |
+| `packages/pi-grid-tools/` | grid 兼容 Pi 工具包装、指南和请求捕获 |
 | `packages/trajectory-workbench/` | 只读 React/TypeScript 轨迹调查 UI |
 | `configs/` | 版本化能力、策略、Provider 目录和运行配置 |
 | `validation/` | 离线、脚本 Pi、语义和可选 Provider 验证套件 |
