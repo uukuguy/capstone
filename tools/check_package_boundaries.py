@@ -144,7 +144,7 @@ def dependency_strings(value: object) -> Iterable[str]:
 
 
 def dependency_name(dependency: str) -> str:
-    return re.split(r"\s*(?:[<>=!~]=?|;|\[)", dependency, maxsplit=1)[0].strip()
+    return re.split(r"\s*(?:@|[<>=!~]=?|;|\[)", dependency, maxsplit=1)[0].strip()
 
 
 def canonical_dependency_name(name: str) -> str:

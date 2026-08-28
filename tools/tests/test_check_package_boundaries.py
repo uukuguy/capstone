@@ -105,6 +105,32 @@ def test_rejects_normalized_grid_agent_dependency_names(
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize(
+    "dependency",
+    [
+        "grid-agent @ https://example.invalid/grid-agent.whl",
+        "Grid_Agent @ file:///tmp/dist.whl",
+        "grid.agent @ file:///tmp/dist.whl",
+    ],
+)
+def test_rejects_normalized_grid_agent_direct_references(
+    tmp_path: Path,
+    dependency: str,
+) -> None:
+    write_pyproject(
+        tmp_path / "packages/capability-agent-kernel/pyproject.toml",
+        f'dependencies = ["{dependency}"]',
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/capability-agent-kernel/pyproject.toml depends on grid-agent"
+    ]
+    assert result.stdout == ""
+
+
 def test_clean_future_roots_pass(tmp_path: Path) -> None:
     kernel_src = (
         tmp_path
