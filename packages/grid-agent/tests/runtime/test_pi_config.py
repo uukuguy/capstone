@@ -70,19 +70,43 @@ def test_materializer_writes_fixed_domain_runtime_descriptor(tmp_path: Path) -> 
         ProjectPaths.from_root(tmp_path).pi_agent_dir
     ).materialize_domain_runtime(manifest, workspace=workspace)
 
-    assert descriptor_path == ProjectPaths.from_root(tmp_path).pi_agent_dir / "domain-runtime.json"
+    assert descriptor_path == workspace / "pi/domain-runtime.json"
     assert stat.S_IMODE(descriptor_path.stat().st_mode) == 0o600
+    expected = _descriptor_payload(workspace)
     assert descriptor_path.read_text(encoding="utf-8") == (
-        '{"context_tool_name":"grid_analysis_context_get",'
-        '"decision_tool_name":"grid_record_decision",'
-        '"executable":"gridctl",'
-        '"executable_args":["request","--workspace","'
-        f'{workspace}"],'
-        '"guide_tool_name":"grid_guide_open",'
-        '"protocol":"grid-capability",'
-        '"protocol_version":"1.0",'
-        '"tool_name_prefix":"grid_"}\n'
+        json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n"
     )
+
+
+def test_materializer_scopes_domain_runtime_descriptor_to_each_workspace(
+    tmp_path: Path,
+) -> None:
+    materializer = PiConfigMaterializer(ProjectPaths.from_root(tmp_path).pi_agent_dir)
+    manifest = _manifest(tmp_path)
+    first_workspace = tmp_path / "runs/first"
+    second_workspace = tmp_path / "runs/second"
+
+    first_descriptor = materializer.materialize_domain_runtime(
+        manifest,
+        workspace=first_workspace,
+    )
+    second_descriptor = materializer.materialize_domain_runtime(
+        manifest,
+        workspace=second_workspace,
+    )
+
+    assert first_descriptor != second_descriptor
+    assert first_descriptor.read_text(encoding="utf-8") == (
+        json.dumps(
+            _descriptor_payload(first_workspace),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    )
+    assert json.loads(second_descriptor.read_text(encoding="utf-8"))[
+        "executable_args"
+    ] == ["request", "--workspace", str(second_workspace)]
 
 
 def test_pi_launch_exposes_only_project_tools(tmp_path: Path) -> None:
@@ -307,3 +331,19 @@ def _manifest(tmp_path: Path) -> DomainManifest:
         system_policy_path=system_policy_path,
         guide_root=guide_root,
     )
+
+
+def _descriptor_payload(workspace: Path) -> dict[str, object]:
+    return {
+        "protocol": "grid-capability",
+        "protocol_version": "1.0",
+        "executable": "gridctl",
+        "executable_args": ["request", "--workspace", str(workspace)],
+        "tool_name_prefix": "grid_",
+        "guide_tool_name": "grid_guide_open",
+        "context_tool_name": "grid_analysis_context_get",
+        "decision_tool_name": "grid_record_decision",
+        "tool_catalog_path": str(workspace / "tool-catalog.json"),
+        "guide_index_path": str(workspace / "guide-index.json"),
+        "workspace_path": str(workspace),
+    }

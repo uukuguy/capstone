@@ -51,10 +51,11 @@ class PiConfigMaterializer:
     ) -> Path:
         """Atomically materialize the fixed model-runtime transport descriptor."""
 
-        self.directory.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.directory, 0o700)
-        descriptor_path = self.directory / "domain-runtime.json"
-        descriptor = {
+        descriptor_directory = workspace / "pi"
+        descriptor_directory.mkdir(parents=True, exist_ok=True)
+        os.chmod(descriptor_directory, 0o700)
+        descriptor_path = descriptor_directory / "domain-runtime.json"
+        runtime_descriptor = {
             "protocol": manifest.protocol,
             "protocol_version": manifest.protocol_version,
             "executable": manifest.executable_name,
@@ -63,13 +64,17 @@ class PiConfigMaterializer:
             "guide_tool_name": f"{manifest.tool_name_prefix}guide_open",
             "context_tool_name": f"{manifest.tool_name_prefix}analysis_context_get",
             "decision_tool_name": f"{manifest.tool_name_prefix}record_decision",
+            "tool_catalog_path": str(workspace / "tool-catalog.json"),
+            "guide_index_path": str(workspace / "guide-index.json"),
+            "workspace_path": str(workspace),
         }
         payload = (
-            json.dumps(descriptor, sort_keys=True, separators=(",", ":")) + "\n"
+            json.dumps(runtime_descriptor, sort_keys=True, separators=(",", ":"))
+            + "\n"
         ).encode("utf-8")
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{descriptor_path.name}.",
-            dir=self.directory,
+            dir=descriptor_directory,
         )
         temporary_path = Path(temporary_name)
         try:
@@ -81,7 +86,7 @@ class PiConfigMaterializer:
                 os.fsync(stream.fileno())
             temporary_path.replace(descriptor_path)
             os.chmod(descriptor_path, 0o600)
-            directory_descriptor = os.open(self.directory, os.O_RDONLY)
+            directory_descriptor = os.open(descriptor_directory, os.O_RDONLY)
             try:
                 os.fsync(directory_descriptor)
             finally:

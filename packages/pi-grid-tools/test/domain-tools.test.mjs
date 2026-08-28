@@ -80,6 +80,65 @@ test("registers newly published static-analysis tools directly from the catalog"
   }
 });
 
+test("production extension reads controller-owned runtime descriptor before legacy paths", async () => {
+  const root = await makeFixtureRoot();
+  const descriptorPath = join(root, "run/pi/domain-runtime.json");
+  await mkdir(join(root, "run/pi"), { recursive: true });
+  await writeCatalog(join(root, "run/tool-catalog.json"));
+  await writeGuideIndex(join(root, "run/guide-index.json"), root);
+  process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+  process.env.GRID_AGENT_WORKSPACE = join(root, "missing-run");
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "missing-tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "missing-guide-index.json");
+  await writeRuntimeDescriptor(descriptorPath, root);
+
+  const registered = [];
+  try {
+    domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
+  } finally {
+    delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  }
+
+  assert.deepEqual(
+    registered.map((tool) => tool.name).sort(),
+    [
+      "grid_environment_describe",
+      "grid_guide_open",
+      "grid_topology_branch_endpoints",
+    ],
+  );
+});
+
+test("production extension rejects arbitrary executable runtime descriptors", async () => {
+  const root = await makeFixtureRoot();
+  await configureDescriptorAndLegacyPaths(root, { executable: "bash" });
+
+  assert.throws(
+    () => domainToolsExtension({ registerTool: () => undefined }),
+    /CAPABILITY_AGENT_RUNTIME_DESCRIPTOR executable must be gridctl/,
+  );
+
+  delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+});
+
+test("production extension rejects runtime descriptors outside the grid contract", async () => {
+  const cases = [
+    { protocol: "inventory-capability" },
+    { tool_name_prefix: "inventory_" },
+    { guide_tool_name: "inventory_guide_open" },
+  ];
+
+  for (const overrides of cases) {
+    const root = await makeFixtureRoot();
+    await configureDescriptorAndLegacyPaths(root, overrides);
+    assert.throws(
+      () => domainToolsExtension({ registerTool: () => undefined }),
+      /CAPABILITY_AGENT_RUNTIME_DESCRIPTOR .* must be /,
+    );
+    delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  }
+});
+
 test("analysis tools expose bounded context without model-owned answer submission", async () => {
   const root = await makeFixtureRoot();
   await configureAnalysisPaths(
@@ -586,6 +645,39 @@ async function writeGuideIndex(path, root, resources = {}) {
       version: "1.0",
       root: join(root, "guides"),
       resources,
+    }),
+    "utf8",
+  );
+}
+
+async function configureDescriptorAndLegacyPaths(root, descriptorOverrides = {}) {
+  const descriptorPath = join(root, "run/pi/domain-runtime.json");
+  process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  await mkdir(join(root, "run/pi"), { recursive: true });
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root);
+  await writeRuntimeDescriptor(descriptorPath, root, descriptorOverrides);
+}
+
+async function writeRuntimeDescriptor(path, root, overrides = {}) {
+  await writeFile(
+    path,
+    JSON.stringify({
+      protocol: "grid-capability",
+      protocol_version: "1.0",
+      executable: "gridctl",
+      executable_args: ["request", "--workspace", join(root, "run")],
+      tool_name_prefix: "grid_",
+      guide_tool_name: "grid_guide_open",
+      context_tool_name: "grid_analysis_context_get",
+      decision_tool_name: "grid_record_decision",
+      tool_catalog_path: join(root, "run/tool-catalog.json"),
+      guide_index_path: join(root, "run/guide-index.json"),
+      workspace_path: join(root, "run"),
+      ...overrides,
     }),
     "utf8",
   );

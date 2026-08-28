@@ -24,6 +24,12 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "grid_agent.domains",
     ),
 }
+EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
+    "packages/grid-agent/src/grid_agent/cli": (
+        "grid_agent.application",
+        "grid_agent.application.prepare_domain_runtime",
+    ),
+}
 SOURCE_PATH_LITERAL_ROOTS = (
     "packages/capability-agent-kernel/src",
     "packages/pandapower-domain-pack/src",
@@ -67,6 +73,17 @@ def check_boundaries(root: Path) -> list[str]:
                     forbidden_modules,
                 )
             )
+    for source_root, forbidden_modules in EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
+        absolute_source_root = root / source_root
+        if absolute_source_root.exists():
+            violations.extend(
+                check_python_sources(
+                    root,
+                    absolute_source_root,
+                    forbidden_modules,
+                    exact=True,
+                )
+            )
     for source_root in SOURCE_PATH_LITERAL_ROOTS:
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -84,13 +101,19 @@ def check_python_sources(
     root: Path,
     source_root: Path,
     forbidden_modules: tuple[str, ...],
+    *,
+    exact: bool = False,
 ) -> list[str]:
     violations: list[str] = []
     for path in sorted(source_root.rglob("*.py")):
         relative_path = path.relative_to(root).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for module in imported_modules(tree):
-            if is_forbidden(module, forbidden_modules):
+            if (
+                module in forbidden_modules
+                if exact
+                else is_forbidden(module, forbidden_modules)
+            ):
                 violations.append(f"{relative_path} imports {module}")
     return violations
 

@@ -29,6 +29,30 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from grid_agent.application import prepare_domain_runtime\n",
+        "from grid_agent.application.composition import prepare_domain_runtime\n",
+        "from grid_agent.domain import ArtifactAuthority\n",
+        "from grid_agent.domains import build_pandapower_profile\n",
+    ],
+)
+def test_cli_rejects_compatibility_application_assembly_imports(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    cli_src = tmp_path / "packages/grid-agent/src/grid_agent/cli"
+    cli_src.mkdir(parents=True)
+    (cli_src / "app.py").write_text(source, encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.startswith("packages/grid-agent/src/grid_agent/cli/app.py imports ")
+    assert result.stdout == ""
+
+
 def test_reports_sorted_ast_metadata_and_source_path_violations(
     tmp_path: Path,
 ) -> None:

@@ -149,7 +149,7 @@ def _patch_live_runtime(
             *,
             workspace: Path,
         ) -> Path:
-            return workspace / "domain-runtime.json"
+            return workspace / "pi/domain-runtime.json"
 
     monkeypatch.setattr(
         cli_module,
@@ -337,7 +337,7 @@ def test_analysis_uses_prepared_runtime_for_all_domain_resources(
     assert runtime_paths.guide_index_path == prepared.guide_index_path
     assert runtime_paths.system_policy_path == profile.manifest.system_policy_path
     assert runtime_paths.domain_runtime_descriptor_path == (
-        workspace_root / "domain-runtime.json"
+        workspace_root / "pi/domain-runtime.json"
     )
     projector = cast(Any, runner_arguments["projector"])
     assert projector._authority is authority

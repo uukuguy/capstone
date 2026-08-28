@@ -4,10 +4,32 @@ import {
   createDomainToolsExtension,
   runCapability,
   sanitizeEnvironment as sanitizeCapabilityEnvironment,
+  validateRuntimeDescriptor,
 } from "@capability-agent/pi-tools";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 
+const RUNTIME_DESCRIPTOR_ENV = "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR";
+const SNAKE_DESCRIPTOR_KEYS = new Set([
+  "protocol",
+  "protocol_version",
+  "executable",
+  "executable_args",
+  "tool_name_prefix",
+  "guide_tool_name",
+  "context_tool_name",
+  "decision_tool_name",
+  "tool_catalog_path",
+  "guide_index_path",
+  "workspace_path",
+  "active_turn_path",
+  "analysis_context_view_path",
+  "trajectory_requests_path",
+  "trajectory_capture_state_path",
+  "trajectory_allowed_refs_path",
+  "trajectory_acks_path",
+  "pi_runtime",
+]);
 const GRID_DESCRIPTOR = Object.freeze({
   protocol: "grid-capability",
   protocolVersion: "1.0",
@@ -31,22 +53,109 @@ export function createGridTool(contract, runner) {
   if (runner !== undefined) {
     return createCapabilityTool(GRID_DESCRIPTOR, contract, runner);
   }
-  return createCapabilityTool(GRID_DESCRIPTOR, contract, (payload) => {
-    const workspacePath = requiredExistingRealPath(process.env, "GRID_AGENT_WORKSPACE");
+  const descriptor = runtimeDescriptor(process.env);
+  return createCapabilityTool(descriptor, contract, (payload) => {
     return runCapability(
       payload,
-      Object.freeze({
-        ...GRID_DESCRIPTOR,
-        executableArgs: Object.freeze(["request", "--workspace", workspacePath]),
-      }),
+      descriptor,
       ["GRID_AGENT_SECRET_ENV_NAMES"],
     );
   });
 }
 
 export default function domainToolsExtension(pi) {
-  const paths = runtimePaths(process.env);
-  return createDomainToolsExtension(gridDescriptor(paths))(pi);
+  return createDomainToolsExtension(runtimeDescriptor(process.env))(pi);
+}
+
+function runtimeDescriptor(env) {
+  if (env[RUNTIME_DESCRIPTOR_ENV] !== undefined && env[RUNTIME_DESCRIPTOR_ENV] !== "") {
+    return descriptorFromRuntimeFile(env);
+  }
+  return gridDescriptor(legacyRuntimePaths(env));
+}
+
+function descriptorFromRuntimeFile(env) {
+  const descriptorPath = requiredExistingRealPath(env, RUNTIME_DESCRIPTOR_ENV);
+  const raw = readRuntimeDescriptor(descriptorPath);
+  const descriptor = snakeToRuntimeDescriptor(raw, env);
+  assertGridRuntimeDescriptor(descriptor);
+  return validateRuntimeDescriptor(descriptor);
+}
+
+function readRuntimeDescriptor(path) {
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must contain valid JSON: ${error.message}`);
+  }
+  if (!isPlainObject(raw)) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must contain a JSON object`);
+  }
+  for (const key of Object.keys(raw)) {
+    if (!SNAKE_DESCRIPTOR_KEYS.has(key)) {
+      throw new Error(`${RUNTIME_DESCRIPTOR_ENV} contains unknown field ${key}`);
+    }
+  }
+  return raw;
+}
+
+function snakeToRuntimeDescriptor(raw, env) {
+  const descriptor = {
+    protocol: requiredSnakeString(raw, "protocol"),
+    protocolVersion: requiredSnakeString(raw, "protocol_version"),
+    executable: requiredSnakeString(raw, "executable"),
+    executableArgs: requiredSnakeStringArray(raw, "executable_args"),
+    toolNamePrefix: requiredSnakeString(raw, "tool_name_prefix"),
+    guideToolName: requiredSnakeString(raw, "guide_tool_name"),
+    contextToolName: requiredSnakeString(raw, "context_tool_name"),
+    decisionToolName: requiredSnakeString(raw, "decision_tool_name"),
+    workspacePath: optionalSnakeString(raw, "workspace_path") ?? requiredExistingRealPath(env, "GRID_AGENT_WORKSPACE"),
+    toolCatalogPath:
+      optionalSnakeString(raw, "tool_catalog_path") ?? requiredExistingRealPath(env, "GRID_AGENT_TOOL_CATALOG"),
+    guideIndexPath:
+      optionalSnakeString(raw, "guide_index_path") ?? requiredExistingRealPath(env, "GRID_AGENT_GUIDE_INDEX"),
+    activeTurnPath: optionalSnakeString(raw, "active_turn_path") ?? optionalWritableRealPath(env, "GRID_AGENT_ACTIVE_TURN"),
+    analysisContextViewPath:
+      optionalSnakeString(raw, "analysis_context_view_path") ??
+      optionalExistingRealPath(env, "GRID_AGENT_ANALYSIS_CONTEXT_VIEW"),
+    trajectoryRequestsPath:
+      optionalSnakeString(raw, "trajectory_requests_path") ??
+      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_REQUESTS"),
+    trajectoryCaptureStatePath:
+      optionalSnakeString(raw, "trajectory_capture_state_path") ??
+      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_CAPTURE_STATE"),
+    trajectoryAllowedRefsPath:
+      optionalSnakeString(raw, "trajectory_allowed_refs_path") ??
+      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_ALLOWED_REFS"),
+    trajectoryAcksPath:
+      optionalSnakeString(raw, "trajectory_acks_path") ?? optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_ACKS"),
+    piRuntime: raw.pi_runtime ?? runtimeIdentity(env),
+  };
+  return Object.fromEntries(Object.entries(descriptor).filter(([, value]) => value !== undefined));
+}
+
+function assertGridRuntimeDescriptor(descriptor) {
+  for (const [field, expected] of [
+    ["protocol", GRID_DESCRIPTOR.protocol],
+    ["protocolVersion", GRID_DESCRIPTOR.protocolVersion],
+    ["executable", GRID_DESCRIPTOR.executable],
+    ["toolNamePrefix", GRID_DESCRIPTOR.toolNamePrefix],
+    ["guideToolName", GRID_DESCRIPTOR.guideToolName],
+    ["contextToolName", GRID_DESCRIPTOR.contextToolName],
+    ["decisionToolName", GRID_DESCRIPTOR.decisionToolName],
+  ]) {
+    if (descriptor[field] !== expected) {
+      throw new Error(`${RUNTIME_DESCRIPTOR_ENV} ${field} must be ${expected}`);
+    }
+  }
+  const expectedArgs = ["request", "--workspace", descriptor.workspacePath];
+  if (
+    descriptor.executableArgs.length !== expectedArgs.length ||
+    descriptor.executableArgs.some((entry, index) => entry !== expectedArgs[index])
+  ) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} executableArgs must be request,--workspace,<workspacePath>`);
+  }
 }
 
 function gridDescriptor(paths) {
@@ -66,7 +175,7 @@ function gridDescriptor(paths) {
   });
 }
 
-function runtimePaths(env) {
+function legacyRuntimePaths(env) {
   const workspacePath = requiredExistingRealPath(env, "GRID_AGENT_WORKSPACE");
   const toolCatalogPath = requiredExistingRealPath(env, "GRID_AGENT_TOOL_CATALOG");
   const guideIndexPath = requiredExistingRealPath(env, "GRID_AGENT_GUIDE_INDEX");
@@ -198,4 +307,39 @@ function optionalWritableRealPath(env, name) {
 function isInside(candidate, root) {
   const relationship = relative(root, candidate);
   return relationship === "" || (!relationship.startsWith("..") && !isAbsolute(relationship));
+}
+
+function requiredSnakeString(value, name) {
+  const entry = value[name];
+  if (typeof entry !== "string" || entry.length === 0) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} ${name} must be a non-empty string`);
+  }
+  return entry;
+}
+
+function optionalSnakeString(value, name) {
+  const entry = value[name];
+  if (entry === undefined || entry === "") {
+    return undefined;
+  }
+  if (typeof entry !== "string") {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} ${name} must be a string`);
+  }
+  return entry;
+}
+
+function requiredSnakeStringArray(value, name) {
+  const entry = value[name];
+  if (!Array.isArray(entry) || !entry.every((item) => typeof item === "string")) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} ${name} must contain only strings`);
+  }
+  return entry;
+}
+
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  );
 }
