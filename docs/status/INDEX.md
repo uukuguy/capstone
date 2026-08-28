@@ -16,7 +16,7 @@
 
 | Path | Purpose |
 | --- | --- |
-| `climb/config.yaml` | Workstream B package extraction climb adapter configuration, including receipt-backed app/dist gates. |
+| `climb/config.yaml` | Versioned Workstream B scoring policy: release pathspecs, fixed gate allowlist/order/weights/prerequisites, and live execute-all closure mode. |
 | `climb/session-target.md` | Machine-readable 100% Workstream B package extraction target. |
 | `climb/hypotheses.yaml` | Append-only package extraction hypothesis state. |
 | `climb/runs.csv` | Append-only local package extraction score ledger. |

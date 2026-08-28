@@ -6,7 +6,7 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream B package extraction is implemented, final-review findings are closed, and the pandapower application is locally release-ready at source revision `c146f5564220f622fedbbddd35b13696333d7534`
+- Active work package: Workstream B package extraction is implemented, both final-review rounds are closed, and the pandapower application is locally release-ready at source revision `ea10df5a143eed6c11e3542618bb68fc42f792e2`
 - Deferred work packages: Workstreams C-E remain future work for a non-grid reference domain, enterprise action governance, and multi-domain composition
 
 ## Current Architecture
@@ -17,25 +17,26 @@
 - Agent Kernel: `capability-agent-kernel` owns neutral domain interfaces, runtime composition, tool catalog/guide materialization, trajectory primitives, artifacts, replay, and compatibility exports consumed by `grid-agent`.
 - Pandapower Domain Pack: `pandapower-domain-pack` owns the pandapower compatibility `DomainRuntimeProfile`, manifest metadata, contract resources, system policy, guides, `GridctlClient` executor adapter, `ContentReferenceVerifier` authority adapter, and existing projector registry adapter.
 - Simulator: `grid-simulator` owns `gridctl`, registered network access, deterministic pandapower 3.4.0 calculations, model revisions, result datasets, and evidence.
-- Pi packages: `@capability-agent/pi-tools` owns generic descriptor-driven capability transport and model-request capture; `@grid-static-analysis/pi-grid-tools` preserves the current grid extension wrapper and `grid_*` tool compatibility.
+- Pi packages: `@capability-agent/pi-tools` owns generic descriptor-driven capability transport and model-request capture; `@grid-static-analysis/pi-grid-tools` preserves the current grid extension wrapper and `grid_*` tool compatibility. Source setup uses the committed frozen local-file locks and installs exact `pi-ai@0.80.6`; published tarballs retain their exact installable dependency.
 - Agent runtime: managed Pi exposes only project grid tools, guides, and bounded context/decision tools; the LLM boundary owns provider-specific formats, while `grid-agent` commits ordinary model final text with controller-bound current-turn result/evidence lineage.
 - Runtime descriptor: the fixed eight-field transport API is preserved while the production descriptor authoritatively binds catalog, guide, workspace, turn, context, trajectory, acknowledgement, and Pi runtime identity; descriptor mode does not supplement legacy runtime paths.
-- Run isolation: an atomic cross-process lease prevents two active commands with the same `question_id` from sharing or overwriting current-run evidence.
+- Guide authority: the descriptor binds the guide root and index digest; startup and execution use no-follow same-fd read/fstat/digest/named binding and validate protocol, version, root, and resource mapping before any resource read.
+- Run isolation: `question_id` is a bounded portable basename, and no-follow exclusive invocation roots plus the cross-process lease reject active or sequential same-ID reuse rather than sharing, escaping, or inheriting stale evidence.
 - Canonical capture: Pi atomically persists provider-independent model inputs before provider I/O without waiting for observer acknowledgement.
 - Native trajectory: the kernel event spine records model requests/responses, tools, decisions, claims, context revisions, results, and evidence as the authoritative chronology.
 - Observation: polling skips already-seen request artifacts before parsing; projection, validation, and integrity diagnostics are deterministic consumers of recorded execution and cannot semantically replace simulator truth.
 - Simulator boundary: `gridctl` exclusively owns registered network access and deterministic pandapower 3.4.0 calculations through `grid-capability` protocol 1.0.
-- Compatibility contracts: CLI command names, stdout envelope, stderr diagnostics, `grid_*` tool names, tool schemas, `grid-capability/1.0`, current-run evidence admission, and `runs/` artifact layouts remain unchanged.
+- Compatibility contracts: CLI command names, stdout envelope, stderr diagnostics, `grid_*` tool names, tool schemas, `grid-capability/1.0`, current-run evidence admission, and `runs/` artifact layouts remain unchanged. Runtime grid trajectory readers reject hash-valid foreign schema/producer identities while the kernel remains neutral and policy-injectable.
 - Analysis context: bounded model-facing views retain active model, sourced constraints, reusable calculations, scenarios, facts, lineage, and explicit omission metadata.
 - Reporting: per-question reports render answer first, restore simulation environment context, summarize the observable agent trajectory with compact simulator results, and link persisted detailed trace/current-run evidence artifacts.
 - Workbench: the loopback read-only trajectory API and Business/Agent/Context/Evidence workbench consume deterministic projections without mutating runs.
 - Verification: unit, package-boundary, install-mode package artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
-- Release evidence: the final B-H005 run `runs/climb/20260828T092537Z-b-h005` scored 100/100 with no blockers. Its manifest binds five HMAC-attested non-focused receipts, focused `make validate`, and same-revision `make doctor`, `make test`, and `make test-e2e` prerequisite receipts to source revision `c146f5564220f622fedbbddd35b13696333d7534`.
+- Release evidence: the final B-H005 run `runs/climb/20260828T104349Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `ea10df5a143eed6c11e3542618bb68fc42f792e2` and tree digest `84b7dba2...`; all nine outputs are `closure-passed` and linked by closure digest `8f5924f2...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
 
 ## Open Problems (theme-level)
 
 - No release-blocking capability gaps are known in the declared static-analysis scope.
-- The pinned Pi dependency tree still contains 2 High and 2 Moderate accepted findings. `configs/runtime/pi-security-risk-exception-v1.json` documents the bounded exception and expires on 2026-09-30; the deterministic gate rejects expiry, pin drift, lock drift, or a worsened risk baseline.
+- The pinned Pi dependency tree still contains 2 High and 2 Moderate accepted findings. `configs/runtime/pi-security-risk-exception-v1.json` documents the bounded exception and expires on 2026-09-30; the deterministic gate rejects expiry, pin/lock/installed-graph drift, or a worsened declared baseline. It does not discover a future advisory against unchanged versions.
 - Pandapower/pandas emit upstream deprecation warnings in state-estimation and legacy network construction paths; these do not change current results.
 - Provider latency remains externally variable; future changes must preserve non-blocking trajectory observation.
 
