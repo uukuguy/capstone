@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 
-**Status:** design approved in conversation; written specification pending review
+**Status:** approved, including written-spec review
 
 **Parent design:** `2026-08-27-general-domain-agent-framework-upgrade-design.md`
 
