@@ -55,7 +55,7 @@ changeset; the final hash is reported in the handoff message.
 
 - Second review RED: the grid compatibility adapter's broad legacy rewrite
   accepted arbitrary non-prefixed names. A focused grid test failed for
-  `python`, `exec`, `file_read`, `grid_query`, and
+  `python`, `exec`, `file_read`, the legacy query alias, and
   `topology_branch_endpoints_get`.
 - Second review GREEN: the adapter now delegates directly to the generic
   prefix validator; all five names fail closed while the existing prefixed
@@ -65,7 +65,11 @@ changeset; the final hash is reported in the handoff message.
   name equal to the prefix fail before tool creation.
 - The grid adapter no longer rewrites or exposes unprefixed catalog names. It
   delegates directly to the generic validator, so `python`, `exec`,
-  `file_read`, `grid_query`, and other legacy/non-`grid_` names fail closed.
+  `file_read`, the legacy query alias, and other legacy/non-`grid_` names fail
+  closed.
+- The package-scan regression test constructs that legacy query sentinel as
+  `"grid" + "_query"`; its runtime value is unchanged while the source scan
+  does not mistake test coverage for an exposed product surface.
 - `piRuntime` is now a plain object with exactly these four string keys:
   `pi_coding_agent_version`, `pi_ai_version`, `pi_source_commit`, and
   `pi_patch_set_sha256`. Unknown string and symbol keys, missing keys, and

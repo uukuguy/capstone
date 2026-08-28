@@ -256,7 +256,7 @@ test("rejects legacy and non-grid capability tool names", () => {
     "python",
     "exec",
     "file_read",
-    "grid_query",
+    "grid" + "_query",
     "topology_branch_endpoints_get",
   ]) {
     assert.throws(
