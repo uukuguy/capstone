@@ -64,15 +64,185 @@ inspect_npm_tarball() {
 
   local tarball
   tarball="$(find "$artifact_dir" -maxdepth 1 -type f -name "$package_glob" -print -quit)"
-  local listing
-  listing="$(tar -tf "$tarball")"
-  if printf '%s\n' "$listing" | grep -E '(^|/)(node_modules|test|tests|fixtures|__fixtures__|\.git|\.github|\.worktrees|\.superpowers|docs|runs|var|tmp|dist|coverage|\.cache|\.pytest_cache|\.ruff_cache|__pycache__)(/|$)|(^|/)(AGENTS\.md|CLAUDE\.md|Makefile|pyproject\.toml|uv\.lock|\.env($|\.)|.*\.pem$|.*\.key$|.*secret.*|.*token.*|.*\.map$)' >&2; then
-    echo "npm tarball contains forbidden package artifact paths: $tarball" >&2
-    exit 1
-  fi
+  python3 - "$tarball" <<'PY'
+from __future__ import annotations
+
+import re
+import sys
+import tarfile
+from pathlib import PurePosixPath
+
+tarball = sys.argv[1]
+encoded_separator_pattern = re.compile(r"%(?:2f|5c)", re.IGNORECASE)
+deny_components = {
+    ".git",
+    ".github",
+    ".superpowers",
+    ".worktrees",
+    "__fixtures__",
+    "__pycache__",
+    "coverage",
+    "dist",
+    "docs",
+    "fixture",
+    "fixtures",
+    "node_modules",
+    "runs",
+    "test",
+    "tests",
+    "tmp",
+    "var",
+}
+repo_root_files = {
+    "agents.md",
+    "claude.md",
+    "makefile",
+    "pyproject.toml",
+    "uv.lock",
+}
+sensitive_terms = ("secret", "token", "credential")
+
+
+def reject(member_name: str, reason: str) -> None:
+    raise SystemExit(
+        f"npm tarball contains forbidden package artifact path "
+        f"({reason}): {member_name}"
+    )
+
+
+def check_member(member_name: str) -> None:
+    if member_name == "":
+        reject(member_name, "empty member name")
+    if member_name.startswith(("/", "\\")):
+        reject(member_name, "absolute path")
+    if "\\" in member_name:
+        reject(member_name, "backslash separator")
+    if encoded_separator_pattern.search(member_name):
+        reject(member_name, "encoded separator")
+
+    parts = member_name.split("/")
+    lowered_parts = [part.lower() for part in parts]
+    if any(part in ("", ".", "..") for part in lowered_parts):
+        reject(member_name, "unsafe path segment")
+
+    lowered_name = "/".join(lowered_parts)
+    basename = PurePosixPath(lowered_name).name
+    if any(term in lowered_name for term in sensitive_terms):
+        reject(member_name, "sensitive term")
+    if any("cache" in part for part in lowered_parts):
+        reject(member_name, "cache component")
+    if any(part in deny_components for part in lowered_parts):
+        reject(member_name, "denylisted component")
+    if basename in repo_root_files:
+        reject(member_name, "repository root file")
+    if basename.endswith((".pem", ".key", ".map")):
+        reject(member_name, "forbidden suffix")
+    if ".test." in basename or ".spec." in basename:
+        reject(member_name, "test/spec suffix")
+    if basename == ".env" or basename.startswith(".env."):
+        reject(member_name, "environment file")
+
+
+try:
+    with tarfile.open(tarball, "r:*") as archive:
+        for member in archive:
+            check_member(member.name)
+except tarfile.TarError as exc:
+    raise SystemExit(f"could not read npm tarball {tarball}: {exc}") from exc
+PY
 }
 
+self_test_npm_tarball_inspector() {
+  local fixture_dir="$temporary_root/npm-tarball-negative-fixtures"
+  mkdir -p "$fixture_dir"
+  python3 - "$fixture_dir" <<'PY'
+from __future__ import annotations
+
+import io
+import sys
+import tarfile
+from pathlib import Path
+
+fixture_dir = Path(sys.argv[1])
+for index, member_name in enumerate(
+    (
+        "package/src/Foo.MAP",
+        "package/src/.ENV",
+        "package/src/unit.test.mjs",
+        "package/../escape",
+        "package/src\\evil.mjs",
+        "package/src/foo%2fbar.mjs",
+        "package/src/foo%5cbar.mjs",
+    ),
+    start=1,
+):
+    path = fixture_dir / f"artifact-boundary-negative-{index}.tgz"
+    with tarfile.open(path, "w:gz") as archive:
+        payload = b"fixture"
+        info = tarfile.TarInfo(member_name)
+        info.size = len(payload)
+        archive.addfile(info, io.BytesIO(payload))
+PY
+
+  local fixture
+  for fixture in "$fixture_dir"/artifact-boundary-negative-*.tgz; do
+    local pattern
+    pattern="$(basename "$fixture")"
+    cp "$fixture" "$artifact_dir/$pattern"
+    if (inspect_npm_tarball "$pattern") >/dev/null 2>&1; then
+      echo "npm tarball boundary self-test expected rejection: $pattern" >&2
+      exit 1
+    fi
+  done
+  echo "npm-tarball-boundary-selftest: ok"
+}
+
+self_test_npm_tarball_inspector
 inspect_npm_tarball 'capability-agent-pi-tools-*.tgz'
 inspect_npm_tarball 'grid-static-analysis-pi-grid-tools-*.tgz'
+
+npm_install_dir="$temporary_root/npm-install"
+mkdir -p "$npm_install_dir"
+(
+  cd "$npm_install_dir"
+  npm init -y >/dev/null
+  npm install "$artifact_dir"/capability-agent-pi-tools-*.tgz "$artifact_dir"/grid-static-analysis-pi-grid-tools-*.tgz >/dev/null
+  npm ls @capability-agent/pi-tools @grid-static-analysis/pi-grid-tools --json >/dev/null
+  node --input-type=module <<'EOF'
+import {
+  buildCapabilityRequest,
+  createDomainToolsExtension,
+} from "@capability-agent/pi-tools";
+import gridTools, {
+  buildGridRequest,
+} from "@grid-static-analysis/pi-grid-tools";
+import {
+  configureModelRequestCapture as configureCapabilityCapture,
+} from "@capability-agent/pi-tools/model-request-capture";
+import {
+  configureModelRequestCapture as configureGridCapture,
+} from "@grid-static-analysis/pi-grid-tools/model-request-capture";
+
+if (typeof buildCapabilityRequest !== "function") {
+  throw new Error("@capability-agent/pi-tools named export is missing");
+}
+if (typeof createDomainToolsExtension !== "function") {
+  throw new Error("@capability-agent/pi-tools extension export is missing");
+}
+if (typeof gridTools !== "function") {
+  throw new Error("@grid-static-analysis/pi-grid-tools default export is not callable");
+}
+if (typeof buildGridRequest !== "function") {
+  throw new Error("@grid-static-analysis/pi-grid-tools named export is missing");
+}
+if (typeof configureCapabilityCapture !== "function") {
+  throw new Error("@capability-agent/pi-tools model capture export is missing");
+}
+if (typeof configureGridCapture !== "function") {
+  throw new Error("@grid-static-analysis/pi-grid-tools model capture export is missing");
+}
+EOF
+  echo "npm-install-smoke: ok"
+)
 
 echo "package-artifacts: ok"
