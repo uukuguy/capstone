@@ -90,6 +90,10 @@ test: test-agent test-simulator test-tools
 test-agent:
 	uv run --project packages/grid-agent pytest packages/grid-agent/tests -q
 
+test-domain-package:
+	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
+	python3 tools/check_package_boundaries.py
+
 test-simulator:
 	uv run --project packages/grid-simulator pytest packages/grid-simulator/tests -q
 

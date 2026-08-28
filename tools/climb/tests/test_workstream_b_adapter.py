@@ -11,6 +11,14 @@ from typing import Any
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from climb_evidence import (  # noqa: E402
+    load_attestation_key,
+    release_source_tree_sha256,
+    sha256_bytes,
+    sign_receipt,
+)
+
 
 ROOT = Path(__file__).resolve().parents[3]
 TRAIN = ROOT / "tools/climb/train.sh"
@@ -233,6 +241,7 @@ def _append_run(
         "hypothesis_gate_passed": True,
         "hypothesis_id": hypothesis_id,
         "per_task": {key: 0.0 for key in EXPECTED_WEIGHTS},
+        "release_source_revision": _repo_release_revision(),
         "release_ready": False,
         "session": session,
         "total": weight,
@@ -329,23 +338,28 @@ def _write_receipt(
     receipt_dir.mkdir(parents=True, exist_ok=True)
     receipt_path = receipt_dir / f"{gate_key}.json"
     output_path = receipt_dir / f"{gate_key}.output.txt"
-    output_path.write_text(f"{gate_key} output\n", encoding="utf-8")
-    receipt_path.write_text(
-        json.dumps(
+    output_bytes = f"{gate_key} output\n".encode()
+    output_path.write_bytes(output_bytes)
+    config = json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
+    receipt = sign_receipt(
             {
                 "artifact_path": f"gate-receipts/{revision}/{gate_key}.json",
                 "command": command,
                 "gate_key": gate_key,
                 "output_artifact_path": f"gate-receipts/{revision}/{gate_key}.output.txt",
+                "output_sha256": sha256_bytes(output_bytes),
                 "release_source_revision": revision,
+                "release_source_tree_sha256": (
+                    release_source_tree_sha256(config, revision, ROOT)
+                    if source_revision is None
+                    else "0" * 64
+                ),
                 "returncode": returncode,
                 "status": "passed" if returncode == 0 else "failed",
             },
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+            load_attestation_key(root=ROOT, create=True),
     )
+    receipt_path.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
     config_path = state_dir / "config.yaml"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     config["score_gates"][gate_key]["receipt_required"] = True
@@ -923,7 +937,214 @@ def test_gate_receipt_records_exact_command_returncode_commit_and_output_path(tm
     assert receipt["artifact_path"] == f"gate-receipts/{revision}/application_thinness.json"
     assert receipt["output_artifact_path"] == f"gate-receipts/{revision}/application_thinness.output.txt"
     assert (artifact_dir / f"gate-receipts/{revision}/application_thinness.output.txt").is_file()
+    assert receipt["output_sha256"]
+    assert receipt["receipt_digest"]
+    assert receipt["attestation"]["algorithm"] == "hmac-sha256"
+    assert receipt["attestation"]["key_id"]
     assert output_marker.is_file()
+
+
+def test_eval_rejects_an_unsigned_handwritten_receipt(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    _write_receipt(
+        state_dir,
+        artifact_dir,
+        gate_key="application_thinness",
+        command=config["score_gates"]["application_thinness"]["command"],
+    )
+    revision = _repo_release_revision()
+    receipt_path = artifact_dir / f"gate-receipts/{revision}/application_thinness.json"
+    unsigned = json.loads(receipt_path.read_text(encoding="utf-8"))
+    unsigned.pop("attestation")
+    receipt_path.write_text(json.dumps(unsigned, sort_keys=True) + "\n", encoding="utf-8")
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["gate_evidence"]["application_thinness"]["status"] == "invalid-receipt-attestation"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_status"),
+    [
+        ("output", "receipt-output-digest-mismatch"),
+        ("receipt", "invalid-receipt-attestation"),
+    ],
+)
+def test_eval_zeroes_tampered_receipt_material(
+    tmp_path: Path,
+    mutation: str,
+    expected_status: str,
+) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    receipt_path = _write_receipt(
+        state_dir,
+        artifact_dir,
+        gate_key="application_thinness",
+        command=config["score_gates"]["application_thinness"]["command"],
+    )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if mutation == "output":
+        output_path = artifact_dir / str(receipt["output_artifact_path"])
+        output_path.write_text("tampered output\n", encoding="utf-8")
+    else:
+        receipt["returncode"] = 17
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["gate_evidence"]["application_thinness"]["status"] == expected_status
+
+
+@pytest.mark.parametrize("symlink_part", ["leaf", "parent"])
+def test_eval_zeroes_symlinked_receipt_paths(
+    tmp_path: Path,
+    symlink_part: str,
+) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    receipt_path = _write_receipt(
+        state_dir,
+        artifact_dir,
+        gate_key="application_thinness",
+        command=config["score_gates"]["application_thinness"]["command"],
+    )
+    if symlink_part == "leaf":
+        outside = tmp_path / "outside-receipt.json"
+        outside.write_bytes(receipt_path.read_bytes())
+        receipt_path.unlink()
+        receipt_path.symlink_to(outside)
+    else:
+        receipt_dir = receipt_path.parent
+        outside = tmp_path / "outside-receipt-dir"
+        receipt_dir.rename(outside)
+        receipt_dir.symlink_to(outside, target_is_directory=True)
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["gate_evidence"]["application_thinness"]["status"] == "invalid-receipt-path"
+
+
+def test_eval_requires_trusted_product_prerequisite_receipts_without_running_them(
+    tmp_path: Path,
+) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    config_path = state_dir / "config.yaml"
+    config["receipt_gates"] = {
+        "doctor": {"command": [sys.executable, str(tmp_path / "gates/kernel-ok.py")]},
+        "test": {"command": [sys.executable, str(tmp_path / "gates/kernel-ok.py")]},
+        "test-e2e": {"command": [sys.executable, str(tmp_path / "gates/kernel-ok.py")]},
+    }
+    config["score_gates"]["product_compatibility"]["prerequisite_receipts"] = [
+        "doctor",
+        "test",
+        "test-e2e",
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["product_compatibility"] == 0.0
+    assert score["gate_evidence"]["product_compatibility"]["status"] == "missing-prerequisite-receipt"
+
+
+def test_eval_accepts_three_trusted_product_prerequisites_without_reexecuting_them(
+    tmp_path: Path,
+) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    config_path = state_dir / "config.yaml"
+    prerequisite_markers = {
+        key: tmp_path / f"{key}-marker"
+        for key in ("doctor", "test", "test-e2e")
+    }
+    config["receipt_gates"] = {
+        key: {
+            "command": [
+                sys.executable,
+                str(tmp_path / "gates/append-marker.py"),
+                str(marker),
+            ]
+        }
+        for key, marker in prerequisite_markers.items()
+    }
+    config["score_gates"]["product_compatibility"]["prerequisite_receipts"] = list(
+        prerequisite_markers
+    )
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    env = _env(state_dir, artifact_dir)
+    for key in prerequisite_markers:
+        generated = _run([GATE_RECEIPT, key], cwd=tmp_path, env=env)
+        assert generated.returncode == 0, generated.stderr
+    for marker in prerequisite_markers.values():
+        marker.unlink()
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["product_compatibility"] == 20.0
+    assert score["gate_evidence"]["product_compatibility"]["status"] == "passed"
+    assert all(
+        item["status"] == "receipt-passed"
+        for item in score["gate_evidence"]["product_compatibility"]["prerequisite_receipts"].values()
+    )
+    assert all(not marker.exists() for marker in prerequisite_markers.values())
+
+
+def test_eval_rejects_carry_forward_from_another_release_revision(tmp_path: Path) -> None:
+    state_dir, artifact_dir, _config = _prepare_carry_forward_case(tmp_path)
+    eval_path = artifact_dir / "valid-kernel/local-eval.json"
+    source_eval = json.loads(eval_path.read_text(encoding="utf-8"))
+    source_eval["release_source_revision"] = "0" * 40
+    eval_path.write_text(json.dumps(source_eval, sort_keys=True) + "\n", encoding="utf-8")
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-revision"
+
+
+def test_gate_receipt_rejects_dirty_release_source_when_enforced(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run(["git", "init"], cwd=repo, env=os.environ.copy())
+    _run(["git", "config", "user.email", "agent@example.invalid"], cwd=repo, env=os.environ.copy())
+    _run(["git", "config", "user.name", "Agent"], cwd=repo, env=os.environ.copy())
+    (repo / "Makefile").write_text("all:\n\t@true\n", encoding="utf-8")
+    _run(["git", "add", "Makefile"], cwd=repo, env=os.environ.copy())
+    committed = _run(["git", "commit", "-m", "source"], cwd=repo, env=os.environ.copy())
+    assert committed.returncode == 0, committed.stderr
+    climb_root = tmp_path / "climb"
+    climb_root.mkdir()
+    state_dir, artifact_dir = _write_temp_state(climb_root)
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["artifact_dir"] = str(artifact_dir)
+    config["release_source"] = {
+        "enforce_clean": True,
+        "include_pathspecs": ["Makefile"],
+        "exclude_pathspecs": [],
+    }
+    config["score_gates"]["application_thinness"]["command"] = [
+        sys.executable,
+        str(tmp_path / "climb/gates/kernel-ok.py"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    (repo / "Makefile").write_text("all:\n\t@false\n", encoding="utf-8")
+
+    result = _run(
+        [GATE_RECEIPT, "application_thinness", "--root", repo],
+        cwd=repo,
+        env=_env(state_dir, artifact_dir),
+    )
+
+    assert result.returncode != 0
+    assert "release-source pathspec is dirty" in result.stderr
+    assert not (repo / ".grid-agent/climb-receipt-hmac.key").exists()
 
 
 def test_gate_receipt_refuses_to_overwrite_same_revision_receipt(tmp_path: Path) -> None:
@@ -1117,7 +1338,13 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
     gate_evidence = {
         key: {
             "artifact_path": f"stable/{key}.json",
+            "attestation_id": "key-123",
             "command": ["make", key],
+            "output_artifact_path": f"stable/{key}.output.txt",
+            "output_sha256": key * 2,
+            "receipt_digest": key * 3,
+            "release_source_revision": "a" * 40,
+            "release_source_tree_sha256": "b" * 64,
             "returncode": 0,
             "status": "passed" if key == "product_compatibility" else "carried-forward",
         }
@@ -1125,6 +1352,20 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
     }
     gate_evidence["application_thinness"]["status"] = "receipt-passed"
     gate_evidence["distribution_integrity"]["status"] = "receipt-passed"
+    gate_evidence["product_compatibility"]["prerequisite_receipts"] = {
+        "doctor": {
+            "artifact_path": "stable/doctor.json",
+            "attestation_id": "key-123",
+            "command": ["make", "doctor"],
+            "output_artifact_path": "stable/doctor.output.txt",
+            "output_sha256": "c" * 64,
+            "receipt_digest": "d" * 64,
+            "release_source_revision": "a" * 40,
+            "release_source_tree_sha256": "b" * 64,
+            "returncode": 0,
+            "status": "receipt-passed",
+        }
+    }
     eval_json.write_text(
         json.dumps(
             {
@@ -1134,6 +1375,7 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
                 "per_task": EXPECTED_WEIGHTS,
                 "release_blockers": [],
                 "release_ready": True,
+                "release_source_revision": "a" * 40,
                 "total": 100.0,
             },
             sort_keys=True,
@@ -1157,6 +1399,12 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
         ("make", key) for key in EXPECTED_WEIGHTS
     }
     assert all(link["artifact_path"].startswith("stable/") for link in links)
+    assert all(link["release_source_revision"] == "a" * 40 for link in links)
+    assert all(link["output_sha256"] for link in links)
+    product_link = next(link for link in links if link["score_key"] == "product_compatibility")
+    assert product_link["prerequisite_receipts"][0]["receipt_key"] == "doctor"
+    assert product_link["prerequisite_receipts"][0]["receipt_digest"] == "d" * 64
+    assert manifest["release_source_revision"] == "a" * 40
     assert str(tmp_path) not in json.dumps(manifest)
     session = json.loads((state_dir / "session-state.json").read_text(encoding="utf-8"))
     assert session["phase"] == "complete"

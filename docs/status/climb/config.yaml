@@ -5,6 +5,7 @@
   "run_tag_marker": "-climb-b-",
   "score_direction": "max",
   "release_source": {
+    "enforce_clean": true,
     "include_pathspecs": ["Makefile", "packages", "tools", "validation", "configs", "schemas", "skills"],
     "exclude_pathspecs": ["docs/status", ".superpowers"]
   },
@@ -22,8 +23,9 @@
       "required_paths": ["packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
     },
     "domain_ownership": {
-      "command": ["python3", "tools/check_package_boundaries.py"],
+      "command": ["make", "test-domain-package"],
       "hypothesis_id": "B-H004",
+      "receipt_required": true,
       "required_paths": ["packages/pandapower-domain-pack/pyproject.toml", "tools/check_package_boundaries.py"]
     },
     "kernel_independence": {
@@ -38,6 +40,7 @@
       ],
       "hypothesis_id": "B-H001",
       "hypothesis_ids": ["B-H001", "B-H002"],
+      "receipt_required": true,
       "required_paths": [
         "packages/capability-agent-kernel/pyproject.toml",
         "packages/capability-agent-kernel/src/capability_agent/__init__.py",
@@ -47,12 +50,28 @@
     "pi_tool_generalization": {
       "command": ["npm", "test", "--prefix", "packages/pi-capability-tools"],
       "hypothesis_id": "B-H003",
+      "receipt_required": true,
       "required_paths": ["packages/pi-capability-tools/package.json"]
     },
     "product_compatibility": {
       "command": ["make", "validate"],
       "hypothesis_id": "B-H005",
+      "prerequisite_receipts": ["doctor", "test", "test-e2e"],
       "required_paths": ["tools/check_package_boundaries.py", "packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+    }
+  },
+  "receipt_gates": {
+    "doctor": {
+      "command": ["make", "doctor"],
+      "required_paths": ["packages/grid-agent/pyproject.toml"]
+    },
+    "test": {
+      "command": ["make", "test"],
+      "required_paths": ["Makefile"]
+    },
+    "test-e2e": {
+      "command": ["make", "test-e2e"],
+      "required_paths": ["packages/grid-agent/tests/e2e"]
     }
   },
   "score_name": "workstream_b_package_extraction_score",

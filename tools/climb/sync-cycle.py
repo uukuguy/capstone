@@ -73,15 +73,39 @@ def _score_evidence_links(score: JsonObject, config: JsonObject) -> list[JsonObj
         evidence = gate_evidence.get(key)
         if not isinstance(evidence, dict):
             evidence = {}
-        links.append(
-            {
+        link: JsonObject = {
                 "artifact_path": str(evidence.get("artifact_path") or ""),
                 "command": [str(part) for part in evidence.get("command", [])],
+                "output_artifact_path": str(evidence.get("output_artifact_path") or ""),
+                "output_sha256": str(evidence.get("output_sha256") or ""),
+                "receipt_digest": str(evidence.get("receipt_digest") or ""),
+                "release_source_revision": str(evidence.get("release_source_revision") or ""),
+                "release_source_tree_sha256": str(evidence.get("release_source_tree_sha256") or ""),
                 "returncode": evidence.get("returncode"),
                 "score_key": key,
                 "source": str(evidence.get("status", "unknown")),
+                "attestation_id": str(evidence.get("attestation_id") or ""),
             }
-        )
+        prerequisites = evidence.get("prerequisite_receipts")
+        if isinstance(prerequisites, dict):
+            link["prerequisite_receipts"] = [
+                {
+                    "artifact_path": str(item.get("artifact_path") or ""),
+                    "attestation_id": str(item.get("attestation_id") or ""),
+                    "command": [str(part) for part in item.get("command", [])],
+                    "output_artifact_path": str(item.get("output_artifact_path") or ""),
+                    "output_sha256": str(item.get("output_sha256") or ""),
+                    "receipt_digest": str(item.get("receipt_digest") or ""),
+                    "receipt_key": str(prerequisite_key),
+                    "release_source_revision": str(item.get("release_source_revision") or ""),
+                    "release_source_tree_sha256": str(item.get("release_source_tree_sha256") or ""),
+                    "returncode": item.get("returncode"),
+                    "source": str(item.get("status", "unknown")),
+                }
+                for prerequisite_key, item in prerequisites.items()
+                if isinstance(item, dict)
+            ]
+        links.append(link)
     return links
 
 
@@ -96,6 +120,7 @@ def _update_manifest(run_dir: Path, eval_json: Path, decision_json: Path, score:
             "per_task": score["per_task"],
             "release_blockers": score.get("release_blockers", []),
             "release_ready": bool(score.get("release_ready")),
+            "release_source_revision": str(score.get("release_source_revision") or ""),
             "score_evidence": _score_evidence_links(score, config),
         }
     )

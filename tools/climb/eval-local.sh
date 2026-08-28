@@ -32,10 +32,17 @@ from climb_evidence import (  # noqa: E402
     artifact_dir as configured_artifact_dir,
     as_object,
     contained_artifact_path,
+    load_attestation_key,
     load_json_object,
+    receipt_output_path_for,
     receipt_path_for,
+    release_source_tree_sha256,
+    require_clean_release_source,
+    secure_artifact_bytes,
+    sha256_bytes,
     source_revision,
     stable_path as stable_artifact_path,
+    verify_receipt_attestation,
 )
 
 
@@ -53,6 +60,7 @@ hypothesis_id = str(manifest["hypothesis_id"])
 session_id = str(config["session"])
 weights = {key: float(value) for key, value in as_object(config["score_weights"], "score_weights").items()}
 gates = as_object(config.get("score_gates"), "score_gates")
+receipt_gates = object_or_empty(config.get("receipt_gates"))
 hypotheses_document = load_json_object(state_dir / "hypotheses.yaml")
 hypotheses = list_or_empty(hypotheses_document.get("hypotheses"))
 hypothesis = next(
@@ -118,15 +126,36 @@ def run_gate(key: str, gate: JsonObject) -> tuple[float, JsonObject]:
         stderr=subprocess.PIPE,
         check=False,
     )
+    direct_output = output_path(key, completed)
     evidence: JsonObject = {
-        "artifact_path": stable_path(output_path(key, completed)),
+        "artifact_path": stable_path(direct_output),
+        "output_sha256": sha256_bytes(direct_output.read_bytes()),
+        "release_source_revision": release_revision,
         "status": "passed" if completed.returncode == 0 else "failed",
         "command": command,
         "returncode": completed.returncode,
         "stdout": completed.stdout.strip(),
         "stderr": completed.stderr.strip(),
     }
-    return (weights[key] if completed.returncode == 0 else 0.0), evidence
+    if completed.returncode != 0:
+        return 0.0, evidence
+    prerequisite_keys = [str(item) for item in list_or_empty(gate.get("prerequisite_receipts"))]
+    if prerequisite_keys:
+        prerequisite_evidence: dict[str, JsonObject] = {}
+        prerequisites_valid = True
+        for prerequisite_key in prerequisite_keys:
+            prerequisite_gate = object_or_empty(receipt_gates.get(prerequisite_key))
+            valid, checked = validate_receipt_evidence(prerequisite_key, prerequisite_gate)
+            prerequisite_evidence[prerequisite_key] = checked
+            prerequisites_valid = prerequisites_valid and valid
+        evidence["prerequisite_receipts"] = prerequisite_evidence
+        if not prerequisites_valid:
+            evidence["status"] = "missing-prerequisite-receipt" if any(
+                item.get("status") == "missing-receipt"
+                for item in prerequisite_evidence.values()
+            ) else "invalid-prerequisite-receipt"
+            return 0.0, evidence
+    return weights[key], evidence
 
 
 def allowed_hypotheses(gate: JsonObject) -> set[str]:
@@ -227,6 +256,12 @@ def validate_carry_forward_event(event: JsonObject, row: dict[str, str], key: st
         return invalid("invalid-carry-forward-local-eval-hypothesis", source_run_id=source_run_id)
     if source_eval.get("focused_gate") != key:
         return invalid("invalid-carry-forward-local-eval-focused-gate", source_run_id=source_run_id)
+    if source_eval.get("release_source_revision") != release_revision:
+        return invalid(
+            "invalid-carry-forward-revision",
+            source_run_id=source_run_id,
+            release_source_revision=source_eval.get("release_source_revision"),
+        )
     if not float_equals(source_eval.get("total"), expected_weight):
         return invalid("invalid-carry-forward-local-eval-total", source_run_id=source_run_id)
     if not float_equals(local_per_task.get(key), expected_weight):
@@ -238,6 +273,7 @@ def validate_carry_forward_event(event: JsonObject, row: dict[str, str], key: st
         "artifact_path": stable_path(local_eval_file),
         "command": expected_command,
         "returncode": 0,
+        "release_source_revision": release_revision,
         "source_hypothesis_id": source_hypothesis_id,
         "source_run_id": source_run_id,
         "status": "carried-forward",
@@ -275,32 +311,88 @@ def any_stale_receipt_for(key: str) -> bool:
     return False
 
 
-def validate_receipt(key: str, gate: JsonObject) -> tuple[float, JsonObject]:
+def validate_receipt_evidence(key: str, gate: JsonObject) -> tuple[bool, JsonObject]:
     receipt_path = receipt_path_for(config, key, release_revision, root=root)
+    expected_output_path = receipt_output_path_for(
+        config,
+        key,
+        release_revision,
+        root=root,
+    )
     command = exact_command(gate, key)
-    if not receipt_path.is_file():
-        return 0.0, {
+    if not receipt_path.exists():
+        return False, {
             "artifact_path": stable_path(receipt_path),
             "release_source_revision": release_revision,
             "status": "stale-receipt" if any_stale_receipt_for(key) else "missing-receipt",
         }
-    receipt = load_json_object(receipt_path)
+    try:
+        require_clean_release_source(config, root)
+    except (RuntimeError, ValueError) as exc:
+        return False, {
+            "artifact_path": stable_path(receipt_path),
+            "release_source_revision": release_revision,
+            "status": "dirty-release-source",
+            "reason": str(exc),
+        }
+    try:
+        receipt_bytes = secure_artifact_bytes(receipt_path, artifact=artifact_base)
+        receipt = as_object(json.loads(receipt_bytes.decode("utf-8")), "receipt")
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        return False, {
+            "artifact_path": stable_path(receipt_path),
+            "release_source_revision": release_revision,
+            "status": "invalid-receipt-path",
+            "reason": str(exc),
+        }
     evidence: JsonObject = {
         "artifact_path": stable_path(receipt_path),
         "command": [str(part) for part in list_or_empty(receipt.get("command"))],
         "output_artifact_path": str(receipt.get("output_artifact_path") or ""),
+        "output_sha256": str(receipt.get("output_sha256") or ""),
+        "receipt_digest": str(receipt.get("receipt_digest") or ""),
         "release_source_revision": str(receipt.get("release_source_revision") or ""),
+        "release_source_tree_sha256": str(receipt.get("release_source_tree_sha256") or ""),
         "returncode": receipt.get("returncode"),
     }
+    try:
+        key_material = load_attestation_key(root=root)
+    except ValueError as exc:
+        return False, {**evidence, "status": "invalid-receipt-attestation", "reason": str(exc)}
+    if not verify_receipt_attestation(receipt, key_material):
+        return False, {**evidence, "status": "invalid-receipt-attestation"}
+    attestation = object_or_empty(receipt.get("attestation"))
+    evidence["attestation_id"] = str(attestation.get("key_id") or "")
+    if receipt.get("artifact_path") != stable_path(receipt_path):
+        return False, {**evidence, "status": "receipt-path-mismatch"}
+    if receipt.get("output_artifact_path") != stable_path(expected_output_path):
+        return False, {**evidence, "status": "receipt-output-path-mismatch"}
     if receipt.get("gate_key") != key:
-        return 0.0, {**evidence, "status": "receipt-gate-mismatch"}
+        return False, {**evidence, "status": "receipt-gate-mismatch"}
     if [str(part) for part in list_or_empty(receipt.get("command"))] != command:
-        return 0.0, {**evidence, "status": "receipt-command-mismatch"}
+        return False, {**evidence, "status": "receipt-command-mismatch"}
     if receipt.get("release_source_revision") != release_revision:
-        return 0.0, {**evidence, "status": "stale-receipt"}
+        return False, {**evidence, "status": "stale-receipt"}
+    expected_tree_sha256 = release_source_tree_sha256(config, release_revision, root)
+    if receipt.get("release_source_tree_sha256") != expected_tree_sha256:
+        return False, {**evidence, "status": "receipt-source-tree-mismatch"}
+    try:
+        output_bytes = secure_artifact_bytes(
+            expected_output_path,
+            artifact=artifact_base,
+        )
+    except ValueError as exc:
+        return False, {**evidence, "status": "invalid-receipt-output-path", "reason": str(exc)}
+    if receipt.get("output_sha256") != sha256_bytes(output_bytes):
+        return False, {**evidence, "status": "receipt-output-digest-mismatch"}
     if int(receipt.get("returncode", 1)) != 0 or receipt.get("status") != "passed":
-        return 0.0, {**evidence, "status": "failed-receipt"}
-    return weights[key], {**evidence, "status": "receipt-passed"}
+        return False, {**evidence, "status": "failed-receipt"}
+    return True, {**evidence, "status": "receipt-passed"}
+
+
+def validate_receipt(key: str, gate: JsonObject) -> tuple[float, JsonObject]:
+    valid, evidence = validate_receipt_evidence(key, gate)
+    return (weights[key] if valid else 0.0), evidence
 
 
 per_task: dict[str, float] = {}
