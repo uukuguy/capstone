@@ -3,7 +3,15 @@ import { Type } from "@earendil-works/pi-ai";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { constants, readFileSync, realpathSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
 import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
@@ -21,6 +29,8 @@ const DESCRIPTOR_KEYS = new Set([
   "decisionToolName",
   "toolCatalogPath",
   "guideIndexPath",
+  "guideRootPath",
+  "guideIndexSha256",
   "workspacePath",
   "activeTurnPath",
   "analysisContextViewPath",
@@ -50,6 +60,7 @@ const CANONICAL_SECRET_NAMES = [
 ];
 const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]+$/;
 const ENCODED_SEPARATOR_PATTERN = /%(?:2f|5c)/i;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_TRANSPORT_LIMITS = Object.freeze({
   timeoutMs: 60_000,
   maxOutputBytes: 1_048_576,
@@ -104,10 +115,18 @@ export function validateRuntimeDescriptor(value) {
     "trajectoryCaptureStatePath",
     "trajectoryAllowedRefsPath",
     "trajectoryAcksPath",
+    "guideRootPath",
   ]) {
     if (value[key] !== undefined) {
       descriptor[key] = requireAbsolutePath(value[key], key);
     }
+  }
+  if (value.guideIndexSha256 !== undefined) {
+    descriptor.guideIndexSha256 = requirePattern(
+      value.guideIndexSha256,
+      "guideIndexSha256",
+      SHA256_PATTERN,
+    );
   }
   if (value.piRuntime !== undefined) {
     descriptor.piRuntime = cloneRuntime(value.piRuntime);
@@ -224,7 +243,15 @@ export function createDomainToolsExtension(descriptor, options = {}) {
         buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
       );
     }
-    pi.registerTool(createGuideTool(runtime, paths.guideIndexPath));
+    pi.registerTool(
+      createGuideTool(
+        runtime,
+        paths.guideIndexPath,
+        paths.guideWorkspacePath,
+        paths.guideRootPath,
+        paths.guideIndexSha256,
+      ),
+    );
     if (paths.analysisContextViewPath !== undefined) {
       pi.registerTool(createAnalysisContextTool(runtime.contextToolName, paths.analysisContextViewPath));
     }
@@ -350,8 +377,27 @@ function validateTransportLimits(value) {
   return Object.freeze(limits);
 }
 
-function createGuideTool(descriptor, guideIndexPath) {
-  const guideIndex = readJsonSync(guideIndexPath);
+function createGuideTool(
+  descriptor,
+  guideIndexPath,
+  guideWorkspacePath,
+  descriptorGuideRoot,
+  descriptorGuideDigest,
+) {
+  const startupRead = readBoundFileSync(guideWorkspacePath, guideIndexPath);
+  if (
+    descriptorGuideDigest !== undefined &&
+    startupRead.sha256 !== descriptorGuideDigest
+  ) {
+    throw new Error("guide index digest does not match the runtime descriptor");
+  }
+  const expectedRoot = descriptorGuideRoot ?? resolve(String(JSON.parse(startupRead.text).root));
+  const guideIndex = validateGuideIndex(
+    JSON.parse(startupRead.text),
+    descriptor,
+    expectedRoot,
+  );
+  const startupRootIdentity = readBoundDirectorySync(expectedRoot, "guide root");
   const resourceIds = Object.keys(guideIndex.resources ?? {}).sort();
   const resourceIdSchema = {
     type: "string",
@@ -386,22 +432,46 @@ function createGuideTool(descriptor, guideIndexPath) {
           descriptor.guideToolName,
         );
       }
-      const currentIndex = await readJson(guideIndexPath);
-      const root = resolve(String(currentIndex.root));
-      const resourcePath = currentIndex.resources?.[params.resource_id];
-      if (typeof resourcePath !== "string") {
-        return toolError(
-          {
-            code: "guide_not_found",
-            phase: "resolve",
-            message: "guide resource is not published",
-          },
-          descriptor.guideToolName,
-        );
-      }
-      let guide;
       try {
-        guide = await readPublishedFile(root, resourcePath);
+        const currentRead = await readBoundFile(guideWorkspacePath, guideIndexPath);
+        if (
+          currentRead.sha256 !== startupRead.sha256 ||
+          currentRead.identity !== startupRead.identity
+        ) {
+          throw new Error("guide index named binding changed after startup");
+        }
+        const currentIndex = validateGuideIndex(
+          JSON.parse(currentRead.text),
+          descriptor,
+          expectedRoot,
+        );
+        const resourcePath = currentIndex.resources[params.resource_id];
+        if (typeof resourcePath !== "string") {
+          return toolError(
+            {
+              code: "guide_not_found",
+              phase: "resolve",
+              message: "guide resource is not published",
+            },
+            descriptor.guideToolName,
+          );
+        }
+        const guide = await readPublishedFile(expectedRoot, resourcePath);
+        if (guide.rootIdentity !== startupRootIdentity) {
+          throw new Error("guide root named binding changed after startup");
+        }
+        const text = guide.text;
+        const result = { resource_id: params.resource_id, text };
+        return {
+          content: [{ type: "text", text }],
+          details: {
+            event: "tool_result",
+            capability: descriptor.guideToolName,
+            ok: true,
+            result,
+            evidence_refs: [],
+          },
+        };
       } catch {
         return toolError(
           {
@@ -412,59 +482,157 @@ function createGuideTool(descriptor, guideIndexPath) {
           descriptor.guideToolName,
         );
       }
-      const text = guide.text;
-      const result = { resource_id: params.resource_id, text };
-      return {
-        content: [{ type: "text", text }],
-        details: {
-          event: "tool_result",
-          capability: descriptor.guideToolName,
-          ok: true,
-          result,
-          evidence_refs: [],
-        },
-      };
     },
   });
 }
 
-async function readPublishedFile(rootPath, resourcePath) {
-  const root = resolve(rootPath);
-  const candidate = resolve(resourcePath);
-  if (!isInside(candidate, root) || candidate === root) {
-    throw new Error("published resource is outside its root");
+function readBoundDirectorySync(path, label) {
+  const descriptor = openSync(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+  try {
+    const opened = fstatSync(descriptor, { bigint: true });
+    const named = lstatSync(path, { bigint: true });
+    if (
+      !opened.isDirectory() ||
+      !named.isDirectory() ||
+      named.dev !== opened.dev ||
+      named.ino !== opened.ino
+    ) {
+      throw new Error(`${label} named binding is invalid`);
+    }
+    return statIdentity(opened);
+  } finally {
+    closeSync(descriptor);
   }
-  const segments = relative(root, candidate).split(sep);
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
-    throw new Error("published resource has an unsafe path segment");
-  }
+}
 
+function validateGuideIndex(value, descriptor, expectedRoot) {
+  if (!isPlainObject(value)) {
+    throw new Error("guide index must be an object");
+  }
+  const keys = new Set(["protocol", "version", "root", "resources"]);
+  if (Reflect.ownKeys(value).some((key) => typeof key !== "string" || !keys.has(key))) {
+    throw new Error("guide index contains an unknown field");
+  }
+  const expectedProtocol = `${descriptor.protocol.split("-", 1)[0]}-guide-index`;
+  if (value.protocol !== expectedProtocol || value.version !== "1.0") {
+    throw new Error("guide index protocol or version is invalid");
+  }
+  if (
+    typeof value.root !== "string" ||
+    !isAbsolute(value.root) ||
+    resolve(value.root) !== expectedRoot
+  ) {
+    throw new Error("guide index root does not match the runtime descriptor");
+  }
+  if (!isPlainObject(value.resources)) {
+    throw new Error("guide index resources must be an object");
+  }
+  const resources = {};
+  for (const [resourceId, resourcePath] of Object.entries(value.resources)) {
+    const candidate = typeof resourcePath === "string" ? resolve(resourcePath) : "";
+    if (
+      !RESOURCE_ID_PATTERN.test(resourceId) ||
+      ENCODED_SEPARATOR_PATTERN.test(resourceId) ||
+      typeof resourcePath !== "string" ||
+      !isAbsolute(resourcePath) ||
+      candidate !== resourcePath ||
+      candidate === expectedRoot ||
+      !isInside(candidate, expectedRoot)
+    ) {
+      throw new Error("guide index resource mapping is invalid");
+    }
+    resources[resourceId] = resourcePath;
+  }
+  return Object.freeze({
+    protocol: value.protocol,
+    version: value.version,
+    root: expectedRoot,
+    resources: Object.freeze(resources),
+  });
+}
+
+function readBoundFileSync(rootPath, filePath) {
+  const root = resolve(rootPath);
+  const candidate = resolve(filePath);
+  const segments = safeRelativeSegments(root, candidate, "guide index");
   const handles = [];
   const bindings = [];
   try {
-    const rootHandle = await open(
-      root,
-      O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-    );
+    const rootDescriptor = openSync(root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    handles.push(rootDescriptor);
+    bindings.push({ path: root, descriptor: rootDescriptor, directory: true });
+    let currentPath = root;
+    for (const segment of segments.slice(0, -1)) {
+      currentPath = resolve(currentPath, segment);
+      const descriptor = openSync(
+        currentPath,
+        O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      handles.push(descriptor);
+      bindings.push({ path: currentPath, descriptor, directory: true });
+    }
+    const descriptor = openSync(candidate, O_RDONLY | O_NOFOLLOW);
+    handles.push(descriptor);
+    bindings.push({ path: candidate, descriptor, directory: false });
+    const before = fstatSync(descriptor, { bigint: true });
+    if (!before.isFile()) {
+      throw new Error("guide index is not a regular file");
+    }
+    const content = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    verifySyncBindings(bindings);
+    if (statIdentity(before) !== statIdentity(after)) {
+      throw new Error("guide index changed while reading");
+    }
+    return {
+      text: content.toString("utf8"),
+      sha256: createHash("sha256").update(content).digest("hex"),
+      identity: statIdentity(after),
+    };
+  } finally {
+    for (const descriptor of handles.reverse()) {
+      closeSync(descriptor);
+    }
+  }
+}
+
+function verifySyncBindings(bindings) {
+  for (const binding of bindings) {
+    const named = lstatSync(binding.path, { bigint: true });
+    const opened = fstatSync(binding.descriptor, { bigint: true });
+    if (
+      (binding.directory ? !named.isDirectory() : !named.isFile()) ||
+      named.dev !== opened.dev ||
+      named.ino !== opened.ino
+    ) {
+      throw new Error("guide index named binding changed while reading");
+    }
+  }
+}
+
+async function readBoundFile(rootPath, filePath) {
+  const root = resolve(rootPath);
+  const candidate = resolve(filePath);
+  const segments = safeRelativeSegments(root, candidate, "published file");
+  const handles = [];
+  const bindings = [];
+  try {
+    const rootHandle = await open(root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
     handles.push(rootHandle);
     bindings.push({ path: root, handle: rootHandle, directory: true });
     let currentPath = root;
     for (const segment of segments.slice(0, -1)) {
       currentPath = resolve(currentPath, segment);
-      const handle = await open(
-        currentPath,
-        O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-      );
+      const handle = await open(currentPath, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
       handles.push(handle);
       bindings.push({ path: currentPath, handle, directory: true });
     }
     const handle = await open(candidate, O_RDONLY | O_NOFOLLOW);
     handles.push(handle);
     bindings.push({ path: candidate, handle, directory: false });
-
     const before = await handle.stat({ bigint: true });
     if (!before.isFile()) {
-      throw new Error("published resource is not a regular file");
+      throw new Error("published file is not a regular file");
     }
     const content = await handle.readFile();
     const after = await handle.stat({ bigint: true });
@@ -476,21 +644,41 @@ async function readPublishedFile(rootPath, resourcePath) {
         named.dev !== opened.dev ||
         named.ino !== opened.ino
       ) {
-        throw new Error("published resource named binding changed while reading");
+        throw new Error("published file named binding changed while reading");
       }
     }
     if (statIdentity(before) !== statIdentity(after)) {
-      throw new Error("published resource changed while reading");
+      throw new Error("published file changed while reading");
     }
     return {
       text: content.toString("utf8"),
       sha256: createHash("sha256").update(content).digest("hex"),
+      identity: statIdentity(after),
+      rootIdentity: statIdentity(await bindings[0].handle.stat({ bigint: true })),
     };
   } finally {
     for (const handle of handles.reverse()) {
       await handle.close().catch(() => undefined);
     }
   }
+}
+
+function safeRelativeSegments(root, candidate, label) {
+  if (!isInside(candidate, root) || candidate === root) {
+    throw new Error(`${label} is outside its trusted root`);
+  }
+  const segments = relative(root, candidate).split(sep);
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    throw new Error(`${label} has an unsafe path segment`);
+  }
+  return segments;
+}
+
+async function readPublishedFile(rootPath, resourcePath) {
+  const root = resolve(rootPath);
+  const candidate = resolve(resourcePath);
+  safeRelativeSegments(root, candidate, "published resource");
+  return readBoundFile(root, candidate);
 }
 
 function statIdentity(value) {
@@ -596,7 +784,11 @@ function createRecordDecisionTool(toolName, allowedRefsPath, activeTurnPath) {
 function runtimePaths(descriptor) {
   const workspacePath = requiredExistingRealPath(descriptor.workspacePath, "workspacePath");
   const toolCatalogPath = requiredExistingRealPath(descriptor.toolCatalogPath, "toolCatalogPath");
-  const guideIndexPath = requiredExistingRealPath(descriptor.guideIndexPath, "guideIndexPath");
+  const guideWorkspacePath = resolve(descriptor.workspacePath);
+  const guideIndexPath = resolve(descriptor.guideIndexPath);
+  const guideRootPath = descriptor.guideRootPath === undefined
+    ? undefined
+    : resolve(descriptor.guideRootPath);
   const activeTurnPath = optionalWritableRealPath(descriptor.activeTurnPath, "activeTurnPath");
   const analysisContextViewPath = optionalExistingRealPath(
     descriptor.analysisContextViewPath,
@@ -630,7 +822,6 @@ function runtimePaths(descriptor) {
   }
   for (const [name, candidate] of [
     ["toolCatalogPath", toolCatalogPath],
-    ["guideIndexPath", guideIndexPath],
     ["activeTurnPath", activeTurnPath],
     ["analysisContextViewPath", analysisContextViewPath],
     ["trajectoryRequestsPath", trajectoryRequestsPath],
@@ -641,10 +832,16 @@ function runtimePaths(descriptor) {
       throw new Error(`${name} resolved path ${candidate} is outside workspacePath`);
     }
   }
+  if (!isInside(guideIndexPath, guideWorkspacePath)) {
+    throw new Error(`guideIndexPath ${guideIndexPath} is outside workspacePath`);
+  }
   return {
     workspacePath,
     toolCatalogPath,
     guideIndexPath,
+    guideWorkspacePath,
+    guideRootPath,
+    guideIndexSha256: descriptor.guideIndexSha256,
     activeTurnPath,
     analysisContextViewPath,
     trajectoryRequestsPath,

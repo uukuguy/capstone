@@ -51,7 +51,12 @@ test("package surface admits canonical request hook without expanding grid tools
     );
     await writeFile(
       guideIndexPath,
-      JSON.stringify({ root: guideRoot, resources: { topology: guidePath } }),
+      JSON.stringify({
+        protocol: "grid-guide-index",
+        version: "1.0",
+        root: guideRoot,
+        resources: { topology: guidePath },
+      }),
       "utf8",
     );
 

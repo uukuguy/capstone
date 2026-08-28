@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import stat
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 
 from capability_agent.domain import DomainManifest
@@ -65,6 +66,7 @@ def test_materializer_writes_fixed_domain_runtime_descriptor(tmp_path: Path) -> 
     workspace = tmp_path / "run"
     workspace.mkdir()
     manifest = _manifest(tmp_path)
+    _write_guide_index(workspace / "guide-index.json", manifest)
 
     descriptor_path = PiConfigMaterializer(
         ProjectPaths.from_root(tmp_path).pi_agent_dir
@@ -72,7 +74,7 @@ def test_materializer_writes_fixed_domain_runtime_descriptor(tmp_path: Path) -> 
 
     assert descriptor_path == workspace / "pi/domain-runtime.json"
     assert stat.S_IMODE(descriptor_path.stat().st_mode) == 0o600
-    expected = _descriptor_payload(workspace)
+    expected = _descriptor_payload(workspace, manifest)
     assert descriptor_path.read_text(encoding="utf-8") == (
         json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n"
     )
@@ -117,6 +119,7 @@ def test_production_descriptor_authoritatively_includes_all_run_paths_and_identi
         "trajectory_acks_path": tmp_path / ".grid-agent/acks/run",
     }
     manifest = _manifest(tmp_path)
+    _write_guide_index(paths["guide_index_path"], manifest)
 
     descriptor_path = PiConfigMaterializer(
         ProjectPaths.from_root(tmp_path).pi_agent_dir
@@ -134,6 +137,10 @@ def test_production_descriptor_authoritatively_includes_all_run_paths_and_identi
         ),
         "workspace_path": str(workspace),
         **{name: str(path) for name, path in paths.items()},
+        "guide_root_path": str(manifest.guide_root.resolve()),
+        "guide_index_sha256": sha256(
+            paths["guide_index_path"].read_bytes()
+        ).hexdigest(),
         "pi_runtime": runtime,
     }
 
@@ -145,6 +152,8 @@ def test_materializer_scopes_domain_runtime_descriptor_to_each_workspace(
     manifest = _manifest(tmp_path)
     first_workspace = tmp_path / "runs/first"
     second_workspace = tmp_path / "runs/second"
+    _write_guide_index(first_workspace / "guide-index.json", manifest)
+    _write_guide_index(second_workspace / "guide-index.json", manifest)
 
     first_descriptor = materializer.materialize_domain_runtime(
         manifest,
@@ -158,7 +167,7 @@ def test_materializer_scopes_domain_runtime_descriptor_to_each_workspace(
     assert first_descriptor != second_descriptor
     assert first_descriptor.read_text(encoding="utf-8") == (
         json.dumps(
-            _descriptor_payload(first_workspace),
+            _descriptor_payload(first_workspace, manifest),
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -420,7 +429,10 @@ def _manifest(tmp_path: Path) -> DomainManifest:
     )
 
 
-def _descriptor_payload(workspace: Path) -> dict[str, object]:
+def _descriptor_payload(
+    workspace: Path, manifest: DomainManifest
+) -> dict[str, object]:
+    guide_index_path = workspace / "guide-index.json"
     return {
         "protocol": "grid-capability",
         "protocol_version": "1.0",
@@ -431,7 +443,9 @@ def _descriptor_payload(workspace: Path) -> dict[str, object]:
         "context_tool_name": "grid_analysis_context_get",
         "decision_tool_name": "grid_record_decision",
         "tool_catalog_path": str(workspace / "tool-catalog.json"),
-        "guide_index_path": str(workspace / "guide-index.json"),
+        "guide_index_path": str(guide_index_path),
+        "guide_root_path": str(manifest.guide_root.resolve()),
+        "guide_index_sha256": sha256(guide_index_path.read_bytes()).hexdigest(),
         "workspace_path": str(workspace),
         "active_turn_path": None,
         "analysis_context_view_path": None,
@@ -441,3 +455,21 @@ def _descriptor_payload(workspace: Path) -> dict[str, object]:
         "trajectory_acks_path": None,
         "pi_runtime": None,
     }
+
+
+def _write_guide_index(path: Path, manifest: DomainManifest) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "protocol": "grid-guide-index",
+                "version": "1.0",
+                "root": str(manifest.guide_root.resolve()),
+                "resources": {},
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )

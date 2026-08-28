@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 import domainToolsExtension, {
@@ -127,6 +128,19 @@ test("descriptor mode rejects missing authoritative paths instead of supplementi
       /workspace_path must be a non-empty string/,
     );
   } finally {
+    delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  }
+});
+
+test("descriptor mode requires controller-bound guide root and index digest", async () => {
+  for (const missing of ["guide_root_path", "guide_index_sha256"]) {
+    const root = await makeFixtureRoot();
+    await configureDescriptorAndLegacyPaths(root, { [missing]: undefined });
+
+    assert.throws(
+      () => domainToolsExtension({ registerTool: () => undefined }),
+      new RegExp(`${missing} must be a non-empty string`),
+    );
     delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
   }
 });
@@ -504,7 +518,6 @@ test("guide tool rejects traversal and opens published guides", async () => {
   await writeFile(guidePath, "# Topology\n\nUse endpoint capability.\n", "utf8");
   await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root, {
     topology: guidePath,
-    escape: join(root, "../outside.md"),
   });
 
   domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
@@ -512,18 +525,16 @@ test("guide tool rejects traversal and opens published guides", async () => {
 
   assert.deepEqual(
     guide.parameters.properties.resource_id.enum,
-    ["escape", "topology"],
+    ["topology"],
   );
-  assert.match(guide.description, /escape, topology/);
+  assert.match(guide.description, /topology/);
 
   const opened = await guide.execute("guide-1", { resource_id: "topology" });
   const rejected = await guide.execute("guide-2", { resource_id: "../outside" });
-  const escaped = await guide.execute("guide-3", { resource_id: "escape" });
 
   assert.equal(opened.isError, undefined);
   assert.match(opened.details.result.text, /endpoint capability/);
   assert.equal(rejected.isError, true);
-  assert.equal(escaped.isError, true);
 });
 
 test("guide tool rejects lexically allowed symlinks outside the published root", async () => {
@@ -579,6 +590,128 @@ test("guide tool rejects a symlinked parent below the published root", async () 
   assert.doesNotMatch(result.content[0].text, /other run guide/);
 });
 
+test("guide tool rejects guide-index leaf replacement after startup", async () => {
+  const root = await makeFixtureRoot();
+  const outside = await mkdtemp(join(tmpdir(), "grid-guide-index-outside-"));
+  const secret = join(outside, "guides/secret.md");
+  const fakeIndex = join(outside, "guide-index.json");
+  const indexPath = join(root, "run/guide-index.json");
+  await mkdir(join(outside, "guides"));
+  await writeFile(secret, "EXFILTRATED", "utf8");
+  await configureGuideTool(root, { overview: join(root, "guides/SKILL.md") });
+  await writeGuideIndex(fakeIndex, outside, { overview: secret });
+  const guide = registeredGuideTool();
+
+  await rm(indexPath);
+  await symlink(fakeIndex, indexPath);
+  const result = await guide.execute("guide-index-leaf", { resource_id: "overview" });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error.code, "guide_path_rejected");
+  assert.doesNotMatch(result.content[0].text, /EXFILTRATED/);
+});
+
+test("guide tool rejects guide-index parent replacement after startup", async () => {
+  const root = await makeFixtureRoot();
+  const originalParent = join(root, "run/index");
+  const movedParent = join(root, "run/index-original");
+  const outside = await mkdtemp(join(tmpdir(), "grid-guide-index-parent-"));
+  const secret = join(outside, "guides/secret.md");
+  await mkdir(originalParent);
+  await mkdir(join(outside, "guides"));
+  await writeFile(secret, "EXFILTRATED-PARENT", "utf8");
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(originalParent, "guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeFile(join(root, "guides/SKILL.md"), "trusted guide", "utf8");
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root, {
+    overview: join(root, "guides/SKILL.md"),
+  });
+  const registered = [];
+  domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
+  const guide = registered.find((tool) => tool.name === "grid_guide_open");
+
+  await rename(originalParent, movedParent);
+  await writeGuideIndex(join(outside, "guide-index.json"), outside, { overview: secret });
+  await symlink(outside, originalParent);
+  const result = await guide.execute("guide-index-parent", { resource_id: "overview" });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error.code, "guide_path_rejected");
+  assert.doesNotMatch(result.content[0].text, /EXFILTRATED-PARENT/);
+});
+
+test("guide tool rejects same-content guide-index inode exchange", async () => {
+  const root = await makeFixtureRoot();
+  const indexPath = join(root, "run/guide-index.json");
+  await configureGuideTool(root, { overview: join(root, "guides/SKILL.md") });
+  const guide = registeredGuideTool();
+  const original = await readFile(indexPath);
+  const replacement = join(root, "run/replacement-guide-index.json");
+  await writeFile(replacement, original);
+  await rename(replacement, indexPath);
+
+  const result = await guide.execute("guide-index-exchange", { resource_id: "overview" });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error.code, "guide_path_rejected");
+});
+
+test("guide tool validates index protocol, root, and resource mapping", async () => {
+  for (const invalid of [
+    { protocol: "foreign-guide-index" },
+    { version: "9.9" },
+    { resources: { "../escape": "/tmp/secret" } },
+  ]) {
+    const root = await makeFixtureRoot();
+    clearOptionalAnalysisEnvironment();
+    process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+    process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+    process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+    await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+    await writeFile(join(root, "guides/SKILL.md"), "trusted guide", "utf8");
+    await writeFile(
+      process.env.GRID_AGENT_GUIDE_INDEX,
+      JSON.stringify({
+        protocol: "grid-guide-index",
+        version: "1.0",
+        root: join(root, "guides"),
+        resources: { overview: join(root, "guides/SKILL.md") },
+        ...invalid,
+      }),
+      "utf8",
+    );
+
+    assert.throws(
+      () => domainToolsExtension({ registerTool: () => undefined }),
+      /guide index/,
+    );
+  }
+});
+
+test("descriptor-bound guide root rejects an index that self-authorizes another root", async () => {
+  const root = await makeFixtureRoot();
+  const outside = await mkdtemp(join(tmpdir(), "grid-guide-root-outside-"));
+  const descriptorPath = join(root, "run/pi/domain-runtime.json");
+  const indexPath = join(root, "run/guide-index.json");
+  await mkdir(join(root, "run/pi"), { recursive: true });
+  await mkdir(join(outside, "guides"));
+  await writeCatalog(join(root, "run/tool-catalog.json"));
+  await writeGuideIndex(indexPath, outside, {});
+  await writeRuntimeDescriptor(descriptorPath, root);
+  process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+
+  try {
+    assert.throws(
+      () => domainToolsExtension({ registerTool: () => undefined }),
+      /guide index root does not match the runtime descriptor/,
+    );
+  } finally {
+    delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  }
+});
+
 test("startup rejects configured symlink paths that escape the workspace", async () => {
   const cases = [
     {
@@ -629,6 +762,22 @@ async function makeFixtureRoot() {
   await mkdir(join(root, "run"), { recursive: true });
   await mkdir(join(root, "guides"), { recursive: true });
   return root;
+}
+
+async function configureGuideTool(root, resources) {
+  clearOptionalAnalysisEnvironment();
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeFile(join(root, "guides/SKILL.md"), "trusted guide", "utf8");
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root, resources);
+}
+
+function registeredGuideTool() {
+  const registered = [];
+  domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
+  return registered.find((tool) => tool.name === "grid_guide_open");
 }
 
 async function configureAnalysisPaths(root, activeTurn, contextView) {
@@ -761,6 +910,10 @@ async function configureDescriptorAndLegacyPaths(root, descriptorOverrides = {})
 }
 
 async function writeRuntimeDescriptor(path, root, overrides = {}) {
+  const guideIndexPath = join(root, "run/guide-index.json");
+  const guideIndexSha256 = createHash("sha256")
+    .update(await readFile(guideIndexPath))
+    .digest("hex");
   await writeFile(
     path,
     JSON.stringify({
@@ -773,7 +926,9 @@ async function writeRuntimeDescriptor(path, root, overrides = {}) {
       context_tool_name: "grid_analysis_context_get",
       decision_tool_name: "grid_record_decision",
       tool_catalog_path: join(root, "run/tool-catalog.json"),
-      guide_index_path: join(root, "run/guide-index.json"),
+      guide_index_path: guideIndexPath,
+      guide_root_path: join(root, "guides"),
+      guide_index_sha256: guideIndexSha256,
       workspace_path: join(root, "run"),
       ...overrides,
     }),

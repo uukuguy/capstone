@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from capability_agent.domain import DomainManifest
@@ -73,6 +75,10 @@ class PiConfigMaterializer:
             "guide_index_path": str(
                 guide_index_path or workspace / "guide-index.json"
             ),
+            "guide_root_path": str(manifest.guide_root.resolve()),
+            "guide_index_sha256": _bound_file_sha256(
+                guide_index_path or workspace / "guide-index.json"
+            ),
             "workspace_path": str(workspace),
         }
         optional_paths = {
@@ -139,3 +145,26 @@ class PiConfigMaterializer:
             "context_tool_name": f"{manifest.tool_name_prefix}analysis_context_get",
             "decision_tool_name": f"{manifest.tool_name_prefix}record_decision",
         }
+
+
+def _bound_file_sha256(path: Path) -> str:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"runtime descriptor input is not a regular file: {path}")
+        digest = sha256()
+        while chunk := os.read(descriptor, 65_536):
+            digest.update(chunk)
+        after = os.fstat(descriptor)
+        named = os.lstat(path)
+        if (
+            (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            or not stat.S_ISREG(named.st_mode)
+            or (named.st_dev, named.st_ino) != (after.st_dev, after.st_ino)
+        ):
+            raise ValueError(f"runtime descriptor input changed while reading: {path}")
+        return digest.hexdigest()
+    finally:
+        os.close(descriptor)
