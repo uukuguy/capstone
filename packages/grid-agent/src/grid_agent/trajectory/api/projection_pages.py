@@ -17,8 +17,8 @@ from grid_agent.trajectory.api.cursor import (
     CursorState,
 )
 from grid_agent.trajectory.api.paging import ProjectionPager
-from grid_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.events import StrictFrozenModel
+from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.events import StrictFrozenModel
 from grid_agent.trajectory.projection_models import (
     AgentEventRow,
     AgentRetry,

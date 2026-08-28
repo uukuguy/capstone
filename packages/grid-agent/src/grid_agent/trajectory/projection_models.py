@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from grid_agent.trajectory.events import StrictFrozenModel
+from capability_agent.trajectory.events import StrictFrozenModel
 
 
 class _FrozenDict(dict[str, Any]):

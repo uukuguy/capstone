@@ -8,10 +8,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from grid_agent.trajectory.artifacts import ArtifactPointer
-from grid_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.artifacts import ArtifactPointer
+from capability_agent.trajectory.canonical import canonical_json_bytes
 from grid_agent.trajectory.projection_models import ContextCheckpoint, ContextFrame, ContextTimeline
-from grid_agent.trajectory.replay import ReplayEventLike
+from capability_agent.trajectory.replay import ReplayEventLike
 
 
 RULE_CONTEXT_FRAME = "context-frame/v1"

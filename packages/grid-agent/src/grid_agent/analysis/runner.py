@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from grid_agent.analysis.integrity import SimulatorIntegrityError
-from grid_agent.analysis.models import ContextEventDraft
+from pandapower_domain.authority import SimulatorIntegrityError
+from pandapower_domain.models import ContextEventDraft
 from grid_agent.analysis.report import write_analysis_report_checkpoint
 from grid_agent.analysis.store import AnalysisContextStore, ContextStoreError
 from grid_agent.analysis.turns import ActiveTurnHandle, FinalizedTurn, TurnController
@@ -17,11 +17,11 @@ from grid_agent.analysis.view import materialize_context_view
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError, SemanticEventCallback
 from grid_agent.observability.trace import JsonlTraceWriter
-from grid_agent.trajectory.artifacts import ArtifactIntegrityError
+from capability_agent.trajectory.artifacts import ArtifactIntegrityError
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.recorder import RecorderIntegrityError
+from capability_agent.trajectory.reader import RunEventReader
+from capability_agent.trajectory.recorder import RecorderIntegrityError
 
 
 @dataclass(frozen=True, slots=True)

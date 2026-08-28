@@ -13,8 +13,8 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, ValidationError
 
-from grid_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.events import StrictFrozenModel
+from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.events import StrictFrozenModel
 
 
 _FILTER_BOUND_VIEWS = frozenset({"agent", "context", "evidence"})

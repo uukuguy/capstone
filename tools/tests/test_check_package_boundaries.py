@@ -53,6 +53,45 @@ def test_cli_rejects_compatibility_application_assembly_imports(
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from grid_agent.domain import ArtifactAuthority\n",
+        "from grid_agent.tools.catalog import ToolCatalog\n",
+        "from grid_agent.domains.pandapower import build_pandapower_profile\n",
+    ],
+)
+def test_non_cli_production_modules_reject_compatibility_shim_imports(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    production_src = tmp_path / "packages/grid-agent/src/grid_agent/analysis"
+    production_src.mkdir(parents=True)
+    (production_src / "projector.py").write_text(source, encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.startswith(
+        "packages/grid-agent/src/grid_agent/analysis/projector.py imports "
+    )
+    assert result.stdout == ""
+
+
+def test_compatibility_shim_modules_are_precisely_exempt(tmp_path: Path) -> None:
+    shim = tmp_path / "packages/grid-agent/src/grid_agent/domain/authority.py"
+    shim.parent.mkdir(parents=True)
+    shim.write_text(
+        "from capability_agent.domain.authority import ArtifactAuthority\n",
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 0
+    assert result.stdout == "package-boundaries: ok\n"
+
+
 def test_reports_sorted_ast_metadata_and_source_path_violations(
     tmp_path: Path,
 ) -> None:

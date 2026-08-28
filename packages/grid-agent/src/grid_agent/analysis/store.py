@@ -8,10 +8,10 @@ from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, ValidationError
 
-from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
+from pandapower_domain.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
 from grid_agent.analysis.reducer import ContextTransitionError, initial_context, reduce_context
 from grid_agent.analysis.workspace import AnalysisWorkspace
-from grid_agent.trajectory.events import RunEvent
+from capability_agent.trajectory.events import RunEvent
 
 
 ContextTransitionCommit = Callable[

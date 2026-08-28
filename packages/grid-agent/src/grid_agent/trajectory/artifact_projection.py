@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from grid_agent.trajectory.artifacts import ArtifactPointer
+from capability_agent.trajectory.artifacts import ArtifactPointer
 from grid_agent.trajectory.projection_models import ArtifactIndex, ArtifactIndexRecord
-from grid_agent.trajectory.replay import ReplayEventLike
+from capability_agent.trajectory.replay import ReplayEventLike
 
 
 def _pointer(registry: object, reference: str) -> ArtifactPointer | None:

@@ -23,7 +23,53 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "grid_agent.domain",
         "grid_agent.domains",
     ),
+    "packages/grid-agent/src/grid_agent": (
+        "grid_agent.analysis.capabilities",
+        "grid_agent.analysis.domain_projection",
+        "grid_agent.analysis.integrity",
+        "grid_agent.analysis.models",
+        "grid_agent.application.composition",
+        "grid_agent.domain",
+        "grid_agent.domains",
+        "grid_agent.tools.catalog",
+        "grid_agent.tools.guide",
+        "grid_agent.trajectory.answers",
+        "grid_agent.trajectory.artifacts",
+        "grid_agent.trajectory.canonical",
+        "grid_agent.trajectory.events",
+        "grid_agent.trajectory.reader",
+        "grid_agent.trajectory.recorder",
+        "grid_agent.trajectory.replay",
+    ),
 }
+GRID_AGENT_COMPATIBILITY_SHIMS = frozenset(
+    {
+        "analysis/capabilities.py",
+        "analysis/domain_projection.py",
+        "analysis/integrity.py",
+        "analysis/models.py",
+        "application/composition.py",
+        "domain/__init__.py",
+        "domain/authority.py",
+        "domain/contracts.py",
+        "domain/execution.py",
+        "domain/manifest.py",
+        "domain/profile.py",
+        "domain/projection.py",
+        "domains/__init__.py",
+        "domains/pandapower.py",
+        "tools/catalog.py",
+        "tools/guide.py",
+        "trajectory/__init__.py",
+        "trajectory/answers.py",
+        "trajectory/artifacts.py",
+        "trajectory/canonical.py",
+        "trajectory/events.py",
+        "trajectory/reader.py",
+        "trajectory/recorder.py",
+        "trajectory/replay.py",
+    }
+)
 EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
     "packages/grid-agent/src/grid_agent/cli": (
         "grid_agent.application",
@@ -71,6 +117,11 @@ def check_boundaries(root: Path) -> list[str]:
                     root,
                     absolute_source_root,
                     forbidden_modules,
+                    excluded_paths=(
+                        GRID_AGENT_COMPATIBILITY_SHIMS
+                        if source_root == "packages/grid-agent/src/grid_agent"
+                        else frozenset()
+                    ),
                 )
             )
     for source_root, forbidden_modules in EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
@@ -103,9 +154,12 @@ def check_python_sources(
     forbidden_modules: tuple[str, ...],
     *,
     exact: bool = False,
+    excluded_paths: frozenset[str] = frozenset(),
 ) -> list[str]:
     violations: list[str] = []
     for path in sorted(source_root.rglob("*.py")):
+        if path.relative_to(source_root).as_posix() in excluded_paths:
+            continue
         relative_path = path.relative_to(root).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for module in imported_modules(tree):

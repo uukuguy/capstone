@@ -10,10 +10,13 @@ from pathlib import Path
 import typer
 from capability_agent.application import prepare_domain_runtime
 from capability_agent.domain import ArtifactAuthority
+from capability_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from capability_agent.trajectory.events import RunEvent
+from capability_agent.trajectory.recorder import RunEventRecorder
 from dotenv import dotenv_values
 from pandapower_domain import build_pandapower_profile
 
-from grid_agent.analysis.capabilities import CapabilityContextCatalog
+from pandapower_domain.capabilities import CapabilityContextCatalog
 from grid_agent.analysis.projector import AnalysisContextProjector
 from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, AnalysisRunner
 from grid_agent.analysis.store import AnalysisContextStore
@@ -37,12 +40,13 @@ from grid_agent.runtime.installer import PiRuntimeInstaller
 from grid_agent.runtime.lock import PiCommand, PiRuntimeLock
 from grid_agent.auth.service import AuthService
 from grid_agent.auth.store import CODEX_PROVIDER, ProjectAuthStore
-from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.capture import NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge
-from grid_agent.trajectory.events import LEGACY_EVENT_PRODUCER, RunEvent
-from grid_agent.trajectory.recorder import RunEventRecorder
+from grid_agent.trajectory.schema_policy import (
+    GRID_EVENT_PRODUCER,
+    GRID_EVENT_SCHEMA_VERSION,
+)
 from grid_agent.trajectory.api.server import serve_trajectory
 from grid_agent.reporting import load_questions
 
@@ -414,7 +418,8 @@ def _execute_analysis(
         artifact_registry=artifacts,
         secret_values=secret_values,
         subscribers=(allowed_refs.observe,),
-        producer=LEGACY_EVENT_PRODUCER,
+        producer=GRID_EVENT_PRODUCER,
+        schema_version=GRID_EVENT_SCHEMA_VERSION,
     )
     try:
         bridge = NativeContextBridge(recorder, artifacts, workspace)

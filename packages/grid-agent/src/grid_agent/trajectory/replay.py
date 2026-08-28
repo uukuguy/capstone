@@ -7,9 +7,10 @@ from capability_agent.trajectory.replay import (
     ReplayEventLike,
     SourceCoordinate,
 )
+from grid_agent.trajectory.schema_policy import GRID_IMPORTED_EVENT_SCHEMA_VERSION
 
 
-LEGACY_IMPORTED_EVENT_SCHEMA_VERSION = "grid-run-import-event/1.0"
+LEGACY_IMPORTED_EVENT_SCHEMA_VERSION = GRID_IMPORTED_EVENT_SCHEMA_VERSION
 
 
 class ImportedRunEvent(NeutralImportedRunEvent):

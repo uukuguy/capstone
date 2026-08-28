@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from grid_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.canonical import canonical_json_bytes
 from grid_agent.trajectory.projection_models import ProjectedRun
 
 

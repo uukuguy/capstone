@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Generic, Protocol, TypeVar
 
 from grid_agent.trajectory.api.cursor import CursorState
-from grid_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.canonical import canonical_json_bytes
 
 
 MAX_PAGE_RECORDS = 500

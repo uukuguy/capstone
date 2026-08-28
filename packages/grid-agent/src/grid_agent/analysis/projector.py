@@ -7,11 +7,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from grid_agent.analysis.capabilities import CapabilityContextCatalog
-from grid_agent.analysis.integrity import SimulatorIntegrityError
-from grid_agent.analysis.models import ContextEventDraft, ResultRecord
+from pandapower_domain.capabilities import CapabilityContextCatalog
+from pandapower_domain.authority import SimulatorIntegrityError
+from pandapower_domain.models import ContextEventDraft, ResultRecord
 from grid_agent.analysis.store import AnalysisContextStore
-from grid_agent.domain import (
+from capability_agent.domain import (
     ArtifactAuthority,
     DomainProjectorRegistry,
     VerifiedArtifact,

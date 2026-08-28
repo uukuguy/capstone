@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from grid_agent.trajectory.api.models import AnalysisManifest, LegacyV02Manifest, RunSummary
 from grid_agent.trajectory.projection_models import ProjectedRun
-from grid_agent.trajectory.reader import RunEventReader
+from capability_agent.trajectory.reader import RunEventReader
 
 
 ANALYSIS_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")

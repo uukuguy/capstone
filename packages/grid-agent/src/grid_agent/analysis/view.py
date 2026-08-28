@@ -5,7 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from grid_agent.analysis.models import AnalysisContext, VerifiedFact
+from pandapower_domain.models import AnalysisContext, VerifiedFact
 
 
 CONTEXT_VIEW_VERSION = "analysis-context-view/1.0"

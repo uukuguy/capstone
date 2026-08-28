@@ -46,7 +46,8 @@ def test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutra
     )
 
     assert build_event is not neutral_build_event
-    assert RunEvent is NeutralRunEvent
+    assert issubclass(RunEvent, NeutralRunEvent)
+    assert RunEvent is not NeutralRunEvent
     assert neutral_event.source.producer == "capability-agent"
     assert legacy_event.source.producer == "grid-agent"
     assert legacy_event.event_hash == expected_legacy_event.event_hash

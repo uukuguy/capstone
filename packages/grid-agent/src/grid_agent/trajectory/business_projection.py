@@ -13,7 +13,7 @@ from grid_agent.trajectory.projection_models import (
     BusinessProblemSummary,
     BusinessTrajectory,
 )
-from grid_agent.trajectory.replay import ReplayEventLike
+from capability_agent.trajectory.replay import ReplayEventLike
 
 
 RULE_TOOL_ACTION = "tool-action/v1"

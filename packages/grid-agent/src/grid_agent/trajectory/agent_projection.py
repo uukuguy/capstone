@@ -21,7 +21,7 @@ from grid_agent.trajectory.projection_models import (
     ProjectionNode,
     ToolCall,
 )
-from grid_agent.trajectory.replay import ReplayEventLike
+from capability_agent.trajectory.replay import ReplayEventLike
 
 
 def _payload(event: ReplayEventLike) -> dict[str, Any]:

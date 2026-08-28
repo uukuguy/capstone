@@ -13,13 +13,13 @@ from grid_agent.trajectory.artifact_projection import project_artifacts
 from grid_agent.trajectory.business_projection import project_business
 from grid_agent.trajectory.context_projection import project_context
 from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
-from grid_agent.analysis.integrity import ContentReferenceVerifier
-from grid_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
+from pandapower_domain.authority import ContentReferenceVerifier
+from capability_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.materialize import ProjectionMaterializer
 from grid_agent.trajectory.projection_models import ProjectedRun, ProjectionDiagnostic
-from grid_agent.trajectory.reader import RunEventReader
-from grid_agent.trajectory.replay import ReplayEventLike
+from capability_agent.trajectory.reader import RunEventReader
+from capability_agent.trajectory.replay import ReplayEventLike
 
 
 class _HistoricalArtifacts:

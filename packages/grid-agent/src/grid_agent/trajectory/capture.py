@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from grid_agent.analysis.integrity import ContentReferenceVerifier
-from grid_agent.trajectory.artifacts import ArtifactPointer, ImmutableArtifactRegistry
-from grid_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.events import (
+from pandapower_domain.authority import ContentReferenceVerifier
+from capability_agent.trajectory.artifacts import ArtifactPointer, ImmutableArtifactRegistry
+from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.events import (
     Causation,
     EventDraft,
     EventRefs,
@@ -24,7 +24,7 @@ from grid_agent.trajectory.events import (
     EventType,
     RunScope,
 )
-from grid_agent.trajectory.recorder import RunEventRecorder
+from capability_agent.trajectory.recorder import RunEventRecorder
 from grid_agent.trajectory.request_input import (
     CanonicalModelRequestDocument,
     CanonicalRequestValidationError,

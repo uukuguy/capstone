@@ -8,13 +8,13 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
-from grid_agent.analysis.models import AnalysisContext, ContextEventDraft
-from grid_agent.trajectory.artifacts import (
+from pandapower_domain.models import AnalysisContext, ContextEventDraft
+from capability_agent.trajectory.artifacts import (
     ArtifactIntegrityError,
     ArtifactPointer,
     ImmutableArtifactRegistry,
 )
-from grid_agent.trajectory.events import (
+from capability_agent.trajectory.events import (
     ContextBoundary,
     EventDraft,
     EventRefs,
@@ -22,7 +22,7 @@ from grid_agent.trajectory.events import (
     RunEvent,
     RunScope,
 )
-from grid_agent.trajectory.recorder import RunEventRecorder
+from capability_agent.trajectory.recorder import RunEventRecorder
 
 
 CONTEXT_TO_NATIVE: Mapping[str, EventType] = {

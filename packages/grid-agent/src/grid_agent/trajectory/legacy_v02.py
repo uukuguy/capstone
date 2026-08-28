@@ -12,9 +12,10 @@ from typing import Any
 from datetime import datetime, UTC
 import re
 
-from grid_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope, ZERO_PREDECESSOR_HASH
-from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
+from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope, ZERO_PREDECESSOR_HASH
+from capability_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
+from grid_agent.trajectory.schema_policy import GRID_IMPORTED_EVENT_SCHEMA_VERSION
 
 
 SOURCE_RANK = {"manifest": 0, "context": 1, "trace": 2, "pi": 3, "turn": 4, "artifact": 5}
@@ -342,7 +343,7 @@ class LegacyV02Importer:
             event_payload = {key: value for key, value in record.payload.items() if key != "refs" and value is not None}
             content = {"analysis_id": analysis_id, "sequence": sequence, "event_type": record.event_type, "previous": previous_hash, "source": [record.path, record.source_sequence, record.digest], "payload": event_payload}
             import_hash = "sha256:" + hashlib.sha256(canonical_json_bytes(content)).hexdigest()
-            event = ImportedRunEvent(analysis_id=analysis_id, sequence=sequence, timestamp=record.timestamp, event_type=record.event_type, import_previous_hash=previous_hash, import_hash=import_hash, source_coordinate=SourceCoordinate(path=record.path, sequence=record.source_sequence, sha256=record.digest), scope=RunScope(turn_id=record.turn_id, step_id=f"{record.turn_id}:s001" if record.turn_id else None, request_id=f"{record.turn_id}:r001" if record.turn_id else None, tool_call_id=record.tool_call_id), causation=Causation(parent_sequence=parent_sequence), source=EventSource(kind="observed", producer="legacy-v0.2-importer", integrity="importer-integrity"), context=ContextBoundary(after_revision=event_payload.get("revision")), refs=EventRefs(produced=tuple(ref for ref in refs if ref.startswith("result:")), evidence=tuple(ref for ref in refs if ref.startswith("evidence:"))), payload=event_payload)
+            event = ImportedRunEvent(schema_version=GRID_IMPORTED_EVENT_SCHEMA_VERSION, analysis_id=analysis_id, sequence=sequence, timestamp=record.timestamp, event_type=record.event_type, import_previous_hash=previous_hash, import_hash=import_hash, source_coordinate=SourceCoordinate(path=record.path, sequence=record.source_sequence, sha256=record.digest), scope=RunScope(turn_id=record.turn_id, step_id=f"{record.turn_id}:s001" if record.turn_id else None, request_id=f"{record.turn_id}:r001" if record.turn_id else None, tool_call_id=record.tool_call_id), causation=Causation(parent_sequence=parent_sequence), source=EventSource(kind="observed", producer="legacy-v0.2-importer", integrity="importer-integrity"), context=ContextBoundary(after_revision=event_payload.get("revision")), refs=EventRefs(produced=tuple(ref for ref in refs if ref.startswith("result:")), evidence=tuple(ref for ref in refs if ref.startswith("evidence:"))), payload=event_payload)
             events.append(event)
             sequences_by_record_id[record.id] = sequence
             previous_hash = import_hash

@@ -1,6 +1,7 @@
 """Compatibility exports for the neutral trajectory event protocol."""
 
 from datetime import datetime
+from typing import Any
 
 from capability_agent.trajectory.events import (
     DEFAULT_EVENT_PRODUCER,
@@ -23,7 +24,7 @@ from capability_agent.trajectory.events import (
     ModelResponsePayload,
     PAYLOAD_MODELS,
     RetryPayload,
-    RunEvent,
+    RunEvent as NeutralRunEvent,
     RunScope,
     StrictFrozenModel,
     ToolPayload,
@@ -31,10 +32,30 @@ from capability_agent.trajectory.events import (
     TurnTerminalPayload,
     build_event as _build_event,
 )
+from grid_agent.trajectory.schema_policy import (
+    GRID_EVENT_PRODUCER,
+    GRID_EVENT_SCHEMA_VERSION,
+)
 
 
-LEGACY_EVENT_PRODUCER = "grid-agent"
-LEGACY_EVENT_SCHEMA_VERSION = "grid-run-event/1.0"
+LEGACY_EVENT_PRODUCER = GRID_EVENT_PRODUCER
+LEGACY_EVENT_SCHEMA_VERSION = GRID_EVENT_SCHEMA_VERSION
+
+
+class RunEvent(NeutralRunEvent):
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: Any,
+        handler: Any,
+    ) -> dict[str, Any]:
+        schema = handler(core_schema)
+        schema["properties"]["schema_version"] = {
+            "const": LEGACY_EVENT_SCHEMA_VERSION,
+            "title": "Schema Version",
+            "type": "string",
+        }
+        return schema
 
 
 def build_event(
@@ -54,7 +75,7 @@ def build_event(
                 )
             }
         )
-    return _build_event(
+    neutral_event = _build_event(
         draft,
         analysis_id=analysis_id,
         sequence=sequence,
@@ -62,6 +83,7 @@ def build_event(
         previous_event_hash=previous_event_hash,
         schema_version=LEGACY_EVENT_SCHEMA_VERSION,
     )
+    return RunEvent.model_validate(neutral_event.model_dump(mode="json"))
 
 
 __all__ = [

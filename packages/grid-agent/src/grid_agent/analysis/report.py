@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from grid_agent.analysis.models import (
+from pandapower_domain.models import (
     AnalysisContext,
     AnalysisContextEvent,
     DiagnosticRecord,

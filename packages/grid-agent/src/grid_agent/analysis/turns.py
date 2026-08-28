@@ -8,15 +8,16 @@ from collections.abc import Callable, Mapping, Sequence, Set
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-from grid_agent.analysis.integrity import ContentReferenceVerifier, ReferenceDiagnostic, SimulatorIntegrityError
-from grid_agent.analysis.models import ContextEventDraft
+from pandapower_domain.authority import ContentReferenceVerifier, ReferenceDiagnostic, SimulatorIntegrityError
+from pandapower_domain.models import ContextEventDraft
+from capability_agent.trajectory.answers import AnswerSubmission, ReferenceVerifier, validate_submission
+from capability_agent.trajectory.events import Causation, EventDraft, EventRefs, EventSource, RunScope
+from capability_agent.trajectory.recorder import RunEventRecorder
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.workspace import AnalysisWorkspace
-from grid_agent.trajectory.answers import AnswerSubmission, ReferenceVerifier, validate_submission
-from grid_agent.trajectory.events import Causation, EventDraft, EventRefs, EventSource, RunScope
-from grid_agent.trajectory.recorder import RunEventRecorder
+from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy, GridReferenceVerifier
 
 
 AuditCallback = Callable[[tuple[str, ...], tuple[str, ...]], tuple[ReferenceDiagnostic, ...]]
@@ -67,7 +68,7 @@ class TurnController:
         store: AnalysisContextStore,
         *,
         audit_callback: AuditCallback,
-        verifier: ReferenceVerifier | None = None,
+        verifier: GridReferenceVerifier | None = None,
         allowed_refs: Set[str] | None = None,
         recorder: RunEventRecorder | None = None,
     ) -> None:
@@ -187,8 +188,9 @@ class TurnController:
                     "claim_evidence_refs": claim_evidence_refs,
                     "claims": draft.get("claims", ()),
                 },
-                self._verifier,
+                cast(ReferenceVerifier, self._verifier),
                 self._submission_allowed_refs(),
+                reference_policy=GridAnswerReferencePolicy(),
             )
         except (RuntimeError, ValueError) as exc:
             diagnostic = ReferenceDiagnostic(
