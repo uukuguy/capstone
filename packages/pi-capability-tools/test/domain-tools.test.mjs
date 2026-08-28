@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -8,6 +9,7 @@ import {
   buildCapabilityRequest,
   createCapabilityTool,
   createDomainToolsExtension,
+  runCapability,
   sanitizeEnvironment,
   validateRuntimeDescriptor,
 } from "../src/domain-tools.mjs";
@@ -185,6 +187,59 @@ test("sanitizes credentials without requiring a product namespace", () => {
   );
 });
 
+test("transport terminates a timed-out capability with a structured error", async () => {
+  const fixture = await transportFixture(
+    `setTimeout(() => {
+      const request = JSON.parse(process.env.REQUEST_JSON);
+      process.stdout.write(JSON.stringify({
+        protocol: request.protocol,
+        protocol_version: request.protocol_version,
+        request_id: request.request_id,
+        ok: true,
+        result: {},
+      }));
+    }, 200);`,
+  );
+  const payload = buildCapabilityRequest(inventory, "asset.list", {}, "timeout-request");
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${fixture.bin}:${originalPath ?? ""}`;
+  process.env.REQUEST_JSON = JSON.stringify(payload);
+
+  try {
+    const response = await runCapability(
+      payload,
+      { ...inventory, executable: fixture.name, executableArgs: [] },
+      [],
+      { timeoutMs: 20, maxOutputBytes: 4096 },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(response.error.code, "capability_transport_timeout");
+  } finally {
+    delete process.env.REQUEST_JSON;
+    process.env.PATH = originalPath;
+  }
+});
+
+test("transport caps stdout bytes with a structured error", async () => {
+  const fixture = await transportFixture(`process.stdout.write("x".repeat(8192));`);
+  const payload = buildCapabilityRequest(inventory, "asset.list", {}, "output-limit-request");
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${fixture.bin}:${originalPath ?? ""}`;
+
+  try {
+    const response = await runCapability(
+      payload,
+      { ...inventory, executable: fixture.name, executableArgs: [] },
+      [],
+      { timeoutMs: 1000, maxOutputBytes: 1024 },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(response.error.code, "capability_transport_output_limit");
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
 test("registers descriptor-prefixed bounded tools", async () => {
   const registered = [];
   const descriptor = Object.freeze({
@@ -201,3 +256,14 @@ test("registers descriptor-prefixed bounded tools", async () => {
   );
   assert.deepEqual(registered, []);
 });
+
+async function transportFixture(body) {
+  const root = await mkdtemp(join(tmpdir(), "capability-transport-"));
+  const bin = join(root, "bin");
+  const name = "transport-fixture";
+  const executable = join(bin, name);
+  await mkdir(bin);
+  await writeFile(executable, `#!/usr/bin/env node\n${body}\n`, "utf8");
+  await chmod(executable, 0o755);
+  return { bin, name };
+}

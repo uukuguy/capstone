@@ -48,6 +48,14 @@ const CANONICAL_SECRET_NAMES = [
 ];
 const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]+$/;
 const ENCODED_SEPARATOR_PATTERN = /%(?:2f|5c)/i;
+const DEFAULT_TRANSPORT_LIMITS = Object.freeze({
+  timeoutMs: 60_000,
+  maxOutputBytes: 1_048_576,
+});
+const MAX_TRANSPORT_LIMITS = Object.freeze({
+  timeoutMs: 120_000,
+  maxOutputBytes: 4_194_304,
+});
 
 /**
  * Validate and detach the controller-owned runtime descriptor.
@@ -223,39 +231,107 @@ export function sanitizeEnvironment(env, selectedNames = []) {
   );
 }
 
-export function runCapability(payload, descriptor, selectedNames = []) {
+export function runCapability(payload, descriptor, selectedNames = [], transportLimits = undefined) {
   const runtime = validateRuntimeDescriptor(descriptor);
+  const limits = validateTransportLimits(transportLimits);
   return new Promise((resolveResponse) => {
     const child = spawn(runtime.executable, runtime.executableArgs, {
       env: sanitizeEnvironment(process.env, [...selectedSecretNames(process.env), ...selectedNames]),
       stdio: ["pipe", "pipe", "pipe"],
     });
-    let stdout = "";
-    let stderr = "";
+    const stdout = [];
+    const stderr = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let settled = false;
+    const finish = (response) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolveResponse(response);
+    };
+    const stopWithError = (code, message) => {
+      child.kill("SIGKILL");
+      finish(transportError(payload.request_id, runtime, message, code));
+    };
+    const timer = setTimeout(() => {
+      stopWithError(
+        "capability_transport_timeout",
+        `capability executable exceeded ${limits.timeoutMs}ms transport timeout`,
+      );
+    }, limits.timeoutMs);
     child.stdout.on("data", (chunk) => {
-      stdout += chunk;
+      const buffer = Buffer.from(chunk);
+      stdoutBytes += buffer.byteLength;
+      if (stdoutBytes + stderrBytes > limits.maxOutputBytes) {
+        stopWithError(
+          "capability_transport_output_limit",
+          `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
+        );
+        return;
+      }
+      stdout.push(buffer);
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk;
+      const buffer = Buffer.from(chunk);
+      stderrBytes += buffer.byteLength;
+      if (stdoutBytes + stderrBytes > limits.maxOutputBytes) {
+        stopWithError(
+          "capability_transport_output_limit",
+          `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
+        );
+        return;
+      }
+      stderr.push(buffer);
     });
     child.on("error", (error) => {
-      resolveResponse(transportError(payload.request_id, runtime, error.message));
+      finish(transportError(payload.request_id, runtime, error.message));
     });
     child.on("close", () => {
+      if (settled) {
+        return;
+      }
+      const stdoutText = Buffer.concat(stdout).toString("utf8");
+      const stderrText = Buffer.concat(stderr).toString("utf8");
       try {
-        resolveResponse(JSON.parse(stdout));
+        finish(JSON.parse(stdoutText));
       } catch {
-        resolveResponse(
+        finish(
           transportError(
             payload.request_id,
             runtime,
-            stderr || stdout || "capability executable returned no JSON",
+            stderrText || stdoutText || "capability executable returned no JSON",
           ),
         );
       }
     });
     child.stdin.end(JSON.stringify(payload));
   });
+}
+
+function validateTransportLimits(value) {
+  if (value === undefined) {
+    return DEFAULT_TRANSPORT_LIMITS;
+  }
+  if (!isPlainObject(value)) {
+    throw new TypeError("transport limits must be a plain object");
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    if (key !== "timeoutMs" && key !== "maxOutputBytes") {
+      throw new TypeError(`transport limits contain an unknown field: ${String(key)}`);
+    }
+  }
+  const limits = {};
+  for (const key of ["timeoutMs", "maxOutputBytes"]) {
+    const selected = value[key] ?? DEFAULT_TRANSPORT_LIMITS[key];
+    if (!Number.isSafeInteger(selected) || selected < 1 || selected > MAX_TRANSPORT_LIMITS[key]) {
+      throw new TypeError(`transport limit ${key} must be between 1 and ${MAX_TRANSPORT_LIMITS[key]}`);
+    }
+    limits[key] = selected;
+  }
+  return Object.freeze(limits);
 }
 
 function createGuideTool(descriptor, guideIndexPath) {
@@ -661,14 +737,19 @@ function isCorrelatedResponse(response, requestId, descriptor) {
   );
 }
 
-function transportError(requestId, descriptor, message) {
+function transportError(
+  requestId,
+  descriptor,
+  message,
+  code = "capability_transport_error",
+) {
   return {
     protocol: descriptor.protocol,
     protocol_version: descriptor.protocolVersion,
     request_id: requestId,
     ok: false,
     error: {
-      code: "capability_transport_error",
+      code,
       phase: "execute",
       message,
     },
