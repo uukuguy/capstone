@@ -1,266 +1,407 @@
-# Task 1 Report: Pi before_model_request Contract
+# Task 1 Report: Lock Distribution and Compatibility Baselines
 
 ## Summary
 
-Created an upstream-ready patch artifact at `configs/runtime/patches/pi-0.80.6-before-model-request.patch` against Pi `0.80.6` commit `2b3fda9921b5590f285165287bd442a25817f17b`.
+Implemented Task 1 for Workstream B package extraction.
 
-The patch defines the provider-neutral, observation-only `before_model_request` extension event contract, adds a fail-closed `ExtensionRunner.emitBeforeModelRequest()` method, re-exports the public types, and adds SDK boundary tests that describe the required emission behavior for the next task.
+Commit:
 
-No installed `.grid-agent/runtime/pi/source` tree was edited. Work was performed in a clean temporary checkout: `/tmp/pi-canonical-hook.G6C55q/pi`.
+- `a92bda0 test: characterize package extraction boundary`
+
+The commit adds compatibility characterization for current public imports, pandapower profile runtime shape, and Pi grid request construction. It also adds `tools/check_package_boundaries.py`, a real AST/TOML boundary checker with a `--root` option, and wires it into `make check-package-boundaries`.
+
+No real future package roots were created:
+
+- `packages/capability-agent-kernel` absent
+- `packages/pandapower-domain-pack` absent
+
+Protected pre-existing worktree state preserved:
+
+- `docs/status/JOURNAL.md` remained unstaged and unmodified by this task.
 
 ## Files Changed
 
-Repository:
+Committed files:
 
-- `configs/runtime/patches/pi-0.80.6-before-model-request.patch`
+- `Makefile`
+- `packages/grid-agent/tests/contract/test_package_extraction_baseline.py`
+- `packages/grid-agent/tests/domain/test_pandapower_profile.py`
+- `packages/pi-grid-tools/test/domain-tools.test.mjs`
+- `tools/check_package_boundaries.py`
+- `tools/tests/test_check_package_boundaries.py`
 
-Upstream files represented in the patch:
+Report artifact, not included in the commit:
 
-- `packages/coding-agent/src/core/extensions/types.ts`
-- `packages/coding-agent/src/core/extensions/runner.ts`
-- `packages/coding-agent/src/core/extensions/index.ts`
-- `packages/coding-agent/src/index.ts`
-- `packages/coding-agent/test/sdk-before-model-request.test.ts`
+- `.superpowers/sdd/task-1-report.md`
 
 ## RED Evidence
 
 Command:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q
 ```
 
-Result before implementation: FAIL, 2 failed tests.
+Result before implementation: FAIL, 4 failed tests.
 
-Observed failures:
+Relevant output:
 
-- First test received order `["provider"]` instead of `["before_model_request", "provider"]`.
-- Second test resolved with `AssistantMessageEventStream` instead of rejecting with `commit failed`; provider call was not blocked.
+```text
+FFFF                                                                     [100%]
+...
+python: can't open file '/Users/sujiangwen/sandbox/LLM/speechless.ai/SGAI/grid-static-analysis/.worktrees/workstream-b-package-extraction/tools/check_package_boundaries.py': [Errno 2] No such file or directory
+...
+4 failed in 0.12s
+```
 
-This proves the test catches the missing pre-provider SDK emission behavior.
+This was the expected RED state from the missing checker/interface.
 
-## GREEN / Verification Evidence
+## GREEN Evidence
 
-Contract implementation and formatting:
+Focused boundary checker:
 
 ```sh
-npx biome check packages/coding-agent/src/core/extensions/types.ts packages/coding-agent/src/core/extensions/runner.ts packages/coding-agent/src/core/extensions/index.ts packages/coding-agent/src/index.ts packages/coding-agent/test/sdk-before-model-request.test.ts
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q
 ```
 
-Result: PASS, `Checked 5 files in 13ms. No fixes applied.`
+Result:
 
-Upstream dependency/type build:
+```text
+....                                                                     [100%]
+4 passed in 0.14s
+```
+
+Task characterization and boundary set:
 
 ```sh
-cd packages/ai && npx tsgo -p tsconfig.build.json
+uv run --project packages/grid-agent pytest \
+  packages/grid-agent/tests/contract/test_package_extraction_baseline.py \
+  packages/grid-agent/tests/domain/test_pandapower_profile.py \
+  tools/tests/test_check_package_boundaries.py -q
 ```
 
-Result: PASS.
+Result:
 
-Coding-agent build/typecheck after building local workspace dependencies:
+```text
+..........                                                               [100%]
+10 passed in 0.29s
+```
+
+Pi grid tools:
 
 ```sh
-npm run build --workspace @earendil-works/pi-agent-core && npm run build --workspace @earendil-works/pi-coding-agent
+npm test --prefix packages/pi-grid-tools
 ```
 
-Result: PASS.
+Result:
 
-Patch hygiene:
+```text
+tests 30
+pass 30
+fail 0
+```
+
+Direct checker:
 
 ```sh
-git apply --check configs/runtime/patches/pi-0.80.6-before-model-request.patch
+python3 tools/check_package_boundaries.py
 ```
 
-Result against a fresh pinned checkout: PASS, patch applies cleanly.
+Result:
+
+```text
+package-boundaries: ok
+```
+
+Make target:
 
 ```sh
-git diff --check -- configs/runtime/patches/pi-0.80.6-before-model-request.patch
+make check-package-boundaries
 ```
 
-Result: PASS, no whitespace errors.
+Result:
 
-Expected remaining behavior test status after contract-only implementation:
+```text
+python3 tools/check_package_boundaries.py
+package-boundaries: ok
+```
+
+Whitespace:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
+git diff --check
+git diff --cached --check
 ```
 
-Result: FAIL, 2 failed tests, because SDK stream-boundary emission is intentionally not implemented in this task.
+Result: both exited `0` with no output.
+
+Repository gates:
+
+```sh
+make doctor
+```
+
+Result:
+
+```text
+{"gridctl": ".../packages/grid-simulator/.venv/bin/gridctl", "live_probe": false}
+```
+
+```sh
+make test
+```
+
+Result:
+
+```text
+packages/grid-agent/tests: 620 passed, 1 warning
+packages/grid-simulator/tests: 164 passed, 126 warnings
+packages/pi-grid-tools: tests 30, pass 30, fail 0
+```
+
+```sh
+make validate
+```
+
+Result:
+
+```text
+pandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True
+```
+
+```sh
+make test-e2e
+```
+
+First run while `make validate` was also running:
+
+```text
+2 failed, 15 passed in 47.09s
+```
+
+The failures were in continuous-analysis scripted runs, including `unknown_result` during result reuse. The same command was rerun in isolation.
+
+Isolated rerun:
+
+```text
+17 passed in 48.18s
+```
+
+## Boundary Checker Coverage
+
+The tests cover:
+
+- `--root` temp repository fixtures.
+- A kernel violation from `from grid_agent import cli` with diagnostic `bad.py imports grid_agent.cli`.
+- Deterministically sorted diagnostics across metadata, AST imports, and source-path literals.
+- `ast.Import` and `ast.ImportFrom` alias expansion.
+- `pyproject.toml` parsing with `tomllib`.
+- Rejection of `grid-agent` dependency metadata.
+- Rejection of source path literals matching `packages/.+/src`.
+- Clean pass with both future roots present and valid metadata.
+- Clean pass when future roots are absent.
+
+The checker itself does not shell out.
 
 ## Self-Review
 
-- The event options type includes only semantic replay inputs requested in the brief: reasoning, thinking budgets, temperature, max tokens, transport, cache retention, timeouts, and retry controls.
-- The event excludes private/transport/correlation fields in the tests: `apiKey`, `env`, `headers`, `signal`, `onPayload`, `onResponse`, `metadata`, and `sessionId`.
-- `emitBeforeModelRequest()` projects safe public model/context/options snapshots before each handler.
-- Handler failures propagate naturally because the method does not catch/log like display-oriented extension events.
-- No SDK emission wiring was added, preserving the task boundary for the next slice.
+- The committed path set matches the task ownership list.
+- The checker avoids simulator/runtime internals and only enforces package extraction boundaries.
+- Diagnostics are sorted before printing, making failure output deterministic.
+- Current-tree execution passes because the future package roots are absent.
+- Temporary test fixtures create future roots only under pytest `tmp_path`, not in the real repository.
+- The Makefile target uses the requested command.
 
 ## Concerns
 
-- The exact SDK behavior tests remain failing by design until Task 2 calls `emitBeforeModelRequest()` at the stream boundary.
-- A root `npm run build` attempt was blocked before coding-agent by `packages/ai` online model generation/network-derived generated files. After restoring generated files, focused dependency and coding-agent builds passed.
+- The first `make test-e2e` run failed while `make validate` was running concurrently. The isolated rerun passed, so this appears to be shared run-state or concurrent scripted-analysis interference rather than a Task 1 regression.
+- A post-commit project-state reminder requested a journal update. I did not edit `docs/status/JOURNAL.md` because the task explicitly required preserving that unstaged file and not staging, editing, or reverting it.
 
-## Review Fix: Safe Public Projection
+## Review Fix: Normalize Distribution Names
 
-Review found two Important issues in the first patch artifact:
+Review found one Important issue: `tools/check_package_boundaries.py` rejected only exact `grid-agent` dependency metadata, but Python distribution names normalize case and runs of hyphen, underscore, and dot.
 
-- `structuredClone(context)` would throw `DataCloneError` for real `Context.tools` containing executable callbacks.
-- `structuredClone(options)` would clone runtime/private fields instead of selecting only the public semantic request options.
+Fix commit:
 
-Fix applied in the upstream patch:
-
-- Added `PublicModelRequestTool` and `PublicModelRequestContext`.
-- Changed `BeforeModelRequestEvent.context` from full `Context` to the safe public context snapshot.
-- Added `projectBeforeModelRequestContext()` to copy system prompt, converted messages, and tool `name`/`description`/`parameters` only.
-- Added `projectPublicModelRequestOptions()` to select exactly the Task 1 public option fields.
-- Added direct runner-contract tests without SDK emission wiring.
+- `69be2f1 fix: normalize boundary dependency names`
 
 ### Review RED Evidence
 
 Command:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts -t "tool snapshot|public semantic"
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q -k normalized
 ```
 
-Result before fix: FAIL, 2 failed tests.
+Result before fix: FAIL, 3 failed tests.
 
-Observed failures:
+Relevant output:
 
-- Tool snapshot test failed with `DataCloneError: async () => ({ result: "[]" }) could not be cloned.`
-- Public-options test failed with `DataCloneError: () => undefined could not be cloned.`
+```text
+FFF                                                                      [100%]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_dependency_names[Grid-Agent]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_dependency_names[grid_agent]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_dependency_names[grid.agent]
+3 failed, 4 deselected in 0.20s
+```
+
+Each failure returned `0` with `package-boundaries: ok`, proving the checker missed normalized spellings.
 
 ### Review GREEN Evidence
 
-Command:
+Focused regression:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts -t "tool snapshot|public semantic"
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q -k normalized
 ```
 
-Result after fix: PASS, `Test Files 1 passed (1)`, `Tests 2 passed | 2 skipped (4)`.
+Result:
 
-Full contract test file:
+```text
+...                                                                      [100%]
+3 passed, 4 deselected in 0.10s
+```
+
+Covering boundary tests:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q
 ```
 
-Result after fix: expected FAIL, `Tests 2 failed | 2 passed (4)`. The two passing tests cover safe runner projection; the two failing tests are still the Task 2 SDK-emission expectations.
+Result:
 
-Formatting:
+```text
+.......                                                                  [100%]
+7 passed in 0.22s
+```
+
+Python syntax/compile:
 
 ```sh
-npx biome check packages/coding-agent/src/core/extensions/types.ts packages/coding-agent/src/core/extensions/runner.ts packages/coding-agent/src/core/extensions/index.ts packages/coding-agent/src/index.ts packages/coding-agent/test/sdk-before-model-request.test.ts
+python3 -m py_compile tools/check_package_boundaries.py
 ```
 
-Result: PASS, `Checked 5 files in 13ms. No fixes applied.`
+Result: exited `0` with no output.
 
-Build/typecheck:
+Current-tree checker:
 
 ```sh
-npm run build --workspace @earendil-works/pi-agent-core && npm run build --workspace @earendil-works/pi-coding-agent
+python3 tools/check_package_boundaries.py
 ```
 
-Result: PASS.
+Result:
 
-Patch apply:
+```text
+package-boundaries: ok
+```
+
+Whitespace:
 
 ```sh
-git apply --check configs/runtime/patches/pi-0.80.6-before-model-request.patch
+git diff --check
 ```
 
-Result against a fresh pinned checkout: PASS, patch applies cleanly.
+Result: exited `0` with no output.
 
-Upstream source whitespace:
+### Fix Self-Review
 
-```sh
-git diff --cached --check
-```
+- Added parameterized regression coverage for `Grid-Agent`, `grid_agent`, and `grid.agent`.
+- Implemented local canonicalization only: lowercase and normalize runs of `-`, `_`, and `.` to `-`.
+- Did not add a runtime dependency.
+- Did not change AST import diagnostics or source-path literal diagnostics.
+- Preserved unstaged `docs/status/JOURNAL.md`.
 
-Result in the temporary upstream checkout: PASS, no whitespace errors.
+## Second Review Fix: Direct Reference Dependencies
 
-## Second Review Fix: Public Model Identity
+Second review found one Important issue: PEP 508 direct references such as `grid-agent @ https://example.invalid/grid-agent.whl` were not detected because the dependency-name parser did not split on `@`.
 
-Second review found that `BeforeModelRequestEvent.model` still exposed `structuredClone(model)`, which can include provider-private model fields such as `headers`, `compat`, `baseUrl`, and other non-semantic configuration.
+Fix commit:
 
-Fix applied in the upstream patch:
-
-- Added `PublicModelRequestModel`.
-- Changed `BeforeModelRequestEvent.model` from full `Model<Api>` to `PublicModelRequestModel`.
-- Added `projectBeforeModelRequestModel()` to expose only `provider`, `api`, and `id`.
-- Updated the fixture model to include `headers` and `compat`.
-- Added a direct runner-contract test proving the observer receives only model identity and not private/provider fields.
-- No SDK stream-boundary emission was added.
+- `d13f9fc fix: reject direct grid-agent references`
 
 ### Second Review RED Evidence
 
 Command:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts -t "public semantic identity"
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q -k direct_references
 ```
 
-Result before fix: FAIL, 1 failed test.
+Result before fix: FAIL, 3 failed tests.
 
-Observed failure:
+Relevant output:
 
-- `observed.model` contained full model fields including `headers`, `compat`, `baseUrl`, `name`, `cost`, `contextWindow`, and `maxTokens` instead of only `{ provider, api, id }`.
+```text
+FFF                                                                      [100%]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_direct_references[grid-agent @ https://example.invalid/grid-agent.whl]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_direct_references[Grid_Agent @ file:///tmp/dist.whl]
+FAILED tools/tests/test_check_package_boundaries.py::test_rejects_normalized_grid_agent_direct_references[grid.agent @ file:///tmp/dist.whl]
+3 failed, 7 deselected in 0.12s
+```
+
+Each failure returned `0` with `package-boundaries: ok`, proving the checker missed direct-reference dependency declarations.
 
 ### Second Review GREEN Evidence
 
-Command:
+Focused regression:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts -t "public semantic identity"
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q -k direct_references
 ```
 
-Result after fix: PASS, `Test Files 1 passed (1)`, `Tests 1 passed | 4 skipped (5)`.
+Result:
 
-Projection regression tests:
+```text
+...                                                                      [100%]
+3 passed, 7 deselected in 0.11s
+```
+
+Covering boundary tests:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts -t "tool snapshot|public semantic"
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q
 ```
 
-Result after fix: PASS, `Test Files 1 passed (1)`, `Tests 3 passed | 2 skipped (5)`.
+Result:
 
-Full contract test file:
+```text
+..........                                                               [100%]
+10 passed in 0.36s
+```
+
+Python syntax/compile:
 
 ```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
+python3 -m py_compile tools/check_package_boundaries.py
 ```
 
-Result after fix: expected FAIL, `Tests 2 failed | 3 passed (5)`. The three passing tests cover model/context/options projection; the two failing tests remain the Task 2 SDK-emission expectations.
+Result: exited `0` with no output.
 
-Formatting:
+Current-tree checker:
 
 ```sh
-npx biome check packages/coding-agent/src/core/extensions/types.ts packages/coding-agent/src/core/extensions/runner.ts packages/coding-agent/src/core/extensions/index.ts packages/coding-agent/src/index.ts packages/coding-agent/test/sdk-before-model-request.test.ts
+python3 tools/check_package_boundaries.py
 ```
 
-Result: PASS, `Checked 5 files in 13ms. No fixes applied.`
+Result:
 
-Build/typecheck:
+```text
+package-boundaries: ok
+```
+
+Whitespace:
 
 ```sh
-npm run build --workspace @earendil-works/pi-agent-core && npm run build --workspace @earendil-works/pi-coding-agent
+git diff --check
 ```
 
-Result: PASS.
+Result: exited `0` with no output.
 
-Patch apply:
+### Second Fix Self-Review
 
-```sh
-git apply --check configs/runtime/patches/pi-0.80.6-before-model-request.patch
-```
-
-Result against a fresh pinned checkout: PASS, patch applies cleanly.
-
-Upstream source whitespace:
-
-```sh
-git diff --cached --check
-```
-
-Result in the temporary upstream checkout: PASS, no whitespace errors.
+- Added parameterized regression coverage for direct references using `grid-agent`, `Grid_Agent`, and `grid.agent` spellings.
+- Extended the local dependency-name parser to split on `@` before canonicalization.
+- Preserved existing handling for extras, version specifiers, environment markers, whitespace, and prior normalized-name variants.
+- Did not add `packaging` or any other runtime dependency.
+- Did not alter non-metadata diagnostics.
+- Preserved unstaged `docs/status/JOURNAL.md`.

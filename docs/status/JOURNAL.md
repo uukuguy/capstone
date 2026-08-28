@@ -415,3 +415,14 @@ The following append-only entries were recovered before closing the fully merged
 - 20:20 经用户确认，将报告、用户手册、测试脚本与验证问题纳入 v1.0.1 正式发布管控
 - 20:35 发布交付门禁通过：Agent 588、Simulator 164、Pi tools 29、Workbench 120，零失败
 - 20:36 纳入正式报告、手册、测试脚本与验证题，确保 v1.0.1 交付完整 [1643315]
+
+## 2026-08-28
+
+- 10:00 前移 climb 初始化，确保 Workstream B 从首任务记录客观证据 [5f9e286]
+- 10:13 初始化 Workstream B climb 阶梯，归档已完成全能力会话 [d3a7f08]
+- 10:21 聚焦 Workstream B climb 单门评估，修复评审发现 [0870efb]
+- 10:24 修正 Task 1 绿灯边界，避免提交故意失败的布局测试 [e4884db]
+- 10:35 固化包提取兼容基线与静态边界检查器 [a92bda0]
+- 10:39 规范化 Python 分发名，堵住等价依赖拼写 [69be2f1]
+- 10:43 拒绝 grid-agent 直接引用依赖，关闭边界绕过 [d13f9fc]
+- 10:46 B-H001 边界基线门确认，Workstream B 得分升至 25/100

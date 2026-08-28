@@ -1,6 +1,6 @@
 # Research Tree — Workstream B Package Extraction
 
-> Generated deterministically from 0 climb runs.
+> Generated deterministically from 1 climb runs.
 
 **Session:** 2026-08-28-workstream-b-package-extraction
 
@@ -17,18 +17,17 @@
 
 ## In-flight
 
-- Phase: B-H001 implementation
-- Last cycle: 0
-- Next hypothesis: B-H001
-- Next action: Execute B-H001 through the deterministic local gate.
+- Phase: B-H002 implementation
+- Last cycle: 1
+- Next hypothesis: B-H002
+- Next action: Execute B-H002 through the deterministic local gate.
 
 ## Runs
 
-- No scored cycle yet.
+- 20260828T024636Z-b-h001: 25.0% — confirmed: owned deterministic Workstream B gate passed
 
 ## Active hypotheses
 
-- **B-H001**: artifact and import characterization can define a safe extraction baseline without changing behavior
 - **B-H002**: the approved neutral slice can move into capability-agent-kernel with compatibility imports preserving callers
 - **B-H003**: Pi registration and request transport can become descriptor-driven without exposing arbitrary process execution
 - **B-H004**: all pandapower Profile dependencies can move or invert so the domain pack has no application dependency
@@ -36,7 +35,7 @@
 
 ## Confirmed
 
-- None.
+- **B-H001**: artifact and import characterization can define a safe extraction baseline without changing behavior
 
 ## Negative cache
 
