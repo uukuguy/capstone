@@ -482,6 +482,166 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T092537Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T17:26:45+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/application_thinness.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/application_thinness.output.txt",
+          "output_sha256": "5e765302b10d658ad5c056dd71f78a20c1b5c8576d1614cfef1c3f63d764a66c",
+          "receipt_digest": "3514e16fd48afb17d89c751ebb787b853cde832286ffc0b00295f8b9e6446503",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/distribution_integrity.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/distribution_integrity.output.txt",
+          "output_sha256": "4e9e5938a53c37ab337102a79663f1ce98519d73a34e3ce57cac0727e83b39c6",
+          "receipt_digest": "6f08c3515a7a7e1151f9d4f4d0f024328aaeac58376d005682aaa5fc41c2998e",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/domain_ownership.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "test-domain-package"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/domain_ownership.output.txt",
+          "output_sha256": "1dcc70d9f511ed420adf087b63347322e33df78b92d53d4d49f4e013fd7ab037",
+          "receipt_digest": "46caf0c0d357cfa5056596820ee187a10b0a5e7e90ef7c48ba9d3b0e2507d9fa",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/kernel_independence.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/kernel_independence.output.txt",
+          "output_sha256": "4f7bef9e451a656e5f22445c4fc84d6e8576bc847de21a06b29927ecbaa6af11",
+          "receipt_digest": "08a300f4e9e1361889ccd2e06e458d762820858e9541571ac12cacd0b83d953c",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/pi_tool_generalization.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/pi_tool_generalization.output.txt",
+          "output_sha256": "68e20f8f66bd70c4f8c057b4bef191e03e9a859c2402dfc0af2600b75df3fecd",
+          "receipt_digest": "310d2b7c80068226fcd788aeafee66153684987f6374fdbe410aa86c25266a1d",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T092537Z-b-h005/gate-output-product_compatibility.json",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "output_sha256": "5c283381b99e64448c813efd93ee621c2a01a104891186c86693fe650d1593f4",
+          "prerequisite_receipts": {
+            "doctor": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/doctor.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "doctor"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/doctor.output.txt",
+              "output_sha256": "f20b63e2848db91520bb2a077a0c65a3345ed68e0c6c32f55378483ad9bdb1c2",
+              "receipt_digest": "31659bd6343f121a63362030646b4c997c273678ace3a5432396e2ece4ba0a5b",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            },
+            "test": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "test"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test.output.txt",
+              "output_sha256": "24168d2a31a2d40e90855ae708a8603eb3e512228abcaec5fa3b81b0bb92adde",
+              "receipt_digest": "7ff6b4be04794fb5a4aaf422415d286cbb2be91bc9b66a401b7eda4f8487184c",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            },
+            "test-e2e": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test-e2e.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "test-e2e"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test-e2e.output.txt",
+              "output_sha256": "20b935d5bcc23df0b6053163176a5f23a5f55e4677580bc6011b3fb67b410755",
+              "receipt_digest": "e84c7bf5ea5848fe2892402cc103dfdf9be1116718c9e7fcdb4c138327de7b70",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            }
+          },
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "python3 tools/check_runtime_risk_exception.py\nruntime-risk-exception: accepted 2 high, 2 moderate through 2026-09-30\nuv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json\npython3 tools/capability_matrix.py --check\npandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
     }
   ]
 }
