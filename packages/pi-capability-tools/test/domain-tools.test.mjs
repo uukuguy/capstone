@@ -47,6 +47,47 @@ test("rejects invalid runtime descriptors before tool creation", () => {
   }
 });
 
+test("rejects unbounded capability contract names before tool creation", () => {
+  const contract = {
+    name: "inventory_asset_list",
+    capability: "asset.list",
+    description: "List assets",
+    input_schema: { type: "object", additionalProperties: false, properties: {} },
+  };
+
+  for (const name of ["shell", "other_asset_list", "inventory_"]) {
+    assert.throws(
+      () => createCapabilityTool(inventory, { ...contract, name }, async () => undefined),
+      /tool prefix/,
+    );
+  }
+});
+
+test("requires the exact four keys in descriptor Pi runtime identity", () => {
+  const runtime = {
+    pi_coding_agent_version: "0.80.6",
+    pi_ai_version: "0.80.6",
+    pi_source_commit: "a".repeat(40),
+    pi_patch_set_sha256: "b".repeat(64),
+  };
+  const symbol = Symbol("unexpected");
+
+  assert.doesNotThrow(() => validateRuntimeDescriptor({ ...inventory, piRuntime: runtime }));
+  assert.throws(
+    () => validateRuntimeDescriptor({ ...inventory, piRuntime: { ...runtime, provider: "secret" } }),
+    /piRuntime.*unknown field/,
+  );
+  assert.throws(
+    () => validateRuntimeDescriptor({ ...inventory, piRuntime: { ...runtime, [symbol]: "unexpected" } }),
+    /piRuntime.*unknown field/,
+  );
+  const { pi_patch_set_sha256: _hash, ...missing } = runtime;
+  assert.throws(
+    () => validateRuntimeDescriptor({ ...inventory, piRuntime: missing }),
+    /piRuntime.*keys/,
+  );
+});
+
 test("fails closed when a capability response has the wrong correlation", async () => {
   const tool = createCapabilityTool(
     inventory,

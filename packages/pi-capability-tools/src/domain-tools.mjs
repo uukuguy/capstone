@@ -33,6 +33,13 @@ const PROTOCOL_VERSION_PATTERN = /^\d+\.\d+$/;
 const EXECUTABLE_PATTERN = /^[^/\\]+$/;
 const TOOL_PREFIX_PATTERN = /^[a-z][a-z0-9_]*_$/;
 const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
+const RUNTIME_IDENTITY_KEYS = [
+  "pi_coding_agent_version",
+  "pi_ai_version",
+  "pi_source_commit",
+  "pi_patch_set_sha256",
+];
+const RUNTIME_IDENTITY_KEY_SET = new Set(RUNTIME_IDENTITY_KEYS);
 const CANONICAL_SECRET_NAMES = [
   "OPENAI_API_KEY",
   "OPENROUTER_API_KEY",
@@ -160,8 +167,12 @@ export function createCapabilityTool(descriptor, contract, runner) {
  * Materialize the generic extension after the controller has selected a
  * descriptor. The returned callback is compatible with Pi's extension API.
  */
-export function createDomainToolsExtension(descriptor) {
+export function createDomainToolsExtension(descriptor, options = {}) {
   const runtime = validateRuntimeDescriptor(descriptor);
+  if (!isPlainObject(options) || (options.createTool !== undefined && typeof options.createTool !== "function")) {
+    throw new TypeError("domain tools extension options must provide a createTool function");
+  }
+  const buildTool = options.createTool ?? createCapabilityTool;
   return function domainToolsExtension(pi) {
     const paths = runtimePaths(runtime);
     if (
@@ -187,7 +198,7 @@ export function createDomainToolsExtension(descriptor) {
       if (contract.name === runtime.decisionToolName) {
         continue;
       }
-      pi.registerTool(createCapabilityTool(runtime, contract, (payload) => runCapability(payload, runtime)));
+      pi.registerTool(buildTool(runtime, contract, (payload) => runCapability(payload, runtime)));
     }
     pi.registerTool(createGuideTool(runtime, paths.guideIndexPath));
     if (paths.analysisContextViewPath !== undefined) {
@@ -499,6 +510,12 @@ function validateContract(contract, descriptor) {
       throw new TypeError(`capability contract ${name} must be a non-empty string`);
     }
   }
+  if (
+    !contract.name.startsWith(descriptor.toolNamePrefix) ||
+    contract.name.length === descriptor.toolNamePrefix.length
+  ) {
+    throw new TypeError("capability contract name must use the descriptor tool prefix");
+  }
   if (!isPlainObject(contract.input_schema)) {
     throw new TypeError("capability contract input_schema must be an object");
   }
@@ -555,8 +572,17 @@ function cloneRuntime(value) {
   if (!isPlainObject(value)) {
     throw new TypeError("runtime descriptor piRuntime must be a plain object");
   }
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string" || !RUNTIME_IDENTITY_KEY_SET.has(key)) {
+      throw new TypeError(`runtime descriptor piRuntime contains an unknown field: ${String(key)}`);
+    }
+  }
+  if (Reflect.ownKeys(value).length !== RUNTIME_IDENTITY_KEYS.length) {
+    throw new TypeError("runtime descriptor piRuntime keys must be exactly the runtime identity keys");
+  }
   const runtime = {};
-  for (const [key, entry] of Object.entries(value)) {
+  for (const key of RUNTIME_IDENTITY_KEYS) {
+    const entry = value[key];
     if (typeof entry !== "string" || entry.length === 0) {
       throw new TypeError(`runtime descriptor piRuntime ${key} must be a non-empty string`);
     }
