@@ -52,3 +52,49 @@
 - Broad `pyright packages/grid-agent/src` remains red only for 29 pre-existing
   errors outside this task's files (`config/catalog.py`, `knowledge/offline.py`,
   `reporting.py`, and `validation/oracles.py`).
+---
+
+# Workstream B Task 5 Report: Installed simulator resources and transport
+
+## TDD evidence
+
+- RED:
+  - The simulator capability focused command failed during collection because
+    `contract_root` was absent.
+  - The domain focused command failed during collection because
+    `pandapower_domain` was absent.
+- GREEN:
+  - Added the installed simulator resource locator, domain resource owner,
+    extracted transport, and exact `GridctlClient = GridctlExecutor`
+    compatibility export.
+
+## Implementation
+
+- `grid_simulator.capabilities.contract_root()` resolves definitions via
+  `importlib.resources.files`; existing Hatch force-include packaging remains
+  authoritative.
+- `PandapowerResourceSet.load()` materializes immutable simulator JSON into a
+  domain-owned temporary resource context, keeping checkout paths out of the
+  runtime manifest.
+- `GridctlExecutor` retains compact `grid-capability/1.0` request documents,
+  request correlation, timeout behavior, diagnostics, typed capability and
+  operation failures, and `call()` compatibility. Child environments remove
+  canonical and selected credential names.
+- `GridctlLocator` keeps explicit and managed lookup and adds installed
+  `gridctl` PATH fallback.
+
+## Verification
+
+- Simulator focused contracts: 40 passed.
+- Domain resources, transport, and boundary tests: 11 passed.
+- Ruff and Pyright passed for all Task 5 package/source files (grid-agent
+  compatibility diagnostics were run with temporary source paths).
+- `make check-package-boundaries`: passed.
+- Simulator and domain wheels built successfully. Clean Python 3.12 wheel
+  smoke installed kernel, simulator, and domain wheels outside the checkout;
+  `PandapowerResourceSet.load()` found 30 JSON documents and its path had no
+  checkout source marker.
+- Existing grid-agent simulator-client tests passed with the new package
+  available via temporary source paths. The unmodified grid-agent project
+  metadata does not yet declare `pandapower-domain-pack`; Task 6 owns that
+  application dependency update.

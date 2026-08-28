@@ -4,7 +4,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
-from grid_simulator.capabilities import CapabilityRegistry
+from grid_simulator.capabilities import CapabilityRegistry, contract_root
 from grid_simulator.capabilities.schema import CapabilityContract
 
 
@@ -40,6 +40,14 @@ EXPECTED_IDS = (
     "topology.branch.endpoints.get",
     "topology.components.get",
 )
+
+
+def test_contract_root_exposes_packaged_definitions() -> None:
+    root = contract_root()
+    documents = sorted(root.glob("*.json"), key=lambda path: path.name)
+
+    assert len(documents) == 30
+    assert all(path.is_file() for path in documents)
 
 
 def test_packaged_contracts_cover_all_wp_a_capabilities() -> None:

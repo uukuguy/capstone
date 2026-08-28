@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pandapower-domain-pack"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "capability-agent-kernel==0.1.0",
+  "grid-simulator==1.0.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10"]
+
+[tool.uv.sources]
+capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+grid-simulator = { path = "../grid-simulator", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pandapower_domain"]
