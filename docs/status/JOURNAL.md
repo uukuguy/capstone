@@ -445,3 +445,6 @@ The following append-only entries were recovered before closing the fully merged
 - 13:24 加固工件路径与旧事件哈希兼容边界 [ec6126f]
 - 13:30 提取 pandapower Profile、投影、权威与资源 [51ef698]
 - 13:33 B-H003 通用 Pi 门确认，研究树转向 Domain Pack 所有权
+- 13:35 固化 B-H003 安全证据，为 Domain Pack 评估建立恢复点 [b95270b]
+- 13:48 通过 Domain Pack 路由旧资源兼容 API，关闭源码路径残留 [821b522]
+- 13:48 B-H004 Domain Pack 所有权门确认，研究树转向应用装配

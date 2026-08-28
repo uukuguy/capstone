@@ -252,6 +252,54 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H004",
+      "run_id": "20260828T054809Z-b-h004",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T13:48:09+08:00",
+      "local_score": 20.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 0.0,
+        "pi_tool_generalization": 0.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "domain_ownership": {
+          "command": [
+            "python3",
+            "tools/check_package_boundaries.py"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "package-boundaries: ok"
+        },
+        "kernel_independence": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "pi_tool_generalization": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "product_compatibility": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
     }
   ]
 }
