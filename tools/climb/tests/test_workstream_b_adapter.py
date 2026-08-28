@@ -7,6 +7,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -17,6 +20,7 @@ SYNC = ROOT / "tools/climb/sync-cycle.py"
 REGEN = ROOT / "tools/climb/regen-tree.py"
 CHECK_TARGET = ROOT / "tools/climb/check-target.py"
 GATE_RECEIPT = ROOT / "tools/climb/gate-receipt.py"
+SOURCE_REVISION = ROOT / "tools/climb/source-revision.py"
 
 EXPECTED_WEIGHTS = {
     "kernel_independence": 25.0,
@@ -61,9 +65,22 @@ def _write_temp_state(tmp_path: Path, *, phase: str = "B-H001 implementation") -
                 "artifact_dir": str(artifact_dir),
                 "run_tag_marker": "-climb-b-",
                 "paradigm_field": "package_extraction_boundary",
+                "release_source": {
+                    "include_pathspecs": [
+                        "Makefile",
+                        "packages",
+                        "tools",
+                        "validation",
+                        "configs",
+                        "schemas",
+                        "skills",
+                    ],
+                    "exclude_pathspecs": ["docs/status", ".superpowers"],
+                },
                 "score_gates": {
                     "kernel_independence": {
                         "hypothesis_id": "B-H001",
+                        "hypothesis_ids": ["B-H001", "B-H002"],
                         "required_paths": [str(kernel_root)],
                         "command": [sys.executable, str(gate_dir / "kernel-ok.py")],
                     },
@@ -197,6 +214,9 @@ def _append_run(
     gate_key: str,
     weight: float,
     command: list[str],
+    session: str = "2026-08-28-workstream-b-package-extraction",
+    source_status: str = "passed",
+    returncode: int = 0,
 ) -> None:
     run_dir = artifact_dir / run_id
     run_dir.mkdir(parents=True)
@@ -206,13 +226,15 @@ def _append_run(
             gate_key: {
                 "artifact_path": f"{run_id}/gate-output-{gate_key}.json",
                 "command": command,
-                "returncode": 0,
-                "status": "passed",
+                "returncode": returncode,
+                "status": source_status,
             }
         },
         "hypothesis_gate_passed": True,
+        "hypothesis_id": hypothesis_id,
         "per_task": {key: 0.0 for key in EXPECTED_WEIGHTS},
         "release_ready": False,
+        "session": session,
         "total": weight,
     }
     local_eval["per_task"][gate_key] = weight
@@ -222,6 +244,7 @@ def _append_run(
             {
                 "hypothesis_id": hypothesis_id,
                 "kind": "workstream-b-package-extraction-gate",
+                "local_eval_artifact_path": f"{run_id}/local-eval.json",
                 "score_evidence": [
                     {
                         "artifact_path": f"{run_id}/local-eval.json",
@@ -230,7 +253,7 @@ def _append_run(
                         "source": "local-eval",
                     }
                 ],
-                "session": "2026-08-28-workstream-b-package-extraction",
+                "session": session,
             },
             sort_keys=True,
         )
@@ -253,7 +276,7 @@ def _append_run(
     (state_dir / "hypotheses.yaml").write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
     with (state_dir / "runs.csv").open("a", encoding="utf-8") as handle:
         handle.write(
-            f"{run_id},{cycle},2026-08-28-workstream-b-package-extraction,{hypothesis_id},test-paradigm,,,,"
+            f"{run_id},{cycle},{session},{hypothesis_id},test-paradigm,,,,"
             f"{weight},{local_eval['per_task']['kernel_independence']},{local_eval['per_task']['domain_ownership']},"
             f"{local_eval['per_task']['pi_tool_generalization']},{local_eval['per_task']['application_thinness']},"
             f"{local_eval['per_task']['distribution_integrity']},{local_eval['per_task']['product_compatibility']},"
@@ -263,28 +286,59 @@ def _append_run(
         )
 
 
+def _repo_release_revision() -> str:
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "log",
+            "-1",
+            "--format=%H",
+            "--",
+            "Makefile",
+            "packages",
+            "tools",
+            "validation",
+            "configs",
+            "schemas",
+            "skills",
+            ":(exclude)docs/status",
+            ":(exclude).superpowers",
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
 def _write_receipt(
     state_dir: Path,
+    artifact_dir: Path,
     *,
     gate_key: str,
     command: list[str],
-    source_commit: str = "test-source",
+    source_revision: str | None = None,
     returncode: int = 0,
 ) -> Path:
-    receipt_dir = state_dir / "receipts"
-    receipt_dir.mkdir(exist_ok=True)
+    revision = source_revision or _repo_release_revision()
+    receipt_dir = artifact_dir / "gate-receipts" / revision
+    receipt_dir.mkdir(parents=True, exist_ok=True)
     receipt_path = receipt_dir / f"{gate_key}.json"
     output_path = receipt_dir / f"{gate_key}.output.txt"
     output_path.write_text(f"{gate_key} output\n", encoding="utf-8")
     receipt_path.write_text(
         json.dumps(
             {
-                "artifact_path": f"receipts/{gate_key}.json",
+                "artifact_path": f"gate-receipts/{revision}/{gate_key}.json",
                 "command": command,
                 "gate_key": gate_key,
-                "output_artifact_path": f"receipts/{gate_key}.output.txt",
+                "output_artifact_path": f"gate-receipts/{revision}/{gate_key}.output.txt",
+                "release_source_revision": revision,
                 "returncode": returncode,
-                "source_commit": source_commit,
                 "status": "passed" if returncode == 0 else "failed",
             },
             sort_keys=True,
@@ -294,10 +348,51 @@ def _write_receipt(
     )
     config_path = state_dir / "config.yaml"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["score_gates"][gate_key]["receipt_path"] = str(receipt_path)
     config["score_gates"][gate_key]["receipt_required"] = True
     config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
     return receipt_path
+
+
+def _configure_b_h005_product_gate(state_dir: Path, tmp_path: Path) -> Any:
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    required_root = tmp_path / "available"
+    required_root.mkdir(exist_ok=True)
+    config["score_gates"]["product_compatibility"]["required_paths"] = [str(required_root)]
+    config["score_gates"]["product_compatibility"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "kernel-ok.py"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    return config
+
+
+def _eval_b_h005(state_dir: Path, artifact_dir: Path, tmp_path: Path) -> Any:
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=_env(state_dir, artifact_dir))
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def _prepare_carry_forward_case(tmp_path: Path) -> tuple[Path, Path, Any]:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = _configure_b_h005_product_gate(state_dir, tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="valid-kernel",
+        cycle=1,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+    )
+    return state_dir, artifact_dir, config
 
 
 def _env(state_dir: Path, artifact_dir: Path) -> dict[str, str]:
@@ -317,6 +412,47 @@ def _run(command: list[str | Path], *, cwd: Path, env: dict[str, str]) -> subpro
         stderr=subprocess.PIPE,
         check=False,
     )
+
+
+def test_source_revision_ignores_state_only_commits(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run(["git", "init"], cwd=repo, env=os.environ.copy())
+    _run(["git", "config", "user.email", "agent@example.invalid"], cwd=repo, env=os.environ.copy())
+    _run(["git", "config", "user.name", "Agent"], cwd=repo, env=os.environ.copy())
+    (repo / "docs/status").mkdir(parents=True)
+    (repo / ".superpowers/sdd").mkdir(parents=True)
+    (repo / "packages").mkdir()
+    (repo / "Makefile").write_text("all:\n\t@true\n", encoding="utf-8")
+    (repo / "packages" / "placeholder.txt").write_text("source\n", encoding="utf-8")
+    (repo / "docs/status/JOURNAL.md").write_text("# Journal\n", encoding="utf-8")
+    _run(["git", "add", "."], cwd=repo, env=os.environ.copy())
+    source_commit = _run(["git", "commit", "-m", "source"], cwd=repo, env=os.environ.copy())
+    assert source_commit.returncode == 0, source_commit.stderr
+    source_revision = _run(["git", "rev-parse", "HEAD"], cwd=repo, env=os.environ.copy()).stdout.strip()
+    (repo / "docs/status/JOURNAL.md").write_text("# Journal\n\nstate only\n", encoding="utf-8")
+    _run(["git", "add", "docs/status/JOURNAL.md"], cwd=repo, env=os.environ.copy())
+    state_commit = _run(["git", "commit", "-m", "state"], cwd=repo, env=os.environ.copy())
+    assert state_commit.returncode == 0, state_commit.stderr
+    config = repo / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "release_source": {
+                    "include_pathspecs": ["Makefile", "packages", "tools", "validation", "configs", "schemas", "skills"],
+                    "exclude_pathspecs": ["docs/status", ".superpowers"],
+                }
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run([SOURCE_REVISION, "--root", repo, "--config", config], cwd=repo, env=os.environ.copy())
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == source_revision
 
 
 def test_train_writes_workstream_b_manifest_in_temp_artifact_dir(tmp_path: Path) -> None:
@@ -450,7 +586,7 @@ def test_eval_b_h005_scores_valid_cumulative_evidence_and_receipts(tmp_path: Pat
         hypothesis_id="B-H002",
         gate_key="kernel_independence",
         weight=25.0,
-        command=["kernel", "gate"],
+        command=config["score_gates"]["kernel_independence"]["command"],
     )
     _append_run(
         state_dir,
@@ -460,7 +596,7 @@ def test_eval_b_h005_scores_valid_cumulative_evidence_and_receipts(tmp_path: Pat
         hypothesis_id="B-H003",
         gate_key="pi_tool_generalization",
         weight=15.0,
-        command=["pi", "gate"],
+        command=config["score_gates"]["pi_tool_generalization"]["command"],
     )
     _append_run(
         state_dir,
@@ -470,15 +606,17 @@ def test_eval_b_h005_scores_valid_cumulative_evidence_and_receipts(tmp_path: Pat
         hypothesis_id="B-H004",
         gate_key="domain_ownership",
         weight=20.0,
-        command=["domain", "gate"],
+        command=config["score_gates"]["domain_ownership"]["command"],
     )
     _write_receipt(
         state_dir,
+        artifact_dir,
         gate_key="application_thinness",
         command=config["score_gates"]["application_thinness"]["command"],
     )
     _write_receipt(
         state_dir,
+        artifact_dir,
         gate_key="distribution_integrity",
         command=config["score_gates"]["distribution_integrity"]["command"],
     )
@@ -488,10 +626,7 @@ def test_eval_b_h005_scores_valid_cumulative_evidence_and_receipts(tmp_path: Pat
         json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
         encoding="utf-8",
     )
-    env = _env(state_dir, artifact_dir)
-    env["CLIMB_SOURCE_COMMIT"] = "test-source"
-
-    result = _run([EVAL, run_dir], cwd=tmp_path, env=env)
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=_env(state_dir, artifact_dir))
 
     assert result.returncode == 0, result.stderr
     score = json.loads(result.stdout)
@@ -532,7 +667,7 @@ def test_eval_b_h005_zeroes_missing_failed_and_stale_receipts(tmp_path: Path) ->
         hypothesis_id="B-H002",
         gate_key="kernel_independence",
         weight=25.0,
-        command=["kernel", "gate"],
+        command=config["score_gates"]["kernel_independence"]["command"],
     )
     _append_run(
         state_dir,
@@ -542,7 +677,7 @@ def test_eval_b_h005_zeroes_missing_failed_and_stale_receipts(tmp_path: Path) ->
         hypothesis_id="B-H003",
         gate_key="pi_tool_generalization",
         weight=15.0,
-        command=["pi", "gate"],
+        command=config["score_gates"]["pi_tool_generalization"]["command"],
     )
     _append_run(
         state_dir,
@@ -552,32 +687,31 @@ def test_eval_b_h005_zeroes_missing_failed_and_stale_receipts(tmp_path: Path) ->
         hypothesis_id="B-H004",
         gate_key="domain_ownership",
         weight=20.0,
-        command=["domain", "gate"],
+        command=config["score_gates"]["domain_ownership"]["command"],
     )
     _write_receipt(
         state_dir,
+        artifact_dir,
         gate_key="distribution_integrity",
         command=config["score_gates"]["distribution_integrity"]["command"],
         returncode=1,
     )
     stale_receipt = _write_receipt(
         state_dir,
+        artifact_dir,
         gate_key="application_thinness",
         command=config["score_gates"]["application_thinness"]["command"],
-        source_commit="old-source",
+        source_revision="old-source",
     )
     stale_payload = json.loads(stale_receipt.read_text(encoding="utf-8"))
-    assert stale_payload["source_commit"] == "old-source"
+    assert stale_payload["release_source_revision"] == "old-source"
     run_dir = artifact_dir / "cycle-b-h005"
     run_dir.mkdir()
     (run_dir / "manifest.json").write_text(
         json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
         encoding="utf-8",
     )
-    env = _env(state_dir, artifact_dir)
-    env["CLIMB_SOURCE_COMMIT"] = "test-source"
-
-    result = _run([EVAL, run_dir], cwd=tmp_path, env=env)
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=_env(state_dir, artifact_dir))
 
     assert result.returncode == 0, result.stderr
     score = json.loads(result.stdout)
@@ -601,7 +735,6 @@ def test_eval_b_h005_zeroes_missing_receipt(tmp_path: Path) -> None:
     for score_key in ("application_thinness", "distribution_integrity", "product_compatibility"):
         config["score_gates"][score_key]["required_paths"] = [str(required_root)]
     config["score_gates"]["application_thinness"]["receipt_required"] = True
-    config["score_gates"]["application_thinness"]["receipt_path"] = str(state_dir / "receipts/missing.json")
     config["score_gates"]["product_compatibility"]["command"] = [
         sys.executable,
         str(tmp_path / "gates" / "kernel-ok.py"),
@@ -623,6 +756,143 @@ def test_eval_b_h005_zeroes_missing_receipt(tmp_path: Path) -> None:
     assert "application_thinness: missing-receipt" in score["release_blockers"]
 
 
+def test_eval_carry_forward_rejects_wrong_hypothesis_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="wrong-hypothesis",
+        cycle=2,
+        hypothesis_id="B-H005",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+    )
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-hypothesis"
+    assert score["gate_evidence"]["kernel_independence"].get("source_run_id") != "valid-kernel"
+
+
+def test_eval_carry_forward_rejects_wrong_session_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="wrong-session",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+        session="other-session",
+    )
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-session"
+
+
+def test_eval_carry_forward_rejects_command_mismatch_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, _config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="wrong-command",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=["wrong", "command"],
+    )
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-command"
+
+
+def test_eval_carry_forward_rejects_passed_nonzero_returncode_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="passed-nonzero",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+        source_status="passed",
+        returncode=1,
+    )
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-returncode"
+
+
+def test_eval_carry_forward_rejects_missing_local_eval_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="missing-local-eval",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+    )
+    (artifact_dir / "missing-local-eval" / "local-eval.json").unlink()
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "missing-carry-forward-local-eval"
+
+
+def test_eval_carry_forward_rejects_symlink_path_escape_and_fails_closed(tmp_path: Path) -> None:
+    state_dir, artifact_dir, config = _prepare_carry_forward_case(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="path-escape",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=config["score_gates"]["kernel_independence"]["command"],
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_manifest = outside / "manifest.json"
+    outside_manifest.write_text(
+        json.dumps(
+            {
+                "hypothesis_id": "B-H002",
+                "local_eval_artifact_path": "path-escape/local-eval.json",
+                "session": "2026-08-28-workstream-b-package-extraction",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = artifact_dir / "path-escape" / "manifest.json"
+    manifest_path.unlink()
+    manifest_path.symlink_to(outside_manifest)
+
+    score = _eval_b_h005(state_dir, artifact_dir, tmp_path)
+
+    assert score["per_task"]["kernel_independence"] == 0.0
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "invalid-carry-forward-artifact-path"
+
+
 def test_gate_receipt_records_exact_command_returncode_commit_and_output_path(tmp_path: Path) -> None:
     state_dir, artifact_dir = _write_temp_state(tmp_path)
     output_marker = tmp_path / "receipt-command-ran"
@@ -636,7 +906,7 @@ def test_gate_receipt_records_exact_command_returncode_commit_and_output_path(tm
     config["score_gates"]["application_thinness"]["required_paths"] = [str(tmp_path / "gates" / "append-marker.py")]
     config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
     env = _env(state_dir, artifact_dir)
-    env["CLIMB_SOURCE_COMMIT"] = "test-source"
+    env["CLIMB_SOURCE_COMMIT"] = "spoofed-source-commit"
 
     result = _run([GATE_RECEIPT, "application_thinness"], cwd=tmp_path, env=env)
 
@@ -647,11 +917,33 @@ def test_gate_receipt_records_exact_command_returncode_commit_and_output_path(tm
     assert receipt["gate_key"] == "application_thinness"
     assert receipt["command"] == config["score_gates"]["application_thinness"]["command"]
     assert receipt["returncode"] == 0
-    assert receipt["source_commit"] == "test-source"
-    assert receipt["artifact_path"] == "gate-receipts/application_thinness.json"
-    assert receipt["output_artifact_path"] == "gate-receipts/application_thinness.output.txt"
-    assert (artifact_dir / "gate-receipts/application_thinness.output.txt").is_file()
+    revision = _repo_release_revision()
+    assert receipt["release_source_revision"] == revision
+    assert receipt["release_source_revision"] != "spoofed-source-commit"
+    assert receipt["artifact_path"] == f"gate-receipts/{revision}/application_thinness.json"
+    assert receipt["output_artifact_path"] == f"gate-receipts/{revision}/application_thinness.output.txt"
+    assert (artifact_dir / f"gate-receipts/{revision}/application_thinness.output.txt").is_file()
     assert output_marker.is_file()
+
+
+def test_gate_receipt_refuses_to_overwrite_same_revision_receipt(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["score_gates"]["application_thinness"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "kernel-ok.py"),
+    ]
+    config["score_gates"]["application_thinness"]["required_paths"] = [str(tmp_path / "gates" / "kernel-ok.py")]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    env = _env(state_dir, artifact_dir)
+
+    first = _run([GATE_RECEIPT, "application_thinness"], cwd=tmp_path, env=env)
+    second = _run([GATE_RECEIPT, "application_thinness"], cwd=tmp_path, env=env)
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode != 0
+    assert "receipt already exists" in second.stderr
 
 
 def test_decision_gate_pushes_only_release_ready_scores(tmp_path: Path) -> None:
@@ -774,6 +1066,7 @@ def test_sync_uses_focused_gate_and_records_stable_manifest_path(tmp_path: Path)
 
 def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) -> None:
     state_dir, artifact_dir = _write_temp_state(tmp_path)
+    config = json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
     _append_run(
         state_dir,
         artifact_dir,
@@ -782,7 +1075,7 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
         hypothesis_id="B-H001",
         gate_key="kernel_independence",
         weight=25.0,
-        command=["kernel", "gate"],
+        command=config["score_gates"]["kernel_independence"]["command"],
     )
     _append_run(
         state_dir,
@@ -792,7 +1085,7 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
         hypothesis_id="B-H002",
         gate_key="kernel_independence",
         weight=25.0,
-        command=["kernel", "gate"],
+        command=config["score_gates"]["kernel_independence"]["command"],
     )
     _append_run(
         state_dir,
@@ -802,7 +1095,7 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
         hypothesis_id="B-H003",
         gate_key="pi_tool_generalization",
         weight=15.0,
-        command=["pi", "gate"],
+        command=config["score_gates"]["pi_tool_generalization"]["command"],
     )
     _append_run(
         state_dir,
@@ -812,7 +1105,7 @@ def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) ->
         hypothesis_id="B-H004",
         gate_key="domain_ownership",
         weight=20.0,
-        command=["domain", "gate"],
+        command=config["score_gates"]["domain_ownership"]["command"],
     )
     run_dir = artifact_dir / "cycle-b-h005"
     run_dir.mkdir()

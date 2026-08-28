@@ -4,18 +4,20 @@
   "push_mode": "local-gate",
   "run_tag_marker": "-climb-b-",
   "score_direction": "max",
+  "release_source": {
+    "include_pathspecs": ["Makefile", "packages", "tools", "validation", "configs", "schemas", "skills"],
+    "exclude_pathspecs": ["docs/status", ".superpowers"]
+  },
   "score_gates": {
     "application_thinness": {
       "command": ["make", "check-package-boundaries"],
       "hypothesis_id": "B-H005",
-      "receipt_path": "runs/climb/gate-receipts/application_thinness.json",
       "receipt_required": true,
       "required_paths": ["tools/check_package_boundaries.py"]
     },
     "distribution_integrity": {
       "command": ["make", "test-packages"],
       "hypothesis_id": "B-H005",
-      "receipt_path": "runs/climb/gate-receipts/distribution_integrity.json",
       "receipt_required": true,
       "required_paths": ["packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
     },

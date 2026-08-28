@@ -9,6 +9,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from climb_evidence import JsonObject, as_object, load_json_object
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -21,17 +23,17 @@ def _state_dir() -> Path:
     return ROOT / "docs/status/climb"
 
 
-def _load_config(state_dir: Path) -> dict[str, object]:
-    return json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
+def _load_config(state_dir: Path) -> JsonObject:
+    return load_json_object(state_dir / "config.yaml")
 
 
-def _resolve_artifact_dir(config: dict[str, object]) -> Path:
+def _resolve_artifact_dir(config: JsonObject) -> Path:
     raw = os.environ.get("CLIMB_ARTIFACT_DIR") or str(config.get("artifact_dir", "runs/climb"))
     path = Path(raw)
     return path if path.is_absolute() else ROOT / path
 
 
-def _stable_manifest_path(run_dir: Path, config: dict[str, object]) -> str:
+def _stable_manifest_path(run_dir: Path, config: JsonObject) -> str:
     manifest_path = (run_dir / "manifest.json").resolve()
     try:
         return manifest_path.relative_to(ROOT).as_posix()
@@ -44,7 +46,7 @@ def _stable_manifest_path(run_dir: Path, config: dict[str, object]) -> str:
         return f"{run_dir.name}/manifest.json"
 
 
-def _stable_path(path: Path, config: dict[str, object]) -> str:
+def _stable_path(path: Path, config: JsonObject) -> str:
     resolved = path.resolve()
     for base in (ROOT.resolve(), _resolve_artifact_dir(config).resolve(), _state_dir().resolve()):
         try:
@@ -54,10 +56,21 @@ def _stable_path(path: Path, config: dict[str, object]) -> str:
     return path.name
 
 
-def _score_evidence_links(score: dict[str, object], config: dict[str, object]) -> list[dict[str, object]]:
-    links: list[dict[str, object]] = []
-    for key in config.get("subscores", config["score_weights"]):
-        evidence = score.get("gate_evidence", {}).get(key, {})
+def _score_keys(config: JsonObject) -> list[str]:
+    weights = as_object(config.get("score_weights"), "score_weights")
+    raw_subscores = config.get("subscores")
+    if raw_subscores is None:
+        return [str(key) for key in weights]
+    if not isinstance(raw_subscores, list):
+        raise SystemExit("subscores must be a list")
+    return [str(key) for key in raw_subscores]
+
+
+def _score_evidence_links(score: JsonObject, config: JsonObject) -> list[JsonObject]:
+    links: list[JsonObject] = []
+    gate_evidence = as_object(score.get("gate_evidence"), "gate_evidence")
+    for key in _score_keys(config):
+        evidence = gate_evidence.get(key)
         if not isinstance(evidence, dict):
             evidence = {}
         links.append(
@@ -72,9 +85,9 @@ def _score_evidence_links(score: dict[str, object], config: dict[str, object]) -
     return links
 
 
-def _update_manifest(run_dir: Path, eval_json: Path, decision_json: Path, score: dict[str, object], config: dict[str, object]) -> None:
+def _update_manifest(run_dir: Path, eval_json: Path, decision_json: Path, score: JsonObject, config: JsonObject) -> None:
     manifest_path = run_dir / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = load_json_object(manifest_path)
     manifest.update(
         {
             "decision_artifact_path": _stable_path(decision_json, config),
@@ -99,20 +112,26 @@ def main() -> int:
 
     state_dir = _state_dir()
     config = _load_config(state_dir)
-    score_keys = list(config["score_weights"])
+    score_keys = _score_keys(config)
     hypotheses_path = state_dir / "hypotheses.yaml"
-    document = json.loads(hypotheses_path.read_text(encoding="utf-8"))
-    hypotheses = document["hypotheses"]
-    known = {item["id"]: item for item in hypotheses}
+    document = load_json_object(hypotheses_path)
+    raw_hypotheses = document.get("hypotheses")
+    if not isinstance(raw_hypotheses, list):
+        raise SystemExit("hypotheses must be a list")
+    hypotheses = [as_object(item, "hypothesis") for item in raw_hypotheses]
+    known = {str(item["id"]): item for item in hypotheses}
     if args.hypothesis_id not in known:
         raise SystemExit(f"unknown hypothesis: {args.hypothesis_id}")
 
-    score = json.loads(args.eval_json.read_text(encoding="utf-8"))
-    decision = json.loads(args.decision_json.read_text(encoding="utf-8"))
+    score = load_json_object(args.eval_json)
+    decision = load_json_object(args.decision_json)
     _update_manifest(args.run_dir, args.eval_json, args.decision_json, score, config)
-    gate_evidence = score.get("gate_evidence", {})
+    gate_evidence = as_object(score.get("gate_evidence"), "gate_evidence")
     focused_gate = str(score.get("focused_gate") or known[args.hypothesis_id].get("focused_gate", ""))
-    focused_status = gate_evidence.get(focused_gate, {}).get("status")
+    focused_evidence = gate_evidence.get(focused_gate)
+    if not isinstance(focused_evidence, dict):
+        focused_evidence = {}
+    focused_status = focused_evidence.get("status")
     if score.get("hypothesis_gate_passed") and focused_status == "passed":
         status = "confirmed"
         verdict = "confirmed: owned deterministic Workstream B gate passed"
@@ -122,7 +141,10 @@ def main() -> int:
 
     now = datetime.now(timezone.utc).astimezone()
     run_id = args.run_dir.name
-    events = list(document.get("events", []))
+    raw_events = document.get("events", [])
+    if not isinstance(raw_events, list):
+        raise SystemExit("events must be a list")
+    events = list(raw_events)
     if any(event.get("run_id") == run_id for event in events):
         raise SystemExit(f"run already synchronized: {run_id}")
     events.append(
@@ -147,6 +169,7 @@ def main() -> int:
         raise SystemExit(f"run already recorded: {run_id}")
     cycle = max((int(row["cycle"]) for row in rows if row.get("cycle")), default=0) + 1
     parent_run = rows[-1]["run_id"] if rows else ""
+    per_task = as_object(score.get("per_task"), "per_task")
     row = {
         "run_id": run_id,
         "cycle": cycle,
@@ -157,7 +180,7 @@ def main() -> int:
         "pushed_at": now.isoformat(timespec="seconds") if decision.get("decision") == "PUSH" else "",
         "lb_landed_at": now.isoformat(timespec="seconds"),
         "local_score": score["total"],
-        **{f"local_{name}": score["per_task"].get(name, 0.0) for name in score_keys},
+        **{f"local_{name}": per_task.get(name, 0.0) for name in score_keys},
         "online_score": score["total"] if decision.get("decision") == "PUSH" else "",
         "gap": 0.0 if decision.get("decision") == "PUSH" else "",
         "push_decision": decision["decision"],
@@ -173,12 +196,13 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writerow({key: row.get(key, "") for key in fieldnames})
 
-    effective = {item["id"]: item["status"] for item in hypotheses}
+    effective = {str(item["id"]): item["status"] for item in hypotheses}
     for event in events:
-        effective[event["hypothesis_id"]] = event["status"]
-    remaining = [item["id"] for item in hypotheses if effective[item["id"]] in {"pending", "in-flight"}]
+        if isinstance(event, dict):
+            effective[str(event["hypothesis_id"])] = event["status"]
+    remaining = [str(item["id"]) for item in hypotheses if effective[str(item["id"])] in {"pending", "in-flight"}]
     session_path = state_dir / "session-state.json"
-    session = json.loads(session_path.read_text(encoding="utf-8"))
+    session = load_json_object(session_path)
     session.update(
         {
             "phase": "complete" if not remaining and score.get("release_ready") else (f"{remaining[0]} implementation" if remaining else "release closure"),
