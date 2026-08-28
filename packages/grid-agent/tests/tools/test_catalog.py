@@ -49,7 +49,8 @@ def test_catalog_preserves_semantic_tool_description(
     tool = catalog.require("grid_topology_branch_endpoints")
 
     assert "连接" in tool.description
-    assert "不表示实时功率方向" in tool.description
+    assert "Reports source model table endpoints, not power-flow direction" in tool.description
+    assert "不表示实时功率方向" not in tool.description
     assert tool.input_schema["additionalProperties"] is False
 
 

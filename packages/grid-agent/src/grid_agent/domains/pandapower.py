@@ -20,6 +20,7 @@ from grid_agent.domain.manifest import DomainManifest
 from grid_agent.domain.profile import DomainRuntimeProfile
 from grid_agent.domain.projection import DomainStateDelta, VerifiedInvocation
 from grid_agent.simulator.client import GridctlClient
+from grid_agent.tools.catalog import build_grid_tool_description
 
 
 class PandapowerProjectorLookupError(LookupError):
@@ -127,4 +128,5 @@ def build_pandapower_profile(repository_root: Path) -> DomainRuntimeProfile:
         ),
         projector_registry=PandapowerProjectorRegistry(),
         authority_factory=PandapowerArtifactAuthority,
+        tool_description_builder=build_grid_tool_description,
     )

@@ -19,6 +19,10 @@
   prefixes are inferred from documents when not supplied. Catalog extension
   limitations are read through a generic recursive rule, and an optional
   profile description builder provides an explicit presentation seam.
+- Added the explicit grid description builder in the grid-owned compatibility
+  layer and injected it through the pandapower runtime profile, preserving the
+  product's localized flow-direction warning without changing shared kernel
+  behavior.
 - Renamed the kernel composition test module to
   `test_kernel_composition.py` so the plan's combined default-import-mode
   pytest command has no module-name collision.
@@ -106,6 +110,26 @@ migration to pass a description builder and guide protocol explicitly. The
 kernel and compatibility-layer GREEN evidence above does not rely on those
 legacy defaults.
 
+The final compatibility fix first changed those direct tests to assert the
+neutral defaults and generic extension limitation behavior, then added a real
+pandapower Profile composition regression for the product-specific builder and
+schema IDs. The complete original focused command is now green:
+
+```text
+uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests \
+  packages/grid-agent/tests/domain \
+  packages/grid-agent/tests/application/test_composition.py \
+  packages/grid-agent/tests/tools -q
+49 passed
+
+make test-agent
+621 passed, 1 warning
+
+make check-package-boundaries
+package-boundaries: ok
+```
+
 Before the second-review refactor, the complete grid-agent suite passed:
 
 ```text
@@ -132,6 +156,10 @@ make test-agent
 - `packages/grid-agent/src/grid_agent/tools/catalog.py`
 - `packages/grid-agent/src/grid_agent/tools/guide.py`
 - `packages/grid-agent/src/grid_agent/application/composition.py`
+- `packages/grid-agent/src/grid_agent/domains/pandapower.py`
+- `packages/grid-agent/tests/application/test_composition.py`
+- `packages/grid-agent/tests/tools/test_catalog.py`
+- `packages/grid-agent/tests/tools/test_guide.py`
 - `packages/capability-agent-kernel/tests/test_kernel_composition.py`
 - `.superpowers/sdd/task-2-report.md`
 - `packages/capability-agent-kernel/src/capability_agent/domain/profile.py`
@@ -143,9 +171,11 @@ Review-fix commit: `fix: neutralize extracted kernel helpers` (final hash is
 reported in the task handoff).
 Second review-fix commit: `fix: remove compatibility import side effects` (final
 hash is reported in the task handoff).
+Final compatibility-fix commit: `fix: restore grid profile presentation compatibility`
+ (final hash is reported in the task handoff).
 
 ## Risk / note
 
 The pre-existing dirty `docs/status/JOURNAL.md` was left untouched and
-unstaged. The two direct grid-helper failures above are intentionally not
-masked by reintroducing import-order behavior into the neutral kernel.
+unstaged. Grid-specific presentation now enters only through the explicit
+profile hook; no import-order behavior is used.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -20,6 +21,10 @@ from grid_agent.domain import (
     VerifiedArtifact,
     VerifiedReferenceSet,
 )
+from grid_agent.domains.pandapower import build_pandapower_profile
+
+
+ROOT = Path(__file__).resolve().parents[4]
 
 
 @dataclass
@@ -185,6 +190,54 @@ def test_synthetic_domain_materializes_through_public_seams(tmp_path: Path) -> N
     }
     assert profile.manifest.system_policy_path == tmp_path / "inventory/policy.md"
     assert prepared.profile.manifest.domain_id == "inventory-readonly"
+
+
+def test_pandapower_profile_composition_preserves_product_presentations(
+    tmp_path: Path,
+) -> None:
+    original_profile = build_pandapower_profile(ROOT)
+    capability_documents = original_profile.contract_source.load()
+    environment = {
+        "protocol": original_profile.manifest.protocol,
+        "protocol_version": original_profile.manifest.protocol_version,
+        "executable_capabilities": [
+            {
+                "id": document["id"],
+                "availability": document["availability"],
+                "context_effect": document["context_effect"],
+            }
+            for document in capability_documents
+            if document["availability"] == "published"
+        ],
+    }
+    executor = RecordingExecutor(environment)
+    profile = replace(
+        original_profile,
+        executor_factory=lambda executable, workspace, timeout: executor,
+    )
+
+    workspace = tmp_path / "run"
+    prepared = prepare_domain_runtime(
+        profile,
+        executable=tmp_path / "gridctl",
+        workspace=workspace,
+        tool_catalog_path=workspace / "tool-catalog.json",
+        guide_index_path=workspace / "guide-index.json",
+    )
+
+    catalog = json.loads(
+        prepared.tool_catalog_path.read_text(encoding="utf-8")
+    )
+    guide = json.loads(prepared.guide_index_path.read_text(encoding="utf-8"))
+    topology_tool = next(
+        tool
+        for tool in catalog["tools"]
+        if tool["capability"] == "topology.branch.endpoints.get"
+    )
+
+    assert catalog["protocol"] == "grid-tool-catalog"
+    assert "不表示实时功率方向" in topology_tool["description"]
+    assert guide["protocol"] == "grid-guide-index"
 
 
 def test_prepare_domain_runtime_rejects_incompatible_protocol_before_downstream_runtime(

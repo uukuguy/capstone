@@ -29,7 +29,7 @@ def test_guide_index_materializes_current_protocol_and_root(tmp_path: Path) -> N
         guide.materialize(tmp_path / "guide-index.json").read_text(encoding="utf-8")
     )
 
-    assert payload["protocol"] == "grid-guide-index"
+    assert payload["protocol"] == "capability-guide-index"
     assert payload["version"] == "1.0"
     assert "overview" in payload["resources"]
     assert all(
