@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from capability_agent.domain import DomainManifest
 from grid_agent.config.models import ResolvedLLM
 
 
@@ -40,3 +42,53 @@ class PiConfigMaterializer:
         os.chmod(settings_path, 0o600)
         os.chmod(models_path, 0o600)
         return PiConfigPaths(settings_path=settings_path, models_path=models_path)
+
+    def materialize_domain_runtime(
+        self,
+        manifest: DomainManifest,
+        *,
+        workspace: Path,
+    ) -> Path:
+        """Atomically materialize the fixed model-runtime transport descriptor."""
+
+        self.directory.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.directory, 0o700)
+        descriptor_path = self.directory / "domain-runtime.json"
+        descriptor = {
+            "protocol": manifest.protocol,
+            "protocol_version": manifest.protocol_version,
+            "executable": manifest.executable_name,
+            "executable_args": ["request", "--workspace", str(workspace)],
+            "tool_name_prefix": manifest.tool_name_prefix,
+            "guide_tool_name": f"{manifest.tool_name_prefix}guide_open",
+            "context_tool_name": f"{manifest.tool_name_prefix}analysis_context_get",
+            "decision_tool_name": f"{manifest.tool_name_prefix}record_decision",
+        }
+        payload = (
+            json.dumps(descriptor, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{descriptor_path.name}.",
+            dir=self.directory,
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            os.chmod(temporary_path, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = -1
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            temporary_path.replace(descriptor_path)
+            os.chmod(descriptor_path, 0o600)
+            directory_descriptor = os.open(self.directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_descriptor)
+            finally:
+                os.close(directory_descriptor)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if temporary_path.exists():
+                temporary_path.unlink()
+        return descriptor_path

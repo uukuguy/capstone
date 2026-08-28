@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from grid_agent.domain.manifest import DomainManifestError
 
 
 ROOT = Path(__file__).resolve().parents[4]
+CLI_APP_SOURCE = ROOT / "packages/grid-agent/src/grid_agent/cli/app.py"
 
 
 @dataclass
@@ -133,10 +135,26 @@ def _patch_live_runtime(
         lambda *_args, **_kwargs: SimpleNamespace(ensure=lambda: tmp_path / "pi"),
     )
     monkeypatch.setattr(cli_module, "_install_gridctl", lambda _workspace: None)
+
+    class FakePiConfigMaterializer:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def materialize(self, _resolved: object) -> None:
+            return None
+
+        def materialize_domain_runtime(
+            self,
+            _manifest: object,
+            *,
+            workspace: Path,
+        ) -> Path:
+            return workspace / "domain-runtime.json"
+
     monkeypatch.setattr(
         cli_module,
         "PiConfigMaterializer",
-        lambda *_args, **_kwargs: SimpleNamespace(materialize=lambda _resolved: None),
+        FakePiConfigMaterializer,
     )
     monkeypatch.setattr(cli_module, "build_pi_launch", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(cli_module, "PiRpcClient", rpc_type)
@@ -176,6 +194,20 @@ def _fail_if_called(*_args: Any, **_kwargs: Any) -> subprocess.Popen[str]:
     raise AssertionError("report must not launch child grid-agent run subprocesses")
 
 
+def test_cli_assembles_runtime_from_extracted_package_owners() -> None:
+    tree = ast.parse(CLI_APP_SOURCE.read_text(encoding="utf-8"))
+    imports = {
+        (node.module, tuple(alias.name for alias in node.names))
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+    }
+
+    assert ("capability_agent.application", ("prepare_domain_runtime",)) in imports
+    assert ("pandapower_domain", ("build_pandapower_profile",)) in imports
+    assert ("grid_agent.application.composition", ("prepare_domain_runtime",)) not in imports
+    assert ("grid_agent.domains", ("build_pandapower_profile",)) not in imports
+
+
 def test_run_selects_builtin_profile_before_pi_launch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -185,12 +217,12 @@ def test_run_selects_builtin_profile_before_pi_launch(
     profile = _profile(tmp_path)
     authority = _FakeAuthority(tmp_path / "runs/run")
     prepared = _prepared_runtime(tmp_path, authority)
-    selected: list[Path] = []
+    selected: list[bool] = []
     preparation_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         cli_module,
         "build_pandapower_profile",
-        lambda root: selected.append(root) or profile,
+        lambda: selected.append(True) or profile,
         raising=False,
     )
 
@@ -207,7 +239,6 @@ def test_run_selects_builtin_profile_before_pi_launch(
 
     assert result.exit_code == 0, result.stderr
     assert len(selected) == 1
-    assert selected[0] == ROOT
     assert preparation_calls == [
         {
             "executable": cast(Path, preparation_calls[0]["workspace"])
@@ -243,14 +274,14 @@ def test_analysis_uses_prepared_runtime_for_all_domain_resources(
     profile = _profile(tmp_path)
     authority = _FakeAuthority(tmp_path / "runs/analysis-test")
     prepared = _prepared_runtime(tmp_path, authority)
-    selected: list[Path] = []
+    selected: list[bool] = []
     preparation_calls: list[dict[str, object]] = []
     launch_paths: list[object] = []
     runner_arguments: dict[str, object] = {}
     monkeypatch.setattr(
         cli_module,
         "build_pandapower_profile",
-        lambda root: selected.append(root) or profile,
+        lambda: selected.append(True) or profile,
         raising=False,
     )
 
@@ -293,7 +324,6 @@ def test_analysis_uses_prepared_runtime_for_all_domain_resources(
 
     assert result.exit_code == 0, result.stderr
     assert len(selected) == 1
-    assert selected[0] == ROOT
     assert len(preparation_calls) == 1
     workspace_root = cast(Path, preparation_calls[0]["workspace"])
     assert preparation_calls[0] == {
@@ -306,6 +336,9 @@ def test_analysis_uses_prepared_runtime_for_all_domain_resources(
     assert runtime_paths.tool_catalog_path == prepared.tool_catalog_path
     assert runtime_paths.guide_index_path == prepared.guide_index_path
     assert runtime_paths.system_policy_path == profile.manifest.system_policy_path
+    assert runtime_paths.domain_runtime_descriptor_path == (
+        workspace_root / "domain-runtime.json"
+    )
     projector = cast(Any, runner_arguments["projector"])
     assert projector._authority is authority
     assert projector._projector_registry is profile.projector_registry
@@ -326,7 +359,7 @@ def test_run_manifest_mismatch_fails_before_pi_start(
     _patch_live_runtime(monkeypatch, tmp_path)
     profile = _profile(tmp_path)
     monkeypatch.setattr(
-        cli_module, "build_pandapower_profile", lambda _root: profile, raising=False
+        cli_module, "build_pandapower_profile", lambda: profile, raising=False
     )
     monkeypatch.setattr(
         cli_module,

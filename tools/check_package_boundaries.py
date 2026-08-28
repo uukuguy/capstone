@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 
-RULES = {
+FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
     "packages/capability-agent-kernel/src": (
         "grid_agent",
         "grid_simulator",
@@ -18,7 +18,16 @@ RULES = {
         "pandapower",
     ),
     "packages/pandapower-domain-pack/src": ("grid_agent",),
+    "packages/grid-agent/src/grid_agent/cli": (
+        "grid_agent.application.composition",
+        "grid_agent.domain",
+        "grid_agent.domains",
+    ),
 }
+SOURCE_PATH_LITERAL_ROOTS = (
+    "packages/capability-agent-kernel/src",
+    "packages/pandapower-domain-pack/src",
+)
 PACKAGE_ROOTS = (
     Path("packages/capability-agent-kernel"),
     Path("packages/pandapower-domain-pack"),
@@ -48,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def check_boundaries(root: Path) -> list[str]:
     violations: list[str] = []
-    for source_root, forbidden_modules in RULES.items():
+    for source_root, forbidden_modules in FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
             violations.extend(
@@ -58,6 +67,10 @@ def check_boundaries(root: Path) -> list[str]:
                     forbidden_modules,
                 )
             )
+    for source_root in SOURCE_PATH_LITERAL_ROOTS:
+        absolute_source_root = root / source_root
+        if absolute_source_root.exists():
+            violations.extend(check_source_path_literals(root, absolute_source_root))
 
     for package_root in PACKAGE_ROOTS:
         absolute_package_root = root / package_root
@@ -79,6 +92,14 @@ def check_python_sources(
         for module in imported_modules(tree):
             if is_forbidden(module, forbidden_modules):
                 violations.append(f"{relative_path} imports {module}")
+    return violations
+
+
+def check_source_path_literals(root: Path, source_root: Path) -> list[str]:
+    violations: list[str] = []
+    for path in sorted(source_root.rglob("*.py")):
+        relative_path = path.relative_to(root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for source_path in source_path_literals(tree):
             violations.append(f"{relative_path} contains source path {source_path}")
     return violations

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import stat
 from dataclasses import replace
 from pathlib import Path
 
+from capability_agent.domain import DomainManifest
 from grid_agent.config.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
 from grid_agent.application.paths import ProjectPaths
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
@@ -59,6 +61,30 @@ def test_materializer_passes_timeout_and_retry_budget_to_pi(tmp_path: Path) -> N
     }
 
 
+def test_materializer_writes_fixed_domain_runtime_descriptor(tmp_path: Path) -> None:
+    workspace = tmp_path / "run"
+    workspace.mkdir()
+    manifest = _manifest(tmp_path)
+
+    descriptor_path = PiConfigMaterializer(
+        ProjectPaths.from_root(tmp_path).pi_agent_dir
+    ).materialize_domain_runtime(manifest, workspace=workspace)
+
+    assert descriptor_path == ProjectPaths.from_root(tmp_path).pi_agent_dir / "domain-runtime.json"
+    assert stat.S_IMODE(descriptor_path.stat().st_mode) == 0o600
+    assert descriptor_path.read_text(encoding="utf-8") == (
+        '{"context_tool_name":"grid_analysis_context_get",'
+        '"decision_tool_name":"grid_record_decision",'
+        '"executable":"gridctl",'
+        '"executable_args":["request","--workspace","'
+        f'{workspace}"],'
+        '"guide_tool_name":"grid_guide_open",'
+        '"protocol":"grid-capability",'
+        '"protocol_version":"1.0",'
+        '"tool_name_prefix":"grid_"}\n'
+    )
+
+
 def test_pi_launch_exposes_only_project_tools(tmp_path: Path) -> None:
     resolved = _resolved_openai()
     launch = build_pi_launch(resolved, _runtime_paths(tmp_path))
@@ -83,6 +109,36 @@ def test_pi_launch_passes_domain_tool_paths_in_environment(tmp_path: Path) -> No
     assert launch.environment["GRID_AGENT_WORKSPACE"] == str(paths.workspace)
     assert "GRID_AGENT_ANSWER_DRAFT" not in launch.environment
     assert launch.environment["OPENAI_API_KEY"] == "super-secret"
+
+
+def test_pi_launch_adds_only_domain_runtime_descriptor_path_to_legacy_grid_environment(
+    tmp_path: Path,
+) -> None:
+    resolved = _resolved_openai()
+    paths = replace(
+        _runtime_paths(tmp_path),
+        domain_runtime_descriptor_path=tmp_path / "run/domain-runtime.json",
+    )
+
+    launch = build_pi_launch(
+        resolved,
+        paths,
+        base_environment={"PATH": "/bin", "HOME": "/tmp"},
+    )
+
+    assert launch.environment["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"] == str(
+        paths.domain_runtime_descriptor_path
+    )
+    assert launch.environment["GRID_AGENT_TOOL_CATALOG"] == str(paths.tool_catalog_path)
+    assert launch.environment["GRID_AGENT_GUIDE_INDEX"] == str(paths.guide_index_path)
+    assert launch.environment["GRID_AGENT_WORKSPACE"] == str(paths.workspace)
+    for forbidden in (
+        "CAPABILITY_AGENT_PROTOCOL",
+        "CAPABILITY_AGENT_EXECUTABLE",
+        "CAPABILITY_AGENT_EXECUTABLE_ARGS",
+        "CAPABILITY_AGENT_TOOL_NAME_PREFIX",
+    ):
+        assert forbidden not in launch.environment
 
 
 def test_pi_launch_exposes_analysis_paths_only_when_configured(tmp_path: Path) -> None:
@@ -228,4 +284,26 @@ def _runtime_paths(tmp_path: Path) -> RuntimePaths:
         tool_catalog_path=tmp_path / "run/tool-catalog.json",
         guide_index_path=tmp_path / "run/guide-index.json",
         system_policy_path=tmp_path / "configs/runtime/grid-agent-system-policy.md",
+    )
+
+
+def _manifest(tmp_path: Path) -> DomainManifest:
+    capability_contract_root = tmp_path / "capabilities"
+    capability_contract_root.mkdir()
+    guide_root = tmp_path / "guides"
+    guide_root.mkdir()
+    system_policy_path = tmp_path / "policy.md"
+    system_policy_path.write_text("policy\n", encoding="utf-8")
+    return DomainManifest(
+        domain_id="pandapower-static-analysis",
+        version="1.0.1",
+        display_name="Pandapower Static Analysis",
+        protocol="grid-capability",
+        protocol_version="1.0",
+        executable_name="gridctl",
+        tool_name_prefix="grid_",
+        authority_id="gridctl",
+        capability_contract_root=capability_contract_root,
+        system_policy_path=system_policy_path,
+        guide_root=guide_root,
     )

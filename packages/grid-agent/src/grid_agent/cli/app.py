@@ -8,7 +8,10 @@ from typing import Any, cast
 from pathlib import Path
 
 import typer
+from capability_agent.application import prepare_domain_runtime
+from capability_agent.domain import ArtifactAuthority
 from dotenv import dotenv_values
+from pandapower_domain import build_pandapower_profile
 
 from grid_agent.analysis.capabilities import CapabilityContextCatalog
 from grid_agent.analysis.projector import AnalysisContextProjector
@@ -16,12 +19,9 @@ from grid_agent.analysis.runner import AnalysisOutcome, AnalysisRequest, Analysi
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.turns import AuditCallback, TurnController
 from grid_agent.analysis.workspace import AnalysisWorkspace
-from grid_agent.application.composition import prepare_domain_runtime
 from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.contracts import AnswerEnvelope, RunRequest
-from grid_agent.domain import ArtifactAuthority
-from grid_agent.domains import build_pandapower_profile
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
 from grid_agent.simulator.locator import GridctlLocator
 from grid_agent.observability.trace import JsonlTraceWriter
@@ -333,7 +333,7 @@ def _execute_analysis(
     provider: str | None,
     model: str | None,
 ) -> AnalysisOutcome:
-    profile = build_pandapower_profile(_repo_root())
+    profile = build_pandapower_profile()
     project_paths = ProjectPaths.from_root(Path.cwd())
     root = _resolve_artifact_root(project_paths.root, artifact_root)
     workspace = AnalysisWorkspace.create(root)
@@ -358,7 +358,12 @@ def _execute_analysis(
         tool_catalog_path=workspace.root_path / "tool-catalog.json",
         guide_index_path=workspace.root_path / "guide-index.json",
     )
-    PiConfigMaterializer(project_paths.pi_agent_dir).materialize(resolved)
+    pi_config = PiConfigMaterializer(project_paths.pi_agent_dir)
+    pi_config.materialize(resolved)
+    domain_runtime_descriptor_path = pi_config.materialize_domain_runtime(
+        profile.manifest,
+        workspace=workspace.root_path,
+    )
     secret_values = (
         {resolved.secret.value} if resolved.secret is not None else set()
     )
@@ -410,6 +415,7 @@ def _execute_analysis(
                 tool_catalog_path=domain_runtime.tool_catalog_path,
                 guide_index_path=domain_runtime.guide_index_path,
                 system_policy_path=profile.manifest.system_policy_path,
+                domain_runtime_descriptor_path=domain_runtime_descriptor_path,
                 active_turn_path=workspace.active_turn_path,
                 analysis_context_view_path=workspace.context_view_path,
                 trajectory_requests_path=workspace.requests_path,
@@ -552,7 +558,7 @@ def run(
     progress = _ProgressReporter(request.question)
     project_paths = ProjectPaths.from_root(Path.cwd())
     try:
-        profile = build_pandapower_profile(_repo_root())
+        profile = build_pandapower_profile()
         if not offline:
             workspace = RunWorkspace.create(project_paths.runs_dir, run_id=request.question_id)
             trace = JsonlTraceWriter(workspace.events_path)
@@ -587,7 +593,12 @@ def run(
                 tool_catalog_path=workspace.root_path / "tool-catalog.json",
                 guide_index_path=workspace.root_path / "guide-index.json",
             )
-            PiConfigMaterializer(project_pi_dir).materialize(resolved)
+            pi_config = PiConfigMaterializer(project_pi_dir)
+            pi_config.materialize(resolved)
+            domain_runtime_descriptor_path = pi_config.materialize_domain_runtime(
+                profile.manifest,
+                workspace=workspace.root_path,
+            )
             launch = build_pi_launch(
                 resolved,
                 RuntimePaths(
@@ -600,6 +611,7 @@ def run(
                     tool_catalog_path=domain_runtime.tool_catalog_path,
                     guide_index_path=domain_runtime.guide_index_path,
                     system_policy_path=profile.manifest.system_policy_path,
+                    domain_runtime_descriptor_path=domain_runtime_descriptor_path,
                 ),
                 base_environment=runtime_environment,
             )

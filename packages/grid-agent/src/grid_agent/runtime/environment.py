@@ -21,6 +21,7 @@ class RuntimePaths:
     tool_catalog_path: Path
     guide_index_path: Path
     system_policy_path: Path
+    domain_runtime_descriptor_path: Path | None = None
     active_turn_path: Path | None = None
     analysis_context_view_path: Path | None = None
     trajectory_requests_path: Path | None = None
@@ -60,6 +61,10 @@ def build_pi_environment(resolved: ResolvedLLM, paths: RuntimePaths, *, base_env
     allowed["GRID_AGENT_WORKSPACE"] = str(paths.workspace)
     allowed["GRID_AGENT_TOOL_CATALOG"] = str(paths.tool_catalog_path)
     allowed["GRID_AGENT_GUIDE_INDEX"] = str(paths.guide_index_path)
+    if paths.domain_runtime_descriptor_path is not None:
+        allowed["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"] = str(
+            paths.domain_runtime_descriptor_path
+        )
     identity = paths.command.identity
     if identity.pi_ai_version and identity.commit and identity.patches_sha256:
         allowed["GRID_AGENT_PI_CODING_AGENT_VERSION"] = identity.package_version
