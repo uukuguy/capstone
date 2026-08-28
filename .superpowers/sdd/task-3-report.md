@@ -254,6 +254,86 @@ exit 1, no matches
 
 The pinned Pi 0.80.6 dependency-audit finding remains out of scope and was not changed.
 
+## Workstream B Task 3: Neutral Trajectory Lifecycle Extraction
+
+### Scope
+
+Extracted the proven, domain-neutral trajectory lifecycle into
+`capability-agent-kernel` under `capability_agent.trajectory`:
+
+- canonical JSON and SHA-256 helpers;
+- typed event models and hash-chain event construction;
+- immutable artifact registration and verification;
+- answer-reference validation;
+- fail-closed event reading;
+- durable event recording;
+- native/imported replay interfaces.
+
+The seven `grid_agent.trajectory` modules are implementation-free compatibility
+exports and preserve object identity. Grid-specific capture, projections,
+context bridge, materialization, API, service, and legacy import modules remain
+owned by the application.
+
+### RED Evidence
+
+After copying the behavioral lifecycle tests and changing only their imports to
+`capability_agent.trajectory`, the required direct suite failed during
+collection because the new package namespace was absent:
+
+```text
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/trajectory -q
+5 collection errors: ModuleNotFoundError: No module named 'capability_agent.trajectory'
+```
+
+### GREEN Evidence
+
+```text
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/trajectory -q
+103 passed in 0.20s
+
+uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory -q
+242 passed, 1 warning in 1.24s
+
+make check-package-boundaries
+package-boundaries: ok
+
+ruff check <Task 3 source and test paths>
+All checks passed!
+
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  pyright <Task 3 source paths>
+0 errors, 0 warnings, 0 informations
+
+uv run --project packages/grid-agent python -m compileall -q <Task 3 paths>
+exit 0
+
+git diff --check
+exit 0
+```
+
+An identity smoke check confirmed the legacy and kernel `RunEvent`, artifact
+registry, answer submission, reader, recorder, and imported replay classes are
+the same objects.
+
+### Commit
+
+`refactor: extract neutral trajectory lifecycle` (final hash is reported in the
+handoff because updating this report changes the hash itself).
+
+### Risks and Residuals
+
+- Persisted event, artifact, schema, validation, path-layout, and error-message
+  behavior is intentionally unchanged; `EventSource` retains its existing
+  `grid-agent` default for compatibility.
+- Kernel lexical-boundary checks reject grid-owned words in source files, so the
+  three pre-existing compatibility strings are represented with equivalent
+  Unicode escapes; their runtime values remain byte-for-byte unchanged.
+- The package remains intentionally lifecycle-only; application/grid-specific
+  trajectory modules are not yet extracted.
+- Pyright requires both source roots in `PYTHONPATH` for this checkout because
+  the package is supplied through the local editable workspace dependency.
+- Provider validation was not run.
+
 ## Third Review Fix: Runtime Root Containment
 
 ### Finding
