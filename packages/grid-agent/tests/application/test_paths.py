@@ -1,9 +1,11 @@
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
+from grid_agent.application import workspace as workspace_module
 from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.workspace import (
     RunWorkspace,
@@ -129,4 +131,75 @@ def test_run_workspace_rejects_symlinked_run_leaf(tmp_path: Path) -> None:
     with pytest.raises(RunWorkspacePathError, match="run workspace"):
         RunWorkspace.create(runs_root, "q-safe")
 
+    assert list(external.iterdir()) == []
+
+
+def test_run_workspace_rejects_symlinked_internal_state_parent_without_external_writes(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    (tmp_path / ".grid-agent").symlink_to(external, target_is_directory=True)
+
+    with pytest.raises(RunWorkspacePathError, match="internal state"):
+        RunWorkspace.create(tmp_path / "runs", "q-safe")
+
+    assert list(external.iterdir()) == []
+
+
+def test_run_workspace_rejects_symlinked_lease_directory_without_external_writes(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    internal = tmp_path / ".grid-agent"
+    internal.mkdir()
+    (internal / "run-leases").symlink_to(external, target_is_directory=True)
+
+    with pytest.raises(RunWorkspacePathError, match="run lease directory"):
+        RunWorkspace.create(tmp_path / "runs", "q-safe")
+
+    assert list(external.iterdir()) == []
+
+
+@pytest.mark.parametrize("exchange_component", (".grid-agent", "run-leases"))
+def test_run_workspace_rejects_lease_directory_exchange_after_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    exchange_component: str,
+) -> None:
+    internal = tmp_path / ".grid-agent"
+    lease_directory = internal / "run-leases"
+    lease_directory.mkdir(parents=True)
+    external = tmp_path / "external"
+    external.mkdir()
+    detached = tmp_path / f"detached-{exchange_component.lstrip('.')}"
+    real_open = workspace_module.os.open
+    exchanged = False
+
+    def exchange_after_open(
+        path: Any,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal exchanged
+        descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
+        path_name = str(path)
+        is_current_full_path_open = Path(path_name) == lease_directory
+        is_new_component_open = path_name == exchange_component
+        if not exchanged and (is_current_full_path_open or is_new_component_open):
+            exchanged = True
+            target = internal if exchange_component == ".grid-agent" else lease_directory
+            target.rename(detached)
+            target.symlink_to(external, target_is_directory=True)
+        return descriptor
+
+    monkeypatch.setattr(workspace_module.os, "open", exchange_after_open)
+
+    with pytest.raises(RunWorkspacePathError, match="named binding changed"):
+        RunWorkspace.create(tmp_path / "runs", "q-safe")
+
+    assert exchanged
     assert list(external.iterdir()) == []

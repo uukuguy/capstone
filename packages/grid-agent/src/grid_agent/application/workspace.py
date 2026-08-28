@@ -30,6 +30,106 @@ def _open_directory(path: Path, *, label: str) -> int:
         raise RunWorkspacePathError(f"{label} is not a trusted directory: {path}") from exc
 
 
+def _verify_named_directory_binding(
+    parent_fd: int,
+    name: str,
+    descriptor: int,
+    *,
+    label: str,
+) -> None:
+    opened = os.fstat(descriptor)
+    try:
+        named = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except OSError as exc:
+        raise RunWorkspacePathError(
+            f"{label} named binding changed while it was opened: {name}"
+        ) from exc
+    if (
+        not stat.S_ISDIR(opened.st_mode)
+        or not stat.S_ISDIR(named.st_mode)
+        or (opened.st_dev, opened.st_ino) != (named.st_dev, named.st_ino)
+    ):
+        raise RunWorkspacePathError(
+            f"{label} named binding changed while it was opened: {name}"
+        )
+
+
+def _open_or_create_directory_at(
+    parent_fd: int,
+    name: str,
+    *,
+    label: str,
+) -> int:
+    try:
+        os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise RunWorkspacePathError(
+            f"{label} cannot be created safely: {name}"
+        ) from exc
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=parent_fd,
+        )
+    except OSError as exc:
+        raise RunWorkspacePathError(
+            f"{label} is not a trusted directory: {name}"
+        ) from exc
+    try:
+        _verify_named_directory_binding(
+            parent_fd,
+            name,
+            descriptor,
+            label=label,
+        )
+        os.fchmod(descriptor, 0o700)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _open_run_lease_directory(project_root: Path) -> int:
+    project_fd = _open_directory(project_root, label="project root")
+    internal_fd: int | None = None
+    lease_directory_fd: int | None = None
+    try:
+        internal_fd = _open_or_create_directory_at(
+            project_fd,
+            ".grid-agent",
+            label="internal state directory",
+        )
+        lease_directory_fd = _open_or_create_directory_at(
+            internal_fd,
+            "run-leases",
+            label="run lease directory",
+        )
+        _verify_named_directory_binding(
+            project_fd,
+            ".grid-agent",
+            internal_fd,
+            label="internal state directory",
+        )
+        _verify_named_directory_binding(
+            internal_fd,
+            "run-leases",
+            lease_directory_fd,
+            label="run lease directory",
+        )
+        return lease_directory_fd
+    except Exception:
+        if lease_directory_fd is not None:
+            os.close(lease_directory_fd)
+        raise
+    finally:
+        if internal_fd is not None:
+            os.close(internal_fd)
+        os.close(project_fd)
+
+
 def _existing_workspace_error(root_fd: int, run_id: str) -> RuntimeError:
     try:
         existing = os.stat(run_id, dir_fd=root_fd, follow_symlinks=False)
@@ -60,12 +160,7 @@ class RunWorkspace:
     def create(cls, root: Path, run_id: str | None = None) -> "RunWorkspace":
         resolved_run_id = validate_question_id(run_id or f"run-{uuid4().hex}")
         root_path = root / resolved_run_id
-        lease_directory = root.parent / ".grid-agent/run-leases"
-        lease_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-        lease_directory_fd = _open_directory(
-            lease_directory, label="run lease directory"
-        )
-        os.fchmod(lease_directory_fd, 0o700)
+        lease_directory_fd = _open_run_lease_directory(root.parent)
         lease_name = sha256(resolved_run_id.encode("utf-8")).hexdigest() + ".lock"
         try:
             lease_fd = os.open(
