@@ -210,8 +210,9 @@ def test_scripted_pi_traverses_real_gridctl(tmp_path: Path) -> None:
     pi.write_text(
         "#!/usr/bin/env python3\nimport json,subprocess,sys,os\n"
         "request=json.loads(sys.stdin.readline())\n"
+        "runtime=json.load(open(os.environ['CAPABILITY_AGENT_RUNTIME_DESCRIPTOR'],encoding='utf-8'))\n"
         f"gridctl={str(gridctl)!r}\n"
-        "def call(capability,args):\n r=subprocess.run([gridctl,'request','--workspace',os.environ['GRID_AGENT_WORKSPACE']],input=json.dumps({'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args})+'\\n',text=True,capture_output=True,check=True); return json.loads(r.stdout)['result']\n"
+        "def call(capability,args):\n r=subprocess.run([gridctl,'request','--workspace',runtime['workspace_path']],input=json.dumps({'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args})+'\\n',text=True,capture_output=True,check=True); return json.loads(r.stdout)['result']\n"
         "opened=call('context.open',{'model_id':'ieee39'})\nresult=call('topology.branch.endpoints.get',{'context_ref':opened['context_ref'],'kind':'line','namespace':'pandapower_index','identifier':'11'})\n"
         "answer=result['from_bus']['name']+'-'+result['to_bus']['name']+' '+result['evidence_ref']\n"
         "print(json.dumps({'type':'response','command':'prompt','success':True}),flush=True)\nprint(json.dumps({'type':'text_delta','text':answer}),flush=True)\nprint(json.dumps({'type':'agent_end'}),flush=True)\n",

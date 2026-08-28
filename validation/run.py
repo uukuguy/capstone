@@ -1190,6 +1190,7 @@ import os
 import subprocess
 
 json.loads(input())
+runtime = json.load(open(os.environ["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"], encoding="utf-8"))
 
 def emit(payload):
     print(json.dumps(payload, ensure_ascii=False), flush=True)
@@ -1203,7 +1204,7 @@ def grid(capability, args):
         "arguments": args,
     }
     completed = subprocess.run(
-        ["gridctl", "request", "--workspace", os.environ["GRID_AGENT_WORKSPACE"]],
+        ["gridctl", "request", "--workspace", runtime["workspace_path"]],
         input=json.dumps(request, ensure_ascii=False) + "\\n",
         text=True,
         capture_output=True,
@@ -1219,7 +1220,7 @@ def grid(capability, args):
     return result
 
 def guide(resource_id):
-    index = json.load(open(os.environ["GRID_AGENT_GUIDE_INDEX"], encoding="utf-8"))
+    index = json.load(open(runtime["guide_index_path"], encoding="utf-8"))
     text = open(index["resources"][resource_id], encoding="utf-8").read()
     emit({"type": "tool_result", "capability": "grid_guide_open", "ok": True, "result": {"resource_id": resource_id, "text": text}, "evidence_refs": []})
 

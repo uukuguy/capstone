@@ -333,6 +333,16 @@ def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+RUNTIME = load_json(os.environ["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"])
+
+
+def runtime_path(name):
+    value = RUNTIME.get(name)
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(f"runtime descriptor is missing {name}")
+    return value
+
+
 def sort_json(value):
     if isinstance(value, list):
         return [sort_json(item) for item in value]
@@ -407,20 +417,14 @@ def semantic_tools():
 
 
 def runtime_identity():
-    return {
-        "pi_coding_agent_version": os.environ.get(
-            "GRID_AGENT_PI_CODING_AGENT_VERSION", "scripted-test"
-        ),
-        "pi_ai_version": os.environ.get("GRID_AGENT_PI_AI_VERSION", "scripted-test"),
-        "pi_source_commit": os.environ.get("GRID_AGENT_PI_SOURCE_COMMIT", "1" * 40),
-        "pi_patch_set_sha256": os.environ.get(
-            "GRID_AGENT_PI_PATCH_SET_SHA256", "2" * 64
-        ),
-    }
+    identity = RUNTIME.get("pi_runtime")
+    if not isinstance(identity, dict):
+        raise RuntimeError("runtime descriptor is missing pi_runtime")
+    return identity
 
 
 def wait_for_request_ack(request_id, expected_digest):
-    ack_dir = os.environ.get("GRID_AGENT_TRAJECTORY_ACKS")
+    ack_dir = RUNTIME.get("trajectory_acks_path")
     if not ack_dir:
         return
     path = Path(ack_dir) / f"{request_id}.committed.json"
@@ -440,12 +444,12 @@ def wait_for_request_ack(request_id, expected_digest):
 
 def capture_provider_request(prompt):
     global request_index
-    requests_path = os.environ.get("GRID_AGENT_TRAJECTORY_REQUESTS")
+    requests_path = RUNTIME.get("trajectory_requests_path")
     if requests_path is None:
         return
     request_index += 1
-    turn = load_json(os.environ["GRID_AGENT_ACTIVE_TURN"])
-    capture_state = load_json(os.environ["GRID_AGENT_TRAJECTORY_CAPTURE_STATE"])
+    turn = load_json(runtime_path("active_turn_path"))
+    capture_state = load_json(runtime_path("trajectory_capture_state_path"))
     request_id = f"{turn['turn_id']}-r{request_index:03d}"
     request_path = Path(requests_path) / request_id / "input.json"
     request_path.parent.mkdir()
@@ -513,7 +517,7 @@ def grid(capability, args, call_id):
         "arguments": args,
     }
     completed = subprocess.run(
-        ["gridctl", "request", "--workspace", os.environ["GRID_AGENT_WORKSPACE"]],
+        ["gridctl", "request", "--workspace", runtime_path("workspace_path")],
         input=json.dumps(request, ensure_ascii=False) + "\\n",
         text=True,
         capture_output=True,
@@ -543,7 +547,7 @@ def grid(capability, args, call_id):
 
 
 def latest_reusable_calculation(kind):
-    view = load_json(os.environ["GRID_AGENT_ANALYSIS_CONTEXT_VIEW"])
+    view = load_json(runtime_path("analysis_context_view_path"))
     matches = [item for item in view["reusable_calculations"] if item["kind"] == kind]
     if not matches:
         raise RuntimeError(f"context view has no reusable calculation for {kind}")
@@ -562,7 +566,7 @@ def answer_first_turn():
 
 
 def answer_second_turn():
-    view = load_json(os.environ["GRID_AGENT_ANALYSIS_CONTEXT_VIEW"])
+    view = load_json(runtime_path("analysis_context_view_path"))
     active_model = view.get("active_model")
     if not isinstance(active_model, dict) or active_model.get("model_id") != "ieee39":
         raise RuntimeError("continuous context did not expose the active IEEE-39 model")
@@ -578,7 +582,7 @@ def answer_second_turn():
 
 
 def answer_third_turn():
-    view = load_json(os.environ["GRID_AGENT_ANALYSIS_CONTEXT_VIEW"])
+    view = load_json(runtime_path("analysis_context_view_path"))
     active_model = view["active_model"]
     powerflow = grid(
         "analysis.powerflow.ac.run",
@@ -619,10 +623,10 @@ def answer_fifth_turn():
     return f"首位支路停运场景状态 {scenario['status']}，最大负载率 {scenario.get('max_loading_percent')}%，约束来源 {scenario['constraint_evaluation']['source']}。"
 
 
-marker = Path(os.environ["GRID_AGENT_WORKSPACE"]) / "pi" / "process-starts.txt"
+marker = Path(runtime_path("workspace_path")) / "pi" / "process-starts.txt"
 previous_starts = marker.read_text(encoding="utf-8").strip() if marker.exists() else "0"
 marker.write_text(str(int(previous_starts or "0") + 1) + "\\n", encoding="utf-8")
-CATALOG = load_json(os.environ["GRID_AGENT_TOOL_CATALOG"])
+CATALOG = load_json(runtime_path("tool_catalog_path"))
 STATE = {}
 TURN_HANDLERS = [answer_first_turn, answer_second_turn, answer_third_turn, answer_fourth_turn, answer_fifth_turn]
 turn_index = 0
