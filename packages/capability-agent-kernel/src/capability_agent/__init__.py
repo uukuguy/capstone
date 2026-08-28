@@ -1,5 +1,6 @@
-"""Compatibility exports for the neutral capability-agent kernel contracts."""
+"""Public API for the domain-neutral capability-agent kernel."""
 
+from capability_agent.application import PreparedDomainRuntime, prepare_domain_runtime
 from capability_agent.domain import (
     ArtifactAuthority,
     CapabilityContractSource,
@@ -14,6 +15,7 @@ from capability_agent.domain import (
     VerifiedInvocation,
     VerifiedReferenceSet,
 )
+from capability_agent.tools import GuideIndex, ToolCatalog
 
 __all__ = [
     "ArtifactAuthority",
@@ -25,7 +27,11 @@ __all__ = [
     "DomainProjectorRegistry",
     "DomainRuntimeProfile",
     "DomainStateDelta",
+    "GuideIndex",
+    "PreparedDomainRuntime",
+    "ToolCatalog",
     "VerifiedArtifact",
     "VerifiedInvocation",
     "VerifiedReferenceSet",
+    "prepare_domain_runtime",
 ]

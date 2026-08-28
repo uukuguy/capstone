@@ -1,122 +1,83 @@
-# Task 2 Report: Emit Canonical Pi Request Hook at Invocation Boundary
+# Task 2 Report: Extract the neutral Python SDK and runtime preparation
 
 ## Scope
 
-- Modified only the patch artifact:
-  `configs/runtime/patches/pi-0.80.6-before-model-request.patch`
-- Upstream files represented by the patch:
-  - `packages/coding-agent/src/core/sdk.ts`
-  - `packages/coding-agent/test/sdk-before-model-request.test.ts`
-  - Existing Task 1 extension contract/projector hunks are preserved.
-- Did not implement Task 3 lock or installer changes.
+- Added independently buildable `capability-agent-kernel==0.1.0` with the
+  `capability_agent` public namespace.
+- Moved the neutral Workstream A domain contracts, catalog, guide index, and
+  profile-driven runtime preparation into the kernel.
+- Replaced the old `grid_agent.domain`, `grid_agent.tools`, and
+  `grid_agent.application.composition` implementations with identity-preserving
+  compatibility exports.
+- Added the local editable kernel dependency and refreshed `packages/grid-agent/uv.lock`.
+- Removed `load_packaged_capability_documents` from the neutral catalog so it no
+  longer reconstructs a grid repository path.
 
-## Implementation
-
-- Extended the upstream `sdk-before-model-request.test.ts` patch with a provider matrix:
-  `openai-completions` and `anthropic-messages`.
-- The matrix asserts that the observed canonical event shape is provider-neutral and differs only by `model.api`.
-- The observer snapshots the public event and then mutates its received context snapshot. The provider still receives the original final `Context`, proving observation-only behavior.
-- Added `sdk.ts` helpers:
-  - `resolvePublicRequestOptions()`
-  - `publicModelRequestOptions()`
-  - local `omitUndefined()`
-- `streamFn` now resolves timeout/retry defaults before auth, emits `before_model_request` before `modelRegistry.getApiKeyAndHeaders(model)`, and reuses the same resolved values in the later `streamSimple()` call.
-- Public request options are copied field-by-field and do not spread raw `SimpleStreamOptions`.
-
-## TDD Evidence
+## TDD evidence
 
 ### RED
 
-Command:
-
-```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
-```
-
-Result: expected failure after adding Task 2 tests, before `sdk.ts` implementation.
-
-Key failure:
+After adding the direct kernel tests and before creating the package:
 
 ```text
-AssertionError: expected [ 'provider' ] to deeply equal [ 'before_model_request', 'provider' ]
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+ImportError while loading conftest ...
+ModuleNotFoundError: No module named 'capability_agent'
 ```
-
-The handler-failure test also failed because `streamFn` resolved instead of rejecting with `commit failed`.
 
 ### GREEN
 
-Command:
+```text
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+4 passed
 
-```sh
-npm test --workspace @earendil-works/pi-coding-agent -- sdk-before-model-request.test.ts
+uv run --project packages/grid-agent pytest packages/grid-agent/tests/domain packages/grid-agent/tests/application/test_composition.py packages/grid-agent/tests/tools -q
+40 passed
+
+make check-package-boundaries
+package-boundaries: ok
 ```
 
-Result:
+The complete grid-agent suite also passed:
 
 ```text
-Test Files  1 passed (1)
-Tests  6 passed (6)
+make test-agent
+620 passed, 1 warning
 ```
 
-## Verification
+## Distribution verification
 
-Clean patch apply from pinned Pi commit:
+- `uv build --project packages/capability-agent-kernel` produced the 0.1.0
+  sdist and wheel.
+- The wheel installed in a clean temporary venv containing only the kernel and
+  Pydantic; all public API imports passed.
+- `git diff --cached --check` passed before commit.
 
-```sh
-git apply --check configs/runtime/patches/pi-0.80.6-before-model-request.patch
-git apply configs/runtime/patches/pi-0.80.6-before-model-request.patch
-```
+## Files changed
 
-Result: passed on clean checkout of `2b3fda9921b5590f285165287bd442a25817f17b`.
+- `packages/capability-agent-kernel/pyproject.toml`
+- `packages/capability-agent-kernel/src/capability_agent/`
+- `packages/capability-agent-kernel/tests/`
+- `packages/grid-agent/pyproject.toml`
+- `packages/grid-agent/uv.lock`
+- `packages/grid-agent/src/grid_agent/domain/`
+- `packages/grid-agent/src/grid_agent/tools/catalog.py`
+- `packages/grid-agent/src/grid_agent/tools/guide.py`
+- `packages/grid-agent/src/grid_agent/application/composition.py`
 
-Focused upstream tests from clean-applied checkout:
+## Commit
 
-```sh
-npm ci
-npm test --workspace @earendil-works/pi-coding-agent -- \
-  sdk-before-model-request.test.ts sdk-stream-options.test.ts
-```
+Implementation commit: `feat: extract capability agent kernel sdk` (final hash
+is reported in the task handoff).
 
-Result:
+## Risk / note
 
-```text
-Test Files  2 passed (2)
-Tests  11 passed (11)
-```
+Running the plan's combined default-import-mode pytest command with both the
+new `tests/test_composition.py` and the existing
+`grid-agent/tests/application/test_composition.py` causes pytest's known module
+name collision (`import file mismatch`). The new kernel tests and legacy tests
+were therefore run separately; the same combined set passes with
+`--import-mode=importlib`.
 
-Format/lint check for modified upstream files:
-
-```sh
-npx biome check packages/coding-agent/src/core/sdk.ts \
-  packages/coding-agent/test/sdk-before-model-request.test.ts
-```
-
-Result:
-
-```text
-Checked 2 files in 10ms. No fixes applied.
-```
-
-Patch whitespace check from clean-applied checkout:
-
-```sh
-git diff --check
-```
-
-Result: passed.
-
-Full Pi build:
-
-```sh
-npm run build
-```
-
-Result: blocked by external/generated-catalog failure before `coding-agent` build. `packages/ai/scripts/generate-models.ts` timed out fetching `https://models.dev/api.json`, generated only 9 provider catalogs, and `pi-ai` then failed with missing generated provider modules such as `./anthropic.models.ts`, `./google.models.ts`, and `./github-copilot.models.ts`.
-
-## Notes
-
-- The build failure is upstream generator/network related and reproducible in fresh clean-applied checkouts.
-- No generated files from failed build attempts were copied into the repository patch artifact.
-- Existing unrelated local changes remained untouched:
-  - `.superpowers/sdd/task-1-report.md`
-  - `docs/status/JOURNAL.md`
+The pre-existing dirty `docs/status/JOURNAL.md` was left untouched and
+unstaged.

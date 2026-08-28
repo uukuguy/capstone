@@ -1,7 +1,3 @@
-from typing import Protocol
+from capability_agent.domain.execution import CapabilityExecutor
 
-
-class CapabilityExecutor(Protocol):
-    def invoke(
-        self, capability: str, arguments: dict[str, object]
-    ) -> dict[str, object]: ...
+__all__ = ["CapabilityExecutor"]
