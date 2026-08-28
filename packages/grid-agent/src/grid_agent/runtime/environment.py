@@ -94,6 +94,9 @@ def build_pi_environment(resolved: ResolvedLLM, paths: RuntimePaths, *, base_env
     if resolved.secret is not None:
         allowed[resolved.config.credential_reference] = resolved.secret.value
         allowed["GRID_AGENT_SECRET_ENV_NAMES"] = resolved.config.credential_reference
+        allowed["CAPABILITY_AGENT_SECRET_ENV_NAMES"] = (
+            resolved.config.credential_reference
+        )
     return allowed
 
 

@@ -177,10 +177,19 @@ export function createCapabilityTool(descriptor, contract, runner) {
  */
 export function createDomainToolsExtension(descriptor, options = {}) {
   const runtime = validateRuntimeDescriptor(descriptor);
-  if (!isPlainObject(options) || (options.createTool !== undefined && typeof options.createTool !== "function")) {
-    throw new TypeError("domain tools extension options must provide a createTool function");
+  if (
+    !isPlainObject(options) ||
+    (options.createTool !== undefined && typeof options.createTool !== "function") ||
+    (options.selectedSecretNames !== undefined &&
+      (!Array.isArray(options.selectedSecretNames) ||
+        !options.selectedSecretNames.every((name) => typeof name === "string" && name.length > 0)))
+  ) {
+    throw new TypeError(
+      "domain tools extension options must provide a createTool function and selected secret names",
+    );
   }
   const buildTool = options.createTool ?? createCapabilityTool;
+  const selectedNames = Object.freeze([...(options.selectedSecretNames ?? [])]);
   return function domainToolsExtension(pi) {
     const paths = runtimePaths(runtime);
     if (
@@ -206,7 +215,9 @@ export function createDomainToolsExtension(descriptor, options = {}) {
       if (contract.name === runtime.decisionToolName) {
         continue;
       }
-      pi.registerTool(buildTool(runtime, contract, (payload) => runCapability(payload, runtime)));
+      pi.registerTool(
+        buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
+      );
     }
     pi.registerTool(createGuideTool(runtime, paths.guideIndexPath));
     if (paths.analysisContextViewPath !== undefined) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -288,6 +288,56 @@ test("removes provider credentials from gridctl child environment", () => {
   );
 
   assert.deepEqual(clean, { PATH: "/safe/bin" });
+});
+
+test("default extension spawn removes a custom provider secret name", async () => {
+  const root = await makeFixtureRoot();
+  clearOptionalAnalysisEnvironment();
+  const bin = join(root, "bin");
+  const executable = join(bin, "gridctl");
+  await mkdir(bin);
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => { input += chunk; });
+process.stdin.on("end", () => {
+  const request = JSON.parse(input);
+  process.stdout.write(JSON.stringify({
+    protocol: request.protocol,
+    protocol_version: request.protocol_version,
+    request_id: request.request_id,
+    ok: true,
+    result: { secret_visible: process.env.LLM_ACCESS !== undefined },
+  }));
+});
+`,
+    "utf8",
+  );
+  await chmod(executable, 0o755);
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  process.env.GRID_AGENT_SECRET_ENV_NAMES = "LLM_ACCESS";
+  process.env.LLM_ACCESS = "must-not-cross-boundary";
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${bin}:${originalPath ?? ""}`;
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root);
+  const registered = [];
+
+  try {
+    domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
+    const tool = registered.find((candidate) => candidate.name === "grid_environment_describe");
+    const result = await tool.execute("secret-boundary", {});
+    assert.equal(result.isError, undefined);
+    assert.equal(result.details.result.secret_visible, false);
+  } finally {
+    delete process.env.GRID_AGENT_SECRET_ENV_NAMES;
+    delete process.env.LLM_ACCESS;
+    process.env.PATH = originalPath;
+  }
 });
 
 test("builds capability protocol requests with correlation ids", () => {

@@ -135,6 +135,26 @@ def test_pi_launch_passes_domain_tool_paths_in_environment(tmp_path: Path) -> No
     assert launch.environment["OPENAI_API_KEY"] == "super-secret"
 
 
+def test_pi_launch_translates_custom_secret_name_for_generic_spawn_paths(
+    tmp_path: Path,
+) -> None:
+    resolved = _resolved_openai()
+    resolved = replace(
+        resolved,
+        config=replace(resolved.config, credential_reference="LLM_ACCESS"),
+    )
+
+    launch = build_pi_launch(
+        resolved,
+        _runtime_paths(tmp_path),
+        base_environment={"PATH": "/bin", "HOME": "/tmp"},
+    )
+
+    assert launch.environment["LLM_ACCESS"] == "super-secret"
+    assert launch.environment["GRID_AGENT_SECRET_ENV_NAMES"] == "LLM_ACCESS"
+    assert launch.environment["CAPABILITY_AGENT_SECRET_ENV_NAMES"] == "LLM_ACCESS"
+
+
 def test_pi_launch_adds_only_domain_runtime_descriptor_path_to_legacy_grid_environment(
     tmp_path: Path,
 ) -> None:

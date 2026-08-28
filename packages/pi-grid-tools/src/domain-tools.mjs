@@ -42,7 +42,11 @@ const GRID_DESCRIPTOR = Object.freeze({
 });
 
 export function sanitizeEnvironment(env, selectedNames = []) {
-  return sanitizeCapabilityEnvironment(env, ["GRID_AGENT_SECRET_ENV_NAMES", ...selectedNames]);
+  return sanitizeCapabilityEnvironment(env, [
+    "GRID_AGENT_SECRET_ENV_NAMES",
+    ...selectedGridSecretNames(env),
+    ...selectedNames,
+  ]);
 }
 
 export function buildGridRequest(capability, params, requestId) {
@@ -58,13 +62,22 @@ export function createGridTool(contract, runner) {
     return runCapability(
       payload,
       descriptor,
-      ["GRID_AGENT_SECRET_ENV_NAMES"],
+      selectedGridSecretNames(process.env),
     );
   });
 }
 
 export default function domainToolsExtension(pi) {
-  return createDomainToolsExtension(runtimeDescriptor(process.env))(pi);
+  return createDomainToolsExtension(runtimeDescriptor(process.env), {
+    selectedSecretNames: selectedGridSecretNames(process.env),
+  })(pi);
+}
+
+function selectedGridSecretNames(env) {
+  return (env.GRID_AGENT_SECRET_ENV_NAMES ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
 }
 
 function runtimeDescriptor(env) {
