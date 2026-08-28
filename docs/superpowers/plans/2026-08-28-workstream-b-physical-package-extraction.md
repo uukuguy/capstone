@@ -71,6 +71,100 @@
 
 ---
 
+### Task 0: Initialize the Workstream B climb ladder
+
+**Files:**
+
+- Create: `docs/status/climb/_archive/2026-08-18-full-capability/`
+- Replace: `docs/status/climb/{config.yaml,session-target.md,hypotheses.yaml,runs.csv,calibration.json,pending-lb.json,adjudicator-log.md,research-tree.json,research-tree.md,session-state.json}`
+- Modify: `docs/status/INDEX.md`
+- Modify: `tools/climb/{train.sh,eval-local.sh,decision-gate.py,sync-cycle.py,regen-tree.py,check-target.py}`
+- Create: `tools/climb/tests/test_workstream_b_adapter.py`
+
+**Interfaces:**
+
+- Consumes: the completed `2026-08-18-full-capability` session and Workstream B score contract.
+- Produces: active session `2026-08-28-workstream-b-package-extraction`, hypotheses `B-H001` through `B-H005`, and deterministic six-subscore evaluation from cycle one onward.
+
+- [ ] **Step 1: Write failing adapter tests before changing active state**
+
+Tests use temporary state/run directories exposed through `CLIMB_STATE_DIR` and
+`CLIMB_ARTIFACT_DIR`; they must not mutate repository state. Assert:
+
+```python
+EXPECTED_WEIGHTS = {
+    "kernel_independence": 25.0,
+    "domain_ownership": 20.0,
+    "pi_tool_generalization": 15.0,
+    "application_thinness": 10.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 20.0,
+}
+```
+
+The evaluator returns every key, computes `total` as their sum, reports
+`hypothesis_gate_passed`, and cannot report `release_ready=true` below 100. The
+target checker exits `0` below target and `10` only when score is 100 and session
+phase is `complete`. The tree generator names Workstream B and lists the next
+active hypothesis.
+
+- [ ] **Step 2: Run the tests and verify old hard-coding fails**
+
+```sh
+uv run --project packages/grid-agent pytest tools/climb/tests/test_workstream_b_adapter.py -q
+```
+
+Expected: FAIL because the old adapter fixes the 2026-08-18 session, old
+subscores, and static-analysis title.
+
+- [ ] **Step 3: Archive the completed ladder without rewriting history**
+
+Use `git mv` for all ten current climb state files into
+`docs/status/climb/_archive/2026-08-18-full-capability/`. Add one archive roll-up
+row to `docs/status/INDEX.md`, then create fresh active files with cycle zero,
+no events, no runs, and `B-H001` as the next hypothesis. Historical files remain
+byte-identical inside the archive.
+
+- [ ] **Step 4: Make the adapter session- and score-driven**
+
+Read session name, score keys, weights, state directory, and artifact directory
+from the active configuration. `train.sh` writes kind
+`workstream-b-package-extraction-gate`. `eval-local.sh` reads the hypothesis from
+the run manifest, executes only that hypothesis's named focused gate when its
+files exist, and emits gate evidence plus the six weighted scores. Missing future
+package roots score zero rather than crashing an earlier cycle.
+
+`sync-cycle.py` confirms a hypothesis when `hypothesis_gate_passed` is true even
+when the overall release score is below 100; it falsifies only a failed owned
+gate. `decision-gate.py` returns `PUSH` only for `release_ready=true`; otherwise
+it returns `CONTINUE`. All generated state is deterministic except timestamps
+and run IDs.
+
+- [ ] **Step 5: Run the adapter tests and zero-cycle generation**
+
+```sh
+uv run --project packages/grid-agent pytest tools/climb/tests/test_workstream_b_adapter.py -q
+tools/climb/regen-tree.py
+tools/climb/check-target.py
+```
+
+Expected: tests pass; tree shows `B-H001`; target JSON reports current `null`,
+target `100`, and `met=false`; checker exits `0`.
+
+- [ ] **Step 6: Verify archive/index and commit initialization**
+
+```sh
+git diff --check
+python3 tools/climb/tests/test_workstream_b_adapter.py
+git add docs/status/INDEX.md docs/status/climb tools/climb
+git commit -m "chore: initialize workstream b climb ladder"
+```
+
+The commit must not include main-worktree project-state edits or generated
+`runs/climb/` artifacts.
+
+---
+
 ### Task 1: Lock distribution and compatibility baselines
 
 **Files:**
@@ -1033,13 +1127,10 @@ contracts. Keep English and Chinese README headings, commands, facts, and links
 aligned. Mark Workstream B complete only after all gates pass; keep Workstreams
 C-E explicitly unimplemented.
 
-- [ ] **Step 2: Reconfigure the climb adapter for Workstream B**
+- [ ] **Step 2: Finalize the Workstream B climb adapter evidence**
 
-Archive the completed static-analysis session under
-`docs/status/climb/_archive/2026-08-18-full-capability/`, add one roll-up row to
-`docs/status/INDEX.md`, and initialize session
-`2026-08-28-workstream-b-package-extraction` with hypotheses `B-H001` through
-`B-H005` from the specification. Update the adapter to calculate exactly:
+Use the active session initialized in Task 0 and confirm its adapter still
+calculates exactly:
 
 ```text
 kernel_independence=25
@@ -1125,7 +1216,8 @@ final evidence in the project journal and active checkpoint.
 
 ## Execution Order and Checkpoints
 
-Execute Tasks 1-9 in order. Tasks 2 and 3 establish the Python kernel before the
+Execute Tasks 0-9 in order. Task 0 establishes durable climb scoring before any
+implementation cycle. Tasks 2 and 3 establish the Python kernel before the
 Node and domain packages consume it. Task 4 may be reviewed independently after
 Task 2, but it must land before Task 7. Tasks 5 and 6 establish a domain package
 with no application dependency before Task 7 switches application imports.
