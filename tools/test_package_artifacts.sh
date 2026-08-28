@@ -288,6 +288,7 @@ assert payload["question_id"] == "installed-offline-envelope", payload
 PY
   node --input-type=module <<'EOF'
 import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import extension from "@grid-static-analysis/pi-grid-tools";
 
@@ -306,11 +307,13 @@ await writeFile(
   "utf8",
 );
 await writeFile(join(guides, "overview.md"), "# Installed guide\n", "utf8");
-await writeFile(
-  join(workspace, "guide-index.json"),
-  JSON.stringify({ root: guides, resources: { overview: join(guides, "overview.md") } }),
-  "utf8",
-);
+const guideIndex = JSON.stringify({
+  protocol: "grid-guide-index",
+  version: "1.0",
+  root: guides,
+  resources: { overview: join(guides, "overview.md") },
+});
+await writeFile(join(workspace, "guide-index.json"), guideIndex, "utf8");
 const descriptorPath = join(workspace, "pi/domain-runtime.json");
 await writeFile(
   descriptorPath,
@@ -325,6 +328,8 @@ await writeFile(
     decision_tool_name: "grid_record_decision",
     tool_catalog_path: join(workspace, "tool-catalog.json"),
     guide_index_path: join(workspace, "guide-index.json"),
+    guide_root_path: guides,
+    guide_index_sha256: createHash("sha256").update(guideIndex).digest("hex"),
     workspace_path: workspace,
   }),
   "utf8",
