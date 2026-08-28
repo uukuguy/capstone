@@ -4,7 +4,7 @@
 
 ## TL;DR
 
-- Active branch: `main` at `448c407`; local `main` remains ahead of `origin/main`, and no push was requested.
+- Active branch: `main`; the Workstream B implementation payload ends at `448c407`, local `main` remains ahead of `origin/main`, and no push was requested.
 - Workstream B Tasks 0–9, all original findings I-1 through I-11/M-1 through M-2, the five Important/one Minor second-round findings, and both third-round regressions are implemented, independently approved, merged, and reverified on `main`.
 - Climb B-H001 through B-H005 are confirmed; final B-H005 cycle 9 scored 100/100 with no release blockers and phase `complete` by live fixed-policy gate execution.
 - The temporary Workstream B worktree and feature branch have been removed; no integration cleanup remains.

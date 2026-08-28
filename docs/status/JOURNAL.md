@@ -518,3 +518,4 @@ _Recovered pre-merge mainline entries._
 - 19:43 确认 origin/main 未领先，main 快进集成 Workstream B 至 448c407
 - 19:50 合并态重跑制品安装、doctor、688/165/43、E2E 17 与 24/24 validate，全部通过
 - 19:51 回收并验证主线状态日志，移除 Workstream B worktree 与 feature 分支
+- 19:54 记录 Workstream B 主线集成与状态回收，确保恢复点不再指向已删 worktree [2ea91dc]
