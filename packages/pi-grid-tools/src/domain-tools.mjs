@@ -113,7 +113,7 @@ function readRuntimeDescriptor(path) {
   return raw;
 }
 
-function snakeToRuntimeDescriptor(raw, env) {
+function snakeToRuntimeDescriptor(raw, _env) {
   const descriptor = {
     protocol: requiredSnakeString(raw, "protocol"),
     protocolVersion: requiredSnakeString(raw, "protocol_version"),
@@ -123,27 +123,16 @@ function snakeToRuntimeDescriptor(raw, env) {
     guideToolName: requiredSnakeString(raw, "guide_tool_name"),
     contextToolName: requiredSnakeString(raw, "context_tool_name"),
     decisionToolName: requiredSnakeString(raw, "decision_tool_name"),
-    workspacePath: optionalSnakeString(raw, "workspace_path") ?? requiredExistingRealPath(env, "GRID_AGENT_WORKSPACE"),
-    toolCatalogPath:
-      optionalSnakeString(raw, "tool_catalog_path") ?? requiredExistingRealPath(env, "GRID_AGENT_TOOL_CATALOG"),
-    guideIndexPath:
-      optionalSnakeString(raw, "guide_index_path") ?? requiredExistingRealPath(env, "GRID_AGENT_GUIDE_INDEX"),
-    activeTurnPath: optionalSnakeString(raw, "active_turn_path") ?? optionalWritableRealPath(env, "GRID_AGENT_ACTIVE_TURN"),
-    analysisContextViewPath:
-      optionalSnakeString(raw, "analysis_context_view_path") ??
-      optionalExistingRealPath(env, "GRID_AGENT_ANALYSIS_CONTEXT_VIEW"),
-    trajectoryRequestsPath:
-      optionalSnakeString(raw, "trajectory_requests_path") ??
-      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_REQUESTS"),
-    trajectoryCaptureStatePath:
-      optionalSnakeString(raw, "trajectory_capture_state_path") ??
-      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_CAPTURE_STATE"),
-    trajectoryAllowedRefsPath:
-      optionalSnakeString(raw, "trajectory_allowed_refs_path") ??
-      optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_ALLOWED_REFS"),
-    trajectoryAcksPath:
-      optionalSnakeString(raw, "trajectory_acks_path") ?? optionalExistingRealPath(env, "GRID_AGENT_TRAJECTORY_ACKS"),
-    piRuntime: raw.pi_runtime ?? runtimeIdentity(env),
+    workspacePath: requiredSnakeString(raw, "workspace_path"),
+    toolCatalogPath: requiredSnakeString(raw, "tool_catalog_path"),
+    guideIndexPath: requiredSnakeString(raw, "guide_index_path"),
+    activeTurnPath: optionalSnakeString(raw, "active_turn_path"),
+    analysisContextViewPath: optionalSnakeString(raw, "analysis_context_view_path"),
+    trajectoryRequestsPath: optionalSnakeString(raw, "trajectory_requests_path"),
+    trajectoryCaptureStatePath: optionalSnakeString(raw, "trajectory_capture_state_path"),
+    trajectoryAllowedRefsPath: optionalSnakeString(raw, "trajectory_allowed_refs_path"),
+    trajectoryAcksPath: optionalSnakeString(raw, "trajectory_acks_path"),
+    piRuntime: raw.pi_runtime ?? undefined,
   };
   return Object.fromEntries(Object.entries(descriptor).filter(([, value]) => value !== undefined));
 }
@@ -332,7 +321,7 @@ function requiredSnakeString(value, name) {
 
 function optionalSnakeString(value, name) {
   const entry = value[name];
-  if (entry === undefined || entry === "") {
+  if (entry === undefined || entry === null || entry === "") {
     return undefined;
   }
   if (typeof entry !== "string") {

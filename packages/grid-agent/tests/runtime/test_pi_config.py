@@ -78,6 +78,66 @@ def test_materializer_writes_fixed_domain_runtime_descriptor(tmp_path: Path) -> 
     )
 
 
+def test_transport_descriptor_api_remains_exactly_eight_fields(tmp_path: Path) -> None:
+    workspace = tmp_path / "run"
+    descriptor = PiConfigMaterializer.domain_transport_descriptor(
+        _manifest(tmp_path), workspace=workspace
+    )
+
+    assert descriptor == {
+        "protocol": "grid-capability",
+        "protocol_version": "1.0",
+        "executable": "gridctl",
+        "executable_args": ["request", "--workspace", str(workspace)],
+        "tool_name_prefix": "grid_",
+        "guide_tool_name": "grid_guide_open",
+        "context_tool_name": "grid_analysis_context_get",
+        "decision_tool_name": "grid_record_decision",
+    }
+
+
+def test_production_descriptor_authoritatively_includes_all_run_paths_and_identity(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "run"
+    runtime = {
+        "pi_coding_agent_version": "0.80.6",
+        "pi_ai_version": "0.80.6",
+        "pi_source_commit": "a" * 40,
+        "pi_patch_set_sha256": "b" * 64,
+    }
+    paths = {
+        "tool_catalog_path": workspace / "tool-catalog.json",
+        "guide_index_path": workspace / "guide-index.json",
+        "active_turn_path": workspace / "active-turn.json",
+        "analysis_context_view_path": workspace / "context/view.json",
+        "trajectory_requests_path": workspace / "requests",
+        "trajectory_capture_state_path": workspace / "context/capture.json",
+        "trajectory_allowed_refs_path": workspace / "context/refs.json",
+        "trajectory_acks_path": tmp_path / ".grid-agent/acks/run",
+    }
+    manifest = _manifest(tmp_path)
+
+    descriptor_path = PiConfigMaterializer(
+        ProjectPaths.from_root(tmp_path).pi_agent_dir
+    ).materialize_domain_runtime(
+        manifest,
+        workspace=workspace,
+        pi_runtime=runtime,
+        **paths,
+    )
+
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    assert descriptor == {
+        **PiConfigMaterializer.domain_transport_descriptor(
+            manifest, workspace=workspace
+        ),
+        "workspace_path": str(workspace),
+        **{name: str(path) for name, path in paths.items()},
+        "pi_runtime": runtime,
+    }
+
+
 def test_materializer_scopes_domain_runtime_descriptor_to_each_workspace(
     tmp_path: Path,
 ) -> None:
@@ -155,7 +215,7 @@ def test_pi_launch_translates_custom_secret_name_for_generic_spawn_paths(
     assert launch.environment["CAPABILITY_AGENT_SECRET_ENV_NAMES"] == "LLM_ACCESS"
 
 
-def test_pi_launch_adds_only_domain_runtime_descriptor_path_to_legacy_grid_environment(
+def test_pi_launch_descriptor_mode_does_not_publish_legacy_runtime_supplements(
     tmp_path: Path,
 ) -> None:
     resolved = _resolved_openai()
@@ -173,10 +233,17 @@ def test_pi_launch_adds_only_domain_runtime_descriptor_path_to_legacy_grid_envir
     assert launch.environment["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"] == str(
         paths.domain_runtime_descriptor_path
     )
-    assert launch.environment["GRID_AGENT_TOOL_CATALOG"] == str(paths.tool_catalog_path)
-    assert launch.environment["GRID_AGENT_GUIDE_INDEX"] == str(paths.guide_index_path)
-    assert launch.environment["GRID_AGENT_WORKSPACE"] == str(paths.workspace)
     for forbidden in (
+        "GRID_AGENT_TOOL_CATALOG",
+        "GRID_AGENT_GUIDE_INDEX",
+        "GRID_AGENT_WORKSPACE",
+        "GRID_AGENT_ACTIVE_TURN",
+        "GRID_AGENT_ANALYSIS_CONTEXT_VIEW",
+        "GRID_AGENT_TRAJECTORY_REQUESTS",
+        "GRID_AGENT_TRAJECTORY_CAPTURE_STATE",
+        "GRID_AGENT_TRAJECTORY_ALLOWED_REFS",
+        "GRID_AGENT_TRAJECTORY_ACKS",
+        "GRID_AGENT_PI_CODING_AGENT_VERSION",
         "CAPABILITY_AGENT_PROTOCOL",
         "CAPABILITY_AGENT_EXECUTABLE",
         "CAPABILITY_AGENT_EXECUTABLE_ARGS",
@@ -366,4 +433,11 @@ def _descriptor_payload(workspace: Path) -> dict[str, object]:
         "tool_catalog_path": str(workspace / "tool-catalog.json"),
         "guide_index_path": str(workspace / "guide-index.json"),
         "workspace_path": str(workspace),
+        "active_turn_path": None,
+        "analysis_context_view_path": None,
+        "trajectory_requests_path": None,
+        "trajectory_capture_state_path": None,
+        "trajectory_allowed_refs_path": None,
+        "trajectory_acks_path": None,
+        "pi_runtime": None,
     }

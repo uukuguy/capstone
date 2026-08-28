@@ -58,23 +58,26 @@ def build_pi_environment(resolved: ResolvedLLM, paths: RuntimePaths, *, base_env
     # an explicit diagnostic override instead of silently disabling networking.
     if source.get("GRID_AGENT_PI_OFFLINE") == "1":
         allowed["PI_OFFLINE"] = "1"
-    allowed["GRID_AGENT_WORKSPACE"] = str(paths.workspace)
-    allowed["GRID_AGENT_TOOL_CATALOG"] = str(paths.tool_catalog_path)
-    allowed["GRID_AGENT_GUIDE_INDEX"] = str(paths.guide_index_path)
     if paths.domain_runtime_descriptor_path is not None:
         allowed["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"] = str(
             paths.domain_runtime_descriptor_path
         )
-    identity = paths.command.identity
-    if identity.pi_ai_version and identity.commit and identity.patches_sha256:
-        allowed["GRID_AGENT_PI_CODING_AGENT_VERSION"] = identity.package_version
-        allowed["GRID_AGENT_PI_AI_VERSION"] = identity.pi_ai_version
-        allowed["GRID_AGENT_PI_SOURCE_COMMIT"] = identity.commit
-        allowed["GRID_AGENT_PI_PATCH_SET_SHA256"] = identity.patches_sha256
-    if paths.active_turn_path is not None:
-        allowed["GRID_AGENT_ACTIVE_TURN"] = str(paths.active_turn_path)
-    if paths.analysis_context_view_path is not None:
-        allowed["GRID_AGENT_ANALYSIS_CONTEXT_VIEW"] = str(paths.analysis_context_view_path)
+    else:
+        allowed["GRID_AGENT_WORKSPACE"] = str(paths.workspace)
+        allowed["GRID_AGENT_TOOL_CATALOG"] = str(paths.tool_catalog_path)
+        allowed["GRID_AGENT_GUIDE_INDEX"] = str(paths.guide_index_path)
+        identity = paths.command.identity
+        if identity.pi_ai_version and identity.commit and identity.patches_sha256:
+            allowed["GRID_AGENT_PI_CODING_AGENT_VERSION"] = identity.package_version
+            allowed["GRID_AGENT_PI_AI_VERSION"] = identity.pi_ai_version
+            allowed["GRID_AGENT_PI_SOURCE_COMMIT"] = identity.commit
+            allowed["GRID_AGENT_PI_PATCH_SET_SHA256"] = identity.patches_sha256
+        if paths.active_turn_path is not None:
+            allowed["GRID_AGENT_ACTIVE_TURN"] = str(paths.active_turn_path)
+        if paths.analysis_context_view_path is not None:
+            allowed["GRID_AGENT_ANALYSIS_CONTEXT_VIEW"] = str(
+                paths.analysis_context_view_path
+            )
     native_capture = (
         paths.trajectory_requests_path,
         paths.trajectory_capture_state_path,
@@ -83,14 +86,17 @@ def build_pi_environment(resolved: ResolvedLLM, paths: RuntimePaths, *, base_env
     )
     if all(value is not None for value in native_capture):
         _prepare_owner_only_directory(paths.trajectory_acks_path)
-        allowed["GRID_AGENT_TRAJECTORY_REQUESTS"] = str(paths.trajectory_requests_path)
-        allowed["GRID_AGENT_TRAJECTORY_CAPTURE_STATE"] = str(
-            paths.trajectory_capture_state_path
-        )
-        allowed["GRID_AGENT_TRAJECTORY_ALLOWED_REFS"] = str(
-            paths.trajectory_allowed_refs_path
-        )
-        allowed["GRID_AGENT_TRAJECTORY_ACKS"] = str(paths.trajectory_acks_path)
+        if paths.domain_runtime_descriptor_path is None:
+            allowed["GRID_AGENT_TRAJECTORY_REQUESTS"] = str(
+                paths.trajectory_requests_path
+            )
+            allowed["GRID_AGENT_TRAJECTORY_CAPTURE_STATE"] = str(
+                paths.trajectory_capture_state_path
+            )
+            allowed["GRID_AGENT_TRAJECTORY_ALLOWED_REFS"] = str(
+                paths.trajectory_allowed_refs_path
+            )
+            allowed["GRID_AGENT_TRAJECTORY_ACKS"] = str(paths.trajectory_acks_path)
     if resolved.secret is not None:
         allowed[resolved.config.credential_reference] = resolved.secret.value
         allowed["GRID_AGENT_SECRET_ENV_NAMES"] = resolved.config.credential_reference

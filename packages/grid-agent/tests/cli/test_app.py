@@ -155,6 +155,7 @@ def _patch_live_runtime(
             _manifest: object,
             *,
             workspace: Path,
+            **_kwargs: object,
         ) -> Path:
             return workspace / "pi/domain-runtime.json"
 

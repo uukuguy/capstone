@@ -34,7 +34,7 @@ from grid_agent.config.resolver import resolve_llm
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
 from grid_agent.runtime.pi_config import PiConfigMaterializer
 from grid_agent.runtime.installer import PiRuntimeInstaller
-from grid_agent.runtime.lock import PiRuntimeLock
+from grid_agent.runtime.lock import PiCommand, PiRuntimeLock
 from grid_agent.auth.service import AuthService
 from grid_agent.auth.store import CODEX_PROVIDER, ProjectAuthStore
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
@@ -117,6 +117,25 @@ class _TrajectoryAllowedRefs:
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[5]
+
+
+def _descriptor_runtime_identity(command: PiCommand) -> dict[str, str] | None:
+    identity = getattr(command, "identity", None)
+    if identity is None:
+        return None
+    if not (
+        identity.package_version
+        and identity.pi_ai_version
+        and identity.commit
+        and identity.patches_sha256
+    ):
+        return None
+    return {
+        "pi_coding_agent_version": identity.package_version,
+        "pi_ai_version": identity.pi_ai_version,
+        "pi_source_commit": identity.commit,
+        "pi_patch_set_sha256": identity.patches_sha256,
+    }
 
 
 def _install_gridctl(workspace: RunWorkspace | AnalysisWorkspace) -> None:
@@ -364,6 +383,19 @@ def _execute_analysis(
     domain_runtime_descriptor_path = pi_config.materialize_domain_runtime(
         profile.manifest,
         workspace=workspace.root_path,
+        tool_catalog_path=domain_runtime.tool_catalog_path,
+        guide_index_path=domain_runtime.guide_index_path,
+        active_turn_path=workspace.active_turn_path,
+        analysis_context_view_path=workspace.context_view_path,
+        trajectory_requests_path=workspace.requests_path,
+        trajectory_capture_state_path=workspace.trajectory_capture_state_path,
+        trajectory_allowed_refs_path=(
+            workspace.root_path / "context/trajectory-allowed-refs.json"
+        ),
+        trajectory_acks_path=project_paths.trajectory_acks_path(
+            workspace.analysis_id
+        ),
+        pi_runtime=_descriptor_runtime_identity(command),
     )
     secret_values = (
         {resolved.secret.value} if resolved.secret is not None else set()
@@ -599,6 +631,9 @@ def run(
             domain_runtime_descriptor_path = pi_config.materialize_domain_runtime(
                 profile.manifest,
                 workspace=workspace.root_path,
+                tool_catalog_path=domain_runtime.tool_catalog_path,
+                guide_index_path=domain_runtime.guide_index_path,
+                pi_runtime=_descriptor_runtime_identity(command),
             )
             launch = build_pi_launch(
                 resolved,

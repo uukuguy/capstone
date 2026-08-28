@@ -109,6 +109,28 @@ test("production extension reads controller-owned runtime descriptor before lega
   );
 });
 
+test("descriptor mode rejects missing authoritative paths instead of supplementing legacy env", async () => {
+  const root = await makeFixtureRoot();
+  const descriptorPath = join(root, "run/pi/domain-runtime.json");
+  process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root);
+  await mkdir(join(root, "run/pi"), { recursive: true });
+  await writeRuntimeDescriptor(descriptorPath, root, { workspace_path: undefined });
+
+  try {
+    assert.throws(
+      () => domainToolsExtension({ registerTool: () => undefined }),
+      /workspace_path must be a non-empty string/,
+    );
+  } finally {
+    delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  }
+});
+
 test("production extension rejects arbitrary executable runtime descriptors", async () => {
   const root = await makeFixtureRoot();
   await configureDescriptorAndLegacyPaths(root, { executable: "bash" });
