@@ -553,6 +553,32 @@ test("guide tool rejects lexically allowed symlinks outside the published root",
   assert.doesNotMatch(result.content[0].text, /outside guide secret/);
 });
 
+test("guide tool rejects a symlinked parent below the published root", async () => {
+  const root = await makeFixtureRoot();
+  clearOptionalAnalysisEnvironment();
+  const outside = await mkdtemp(join(tmpdir(), "grid-domain-tools-other-run-"));
+  const outsideGuidePath = join(outside, "guide.md");
+  const linkedParent = join(root, "guides/linked-parent");
+  const registered = [];
+  process.env.GRID_AGENT_TOOL_CATALOG = join(root, "run/tool-catalog.json");
+  process.env.GRID_AGENT_GUIDE_INDEX = join(root, "run/guide-index.json");
+  process.env.GRID_AGENT_WORKSPACE = join(root, "run");
+  await writeCatalog(process.env.GRID_AGENT_TOOL_CATALOG);
+  await writeFile(outsideGuidePath, "other run guide", "utf8");
+  await symlink(outside, linkedParent);
+  await writeGuideIndex(process.env.GRID_AGENT_GUIDE_INDEX, root, {
+    linked: join(linkedParent, "guide.md"),
+  });
+
+  domainToolsExtension({ registerTool: (tool) => registered.push(tool) });
+  const guide = registered.find((tool) => tool.name === "grid_guide_open");
+  const result = await guide.execute("guide-linked-parent", { resource_id: "linked" });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error.code, "guide_path_rejected");
+  assert.doesNotMatch(result.content[0].text, /other run guide/);
+});
+
 test("startup rejects configured symlink paths that escape the workspace", async () => {
   const cases = [
     {

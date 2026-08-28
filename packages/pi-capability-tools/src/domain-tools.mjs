@@ -1,12 +1,14 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@earendil-works/pi-ai";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
-import { readFileSync, realpathSync } from "node:fs";
-import { readFile, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { constants, readFileSync, realpathSync } from "node:fs";
+import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
+
+const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
 
 const DESCRIPTOR_KEYS = new Set([
   "protocol",
@@ -385,7 +387,7 @@ function createGuideTool(descriptor, guideIndexPath) {
         );
       }
       const currentIndex = await readJson(guideIndexPath);
-      const root = await realpath(String(currentIndex.root));
+      const root = resolve(String(currentIndex.root));
       const resourcePath = currentIndex.resources?.[params.resource_id];
       if (typeof resourcePath !== "string") {
         return toolError(
@@ -397,9 +399,9 @@ function createGuideTool(descriptor, guideIndexPath) {
           descriptor.guideToolName,
         );
       }
-      let resolvedPath;
+      let guide;
       try {
-        resolvedPath = await realpath(resourcePath);
+        guide = await readPublishedFile(root, resourcePath);
       } catch {
         return toolError(
           {
@@ -410,17 +412,7 @@ function createGuideTool(descriptor, guideIndexPath) {
           descriptor.guideToolName,
         );
       }
-      if (!isInside(resolvedPath, root)) {
-        return toolError(
-          {
-            code: "guide_path_rejected",
-            phase: "resolve",
-            message: "guide resource path is outside the published guide root",
-          },
-          descriptor.guideToolName,
-        );
-      }
-      const text = await readFile(resolvedPath, "utf8");
+      const text = guide.text;
       const result = { resource_id: params.resource_id, text };
       return {
         content: [{ type: "text", text }],
@@ -434,6 +426,82 @@ function createGuideTool(descriptor, guideIndexPath) {
       };
     },
   });
+}
+
+async function readPublishedFile(rootPath, resourcePath) {
+  const root = resolve(rootPath);
+  const candidate = resolve(resourcePath);
+  if (!isInside(candidate, root) || candidate === root) {
+    throw new Error("published resource is outside its root");
+  }
+  const segments = relative(root, candidate).split(sep);
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    throw new Error("published resource has an unsafe path segment");
+  }
+
+  const handles = [];
+  const bindings = [];
+  try {
+    const rootHandle = await open(
+      root,
+      O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+    handles.push(rootHandle);
+    bindings.push({ path: root, handle: rootHandle, directory: true });
+    let currentPath = root;
+    for (const segment of segments.slice(0, -1)) {
+      currentPath = resolve(currentPath, segment);
+      const handle = await open(
+        currentPath,
+        O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      handles.push(handle);
+      bindings.push({ path: currentPath, handle, directory: true });
+    }
+    const handle = await open(candidate, O_RDONLY | O_NOFOLLOW);
+    handles.push(handle);
+    bindings.push({ path: candidate, handle, directory: false });
+
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) {
+      throw new Error("published resource is not a regular file");
+    }
+    const content = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    for (const binding of bindings) {
+      const named = await lstat(binding.path, { bigint: true });
+      const opened = await binding.handle.stat({ bigint: true });
+      if (
+        (binding.directory ? !named.isDirectory() : !named.isFile()) ||
+        named.dev !== opened.dev ||
+        named.ino !== opened.ino
+      ) {
+        throw new Error("published resource named binding changed while reading");
+      }
+    }
+    if (statIdentity(before) !== statIdentity(after)) {
+      throw new Error("published resource changed while reading");
+    }
+    return {
+      text: content.toString("utf8"),
+      sha256: createHash("sha256").update(content).digest("hex"),
+    };
+  } finally {
+    for (const handle of handles.reverse()) {
+      await handle.close().catch(() => undefined);
+    }
+  }
+}
+
+function statIdentity(value) {
+  return [
+    value.dev,
+    value.ino,
+    value.size,
+    value.mode,
+    value.mtimeNs,
+    value.ctimeNs,
+  ].join(":");
 }
 
 function createAnalysisContextTool(toolName, analysisContextViewPath) {

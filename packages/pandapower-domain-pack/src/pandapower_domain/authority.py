@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,13 +53,40 @@ class ContentReferenceVerifier:
     def __init__(self, workspace_root: Path) -> None:
         self.workspace_root = workspace_root
         self.evidence_root = workspace_root / "evidence"
+        self._root_descriptor: int | None = None
+
+    def _root_fd(self) -> int:
+        if self._root_descriptor is not None:
+            return self._root_descriptor
+        try:
+            self._root_descriptor = os.open(
+                self.workspace_root,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+        except OSError as exc:
+            raise SimulatorIntegrityError(
+                "current-run workspace root could not be opened without following links"
+            ) from exc
+        return self._root_descriptor
+
+    def __del__(self) -> None:
+        descriptor = getattr(self, "_root_descriptor", None)
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+            self._root_descriptor = None
 
     def verify_context(self, reference: str) -> VerifiedArtifact:
         digest = _reference_digest(reference, "context", label="context_ref")
-        path = self.evidence_root / "contexts" / f"{digest}.json"
-        if not path.is_file():
+        loaded = self._try_json_document(
+            ("evidence", "contexts", f"{digest}.json"),
+            "context document",
+        )
+        if loaded is None:
             raise SimulatorIntegrityError(f"context_ref is not in the current run: {reference}")
-        document = _load_json_mapping(path, "context document")
+        path, document = loaded
         if _sha256_canonical_json(document) != digest:
             raise SimulatorIntegrityError(f"context document digest content does not match reference: {reference}")
         revision_ref = document.get("revision_ref")
@@ -68,19 +97,36 @@ class ContentReferenceVerifier:
 
     def verify_result(self, reference: str) -> VerifiedArtifact:
         digest = _reference_digest(reference, "result", label="declared result_ref")
-        path = _allowed_result_document_path(self.evidence_root, digest)
-        if path is None:
+        loaded = self._first_json_document(
+            tuple(
+                ("evidence", "results", f"{prefix}-{digest}.json")
+                for prefix in (
+                    "result",
+                    "powerflow",
+                    "contingency",
+                    "contingency-scenario",
+                )
+            ),
+            "declared result document",
+        )
+        if loaded is None:
             raise SimulatorIntegrityError(f"declared result_ref is not in the current run: {reference}")
-        document = _load_json_mapping(path, "declared result document")
+        path, document = loaded
         _verify_result_document(reference, digest, document)
         return VerifiedArtifact(reference=reference, kind="result", document=document, path=path)
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         digest = _reference_digest(reference, "evidence", label="claimed evidence ref")
-        path = _allowed_evidence_document_path(self.evidence_root, digest)
-        if path is None:
+        loaded = self._first_json_document(
+            (
+                ("evidence", "network-facts", f"network-fact-{digest}.json"),
+                ("evidence", "analysis", f"analysis-evidence-{digest}.json"),
+            ),
+            "claimed evidence document",
+        )
+        if loaded is None:
             raise SimulatorIntegrityError(f"claimed evidence ref is not in the current run: {reference}")
-        document = _load_json_mapping(path, "claimed evidence document")
+        path, document = loaded
         _verify_evidence_document(reference, digest, path, document)
         return VerifiedArtifact(reference=reference, kind="evidence", document=document, path=path)
 
@@ -171,13 +217,13 @@ class ContentReferenceVerifier:
 
     def _verify_revision(self, reference: str) -> Mapping[str, Any]:
         digest = _reference_digest(reference, "revision", label="revision_ref")
-        path = self.evidence_root / "models" / f"{digest}.json"
-        if not path.is_file():
+        loaded = self._try_file_bytes(
+            ("evidence", "models", f"{digest}.json"),
+            "revision document",
+        )
+        if loaded is None:
             raise SimulatorIntegrityError(f"revision_ref is not in the current run: {reference}")
-        try:
-            payload = path.read_bytes()
-        except OSError as exc:
-            raise SimulatorIntegrityError(f"revision document could not be read: {path.name}") from exc
+        path, payload = loaded
         if hashlib.sha256(payload).hexdigest() != digest:
             raise SimulatorIntegrityError(f"revision document digest content does not match reference: {reference}")
         return _loads_json_mapping(payload.decode("utf-8"), path.name, "revision document")
@@ -261,8 +307,16 @@ class ContentReferenceVerifier:
 
     def _current_run_analysis_evidence_for_result(self, result_ref: str) -> tuple[Mapping[str, Any], ...]:
         documents: list[Mapping[str, Any]] = []
-        for path in (self.evidence_root / "analysis").glob("analysis-evidence-*.json"):
-            document = _load_json_mapping(path, "claimed evidence document")
+        for name in self._list_directory(("evidence", "analysis")):
+            if not name.startswith("analysis-evidence-") or not name.endswith(".json"):
+                continue
+            loaded = self._try_json_document(
+                ("evidence", "analysis", name),
+                "claimed evidence document",
+            )
+            if loaded is None:
+                continue
+            path, document = loaded
             if document.get("result_ref") != result_ref:
                 continue
             digest = path.stem.removeprefix("analysis-evidence-")
@@ -270,6 +324,153 @@ class ContentReferenceVerifier:
             _verify_evidence_document(evidence_ref, digest, path, document)
             documents.append(document)
         return tuple(documents)
+
+    def _first_json_document(
+        self,
+        candidates: tuple[tuple[str, ...], ...],
+        description: str,
+    ) -> tuple[Path, Mapping[str, Any]] | None:
+        for candidate in candidates:
+            loaded = self._try_json_document(candidate, description)
+            if loaded is not None:
+                return loaded
+        return None
+
+    def _try_json_document(
+        self,
+        parts: tuple[str, ...],
+        description: str,
+    ) -> tuple[Path, Mapping[str, Any]] | None:
+        loaded = self._try_file_bytes(parts, description)
+        if loaded is None:
+            return None
+        path, payload = loaded
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SimulatorIntegrityError(
+                f"{description} is not UTF-8 JSON: {path.name}"
+            ) from exc
+        return path, _loads_json_mapping(text, path.name, description)
+
+    def _try_file_bytes(
+        self,
+        parts: tuple[str, ...],
+        description: str,
+    ) -> tuple[Path, bytes] | None:
+        descriptors: list[int] = []
+        bindings: list[tuple[int, str, int, bool]] = []
+        parent_descriptor = self._root_fd()
+        try:
+            for part in parts[:-1]:
+                descriptor = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=parent_descriptor,
+                )
+                descriptors.append(descriptor)
+                bindings.append((parent_descriptor, part, descriptor, True))
+                parent_descriptor = descriptor
+            leaf = os.open(
+                parts[-1],
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=parent_descriptor,
+            )
+            descriptors.append(leaf)
+            bindings.append((parent_descriptor, parts[-1], leaf, False))
+        except FileNotFoundError:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+            return None
+        except OSError as exc:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+            raise SimulatorIntegrityError(
+                f"{description} could not be read without following links: {parts[-1]}"
+            ) from exc
+
+        try:
+            before = os.fstat(leaf)
+            if not stat.S_ISREG(before.st_mode):
+                raise SimulatorIntegrityError(
+                    f"{description} is not a regular file: {parts[-1]}"
+                )
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(leaf, 64 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            after = os.fstat(leaf)
+            for binding_parent, name, descriptor, is_directory in bindings:
+                named = os.stat(
+                    name,
+                    dir_fd=binding_parent,
+                    follow_symlinks=False,
+                )
+                opened = os.fstat(descriptor)
+                expected_kind = (
+                    stat.S_ISDIR(named.st_mode)
+                    if is_directory
+                    else stat.S_ISREG(named.st_mode)
+                )
+                if (
+                    not expected_kind
+                    or named.st_dev != opened.st_dev
+                    or named.st_ino != opened.st_ino
+                ):
+                    raise SimulatorIntegrityError(
+                        f"{description} named binding changed while it was read: {name}"
+                    )
+            if _stat_identity(before) != _stat_identity(after):
+                raise SimulatorIntegrityError(
+                    f"{description} changed while it was read: {parts[-1]}"
+                )
+            return self.workspace_root.joinpath(*parts), b"".join(chunks)
+        except FileNotFoundError as exc:
+            raise SimulatorIntegrityError(
+                f"{description} named binding changed while it was read: {parts[-1]}"
+            ) from exc
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
+    def _list_directory(self, parts: tuple[str, ...]) -> tuple[str, ...]:
+        descriptors: list[int] = []
+        bindings: list[tuple[int, str, int]] = []
+        parent_descriptor = self._root_fd()
+        try:
+            for part in parts:
+                descriptor = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=parent_descriptor,
+                )
+                descriptors.append(descriptor)
+                bindings.append((parent_descriptor, part, descriptor))
+                parent_descriptor = descriptor
+            names = tuple(sorted(os.listdir(parent_descriptor)))
+            for binding_parent, name, descriptor in bindings:
+                named = os.stat(name, dir_fd=binding_parent, follow_symlinks=False)
+                opened = os.fstat(descriptor)
+                if (
+                    not stat.S_ISDIR(named.st_mode)
+                    or named.st_dev != opened.st_dev
+                    or named.st_ino != opened.st_ino
+                ):
+                    raise SimulatorIntegrityError(
+                        "current-run evidence directory binding changed while it was listed"
+                    )
+            return names
+        except FileNotFoundError:
+            return ()
+        except OSError as exc:
+            raise SimulatorIntegrityError(
+                "current-run evidence directory could not be listed without following links"
+            ) from exc
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
 
     def _verify_matching_context(
         self,
@@ -364,32 +565,15 @@ def _reference_digest(reference: str, kind: str, *, label: str) -> str:
     return digest
 
 
-def _allowed_evidence_document_path(evidence_root: Path, digest: str) -> Path | None:
-    candidates = (
-        evidence_root / "network-facts" / f"network-fact-{digest}.json",
-        evidence_root / "analysis" / f"analysis-evidence-{digest}.json",
+def _stat_identity(value: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+        value.st_mode,
     )
-    return next((path for path in candidates if path.is_file()), None)
-
-
-def _allowed_result_document_path(evidence_root: Path, digest: str) -> Path | None:
-    candidates = (
-        evidence_root / "results" / f"result-{digest}.json",
-        evidence_root / "results" / f"powerflow-{digest}.json",
-        evidence_root / "results" / f"contingency-{digest}.json",
-        evidence_root / "results" / f"contingency-scenario-{digest}.json",
-    )
-    return next((path for path in candidates if path.is_file()), None)
-
-
-def _load_json_mapping(path: Path, description: str) -> Mapping[str, Any]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise SimulatorIntegrityError(f"{description} is not UTF-8 JSON: {path.name}") from exc
-    except OSError as exc:
-        raise SimulatorIntegrityError(f"{description} could not be read: {path.name}") from exc
-    return _loads_json_mapping(text, path.name, description)
 
 
 def _loads_json_mapping(text: str, name: str, description: str) -> Mapping[str, Any]:

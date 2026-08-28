@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
+import pytest
+
+import pandapower_domain.authority as authority_module
 from pandapower_domain import PandapowerArtifactAuthority, build_pandapower_profile
-from pandapower_domain.authority import ContentReferenceVerifier
+from pandapower_domain.authority import ContentReferenceVerifier, SimulatorIntegrityError
 
 
 def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> None:
@@ -104,3 +108,75 @@ def _canonical_json(document: object) -> str:
         separators=(",", ":"),
         allow_nan=False,
     )
+
+
+def test_authority_rejects_leaf_and_parent_symlinks(tmp_path: Path) -> None:
+    other_run = tmp_path / "other-run"
+    result_ref, other_path = _write_result(other_run)
+
+    leaf_run = tmp_path / "leaf-run"
+    leaf_path = leaf_run / "evidence/results" / other_path.name
+    leaf_path.parent.mkdir(parents=True)
+    leaf_path.symlink_to(other_path)
+
+    parent_run = tmp_path / "parent-run"
+    (parent_run / "evidence").mkdir(parents=True)
+    (parent_run / "evidence/results").symlink_to(other_path.parent)
+
+    with pytest.raises(SimulatorIntegrityError, match="current run|could not be read"):
+        ContentReferenceVerifier(leaf_run).verify_result(result_ref)
+    with pytest.raises(SimulatorIntegrityError, match="current run|could not be read"):
+        ContentReferenceVerifier(parent_run).verify_result(result_ref)
+
+
+def test_authority_does_not_admit_a_reference_from_another_run(tmp_path: Path) -> None:
+    result_ref, _ = _write_result(tmp_path / "other-run")
+    current_run = tmp_path / "current-run"
+    (current_run / "evidence/results").mkdir(parents=True)
+
+    with pytest.raises(SimulatorIntegrityError, match="current run"):
+        ContentReferenceVerifier(current_run).verify_result(result_ref)
+
+
+def test_authority_detects_a_named_file_exchange_after_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = tmp_path / "run"
+    result_ref, result_path = _write_result(run_root)
+    outside_ref, outside_path = _write_result(tmp_path / "outside")
+    assert outside_ref == result_ref
+    original_read = os.read
+    exchanged = False
+
+    def exchange_before_read(descriptor: int, count: int) -> bytes:
+        nonlocal exchanged
+        if not exchanged:
+            exchanged = True
+            result_path.unlink()
+            result_path.symlink_to(outside_path)
+        return original_read(descriptor, count)
+
+    monkeypatch.setattr(authority_module.os, "read", exchange_before_read)
+
+    with pytest.raises(SimulatorIntegrityError, match="binding changed"):
+        ContentReferenceVerifier(run_root).verify_result(result_ref)
+    assert exchanged
+
+
+def _write_result(run_root: Path) -> tuple[str, Path]:
+    body = {
+        "context_ref": "context:sha256:" + "1" * 64,
+        "revision_ref": "revision:sha256:" + "2" * 64,
+        "result_type": "analysis.powerflow.ac",
+        "converged": True,
+    }
+    digest = hashlib.sha256(_canonical_json(body).encode("utf-8")).hexdigest()
+    result_ref = f"result:sha256:{digest}"
+    path = run_root / "evidence/results" / f"result-{digest}.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        _canonical_json({"result_ref": result_ref, **body}),
+        encoding="utf-8",
+    )
+    return result_ref, path

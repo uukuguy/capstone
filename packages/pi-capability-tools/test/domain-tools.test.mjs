@@ -170,6 +170,7 @@ test("generic source has no product-specific protocol, executable, prefix, or en
   for (const forbidden of [/grid[-_]/i, /pandapower/i]) {
     assert.equal(forbidden.test(source), false, `generic source contains ${forbidden}`);
   }
+  assert.equal(source.includes("realpath(resourcePath)"), false);
 });
 
 test("sanitizes credentials without requiring a product namespace", () => {
