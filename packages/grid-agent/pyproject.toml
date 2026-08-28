@@ -8,6 +8,7 @@ version = "1.0.1"
 requires-python = ">=3.12"
 dependencies = [
   "capability-agent-kernel==0.1.0",
+  "pandapower-domain-pack==0.1.0",
   "fastapi>=0.139,<1",
   "filelock>=3.20,<4",
   "pydantic>=2.12,<3",
@@ -31,3 +32,4 @@ packages = ["src/grid_agent"]
 
 [tool.uv.sources]
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+pandapower-domain-pack = { path = "../pandapower-domain-pack", editable = true }

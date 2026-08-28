@@ -95,6 +95,28 @@
   `PandapowerResourceSet.load()` found 30 JSON documents and its path had no
   checkout source marker.
 - Existing grid-agent simulator-client tests passed with the new package
-  available via temporary source paths. The unmodified grid-agent project
-  metadata does not yet declare `pandapower-domain-pack`; Task 6 owns that
-  application dependency update.
+  available via temporary source paths. At the original Task 5 commit, the
+  grid-agent project metadata did not yet declare `pandapower-domain-pack`;
+  the review fix below now owns that application dependency update.
+
+---
+
+## Review fix: application dependency declaration
+
+- RED (fresh): the original grid-agent simulator-client command failed during
+  collection with `ModuleNotFoundError: No module named 'pandapower_domain'`.
+- GREEN: `grid-agent` now declares
+  `pandapower-domain-pack==0.1.0` and maps it to the editable local package;
+  `packages/grid-agent/uv.lock` was regenerated and the project was synced.
+- Original no-`PYTHONPATH` verification:
+  - domain transport tests: 10 passed;
+  - grid-agent simulator client: 4 passed;
+  - package baseline and pandapower profile: 6 passed;
+  - `make check-package-boundaries`: passed;
+  - grid-agent simulator client/locator Pyright: 0 errors, 0 warnings.
+- `make test-agent` reached 615 passed with three unrelated existing failures:
+  the repository scientific-dependency substring assertion now matches the
+  required domain package name, the legacy-runtime-path scan finds an existing
+  `grid_query` fixture string, and the scripted non-blocking report scenario
+  fails independently. This review fix changed only the permitted
+  `grid-agent` metadata/lock/report scope.
