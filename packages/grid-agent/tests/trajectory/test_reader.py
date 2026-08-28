@@ -133,6 +133,31 @@ def test_reader_rejects_raw_hashed_string_sequence(tmp_path: Path) -> None:
     assert prefix.failure.code == "invalid_event"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", "foreign-product/9.9"),
+        ("source", {"kind": "observed", "producer": "foreign-agent", "integrity": "verified"}),
+    ],
+)
+def test_grid_reader_rejects_hash_valid_foreign_identity(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    path = write_three_valid_events(tmp_path)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    rows[0][field] = value
+    rehash_raw_event(rows[0])
+    path.write_bytes(b"".join(canonical_json_bytes(row) for row in rows))
+
+    prefix = RunEventReader(path).read_prefix()
+
+    assert prefix.events == ()
+    assert prefix.failure is not None
+    assert prefix.failure.code == "invalid_event"
+
+
 def test_reader_rejects_raw_hashed_string_numeric_payload(tmp_path: Path) -> None:
     path = write_three_valid_events(tmp_path)
     rows = [json.loads(line) for line in path.read_text().splitlines()]

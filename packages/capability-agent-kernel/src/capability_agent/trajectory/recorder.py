@@ -63,6 +63,7 @@ class RunEventRecorder:
         subscribers: Iterable[Callable[[RunEvent], None]] = (),
         producer: str = DEFAULT_EVENT_PRODUCER,
         schema_version: str = DEFAULT_EVENT_SCHEMA_VERSION,
+        event_builder: Callable[..., RunEvent] = build_event,
     ) -> None:
         if not analysis_id:
             raise ValueError("analysis_id must not be empty")
@@ -77,6 +78,7 @@ class RunEventRecorder:
         self._subscribers = tuple(subscribers)
         self._producer = producer
         self._schema_version = schema_version
+        self._event_builder = event_builder
         self._subscriber_failures: list[str] = []
         self._next_sequence = 1
         self._previous_hash = ZERO_PREDECESSOR_HASH
@@ -97,7 +99,7 @@ class RunEventRecorder:
                 draft = draft.model_copy(
                     update={"source": draft.source.model_copy(update={"producer": self._producer})}
                 )
-            event = build_event(
+            event = self._event_builder(
                 draft,
                 analysis_id=self.analysis_id,
                 sequence=self._next_sequence,

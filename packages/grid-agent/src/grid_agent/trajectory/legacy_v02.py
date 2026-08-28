@@ -14,7 +14,7 @@ import re
 
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope, ZERO_PREDECESSOR_HASH
-from capability_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
+from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
 from grid_agent.trajectory.schema_policy import GRID_IMPORTED_EVENT_SCHEMA_VERSION
 
 

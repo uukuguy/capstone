@@ -458,7 +458,7 @@ def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, di
         EventDraft(
             event_type="business.claim.declared",
             scope=scope,
-            source=EventSource(kind="agent-declared", producer="test"),
+            source=EventSource(kind="agent-declared", producer="grid-agent.test"),
             refs=EventRefs(consumed=(result_ref,), evidence=(evidence_ref,)),
             payload={
                 "submission_id": "answer-1",
@@ -473,7 +473,7 @@ def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, di
         EventDraft(
             event_type="business.claim.declared",
             scope=scope,
-            source=EventSource(kind="agent-declared", producer="test"),
+            source=EventSource(kind="agent-declared", producer="grid-agent.test"),
             refs=EventRefs(consumed=("result:sha256:" + "f" * 64,)),
             payload={
                 "submission_id": "answer-1",

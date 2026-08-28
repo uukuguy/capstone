@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from grid_agent.trajectory.legacy_v02 import LegacyImportError, LegacyV02Importer
+from grid_agent.trajectory.replay import ImportedRunEvent
 
 
 def _write(path: Path, value: object) -> None:
@@ -39,6 +40,7 @@ def test_v02_import_is_deterministic_and_preserves_source_files(tmp_path: Path) 
     second = LegacyV02Importer(run).import_run()
     assert first == second
     assert _digests(run) == before
+    assert all(isinstance(event, ImportedRunEvent) for event in first.events)
     assert all(event.schema_version == "grid-run-import-event/1.0" for event in first.events)
 
 

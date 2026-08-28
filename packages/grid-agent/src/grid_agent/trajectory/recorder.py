@@ -10,7 +10,9 @@ from capability_agent.trajectory.recorder import (
 from grid_agent.trajectory.events import (
     LEGACY_EVENT_PRODUCER,
     LEGACY_EVENT_SCHEMA_VERSION,
+    build_event,
 )
+from grid_agent.trajectory.schema_policy import require_grid_event_producer
 
 
 class RunEventRecorder(NeutralRunEventRecorder):
@@ -23,10 +25,16 @@ class RunEventRecorder(NeutralRunEventRecorder):
         schema_version: str = LEGACY_EVENT_SCHEMA_VERSION,
         **kwargs: Any,
     ) -> None:
+        if schema_version != LEGACY_EVENT_SCHEMA_VERSION:
+            raise ValueError(
+                f"grid event schema must be {LEGACY_EVENT_SCHEMA_VERSION}"
+            )
+        require_grid_event_producer(producer)
         super().__init__(
             *args,
             producer=producer,
             schema_version=schema_version,
+            event_builder=build_event,
             **kwargs,
         )
 

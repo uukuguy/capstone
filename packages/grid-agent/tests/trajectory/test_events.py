@@ -22,6 +22,11 @@ from grid_agent.trajectory.events import (
 )
 
 
+def _rehash_event(document: dict[str, object]) -> None:
+    content = {key: value for key, value in document.items() if key != "event_hash"}
+    document["event_hash"] = sha256_ref(canonical_json_bytes(content))
+
+
 def test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutral() -> None:
     draft = EventDraft(
         event_type="turn.started",
@@ -51,6 +56,33 @@ def test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutra
     assert neutral_event.source.producer == "capability-agent"
     assert legacy_event.source.producer == "grid-agent"
     assert legacy_event.event_hash == expected_legacy_event.event_hash
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("schema_version", "foreign-product/9.9", "grid event schema"),
+        ("source", {"kind": "observed", "producer": "foreign-agent", "integrity": "verified"}, "grid event producer"),
+    ],
+)
+def test_grid_run_event_rejects_hash_valid_foreign_identity(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    event = build_event(
+        EventDraft(event_type="analysis.started", payload={}),
+        analysis_id="analysis-test",
+        sequence=1,
+        timestamp=datetime(2026, 8, 14, tzinfo=UTC),
+        previous_event_hash="sha256:" + "0" * 64,
+    )
+    document = event.model_dump(mode="json")
+    document[field] = value
+    _rehash_event(document)
+
+    with pytest.raises(ValidationError, match=message):
+        RunEvent.model_validate(document)
 
 
 def test_build_event_is_canonical_and_hash_stable() -> None:

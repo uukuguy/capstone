@@ -89,6 +89,39 @@ def test_imported_event_rejects_native_integrity_claim() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"schema_version": "foreign-import/9.9"}, "grid imported event schema"),
+        ({"source": EventSource(kind="observed", producer="foreign-importer", integrity="importer-integrity")}, "grid imported event producer"),
+    ],
+)
+def test_imported_event_rejects_foreign_grid_identity(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    arguments: dict[str, object] = {
+        "analysis_id": "analysis-old",
+        "sequence": 1,
+        "timestamp": None,
+        "event_type": "turn.started",
+        "import_previous_hash": "sha256:" + "0" * 64,
+        "import_hash": "sha256:" + "1" * 64,
+        "source_coordinate": SourceCoordinate(
+            path="context/context-events.jsonl", sequence=2, sha256="a" * 64
+        ),
+        "source": EventSource(
+            kind="observed",
+            producer="legacy-v0.2-importer",
+            integrity="importer-integrity",
+        ),
+    }
+    arguments.update(overrides)
+
+    with pytest.raises(ValidationError, match=message):
+        ImportedRunEvent.model_validate(arguments)
+
+
 def test_projection_nodes_require_provenance_for_derived_source() -> None:
     with pytest.raises(ValidationError, match="derived node requires"):
         BusinessNode(
@@ -233,7 +266,11 @@ def test_imported_event_payload_is_deeply_immutable_and_json_compatible() -> Non
         source_coordinate=SourceCoordinate(
             path="context/context-events.jsonl", sequence=2, sha256="a" * 64
         ),
-        source=EventSource(kind="observed", integrity="importer-integrity"),
+        source=EventSource(
+            kind="observed",
+            producer="legacy-v0.2-importer",
+            integrity="importer-integrity",
+        ),
         payload={"nested": {"values": ["original"]}},
     )
 

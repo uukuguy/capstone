@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Any
 
+from pydantic import model_validator
+
 from capability_agent.trajectory.events import (
     DEFAULT_EVENT_PRODUCER,
     ZERO_PREDECESSOR_HASH,
@@ -35,6 +37,7 @@ from capability_agent.trajectory.events import (
 from grid_agent.trajectory.schema_policy import (
     GRID_EVENT_PRODUCER,
     GRID_EVENT_SCHEMA_VERSION,
+    require_grid_event_producer,
 )
 
 
@@ -43,6 +46,15 @@ LEGACY_EVENT_SCHEMA_VERSION = GRID_EVENT_SCHEMA_VERSION
 
 
 class RunEvent(NeutralRunEvent):
+    @model_validator(mode="after")
+    def require_grid_identity(self) -> "RunEvent":
+        if self.schema_version != LEGACY_EVENT_SCHEMA_VERSION:
+            raise ValueError(
+                f"grid event schema must be {LEGACY_EVENT_SCHEMA_VERSION}"
+            )
+        require_grid_event_producer(self.source.producer)
+        return self
+
     @classmethod
     def __get_pydantic_json_schema__(
         cls,
@@ -65,8 +77,11 @@ def build_event(
     sequence: int,
     timestamp: datetime,
     previous_event_hash: str,
+    schema_version: str = LEGACY_EVENT_SCHEMA_VERSION,
 ) -> RunEvent:
     """Build a legacy grid event while preserving the neutral kernel API."""
+    if schema_version != LEGACY_EVENT_SCHEMA_VERSION:
+        raise ValueError(f"grid event schema must be {LEGACY_EVENT_SCHEMA_VERSION}")
     if draft.source.producer == DEFAULT_EVENT_PRODUCER:
         draft = draft.model_copy(
             update={
@@ -81,7 +96,7 @@ def build_event(
         sequence=sequence,
         timestamp=timestamp,
         previous_event_hash=previous_event_hash,
-        schema_version=LEGACY_EVENT_SCHEMA_VERSION,
+        schema_version=schema_version,
     )
     return RunEvent.model_validate(neutral_event.model_dump(mode="json"))
 

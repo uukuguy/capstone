@@ -64,8 +64,14 @@ class ReplayPrefix:
 class RunEventReader:
     """Verify a JSONL event hash chain without trusting any invalid suffix."""
 
-    def __init__(self, events_path: Path) -> None:
+    def __init__(
+        self,
+        events_path: Path,
+        *,
+        event_model: type[RunEvent] = RunEvent,
+    ) -> None:
         self.events_path = events_path
+        self._event_model = event_model
 
     def read_prefix(self) -> ReplayPrefix:
         if not self.events_path.exists():
@@ -109,7 +115,7 @@ class RunEventReader:
                     f"event envelope is missing: {', '.join(sorted(missing_members))}",
                 )
             try:
-                event = RunEvent.model_validate(decoded)
+                event = self._event_model.model_validate(decoded)
             except (ValidationError, ValueError) as exc:
                 return self._failure(trusted, line_number, "invalid_event", str(exc))
             if not _matches_native_json(decoded, event.model_dump(mode="json")):
