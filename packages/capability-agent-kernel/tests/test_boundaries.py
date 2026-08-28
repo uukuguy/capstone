@@ -40,6 +40,9 @@ def test_kernel_source_has_no_grid_owned_semantic_literals() -> None:
         "gridctl",
         "grid_agent",
         "grid_simulator",
+        "flow direction",
+        "power-flow direction",
+        "不表示实时功率方向",
     )
 
     offenders = [

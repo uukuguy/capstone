@@ -66,7 +66,7 @@ def test_kernel_helpers_use_neutral_default_schema_ids(
             encoding="utf-8"
         )
     )
-    assert default_catalog_payload["protocol"] == "capability-tool-catalog"
+    assert default_catalog_payload["protocol"] == "inventory-tool-catalog"
     assert default_guide_payload["protocol"] == "capability-guide-index"
     assert ToolCatalog.__module__ == "capability_agent.tools.catalog"
     assert GuideIndex.__module__ == "capability_agent.tools.guide"

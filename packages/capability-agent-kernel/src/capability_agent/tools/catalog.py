@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,6 @@ _TOOL_NAME_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*_$")
 _SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 _JSON_SCHEMA_TYPES = {"array", "boolean", "integer", "null", "number", "object", "string"}
 _DEFAULT_TOOL_NAME_PREFIX = "tool_"
-_DEFAULT_SCHEMA_ID = "capability-tool-catalog"
 
 
 class ToolCatalogError(ValueError):
@@ -50,7 +49,9 @@ class ToolCatalog:
             (tool.name for tool in tools), tool_name_prefix
         )
         _validate_tool_name_prefix(tool_name_prefix)
-        protocol = _resolve_schema_id(protocol, _DEFAULT_SCHEMA_ID)
+        protocol = _resolve_schema_id(
+            protocol, _schema_id_from_prefix(tool_name_prefix, "tool-catalog")
+        )
         for tool in tools:
             _validate_tool_name(tool.name, tool_name_prefix)
         tools = (*tools, _decision_tool(tool_name_prefix))
@@ -289,6 +290,13 @@ def _resolve_schema_id(schema_id: str | None, default: str) -> str:
     return value
 
 
+def _schema_id_from_prefix(tool_name_prefix: str, suffix: str) -> str:
+    namespace = tool_name_prefix.removesuffix("_").replace("_", "-")
+    if not namespace or namespace == "tool":
+        namespace = "capability"
+    return f"{namespace}-{suffix}"
+
+
 def _validate_tool_name_prefix(tool_name_prefix: str) -> None:
     if not isinstance(tool_name_prefix, str) or not _TOOL_NAME_PREFIX_PATTERN.fullmatch(
         tool_name_prefix
@@ -343,6 +351,7 @@ def _validate_json_schema(schema: dict[str, Any], *, path: str) -> None:
 
 def _description(document: dict[str, object]) -> str:
     not_for = list(_strings(document["not_for"]))
+    not_for.extend(_extension_limitations(document))
     applies_to = list(_strings(document["applies_to"]))
     terms = document.get("terms")
     if isinstance(terms, dict):
@@ -359,6 +368,20 @@ def _description(document: dict[str, object]) -> str:
             f"Recovery: {_recovery_text(document['recovery'])}",
         )
     )
+
+
+def _extension_limitations(value: object) -> tuple[str, ...]:
+    limitations: list[str] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if key == "limitations":
+                limitations.extend(_strings(child))
+            elif isinstance(child, (Mapping, list, tuple)):
+                limitations.extend(_extension_limitations(child))
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            limitations.extend(_extension_limitations(child))
+    return tuple(limitations)
 
 
 def _strings(value: object) -> tuple[str, ...]:

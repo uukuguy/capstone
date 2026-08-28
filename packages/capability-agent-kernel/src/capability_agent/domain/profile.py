@@ -13,6 +13,7 @@ from capability_agent.domain.projection import DomainProjectorRegistry
 
 ExecutorFactory = Callable[[Path, Path, float], CapabilityExecutor]
 AuthorityFactory = Callable[[Path], ArtifactAuthority]
+ToolDescriptionBuilder = Callable[[dict[str, object]], str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +23,7 @@ class DomainRuntimeProfile:
     executor_factory: ExecutorFactory
     projector_registry: DomainProjectorRegistry
     authority_factory: AuthorityFactory
+    tool_description_builder: ToolDescriptionBuilder | None = None
 
     def create_executor(
         self, executable: Path, workspace: Path, timeout_seconds: float

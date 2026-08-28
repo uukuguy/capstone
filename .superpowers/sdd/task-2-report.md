@@ -8,15 +8,17 @@
   profile-driven runtime preparation into the kernel.
 - Replaced the old `grid_agent.domain`, `grid_agent.tools`, and
   `grid_agent.application.composition` implementations with identity-preserving
-  compatibility exports. The grid tool compatibility module restores its
-  repository contract loader and product-specific description/protocol
-  materialization without adding those semantics to the kernel.
+  compatibility exports. The grid tool compatibility module retains only its
+  repository contract loader; it no longer mutates kernel classes or installs
+  product behavior at import time.
 - Added the local editable kernel dependency and refreshed `packages/grid-agent/uv.lock`.
 - Kept `load_packaged_capability_documents` only at the legacy grid import path;
   the neutral catalog consumes injected documents.
 - Made kernel catalog and guide schema IDs neutral by default, with runtime
   schema IDs explicitly derived from the selected profile namespace. Tool name
-  prefixes are inferred from documents when not supplied.
+  prefixes are inferred from documents when not supplied. Catalog extension
+  limitations are read through a generic recursive rule, and an optional
+  profile description builder provides an explicit presentation seam.
 - Renamed the kernel composition test module to
   `test_kernel_composition.py` so the plan's combined default-import-mode
   pytest command has no module-name collision.
@@ -46,6 +48,21 @@ test_legacy_catalog_loader_keeps_repository_path_compatibility
 ImportError: cannot import name 'load_packaged_capability_documents'
 ```
 
+Second review RED evidence, before removing compatibility import side effects:
+
+```text
+test_legacy_modules_do_not_mutate_kernel_class_methods
+AssertionError on ToolCatalog.from_documents.__func__ identity
+
+test_kernel_helpers_use_neutral_default_schema_ids
+AssertionError: 'capability-tool-catalog' == 'inventory-tool-catalog'
+```
+
+The first failure was caused by the legacy catalog and guide modules replacing
+shared classmethods during import. The second failure showed that a neutral
+catalog must derive its default schema namespace from the resolved tool-name
+prefix.
+
 ### GREEN
 
 ```text
@@ -63,7 +80,33 @@ make check-package-boundaries
 package-boundaries: ok
 ```
 
-The complete grid-agent suite also passed:
+Second review focused GREEN evidence:
+
+```text
+uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests/test_public_api.py::test_legacy_modules_do_not_mutate_kernel_class_methods \
+  packages/capability-agent-kernel/tests/test_kernel_composition.py::test_kernel_helpers_use_neutral_default_schema_ids -q
+2 passed
+
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+8 passed
+
+uv run --project packages/grid-agent ruff check [modified Task 2 Python files]
+All checks passed!
+
+uv run --project packages/grid-agent pyright [modified Task 2 Python files]
+0 errors, 0 warnings, 0 informations
+```
+
+The original combined focused command reaches `46 passed, 2 failed`; the two
+failures are pre-existing direct grid-helper assertions for product-specific
+description text and the legacy guide schema default. They bypass the explicit
+profile composition path and require the out-of-scope grid test/domain-pack
+migration to pass a description builder and guide protocol explicitly. The
+kernel and compatibility-layer GREEN evidence above does not rely on those
+legacy defaults.
+
+Before the second-review refactor, the complete grid-agent suite passed:
 
 ```text
 make test-agent
@@ -91,14 +134,18 @@ make test-agent
 - `packages/grid-agent/src/grid_agent/application/composition.py`
 - `packages/capability-agent-kernel/tests/test_kernel_composition.py`
 - `.superpowers/sdd/task-2-report.md`
+- `packages/capability-agent-kernel/src/capability_agent/domain/profile.py`
 
 ## Commit
 
 Implementation commit: `73d377b feat: extract capability agent kernel sdk`.
 Review-fix commit: `fix: neutralize extracted kernel helpers` (final hash is
 reported in the task handoff).
+Second review-fix commit: `fix: remove compatibility import side effects` (final
+hash is reported in the task handoff).
 
 ## Risk / note
 
 The pre-existing dirty `docs/status/JOURNAL.md` was left untouched and
-unstaged.
+unstaged. The two direct grid-helper failures above are intentionally not
+masked by reintroducing import-order behavior into the neutral kernel.

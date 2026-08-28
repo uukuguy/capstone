@@ -43,6 +43,7 @@ def prepare_domain_runtime(
         protocol=_schema_id_from_prefix(
             profile.manifest.tool_name_prefix, "tool-catalog"
         ),
+        description_builder=profile.tool_description_builder,
     ).materialize(tool_catalog_path)
     GuideIndex.load(
         profile.manifest.guide_root,
@@ -61,10 +62,14 @@ def prepare_domain_runtime(
 
 
 def _schema_id_from_prefix(tool_name_prefix: str, suffix: str) -> str:
-    namespace = tool_name_prefix.rstrip("_") or "capability"
+    namespace = tool_name_prefix.removesuffix("_").replace("_", "-")
+    if not namespace or namespace == "tool":
+        namespace = "capability"
     return f"{namespace}-{suffix}"
 
 
 def _schema_id_from_protocol(protocol: str, suffix: str) -> str:
-    namespace = protocol.split("-", 1)[0] or "capability"
+    namespace = protocol.split("-", 1)[0].replace("_", "-").replace(".", "-")
+    if not namespace:
+        namespace = "capability"
     return f"{namespace}-{suffix}"

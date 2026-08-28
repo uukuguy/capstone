@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from capability_agent import DomainManifest, DomainRuntimeProfile
 from capability_agent.application import prepare_domain_runtime
 from capability_agent.tools import GuideIndex, ToolCatalog
@@ -46,3 +49,32 @@ def test_legacy_catalog_loader_keeps_repository_path_compatibility(tmp_path) -> 
     from grid_agent.tools.catalog import load_packaged_capability_documents
 
     assert load_packaged_capability_documents(tmp_path) == ({"id": "asset.list"},)
+
+
+def test_legacy_modules_do_not_mutate_kernel_class_methods() -> None:
+    script = """
+from capability_agent.application.composition import prepare_domain_runtime
+from capability_agent.tools.catalog import ToolCatalog
+from capability_agent.tools.guide import GuideIndex
+
+catalog_from_documents = ToolCatalog.from_documents.__func__
+catalog_from_environment = ToolCatalog.from_environment.__func__
+guide_load = GuideIndex.load.__func__
+prepare = prepare_domain_runtime
+
+import grid_agent.application.composition
+import grid_agent.tools.catalog
+import grid_agent.tools.guide
+
+assert ToolCatalog.from_documents.__func__ is catalog_from_documents
+assert ToolCatalog.from_environment.__func__ is catalog_from_environment
+assert GuideIndex.load.__func__ is guide_load
+assert prepare_domain_runtime is prepare
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
