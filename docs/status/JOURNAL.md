@@ -478,3 +478,4 @@ The following append-only entries were recovered before closing the fully merged
 - 21:22 将导入事件策略移入实现模块，恢复全生产树包边界 [d59cb9a]
 - 21:34 补齐安装态指南描述符，恢复 tarball CLI 与扩展加载门 [ea10df5]
 - 18:49 以 ea10df5 固定策略现场重跑九门，B-H005 100 分零阻塞收束 [20260828T104349Z]
+- 18:53 持久化第二轮终审报告与恢复边界，供集成复核 [3abc4a7]
