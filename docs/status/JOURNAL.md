@@ -483,3 +483,4 @@ The following append-only entries were recovered before closing the fully merged
 - 19:08 correction: 上条提交为 5ef46c5 [5ef46c5]
 - 19:13 以根 dirfd 安全创建 lease 目录，拒绝父叶 symlink 与交换 [e417835]
 - 19:24 以 e417835 现场重跑九门，第三轮 B-H005 100 分零阻塞 [20260828T111922Z]
+- 19:28 持久化第三轮终审报告与恢复边界，供集成复核 [65a2cd9]
