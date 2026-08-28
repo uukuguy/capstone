@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any, cast
+
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
@@ -114,12 +117,17 @@ def test_reference_fields_have_exact_prefix_patterns() -> None:
 
 def test_dataset_query_uses_schema_described_field_names_and_closed_predicates() -> None:
     contract = CapabilityRegistry.load_packaged().require("model.dataset.query")
-    properties = contract.input_schema["properties"]
+    properties = cast(Mapping[str, Any], contract.input_schema["properties"])
+    select_schema = cast(Mapping[str, Any], properties["select"])
+    filters_schema = cast(Mapping[str, Any], properties["filters"])
+    filter_items = cast(Mapping[str, Any], filters_schema["items"])
+    filter_properties = cast(Mapping[str, Any], filter_items["properties"])
+    operator_schema = cast(Mapping[str, Any], filter_properties["operator"])
 
-    assert properties["dataset"]["pattern"] == r"^network\.[a-z0-9_]+$"
-    assert properties["select"]["items"]["type"] == "string"
-    assert properties["filters"]["items"]["additionalProperties"] is False
-    assert properties["filters"]["items"]["properties"]["operator"]["enum"] == [
+    assert cast(Mapping[str, Any], properties["dataset"])["pattern"] == r"^network\.[a-z0-9_]+$"
+    assert cast(Mapping[str, Any], select_schema["items"])["type"] == "string"
+    assert filter_items["additionalProperties"] is False
+    assert operator_schema["enum"] == [
         "eq", "ne", "gt", "gte", "lt", "lte", "in"
     ]
 
