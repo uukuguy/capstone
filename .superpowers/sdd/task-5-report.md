@@ -114,9 +114,36 @@
   - package baseline and pandapower profile: 6 passed;
   - `make check-package-boundaries`: passed;
   - grid-agent simulator client/locator Pyright: 0 errors, 0 warnings.
-- `make test-agent` reached 615 passed with three unrelated existing failures:
-  the repository scientific-dependency substring assertion now matches the
-  required domain package name, the legacy-runtime-path scan finds an existing
+- The first review-gate run of `make test-agent` reached 615 passed with three
+  failures while parallel trajectory work was changing the shared checkout:
+  the repository scientific-dependency substring assertion matched the newly
+  required domain package name, the legacy-runtime-path scan observed a
   `grid_query` fixture string, and the scripted non-blocking report scenario
-  fails independently. This review fix changed only the permitted
-  `grid-agent` metadata/lock/report scope.
+  failed during the same transition. This review fix changed only the
+  permitted `grid-agent` metadata/lock/report scope.
+
+## Review fix: exact scientific dependency contract
+
+- RED (fresh): the repository boundary test rejected the required
+  `pandapower-domain-pack==0.1.0` dependency because it searched for forbidden
+  names as substrings.
+- GREEN: the contract now extracts and PEP 503-normalizes each dependency's
+  distribution name before checking exact forbidden names. Extras, versions,
+  environment markers, and direct references are covered; the four exact
+  scientific distributions remain rejected while `pandapower-domain-pack` is
+  explicitly allowed.
+- Focused verification:
+  - scientific dependency contract cases: 12 passed;
+  - full repository boundary contract: 18 passed;
+  - original simulator client: 4 passed;
+  - package extraction baseline and pandapower profile: 6 passed;
+  - simulator client/locator Pyright: 0 errors, 0 warnings;
+  - `make check-package-boundaries`: passed;
+  - Ruff and `git diff --check`: passed.
+- The first isolated scripted-report run failed transiently while concurrent
+  trajectory changes temporarily removed `grid_agent.trajectory.answers` from
+  the shared worktree; after those files were restored, the isolated recheck
+  passed (1 passed). The subsequent full `make test-agent` run reached 620
+  passed and 12 failures in the still-changing trajectory implementation
+  (schema and artifact-registry paths); no trajectory files were modified or
+  staged by this fix.

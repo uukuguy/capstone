@@ -4,9 +4,68 @@ import subprocess
 import tomllib
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[4]
 TEXT_SUFFIXES = {".py", ".toml", ".json", ".mjs", ".md"}
 PRUNED_DIR_NAMES = {".venv", "node_modules", ".pytest_cache", "__pycache__"}
+FORBIDDEN_SCIENTIFIC_DISTRIBUTIONS = frozenset(
+    {"pandapower", "numpy", "pandas", "scipy"}
+)
+DEPENDENCY_NAME_PATTERN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _dependency_distribution_name(dependency: str) -> str:
+    """Return the normalized distribution name from a PEP 508 requirement."""
+    match = DEPENDENCY_NAME_PATTERN.match(dependency)
+    if match is None:
+        raise ValueError(f"dependency has no distribution name: {dependency!r}")
+    return re.sub(r"[-_.]+", "-", match.group(1)).lower()
+
+
+def _scientific_dependency_violations(
+    dependencies: list[str],
+) -> tuple[str, ...]:
+    names = {_dependency_distribution_name(dependency) for dependency in dependencies}
+    return tuple(sorted(names & FORBIDDEN_SCIENTIFIC_DISTRIBUTIONS))
+
+
+@pytest.mark.parametrize(
+    ("dependency", "expected"),
+    [
+        ("pandapower-domain-pack==0.1.0", "pandapower-domain-pack"),
+        ("PANDAPOWER[plotting]>=3.4", "pandapower"),
+        ("numpy ~= 2.0", "numpy"),
+        ("pandas!=2.0; python_version >= '3.12'", "pandas"),
+        ("scipy @ https://example.invalid/scipy.whl", "scipy"),
+        ("grid_agent @ file:///tmp/grid-agent", "grid-agent"),
+    ],
+)
+def test_dependency_distribution_name_is_normalized(
+    dependency: str, expected: str
+) -> None:
+    assert _dependency_distribution_name(dependency) == expected
+
+
+@pytest.mark.parametrize(
+    ("dependency", "expected"),
+    [
+        ("pandapower", "pandapower"),
+        ("numpy[testing]>=2", "numpy"),
+        ("pandas!=2.0; python_version >= '3.12'", "pandas"),
+        ("SCIPY @ https://example.invalid/scipy.whl", "scipy"),
+    ],
+)
+def test_scientific_dependency_contract_rejects_exact_distribution(
+    dependency: str, expected: str
+) -> None:
+    assert _scientific_dependency_violations([dependency]) == (expected,)
+
+
+def test_scientific_dependency_contract_allows_domain_pack() -> None:
+    assert _scientific_dependency_violations(
+        ["pandapower-domain-pack==0.1.0"]
+    ) == ()
 
 
 def iter_first_party_files() -> list[Path]:
@@ -27,9 +86,10 @@ def iter_first_party_files() -> list[Path]:
 
 def test_agent_has_no_scientific_simulator_dependencies() -> None:
     data = tomllib.loads((ROOT / "packages/grid-agent/pyproject.toml").read_text())
-    dependencies = " ".join(data["project"]["dependencies"]).lower()
-    for forbidden in ("pandapower", "numpy", "pandas", "scipy"):
-        assert forbidden not in dependencies
+    dependencies = data["project"]["dependencies"]
+    names = {_dependency_distribution_name(item) for item in dependencies}
+    assert "pandapower-domain-pack" in names
+    assert _scientific_dependency_violations(dependencies) == ()
 
 
 def test_first_party_scan_prunes_generated_directories() -> None:
