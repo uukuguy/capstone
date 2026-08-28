@@ -1,0 +1,44 @@
+{
+  "advisories": [
+    "GHSA-3jxr-9vmj-r5cp",
+    "GHSA-mh99-v99m-4gvg",
+    "GHSA-rgw5-rvv9-x895",
+    "GHSA-j3f2-48v5-ccww",
+    "GHSA-8xcm-r25x-g524",
+    "GHSA-4cwx-7wf7-3272",
+    "GHSA-m8rv-5g2x-5cg5",
+    "GHSA-jr45-8vmc-qm54",
+    "GHSA-v3r7-h72x-cjcm"
+  ],
+  "affected_runtime": {
+    "package": "@earendil-works/pi-coding-agent",
+    "version": "0.80.6"
+  },
+  "attack_surface": [
+    "Provider HTTP responses are parsed by undici in the pinned Pi process, including shared-cache directives and retry handling.",
+    "Model- or provider-derived text can reach brace expansion and protobuf parsing paths in the Pi dependency tree, creating process availability risk.",
+    "The accepted High findings include cross-user information disclosure and parse-time crash; this exception does not claim those vulnerabilities are fixed."
+  ],
+  "exception_id": "PI-SEC-2026-001",
+  "expires_on": "2026-09-30",
+  "issued_on": "2026-08-28",
+  "mitigations": [
+    "Pi runs as a project-scoped subprocess with bounded capability subprocess time and output limits; simulator children receive no provider credentials.",
+    "The model receives only allowlisted project tools, and grid-agent persists no provider payload bodies or credentials in evidence.",
+    "Operators should use trusted providers and avoid multi-user shared HTTP cache infrastructure until the target Pi upgrade is validated.",
+    "The deterministic exception gate fails on expiry, pin drift, vulnerable lock-version drift, or a worsened declared severity count."
+  ],
+  "owner": "grid-agent maintainers",
+  "risk_counts": {
+    "high": 2,
+    "moderate": 2
+  },
+  "schema_version": "pi-runtime-security-risk-exception/1.0",
+  "target_pi_upgrade": ">=0.84.3",
+  "upgrade_trigger": "Upgrade to the first Pi release at or above 0.84.3 that passes canonical request capture, extension registration, stdout envelope, offline E2E, and package artifact gates; do not renew this exception instead of executing that validation.",
+  "vulnerable_lock_versions": {
+    "brace-expansion": "5.0.6",
+    "protobufjs": "7.6.4",
+    "undici": "8.5.0"
+  }
+}

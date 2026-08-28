@@ -64,6 +64,8 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 
 `runs/` 是操作者可检查的运行记录，已被 Git 忽略。`.grid-agent/` 只存放项目内部 Pi OAuth、托管 Pi runtime、会话状态等内部状态，同样被 Git 忽略。版本化运行配置位于 `configs/runtime/`，例如 `configs/runtime/pi-runtime.lock.json`。
 
+当前 Pi 0.80.6 依赖树仍有 2 个 High 和 2 个 Moderate 已知漏洞；它们没有被修复，也不能表述为已消失。临时受理记录是 [`configs/runtime/pi-security-risk-exception-v1.json`](../configs/runtime/pi-security-risk-exception-v1.json)，绝对到期日为 2026-09-30，列出了 provider HTTP/解析攻击面、缓解措施、责任人和升级触发条件。`make check-runtime-risk` 会确定性检查 Pi pin、两个 npm lock 中的脆弱版本、基线计数和到期日；任一漂移或到期都使 gate 失败。目标仍是验证并升级到安全的 Pi >=0.84.3，而不是续期来替代升级。
+
 ## 连续分析报告
 
 需要按顺序执行 TASK 指令集并生成可复核报告时，使用 `make analysis`：

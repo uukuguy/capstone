@@ -181,6 +181,8 @@ CLI selects pandapower_domain.build_pandapower_profile()
 
 Pi 侧同样分成两个 npm 包：`@capability-agent/pi-tools` 提供描述符驱动的通用能力请求传输、运行时身份校验、相关性检查和模型请求捕获；`@grid-static-analysis/pi-grid-tools` 是当前 grid 产品的兼容包装，继续发布既有 `grid_*` 工具和 `grid_guide_open`。
 
+Pi 的发行边界目前固定在 0.80.6，并带有一个明确有期限的安全风险例外：[`configs/runtime/pi-security-risk-exception-v1.json`](../../configs/runtime/pi-security-risk-exception-v1.json)。该例外记录 2 个 High、2 个 Moderate 风险，包括 provider HTTP 响应处理中的信息泄露/崩溃面和依赖解析 DoS；隔离 provider secret、限制 capability 子进程资源以及只暴露 allowlisted 工具只能降低攻击面，不能修复依赖漏洞。确定性 gate 禁止 pin/lock 风险基线变差，并在 2026-09-30 后 fail closed；架构目标是完成 Pi >=0.84.3 的安全升级与兼容性复验。
+
 Workstream B 的物理包抽取已完成；Workstreams C-E 尚未实现。因此当前系统仍是 pandapower 静态分析应用，不是业务无关的多领域成品框架。模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生。
 
 ## 5. 基于注册工具的组合推理

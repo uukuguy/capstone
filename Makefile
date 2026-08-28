@@ -93,14 +93,17 @@ test-agent:
 test-simulator:
 	uv run --project packages/grid-simulator pytest packages/grid-simulator/tests -q
 
-test-tools:
+test-tools: check-runtime-risk
 	npm run check --prefix packages/pi-grid-tools
 	npm test --prefix packages/pi-grid-tools
+
+check-runtime-risk:
+	python3 tools/check_runtime_risk_exception.py
 
 test-e2e:
 	uv run --project packages/grid-agent pytest packages/grid-agent/tests/e2e -q
 
-validate:
+validate: check-runtime-risk
 	uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json
 	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
 	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
