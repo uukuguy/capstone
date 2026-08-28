@@ -484,3 +484,37 @@ The following append-only entries were recovered before closing the fully merged
 - 19:13 以根 dirfd 安全创建 lease 目录，拒绝父叶 symlink 与交换 [e417835]
 - 19:24 以 e417835 现场重跑九门，第三轮 B-H005 100 分零阻塞 [20260828T111922Z]
 - 19:28 持久化第三轮终审报告与恢复边界，供集成复核 [65a2cd9]
+
+## 2026-08-27
+
+_Recovered pre-merge mainline entries._
+
+- 20:59 固化通用领域智能体框架渐进升级设计，锁定零行为变化首阶段 [ddffe09]
+- 21:51 固化 Workstream A 原子化 TDD 计划，确保通用化升级可控执行 [3111284]
+- 23:56 锁定领域装配外部契约测试，为零行为变化重构建立基线 [f72113b]
+
+## 2026-08-28 — recovered pre-merge mainline entries
+
+- 00:01 建立中立领域协议与 Profile 值对象，为业务适配提供稳定接口 [e11486b]
+- 00:15 注入能力合同源与 pandapower Profile，解耦领域运行时资源 [700a409]
+- 00:29 通过 Profile 注入执行器组装领域，隔离 provider 与 Pi 运行时 [22ec280]
+- 00:39 通过领域适配器路由投影与证据，移除具体编排依赖 [8fc4abd]
+- 00:42 Task 5 审查否决独立提交边界，CLI 构造器待 Task 6 统一修复
+- 01:02 CLI 统一经领域 Profile 组装，恢复连续投影构造与 authority 路由 [65faa99]
+- 01:16 测试内 inventory 领域通过中立装配缝，证明非 pandapower 领域可实例化 [2745dc8]
+- 01:26 AST 边界测试归一化 ImportFrom 别名，关闭等价领域导入漏检 [4f1908e]
+- 01:42 文档固化领域 runtime Profile 边界，完整门禁 617/164/29、E2E 17、矩阵 24/24 [7bef2c2]
+- 02:07 修复中立协议类型与 UTF-8 错误封装，门禁 618/164/29、E2E 17、矩阵 24/24 [f8d0c7e]
+- 02:11 整分支终审复核清零，确认中立类型缝与错误边界可合并
+- 02:15 主控 fresh 验证通过：Pyright 0、618/164/29、E2E 17、矩阵 24/24
+- 02:18 pull 因状态改动拒绝；fetch 确认 origin/main 未领先
+- 02:23 main 快进至 f8d0c7e，合并后门禁 618/164/29、E2E 17、矩阵 24/24
+- 02:24 移除 domain-kernel-seams worktree 与 feature 分支，Workstream A 集成闭环
+- 01:16 证明测试内 inventory 域可经公共 Profile 装配，防止 pandapower 回耦 [2745dc8]
+- 09:46 固化 Workstream B 三分发包提取设计，锁定无环依赖与兼容门禁 [02ea2bd]
+- 09:53 固化 Workstream B 九任务 TDD 计划，确保三包提取可验证执行 [9a0c8ec]
+- 19:36 第三轮有限终审通过，确认 Workstream B 无 Critical/Important 阻塞
+- 19:42 主控 fresh 验证通过：关键回归 95、climb 41、Agent 688、Simulator 165、Pi 43、E2E 17、矩阵 24/24
+- 19:43 确认 origin/main 未领先，main 快进集成 Workstream B 至 448c407
+- 19:50 合并态重跑制品安装、doctor、688/165/43、E2E 17 与 24/24 validate，全部通过
+- 19:51 回收并验证主线状态日志，移除 Workstream B worktree 与 feature 分支

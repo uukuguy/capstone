@@ -6,7 +6,7 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream B package extraction is implemented, all three final-review rounds are closed, and the pandapower application is locally release-ready at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b`
+- Active work package: Workstream B package extraction is integrated on `main` at `448c407`; all three final-review rounds are closed, and the pandapower application is locally release-ready at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b`
 - Deferred work packages: Workstreams C-E remain future work for a non-grid reference domain, enterprise action governance, and multi-domain composition
 
 ## Current Architecture
@@ -32,6 +32,7 @@
 - Workbench: the loopback read-only trajectory API and Business/Agent/Context/Evidence workbench consume deterministic projections without mutating runs.
 - Verification: unit, package-boundary, install-mode package artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
 - Release evidence: the final B-H005 run `runs/climb/20260828T111922Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b` and tree digest `9ff57149...`; all nine outputs are `closure-passed` and linked by closure digest `5049c057...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
+- Mainline integration: `main` was fast-forwarded to `448c407`, then reverified with package boundaries and installed-artifact smoke, 688 grid-agent tests, 165 simulator tests, 43 grid Pi tests, 17 E2E tests, and the 24/24 validation matrix. The temporary Workstream B worktree and feature branch were removed.
 
 ## Open Problems (theme-level)
 

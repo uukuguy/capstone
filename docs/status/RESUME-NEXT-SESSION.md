@@ -1,13 +1,13 @@
 # Workstream B Final Handoff
 
-> Updated: 2026-08-28 19:24 CST. Workstream B third-round final-review closure is complete.
+> Updated: 2026-08-28 19:51 CST. Workstream B is integrated and the temporary branch/worktree are removed.
 
 ## TL;DR
 
-- Active branch: `feature/workstream-b-package-extraction` in its dedicated worktree.
-- Workstream B Tasks 0–9, all original findings I-1 through I-11/M-1 through M-2, the five Important/one Minor second-round findings, and both third-round regressions are implemented and locally verified in the dedicated worktree.
+- Active branch: `main` at `448c407`; local `main` remains ahead of `origin/main`, and no push was requested.
+- Workstream B Tasks 0–9, all original findings I-1 through I-11/M-1 through M-2, the five Important/one Minor second-round findings, and both third-round regressions are implemented, independently approved, merged, and reverified on `main`.
 - Climb B-H001 through B-H005 are confirmed; final B-H005 cycle 9 scored 100/100 with no release blockers and phase `complete` by live fixed-policy gate execution.
-- The next authorized step is integration review and mainline closure, not provider validation.
+- The temporary Workstream B worktree and feature branch have been removed; no integration cleanup remains.
 
 ## Durable evidence
 
@@ -18,12 +18,12 @@
 - Final climb evidence: `runs/climb/20260828T111922Z-b-h005/manifest.json` links an immutable live closure that reran kernel/domain/Pi/app/dist, `make doctor`, `make test`, `make test-e2e`, and focused `make validate` at the same clean revision and policy. Score is 100/100 with `release_ready=true`, no blockers, and closure digest `5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247`.
 - Final fix report: `.superpowers/sdd/workstream-b-final-fix-report.md`.
 - `packages/capability-agent-kernel/uv.lock` is absent; the review/test byproduct was not retained.
+- Post-merge mainline verification passed package boundaries and six-artifact installation, `make doctor`, `make test` (688 agent, 165 simulator, 43 grid Pi), `make test-e2e` (17), and `make validate` (24/24).
 
 ## Immediate next actions
 
-1. Review the final Workstream B task/state commits.
-2. Merge or otherwise integrate the feature branch into `main` under controller direction.
-3. Reconcile user-owned state edits and remove the feature worktree/branch only after integration is complete.
+1. Select the next approved framework workstream; Workstreams C–E remain deferred.
+2. Before 2026-09-30, validate and adopt a secure Pi dependency upgrade or renew the bounded risk decision with explicit review.
 
 ## Boundaries
 
