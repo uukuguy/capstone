@@ -24,6 +24,7 @@ from grid_agent.domain import (
 )
 from grid_agent.domains import build_pandapower_profile
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 
 
 INPUT = {
@@ -386,7 +387,10 @@ def test_projector_keeps_compatibility_observation_disjoint_from_native_sidecar(
     turn_id = "analysis-test-t001"
     call_id = "call-1"
     context_harness.start_turn(turn_id, ordinal=1)
-    artifacts = ImmutableArtifactRegistry(context_harness.workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        context_harness.workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     native = artifacts.write_json(
         "tool-result",
         f"{turn_id}:{call_id}",

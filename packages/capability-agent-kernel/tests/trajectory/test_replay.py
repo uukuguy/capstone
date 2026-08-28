@@ -69,4 +69,3 @@ def test_replay_support_models_are_validated() -> None:
     assert context.after_revision is None
     assert source.kind == "observed"
     assert coordinate.sequence == 1
-

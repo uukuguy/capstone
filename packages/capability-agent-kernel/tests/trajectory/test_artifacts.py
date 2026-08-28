@@ -8,8 +8,29 @@ import pytest
 import capability_agent.trajectory.artifacts as artifact_module
 from capability_agent.trajectory.artifacts import (
     ArtifactIntegrityError,
+    ArtifactLayout,
     ImmutableArtifactRegistry,
+    NeutralArtifactPathPolicy,
 )
+
+
+def test_neutral_inventory_policy_can_be_injected_without_domain_layouts(
+    tmp_path: Path,
+) -> None:
+    policy = NeutralArtifactPathPolicy(
+        layouts={
+            "inventory-record": ArtifactLayout(
+                directory="inventory/records/{identity}",
+                filename="document.json",
+            )
+        }
+    )
+    registry = ImmutableArtifactRegistry(tmp_path / "run", path_policy=policy)
+
+    pointer = registry.write_json("inventory-record", "asset-1", {"name": "Asset 1"})
+
+    assert pointer.relative_path == "inventory/records/asset-1/document.json"
+    assert registry.verify(pointer).exists()
 
 
 def test_registry_writes_once_and_verifies_digest(tmp_path: Path) -> None:
@@ -120,12 +141,12 @@ def test_registry_registers_exact_preexisting_bytes(tmp_path: Path) -> None:
         (
             "result",
             "result:sha256:" + "a" * 64,
-            "evidence/results/powerflow-" + "a" * 64 + ".json",
+            "results/result-" + "a" * 64 + ".json",
         ),
         (
             "evidence",
             "evidence:sha256:" + "b" * 64,
-            "evidence/network-facts/network-fact-" + "b" * 64 + ".json",
+            "evidence/evidence-" + "b" * 64 + ".json",
         ),
         (
             "tool-result",
@@ -162,12 +183,12 @@ def test_registry_registers_current_run_artifact_kinds_without_rewriting(
         (
             "result",
             "result:sha256:" + "a" * 64,
-            "evidence/analysis/powerflow-" + "a" * 64 + ".json",
+            "evidence/result-" + "a" * 64 + ".json",
         ),
         (
             "evidence",
             "evidence:sha256:" + "b" * 64,
-            "evidence/results/network-fact-" + "b" * 64 + ".json",
+            "results/evidence-" + "b" * 64 + ".json",
         ),
         (
             "tool-result",
@@ -195,13 +216,13 @@ def test_registry_rejects_new_artifact_kinds_outside_registered_layout(
         (
             "result",
             "result:sha256:" + "a" * 64,
-            "evidence/results/powerflow-" + "a" * 64 + ".json",
-            "evidence",
+            "results/result-" + "a" * 64 + ".json",
+            "results",
         ),
         (
             "evidence",
             "evidence:sha256:" + "b" * 64,
-            "evidence/network-facts/network-fact-" + "b" * 64 + ".json",
+            "evidence/evidence-" + "b" * 64 + ".json",
             "evidence",
         ),
         (

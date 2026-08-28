@@ -13,6 +13,7 @@ from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCat
 from grid_agent.trajectory.api.cursor import CursorCodec, CursorState
 from grid_agent.trajectory.api.models import RunSummary
 from grid_agent.analysis.integrity import _sha256_canonical_json
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.events import EventDraft, EventRefs, EventSource, RunScope
 from grid_agent.trajectory.projection_models import (
@@ -314,7 +315,10 @@ def _canonical_request_document() -> dict[str, Any]:
 def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, dict[str, str]]:
     run_root = runs_root / "analysis-native-artifacts"
     run_root.mkdir(parents=True)
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = ImmutableArtifactRegistry(
+        run_root,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         run_root / "events/run-events.jsonl",
         "analysis-native-artifacts",
@@ -526,7 +530,10 @@ def create_native_catalog_app(tmp_path: Path) -> tuple[FastAPI, dict[str, str]]:
 def write_native_run_with_historical_v1_request(runs_root: Path) -> tuple[Path, str]:
     run_root = runs_root / "analysis-historical-v1-request"
     run_root.mkdir(parents=True)
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = ImmutableArtifactRegistry(
+        run_root,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         run_root / "events/run-events.jsonl",
         "analysis-historical-v1-request",

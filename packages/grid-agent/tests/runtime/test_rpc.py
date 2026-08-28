@@ -16,6 +16,7 @@ from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 from grid_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from grid_agent.runtime.environment import PiLaunch
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.reader import RunEventReader
@@ -594,7 +595,10 @@ def test_rpc_polls_model_request_commits_while_pi_is_blocked(
         raw_tool_call_id.encode("utf-8")
     ).hexdigest()
     workspace = AnalysisWorkspace.create(tmp_path / "native", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,
@@ -696,7 +700,10 @@ def test_rpc_polls_model_request_commits_while_pi_is_blocked(
 
 def test_rpc_capture_failure_prevents_provider_continuation(tmp_path: Path) -> None:
     workspace = AnalysisWorkspace.create(tmp_path / "native", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,

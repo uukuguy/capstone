@@ -7,31 +7,148 @@ import os
 import re
 import secrets
 import stat
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
-from typing import Iterator, NoReturn
+from typing import NoReturn, Protocol
 
 from capability_agent.trajectory.canonical import canonical_json_bytes
 
 
 IDENTITY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
-KIND_LAYOUT: dict[str, tuple[str, str]] = {
-    "request-input": ("requests/{identity}", "input.json"),
-    "model-response": ("requests/{identity}", "response.json"),
-    "answer": ("turns/{identity}", "answer.json"),
-    "context-view": ("context/views/{identity}", "view.json"),
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactLayout:
+    """One identity-based artifact layout supplied by a path policy."""
+
+    directory: str
+    filename: str
+    identity_pattern: re.Pattern[str] = IDENTITY_PATTERN
+
+
+class ArtifactPathPolicy(Protocol):
+    """Resolve artifact identities to safe, domain-owned paths."""
+
+    def candidate_paths(
+        self, run_root: Path, kind: str, identity: str
+    ) -> tuple[Path, ...]: ...
+
+    def identity_for_path(self, kind: str, relative_path: PurePosixPath) -> str: ...
+
+
+_NEUTRAL_LAYOUTS: dict[str, ArtifactLayout] = {
+    "request-input": ArtifactLayout("requests/{identity}", "input.json"),
+    "model-response": ArtifactLayout("requests/{identity}", "response.json"),
+    "answer": ArtifactLayout("turns/{identity}", "answer.json"),
+    "context-view": ArtifactLayout("context/views/{identity}", "view.json"),
 }
-_RESULT_IDENTITY_PATTERN = re.compile(r"^result:sha256:([0-9a-f]{64})$")
-_EVIDENCE_IDENTITY_PATTERN = re.compile(r"^evidence:sha256:([0-9a-f]{64})$")
-_RESULT_PREFIXES = ("result", "powerflow", "contingency", "contingency-scenario")
-_EVIDENCE_LAYOUTS = (
-    ("network-facts", "network-fact"),
-    ("analysis", "analysis-evidence"),
-)
+_REFERENCE_LAYOUTS: dict[str, tuple[str, str, str]] = {
+    "result": ("result:sha256:", "results", "result"),
+    "evidence": ("evidence:sha256:", "evidence", "evidence"),
+}
 _DIRECTORY_OPEN_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 _FILE_OPEN_FLAGS = os.O_RDONLY | os.O_NOFOLLOW
+
+
+class NeutralArtifactPathPolicy:
+    """Default layouts for lifecycle artifacts without business-domain rules."""
+
+    def __init__(self, *, layouts: Mapping[str, ArtifactLayout] | None = None) -> None:
+        self.layouts = dict(_NEUTRAL_LAYOUTS if layouts is None else layouts)
+
+    def candidate_paths(
+        self, run_root: Path, kind: str, identity: str
+    ) -> tuple[Path, ...]:
+        if not isinstance(kind, str):
+            raise ArtifactIntegrityError("artifact kind is not registered")
+        if not isinstance(identity, str):
+            raise ArtifactIntegrityError("artifact identity is invalid")
+        layout = self.layouts.get(kind)
+        if layout is not None:
+            if not layout.identity_pattern.fullmatch(identity):
+                raise ArtifactIntegrityError("artifact identity is invalid")
+            return (
+                run_root / layout.directory.format(identity=identity) / layout.filename,
+            )
+        reference_layout = _REFERENCE_LAYOUTS.get(kind)
+        if reference_layout is not None:
+            prefix, directory, filename_prefix = reference_layout
+            if not re.fullmatch(rf"{re.escape(prefix)}[0-9a-f]{{64}}", identity):
+                raise ArtifactIntegrityError("artifact identity is invalid")
+            digest = identity.removeprefix(prefix)
+            return (run_root / directory / f"{filename_prefix}-{digest}.json",)
+        if kind == "tool-result":
+            if not IDENTITY_PATTERN.fullmatch(identity) or ":" not in identity:
+                raise ArtifactIntegrityError("artifact identity is invalid")
+            turn_id, tool_call_id = identity.rsplit(":", 1)
+            if not IDENTITY_PATTERN.fullmatch(turn_id) or not IDENTITY_PATTERN.fullmatch(
+                tool_call_id
+            ):
+                raise ArtifactIntegrityError("artifact identity is invalid")
+            return (run_root / "tool-results" / turn_id / f"{tool_call_id}.json",)
+        raise ArtifactIntegrityError("artifact kind is not registered")
+
+    def identity_for_path(self, kind: str, relative_path: PurePosixPath) -> str:
+        if not isinstance(kind, str) or not isinstance(relative_path, PurePosixPath):
+            raise ArtifactIntegrityError("artifact pointer has an invalid kind or path")
+        layout = self.layouts.get(kind)
+        if layout is not None:
+            return _identity_for_layout(layout, relative_path)
+        reference_layout = _REFERENCE_LAYOUTS.get(kind)
+        if reference_layout is not None:
+            prefix, directory, filename_prefix = reference_layout
+            if relative_path.is_absolute() or len(relative_path.parts) != 2:
+                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+            actual_directory, filename = relative_path.parts
+            match = re.fullmatch(
+                rf"{re.escape(filename_prefix)}-([0-9a-f]{{64}})\.json", filename
+            )
+            if actual_directory != directory or match is None:
+                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+            return f"{prefix}{match.group(1)}"
+        if kind == "tool-result":
+            if relative_path.is_absolute() or len(relative_path.parts) != 3:
+                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+            root, turn_id, filename = relative_path.parts
+            if root != "tool-results" or not filename.endswith(".json"):
+                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+            tool_call_id = filename.removesuffix(".json")
+            identity = f"{turn_id}:{tool_call_id}"
+            if (
+                not IDENTITY_PATTERN.fullmatch(identity)
+                or not IDENTITY_PATTERN.fullmatch(turn_id)
+                or not IDENTITY_PATTERN.fullmatch(tool_call_id)
+            ):
+                raise ArtifactIntegrityError("artifact pointer has an invalid identity")
+            return identity
+        raise ArtifactIntegrityError("artifact pointer has an invalid kind or path")
+
+
+def _identity_for_layout(layout: ArtifactLayout, relative_path: PurePosixPath) -> str:
+    prefix, marker, suffix = layout.directory.partition("{identity}")
+    if not marker:
+        raise ArtifactIntegrityError("artifact kind has no identity layout")
+    expected_prefix = PurePosixPath(prefix).parts
+    expected_suffix = PurePosixPath(suffix).parts
+    parts = relative_path.parts
+    expected_length = len(expected_prefix) + 1 + len(expected_suffix) + 1
+    if (
+        relative_path.is_absolute()
+        or len(parts) != expected_length
+        or parts[: len(expected_prefix)] != expected_prefix
+        or parts[-1] != layout.filename
+    ):
+        raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+    identity_index = len(expected_prefix)
+    if parts[identity_index + 1 : -1] != expected_suffix:
+        raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+    identity = parts[identity_index]
+    if not layout.identity_pattern.fullmatch(identity):
+        raise ArtifactIntegrityError("artifact pointer has an invalid identity")
+    return identity
 
 
 class ArtifactIntegrityError(RuntimeError):
@@ -52,8 +169,14 @@ class ArtifactPointer:
 class ImmutableArtifactRegistry:
     """Write and admit only safe, immutable artifacts rooted in one run."""
 
-    def __init__(self, run_root: Path) -> None:
+    def __init__(
+        self,
+        run_root: Path,
+        *,
+        path_policy: ArtifactPathPolicy | None = None,
+    ) -> None:
         self.run_root = Path(os.path.abspath(run_root))
+        self.path_policy = path_policy or NeutralArtifactPathPolicy()
         self._registered_by_ref: dict[str, ArtifactPointer] = {}
         _validate_directory_prefix(self.run_root)
 
@@ -157,45 +280,13 @@ class ImmutableArtifactRegistry:
         return candidates[0]
 
     def _candidate_paths(self, kind: str, identity: str) -> tuple[Path, ...]:
-        if not isinstance(kind, str):
-            raise ArtifactIntegrityError("artifact kind is not registered")
-        if not isinstance(identity, str):
-            raise ArtifactIntegrityError("artifact identity is invalid")
-        if kind in KIND_LAYOUT:
-            if not IDENTITY_PATTERN.fullmatch(identity):
-                raise ArtifactIntegrityError("artifact identity is invalid")
-            directory, filename = KIND_LAYOUT[kind]
-            return (self.run_root / directory.format(identity=identity) / filename,)
-        if kind == "result":
-            match = _RESULT_IDENTITY_PATTERN.fullmatch(identity)
-            if match is None:
-                raise ArtifactIntegrityError("artifact identity is invalid")
-            digest = match.group(1)
-            return tuple(
-                self.run_root / "evidence" / "results" / f"{prefix}-{digest}.json"
-                for prefix in _RESULT_PREFIXES
-            )
-        if kind == "evidence":
-            match = _EVIDENCE_IDENTITY_PATTERN.fullmatch(identity)
-            if match is None:
-                raise ArtifactIntegrityError("artifact identity is invalid")
-            digest = match.group(1)
-            return tuple(
-                self.run_root / "evidence" / directory / f"{prefix}-{digest}.json"
-                for directory, prefix in _EVIDENCE_LAYOUTS
-            )
-        if kind == "tool-result":
-            if not IDENTITY_PATTERN.fullmatch(identity) or ":" not in identity:
-                raise ArtifactIntegrityError("artifact identity is invalid")
-            turn_id, tool_call_id = identity.rsplit(":", 1)
-            if not IDENTITY_PATTERN.fullmatch(turn_id) or not IDENTITY_PATTERN.fullmatch(
-                tool_call_id
-            ):
-                raise ArtifactIntegrityError("artifact identity is invalid")
-            return (
-                self.run_root / "tool-results" / turn_id / f"{tool_call_id}.json",
-            )
-        raise ArtifactIntegrityError("artifact kind is not registered")
+        candidates = tuple(self.path_policy.candidate_paths(self.run_root, kind, identity))
+        for candidate in candidates:
+            try:
+                candidate.relative_to(self.run_root)
+            except ValueError as error:
+                raise ArtifactIntegrityError("artifact path escapes the run root") from error
+        return candidates
 
     def _pointer_for(
         self, kind: str, identity: str, path: Path, value: bytes
@@ -213,73 +304,11 @@ class ImmutableArtifactRegistry:
         return pointer
 
     def _identity_from_pointer(self, pointer: ArtifactPointer) -> str:
-        if pointer.kind == "result":
-            relative = PurePosixPath(pointer.relative_path)
-            if relative.is_absolute() or len(relative.parts) != 3:
-                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-            root, directory, filename = relative.parts
-            match = re.fullmatch(
-                rf"(?:{'|'.join(_RESULT_PREFIXES)})-([0-9a-f]{{64}})\.json",
-                filename,
-            )
-            if root != "evidence" or directory != "results" or match is None:
-                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-            return f"result:sha256:{match.group(1)}"
-        if pointer.kind == "evidence":
-            relative = PurePosixPath(pointer.relative_path)
-            if relative.is_absolute() or len(relative.parts) != 3:
-                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-            root, directory, filename = relative.parts
-            for expected_directory, prefix in _EVIDENCE_LAYOUTS:
-                match = re.fullmatch(rf"{prefix}-([0-9a-f]{{64}})\.json", filename)
-                if root == "evidence" and directory == expected_directory and match:
-                    return f"evidence:sha256:{match.group(1)}"
-            raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-        if pointer.kind == "tool-result":
-            relative = PurePosixPath(pointer.relative_path)
-            if relative.is_absolute() or len(relative.parts) != 3:
-                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-            root, turn_id, filename = relative.parts
-            if root != "tool-results" or not filename.endswith(".json"):
-                raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-            tool_call_id = filename.removesuffix(".json")
-            identity = f"{turn_id}:{tool_call_id}"
-            if (
-                not IDENTITY_PATTERN.fullmatch(identity)
-                or not IDENTITY_PATTERN.fullmatch(turn_id)
-                or not IDENTITY_PATTERN.fullmatch(tool_call_id)
-            ):
-                raise ArtifactIntegrityError("artifact pointer has an invalid identity")
-            return identity
-        if (
-            not isinstance(pointer.kind, str)
-            or pointer.kind not in KIND_LAYOUT
-            or not isinstance(pointer.relative_path, str)
-        ):
+        if not isinstance(pointer.kind, str) or not isinstance(pointer.relative_path, str):
             raise ArtifactIntegrityError("artifact pointer has an invalid kind or path")
-        directory, filename = KIND_LAYOUT[pointer.kind]
-        prefix, marker, suffix = directory.partition("{identity}")
-        if not marker:
-            raise ArtifactIntegrityError("artifact kind has no identity layout")
-        relative = PurePosixPath(pointer.relative_path)
-        expected_prefix = PurePosixPath(prefix).parts
-        expected_suffix = PurePosixPath(suffix).parts
-        parts = relative.parts
-        expected_length = len(expected_prefix) + 1 + len(expected_suffix) + 1
-        if (
-            relative.is_absolute()
-            or len(parts) != expected_length
-            or parts[: len(expected_prefix)] != expected_prefix
-            or parts[-1] != filename
-        ):
-            raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-        identity_index = len(expected_prefix)
-        if parts[identity_index + 1 : -1] != expected_suffix:
-            raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
-        identity = parts[identity_index]
-        if not IDENTITY_PATTERN.fullmatch(identity):
-            raise ArtifactIntegrityError("artifact pointer has an invalid identity")
-        return identity
+        return self.path_policy.identity_for_path(
+            pointer.kind, PurePosixPath(pointer.relative_path)
+        )
 
     @contextmanager
     def _open_parent(
@@ -512,4 +541,11 @@ def _raise_directory_error(error: OSError) -> NoReturn:
     raise ArtifactIntegrityError("artifact directory could not be opened safely") from error
 
 
-__all__ = ["ArtifactIntegrityError", "ArtifactPointer", "ImmutableArtifactRegistry"]
+__all__ = [
+    "ArtifactIntegrityError",
+    "ArtifactLayout",
+    "ArtifactPathPolicy",
+    "ArtifactPointer",
+    "ImmutableArtifactRegistry",
+    "NeutralArtifactPathPolicy",
+]

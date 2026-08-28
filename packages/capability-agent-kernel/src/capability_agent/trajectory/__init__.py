@@ -24,4 +24,3 @@ __all__ = [
     "canonical_json_bytes",
     "sha256_ref",
 ]
-

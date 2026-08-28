@@ -1,6 +1,9 @@
 """Compatibility exports for the neutral trajectory event protocol."""
 
 from capability_agent.trajectory.events import (
+    DEFAULT_EVENT_PRODUCER,
+    LEGACY_EVENT_PRODUCER,
+    LEGACY_EVENT_SCHEMA_VERSION,
     ZERO_PREDECESSOR_HASH,
     AnalysisTerminalPayload,
     AnswerPayload,
@@ -31,6 +34,9 @@ from capability_agent.trajectory.events import (
 
 __all__ = [
     "ZERO_PREDECESSOR_HASH",
+    "DEFAULT_EVENT_PRODUCER",
+    "LEGACY_EVENT_PRODUCER",
+    "LEGACY_EVENT_SCHEMA_VERSION",
     "StrictFrozenModel",
     "EmptyPayload",
     "AnalysisTerminalPayload",

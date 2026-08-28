@@ -15,6 +15,7 @@ from grid_agent.trajectory.context_projection import project_context
 from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
 from grid_agent.analysis.integrity import ContentReferenceVerifier
 from grid_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.materialize import ProjectionMaterializer
 from grid_agent.trajectory.projection_models import ProjectedRun, ProjectionDiagnostic
 from grid_agent.trajectory.reader import RunEventReader
@@ -110,7 +111,10 @@ class _NativeArtifacts:
         self, kind: str, identity: str, path: Path
     ) -> ArtifactPointer | None:
         try:
-            return ImmutableArtifactRegistry(self.run_root).register_existing(kind, identity, path)
+            return ImmutableArtifactRegistry(
+                self.run_root,
+                path_policy=GridArtifactPathPolicy(),
+            ).register_existing(kind, identity, path)
         except (ArtifactIntegrityError, OSError):
             return None
 

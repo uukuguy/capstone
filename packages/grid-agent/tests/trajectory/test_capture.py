@@ -8,6 +8,7 @@ import pytest
 
 from grid_agent.analysis.integrity import _sha256_canonical_json
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.reader import RunEventReader
@@ -28,7 +29,10 @@ def native_capture_fixture(
     tmp_path: Path,
 ) -> tuple[RunEventRecorder, NativeCaptureAdapter, AnalysisWorkspace]:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,
@@ -196,7 +200,10 @@ def test_model_request_commit_ack_uses_verified_declared_digest_after_event_appe
     tmp_path: Path,
 ) -> None:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     request_id = "analysis-test-t001-r001"
     observed_ack_visibility: list[bool] = []
 

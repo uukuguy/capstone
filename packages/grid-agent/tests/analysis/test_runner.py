@@ -16,6 +16,7 @@ from grid_agent.analysis.turns import ActiveTurnHandle, FinalizedTurn, TurnContr
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.runtime.rpc import PiProtocolError
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.capture import CaptureIntegrityError, NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge
 from grid_agent.trajectory.events import EventDraft
@@ -277,7 +278,10 @@ def runner_harness(tmp_path: Path) -> RunnerHarness:
 
 def _native_runner_harness(tmp_path: Path) -> NativeRunnerHarness:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,

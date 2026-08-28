@@ -17,6 +17,7 @@ from capability_agent.trajectory.artifacts import (
 )
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import (
+    DEFAULT_EVENT_PRODUCER,
     ZERO_PREDECESSOR_HASH,
     EventDraft,
     RunEvent,
@@ -59,14 +60,18 @@ class RunEventRecorder:
         artifact_registry: ImmutableArtifactRegistry | None = None,
         secret_values: Iterable[str] = (),
         subscribers: Iterable[Callable[[RunEvent], None]] = (),
+        producer: str = DEFAULT_EVENT_PRODUCER,
     ) -> None:
         if not analysis_id:
             raise ValueError("analysis_id must not be empty")
+        if not producer:
+            raise ValueError("producer must not be empty")
         self.events_path = events_path
         self.analysis_id = analysis_id
         self._artifact_registry = artifact_registry
         self._secret_values = frozenset(value for value in secret_values if value)
         self._subscribers = tuple(subscribers)
+        self._producer = producer
         self._subscriber_failures: list[str] = []
         self._next_sequence = 1
         self._previous_hash = ZERO_PREDECESSOR_HASH
@@ -83,6 +88,10 @@ class RunEventRecorder:
                 raise RecorderIntegrityError("trajectory recorder is closed")
             self._reject_prohibited_content(draft.model_dump(mode="json"))
             self._verify_artifact_references(draft)
+            if draft.source.producer == DEFAULT_EVENT_PRODUCER:
+                draft = draft.model_copy(
+                    update={"source": draft.source.model_copy(update={"producer": self._producer})}
+                )
             event = build_event(
                 draft,
                 analysis_id=self.analysis_id,

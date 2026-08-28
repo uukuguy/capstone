@@ -12,10 +12,18 @@ from capability_agent.trajectory.events import (
     EventDraft,
     EventRefs,
     EventSource,
+    LEGACY_EVENT_PRODUCER,
+    LEGACY_EVENT_SCHEMA_VERSION,
     RunEvent,
     RunScope,
     build_event,
 )
+
+
+def test_event_source_is_neutral_by_default_and_legacy_schema_is_named() -> None:
+    assert EventSource().producer == "capability-agent"
+    assert LEGACY_EVENT_PRODUCER == "grid-agent"
+    assert LEGACY_EVENT_SCHEMA_VERSION == "grid-run-event/1.0"
 
 
 def test_build_event_is_canonical_and_hash_stable() -> None:

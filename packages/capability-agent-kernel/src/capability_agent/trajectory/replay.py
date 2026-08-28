@@ -17,6 +17,9 @@ from capability_agent.trajectory.events import (
 )
 
 
+LEGACY_IMPORTED_EVENT_SCHEMA_VERSION = "grid-run-import-event/1.0"
+
+
 class _FrozenDict(dict[str, Any]):
     """A JSON-compatible dictionary that rejects every in-place mutation."""
 
@@ -90,7 +93,9 @@ class ReplayEventLike(Protocol):
 class ImportedRunEvent(StrictFrozenModel):
     """Normalized legacy event, distinct from authoritative native events."""
 
-    schema_version: Literal["\x67rid-run-import-event/1.0"] = "\x67rid-run-import-event/1.0"
+    schema_version: Literal[LEGACY_IMPORTED_EVENT_SCHEMA_VERSION] = (  # pyright: ignore[reportInvalidTypeForm]
+        LEGACY_IMPORTED_EVENT_SCHEMA_VERSION
+    )
     analysis_id: str = Field(min_length=1)
     sequence: int = Field(ge=1)
     timestamp: str | None
@@ -119,4 +124,9 @@ class ImportedRunEvent(StrictFrozenModel):
         return self
 
 
-__all__ = ["ImportedRunEvent", "ReplayEventLike", "SourceCoordinate"]
+__all__ = [
+    "LEGACY_IMPORTED_EVENT_SCHEMA_VERSION",
+    "ImportedRunEvent",
+    "ReplayEventLike",
+    "SourceCoordinate",
+]

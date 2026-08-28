@@ -5,7 +5,11 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from capability_agent.trajectory.answers import AnswerClaim, validate_submission
+from capability_agent.trajectory.answers import (
+    AnswerClaim,
+    NeutralAnswerReferencePolicy,
+    validate_submission,
+)
 
 
 RESULT_REF = "result:sha256:" + "a" * 64
@@ -14,15 +18,19 @@ EVIDENCE_REF = "evidence:sha256:" + "b" * 64
 
 class RecordingVerifier:
     def __init__(self) -> None:
-        self.results: list[str] = []
-        self.evidence: list[str] = []
+        self.calls: list[tuple[str, str]] = []
 
-    def verify_result(self, reference: str) -> object:
-        self.results.append(reference)
+    def verify(self, reference: str, group: str) -> object:
+        self.calls.append((reference, group))
         return object()
 
-    def verify_evidence(self, reference: str) -> object:
-        self.evidence.append(reference)
+
+class InventoryVerifier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def verify(self, reference: str, group: str) -> object:
+        self.calls.append((reference, group))
         return object()
 
 
@@ -45,6 +53,35 @@ def submission_draft(**overrides: Any) -> dict[str, Any]:
     return draft
 
 
+def test_neutral_reference_policy_accepts_inventory_claims_and_references() -> None:
+    verifier = InventoryVerifier()
+    asset_ref = "asset:sha256:" + "a" * 64
+    fact_ref = "fact:sha256:" + "b" * 64
+
+    submission = validate_submission(
+        {
+            "submission_id": "inventory-submission",
+            "answer_output": "Asset 1 is available.",
+            "result_refs": [asset_ref],
+            "claim_evidence_refs": [fact_ref],
+            "claims": [
+                {
+                    "statement": "Asset 1 is available",
+                    "category": "inventory_observation",
+                    "result_refs": [asset_ref],
+                    "evidence_refs": [fact_ref],
+                }
+            ],
+        },
+        verifier,
+        {asset_ref, fact_ref},
+        reference_policy=NeutralAnswerReferencePolicy(),
+    )
+
+    assert submission.submission_id == "inventory-submission"
+    assert verifier.calls == [(asset_ref, "result_refs"), (fact_ref, "claim_evidence_refs")]
+
+
 def test_validate_submission_verifies_declared_claim_lineage() -> None:
     verifier = RecordingVerifier()
 
@@ -53,42 +90,46 @@ def test_validate_submission_verifies_declared_claim_lineage() -> None:
     )
 
     assert submission.submission_id == "submission-1"
-    assert verifier.results == [RESULT_REF]
-    assert verifier.evidence == [EVIDENCE_REF]
+    assert verifier.calls == [
+        (RESULT_REF, "result_refs"),
+        (EVIDENCE_REF, "claim_evidence_refs"),
+    ]
 
 
-def test_simulator_claim_requires_verified_current_run_reference() -> None:
+def test_neutral_claim_category_and_lineage_are_policy_defined() -> None:
     verifier = RecordingVerifier()
 
-    with pytest.raises(ValidationError, match="simulator-backed claim"):
-        validate_submission(
-            submission_draft(
-                result_refs=[],
-                claim_evidence_refs=[],
-                claims=[
-                    {
-                        "statement": "unsupported",
-                        "category": "numerical_result",
-                        "result_refs": [],
-                        "evidence_refs": [],
-                    }
-                ],
-            ),
-            verifier,
-            set(),
-        )
+    submission = validate_submission(
+        submission_draft(
+            answer_output="An opaque inventory observation.",
+            result_refs=[],
+            claim_evidence_refs=[],
+            claims=[
+                {
+                    "statement": "An opaque inventory observation",
+                    "category": "inventory_observation",
+                    "result_refs": [],
+                    "evidence_refs": [],
+                }
+            ],
+        ),
+        verifier,
+        set(),
+    )
 
-    assert verifier.results == []
-    assert verifier.evidence == []
+    assert submission.claims[0].category == "inventory_observation"
+    assert verifier.calls == []
 
 
-def test_offline_information_claim_forbids_simulator_lineage() -> None:
-    with pytest.raises(ValidationError, match="offline-information claim"):
-        AnswerClaim(
-            statement="General power-system information",
-            category="offline_information",
-            result_refs=(RESULT_REF,),
-        )
+def test_neutral_policy_rejects_empty_reference_identifiers() -> None:
+    claim = AnswerClaim(
+        statement="An inventory observation",
+        category="inventory_observation",
+        result_refs=("",),
+    )
+
+    with pytest.raises(ValueError, match="empty identifiers"):
+        NeutralAnswerReferencePolicy().validate_claim(claim)
 
 
 def test_offline_information_claim_is_accepted_without_run_evidence() -> None:
@@ -113,8 +154,7 @@ def test_offline_information_claim_is_accepted_without_run_evidence() -> None:
     )
 
     assert submission.claims[0].category == "offline_information"
-    assert verifier.results == []
-    assert verifier.evidence == []
+    assert verifier.calls == []
 
 
 def test_claim_refs_must_be_declared_at_answer_level() -> None:
@@ -134,63 +174,45 @@ def test_claim_refs_must_be_declared_at_answer_level() -> None:
 
 
 def test_claim_refs_must_be_controller_known() -> None:
-    with pytest.raises(ValueError, match="not known in the current run"):
+    with pytest.raises(ValueError, match="not available to this submission"):
         validate_submission(
             submission_draft(), RecordingVerifier(), {RESULT_REF}
         )
 
 
-def test_submission_rejects_misclassified_answer_level_references() -> None:
-    with pytest.raises(ValueError, match="result_refs must contain only result"):
-        validate_submission(
-            submission_draft(
-                result_refs=[EVIDENCE_REF],
-                claims=[
-                    {
-                        "statement": "topology fact",
-                        "category": "topology",
-                        "result_refs": [EVIDENCE_REF],
-                        "evidence_refs": [EVIDENCE_REF],
-                    }
-                ],
-            ),
-            RecordingVerifier(),
-            {EVIDENCE_REF},
-        )
+def test_submission_accepts_opaque_reference_names() -> None:
+    verifier = RecordingVerifier()
+    submission = validate_submission(
+        submission_draft(
+            result_refs=[EVIDENCE_REF],
+            claims=[
+                {
+                    "statement": "An opaque observation",
+                    "category": "inventory_observation",
+                    "result_refs": [EVIDENCE_REF],
+                    "evidence_refs": [EVIDENCE_REF],
+                }
+            ],
+        ),
+        verifier,
+        {EVIDENCE_REF},
+    )
 
-    with pytest.raises(
-        ValueError,
-        match="claim_evidence_refs must contain only evidence",
-    ):
-        validate_submission(
-            submission_draft(
-                result_refs=[RESULT_REF],
-                claim_evidence_refs=[RESULT_REF],
-                claims=[
-                    {
-                        "statement": "numerical fact",
-                        "category": "numerical_result",
-                        "result_refs": [RESULT_REF],
-                        "evidence_refs": [RESULT_REF],
-                    }
-                ],
-            ),
-            RecordingVerifier(),
-            {RESULT_REF},
-        )
+    assert submission.result_refs == (EVIDENCE_REF,)
+    assert verifier.calls == [(EVIDENCE_REF, "result_refs"), (EVIDENCE_REF, "claim_evidence_refs")]
 
 
 def test_claim_and_submission_bounds_are_closed() -> None:
     with pytest.raises(ValidationError, match="at most 1000 characters"):
         AnswerClaim(
             statement="x" * 1001,
-            category="offline_information",
+            category="inventory_observation",
         )
 
     with pytest.raises(ValidationError, match="at most 20 items"):
         AnswerClaim(
             statement="bounded refs",
-            category="numerical_result",
+            category="inventory_observation",
             result_refs=tuple(
                 f"result:sha256:{index:064x}" for index in range(21)
             ),
@@ -204,7 +226,7 @@ def test_claim_and_submission_bounds_are_closed() -> None:
                 claims=[
                     {
                         "statement": f"offline {index}",
-                        "category": "offline_information",
+                        "category": "inventory_observation",
                         "result_refs": [],
                         "evidence_refs": [],
                     }

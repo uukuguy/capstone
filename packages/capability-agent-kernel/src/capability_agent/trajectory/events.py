@@ -11,6 +11,9 @@ from capability_agent.trajectory.canonical import canonical_json_bytes, sha256_r
 
 
 ZERO_PREDECESSOR_HASH = "sha256:" + "0" * 64
+DEFAULT_EVENT_PRODUCER = "capability-agent"
+LEGACY_EVENT_PRODUCER = "grid-agent"
+LEGACY_EVENT_SCHEMA_VERSION = "grid-run-event/1.0"
 
 
 class StrictFrozenModel(BaseModel):
@@ -193,7 +196,11 @@ class Causation(StrictFrozenModel):
 
 class EventSource(StrictFrozenModel):
     kind: Literal["observed", "agent-declared"] = "observed"
-    producer: str = Field(default="\x67rid-agent", min_length=1)
+    producer: str = Field(
+        default=DEFAULT_EVENT_PRODUCER,
+        min_length=1,
+        json_schema_extra={"default": LEGACY_EVENT_PRODUCER},
+    )
     integrity: str = Field(default="verified", min_length=1)
 
 
@@ -239,7 +246,7 @@ class RunEvent(StrictFrozenModel):
     context: ContextBoundary
     refs: EventRefs
     payload: dict[str, Any]
-    schema_version: Literal["\x67rid-run-event/1.0"]
+    schema_version: Literal[LEGACY_EVENT_SCHEMA_VERSION]  # pyright: ignore[reportInvalidTypeForm]
     analysis_id: str = Field(min_length=1)
     sequence: int = Field(ge=1)
     timestamp: str = Field(
@@ -293,7 +300,7 @@ def build_event(
         raise ValueError("timestamp must be an aware instant")
     timestamp_utc = timestamp.astimezone(UTC)
     event_without_hash = {
-        "schema_version": "\x67rid-run-event/1.0",
+        "schema_version": LEGACY_EVENT_SCHEMA_VERSION,
         "analysis_id": analysis_id,
         "sequence": sequence,
         "timestamp": timestamp_utc.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
@@ -316,6 +323,9 @@ def build_event(
 
 __all__ = [
     "ZERO_PREDECESSOR_HASH",
+    "DEFAULT_EVENT_PRODUCER",
+    "LEGACY_EVENT_PRODUCER",
+    "LEGACY_EVENT_SCHEMA_VERSION",
     "StrictFrozenModel",
     "EmptyPayload",
     "AnalysisTerminalPayload",

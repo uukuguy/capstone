@@ -7,10 +7,15 @@ from pathlib import Path
 
 import pytest
 
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.events import EventDraft, EventRefs, EventType, RunScope
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RecorderIntegrityError, RunEventRecorder
+
+
+def _registry(root: Path) -> ImmutableArtifactRegistry:
+    return ImmutableArtifactRegistry(root, path_policy=GridArtifactPathPolicy())
 
 
 def test_recorder_appends_fsyncs_then_publishes(
@@ -104,7 +109,7 @@ def test_recorder_rejects_secret_and_reasoning_fields(tmp_path: Path) -> None:
 
 
 def test_recorder_accepts_model_response_usage_fields(tmp_path: Path) -> None:
-    registry = ImmutableArtifactRegistry(tmp_path)
+    registry = _registry(tmp_path)
     pointer = registry.write_json(
         "model-response", "analysis-test-t001-r001", {"content": "answer"}
     )
@@ -139,7 +144,7 @@ def test_recorder_rejects_unregistered_artifact_references(
     recorder = RunEventRecorder(
         run_root / "events/run-events.jsonl",
         "analysis-test",
-        artifact_registry=ImmutableArtifactRegistry(run_root),
+        artifact_registry=_registry(run_root),
     )
     fake_ref = "artifact:sha256:" + "a" * 64
     draft = (
@@ -166,7 +171,7 @@ def test_recorder_accepts_registered_digest_verified_artifact_pointer(
     tmp_path: Path,
 ) -> None:
     run_root = tmp_path / "run"
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = _registry(run_root)
     pointer = registry.write_json(
         "model-response", "analysis-test-t001-r001", {"content": "answer"}
     )
@@ -201,7 +206,7 @@ def test_recorder_rejects_unregistered_artifact_claim_and_answer_references(
     tmp_path: Path, event_type: EventType, reference_field: str
 ) -> None:
     run_root = tmp_path / "run"
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = _registry(run_root)
     answer_pointer = registry.write_json("answer", "submission-1", {"answer": "ok"})
     recorder = RunEventRecorder(
         run_root / "events/run-events.jsonl",
@@ -271,7 +276,7 @@ def test_recorder_accepts_registered_artifact_claim_and_answer_references(
     relative_path: str,
 ) -> None:
     run_root = tmp_path / "run"
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = _registry(run_root)
     path = run_root / relative_path
     path.parent.mkdir(parents=True)
     path.write_bytes(b'{"preserve":"exact bytes"}\n')

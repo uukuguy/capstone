@@ -37,9 +37,10 @@ from grid_agent.runtime.lock import PiRuntimeLock
 from grid_agent.auth.service import AuthService
 from grid_agent.auth.store import CODEX_PROVIDER, ProjectAuthStore
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.capture import NativeCaptureAdapter
 from grid_agent.trajectory.context_bridge import NativeContextBridge
-from grid_agent.trajectory.events import RunEvent
+from grid_agent.trajectory.events import LEGACY_EVENT_PRODUCER, RunEvent
 from grid_agent.trajectory.recorder import RunEventRecorder
 from grid_agent.trajectory.api.server import serve_trajectory
 from grid_agent.reporting import load_questions
@@ -361,7 +362,10 @@ def _execute_analysis(
     secret_values = (
         {resolved.secret.value} if resolved.secret is not None else set()
     )
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     allowed_refs_path = (
         workspace.root_path / "context" / "trajectory-allowed-refs.json"
     )
@@ -372,6 +376,7 @@ def _execute_analysis(
         artifact_registry=artifacts,
         secret_values=secret_values,
         subscribers=(allowed_refs.observe,),
+        producer=LEGACY_EVENT_PRODUCER,
     )
     try:
         bridge = NativeContextBridge(recorder, artifacts, workspace)

@@ -14,6 +14,7 @@ from grid_agent.analysis import turns as turns_module
 from grid_agent.analysis.turns import ActiveTurnHandle, StaleAnswerDraftError, TurnController
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.answers import ReferenceVerifier
 from grid_agent.trajectory.context_bridge import NativeContextBridge
 from grid_agent.trajectory.reader import RunEventReader
@@ -390,7 +391,10 @@ def answer_fixture(
     result_ref = "result:sha256:" + "a" * 64
     evidence_ref = "evidence:sha256:" + "b" * 64
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-answer")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,

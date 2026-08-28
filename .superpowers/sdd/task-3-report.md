@@ -269,10 +269,10 @@ Extracted the proven, domain-neutral trajectory lifecycle into
 - durable event recording;
 - native/imported replay interfaces.
 
-The seven `grid_agent.trajectory` modules are implementation-free compatibility
-exports and preserve object identity. Grid-specific capture, projections,
-context bridge, materialization, API, service, and legacy import modules remain
-owned by the application.
+The seven `grid_agent.trajectory` modules are compatibility exports for the
+neutral lifecycle types. Grid-specific path and answer policies remain owned by
+the application, while capture, projections, context bridge, materialization,
+API, service, and legacy import modules remain application-owned.
 
 ### RED Evidence
 
@@ -289,7 +289,7 @@ uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tes
 
 ```text
 uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/trajectory -q
-103 passed in 0.20s
+107 passed in 0.20s
 
 uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory -q
 242 passed, 1 warning in 1.24s
@@ -322,16 +322,80 @@ handoff because updating this report changes the hash itself).
 
 ### Risks and Residuals
 
-- Persisted event, artifact, schema, validation, path-layout, and error-message
-  behavior is intentionally unchanged; `EventSource` retains its existing
-  `grid-agent` default for compatibility.
-- Kernel lexical-boundary checks reject grid-owned words in source files, so the
-  three pre-existing compatibility strings are represented with equivalent
-  Unicode escapes; their runtime values remain byte-for-byte unchanged.
+- Grid path layouts and answer validation remain unchanged through explicit
+  application-owned policies; the kernel's default artifact layouts and answer
+  categories are domain-neutral.
+- `EventSource` is neutral by default and the grid application explicitly
+  injects its producer. Persisted schema identifiers remain named legacy
+  compatibility constants, and the boundary test AST-decodes their values.
 - The package remains intentionally lifecycle-only; application/grid-specific
   trajectory modules are not yet extracted.
 - Pyright requires both source roots in `PYTHONPATH` for this checkout because
   the package is supplied through the local editable workspace dependency.
+- Provider validation was not run.
+
+## Workstream B Task 3 Review Fix: Explicit Domain Policies
+
+### RED Evidence
+
+The review regressions were added before the implementation changes:
+
+```text
+uv run --project packages/capability-agent-kernel pytest \
+  packages/capability-agent-kernel/tests/test_boundaries.py::test_kernel_source_has_no_grid_owned_semantic_literals -q
+5 decoded escaped grid literals reported by the AST boundary scan
+
+uv run --project packages/capability-agent-kernel pytest \
+  packages/capability-agent-kernel/tests/trajectory/test_artifacts.py::test_neutral_inventory_policy_can_be_injected_without_domain_layouts \
+  packages/capability-agent-kernel/tests/trajectory/test_answers.py::test_neutral_reference_policy_accepts_inventory_claims_and_references -q
+collection failed because ArtifactLayout and NeutralAnswerReferencePolicy were absent
+```
+
+### GREEN Evidence
+
+- Added injected `NeutralArtifactPathPolicy`/`ArtifactLayout`; grid result and
+  evidence paths now live in `GridArtifactPathPolicy` and are supplied by grid
+  production callers and tests.
+- Added injected `NeutralAnswerReferencePolicy`; grid taxonomy, reference
+  prefixes, and historical error messages remain in the grid compatibility
+  policy.
+- Removed all source escape-based workarounds. Native and imported schema strings are
+  named legacy constants with narrow AST allowlisting and reasons; event
+  producer defaults are neutral and the grid app supplies its producer.
+- Corrected the three new blank-line-at-EOF diagnostics and verified the real
+  baseline range with `git diff --check 4e1003c -- .`.
+
+```text
+uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests/trajectory \
+  packages/grid-agent/tests/trajectory -q
+349 passed, 1 warning
+
+uv run --project packages/capability-agent-kernel pytest \
+  packages/capability-agent-kernel/tests/test_boundaries.py -q
+2 passed
+
+ruff check <review-fix source and test paths>
+All checks passed!
+
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  pyright <review-fix source paths>
+0 errors, 0 warnings, 0 informations
+
+git diff --check 4e1003c -- .
+exit 0
+```
+
+### Commit
+
+The review-fix commit hash is reported in the handoff because this report is
+included in the commit.
+
+### Risks
+
+- `AnswerClaim` in the grid compatibility module is a validating specialization
+  rather than the neutral kernel class; `AnswerSubmission` and the other
+  lifecycle types retain their kernel identities.
 - Provider validation was not run.
 
 ## Third Review Fix: Runtime Root Containment

@@ -15,4 +15,3 @@ def test_trajectory_public_modules_import_without_application() -> None:
     )
     for module in modules:
         assert importlib.import_module(module).__name__ == module
-

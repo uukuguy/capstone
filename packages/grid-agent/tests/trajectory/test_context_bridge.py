@@ -9,6 +9,7 @@ import pytest
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.view import materialize_context_view
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.reader import RunEventReader
 from grid_agent.trajectory.recorder import RunEventRecorder
@@ -46,7 +47,10 @@ def bridge_fixture(
     Any,
 ]:
     workspace = AnalysisWorkspace.create(tmp_path / "runs", "analysis-test")
-    artifacts = ImmutableArtifactRegistry(workspace.root_path)
+    artifacts = ImmutableArtifactRegistry(
+        workspace.root_path,
+        path_policy=GridArtifactPathPolicy(),
+    )
     recorder = RunEventRecorder(
         workspace.events_path,
         workspace.analysis_id,

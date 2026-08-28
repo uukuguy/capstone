@@ -15,6 +15,7 @@ from grid_agent.trajectory.projection_models import (
     ProjectionDiagnostic,
 )
 from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
+from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.service import ProjectionService, _NativeArtifacts
 
@@ -56,7 +57,10 @@ def test_projection_service_opens_legacy_run_without_writing_source(tmp_path) ->
 
 def test_native_artifact_verifier_accepts_replayed_artifact_pointer(tmp_path) -> None:
     run_root = tmp_path / "runs/analysis-native"
-    registry = ImmutableArtifactRegistry(run_root)
+    registry = ImmutableArtifactRegistry(
+        run_root,
+        path_policy=GridArtifactPathPolicy(),
+    )
     pointer = registry.write_json(
         "context-view",
         "analysis-native-r001",

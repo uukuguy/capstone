@@ -57,6 +57,18 @@ def test_recorder_appends_fsyncs_then_publishes(
     assert RunEventReader(recorder.events_path).read_prefix().events == (first, second)
 
 
+def test_recorder_accepts_an_explicit_neutral_producer(tmp_path: Path) -> None:
+    recorder = RunEventRecorder(
+        tmp_path / "events/run-events.jsonl",
+        "analysis-test",
+        producer="inventory-agent",
+    )
+
+    event = recorder.append(EventDraft(event_type="analysis.started", payload={}))
+
+    assert event.source.producer == "inventory-agent"
+
+
 def test_subscriber_failure_does_not_change_the_durable_log(tmp_path: Path) -> None:
     def broken_subscriber(_: object) -> None:
         raise RuntimeError("subscriber unavailable")
@@ -237,28 +249,28 @@ def test_recorder_rejects_unregistered_artifact_claim_and_answer_references(
             "result_refs",
             "result",
             "result:sha256:" + "a" * 64,
-            "evidence/results/powerflow-" + "a" * 64 + ".json",
+            "results/result-" + "a" * 64 + ".json",
         ),
         (
             "business.claim.declared",
             "evidence_refs",
             "evidence",
             "evidence:sha256:" + "b" * 64,
-            "evidence/network-facts/network-fact-" + "b" * 64 + ".json",
+            "evidence/evidence-" + "b" * 64 + ".json",
         ),
         (
             "answer.submitted",
             "result_refs",
             "result",
             "result:sha256:" + "c" * 64,
-            "evidence/results/powerflow-" + "c" * 64 + ".json",
+            "results/result-" + "c" * 64 + ".json",
         ),
         (
             "answer.submitted",
             "evidence_refs",
             "evidence",
             "evidence:sha256:" + "d" * 64,
-            "evidence/network-facts/network-fact-" + "d" * 64 + ".json",
+            "evidence/evidence-" + "d" * 64 + ".json",
         ),
     ],
 )
