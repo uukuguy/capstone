@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider check-package-boundaries test-packages
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider check-package-boundaries test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -30,7 +30,8 @@ setup-simulator:
 	uv sync --project packages/grid-simulator
 
 setup-tools:
-	npm ci --prefix packages/pi-grid-tools
+	npm ci --prefix packages/pi-capability-tools
+	npm install --prefix packages/pi-grid-tools --no-package-lock --no-save ./packages/pi-capability-tools
 
 setup-workbench:
 	npm ci --prefix packages/trajectory-workbench
@@ -110,6 +111,9 @@ check-package-boundaries:
 
 test-packages:
 	bash tools/test_package_artifacts.sh
+
+test-source-setup:
+	bash tools/test_source_setup.sh
 
 VALIDATION_SUITE ?= static-analysis-full
 
