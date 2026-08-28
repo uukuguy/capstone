@@ -15,7 +15,7 @@ from capability_agent.domain import (
     VerifiedInvocation,
     VerifiedReferenceSet,
 )
-from capability_agent.tools import GuideIndex, ToolCatalog
+from capability_agent.tools import GuideIndex, ToolCatalog, describe_tool_document
 
 __all__ = [
     "ArtifactAuthority",
@@ -30,6 +30,7 @@ __all__ = [
     "GuideIndex",
     "PreparedDomainRuntime",
     "ToolCatalog",
+    "describe_tool_document",
     "VerifiedArtifact",
     "VerifiedInvocation",
     "VerifiedReferenceSet",

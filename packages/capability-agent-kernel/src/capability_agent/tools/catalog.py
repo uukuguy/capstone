@@ -170,7 +170,7 @@ def _materialize_tool(
         description=(
             description_builder(document)
             if description_builder is not None
-            else _description(document)
+            else describe_tool_document(document)
         ),
         input_schema=input_schema,
     )
@@ -349,7 +349,9 @@ def _validate_json_schema(schema: dict[str, Any], *, path: str) -> None:
                 _validate_json_schema(child, path=f"{path}.{keyword}.{index}")
 
 
-def _description(document: dict[str, object]) -> str:
+def describe_tool_document(document: dict[str, object]) -> str:
+    """Build the neutral reader-facing description for one capability document."""
+
     not_for = list(_strings(document["not_for"]))
     not_for.extend(_extension_limitations(document))
     applies_to = list(_strings(document["applies_to"]))
@@ -368,6 +370,12 @@ def _description(document: dict[str, object]) -> str:
             f"Recovery: {_recovery_text(document['recovery'])}",
         )
     )
+
+
+def _description(document: dict[str, object]) -> str:
+    """Backward-compatible private alias for the neutral description builder."""
+
+    return describe_tool_document(document)
 
 
 def _extension_limitations(value: object) -> tuple[str, ...]:

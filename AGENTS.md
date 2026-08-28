@@ -73,7 +73,8 @@ Do not duplicate frequently changing facts in this file. Read the owning source:
 | Simulator package and version pin | `packages/grid-simulator/pyproject.toml` |
 | Runtime setup, authentication, commands, and evidence inspection | `docs/RUNBOOK.md` |
 | Capability registration and LLM composition architecture | `docs/architecture/pandapower-capability-composition.md` |
-| Model-facing execution policy | `configs/agent/system-policy.md` |
+| Model-facing execution policy | `packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md` |
+| Model-facing pandapower guides | `packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/` |
 | Structural project state | `docs/status/CURRENT-STATE.md` |
 | Active recovery baton | `docs/status/RESUME-NEXT-SESSION.md` |
 

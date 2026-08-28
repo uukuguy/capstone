@@ -1,231 +1,122 @@
-# Task 6 Report: Tool-result projector and verified fact promotion
+# Workstream B Task 6 Report: Extract the pandapower Domain Pack
 
 ## Summary
 
-Implemented the analysis-context projector for normalized semantic tool events:
+Task 6 now owns the complete pandapower profile adapter closure in
+`pandapower_domain`:
 
-- Added `AnalysisContextProjector.observe(event, *, turn_id)` in `grid_agent.analysis.projector`.
-- Paired tool starts and tool results by stable `tool_call_id`, preserving actual start arguments for dependency projection.
-- Added explicit semantic tool-name/capability mismatch protection for paired successful results.
-- Admitted successful simulator artifacts through `ContentReferenceVerifier` before appending verified state.
-- Appended deterministic store events for:
-  - baseline/context opening,
-  - tool observations,
-  - result registration,
-  - evidence registration,
-  - verified fact promotion,
-  - diagnostics and limitations for normal tool failures.
-- Kept large result bodies in digest-verified artifacts and projected compact summaries/facts only.
-- Restricted fact promotion to the explicit allowlist:
-  - `topology.branch.endpoints.get`: branch endpoint identity,
-  - `analysis.powerflow.ac.run`: convergence and total active loss,
-  - `result.branches.rank`: ranked branch metric values and units,
-  - `analysis.contingency.n_minus_one.run`: aggregate status, scenario count, maximum scenario loading, and violation count.
-- Ensured `result.branches.rank` consumes a prior `result_ref` and produces no new result refs.
-- Preserved the integrity distinction:
-  - normal tool errors record diagnostic/limitation state,
-  - successful but corrupted or mismatched simulator artifacts raise `SimulatorIntegrityError`.
+- Moved capability-context metadata, Pydantic analysis state models, domain
+  projection, and current-run artifact verification into the Domain Pack.
+- Added `pandapower_domain.build_pandapower_profile()` with no repository-root
+  parameter. It retains installed resources through `PandapowerResourceSet` and
+  exposes the same `grid-capability/1.0`, `gridctl`, and `grid_` manifest values.
+- Materialized simulator contracts, policy, and guides through
+  `importlib.resources`; policy and guide files are now canonical package
+  resources and are included in the wheel.
+- Kept implementation-free `grid_agent.analysis.*` and
+  `grid_agent.domains.pandapower` compatibility exports. The legacy builder
+  accepts its former optional repository-root argument and deliberately ignores
+  it.
+- Moved the localized pandapower tool-description builder to the Domain Pack.
+  Added the neutral public kernel `describe_tool_document` API so neither the
+  Domain Pack nor grid compatibility code imports the private kernel helper.
+- Preserved Pydantic class identity by forwarding old analysis model imports to
+  the single Domain Pack model definitions.
+- Added the direct Domain Pack test suites and refreshed Domain Pack/grid-agent
+  lock metadata for the direct Pydantic dependency.
 
-## Files changed
-
-- Created `packages/grid-agent/src/grid_agent/analysis/projector.py`
-- Created `packages/grid-agent/tests/analysis/test_projector.py`
-
-Committed as:
-
-```text
-0f1e3af feat: project verified grid analysis state
-```
+Repository resource paths that existing operator/tests still read are tracked
+as symlinks to the package-owned policy and guide resources; there is no second
+editable source.
 
 ## TDD evidence
 
-RED check:
+RED was observed before creating the profile/projection/authority implementation:
 
 ```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
+uv run --project packages/grid-agent pytest \
+  packages/pandapower-domain-pack/tests/test_profile.py \
+  packages/pandapower-domain-pack/tests/test_projection.py \
+  packages/pandapower-domain-pack/tests/test_authority.py -q
 
-ERROR packages/grid-agent/tests/analysis/test_projector.py
-ModuleNotFoundError: No module named 'grid_agent.analysis.projector'
+3 collection errors: pandapower_domain had no build_pandapower_profile or
+PandapowerArtifactAuthority exports.
 ```
 
-GREEN focused check:
+The kernel description export also had a focused RED collection failure before
+its implementation was added:
 
 ```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
-
-7 passed in 0.12s
+ImportError: cannot import name 'describe_tool_document'
 ```
 
-Requested Task 6 gate:
+## Verification
+
+Direct Domain Pack parity and all package tests:
 
 ```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py packages/grid-agent/tests/analysis/test_reducer.py packages/grid-agent/tests/analysis/test_integrity.py -q
+uv run --project packages/pandapower-domain-pack pytest \
+  packages/pandapower-domain-pack/tests/test_profile.py \
+  packages/pandapower-domain-pack/tests/test_projection.py \
+  packages/pandapower-domain-pack/tests/test_authority.py -q
+7 passed
 
-30 passed in 5.81s
+uv run --project packages/pandapower-domain-pack pytest \
+  packages/pandapower-domain-pack/tests -q
+18 passed
 ```
 
-Whitespace/diff check:
+Compatibility and analysis regression slices (excluding the stale pre-move
+repository-path assertion in `test_pandapower_profile.py`):
 
 ```text
-git diff --check -- packages/grid-agent/src/grid_agent/analysis/projector.py packages/grid-agent/tests/analysis/test_projector.py
-
-exit 0
+uv run --project packages/grid-agent pytest \
+  packages/grid-agent/tests/analysis/test_capabilities.py \
+  packages/grid-agent/tests/analysis/test_domain_projection.py \
+  packages/grid-agent/tests/analysis/test_integrity.py \
+  packages/grid-agent/tests/analysis/test_projector.py \
+  packages/grid-agent/tests/analysis/test_reducer.py \
+  packages/grid-agent/tests/contract/test_analysis_context_docs.py \
+  packages/grid-agent/tests/trajectory/test_capture.py \
+  packages/grid-agent/tests/domain/test_manifest.py \
+  packages/grid-agent/tests/domain/test_contracts.py \
+  packages/grid-agent/tests/application/test_composition.py -q
+87 passed
 ```
 
-## Test coverage added
-
-`packages/grid-agent/tests/analysis/test_projector.py` covers:
-
-- Power-flow projection plus downstream ranking dependency.
-- Ranking observation consumes the previous `result_ref` and produces no refs.
-- Ranking fact promotion for branch metric values and units.
-- Normal tool failure records unresolved limitation.
-- Successful corrupted/missing simulator artifact raises `SimulatorIntegrityError`.
-- Context opening baseline projection.
-- Topology endpoint evidence and verified endpoint facts.
-- N-1 aggregate/scenario fact promotion.
-- Duplicate reference deduplication.
-- Unknown result fields are ignored and not promoted.
-- Start/result context mismatch raises `SimulatorIntegrityError`.
-- Active-baseline revision mismatch is surfaced through store/reducer rejection.
-
-## Self-review
-
-- Confirmed the projector does not change runner, CLI, Pi runtime, or RPC behavior.
-- Confirmed successful simulator-backed projection crosses the existing `ContentReferenceVerifier` boundary before state promotion.
-- Confirmed promoted facts come only from `PROMOTED_FACT_FIELDS`.
-- Confirmed `result.branches.rank` does not call artifact admission for a new result and records `produced_refs=[]`.
-- Confirmed observations/results/evidence/facts are appended in deterministic order.
-- Confirmed duplicate evidence refs are deduplicated before result registration.
-- Confirmed the Task 6 commit contains only:
-  - `packages/grid-agent/src/grid_agent/analysis/projector.py`
-  - `packages/grid-agent/tests/analysis/test_projector.py`
-
-## Concerns
-
-- The current `VerifiedFact` model stores `fact_ref`, `statement`, `evidence_refs`, and `verifier_capability`; it does not expose separate structured fields like `predicate`, `context_ref`, `revision_ref`, or `source_observation_id`.
-- To preserve current model/reducer boundaries and avoid Task 6 scope creep, the projector stores promoted fact metadata as deterministic canonical JSON inside `VerifiedFact.statement`.
-- Tests assert predicates by parsing that JSON statement. A future model migration could promote those fields into first-class `VerifiedFact` attributes without changing the simulator-verification boundary.
-
-## Worktree notes
-
-- Pre-existing unrelated worktree changes were left untouched.
-- `docs/status/JOURNAL.md` was already modified before Task 6 reporting; the required journal line for `0f1e3af` was appended but not committed with the Task 6 code commit to avoid mixing unrelated state-file edits.
-
-## Review repair: verified fact sourcing and projector ordering
-
-Commit: pending at report time.
-
-### Findings fixed
-
-- Stopped promoting allowlisted fact values from inline successful tool results when verified artifacts exist.
-  - AC and N-1 fact values now derive from verified result documents.
-  - Topology endpoint fact values now derive from verified evidence facts.
-  - Inline scalar mismatches against verified fact fields now raise `SimulatorIntegrityError`.
-- Added forged-inline regressions for AC total active loss and topology endpoint values.
-- Added verified consumed-result context propagation for `result.branches.rank` fact statements.
-- Required every successful projector-managed tool result to have a matching start event by call ID.
-  - Normal failed tool results still record observation, limitation, and diagnostic state without a start.
-- Enforced projector append order:
-  - `tool.observation.recorded`
-  - `simulator.context.opened`
-  - `result.registered`
-  - `evidence.registered`
-  - `fact.verified`
-  - for failures: `tool.observation.recorded`, then `limitation.recorded`, then `tool.failed`
-- Adapted reducer observation validation narrowly so observation-first ledgering can record a consumed `context:sha256:*` before the matching baseline event lands in the same successful projection.
-  - Turn completion still validates consumed refs after projection.
-  - Ranking still requires a preexisting registered result.
-- Rewrote `_max_scenario_loading` with an explicitly typed numeric accumulation loop for pyright.
-
-### RED evidence
+Boundary and forbidden-import checks:
 
 ```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
+python3 tools/check_package_boundaries.py
+package-boundaries: ok
 
-5 failed, 6 passed in 0.20s
+rg -n "from grid_agent|import grid_agent" packages/pandapower-domain-pack/src
+domain-source-grid-agent-imports: none
 ```
 
-The failures covered:
+Ruff and Pyright passed for the moved Domain Pack modules, compatibility
+exports, kernel description API, and their tests (`0 errors, 0 warnings, 0
+informations`). `git diff --check` also passed.
 
-- ranking fact missing consumed-result `context_ref`,
-- successful result without start did not raise,
-- forged inline AC value did not raise,
-- topology fact came from inline value instead of verified evidence,
-- ledger order emitted artifacts before the observation-first sequence required by review.
-
-### GREEN / verification evidence
-
-Focused projector check:
+Clean artifact smoke built kernel, simulator, and Domain Pack wheels, installed
+them into a fresh Python 3.12 environment outside the checkout, loaded the
+profile/resources, and opened a packaged guide:
 
 ```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
-
-11 passed in 0.15s
+clean-domain-wheel: ok
 ```
 
-Required analysis gate:
+The Domain Pack wheel contained policy and all guide files and had no
+`grid_agent`, source-checkout, test-fixture, cache, or secret leakage.
 
-```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py packages/grid-agent/tests/analysis/test_reducer.py packages/grid-agent/tests/analysis/test_integrity.py -q
+`make test-agent` reached 626 passing tests. Its eight failures included the
+expected stale old-resource/profile assertions from the intentional ownership
+move and two unrelated trajectory compatibility tests already changing in the
+shared worktree; no trajectory files were modified or staged for this task.
 
-34 passed in 5.86s
-```
+## Commit
 
-Changed-file pyright:
+Implementation commit: `feat: extract pandapower domain pack`.
 
-```text
-uv run --project packages/grid-agent pyright packages/grid-agent/src/grid_agent/analysis/projector.py packages/grid-agent/src/grid_agent/analysis/reducer.py packages/grid-agent/tests/analysis/test_projector.py
-
-0 errors, 0 warnings, 0 informations
-```
-
-## Review repair: failed ranking dependency diagnostics
-
-Commit: pending at report time.
-
-### Finding fixed
-
-- Failed tool results now record observation, limitation, and diagnostic state without enforcing successful dependency existence.
-- This specifically covers failed `result.branches.rank` calls with unknown or bad `result_ref` values.
-- The failed observation keeps `consumed_refs=[]` so reducer dependency validation is not triggered for an unsuccessful tool.
-- Original failed args remain available for diagnosis in:
-  - `ObservationRecord.producer_observation["args"]`
-  - `DiagnosticRecord.details["args"]`
-- Reducer ranking dependency validation remains active unless the observation explicitly has `summary.ok is False`.
-
-### RED evidence
-
-```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
-
-1 failed, 11 passed in 0.21s
-```
-
-The regression failed because a failed ranking result with an unknown `result_ref` still raised before recording limitation state.
-
-### GREEN / verification evidence
-
-Focused projector check:
-
-```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py -q
-
-12 passed in 0.17s
-```
-
-Required analysis gate:
-
-```text
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/analysis/test_projector.py packages/grid-agent/tests/analysis/test_reducer.py packages/grid-agent/tests/analysis/test_integrity.py -q
-
-35 passed in 5.91s
-```
-
-Changed-file pyright:
-
-```text
-uv run --project packages/grid-agent pyright packages/grid-agent/src/grid_agent/analysis/projector.py packages/grid-agent/src/grid_agent/analysis/reducer.py packages/grid-agent/tests/analysis/test_projector.py
-
-0 errors, 0 warnings, 0 informations
-```
+The pre-existing `docs/status/JOURNAL.md`, climb state, and unrelated trajectory
+changes remain unstaged.

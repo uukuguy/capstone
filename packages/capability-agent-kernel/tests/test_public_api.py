@@ -5,7 +5,7 @@ import sys
 
 from capability_agent import DomainManifest, DomainRuntimeProfile
 from capability_agent.application import prepare_domain_runtime
-from capability_agent.tools import GuideIndex, ToolCatalog
+from capability_agent.tools import GuideIndex, ToolCatalog, describe_tool_document
 
 
 def test_kernel_public_api_is_deliberate() -> None:
@@ -16,6 +16,7 @@ def test_kernel_public_api_is_deliberate() -> None:
     )
     assert ToolCatalog.__module__ == "capability_agent.tools.catalog"
     assert GuideIndex.__module__ == "capability_agent.tools.guide"
+    assert describe_tool_document.__module__ == "capability_agent.tools.catalog"
 
 
 def test_legacy_imports_are_exact_compatibility_aliases() -> None:

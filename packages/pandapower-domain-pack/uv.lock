@@ -247,6 +247,7 @@ source = { editable = "." }
 dependencies = [
     { name = "capability-agent-kernel" },
     { name = "grid-simulator" },
+    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
@@ -258,6 +259,7 @@ dev = [
 requires-dist = [
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
     { name = "grid-simulator", editable = "../grid-simulator" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
 ]
 
 [package.metadata.requires-dev]
