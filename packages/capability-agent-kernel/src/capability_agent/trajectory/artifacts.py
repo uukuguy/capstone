@@ -68,11 +68,14 @@ class NeutralArtifactPathPolicy:
             raise ArtifactIntegrityError("artifact identity is invalid")
         layout = self.layouts.get(kind)
         if layout is not None:
+            _validate_layout(layout)
             if not layout.identity_pattern.fullmatch(identity):
                 raise ArtifactIntegrityError("artifact identity is invalid")
-            return (
-                run_root / layout.directory.format(identity=identity) / layout.filename,
-            )
+            try:
+                directory = layout.directory.format(identity=identity)
+            except (IndexError, KeyError, ValueError) as error:
+                raise ArtifactIntegrityError("artifact layout is invalid") from error
+            return (run_root / directory / layout.filename,)
         reference_layout = _REFERENCE_LAYOUTS.get(kind)
         if reference_layout is not None:
             prefix, directory, filename_prefix = reference_layout
@@ -96,11 +99,13 @@ class NeutralArtifactPathPolicy:
             raise ArtifactIntegrityError("artifact pointer has an invalid kind or path")
         layout = self.layouts.get(kind)
         if layout is not None:
+            _validate_layout(layout)
             return _identity_for_layout(layout, relative_path)
         reference_layout = _REFERENCE_LAYOUTS.get(kind)
         if reference_layout is not None:
             prefix, directory, filename_prefix = reference_layout
-            if relative_path.is_absolute() or len(relative_path.parts) != 2:
+            _validate_relative_path(relative_path)
+            if len(relative_path.parts) != 2:
                 raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
             actual_directory, filename = relative_path.parts
             match = re.fullmatch(
@@ -110,7 +115,8 @@ class NeutralArtifactPathPolicy:
                 raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
             return f"{prefix}{match.group(1)}"
         if kind == "tool-result":
-            if relative_path.is_absolute() or len(relative_path.parts) != 3:
+            _validate_relative_path(relative_path)
+            if len(relative_path.parts) != 3:
                 raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
             root, turn_id, filename = relative_path.parts
             if root != "tool-results" or not filename.endswith(".json"):
@@ -128,6 +134,8 @@ class NeutralArtifactPathPolicy:
 
 
 def _identity_for_layout(layout: ArtifactLayout, relative_path: PurePosixPath) -> str:
+    _validate_layout(layout)
+    _validate_relative_path(relative_path)
     prefix, marker, suffix = layout.directory.partition("{identity}")
     if not marker:
         raise ArtifactIntegrityError("artifact kind has no identity layout")
@@ -136,8 +144,7 @@ def _identity_for_layout(layout: ArtifactLayout, relative_path: PurePosixPath) -
     parts = relative_path.parts
     expected_length = len(expected_prefix) + 1 + len(expected_suffix) + 1
     if (
-        relative_path.is_absolute()
-        or len(parts) != expected_length
+        len(parts) != expected_length
         or parts[: len(expected_prefix)] != expected_prefix
         or parts[-1] != layout.filename
     ):
@@ -149,6 +156,78 @@ def _identity_for_layout(layout: ArtifactLayout, relative_path: PurePosixPath) -
     if not layout.identity_pattern.fullmatch(identity):
         raise ArtifactIntegrityError("artifact pointer has an invalid identity")
     return identity
+
+
+def _is_plain_component(value: object) -> bool:
+    """Return whether *value* is one safe, non-special path component."""
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and value not in {".", ".."}
+        and chr(0) not in value
+        and "/" not in value
+        and "\\" not in value
+        and value.isprintable()
+    )
+
+
+def _validate_layout(layout: ArtifactLayout) -> None:
+    """Reject layout templates that can form ambiguous or escaping paths."""
+    if not isinstance(layout.directory, str) or not isinstance(layout.filename, str):
+        raise ArtifactIntegrityError("artifact layout is invalid")
+    if not isinstance(layout.identity_pattern, re.Pattern):
+        raise ArtifactIntegrityError("artifact layout is invalid")
+    directory_components = layout.directory.split("/")
+    if directory_components.count("{identity}") != 1:
+        raise ArtifactIntegrityError("artifact layout has no single identity component")
+    if any(
+        component != "{identity}"
+        and (
+            not _is_plain_component(component)
+            or "{" in component
+            or "}" in component
+        )
+        for component in directory_components
+    ):
+        raise ArtifactIntegrityError("artifact layout has invalid path components")
+    if (
+        not _is_plain_component(layout.filename)
+        or "{" in layout.filename
+        or "}" in layout.filename
+    ):
+        raise ArtifactIntegrityError("artifact layout has invalid filename")
+
+
+def _validate_relative_path(relative_path: PurePosixPath) -> None:
+    if relative_path.is_absolute() or not relative_path.parts:
+        raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+    if any(not _is_plain_component(component) for component in relative_path.parts):
+        raise ArtifactIntegrityError("artifact pointer has an invalid relative path")
+
+
+def _validate_candidate_path(run_root: Path, candidate: Path) -> Path:
+    """Validate a policy path before any filesystem operation can use it."""
+    if not isinstance(candidate, Path) or not candidate.is_absolute():
+        raise ArtifactIntegrityError("artifact path must be absolute")
+    try:
+        relative = candidate.relative_to(run_root)
+    except ValueError as error:
+        raise ArtifactIntegrityError("artifact path escapes the run root") from error
+    if not relative.parts or any(
+        not _is_plain_component(component) for component in relative.parts
+    ):
+        raise ArtifactIntegrityError("artifact path has invalid components")
+    if not _is_plain_component(candidate.name):
+        raise ArtifactIntegrityError("artifact path has an invalid filename")
+    try:
+        resolved_root = run_root.resolve(strict=False)
+        resolved_candidate = candidate.resolve(strict=False)
+        resolved_candidate.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise ArtifactIntegrityError(
+            "artifact path escapes the run root or traverses a symlink"
+        ) from error
+    return candidate
 
 
 class ArtifactIntegrityError(RuntimeError):
@@ -280,13 +359,20 @@ class ImmutableArtifactRegistry:
         return candidates[0]
 
     def _candidate_paths(self, kind: str, identity: str) -> tuple[Path, ...]:
-        candidates = tuple(self.path_policy.candidate_paths(self.run_root, kind, identity))
-        for candidate in candidates:
-            try:
-                candidate.relative_to(self.run_root)
-            except ValueError as error:
-                raise ArtifactIntegrityError("artifact path escapes the run root") from error
-        return candidates
+        try:
+            candidates = tuple(
+                self.path_policy.candidate_paths(self.run_root, kind, identity)
+            )
+        except ArtifactIntegrityError:
+            raise
+        except (OSError, TypeError, ValueError, AttributeError, KeyError) as error:
+            raise ArtifactIntegrityError("artifact path policy returned an invalid path") from error
+        if not candidates:
+            raise ArtifactIntegrityError("artifact path policy returned no paths")
+        return tuple(
+            _validate_candidate_path(self.run_root, candidate)
+            for candidate in candidates
+        )
 
     def _pointer_for(
         self, kind: str, identity: str, path: Path, value: bytes
@@ -306,8 +392,10 @@ class ImmutableArtifactRegistry:
     def _identity_from_pointer(self, pointer: ArtifactPointer) -> str:
         if not isinstance(pointer.kind, str) or not isinstance(pointer.relative_path, str):
             raise ArtifactIntegrityError("artifact pointer has an invalid kind or path")
+        relative_path = PurePosixPath(pointer.relative_path)
+        _validate_relative_path(relative_path)
         return self.path_policy.identity_for_path(
-            pointer.kind, PurePosixPath(pointer.relative_path)
+            pointer.kind, relative_path
         )
 
     @contextmanager

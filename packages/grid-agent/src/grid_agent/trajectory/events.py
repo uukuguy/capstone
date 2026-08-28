@@ -1,5 +1,7 @@
 """Compatibility exports for the neutral trajectory event protocol."""
 
+from datetime import datetime
+
 from capability_agent.trajectory.events import (
     DEFAULT_EVENT_PRODUCER,
     LEGACY_EVENT_PRODUCER,
@@ -29,8 +31,35 @@ from capability_agent.trajectory.events import (
     ToolPayload,
     TurnStartedPayload,
     TurnTerminalPayload,
-    build_event,
+    build_event as _build_event,
 )
+
+
+def build_event(
+    draft: EventDraft,
+    *,
+    analysis_id: str,
+    sequence: int,
+    timestamp: datetime,
+    previous_event_hash: str,
+) -> RunEvent:
+    """Build a legacy grid event while preserving the neutral kernel API."""
+    if draft.source.producer == DEFAULT_EVENT_PRODUCER:
+        draft = draft.model_copy(
+            update={
+                "source": draft.source.model_copy(
+                    update={"producer": LEGACY_EVENT_PRODUCER}
+                )
+            }
+        )
+    return _build_event(
+        draft,
+        analysis_id=analysis_id,
+        sequence=sequence,
+        timestamp=timestamp,
+        previous_event_hash=previous_event_hash,
+    )
+
 
 __all__ = [
     "ZERO_PREDECESSOR_HASH",

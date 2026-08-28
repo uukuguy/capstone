@@ -254,6 +254,95 @@ exit 1, no matches
 
 The pinned Pi 0.80.6 dependency-audit finding remains out of scope and was not changed.
 
+## Workstream B Task 3 Second Review Fix: Boundary Hardening and Compatibility
+
+### RED Evidence
+
+The review regressions were added before the implementation changes:
+
+```text
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests/trajectory/test_artifacts.py::test_registry_rejects_custom_policy_escape_before_creating_outside_file \
+  packages/capability-agent-kernel/tests/trajectory/test_artifacts.py::test_registry_rejects_non_plain_layout_components_before_writing \
+  packages/capability-agent-kernel/tests/trajectory/test_events.py::test_event_source_schema_exposes_only_the_neutral_default \
+  packages/capability-agent-kernel/tests/trajectory/test_events.py::test_inventory_observation_claim_category_is_recordable \
+  packages/grid-agent/tests/trajectory/test_events.py::test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutral \
+  packages/grid-agent/tests/trajectory/test_answers.py::test_grid_answer_models_are_exact_kernel_aliases \
+  packages/grid-agent/tests/trajectory/test_answers.py -q
+10 failed, 1 passed
+```
+
+The failures demonstrated that a custom policy could pass a component traversal
+to the descriptor opener, the kernel still rejected an opaque inventory
+category, the model schema exposed the legacy producer default, direct grid
+event construction was still the kernel function, and the grid claim model was
+still a subclass.
+
+### Change
+
+- Added component-level layout and candidate validation before any open or
+  pointer construction. Invalid absolute, empty, dot, dot-dot, non-plain, and
+  escaping paths fail closed; resolved containment and the existing descriptor
+  no-follow checks both remain enforced.
+- Added custom-policy and unsafe-layout regressions proving that an attempted
+  escape does not create an outside file.
+- Changed kernel claim categories to bounded opaque strings. The grid answer
+  policy retains the grid category taxonomy and historical validation messages.
+- Removed the legacy producer override from `EventSource` schema metadata and
+  regenerated the checked-in schema with the neutral producer default.
+- Restored exact kernel aliases for grid `AnswerClaim` and `AnswerSubmission`.
+  The grid validation function remains an explicit compatibility wrapper using
+  `GridAnswerReferencePolicy` by default.
+- Added a grid-owned `build_event` wrapper that injects the legacy producer for
+  direct compatibility calls. Event model classes remain identity-preserving,
+  while the wrapper's hash and producer match an explicit legacy-source build.
+
+### GREEN Evidence
+
+```text
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests/trajectory \
+  packages/grid-agent/tests/trajectory -q
+360 passed, 1 warning
+
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests/test_boundaries.py -q
+2 passed
+
+uv run --project packages/grid-agent ruff check <trajectory source and test paths>
+All checks passed!
+
+PYTHONPATH=packages/capability-agent-kernel/src:packages/grid-agent/src \
+  pyright <trajectory source paths>
+0 errors, 0 warnings, 0 informations
+
+make check-package-boundaries
+package-boundaries: ok
+
+git diff --check 4e1003c -- <trajectory, schema, and Task 3 report paths>
+exit 0
+```
+
+Provider validation was not run. JOURNAL and concurrent Task 6 changes remain
+uncommitted and untouched.
+
+### Commit
+
+The second-review fix commit hash is reported in the handoff because this
+report is included in the commit.
+
+### Risks
+
+- Direct construction of a grid `AnswerClaim` now performs neutral structural
+  validation only; grid taxonomy and lineage checks intentionally require the
+  grid policy or the grid compatibility validation wrapper.
+- The grid `build_event` function is intentionally not an identity alias, but
+  all event model classes remain identity-preserving and the wrapper preserves
+  historical direct-call hashes.
+
 ## Workstream B Task 3: Neutral Trajectory Lifecycle Extraction
 
 ### Scope

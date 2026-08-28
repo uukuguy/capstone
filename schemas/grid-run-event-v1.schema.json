@@ -116,7 +116,7 @@
           "type": "string"
         },
         "producer": {
-          "default": "grid-agent",
+          "default": "capability-agent",
           "minLength": 1,
           "title": "Producer",
           "type": "string"

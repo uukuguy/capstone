@@ -26,6 +26,25 @@ def test_event_source_is_neutral_by_default_and_legacy_schema_is_named() -> None
     assert LEGACY_EVENT_SCHEMA_VERSION == "grid-run-event/1.0"
 
 
+def test_event_source_schema_exposes_only_the_neutral_default() -> None:
+    schema = EventSource.model_json_schema()
+
+    assert schema["properties"]["producer"]["default"] == "capability-agent"
+
+
+def test_inventory_observation_claim_category_is_recordable() -> None:
+    draft = EventDraft(
+        event_type="business.claim.declared",
+        payload={
+            "submission_id": "submission-1",
+            "statement": "The inventory observation was recorded.",
+            "category": "inventory_observation",
+        },
+    )
+
+    assert draft.payload["category"] == "inventory_observation"
+
+
 def test_build_event_is_canonical_and_hash_stable() -> None:
     draft = EventDraft(
         event_type="turn.started",

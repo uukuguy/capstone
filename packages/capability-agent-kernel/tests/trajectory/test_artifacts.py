@@ -14,6 +14,21 @@ from capability_agent.trajectory.artifacts import (
 )
 
 
+class _CustomCandidatePolicy:
+    def __init__(self, relative_components: tuple[str, ...]) -> None:
+        self.relative_components = relative_components
+
+    def candidate_paths(
+        self, run_root: Path, kind: str, identity: str
+    ) -> tuple[Path, ...]:
+        return (
+            run_root.joinpath(*self.relative_components, f"{identity}.json"),
+        )
+
+    def identity_for_path(self, kind: str, relative_path: object) -> str:
+        return "asset-1"
+
+
 def test_neutral_inventory_policy_can_be_injected_without_domain_layouts(
     tmp_path: Path,
 ) -> None:
@@ -31,6 +46,56 @@ def test_neutral_inventory_policy_can_be_injected_without_domain_layouts(
 
     assert pointer.relative_path == "inventory/records/asset-1/document.json"
     assert registry.verify(pointer).exists()
+
+
+@pytest.mark.parametrize(
+    "relative_components",
+    [("..", "outside"), ("nested", "..", "outside")],
+)
+def test_registry_rejects_custom_policy_escape_before_creating_outside_file(
+    tmp_path: Path, relative_components: tuple[str, ...]
+) -> None:
+    run_root = tmp_path / "run"
+    registry = ImmutableArtifactRegistry(
+        run_root,
+        path_policy=_CustomCandidatePolicy(relative_components),
+    )
+
+    with pytest.raises(ArtifactIntegrityError, match="path"):
+        registry.write_json("inventory-record", "asset-1", {"name": "Asset 1"})
+
+    assert not (tmp_path / "outside").exists()
+    assert not (run_root / "outside").exists()
+
+
+@pytest.mark.parametrize(
+    ("directory", "filename"),
+    [
+        ("../outside/{identity}", "document.json"),
+        ("nested/../outside/{identity}", "document.json"),
+        ("nested/./outside/{identity}", "document.json"),
+        ("nested//outside/{identity}", "document.json"),
+        ("inventory/{identity}", "records/document.json"),
+    ],
+)
+def test_registry_rejects_non_plain_layout_components_before_writing(
+    tmp_path: Path, directory: str, filename: str
+) -> None:
+    policy = NeutralArtifactPathPolicy(
+        layouts={
+            "inventory-record": ArtifactLayout(
+                directory=directory,
+                filename=filename,
+            )
+        }
+    )
+    registry = ImmutableArtifactRegistry(tmp_path / "run", path_policy=policy)
+
+    with pytest.raises(ArtifactIntegrityError, match="path|layout"):
+        registry.write_json("inventory-record", "asset-1", {"name": "Asset 1"})
+
+    assert not (tmp_path / "outside").exists()
+    assert not (tmp_path / "run" / "outside").exists()
 
 
 def test_registry_writes_once_and_verifies_digest(tmp_path: Path) -> None:

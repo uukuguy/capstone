@@ -5,6 +5,10 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from capability_agent.trajectory.events import (
+    RunEvent as NeutralRunEvent,
+    build_event as neutral_build_event,
+)
 from grid_agent.trajectory.canonical import canonical_json_bytes, sha256_ref
 from grid_agent.trajectory.events import (
     Causation,
@@ -16,6 +20,35 @@ from grid_agent.trajectory.events import (
     RunScope,
     build_event,
 )
+
+
+def test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutral() -> None:
+    draft = EventDraft(
+        event_type="turn.started",
+        scope=RunScope(turn_id="analysis-test-t001"),
+        payload={"ordinal": 1, "instruction_sha256": "a" * 64},
+    )
+    kwargs = {
+        "analysis_id": "analysis-test",
+        "sequence": 1,
+        "timestamp": datetime(2026, 8, 14, tzinfo=UTC),
+        "previous_event_hash": "sha256:" + "0" * 64,
+    }
+
+    legacy_event = build_event(draft, **kwargs)
+    neutral_event = neutral_build_event(draft, **kwargs)
+    expected_legacy_event = neutral_build_event(
+        draft.model_copy(
+            update={"source": EventSource(producer="grid-agent")}
+        ),
+        **kwargs,
+    )
+
+    assert build_event is not neutral_build_event
+    assert RunEvent is NeutralRunEvent
+    assert neutral_event.source.producer == "capability-agent"
+    assert legacy_event.source.producer == "grid-agent"
+    assert legacy_event.event_hash == expected_legacy_event.event_hash
 
 
 def test_build_event_is_canonical_and_hash_stable() -> None:

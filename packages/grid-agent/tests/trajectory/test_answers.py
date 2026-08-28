@@ -5,11 +5,22 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from capability_agent.trajectory.answers import (
+    AnswerClaim as NeutralAnswerClaim,
+    AnswerSubmission as NeutralAnswerSubmission,
+)
+from grid_agent.trajectory.answer_policy import GridAnswerReferencePolicy
 from grid_agent.trajectory.answers import AnswerClaim, validate_submission
+from grid_agent.trajectory.answers import AnswerSubmission
 
 
 RESULT_REF = "result:sha256:" + "a" * 64
 EVIDENCE_REF = "evidence:sha256:" + "b" * 64
+
+
+def test_grid_answer_models_are_exact_kernel_aliases() -> None:
+    assert AnswerClaim is NeutralAnswerClaim
+    assert AnswerSubmission is NeutralAnswerSubmission
 
 
 class RecordingVerifier:
@@ -60,7 +71,7 @@ def test_validate_submission_verifies_declared_claim_lineage() -> None:
 def test_simulator_claim_requires_verified_current_run_reference() -> None:
     verifier = RecordingVerifier()
 
-    with pytest.raises(ValidationError, match="simulator-backed claim"):
+    with pytest.raises(ValueError, match="simulator-backed claim"):
         validate_submission(
             submission_draft(
                 result_refs=[],
@@ -83,12 +94,14 @@ def test_simulator_claim_requires_verified_current_run_reference() -> None:
 
 
 def test_offline_information_claim_forbids_simulator_lineage() -> None:
-    with pytest.raises(ValidationError, match="offline-information claim"):
-        AnswerClaim(
-            statement="General power-system information",
-            category="offline_information",
-            result_refs=(RESULT_REF,),
-        )
+    claim = AnswerClaim(
+        statement="General power-system information",
+        category="offline_information",
+        result_refs=(RESULT_REF,),
+    )
+
+    with pytest.raises(ValueError, match="offline-information claim"):
+        GridAnswerReferencePolicy().validate_claim(claim)
 
 
 def test_offline_information_claim_is_accepted_without_run_evidence() -> None:

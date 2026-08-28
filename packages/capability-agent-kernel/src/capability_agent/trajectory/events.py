@@ -85,13 +85,7 @@ class DecisionPayload(StrictFrozenModel):
 class ClaimPayload(StrictFrozenModel):
     submission_id: str
     statement: str = Field(min_length=1, max_length=1000)
-    category: Literal[
-        "topology",
-        "constraint",
-        "numerical_result",
-        "risk_judgment",
-        "offline_information",
-    ]
+    category: str = Field(min_length=1, max_length=100)
     result_refs: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
 
@@ -196,11 +190,7 @@ class Causation(StrictFrozenModel):
 
 class EventSource(StrictFrozenModel):
     kind: Literal["observed", "agent-declared"] = "observed"
-    producer: str = Field(
-        default=DEFAULT_EVENT_PRODUCER,
-        min_length=1,
-        json_schema_extra={"default": LEGACY_EVENT_PRODUCER},
-    )
+    producer: str = Field(default=DEFAULT_EVENT_PRODUCER, min_length=1)
     integrity: str = Field(default="verified", min_length=1)
 
 

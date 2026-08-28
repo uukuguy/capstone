@@ -5,11 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Set
 from typing import Any, Protocol, cast
 
-from pydantic import model_validator
-
 from capability_agent.trajectory.answers import (
-    AnswerClaim as _NeutralAnswerClaim,
-    AnswerSubmission as _NeutralAnswerSubmission,
+    AnswerClaim,
+    AnswerSubmission,
     AnswerReferencePolicy,
     ReferenceVerifier as _NeutralReferenceVerifier,
     validate_submission as _validate_submission,
@@ -23,16 +21,6 @@ class ReferenceVerifier(Protocol):
     def verify_evidence(self, reference: str) -> object: ...
 
 
-class AnswerClaim(_NeutralAnswerClaim):
-    @model_validator(mode="after")
-    def validate_grid_lineage(self) -> "AnswerClaim":
-        GridAnswerReferencePolicy().validate_claim(self)
-        return self
-
-
-AnswerSubmission = _NeutralAnswerSubmission
-
-
 def validate_submission(
     draft: Mapping[str, Any],
     verifier: ReferenceVerifier,
@@ -40,12 +28,9 @@ def validate_submission(
     *,
     reference_policy: AnswerReferencePolicy | None = None,
 ) -> AnswerSubmission:
-    """Validate a grid answer while keeping the kernel API policy-injectable."""
-    submission = AnswerSubmission.model_validate(draft)
-    for claim in submission.claims:
-        AnswerClaim.model_validate(claim.model_dump(mode="json"))
+    """Validate with the grid policy by default while keeping injection possible."""
     return _validate_submission(
-        submission.model_dump(mode="json"),
+        draft,
         cast(_NeutralReferenceVerifier, verifier),
         allowed_refs,
         reference_policy=cast(
