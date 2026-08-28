@@ -454,3 +454,5 @@ The following append-only entries were recovered before closing the fully merged
 - 14:46 新增脱离仓库的四 wheel 双 npm 制品安装门 [fae75c1]
 - 15:02 实证双 npm 本地制品安装，加固 tar 成员泄漏边界 [79c1d98]
 - 15:12 记录抽取包架构与安装验证文档，支撑 Workstream B 收束 [5407dc4]
+- 15:14 固化 B-H005 六门证据链，完成 Workstream B 100 分爬梯 [e2671d0]
+- 15:32 绑定爬梯证据到 release source revision，切断 state-only HEAD 循环 [17b8c0b]

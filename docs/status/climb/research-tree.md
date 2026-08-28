@@ -1,6 +1,6 @@
 # Research Tree — Workstream B Package Extraction
 
-> Generated deterministically from 5 climb runs.
+> Generated deterministically from 6 climb runs.
 
 **Session:** 2026-08-28-workstream-b-package-extraction
 
@@ -18,7 +18,7 @@
 ## In-flight
 
 - Phase: complete
-- Last cycle: 5
+- Last cycle: 6
 - Next hypothesis: none
 - Next action: Target met; proceed with integration review and mainline closure.
 
@@ -29,6 +29,7 @@
 - 20260828T053324Z-b-h003: 15.0% — confirmed: owned deterministic Workstream B gate passed
 - 20260828T054809Z-b-h004: 20.0% — confirmed: owned deterministic Workstream B gate passed
 - 20260828T071005Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
+- 20260828T074352Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
 
 ## Active hypotheses
 

@@ -391,6 +391,97 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T074352Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T15:45:02+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/application_thinness.json",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/application_thinness.output.txt",
+          "release_source_revision": "17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/distribution_integrity.json",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/distribution_integrity.output.txt",
+          "release_source_revision": "17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/20260828T054809Z-b-h004/local-eval.json",
+          "command": [
+            "python3",
+            "tools/check_package_boundaries.py"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H004",
+          "source_run_id": "20260828T054809Z-b-h004",
+          "status": "carried-forward"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/20260828T041418Z-b-h002/local-eval.json",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H002",
+          "source_run_id": "20260828T041418Z-b-h002",
+          "status": "carried-forward"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/20260828T053324Z-b-h003/local-eval.json",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H003",
+          "source_run_id": "20260828T053324Z-b-h003",
+          "status": "carried-forward"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T074352Z-b-h005/gate-output-product_compatibility.json",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json\npython3 tools/capability_matrix.py --check\npandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
     }
   ]
 }
