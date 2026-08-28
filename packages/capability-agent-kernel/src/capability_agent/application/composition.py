@@ -40,8 +40,14 @@ def prepare_domain_runtime(
         capability_documents,
         environment_description,
         tool_name_prefix=profile.manifest.tool_name_prefix,
+        protocol=_schema_id_from_prefix(
+            profile.manifest.tool_name_prefix, "tool-catalog"
+        ),
     ).materialize(tool_catalog_path)
-    GuideIndex.load(profile.manifest.guide_root).materialize(guide_index_path)
+    GuideIndex.load(
+        profile.manifest.guide_root,
+        protocol=_schema_id_from_protocol(profile.manifest.protocol, "guide-index"),
+    ).materialize(guide_index_path)
     authority = profile.create_authority(workspace)
     return PreparedDomainRuntime(
         profile=profile,
@@ -52,3 +58,13 @@ def prepare_domain_runtime(
         tool_catalog_path=tool_catalog_path,
         guide_index_path=guide_index_path,
     )
+
+
+def _schema_id_from_prefix(tool_name_prefix: str, suffix: str) -> str:
+    namespace = tool_name_prefix.rstrip("_") or "capability"
+    return f"{namespace}-{suffix}"
+
+
+def _schema_id_from_protocol(protocol: str, suffix: str) -> str:
+    namespace = protocol.split("-", 1)[0] or "capability"
+    return f"{namespace}-{suffix}"

@@ -8,10 +8,18 @@
   profile-driven runtime preparation into the kernel.
 - Replaced the old `grid_agent.domain`, `grid_agent.tools`, and
   `grid_agent.application.composition` implementations with identity-preserving
-  compatibility exports.
+  compatibility exports. The grid tool compatibility module restores its
+  repository contract loader and product-specific description/protocol
+  materialization without adding those semantics to the kernel.
 - Added the local editable kernel dependency and refreshed `packages/grid-agent/uv.lock`.
-- Removed `load_packaged_capability_documents` from the neutral catalog so it no
-  longer reconstructs a grid repository path.
+- Kept `load_packaged_capability_documents` only at the legacy grid import path;
+  the neutral catalog consumes injected documents.
+- Made kernel catalog and guide schema IDs neutral by default, with runtime
+  schema IDs explicitly derived from the selected profile namespace. Tool name
+  prefixes are inferred from documents when not supplied.
+- Renamed the kernel composition test module to
+  `test_kernel_composition.py` so the plan's combined default-import-mode
+  pytest command has no module-name collision.
 
 ## TDD evidence
 
@@ -25,14 +33,31 @@ ImportError while loading conftest ...
 ModuleNotFoundError: No module named 'capability_agent'
 ```
 
+Review-fix RED evidence, before the corresponding implementation changes:
+
+```text
+test_kernel_source_has_no_grid_owned_semantic_literals
+AssertionError: ['tools/catalog.py', 'tools/guide.py']
+
+test_kernel_helpers_use_neutral_default_schema_ids
+AssertionError: 'grid-tool-catalog' == 'capability-tool-catalog'
+
+test_legacy_catalog_loader_keeps_repository_path_compatibility
+ImportError: cannot import name 'load_packaged_capability_documents'
+```
+
 ### GREEN
 
 ```text
 uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
-4 passed
+7 passed
 
-uv run --project packages/grid-agent pytest packages/grid-agent/tests/domain packages/grid-agent/tests/application/test_composition.py packages/grid-agent/tests/tools -q
-40 passed
+uv run --project packages/grid-agent pytest \
+  packages/capability-agent-kernel/tests \
+  packages/grid-agent/tests/domain \
+  packages/grid-agent/tests/application/test_composition.py \
+  packages/grid-agent/tests/tools -q
+47 passed
 
 make check-package-boundaries
 package-boundaries: ok
@@ -64,20 +89,16 @@ make test-agent
 - `packages/grid-agent/src/grid_agent/tools/catalog.py`
 - `packages/grid-agent/src/grid_agent/tools/guide.py`
 - `packages/grid-agent/src/grid_agent/application/composition.py`
+- `packages/capability-agent-kernel/tests/test_kernel_composition.py`
+- `.superpowers/sdd/task-2-report.md`
 
 ## Commit
 
-Implementation commit: `feat: extract capability agent kernel sdk` (final hash
-is reported in the task handoff).
+Implementation commit: `73d377b feat: extract capability agent kernel sdk`.
+Review-fix commit: `fix: neutralize extracted kernel helpers` (final hash is
+reported in the task handoff).
 
 ## Risk / note
-
-Running the plan's combined default-import-mode pytest command with both the
-new `tests/test_composition.py` and the existing
-`grid-agent/tests/application/test_composition.py` causes pytest's known module
-name collision (`import file mismatch`). The new kernel tests and legacy tests
-were therefore run separately; the same combined set passes with
-`--import-mode=importlib`.
 
 The pre-existing dirty `docs/status/JOURNAL.md` was left untouched and
 unstaged.

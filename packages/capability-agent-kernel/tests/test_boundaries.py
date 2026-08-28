@@ -30,3 +30,25 @@ def test_kernel_source_has_no_application_or_simulator_imports() -> None:
                     offenders.append(f"{path.relative_to(root)} imports {module}")
 
     assert offenders == []
+
+
+def test_kernel_source_has_no_grid_owned_semantic_literals() -> None:
+    root = Path(__file__).resolve().parents[1] / "src" / "capability_agent"
+    forbidden_literals = (
+        "grid",
+        "pandapower",
+        "gridctl",
+        "grid_agent",
+        "grid_simulator",
+    )
+
+    offenders = [
+        path.relative_to(root).as_posix()
+        for path in sorted(root.rglob("*.py"))
+        if any(
+            token in path.read_text(encoding="utf-8").lower()
+            for token in forbidden_literals
+        )
+    ]
+
+    assert offenders == []

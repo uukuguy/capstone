@@ -8,6 +8,8 @@ from pathlib import Path
 
 _RESOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]+$")
 _ENCODED_SEPARATOR_PATTERN = re.compile(r"%(?:2f|5c)", re.IGNORECASE)
+_SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
+_DEFAULT_SCHEMA_ID = "capability-guide-index"
 
 
 class GuideNotFound(KeyError):
@@ -23,12 +25,24 @@ class GuideDocument:
 
 
 class GuideIndex:
-    def __init__(self, skill_root: Path, resources: dict[str, Path]) -> None:
+    def __init__(
+        self,
+        skill_root: Path,
+        resources: dict[str, Path],
+        *,
+        protocol: str | None = None,
+    ) -> None:
         self._skill_root = skill_root
         self._resources = dict(resources)
+        self._protocol = _resolve_schema_id(protocol)
 
     @classmethod
-    def load(cls, skill_root: Path) -> GuideIndex:
+    def load(
+        cls,
+        skill_root: Path,
+        *,
+        protocol: str | None = None,
+    ) -> GuideIndex:
         root = Path(skill_root).resolve()
         resources: dict[str, Path] = {}
 
@@ -42,7 +56,7 @@ class GuideIndex:
                 if path.is_file() and path.suffix == ".md":
                     resources[path.stem] = path.resolve()
 
-        return cls(root, resources)
+        return cls(root, resources, protocol=protocol)
 
     def open(self, resource_id: str) -> GuideDocument:
         if (
@@ -67,7 +81,7 @@ class GuideIndex:
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "protocol": "grid-guide-index",
+            "protocol": self._protocol,
             "version": "1.0",
             "root": str(self._skill_root),
             "resources": {
@@ -77,6 +91,13 @@ class GuideIndex:
         }
         target.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
         return target
+
+
+def _resolve_schema_id(schema_id: str | None) -> str:
+    value = _DEFAULT_SCHEMA_ID if schema_id is None else schema_id
+    if not isinstance(value, str) or not _SCHEMA_ID_PATTERN.fullmatch(value):
+        raise ValueError("protocol is invalid")
+    return value
 
 
 def _extract_title(text: str, *, fallback: str) -> str:

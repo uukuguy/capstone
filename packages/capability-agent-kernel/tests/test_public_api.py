@@ -31,3 +31,18 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
     assert LegacyPrepareDomainRuntime is prepare_domain_runtime
     assert LegacyToolCatalog is ToolCatalog
     assert LegacyGuideIndex is GuideIndex
+
+
+def test_legacy_catalog_loader_keeps_repository_path_compatibility(tmp_path) -> None:
+    definitions = (
+        tmp_path
+        / "packages/grid-simulator/src/grid_simulator/capabilities/definitions"
+    )
+    definitions.mkdir(parents=True)
+    (definitions / "asset.list.json").write_text(
+        '{"id":"asset.list"}', encoding="utf-8"
+    )
+
+    from grid_agent.tools.catalog import load_packaged_capability_documents
+
+    assert load_packaged_capability_documents(tmp_path) == ({"id": "asset.list"},)

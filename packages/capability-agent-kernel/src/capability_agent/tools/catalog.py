@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,10 @@ from typing import Any
 _CAPABILITY_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]+$")
 _TOOL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _TOOL_NAME_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*_$")
+_SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 _JSON_SCHEMA_TYPES = {"array", "boolean", "integer", "null", "number", "object", "string"}
+_DEFAULT_TOOL_NAME_PREFIX = "tool_"
+_DEFAULT_SCHEMA_ID = "capability-tool-catalog"
 
 
 class ToolCatalogError(ValueError):
@@ -39,9 +43,14 @@ class ToolCatalog:
         self,
         tools: tuple[ToolDocument, ...],
         *,
-        tool_name_prefix: str = "grid_",
+        tool_name_prefix: str | None = None,
+        protocol: str | None = None,
     ) -> None:
+        tool_name_prefix = _resolve_tool_name_prefix(
+            (tool.name for tool in tools), tool_name_prefix
+        )
         _validate_tool_name_prefix(tool_name_prefix)
+        protocol = _resolve_schema_id(protocol, _DEFAULT_SCHEMA_ID)
         for tool in tools:
             _validate_tool_name(tool.name, tool_name_prefix)
         tools = (*tools, _decision_tool(tool_name_prefix))
@@ -53,21 +62,29 @@ class ToolCatalog:
             raise ToolCatalogError("capabilities must be unique")
         self.tools = tuple(sorted(tools, key=lambda tool: tool.name))
         self._by_name = {tool.name: tool for tool in self.tools}
+        self._protocol = protocol
 
     @classmethod
     def from_documents(
         cls,
         documents: tuple[dict[str, object], ...] | list[dict[str, object]],
         *,
-        tool_name_prefix: str = "grid_",
+        tool_name_prefix: str | None = None,
+        protocol: str | None = None,
+        description_builder: Callable[[dict[str, object]], str] | None = None,
     ) -> "ToolCatalog":
+        documents = tuple(documents)
+        tool_name_prefix = _resolve_tool_name_prefix(
+            (document.get("tool_name") for document in documents), tool_name_prefix
+        )
         _validate_tool_name_prefix(tool_name_prefix)
         return cls(
             tuple(
-                _materialize_tool(document, tool_name_prefix)
+                _materialize_tool(document, tool_name_prefix, description_builder)
                 for document in documents
             ),
             tool_name_prefix=tool_name_prefix,
+            protocol=protocol,
         )
 
     @classmethod
@@ -76,8 +93,14 @@ class ToolCatalog:
         documents: tuple[dict[str, object], ...] | list[dict[str, object]],
         environment_description: dict[str, object],
         *,
-        tool_name_prefix: str = "grid_",
+        tool_name_prefix: str | None = None,
+        protocol: str | None = None,
+        description_builder: Callable[[dict[str, object]], str] | None = None,
     ) -> "ToolCatalog":
+        documents = tuple(documents)
+        tool_name_prefix = _resolve_tool_name_prefix(
+            (document.get("tool_name") for document in documents), tool_name_prefix
+        )
         _validate_tool_name_prefix(tool_name_prefix)
         executable = environment_description.get("executable_capabilities")
         if not isinstance(executable, list):
@@ -104,7 +127,12 @@ class ToolCatalog:
             for field in ("availability", "context_effect"):
                 if field in announced and announced[field] != document.get(field):
                     raise ToolCatalogError(f"environment {field} does not match capability document: {capability_id}")
-        return cls.from_documents(selected, tool_name_prefix=tool_name_prefix)
+        return cls.from_documents(
+            selected,
+            tool_name_prefix=tool_name_prefix,
+            protocol=protocol,
+            description_builder=description_builder,
+        )
 
     def require(self, name: str) -> ToolDocument:
         try:
@@ -116,7 +144,7 @@ class ToolCatalog:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         body = {
-            "protocol": "grid-tool-catalog",
+            "protocol": self._protocol,
             "version": "1.0",
             "tools": [tool.as_json() for tool in self.tools],
         }
@@ -128,7 +156,9 @@ class ToolCatalog:
 
 
 def _materialize_tool(
-    document: dict[str, object], tool_name_prefix: str
+    document: dict[str, object],
+    tool_name_prefix: str,
+    description_builder: Callable[[dict[str, object]], str] | None = None,
 ) -> ToolDocument:
     _validate_document(document, tool_name_prefix)
     input_schema = document["input_schema"]
@@ -136,7 +166,11 @@ def _materialize_tool(
     return ToolDocument(
         name=str(document["tool_name"]),
         capability=str(document["id"]),
-        description=_description(document),
+        description=(
+            description_builder(document)
+            if description_builder is not None
+            else _description(document)
+        ),
         input_schema=input_schema,
     )
 
@@ -234,6 +268,27 @@ def _validate_document(
     _validate_json_schema(input_schema, path="input_schema")
 
 
+def _resolve_tool_name_prefix(
+    names: Any,
+    tool_name_prefix: str | None,
+) -> str:
+    if tool_name_prefix is not None:
+        return tool_name_prefix
+    for name in names:
+        if isinstance(name, str):
+            separator = name.find("_")
+            if separator > 0:
+                return name[: separator + 1]
+    return _DEFAULT_TOOL_NAME_PREFIX
+
+
+def _resolve_schema_id(schema_id: str | None, default: str) -> str:
+    value = default if schema_id is None else schema_id
+    if not isinstance(value, str) or not _SCHEMA_ID_PATTERN.fullmatch(value):
+        raise ToolCatalogError("protocol is invalid")
+    return value
+
+
 def _validate_tool_name_prefix(tool_name_prefix: str) -> None:
     if not isinstance(tool_name_prefix, str) or not _TOOL_NAME_PREFIX_PATTERN.fullmatch(
         tool_name_prefix
@@ -288,11 +343,6 @@ def _validate_json_schema(schema: dict[str, Any], *, path: str) -> None:
 
 def _description(document: dict[str, object]) -> str:
     not_for = list(_strings(document["not_for"]))
-    pandapower = document.get("pandapower")
-    if isinstance(pandapower, dict):
-        not_for.extend(_strings(pandapower.get("limitations", [])))
-    if any("flow direction" in item or "power-flow direction" in item for item in not_for):
-        not_for.append("不表示实时功率方向")
     applies_to = list(_strings(document["applies_to"]))
     terms = document.get("terms")
     if isinstance(terms, dict):
