@@ -21,10 +21,22 @@
       "required_paths": ["packages/pandapower-domain-pack/pyproject.toml", "tools/check_package_boundaries.py"]
     },
     "kernel_independence": {
-      "command": ["python3", "-c", "print('workstream b artifact characterization gate: ok')"],
+      "command": [
+        "uv",
+        "run",
+        "--project",
+        "packages/grid-agent",
+        "pytest",
+        "packages/capability-agent-kernel/tests",
+        "-q"
+      ],
       "hypothesis_id": "B-H001",
       "hypothesis_ids": ["B-H001", "B-H002"],
-      "required_paths": ["docs/superpowers/specs/2026-08-28-workstream-b-physical-package-extraction-design.md", "docs/superpowers/plans/2026-08-28-workstream-b-physical-package-extraction.md"]
+      "required_paths": [
+        "packages/capability-agent-kernel/pyproject.toml",
+        "packages/capability-agent-kernel/src/capability_agent/__init__.py",
+        "packages/capability-agent-kernel/tests/test_boundaries.py"
+      ]
     },
     "pi_tool_generalization": {
       "command": ["npm", "test", "--prefix", "packages/pi-capability-tools"],

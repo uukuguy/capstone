@@ -426,3 +426,9 @@ The following append-only entries were recovered before closing the fully merged
 - 10:39 规范化 Python 分发名，堵住等价依赖拼写 [69be2f1]
 - 10:43 拒绝 grid-agent 直接引用依赖，关闭边界绕过 [d13f9fc]
 - 10:46 B-H001 边界基线门确认，Workstream B 得分升至 25/100
+- 10:48 记录 B-H001 客观证据，为内核提取建立恢复点 [d92db71]
+- 11:04 提取中立能力内核并保留旧导入身份 [73d377b]
+- 11:19 中立化目录与指南辅助逻辑，恢复旧资源加载 API [2a4cf58]
+- 11:33 移除兼容层全局 monkeypatch，消除导入顺序副作用 [b9a304a]
+- 11:41 由 pandapower Profile 显式注入业务描述，恢复产品展示兼容 [34c18ff]
+- 12:14 B-H002 独立内核门确认，研究树转向通用 Pi 工具提取
