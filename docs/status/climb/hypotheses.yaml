@@ -202,6 +202,56 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H003",
+      "run_id": "20260828T053324Z-b-h003",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T13:33:25+08:00",
+      "local_score": 15.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 0.0,
+        "kernel_independence": 0.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "domain_ownership": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "kernel_independence": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "pi_tool_generalization": {
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "> @capability-agent/pi-tools@0.1.0 test\n> node --test\n\n✔ builds a descriptor-owned capability request (0.8205ms)\n✔ rejects invalid runtime descriptors before tool creation (0.338667ms)\n✔ rejects unbounded capability contract names before tool creation (0.183709ms)\n✔ requires the exact four keys in descriptor Pi runtime identity (0.20975ms)\n✔ fails closed when a capability response has the wrong correlation (0.407334ms)\n✔ keeps process selection outside model-owned tool parameters (0.221708ms)\n✔ generic source has no product-specific protocol, executable, prefix, or environment literals (3.775583ms)\n✔ sanitizes credentials without requiring a product namespace (0.22725ms)\n✔ registers descriptor-prefixed bounded tools (0.469958ms)\n✔ captures the canonical request from before_model_request without provider payloads (33.235083ms)\n✔ refuses to replace an existing request path (5.651666ms)\nℹ tests 11\nℹ suites 0\nℹ pass 11\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 676.402459"
+        },
+        "product_compatibility": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
     }
   ]
 }

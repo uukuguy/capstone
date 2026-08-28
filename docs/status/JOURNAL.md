@@ -432,3 +432,16 @@ The following append-only entries were recovered before closing the fully merged
 - 11:33 移除兼容层全局 monkeypatch，消除导入顺序副作用 [b9a304a]
 - 11:41 由 pandapower Profile 显式注入业务描述，恢复产品展示兼容 [34c18ff]
 - 12:14 B-H002 独立内核门确认，研究树转向通用 Pi 工具提取
+- 12:16 固化 B-H002 测试证据，建立轨迹生命周期提取恢复点 [4e1003c]
+- 12:26 提取中立轨迹生命周期并保留旧模块导出 [efea208]
+- 12:31 提取描述符驱动 Pi 工具并保留 grid 适配 [f65ba3f]
+- 12:32 打包仿真资源与 pandapower transport [1bef78c]
+- 12:38 强制 Pi 工具前缀与 runtime identity 精确校验 [e55b9db]
+- 12:43 拒绝所有非 grid 前缀工具名，关闭兼容绕过 [8559388]
+- 12:43 声明 Domain Pack 应用依赖，恢复独立导入 [b4d0d57]
+- 12:47 避免安全测试 sentinel 触发源码误报 [fe07af5]
+- 12:53 精确识别科学依赖名，允许合法 Domain Pack [fd5bfb9]
+- 13:04 注入轨迹领域 policy，移出 grid 语义 [3039a62]
+- 13:24 加固工件路径与旧事件哈希兼容边界 [ec6126f]
+- 13:30 提取 pandapower Profile、投影、权威与资源 [51ef698]
+- 13:33 B-H003 通用 Pi 门确认，研究树转向 Domain Pack 所有权
