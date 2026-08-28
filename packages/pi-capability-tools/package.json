@@ -1,16 +1,19 @@
 {
-  "name": "@grid-static-analysis/pi-grid-tools",
-  "version": "1.0.1",
+  "name": "@capability-agent/pi-tools",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/domain-tools.mjs",
+    "./model-request-capture": "./src/model-request-capture.mjs"
+  },
   "scripts": {
     "check": "node --check src/domain-tools.mjs && node --check src/model-request-capture.mjs",
     "test": "node --test"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.80.6",
-    "@earendil-works/pi-coding-agent": "0.80.6",
-    "@capability-agent/pi-tools": "file:../pi-capability-tools"
+    "@earendil-works/pi-coding-agent": "0.80.6"
   },
   "engines": {
     "node": ">=22.19.0"
