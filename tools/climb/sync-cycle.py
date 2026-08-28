@@ -44,6 +44,51 @@ def _stable_manifest_path(run_dir: Path, config: dict[str, object]) -> str:
         return f"{run_dir.name}/manifest.json"
 
 
+def _stable_path(path: Path, config: dict[str, object]) -> str:
+    resolved = path.resolve()
+    for base in (ROOT.resolve(), _resolve_artifact_dir(config).resolve(), _state_dir().resolve()):
+        try:
+            return resolved.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return path.name
+
+
+def _score_evidence_links(score: dict[str, object], config: dict[str, object]) -> list[dict[str, object]]:
+    links: list[dict[str, object]] = []
+    for key in config.get("subscores", config["score_weights"]):
+        evidence = score.get("gate_evidence", {}).get(key, {})
+        if not isinstance(evidence, dict):
+            evidence = {}
+        links.append(
+            {
+                "artifact_path": str(evidence.get("artifact_path") or ""),
+                "command": [str(part) for part in evidence.get("command", [])],
+                "returncode": evidence.get("returncode"),
+                "score_key": key,
+                "source": str(evidence.get("status", "unknown")),
+            }
+        )
+    return links
+
+
+def _update_manifest(run_dir: Path, eval_json: Path, decision_json: Path, score: dict[str, object], config: dict[str, object]) -> None:
+    manifest_path = run_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update(
+        {
+            "decision_artifact_path": _stable_path(decision_json, config),
+            "local_eval_artifact_path": _stable_path(eval_json, config),
+            "local_score": score["total"],
+            "per_task": score["per_task"],
+            "release_blockers": score.get("release_blockers", []),
+            "release_ready": bool(score.get("release_ready")),
+            "score_evidence": _score_evidence_links(score, config),
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("hypothesis_id")
@@ -64,6 +109,7 @@ def main() -> int:
 
     score = json.loads(args.eval_json.read_text(encoding="utf-8"))
     decision = json.loads(args.decision_json.read_text(encoding="utf-8"))
+    _update_manifest(args.run_dir, args.eval_json, args.decision_json, score, config)
     gate_evidence = score.get("gate_evidence", {})
     focused_gate = str(score.get("focused_gate") or known[args.hypothesis_id].get("focused_gate", ""))
     focused_status = gate_evidence.get(focused_gate, {}).get("status")
@@ -140,7 +186,7 @@ def main() -> int:
             "next_hypothesis": remaining[0] if remaining else "none",
             "in_flight": None,
             "next_action": (
-                "Run complete release verification and provider semantic acceptance."
+                "Target met; proceed with integration review and mainline closure."
                 if not remaining
                 else f"Execute {remaining[0]} through the deterministic local gate."
             ),

@@ -9,14 +9,14 @@
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |
 | `DECISIONS.md` | Active architectural decision ledger. |
-| `climb/research-tree.md` | Generated Workstream B package extraction hypothesis and scoring summary; resume-load. |
-| `climb/session-state.json` | Active Workstream B Climb session state and next action. |
+| `climb/research-tree.md` | Generated Workstream B package extraction hypothesis and 100/100 scoring summary; resume-load. |
+| `climb/session-state.json` | Active Workstream B Climb completion state and integration-review next action. |
 
 ## Climb storage and configuration
 
 | Path | Purpose |
 | --- | --- |
-| `climb/config.yaml` | Workstream B package extraction climb adapter configuration. |
+| `climb/config.yaml` | Workstream B package extraction climb adapter configuration, including receipt-backed app/dist gates. |
 | `climb/session-target.md` | Machine-readable 100% Workstream B package extraction target. |
 | `climb/hypotheses.yaml` | Append-only package extraction hypothesis state. |
 | `climb/runs.csv` | Append-only local package extraction score ledger. |

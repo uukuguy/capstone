@@ -448,3 +448,9 @@ The following append-only entries were recovered before closing the fully merged
 - 13:35 固化 B-H003 安全证据，为 Domain Pack 评估建立恢复点 [b95270b]
 - 13:48 通过 Domain Pack 路由旧资源兼容 API，关闭源码路径残留 [821b522]
 - 13:48 B-H004 Domain Pack 所有权门确认，研究树转向应用装配
+- 13:50 固化 B-H004 证据，建立应用装配恢复点 [9a5b9af]
+- 14:12 切换 grid-agent 到抽取包显式装配，安全物化 Pi 描述符 [e8745a2]
+- 14:30 令 Pi 严格消费运行级描述符，关闭并发覆盖与兼容导入 [c56b463]
+- 14:46 新增脱离仓库的四 wheel 双 npm 制品安装门 [fae75c1]
+- 15:02 实证双 npm 本地制品安装，加固 tar 成员泄漏边界 [79c1d98]
+- 15:12 记录抽取包架构与安装验证文档，支撑 Workstream B 收束 [5407dc4]

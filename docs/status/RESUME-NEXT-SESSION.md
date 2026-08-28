@@ -1,34 +1,31 @@
 # Live Session Checkpoint
 
-> Updated: 2026-08-19 20:20 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-08-28 15:12 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- `main` contains the complete `grid-static-analysis` v1.0.1 implementation and release documentation.
-- The release includes loopback proxy bypass for local OpenAI-compatible services, normalized Responses tool-call identities, and compact answer-first analysis reports.
-- Previously operator-local reports, test scripts, the user manual, and validation questions are now under Git control in commit `1643315`.
+- Active branch: `feature/workstream-b-package-extraction` in its dedicated worktree.
+- Workstream B Tasks 0–9 are implemented and locally verified in the dedicated worktree.
+- Climb B-H001 through B-H005 are confirmed; B-H005 scored 100/100 with no release blockers.
+- The next authorized step is integration review and mainline closure, not provider validation.
 
-## Durable verification baseline
+## Durable evidence
 
-- The final release-assets gate passed: Agent 588, Simulator 164, Pi tools 29, and Workbench 120.
-- `git diff --check`, Python compilation, JSONL parsing, and release-document credential-pattern scans passed.
-- Provider validation remains optional and may require billed credentials.
-
-## Release contents added at this checkpoint
-
-- `docs/reports/` — task and test-result reports.
-- `docs/test_script/` — evaluation scripts and JSONL fixtures.
-- `docs/用户手册 (2).pdf` — supplied Chinese user manual.
-- `validation/questions/test.md.txt` — simulator-backed validation questions.
-- `docs/TASK.md` and `validation/questions/task.md.txt` — aligned `pandapower runpp` spelling and line 17 wording.
+- Kernel, trajectory, generic Pi tools, simulator transport, and pandapower Domain Pack are physically extracted.
+- `grid-agent` now assembles owning packages directly and Pi consumes a strict run-scoped runtime descriptor.
+- Latest package gates: `make check-package-boundaries` returned 0; `make test-packages` returned 0 after building four Python wheels and two npm tarballs outside the repo.
+- Latest repository gates: `make doctor`, `make test`, `make test-e2e`, and `make validate` returned 0; capability matrix reported 24/24 and `release_ready=True`.
+- Latest climb evidence: B-H005 manifest links B-H002 kernel, B-H004 domain, B-H003 Pi, app/dist receipts, and current focused `make validate` output.
 
 ## Immediate next actions
 
-1. Recreate the unpushed annotated `v1.0.1` tag on the final release-state commit.
-2. Push `main` and `v1.0.1` to `origin`, then confirm the remote refs.
+1. Review the final Workstream B task/state commits.
+2. Merge or otherwise integrate the feature branch into `main` under controller direction.
+3. Reconcile user-owned state edits and remove the feature worktree/branch only after integration is complete.
 
 ## Boundaries
 
-- Do not commit ignored runtime data under `runs/`, `.grid-agent/`, or a user's existing `var/` directory.
-- Do not expose credentials, generic filesystem tools, shell access, or raw pandapower objects to the model.
-- Do not move or force-update a published release tag; rebuilding `v1.0.1` here is allowed only because its prior object has not been pushed.
+- Preserve the exact stdout envelope and keep diagnostics on stderr.
+- Keep simulator truth, evidence, and network resources behind `gridctl` and `grid-capability/1.0`.
+- Do not run provider validation without explicit billed-credential authorization.
+- Do not stop with the implementation stranded in a temporary worktree or feature branch.

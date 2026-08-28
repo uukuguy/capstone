@@ -3,29 +3,31 @@
 ## Project Snapshot
 
 - Project: grid-static-analysis
-- Theme-level focus: general domain-agent framework upgrade by seam extraction
+- Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream A completed; kernel/domain seams are implemented inside the existing `grid-agent` distribution
-- Deferred work packages: Workstreams B-E remain future work for physical package extraction, a non-grid reference domain, enterprise action governance, and multi-domain composition
+- Active work package: Workstream B package extraction is implemented and locally verified for the pandapower static-analysis application
+- Deferred work packages: Workstreams C-E remain future work for a non-grid reference domain, enterprise action governance, and multi-domain composition
 
 ## Current Architecture
 
 - CLI: `grid-agent` writes exactly one JSON answer envelope to stdout; progress and diagnostics stay on stderr.
-- Domain runtime profile seam: CLI selects `build_pandapower_profile(repo_root)`, then `prepare_domain_runtime(...)` materializes contracts, `environment.describe`, the tool catalog, guide index, current-run authority, executor, and projector registry.
-- Built-in Profile: `packages/grid-agent/src/grid_agent/domains/pandapower.py` owns the pandapower compatibility `DomainRuntimeProfile`, manifest metadata, contract root, system policy path, guide root, `GridctlClient` executor adapter, `ContentReferenceVerifier` authority adapter, and existing projector registry adapter.
-- Neutral domain runtime modules: `packages/grid-agent/src/grid_agent/domain/` defines `DomainManifest`, `CapabilityContractSource`, `CapabilityExecutor`, `DomainProjectorRegistry`, `ArtifactAuthority`, and `DomainRuntimeProfile`; these modules are packaged inside `grid-agent` and do not import simulator/grid implementation modules.
-- Generic composer: `packages/grid-agent/src/grid_agent/application/composition.py` depends on the injected profile and protocols, and does not select a default Profile.
+- Package assembly: `grid-agent` is assembled from four Python distributions (`capability-agent-kernel`, `grid-simulator`, `pandapower-domain-pack`, `grid-agent`) and two Pi npm packages (`@capability-agent/pi-tools`, `@grid-static-analysis/pi-grid-tools`).
+- Domain runtime profile seam: CLI selects `pandapower_domain.build_pandapower_profile()`, then `capability_agent.prepare_domain_runtime(...)` materializes contracts, `environment.describe`, the tool catalog, guide index, current-run authority, executor, and projector registry.
+- Agent Kernel: `capability-agent-kernel` owns neutral domain interfaces, runtime composition, tool catalog/guide materialization, trajectory primitives, artifacts, replay, and compatibility exports consumed by `grid-agent`.
+- Pandapower Domain Pack: `pandapower-domain-pack` owns the pandapower compatibility `DomainRuntimeProfile`, manifest metadata, contract resources, system policy, guides, `GridctlClient` executor adapter, `ContentReferenceVerifier` authority adapter, and existing projector registry adapter.
+- Simulator: `grid-simulator` owns `gridctl`, registered network access, deterministic pandapower 3.4.0 calculations, model revisions, result datasets, and evidence.
+- Pi packages: `@capability-agent/pi-tools` owns generic descriptor-driven capability transport and model-request capture; `@grid-static-analysis/pi-grid-tools` preserves the current grid extension wrapper and `grid_*` tool compatibility.
 - Agent runtime: managed Pi exposes only project grid tools, guides, and bounded context/decision tools; the LLM boundary owns provider-specific formats, while `grid-agent` commits ordinary model final text with controller-bound current-turn result/evidence lineage.
 - Canonical capture: Pi atomically persists provider-independent model inputs before provider I/O without waiting for observer acknowledgement.
-- Native trajectory: a Python-owned typed event spine records model requests/responses, tools, decisions, claims, context revisions, results, and evidence as the authoritative chronology.
+- Native trajectory: the kernel event spine records model requests/responses, tools, decisions, claims, context revisions, results, and evidence as the authoritative chronology.
 - Observation: polling skips already-seen request artifacts before parsing; projection, validation, and integrity diagnostics are deterministic consumers of recorded execution and cannot semantically replace simulator truth.
-- Simulator: `gridctl` exclusively owns registered network access and deterministic pandapower 3.4.0 calculations through `grid-capability` protocol 1.0.
+- Simulator boundary: `gridctl` exclusively owns registered network access and deterministic pandapower 3.4.0 calculations through `grid-capability` protocol 1.0.
 - Compatibility contracts: CLI command names, stdout envelope, stderr diagnostics, `grid_*` tool names, tool schemas, `grid-capability/1.0`, current-run evidence admission, and `runs/` artifact layouts remain unchanged.
 - Analysis context: bounded model-facing views retain active model, sourced constraints, reusable calculations, scenarios, facts, lineage, and explicit omission metadata.
 - Reporting: per-question reports render answer first, restore simulation environment context, summarize the observable agent trajectory with compact simulator results, and link persisted detailed trace/current-run evidence artifacts.
 - Workbench: the loopback read-only trajectory API and Business/Agent/Context/Evidence workbench consume deterministic projections without mutating runs.
-- Verification: unit, E2E, offline/scripted validation, and provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
+- Verification: unit, package-boundary, install-mode package artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
 
 ## Open Problems (theme-level)
 
@@ -48,19 +50,26 @@
 
 ### Implementation entry points
 
-- `packages/grid-agent/src/grid_agent/domain/` — neutral domain-runtime protocols and Profile value types
-- `packages/grid-agent/src/grid_agent/domains/pandapower.py` — built-in pandapower compatibility Profile and adapters
-- `packages/grid-agent/src/grid_agent/application/composition.py` — shared Profile-driven runtime materialization
+- `packages/capability-agent-kernel/src/capability_agent/domain/` — neutral domain-runtime protocols and Profile value types
+- `packages/capability-agent-kernel/src/capability_agent/application/composition.py` — shared Profile-driven runtime materialization
+- `packages/capability-agent-kernel/src/capability_agent/tools/` — neutral tool catalog and guide materialization
+- `packages/capability-agent-kernel/src/capability_agent/trajectory/` — native event, artifact, recorder, replay, and reader primitives
+- `packages/pandapower-domain-pack/src/pandapower_domain/` — pandapower compatibility Profile, resources, policy, guides, authority, executor, and projectors
+- `packages/grid-agent/src/grid_agent/domain/` — compatibility imports for neutral kernel interfaces
+- `packages/grid-agent/src/grid_agent/domains/pandapower.py` — compatibility import for the pandapower Profile
+- `packages/grid-agent/src/grid_agent/application/composition.py` — compatibility import for shared Profile-driven runtime materialization
 - `packages/grid-agent/src/grid_agent/analysis/runner.py` — continuous Analysis orchestration
 - `packages/grid-agent/src/grid_agent/trajectory/capture.py` — native Pi event/request observation
 - `packages/grid-agent/src/grid_agent/analysis/projector.py` — simulator result projection into continuous context
 - `packages/grid-agent/src/grid_agent/analysis/view.py` — bounded model-facing context view
 - `packages/grid-agent/src/grid_agent/analysis/report.py` — native-event-backed report generation
-- `packages/pi-grid-tools/src/model-request-capture.mjs` — canonical pre-provider request persistence
-- `packages/pi-grid-tools/src/domain-tools.mjs` — bounded Pi grid/orchestration tools
+- `packages/pi-capability-tools/src/model-request-capture.mjs` — generic canonical pre-provider request persistence
+- `packages/pi-capability-tools/src/domain-tools.mjs` — descriptor-driven bounded Pi capability tools
+- `packages/pi-grid-tools/src/model-request-capture.mjs` — grid-compatible request-capture wrapper
+- `packages/pi-grid-tools/src/domain-tools.mjs` — grid-compatible Pi extension wrapper
 - `packages/grid-simulator/src/grid_simulator/capabilities/` — deterministic simulator capabilities and contracts
 - `configs/capabilities/pandapower-3.4.0-static-analysis.json` — executable product coverage source of truth
-- `docs/status/climb/research-tree.md` — active autonomous implementation hypothesis state
+- `docs/status/climb/research-tree.md` — generated Workstream B package extraction score state
 - `packages/trajectory-workbench/` — read-only trajectory investigation UI
 - `validation/questions/task.md.txt` — canonical provider-backed continuous Analysis suite
 - `Makefile` — supported setup, execution, and verification commands

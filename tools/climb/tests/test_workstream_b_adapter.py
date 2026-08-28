@@ -16,6 +16,7 @@ DECISION = ROOT / "tools/climb/decision-gate.py"
 SYNC = ROOT / "tools/climb/sync-cycle.py"
 REGEN = ROOT / "tools/climb/regen-tree.py"
 CHECK_TARGET = ROOT / "tools/climb/check-target.py"
+GATE_RECEIPT = ROOT / "tools/climb/gate-receipt.py"
 
 EXPECTED_WEIGHTS = {
     "kernel_independence": 25.0,
@@ -186,6 +187,119 @@ def _write_temp_state(tmp_path: Path, *, phase: str = "B-H001 implementation") -
     return state_dir, artifact_dir
 
 
+def _append_run(
+    state_dir: Path,
+    artifact_dir: Path,
+    *,
+    run_id: str,
+    cycle: int,
+    hypothesis_id: str,
+    gate_key: str,
+    weight: float,
+    command: list[str],
+) -> None:
+    run_dir = artifact_dir / run_id
+    run_dir.mkdir(parents=True)
+    local_eval = {
+        "focused_gate": gate_key,
+        "gate_evidence": {
+            gate_key: {
+                "artifact_path": f"{run_id}/gate-output-{gate_key}.json",
+                "command": command,
+                "returncode": 0,
+                "status": "passed",
+            }
+        },
+        "hypothesis_gate_passed": True,
+        "per_task": {key: 0.0 for key in EXPECTED_WEIGHTS},
+        "release_ready": False,
+        "total": weight,
+    }
+    local_eval["per_task"][gate_key] = weight
+    (run_dir / "local-eval.json").write_text(json.dumps(local_eval, sort_keys=True) + "\n", encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "hypothesis_id": hypothesis_id,
+                "kind": "workstream-b-package-extraction-gate",
+                "score_evidence": [
+                    {
+                        "artifact_path": f"{run_id}/local-eval.json",
+                        "command": command,
+                        "score_key": gate_key,
+                        "source": "local-eval",
+                    }
+                ],
+                "session": "2026-08-28-workstream-b-package-extraction",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    document = json.loads((state_dir / "hypotheses.yaml").read_text(encoding="utf-8"))
+    document["events"].append(
+        {
+            "gate_evidence": local_eval["gate_evidence"],
+            "hypothesis_id": hypothesis_id,
+            "local_score": weight,
+            "per_task": local_eval["per_task"],
+            "recorded_at": f"2026-08-28T0{cycle}:00:00+00:00",
+            "run_id": run_id,
+            "status": "confirmed",
+            "verdict": "confirmed: owned deterministic Workstream B gate passed",
+        }
+    )
+    (state_dir / "hypotheses.yaml").write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
+    with (state_dir / "runs.csv").open("a", encoding="utf-8") as handle:
+        handle.write(
+            f"{run_id},{cycle},2026-08-28-workstream-b-package-extraction,{hypothesis_id},test-paradigm,,,,"
+            f"{weight},{local_eval['per_task']['kernel_independence']},{local_eval['per_task']['domain_ownership']},"
+            f"{local_eval['per_task']['pi_tool_generalization']},{local_eval['per_task']['application_thinness']},"
+            f"{local_eval['per_task']['distribution_integrity']},{local_eval['per_task']['product_compatibility']},"
+            ",,CONTINUE,matrix incomplete; advance next implementation hypothesis,"
+            "confirmed: owned deterministic Workstream B gate passed,0.0,"
+            f"{run_id}/manifest.json\n"
+        )
+
+
+def _write_receipt(
+    state_dir: Path,
+    *,
+    gate_key: str,
+    command: list[str],
+    source_commit: str = "test-source",
+    returncode: int = 0,
+) -> Path:
+    receipt_dir = state_dir / "receipts"
+    receipt_dir.mkdir(exist_ok=True)
+    receipt_path = receipt_dir / f"{gate_key}.json"
+    output_path = receipt_dir / f"{gate_key}.output.txt"
+    output_path.write_text(f"{gate_key} output\n", encoding="utf-8")
+    receipt_path.write_text(
+        json.dumps(
+            {
+                "artifact_path": f"receipts/{gate_key}.json",
+                "command": command,
+                "gate_key": gate_key,
+                "output_artifact_path": f"receipts/{gate_key}.output.txt",
+                "returncode": returncode,
+                "source_commit": source_commit,
+                "status": "passed" if returncode == 0 else "failed",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["score_gates"][gate_key]["receipt_path"] = str(receipt_path)
+    config["score_gates"][gate_key]["receipt_required"] = True
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    return receipt_path
+
+
 def _env(state_dir: Path, artifact_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["CLIMB_STATE_DIR"] = str(state_dir)
@@ -300,6 +414,244 @@ def test_eval_runs_only_the_manifest_hypothesis_focused_gate(tmp_path: Path) -> 
     assert (marker_dir / "product").is_file()
     assert not (marker_dir / "application").exists()
     assert not (marker_dir / "distribution").exists()
+
+
+def test_eval_b_h005_scores_valid_cumulative_evidence_and_receipts(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    marker_dir = tmp_path / "markers"
+    marker_dir.mkdir()
+    required_root = tmp_path / "available"
+    required_root.mkdir()
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    for score_key in ("application_thinness", "distribution_integrity", "product_compatibility"):
+        config["score_gates"][score_key]["required_paths"] = [str(required_root)]
+    config["score_gates"]["application_thinness"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "application"),
+    ]
+    config["score_gates"]["distribution_integrity"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "distribution"),
+    ]
+    config["score_gates"]["product_compatibility"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "product"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h002",
+        cycle=1,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=["kernel", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h003",
+        cycle=2,
+        hypothesis_id="B-H003",
+        gate_key="pi_tool_generalization",
+        weight=15.0,
+        command=["pi", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h004",
+        cycle=3,
+        hypothesis_id="B-H004",
+        gate_key="domain_ownership",
+        weight=20.0,
+        command=["domain", "gate"],
+    )
+    _write_receipt(
+        state_dir,
+        gate_key="application_thinness",
+        command=config["score_gates"]["application_thinness"]["command"],
+    )
+    _write_receipt(
+        state_dir,
+        gate_key="distribution_integrity",
+        command=config["score_gates"]["distribution_integrity"]["command"],
+    )
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+    env = _env(state_dir, artifact_dir)
+    env["CLIMB_SOURCE_COMMIT"] = "test-source"
+
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    score = json.loads(result.stdout)
+    assert score["per_task"] == EXPECTED_WEIGHTS
+    assert score["total"] == 100.0
+    assert score["release_ready"] is True
+    assert score["release_blockers"] == []
+    assert score["gate_evidence"]["kernel_independence"]["status"] == "carried-forward"
+    assert score["gate_evidence"]["kernel_independence"]["source_run_id"] == "cycle-b-h002"
+    assert score["gate_evidence"]["domain_ownership"]["status"] == "carried-forward"
+    assert score["gate_evidence"]["pi_tool_generalization"]["status"] == "carried-forward"
+    assert score["gate_evidence"]["application_thinness"]["status"] == "receipt-passed"
+    assert score["gate_evidence"]["distribution_integrity"]["status"] == "receipt-passed"
+    assert score["gate_evidence"]["product_compatibility"]["status"] == "passed"
+    assert (marker_dir / "product").is_file()
+    assert not (marker_dir / "application").exists()
+    assert not (marker_dir / "distribution").exists()
+
+
+def test_eval_b_h005_zeroes_missing_failed_and_stale_receipts(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    required_root = tmp_path / "available"
+    required_root.mkdir()
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    for score_key in ("application_thinness", "distribution_integrity", "product_compatibility"):
+        config["score_gates"][score_key]["required_paths"] = [str(required_root)]
+    config["score_gates"]["product_compatibility"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "kernel-ok.py"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h002",
+        cycle=1,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=["kernel", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h003",
+        cycle=2,
+        hypothesis_id="B-H003",
+        gate_key="pi_tool_generalization",
+        weight=15.0,
+        command=["pi", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h004",
+        cycle=3,
+        hypothesis_id="B-H004",
+        gate_key="domain_ownership",
+        weight=20.0,
+        command=["domain", "gate"],
+    )
+    _write_receipt(
+        state_dir,
+        gate_key="distribution_integrity",
+        command=config["score_gates"]["distribution_integrity"]["command"],
+        returncode=1,
+    )
+    stale_receipt = _write_receipt(
+        state_dir,
+        gate_key="application_thinness",
+        command=config["score_gates"]["application_thinness"]["command"],
+        source_commit="old-source",
+    )
+    stale_payload = json.loads(stale_receipt.read_text(encoding="utf-8"))
+    assert stale_payload["source_commit"] == "old-source"
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+    env = _env(state_dir, artifact_dir)
+    env["CLIMB_SOURCE_COMMIT"] = "test-source"
+
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    score = json.loads(result.stdout)
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["per_task"]["distribution_integrity"] == 0.0
+    assert score["per_task"]["product_compatibility"] == 20.0
+    assert score["total"] == 80.0
+    assert score["release_ready"] is False
+    assert score["gate_evidence"]["application_thinness"]["status"] == "stale-receipt"
+    assert score["gate_evidence"]["distribution_integrity"]["status"] == "failed-receipt"
+    assert "application_thinness: stale-receipt" in score["release_blockers"]
+    assert "distribution_integrity: failed-receipt" in score["release_blockers"]
+
+
+def test_eval_b_h005_zeroes_missing_receipt(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    required_root = tmp_path / "available"
+    required_root.mkdir()
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    for score_key in ("application_thinness", "distribution_integrity", "product_compatibility"):
+        config["score_gates"][score_key]["required_paths"] = [str(required_root)]
+    config["score_gates"]["application_thinness"]["receipt_required"] = True
+    config["score_gates"]["application_thinness"]["receipt_path"] = str(state_dir / "receipts/missing.json")
+    config["score_gates"]["product_compatibility"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "kernel-ok.py"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=_env(state_dir, artifact_dir))
+
+    assert result.returncode == 0, result.stderr
+    score = json.loads(result.stdout)
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["gate_evidence"]["application_thinness"]["status"] == "missing-receipt"
+    assert "application_thinness: missing-receipt" in score["release_blockers"]
+
+
+def test_gate_receipt_records_exact_command_returncode_commit_and_output_path(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    output_marker = tmp_path / "receipt-command-ran"
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["score_gates"]["application_thinness"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(output_marker),
+    ]
+    config["score_gates"]["application_thinness"]["required_paths"] = [str(tmp_path / "gates" / "append-marker.py")]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    env = _env(state_dir, artifact_dir)
+    env["CLIMB_SOURCE_COMMIT"] = "test-source"
+
+    result = _run([GATE_RECEIPT, "application_thinness"], cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    receipt_path = Path(result.stdout.strip())
+    assert receipt_path.is_file()
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["gate_key"] == "application_thinness"
+    assert receipt["command"] == config["score_gates"]["application_thinness"]["command"]
+    assert receipt["returncode"] == 0
+    assert receipt["source_commit"] == "test-source"
+    assert receipt["artifact_path"] == "gate-receipts/application_thinness.json"
+    assert receipt["output_artifact_path"] == "gate-receipts/application_thinness.output.txt"
+    assert (artifact_dir / "gate-receipts/application_thinness.output.txt").is_file()
+    assert output_marker.is_file()
 
 
 def test_decision_gate_pushes_only_release_ready_scores(tmp_path: Path) -> None:
@@ -418,6 +770,104 @@ def test_sync_uses_focused_gate_and_records_stable_manifest_path(tmp_path: Path)
     rows = (state_dir / "runs.csv").read_text(encoding="utf-8").splitlines()
     assert "cycle-b-h005/manifest.json" in rows[1]
     assert str(tmp_path) not in rows[1]
+
+
+def test_sync_updates_manifest_with_six_stable_evidence_links(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h001",
+        cycle=1,
+        hypothesis_id="B-H001",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=["kernel", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h002",
+        cycle=2,
+        hypothesis_id="B-H002",
+        gate_key="kernel_independence",
+        weight=25.0,
+        command=["kernel", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h003",
+        cycle=3,
+        hypothesis_id="B-H003",
+        gate_key="pi_tool_generalization",
+        weight=15.0,
+        command=["pi", "gate"],
+    )
+    _append_run(
+        state_dir,
+        artifact_dir,
+        run_id="cycle-b-h004",
+        cycle=4,
+        hypothesis_id="B-H004",
+        gate_key="domain_ownership",
+        weight=20.0,
+        command=["domain", "gate"],
+    )
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+    eval_json = run_dir / "local-eval.json"
+    gate_evidence = {
+        key: {
+            "artifact_path": f"stable/{key}.json",
+            "command": ["make", key],
+            "returncode": 0,
+            "status": "passed" if key == "product_compatibility" else "carried-forward",
+        }
+        for key in EXPECTED_WEIGHTS
+    }
+    gate_evidence["application_thinness"]["status"] = "receipt-passed"
+    gate_evidence["distribution_integrity"]["status"] = "receipt-passed"
+    eval_json.write_text(
+        json.dumps(
+            {
+                "focused_gate": "product_compatibility",
+                "gate_evidence": gate_evidence,
+                "hypothesis_gate_passed": True,
+                "per_task": EXPECTED_WEIGHTS,
+                "release_blockers": [],
+                "release_ready": True,
+                "total": 100.0,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    decision_json = run_dir / "decision.json"
+    decision_json.write_text(
+        json.dumps({"decision": "PUSH", "reason": "100% release gate met"}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run([SYNC, "B-H005", run_dir, eval_json, decision_json], cwd=tmp_path, env=_env(state_dir, artifact_dir))
+
+    assert result.returncode == 0, result.stderr
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    links = manifest["score_evidence"]
+    assert [link["score_key"] for link in links] == list(EXPECTED_WEIGHTS)
+    assert {tuple(link["command"]) for link in links} == {
+        ("make", key) for key in EXPECTED_WEIGHTS
+    }
+    assert all(link["artifact_path"].startswith("stable/") for link in links)
+    assert str(tmp_path) not in json.dumps(manifest)
+    session = json.loads((state_dir / "session-state.json").read_text(encoding="utf-8"))
+    assert session["phase"] == "complete"
+    assert session["next_action"] == "Target met; proceed with integration review and mainline closure."
 
 
 def test_eval_no_argument_creates_missing_artifact_directory_before_mktemp(tmp_path: Path) -> None:
