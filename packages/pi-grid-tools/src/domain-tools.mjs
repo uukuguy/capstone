@@ -70,6 +70,7 @@ export function createGridTool(contract, runner) {
 export default function domainToolsExtension(pi) {
   return createDomainToolsExtension(runtimeDescriptor(process.env), {
     selectedSecretNames: selectedGridSecretNames(process.env),
+    modelRequestSchemaVersion: "grid-model-request-input/2.0",
   })(pi);
 }
 

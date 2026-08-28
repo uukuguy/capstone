@@ -41,6 +41,7 @@ def test_grid_build_event_preserves_legacy_direct_hash_while_kernel_stays_neutra
         draft.model_copy(
             update={"source": EventSource(producer="grid-agent")}
         ),
+        schema_version="grid-run-event/1.0",
         **kwargs,
     )
 

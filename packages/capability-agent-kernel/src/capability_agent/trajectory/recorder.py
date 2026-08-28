@@ -18,6 +18,7 @@ from capability_agent.trajectory.artifacts import (
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import (
     DEFAULT_EVENT_PRODUCER,
+    DEFAULT_EVENT_SCHEMA_VERSION,
     ZERO_PREDECESSOR_HASH,
     EventDraft,
     RunEvent,
@@ -61,17 +62,21 @@ class RunEventRecorder:
         secret_values: Iterable[str] = (),
         subscribers: Iterable[Callable[[RunEvent], None]] = (),
         producer: str = DEFAULT_EVENT_PRODUCER,
+        schema_version: str = DEFAULT_EVENT_SCHEMA_VERSION,
     ) -> None:
         if not analysis_id:
             raise ValueError("analysis_id must not be empty")
         if not producer:
             raise ValueError("producer must not be empty")
+        if not schema_version:
+            raise ValueError("schema_version must not be empty")
         self.events_path = events_path
         self.analysis_id = analysis_id
         self._artifact_registry = artifact_registry
         self._secret_values = frozenset(value for value in secret_values if value)
         self._subscribers = tuple(subscribers)
         self._producer = producer
+        self._schema_version = schema_version
         self._subscriber_failures: list[str] = []
         self._next_sequence = 1
         self._previous_hash = ZERO_PREDECESSOR_HASH
@@ -98,6 +103,7 @@ class RunEventRecorder:
                 sequence=self._next_sequence,
                 timestamp=datetime.now(UTC),
                 previous_event_hash=self._previous_hash,
+                schema_version=self._schema_version,
             )
             encoded_event = canonical_json_bytes(event.model_dump(mode="json"))
             try:

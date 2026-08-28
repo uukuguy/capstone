@@ -6,6 +6,8 @@ import { basename, dirname, join } from "node:path";
 const TURN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const CONTENT_HASH_PATTERN = /^[0-9a-f]{64}$/;
 const RUNTIME_SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
+const SCHEMA_VERSION_PATTERN = /^[a-z][a-z0-9.-]*\/[0-9]+\.[0-9]+$/;
+const DEFAULT_MODEL_REQUEST_SCHEMA_VERSION = "capability-model-request-input/1.0";
 const PUBLIC_OPTION_KEYS = [
   "reasoning",
   "thinkingBudgets",
@@ -43,6 +45,9 @@ export class CanonicalRequestContractError extends Error {
 export function configureModelRequestCapture(pi, paths, fatal = captureFatal) {
   let requestIndex = 0;
   const runtime = validateRuntimeIdentity(paths.runtime ?? defaultRuntimeIdentity());
+  const schemaVersion = validateSchemaVersion(
+    paths.schemaVersion ?? DEFAULT_MODEL_REQUEST_SCHEMA_VERSION,
+  );
   pi.on("before_model_request", async (event) => {
     try {
       requestIndex += 1;
@@ -51,7 +56,7 @@ export function configureModelRequestCapture(pi, paths, fatal = captureFatal) {
       const semanticRequest = canonicalSemanticRequest(event);
       const requestId = `${turn.turn_id}-r${String(requestIndex).padStart(3, "0")}`;
       const document = {
-        schema_version: "grid-model-request-input/2.0",
+        schema_version: schemaVersion,
         request_id: requestId,
         request_index: requestIndex,
         turn_id: turn.turn_id,
@@ -71,6 +76,13 @@ export function configureModelRequestCapture(pi, paths, fatal = captureFatal) {
       );
     }
   });
+}
+
+function validateSchemaVersion(value) {
+  if (typeof value !== "string" || !SCHEMA_VERSION_PATTERN.test(value)) {
+    throw new Error("invalid model request schema version");
+  }
+  return value;
 }
 
 export const configureTrajectoryCapture = configureModelRequestCapture;

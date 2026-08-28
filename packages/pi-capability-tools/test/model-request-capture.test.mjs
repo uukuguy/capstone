@@ -21,7 +21,7 @@ test("captures the canonical request from before_model_request without provider 
   const serialized = await readFile(join(root, "requests/turn-1-r001/input.json"), "utf8");
   const request = JSON.parse(serialized);
   assert.equal(serialized.endsWith("\n"), true);
-  assert.equal(request.schema_version, "grid-model-request-input/2.0");
+  assert.equal(request.schema_version, "capability-model-request-input/1.0");
   assert.equal(request.request_id, "turn-1-r001");
   assert.deepEqual(request.source_event_sequences, [1]);
   assert.deepEqual(request.semantic_request.context.messages, [

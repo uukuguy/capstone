@@ -180,6 +180,8 @@ export function createDomainToolsExtension(descriptor, options = {}) {
   if (
     !isPlainObject(options) ||
     (options.createTool !== undefined && typeof options.createTool !== "function") ||
+    (options.modelRequestSchemaVersion !== undefined &&
+      typeof options.modelRequestSchemaVersion !== "string") ||
     (options.selectedSecretNames !== undefined &&
       (!Array.isArray(options.selectedSecretNames) ||
         !options.selectedSecretNames.every((name) => typeof name === "string" && name.length > 0)))
@@ -205,6 +207,7 @@ export function createDomainToolsExtension(descriptor, options = {}) {
         allowedRefsPath: paths.trajectoryAllowedRefsPath,
         acknowledgementsPath: paths.trajectoryAcksPath,
         runtime: paths.piRuntime,
+        schemaVersion: options.modelRequestSchemaVersion,
       });
     }
     const catalog = readJsonSync(paths.toolCatalogPath);

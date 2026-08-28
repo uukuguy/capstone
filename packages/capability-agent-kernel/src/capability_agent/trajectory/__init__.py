@@ -10,6 +10,7 @@ from capability_agent.trajectory.events import (
     RunEvent,
     RunScope,
     build_event,
+    DEFAULT_EVENT_SCHEMA_VERSION,
 )
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "RunEvent",
     "RunScope",
     "build_event",
+    "DEFAULT_EVENT_SCHEMA_VERSION",
     "canonical_json_bytes",
     "sha256_ref",
 ]

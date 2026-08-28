@@ -41,6 +41,7 @@ def test_imported_event_freezes_payload_and_preserves_replay_protocol() -> None:
     event = _imported_event()
 
     assert isinstance(event, ReplayEventLike)
+    assert event.schema_version == "capability-run-import-event/1.0"
     assert event.payload == {"nested": {"value": 1}}
     with pytest.raises(TypeError, match="mapping is immutable"):
         event.payload["nested"] = {}  # type: ignore[index]

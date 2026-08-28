@@ -4,8 +4,6 @@ from datetime import datetime
 
 from capability_agent.trajectory.events import (
     DEFAULT_EVENT_PRODUCER,
-    LEGACY_EVENT_PRODUCER,
-    LEGACY_EVENT_SCHEMA_VERSION,
     ZERO_PREDECESSOR_HASH,
     AnalysisTerminalPayload,
     AnswerPayload,
@@ -35,6 +33,10 @@ from capability_agent.trajectory.events import (
 )
 
 
+LEGACY_EVENT_PRODUCER = "grid-agent"
+LEGACY_EVENT_SCHEMA_VERSION = "grid-run-event/1.0"
+
+
 def build_event(
     draft: EventDraft,
     *,
@@ -58,6 +60,7 @@ def build_event(
         sequence=sequence,
         timestamp=timestamp,
         previous_event_hash=previous_event_hash,
+        schema_version=LEGACY_EVENT_SCHEMA_VERSION,
     )
 
 

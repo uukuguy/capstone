@@ -12,8 +12,7 @@ from capability_agent.trajectory.canonical import canonical_json_bytes, sha256_r
 
 ZERO_PREDECESSOR_HASH = "sha256:" + "0" * 64
 DEFAULT_EVENT_PRODUCER = "capability-agent"
-LEGACY_EVENT_PRODUCER = "grid-agent"
-LEGACY_EVENT_SCHEMA_VERSION = "grid-run-event/1.0"
+DEFAULT_EVENT_SCHEMA_VERSION = "capability-run-event/1.0"
 
 
 class StrictFrozenModel(BaseModel):
@@ -236,7 +235,7 @@ class RunEvent(StrictFrozenModel):
     context: ContextBoundary
     refs: EventRefs
     payload: dict[str, Any]
-    schema_version: Literal[LEGACY_EVENT_SCHEMA_VERSION]  # pyright: ignore[reportInvalidTypeForm]
+    schema_version: str = Field(min_length=1)
     analysis_id: str = Field(min_length=1)
     sequence: int = Field(ge=1)
     timestamp: str = Field(
@@ -284,13 +283,14 @@ def build_event(
     sequence: int,
     timestamp: datetime,
     previous_event_hash: str,
+    schema_version: str = DEFAULT_EVENT_SCHEMA_VERSION,
 ) -> RunEvent:
     """Build a validated native event and its canonical content hash."""
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("timestamp must be an aware instant")
     timestamp_utc = timestamp.astimezone(UTC)
     event_without_hash = {
-        "schema_version": LEGACY_EVENT_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "analysis_id": analysis_id,
         "sequence": sequence,
         "timestamp": timestamp_utc.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
@@ -314,8 +314,7 @@ def build_event(
 __all__ = [
     "ZERO_PREDECESSOR_HASH",
     "DEFAULT_EVENT_PRODUCER",
-    "LEGACY_EVENT_PRODUCER",
-    "LEGACY_EVENT_SCHEMA_VERSION",
+    "DEFAULT_EVENT_SCHEMA_VERSION",
     "StrictFrozenModel",
     "EmptyPayload",
     "AnalysisTerminalPayload",

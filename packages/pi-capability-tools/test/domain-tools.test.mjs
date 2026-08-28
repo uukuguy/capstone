@@ -167,8 +167,8 @@ test("generic source has no product-specific protocol, executable, prefix, or en
     "utf8",
   )}`;
 
-  for (const forbidden of ["grid-capability", "gridctl", "grid_", "GRID_AGENT_"]) {
-    assert.equal(source.includes(forbidden), false, `generic source contains ${forbidden}`);
+  for (const forbidden of [/grid[-_]/i, /pandapower/i]) {
+    assert.equal(forbidden.test(source), false, `generic source contains ${forbidden}`);
   }
 });
 

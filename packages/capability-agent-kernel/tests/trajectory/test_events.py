@@ -12,18 +12,16 @@ from capability_agent.trajectory.events import (
     EventDraft,
     EventRefs,
     EventSource,
-    LEGACY_EVENT_PRODUCER,
-    LEGACY_EVENT_SCHEMA_VERSION,
+    DEFAULT_EVENT_SCHEMA_VERSION,
     RunEvent,
     RunScope,
     build_event,
 )
 
 
-def test_event_source_is_neutral_by_default_and_legacy_schema_is_named() -> None:
+def test_event_source_and_schema_are_neutral_by_default() -> None:
     assert EventSource().producer == "capability-agent"
-    assert LEGACY_EVENT_PRODUCER == "grid-agent"
-    assert LEGACY_EVENT_SCHEMA_VERSION == "grid-run-event/1.0"
+    assert DEFAULT_EVENT_SCHEMA_VERSION == "capability-run-event/1.0"
 
 
 def test_event_source_schema_exposes_only_the_neutral_default() -> None:
@@ -62,7 +60,7 @@ def test_build_event_is_canonical_and_hash_stable() -> None:
     round_trip = RunEvent.model_validate_json(canonical_json_bytes(event.model_dump(mode="json")))
 
     assert round_trip == event
-    assert event.schema_version == "grid-run-event/1.0"
+    assert event.schema_version == "capability-run-event/1.0"
     assert event.timestamp == "2026-08-14T00:00:00.000000Z"
     assert event.event_hash.startswith("sha256:")
     assert len(event.event_hash) == 71
@@ -197,7 +195,7 @@ def test_run_event_rejects_semantically_invalid_canonical_timestamp(
             context=ContextBoundary(),
             refs=EventRefs(),
             payload={},
-            schema_version="grid-run-event/1.0",
+            schema_version="capability-run-event/1.0",
             analysis_id="analysis-test",
             sequence=1,
             timestamp=timestamp,
@@ -235,7 +233,7 @@ def test_run_event_enforces_zero_predecessor_seed_boundaries(
             context=ContextBoundary(),
             refs=EventRefs(),
             payload={},
-            schema_version="grid-run-event/1.0",
+            schema_version="capability-run-event/1.0",
             analysis_id="analysis-test",
             sequence=sequence,
             timestamp="2026-08-14T00:00:00.000000Z",

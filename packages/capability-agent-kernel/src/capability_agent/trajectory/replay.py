@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import Field, model_validator
 
@@ -17,7 +17,7 @@ from capability_agent.trajectory.events import (
 )
 
 
-LEGACY_IMPORTED_EVENT_SCHEMA_VERSION = "grid-run-import-event/1.0"
+DEFAULT_IMPORTED_EVENT_SCHEMA_VERSION = "capability-run-import-event/1.0"
 
 
 class _FrozenDict(dict[str, Any]):
@@ -93,9 +93,7 @@ class ReplayEventLike(Protocol):
 class ImportedRunEvent(StrictFrozenModel):
     """Normalized legacy event, distinct from authoritative native events."""
 
-    schema_version: Literal[LEGACY_IMPORTED_EVENT_SCHEMA_VERSION] = (  # pyright: ignore[reportInvalidTypeForm]
-        LEGACY_IMPORTED_EVENT_SCHEMA_VERSION
-    )
+    schema_version: str = Field(default=DEFAULT_IMPORTED_EVENT_SCHEMA_VERSION, min_length=1)
     analysis_id: str = Field(min_length=1)
     sequence: int = Field(ge=1)
     timestamp: str | None
@@ -125,7 +123,7 @@ class ImportedRunEvent(StrictFrozenModel):
 
 
 __all__ = [
-    "LEGACY_IMPORTED_EVENT_SCHEMA_VERSION",
+    "DEFAULT_IMPORTED_EVENT_SCHEMA_VERSION",
     "ImportedRunEvent",
     "ReplayEventLike",
     "SourceCoordinate",
