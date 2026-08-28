@@ -173,6 +173,7 @@ The commit must not include main-worktree project-state edits or generated
 - Modify: `packages/grid-agent/tests/domain/test_pandapower_profile.py`
 - Modify: `packages/pi-grid-tools/test/domain-tools.test.mjs`
 - Create: `tools/check_package_boundaries.py`
+- Create: `tools/tests/test_check_package_boundaries.py`
 - Modify: `Makefile`
 
 **Interfaces:**
@@ -180,25 +181,11 @@ The commit must not include main-worktree project-state edits or generated
 - Consumes: current Workstream A imports, catalog/guide output, pandapower Profile, and Pi request helpers.
 - Produces: `python3 tools/check_package_boundaries.py` and compatibility assertions that remain green throughout extraction.
 
-- [ ] **Step 1: Write failing package-layout and import-boundary tests**
+- [ ] **Step 1: Add compatibility characterization tests**
 
-Add tests that require the approved distributions and public namespaces:
+Characterize the current public imports before any implementation moves:
 
 ```python
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[4]
-
-
-def test_approved_distribution_layout_exists() -> None:
-    expected = (
-        ROOT / "packages/capability-agent-kernel/pyproject.toml",
-        ROOT / "packages/pandapower-domain-pack/pyproject.toml",
-        ROOT / "packages/pi-capability-tools/package.json",
-    )
-    assert [str(path.relative_to(ROOT)) for path in expected if not path.is_file()] == []
-
-
 def test_legacy_public_imports_are_preserved() -> None:
     from grid_agent.application.composition import prepare_domain_runtime
     from grid_agent.domain import DomainManifest
@@ -211,7 +198,25 @@ def test_legacy_public_imports_are_preserved() -> None:
     assert ToolCatalog.__name__ == "ToolCatalog"
 ```
 
-- [ ] **Step 2: Add a boundary checker with exact dependency rules**
+- [ ] **Step 2: Write failing tests for the boundary checker**
+
+Create subprocess tests that pass a temporary repository through a required
+`--root` option. One fixture contains
+`packages/capability-agent-kernel/src/capability_agent/bad.py` with
+`from grid_agent import cli` and must exit `1` with a sorted
+`bad.py imports grid_agent.cli` diagnostic. A clean fixture with both package
+roots and valid metadata must exit `0` and print `package-boundaries: ok`.
+
+- [ ] **Step 3: Run the boundary tests and verify RED**
+
+```sh
+uv run --project packages/grid-agent pytest tools/tests/test_check_package_boundaries.py -q
+```
+
+Expected: FAIL because `tools/check_package_boundaries.py` and its `--root`
+interface do not exist.
+
+- [ ] **Step 4: Implement the boundary checker with exact dependency rules**
 
 Create `tools/check_package_boundaries.py` using `ast.parse`. It must scan Python sources and fail with sorted `path imports module` lines when:
 
@@ -227,9 +232,13 @@ RULES = {
 }
 ```
 
-It must also parse both new `pyproject.toml` files with `tomllib`, reject a `grid-agent` dependency in either, and reject repository-source literals matching `packages/.+/src` inside either package. Exit `0` with `package-boundaries: ok`; otherwise print each violation to stderr and exit `1`.
+It must accept optional `--root` defaulting to the repository root, parse both
+new `pyproject.toml` files with `tomllib`, reject a `grid-agent` dependency in
+either, and reject repository-source literals matching `packages/.+/src` inside
+either package. Exit `0` with `package-boundaries: ok`; otherwise print each
+violation to stderr and exit `1`.
 
-- [ ] **Step 3: Extend Node characterization before the generic extraction**
+- [ ] **Step 5: Extend Node characterization before the generic extraction**
 
 Add an exact request assertion to `packages/pi-grid-tools/test/domain-tools.test.mjs`:
 
@@ -248,23 +257,24 @@ test("grid request compatibility remains exact", () => {
 Keep the existing catalog-driven tool, response-correlation, path containment,
 context, decision, and secret-sanitization tests as the compatibility baseline.
 
-- [ ] **Step 4: Run the red baseline**
+- [ ] **Step 6: Run characterization and GREEN boundary tests**
 
 Run:
 
 ```sh
 uv run --project packages/grid-agent pytest \
   packages/grid-agent/tests/contract/test_package_extraction_baseline.py \
-  packages/grid-agent/tests/domain/test_pandapower_profile.py -q
+  packages/grid-agent/tests/domain/test_pandapower_profile.py \
+  tools/tests/test_check_package_boundaries.py -q
 npm test --prefix packages/pi-grid-tools
 python3 tools/check_package_boundaries.py
 ```
 
-Expected: Python layout test fails because the three packages do not exist;
-existing pandapower and Node behavior remains green; the boundary checker passes
-the current rules because the new roots are absent.
+Expected: all tests pass; the boundary checker accepts the current tree because
+the future roots are absent, while its temporary violating fixture proves that
+the checker is not a no-op.
 
-- [ ] **Step 5: Add the boundary command without satisfying the layout test**
+- [ ] **Step 7: Add the boundary command**
 
 Add to `Makefile`:
 
@@ -277,13 +287,14 @@ check-package-boundaries:
 
 Run `make check-package-boundaries`; expected: `package-boundaries: ok`.
 
-- [ ] **Step 6: Commit the characterization gate**
+- [ ] **Step 8: Commit the characterization gate**
 
 ```sh
 git add packages/grid-agent/tests/contract/test_package_extraction_baseline.py \
   packages/grid-agent/tests/domain/test_pandapower_profile.py \
   packages/pi-grid-tools/test/domain-tools.test.mjs \
-  tools/check_package_boundaries.py Makefile
+  tools/check_package_boundaries.py tools/tests/test_check_package_boundaries.py \
+  Makefile
 git commit -m "test: characterize package extraction boundary"
 ```
 
