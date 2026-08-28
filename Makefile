@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider check-package-boundaries
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -104,6 +104,9 @@ validate:
 	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json
 	uv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json
 	python3 tools/capability_matrix.py --check
+
+check-package-boundaries:
+	python3 tools/check_package_boundaries.py
 
 VALIDATION_SUITE ?= static-analysis-full
 

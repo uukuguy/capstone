@@ -7,6 +7,7 @@ import pytest
 from grid_agent.analysis.capabilities import KNOWN_CONTEXT_PROJECTORS
 from grid_agent.analysis.integrity import ContentReferenceVerifier
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.domain import DomainRuntimeProfile
 from grid_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile
 from grid_agent.simulator.client import GridctlClient
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[4]
 def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
     profile = build_pandapower_profile(ROOT)
 
+    assert isinstance(profile, DomainRuntimeProfile)
     assert profile.manifest.domain_id == "pandapower-static-analysis"
     assert profile.manifest.protocol == "grid-capability"
     assert profile.manifest.protocol_version == "1.0"
@@ -29,6 +31,19 @@ def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
     )
     assert profile.manifest.system_policy_path == ROOT / "configs/agent/system-policy.md"
     assert profile.manifest.guide_root == ROOT / "skills/grid-static-analysis"
+
+
+def test_pandapower_profile_public_runtime_surface_is_preserved() -> None:
+    profile = build_pandapower_profile(ROOT)
+
+    assert profile.create_executor.__name__ == "create_executor"
+    assert profile.create_authority.__name__ == "create_authority"
+    assert profile.contract_source.__class__.__name__ == (
+        "FilesystemCapabilityContractSource"
+    )
+    assert profile.projector_registry.__class__.__name__ == (
+        "PandapowerProjectorRegistry"
+    )
 
 
 def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> None:

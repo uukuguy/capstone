@@ -241,6 +241,16 @@ test("builds capability protocol requests with correlation ids", () => {
   });
 });
 
+test("grid request compatibility remains exact", () => {
+  assert.deepEqual(buildGridRequest("model.list", {}, "request-1"), {
+    protocol: "grid-capability",
+    protocol_version: "1.0",
+    request_id: "request-1",
+    capability: "model.list",
+    arguments: {},
+  });
+});
+
 test("maps typed gridctl errors to tool errors", async () => {
   const tool = createGridTool(
     {
