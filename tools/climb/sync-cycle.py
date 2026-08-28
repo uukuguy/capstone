@@ -25,6 +25,25 @@ def _load_config(state_dir: Path) -> dict[str, object]:
     return json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
 
 
+def _resolve_artifact_dir(config: dict[str, object]) -> Path:
+    raw = os.environ.get("CLIMB_ARTIFACT_DIR") or str(config.get("artifact_dir", "runs/climb"))
+    path = Path(raw)
+    return path if path.is_absolute() else ROOT / path
+
+
+def _stable_manifest_path(run_dir: Path, config: dict[str, object]) -> str:
+    manifest_path = (run_dir / "manifest.json").resolve()
+    try:
+        return manifest_path.relative_to(ROOT).as_posix()
+    except ValueError:
+        pass
+    artifact_dir = _resolve_artifact_dir(config).resolve()
+    try:
+        return manifest_path.relative_to(artifact_dir).as_posix()
+    except ValueError:
+        return f"{run_dir.name}/manifest.json"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("hypothesis_id")
@@ -46,12 +65,9 @@ def main() -> int:
     score = json.loads(args.eval_json.read_text(encoding="utf-8"))
     decision = json.loads(args.decision_json.read_text(encoding="utf-8"))
     gate_evidence = score.get("gate_evidence", {})
-    owned_keys = list(known[args.hypothesis_id].get("owned_score_keys", []))
-    owned_gate_failed = any(
-        gate_evidence.get(key, {}).get("status") not in {"passed", "not-owned-by-hypothesis"}
-        for key in owned_keys
-    )
-    if score.get("hypothesis_gate_passed") and not owned_gate_failed:
+    focused_gate = str(score.get("focused_gate") or known[args.hypothesis_id].get("focused_gate", ""))
+    focused_status = gate_evidence.get(focused_gate, {}).get("status")
+    if score.get("hypothesis_gate_passed") and focused_status == "passed":
         status = "confirmed"
         verdict = "confirmed: owned deterministic Workstream B gate passed"
     else:
@@ -102,7 +118,7 @@ def main() -> int:
         "decision_reason": decision["reason"],
         "verdict": verdict,
         "train_cost_h": 0.0,
-        "manifest_path": str((args.run_dir / "manifest.json").resolve()),
+        "manifest_path": _stable_manifest_path(args.run_dir, config),
     }
     with runs_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)

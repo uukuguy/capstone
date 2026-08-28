@@ -41,6 +41,12 @@ def _write_temp_state(tmp_path: Path, *, phase: str = "B-H001 implementation") -
         "raise SystemExit('future hypothesis gate should not run')\n",
         encoding="utf-8",
     )
+    (gate_dir / "append-marker.py").write_text(
+        "from pathlib import Path\n"
+        "import sys\n"
+        "Path(sys.argv[1]).write_text('ran\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
     (state_dir / "config.yaml").write_text(
         json.dumps(
             {
@@ -117,6 +123,22 @@ def _write_temp_state(tmp_path: Path, *, phase: str = "B-H001 implementation") -
                         "ranking": 0.9,
                         "status": "pending",
                         "owned_score_keys": [],
+                        "results": [],
+                    },
+                    {
+                        "id": "B-H005",
+                        "description": "grid-agent can assemble the extracted artifacts and remain behavior-compatible under clean installation and all deterministic gates",
+                        "parent_paradigm": "application-composition",
+                        "expected_lift": "application thinness, distribution integrity, and product compatibility",
+                        "cost_h": 8,
+                        "ranking": 0.8,
+                        "status": "pending",
+                        "owned_score_keys": [
+                            "application_thinness",
+                            "distribution_integrity",
+                            "product_compatibility",
+                        ],
+                        "focused_gate": "product_compatibility",
                         "results": [],
                     },
                 ],
@@ -230,6 +252,56 @@ def test_eval_scores_workstream_b_weights_and_skips_future_package_roots(tmp_pat
     assert score["gate_evidence"]["domain_ownership"]["status"] == "missing"
 
 
+def test_eval_runs_only_the_manifest_hypothesis_focused_gate(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    marker_dir = tmp_path / "markers"
+    marker_dir.mkdir()
+    required_root = tmp_path / "available"
+    required_root.mkdir()
+    config_path = state_dir / "config.yaml"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    for score_key in ("application_thinness", "distribution_integrity", "product_compatibility"):
+        config["score_gates"][score_key]["required_paths"] = [str(required_root)]
+    config["score_gates"]["application_thinness"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "application"),
+    ]
+    config["score_gates"]["distribution_integrity"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "distribution"),
+    ]
+    config["score_gates"]["product_compatibility"]["command"] = [
+        sys.executable,
+        str(tmp_path / "gates" / "append-marker.py"),
+        str(marker_dir / "product"),
+    ]
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run([EVAL, run_dir], cwd=tmp_path, env=_env(state_dir, artifact_dir))
+
+    assert result.returncode == 0, result.stderr
+    score = json.loads(result.stdout)
+    assert score["per_task"]["product_compatibility"] == 20.0
+    assert score["per_task"]["application_thinness"] == 0.0
+    assert score["per_task"]["distribution_integrity"] == 0.0
+    assert score["total"] == 20.0
+    assert score["hypothesis_gate_passed"] is True
+    assert score["gate_evidence"]["product_compatibility"]["status"] == "passed"
+    assert score["gate_evidence"]["application_thinness"]["status"] == "not-focused"
+    assert score["gate_evidence"]["distribution_integrity"]["status"] == "not-focused"
+    assert (marker_dir / "product").is_file()
+    assert not (marker_dir / "application").exists()
+    assert not (marker_dir / "distribution").exists()
+
+
 def test_decision_gate_pushes_only_release_ready_scores(tmp_path: Path) -> None:
     below_target = tmp_path / "below-target.json"
     below_target.write_text(
@@ -295,6 +367,70 @@ def test_sync_confirms_owned_gate_below_release_target(tmp_path: Path) -> None:
     rows = (state_dir / "runs.csv").read_text(encoding="utf-8")
     assert "2026-08-28-workstream-b-package-extraction" in rows
     assert "25.0" in rows
+
+
+def test_sync_uses_focused_gate_and_records_stable_manifest_path(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    run_dir = artifact_dir / "cycle-b-h005"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"hypothesis_id": "B-H005", "session": "2026-08-28-workstream-b-package-extraction"}) + "\n",
+        encoding="utf-8",
+    )
+    eval_json = run_dir / "local-eval.json"
+    eval_json.write_text(
+        json.dumps(
+            {
+                "total": 20.0,
+                "per_task": {
+                    "kernel_independence": 0.0,
+                    "domain_ownership": 0.0,
+                    "pi_tool_generalization": 0.0,
+                    "application_thinness": 0.0,
+                    "distribution_integrity": 0.0,
+                    "product_compatibility": 20.0,
+                },
+                "release_ready": False,
+                "hypothesis_gate_passed": True,
+                "focused_gate": "product_compatibility",
+                "gate_evidence": {
+                    "application_thinness": {"status": "not-focused"},
+                    "distribution_integrity": {"status": "not-focused"},
+                    "product_compatibility": {"status": "passed"},
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    decision_json = run_dir / "decision.json"
+    decision_json.write_text(
+        json.dumps({"decision": "CONTINUE", "reason": "release not ready"}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run([SYNC, "B-H005", run_dir, eval_json, decision_json], cwd=tmp_path, env=_env(state_dir, artifact_dir))
+
+    assert result.returncode == 0, result.stderr
+    hypotheses = json.loads((state_dir / "hypotheses.yaml").read_text(encoding="utf-8"))
+    assert hypotheses["events"][0]["status"] == "confirmed"
+    rows = (state_dir / "runs.csv").read_text(encoding="utf-8").splitlines()
+    assert "cycle-b-h005/manifest.json" in rows[1]
+    assert str(tmp_path) not in rows[1]
+
+
+def test_eval_no_argument_creates_missing_artifact_directory_before_mktemp(tmp_path: Path) -> None:
+    state_dir, artifact_dir = _write_temp_state(tmp_path)
+    missing_artifact_dir = tmp_path / "missing-artifacts"
+    env = _env(state_dir, artifact_dir)
+    env["CLIMB_ARTIFACT_DIR"] = str(missing_artifact_dir)
+
+    result = _run([EVAL], cwd=tmp_path, env=env)
+
+    assert result.returncode != 0
+    assert missing_artifact_dir.is_dir()
+    assert "mktemp" not in result.stderr
 
 
 def test_target_checker_requires_complete_phase_at_100(tmp_path: Path) -> None:

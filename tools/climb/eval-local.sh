@@ -8,6 +8,7 @@ if [ "$#" -ge 1 ]; then
   mkdir -p "$RUN_DIR"
 else
   ARTIFACT_DIR=${CLIMB_ARTIFACT_DIR:-"$ROOT/runs/climb"}
+  mkdir -p "$ARTIFACT_DIR"
   RUN_DIR=$(mktemp -d "$ARTIFACT_DIR/eval-XXXXXX")
 fi
 
@@ -28,6 +29,13 @@ manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 hypothesis_id = manifest["hypothesis_id"]
 weights = {key: float(value) for key, value in config["score_weights"].items()}
 gates = config.get("score_gates", {})
+hypotheses = json.loads((state_dir / "hypotheses.yaml").read_text(encoding="utf-8"))["hypotheses"]
+hypothesis = next((item for item in hypotheses if item["id"] == hypothesis_id), None)
+if hypothesis is None:
+    raise SystemExit(f"unknown hypothesis: {hypothesis_id}")
+focused_gate = hypothesis.get("focused_gate")
+if focused_gate not in weights:
+    raise SystemExit(f"unknown focused gate for {hypothesis_id}: {focused_gate}")
 
 
 def resolve_path(raw: str) -> Path:
@@ -75,7 +83,7 @@ per_task: dict[str, float] = {}
 gate_evidence: dict[str, dict[str, object]] = {}
 for key in weights:
     gate = gates.get(key, {})
-    if not owns_hypothesis(gate):
+    if key != focused_gate:
         required_paths = [resolve_path(str(item)) for item in gate.get("required_paths", [])]
         missing = [str(path) for path in required_paths if not path.exists()]
         if missing:
@@ -83,18 +91,19 @@ for key in weights:
             gate_evidence[key] = {"status": "missing", "missing_paths": missing}
         else:
             per_task[key] = 0.0
-            gate_evidence[key] = {"status": "not-owned-by-hypothesis", "hypothesis_id": gate.get("hypothesis_id"), "hypothesis_ids": gate.get("hypothesis_ids", [])}
+            gate_evidence[key] = {"status": "not-focused", "focused_gate": focused_gate}
+        continue
+    if not owns_hypothesis(gate):
+        per_task[key] = 0.0
+        gate_evidence[key] = {
+            "status": "not-owned-by-hypothesis",
+            "hypothesis_id": gate.get("hypothesis_id"),
+            "hypothesis_ids": gate.get("hypothesis_ids", []),
+        }
         continue
     per_task[key], gate_evidence[key] = run_gate(key, gate)
 
-owned_keys = [
-    key
-    for key, gate in gates.items()
-    if key in weights and (gate.get("hypothesis_id") == hypothesis_id or hypothesis_id in gate.get("hypothesis_ids", []))
-]
-hypothesis_gate_passed = bool(owned_keys) and all(
-    gate_evidence[key]["status"] == "passed" for key in owned_keys
-)
+hypothesis_gate_passed = gate_evidence[focused_gate]["status"] == "passed"
 total = sum(per_task.values())
 release_ready = total >= 100.0 and all(per_task[key] == weights[key] for key in weights)
 print(
@@ -108,6 +117,7 @@ print(
             "score_name": config["score_name"],
             "session": config["session"],
             "hypothesis_id": hypothesis_id,
+            "focused_gate": focused_gate,
         },
         ensure_ascii=False,
         sort_keys=True,
