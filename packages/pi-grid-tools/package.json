@@ -3,6 +3,9 @@
   "version": "1.0.1",
   "private": true,
   "type": "module",
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "check": "node --check src/domain-tools.mjs && node --check src/model-request-capture.mjs",
     "test": "node --test"

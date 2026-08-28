@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider check-package-boundaries
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-simulator test-tools test-e2e validate validate-provider check-package-boundaries test-packages
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -107,6 +107,9 @@ validate:
 
 check-package-boundaries:
 	python3 tools/check_package_boundaries.py
+
+test-packages:
+	bash tools/test_package_artifacts.sh
 
 VALIDATION_SUITE ?= static-analysis-full
 
