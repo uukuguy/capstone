@@ -595,6 +595,7 @@ def run(
     request = RunRequest(question_id=question_id, question=question.strip()) if question_id else RunRequest.from_text(question)
     progress = _ProgressReporter(request.question)
     project_paths = ProjectPaths.from_root(Path.cwd())
+    workspace: RunWorkspace | None = None
     try:
         profile = build_pandapower_profile()
         if not offline:
@@ -695,6 +696,9 @@ def run(
         typer.echo(f"grid-agent error: {exc}", err=True)
         typer.echo(json.dumps(AnswerEnvelope(question_id=request.question_id, answer_output=f"执行限制 / execution limitation: {type(exc).__name__}" ).model_dump(), ensure_ascii=False))
         raise typer.Exit(1)
+    finally:
+        if workspace is not None:
+            workspace.close()
 
 
 @app.command()

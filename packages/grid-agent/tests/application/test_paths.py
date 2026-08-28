@@ -5,7 +5,12 @@ import sys
 import pytest
 
 from grid_agent.application.paths import ProjectPaths
-from grid_agent.application.workspace import RunWorkspace, RunWorkspaceLeaseError
+from grid_agent.application.workspace import (
+    RunWorkspace,
+    RunWorkspaceExistsError,
+    RunWorkspaceLeaseError,
+    RunWorkspacePathError,
+)
 
 
 def test_project_paths_separate_internal_state_from_auditable_runs(tmp_path: Path) -> None:
@@ -48,8 +53,9 @@ def test_same_question_id_lease_fails_closed_without_overwriting_evidence(
     finally:
         first.close()
 
-    successor = RunWorkspace.create(runs_root, "same-question")
-    successor.close()
+    with pytest.raises(RunWorkspaceExistsError, match="already exists"):
+        RunWorkspace.create(runs_root, "same-question")
+    assert marker.read_text(encoding="utf-8") == '{"owner":"first"}\n'
 
 
 def test_same_question_id_lease_is_enforced_across_processes(tmp_path: Path) -> None:
@@ -72,3 +78,55 @@ raise SystemExit(0)
         assert completed.returncode == 73
     finally:
         first.close()
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    ("../escape", "/tmp/escape", "nested/name", r"nested\name", ".hidden"),
+)
+def test_run_workspace_rejects_unsafe_run_ids(tmp_path: Path, run_id: str) -> None:
+    runs_root = tmp_path / "runs"
+
+    with pytest.raises(ValueError, match="safe portable basename"):
+        RunWorkspace.create(runs_root, run_id)
+
+    assert not (tmp_path / "escape").exists()
+
+
+def test_run_workspace_rejects_stale_run_directory_without_reusing_evidence(
+    tmp_path: Path,
+) -> None:
+    stale = tmp_path / "runs/stale/evidence"
+    stale.mkdir(parents=True)
+    marker = stale / "old.json"
+    marker.write_text('{"run":"old"}\n', encoding="utf-8")
+
+    with pytest.raises(RunWorkspaceExistsError, match="already exists"):
+        RunWorkspace.create(tmp_path / "runs", "stale")
+
+    assert marker.read_text(encoding="utf-8") == '{"run":"old"}\n'
+
+
+def test_run_workspace_rejects_symlinked_runs_root(tmp_path: Path) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    runs_root = tmp_path / "runs"
+    runs_root.symlink_to(external, target_is_directory=True)
+
+    with pytest.raises(RunWorkspacePathError, match="runs root"):
+        RunWorkspace.create(runs_root, "q-safe")
+
+    assert not (external / "q-safe").exists()
+
+
+def test_run_workspace_rejects_symlinked_run_leaf(tmp_path: Path) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    (runs_root / "q-safe").symlink_to(external, target_is_directory=True)
+
+    with pytest.raises(RunWorkspacePathError, match="run workspace"):
+        RunWorkspace.create(runs_root, "q-safe")
+
+    assert list(external.iterdir()) == []
