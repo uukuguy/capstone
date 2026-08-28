@@ -6,12 +6,12 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream B package extraction is implemented, both final-review rounds are closed, and the pandapower application is locally release-ready at source revision `ea10df5a143eed6c11e3542618bb68fc42f792e2`
+- Active work package: Workstream B package extraction is implemented, all three final-review rounds are closed, and the pandapower application is locally release-ready at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b`
 - Deferred work packages: Workstreams C-E remain future work for a non-grid reference domain, enterprise action governance, and multi-domain composition
 
 ## Current Architecture
 
-- CLI: `grid-agent` writes exactly one JSON answer envelope to stdout; progress and diagnostics stay on stderr.
+- CLI: `grid-agent` writes exactly one JSON answer envelope to stdout, including validation failures for unsafe externally supplied question IDs; progress, validation detail, and diagnostics stay on stderr without a raw traceback.
 - Package assembly: `grid-agent` is assembled from four Python distributions (`capability-agent-kernel`, `grid-simulator`, `pandapower-domain-pack`, `grid-agent`) and two Pi npm packages (`@capability-agent/pi-tools`, `@grid-static-analysis/pi-grid-tools`).
 - Domain runtime profile seam: CLI selects `pandapower_domain.build_pandapower_profile()`, then `capability_agent.prepare_domain_runtime(...)` materializes contracts, `environment.describe`, the tool catalog, guide index, current-run authority, executor, and projector registry.
 - Agent Kernel: `capability-agent-kernel` owns neutral domain interfaces, runtime composition, tool catalog/guide materialization, trajectory primitives, artifacts, replay, and compatibility exports consumed by `grid-agent`.
@@ -21,7 +21,7 @@
 - Agent runtime: managed Pi exposes only project grid tools, guides, and bounded context/decision tools; the LLM boundary owns provider-specific formats, while `grid-agent` commits ordinary model final text with controller-bound current-turn result/evidence lineage.
 - Runtime descriptor: the fixed eight-field transport API is preserved while the production descriptor authoritatively binds catalog, guide, workspace, turn, context, trajectory, acknowledgement, and Pi runtime identity; descriptor mode does not supplement legacy runtime paths.
 - Guide authority: the descriptor binds the guide root and index digest; startup and execution use no-follow same-fd read/fstat/digest/named binding and validate protocol, version, root, and resource mapping before any resource read.
-- Run isolation: `question_id` is a bounded portable basename, and no-follow exclusive invocation roots plus the cross-process lease reject active or sequential same-ID reuse rather than sharing, escaping, or inheriting stale evidence.
+- Run isolation: `question_id` is a bounded portable basename, and no-follow exclusive invocation roots plus the cross-process lease reject active or sequential same-ID reuse rather than sharing, escaping, or inheriting stale evidence. Lease state is created from the trusted project root via component-wise dirfd `O_NOFOLLOW` opens and same-fd named bindings for `.grid-agent/run-leases`.
 - Canonical capture: Pi atomically persists provider-independent model inputs before provider I/O without waiting for observer acknowledgement.
 - Native trajectory: the kernel event spine records model requests/responses, tools, decisions, claims, context revisions, results, and evidence as the authoritative chronology.
 - Observation: polling skips already-seen request artifacts before parsing; projection, validation, and integrity diagnostics are deterministic consumers of recorded execution and cannot semantically replace simulator truth.
@@ -31,7 +31,7 @@
 - Reporting: per-question reports render answer first, restore simulation environment context, summarize the observable agent trajectory with compact simulator results, and link persisted detailed trace/current-run evidence artifacts.
 - Workbench: the loopback read-only trajectory API and Business/Agent/Context/Evidence workbench consume deterministic projections without mutating runs.
 - Verification: unit, package-boundary, install-mode package artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
-- Release evidence: the final B-H005 run `runs/climb/20260828T104349Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `ea10df5a143eed6c11e3542618bb68fc42f792e2` and tree digest `84b7dba2...`; all nine outputs are `closure-passed` and linked by closure digest `8f5924f2...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
+- Release evidence: the final B-H005 run `runs/climb/20260828T111922Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b` and tree digest `9ff57149...`; all nine outputs are `closure-passed` and linked by closure digest `5049c057...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
 
 ## Open Problems (theme-level)
 
