@@ -124,10 +124,10 @@ def contains_grid_agent_dependency(project: object) -> bool:
     dependencies = project.get("dependencies", ())
     optional_dependencies = project.get("optional-dependencies", {})
     return any(
-        dependency_name(dependency) == "grid-agent"
+        canonical_dependency_name(dependency_name(dependency)) == "grid-agent"
         for dependency in dependency_strings(dependencies)
     ) or any(
-        dependency_name(dependency) == "grid-agent"
+        canonical_dependency_name(dependency_name(dependency)) == "grid-agent"
         for dependency in dependency_strings(optional_dependencies)
     )
 
@@ -145,6 +145,10 @@ def dependency_strings(value: object) -> Iterable[str]:
 
 def dependency_name(dependency: str) -> str:
     return re.split(r"\s*(?:[<>=!~]=?|;|\[)", dependency, maxsplit=1)[0].strip()
+
+
+def canonical_dependency_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def source_literals_in_value(value: object) -> Iterable[str]:

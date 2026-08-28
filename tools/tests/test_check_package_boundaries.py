@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "tools/check_package_boundaries.py"
@@ -80,6 +82,25 @@ def test_reports_sorted_ast_metadata_and_source_path_violations(
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports pandapower",
         "packages/pandapower-domain-pack/src/pandapower_domain/bad_domain.py contains source path packages/grid-agent/src",
         "packages/pandapower-domain-pack/src/pandapower_domain/bad_domain.py imports grid_agent.tools.catalog",
+    ]
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize("dependency", ["Grid-Agent", "grid_agent", "grid.agent"])
+def test_rejects_normalized_grid_agent_dependency_names(
+    tmp_path: Path,
+    dependency: str,
+) -> None:
+    write_pyproject(
+        tmp_path / "packages/capability-agent-kernel/pyproject.toml",
+        f'dependencies = ["{dependency}"]',
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/capability-agent-kernel/pyproject.toml depends on grid-agent"
     ]
     assert result.stdout == ""
 
