@@ -26,6 +26,7 @@ from grid_agent.knowledge.offline import answer_diagnostic, answer_information, 
 from grid_agent.simulator.locator import GridctlLocator
 from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.locator import PiRuntimeLocator
+from grid_agent.runtime.extension import PiExtensionLocator
 from grid_agent.runtime.rpc import PiRpcClient
 from grid_agent.config.catalog import ProviderCatalog
 from grid_agent.config.models import CliLLMOptions
@@ -411,7 +412,7 @@ def _execute_analysis(
                 session_dir=workspace.pi_path,
                 workspace=workspace.root_path,
                 gridctl_dir=workspace.bin_path,
-                extension_path=_repo_root() / "packages/pi-grid-tools/src/domain-tools.mjs",
+                extension_path=PiExtensionLocator(project_paths.root).resolve(),
                 tool_catalog_path=domain_runtime.tool_catalog_path,
                 guide_index_path=domain_runtime.guide_index_path,
                 system_policy_path=profile.manifest.system_policy_path,
@@ -607,7 +608,7 @@ def run(
                     session_dir=workspace.pi_path,
                     workspace=workspace.root_path,
                     gridctl_dir=workspace.bin_path,
-                    extension_path=_repo_root() / "packages/pi-grid-tools/src/domain-tools.mjs",
+                    extension_path=PiExtensionLocator(project_paths.root).resolve(),
                     tool_catalog_path=domain_runtime.tool_catalog_path,
                     guide_index_path=domain_runtime.guide_index_path,
                     system_policy_path=profile.manifest.system_policy_path,
@@ -658,7 +659,12 @@ def run(
 
 @app.command()
 def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
-    payload = {"gridctl": str(GridctlLocator(_repo_root()).resolve()), "live_probe": False}
+    project_root = ProjectPaths.from_root(Path.cwd()).root
+    payload = {
+        "gridctl": str(GridctlLocator(_repo_root()).resolve()),
+        "pi_extension": str(PiExtensionLocator(project_root).resolve()),
+        "live_probe": False,
+    }
     typer.echo(json.dumps(payload) if json_output else payload["gridctl"])
 
 

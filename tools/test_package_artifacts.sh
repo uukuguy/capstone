@@ -201,7 +201,7 @@ self_test_npm_tarball_inspector
 inspect_npm_tarball 'capability-agent-pi-tools-*.tgz'
 inspect_npm_tarball 'grid-static-analysis-pi-grid-tools-*.tgz'
 
-npm_install_dir="$temporary_root/npm-install"
+npm_install_dir="$run_dir"
 mkdir -p "$npm_install_dir"
 (
   cd "$npm_install_dir"
@@ -243,6 +243,84 @@ if (typeof configureGridCapture !== "function") {
 }
 EOF
   echo "npm-install-smoke: ok"
+)
+
+(
+  cd "$run_dir"
+  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/grid-agent" doctor --json > doctor.json
+  "$venv_dir/bin/python" - <<'PY'
+import json
+from pathlib import Path
+
+payload = json.loads(Path("doctor.json").read_text(encoding="utf-8"))
+extension = Path(payload["pi_extension"])
+expected_root = Path.cwd() / "node_modules/@grid-static-analysis/pi-grid-tools"
+assert extension.is_relative_to(expected_root), payload
+assert extension.name == "domain-tools.mjs"
+PY
+  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/grid-agent" run \
+    --offline --question-id installed-offline-envelope \
+    "母线电压正常运行范围是多少?" > offline-envelope.json
+  "$venv_dir/bin/python" - <<'PY'
+import json
+from pathlib import Path
+
+payload = json.loads(Path("offline-envelope.json").read_text(encoding="utf-8"))
+assert set(payload) == {"question_id", "answer_output"}, payload
+assert payload["question_id"] == "installed-offline-envelope", payload
+PY
+  node --input-type=module <<'EOF'
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import extension from "@grid-static-analysis/pi-grid-tools";
+
+const workspace = join(process.cwd(), "installed-extension-run");
+const guides = join(workspace, "guides");
+await mkdir(join(workspace, "pi"), { recursive: true });
+await mkdir(guides, { recursive: true });
+await writeFile(
+  join(workspace, "tool-catalog.json"),
+  JSON.stringify({ tools: [{
+    name: "grid_environment_describe",
+    capability: "environment.describe",
+    description: "Describe installed runtime",
+    input_schema: { type: "object", additionalProperties: false, properties: {} },
+  }] }),
+  "utf8",
+);
+await writeFile(join(guides, "overview.md"), "# Installed guide\n", "utf8");
+await writeFile(
+  join(workspace, "guide-index.json"),
+  JSON.stringify({ root: guides, resources: { overview: join(guides, "overview.md") } }),
+  "utf8",
+);
+const descriptorPath = join(workspace, "pi/domain-runtime.json");
+await writeFile(
+  descriptorPath,
+  JSON.stringify({
+    protocol: "grid-capability",
+    protocol_version: "1.0",
+    executable: "gridctl",
+    executable_args: ["request", "--workspace", workspace],
+    tool_name_prefix: "grid_",
+    guide_tool_name: "grid_guide_open",
+    context_tool_name: "grid_analysis_context_get",
+    decision_tool_name: "grid_record_decision",
+    tool_catalog_path: join(workspace, "tool-catalog.json"),
+    guide_index_path: join(workspace, "guide-index.json"),
+    workspace_path: workspace,
+  }),
+  "utf8",
+);
+process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+const registered = [];
+extension({ registerTool: (tool) => registered.push(tool) });
+const names = registered.map((tool) => tool.name).sort();
+if (JSON.stringify(names) !== JSON.stringify(["grid_environment_describe", "grid_guide_open"])) {
+  throw new Error(`installed extension registration mismatch: ${JSON.stringify(names)}`);
+}
+EOF
+  echo "installed-grid-agent-smoke: ok"
 )
 
 echo "package-artifacts: ok"

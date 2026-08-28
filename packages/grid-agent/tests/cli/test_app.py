@@ -134,6 +134,13 @@ def _patch_live_runtime(
         "PiRuntimeInstaller",
         lambda *_args, **_kwargs: SimpleNamespace(ensure=lambda: tmp_path / "pi"),
     )
+    monkeypatch.setattr(
+        cli_module,
+        "PiExtensionLocator",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            resolve=lambda: tmp_path / "node_modules/pi-grid-tools/domain-tools.mjs"
+        ),
+    )
     monkeypatch.setattr(cli_module, "_install_gridctl", lambda _workspace: None)
 
     class FakePiConfigMaterializer:
