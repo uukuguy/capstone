@@ -376,7 +376,7 @@ references, and post-open replacement.
 - [ ] **Step 2: Run authority tests and verify red**
 
 ```sh
-uv run --project packages/inventory-domain-pack pytest tests/test_authority.py -q
+uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_authority.py -q
 ```
 
 - [ ] **Step 3: Implement no-follow canonical verification**
@@ -396,7 +396,7 @@ a valid result/evidence pair.
 - [ ] **Step 5: Run focused tests and C-H004**
 
 ```sh
-uv run --project packages/inventory-domain-pack pytest tests/test_authority.py -q
+uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_authority.py -q
 tools/climb/cycle.sh C-H004
 ```
 

@@ -6,7 +6,7 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream C read-only inventory reference domain is implemented on `main`; C-H001 through C-H004 are confirmed and C-H005 deterministic release closure is next.
+- Active work package: Workstream C read-only inventory reference domain is implemented on `main`; a fixed-policy authority test path defect found by the first C-H005 closure is repaired and C-H004/C-H005 re-execution is next.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.
 - Deferred work packages: Workstreams D-E remain future work for enterprise action governance and multi-domain discovery/composition.
 
@@ -37,7 +37,7 @@
 - Verification: unit, package-boundary, protected-path, six-wheel install-mode artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
 - Release evidence: the final B-H005 run `runs/climb/20260828T111922Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b` and tree digest `9ff57149...`; all nine outputs are `closure-passed` and linked by closure digest `5049c057...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
 - Mainline integration: `main` was fast-forwarded to `448c407`, then reverified with package boundaries and installed-artifact smoke, 688 grid-agent tests, 165 simulator tests, 43 grid Pi tests, 17 E2E tests, and the 24/24 validation matrix. The temporary Workstream B worktree and feature branch were removed.
-- Workstream C evidence: C-H001 through C-H004 contribute 80/100 through live reference-authority, Domain Pack SPI, generic Pi transport, and authority-lineage gates. C-H005 will rerun all nine release gates from one clean source revision and add distribution/product compatibility.
+- Workstream C evidence: C-H001 through C-H003 are confirmed. The C-H004 implementation passes its six focused red-team tests, but its first climb cycle was falsified because the fixed command resolved `tests/test_authority.py` from the repository root. The policy path is repaired; C-H004 and all nine C-H005 gates must be rerun without carrying forward the first closure's eight passing results.
 
 ## Open Problems (theme-level)
 

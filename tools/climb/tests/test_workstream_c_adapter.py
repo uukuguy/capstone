@@ -56,6 +56,15 @@ def test_active_state_selects_workstream_c_inventory_score_contract() -> None:
     assert config["subscores"] == list(EXPECTED_WEIGHTS)
     assert config["protected_paths"] == PROTECTED_PATHS
     assert set(config["protected_path_digests"]) == set(PROTECTED_PATHS)
+    assert config["score_gates"]["authority_lineage"]["command"] == [
+        "uv",
+        "run",
+        "--project",
+        "packages/inventory-domain-pack",
+        "pytest",
+        "packages/inventory-domain-pack/tests/test_authority.py",
+        "-q",
+    ]
 
 
 def test_active_hypothesis_pool_and_session_start_at_c_h001() -> None:

@@ -97,7 +97,7 @@
         "--project",
         "packages/inventory-domain-pack",
         "pytest",
-        "tests/test_authority.py",
+        "packages/inventory-domain-pack/tests/test_authority.py",
         "-q"
       ],
       "hypothesis_id": "C-H004",

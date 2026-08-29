@@ -97,7 +97,7 @@ INVENTORY_GATE_COMMANDS: dict[str, tuple[str, ...]] = {
         "--project",
         "packages/inventory-domain-pack",
         "pytest",
-        "tests/test_authority.py",
+        "packages/inventory-domain-pack/tests/test_authority.py",
         "-q",
     ),
     "distribution_integrity": ("make", "test-packages"),
