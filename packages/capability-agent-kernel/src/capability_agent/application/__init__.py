@@ -1,7 +1,10 @@
 """Application composition and output contracts."""
 
 from capability_agent.application.composition import (
+    PreparedApplication,
+    PreparedBinding,
     PreparedDomainRuntime,
+    prepare_application,
     prepare_domain_runtime,
 )
 from capability_agent.application.errors import (
@@ -66,9 +69,12 @@ __all__ = [
     "JsonOutputRenderer",
     "OutputRenderer",
     "PolicyConflictError",
+    "PreparedApplication",
+    "PreparedBinding",
     "PreparedDomainRuntime",
     "PresentationError",
     "ReportShell",
     "ValidatedDomainOutput",
+    "prepare_application",
     "prepare_domain_runtime",
 ]

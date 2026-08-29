@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 from capability_agent.application.errors import DomainRegistrationError
+from capability_agent.application.profile import DomainBinding
 from capability_agent.domain.profile import DomainRuntimeProfile
 
 
@@ -41,6 +43,12 @@ class DomainRegistry:
                 "registered domain factory manifest does not match its registration"
             )
         return profile
+
+    def resolve_binding(self, binding: DomainBinding) -> DomainBinding:
+        """Return a binding backed by its explicitly registered profile."""
+        manifest = binding.profile.manifest
+        profile = self.resolve(manifest.domain_id, manifest.version)
+        return replace(binding, profile=profile)
 
 
 __all__ = ["DomainProfileFactory", "DomainRegistry"]

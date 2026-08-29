@@ -3,7 +3,19 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from capability_agent.application import prepare_domain_runtime
+import pytest
+
+from capability_agent.application import (
+    ApplicationConfigurationError,
+    ApplicationManifest,
+    ApplicationProfile,
+    CredentialScope,
+    DataSharingPolicy,
+    DomainBinding,
+    DomainRegistry,
+    prepare_application,
+    prepare_domain_runtime,
+)
 from capability_agent.tools import GuideIndex, ToolCatalog
 
 
@@ -70,3 +82,62 @@ def test_kernel_helpers_use_neutral_default_schema_ids(
     assert default_guide_payload["protocol"] == "capability-guide-index"
     assert ToolCatalog.__module__ == "capability_agent.tools.catalog"
     assert GuideIndex.__module__ == "capability_agent.tools.guide"
+
+
+def test_incomplete_inventory_fixture_remains_low_level_only(
+    tmp_path: Path, inventory_profile
+) -> None:
+    profile, _ = inventory_profile
+    workspace = tmp_path / "run"
+    low_level = prepare_domain_runtime(
+        profile,
+        executable=tmp_path / "inventoryctl",
+        workspace=workspace,
+        tool_catalog_path=workspace / "tool-catalog.json",
+        guide_index_path=workspace / "guide-index.json",
+    )
+    component = object()
+    incomplete_application = object.__new__(ApplicationProfile)
+    for name, value in {
+        "manifest": ApplicationManifest(
+            application_id="fixture-agent",
+            version="1.0.0",
+            display_name="Fixture Agent",
+            context_schema="application-context/1.0",
+            result_schema="capability-agent-output/1.0",
+            artifact_schema="capability-agent-run/1.0",
+            core_tool_namespace="agent_",
+        ),
+        "domains": (
+            DomainBinding(
+                binding_id="inventory",
+                tool_namespace="inventory_",
+                profile=profile,
+                credential_scope=CredentialScope(),
+                sharing_policy=DataSharingPolicy(),
+            ),
+        ),
+        "output_renderer": component,
+        "application_policy": component,
+        "report_shell": component,
+        "acceptance_profile": component,
+    }.items():
+        object.__setattr__(incomplete_application, name, value)
+
+    registry = DomainRegistry()
+    registry.register(
+        profile.manifest.domain_id,
+        profile.manifest.version,
+        lambda: profile,
+    )
+
+    assert low_level.tool_catalog_path.is_file()
+    with pytest.raises(
+        ApplicationConfigurationError, match="missing application components"
+    ):
+        prepare_application(
+            incomplete_application,
+            registry=registry,
+            workspace=tmp_path / "application",
+            credentials=object(),
+        )

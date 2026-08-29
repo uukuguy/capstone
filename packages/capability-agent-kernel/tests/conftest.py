@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import cast
 
@@ -18,6 +18,13 @@ from capability_agent.domain import (
     VerifiedArtifact,
     VerifiedReferenceSet,
 )
+from capability_agent.application import (
+    ApplicationManifest,
+    ApplicationProfile,
+    CredentialScope,
+    DataSharingPolicy,
+    DomainBinding,
+)
 
 
 @dataclass
@@ -30,6 +37,41 @@ class RecordingExecutor:
     ) -> dict[str, object]:
         self.calls.append((capability, arguments))
         return self.environment
+
+
+@dataclass
+class RecordingEndpoint:
+    executor: RecordingExecutor
+    metadata: Mapping[str, object] = field(
+        default_factory=lambda: {"transport": "fixture"}
+    )
+    closed: bool = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+@dataclass
+class RecordingProvisioner:
+    endpoint: RecordingEndpoint
+    failure: Exception | None = None
+    calls: list[tuple[DomainBinding, Path, object]] = field(default_factory=list)
+
+    def prepare(
+        self, *, binding: DomainBinding, workspace: Path, credentials: object
+    ) -> RecordingEndpoint:
+        self.calls.append((binding, workspace, credentials))
+        if self.failure is not None:
+            raise self.failure
+        return self.endpoint
+
+
+@dataclass(frozen=True)
+class StaticPolicy:
+    fragment: str
+
+    def load(self) -> str:
+        return self.fragment
 
 
 class RecordingAuthority(ArtifactAuthority):
@@ -150,4 +192,51 @@ def inventory_profile(
             authority_factory=authority_factory or RecordingAuthority,
         ),
         executor,
+    )
+
+
+@pytest.fixture
+def complete_profile(inventory_profile) -> ApplicationProfile:
+    domain_profile, executor = inventory_profile
+    endpoint = RecordingEndpoint(executor)
+    provisioner = RecordingProvisioner(endpoint)
+    component = object()
+    complete_domain = replace(
+        domain_profile,
+        manifest=replace(
+            domain_profile.manifest,
+            domain_id="fixture-domain",
+            display_name="Fixture Domain",
+        ),
+        provisioner=provisioner,
+        state_adapter=component,
+        answer_policy=component,
+        policy_provider=StaticPolicy("deny: domain-write"),
+        guide_provider=component,
+        presentation_provider=component,
+        output_contract=component,
+        acceptance_profile=component,
+    )
+    binding = DomainBinding(
+        binding_id="fixture",
+        tool_namespace="fixture_",
+        profile=complete_domain,
+        credential_scope=CredentialScope(),
+        sharing_policy=DataSharingPolicy(),
+    )
+    return ApplicationProfile(
+        manifest=ApplicationManifest(
+            application_id="fixture-agent",
+            version="1.0.0",
+            display_name="Fixture Agent",
+            context_schema="application-context/1.0",
+            result_schema="capability-agent-output/1.0",
+            artifact_schema="capability-agent-run/1.0",
+            core_tool_namespace="agent_",
+        ),
+        domains=(binding,),
+        output_renderer=component,
+        application_policy=StaticPolicy("deny: application-write"),
+        report_shell=component,
+        acceptance_profile=component,
     )

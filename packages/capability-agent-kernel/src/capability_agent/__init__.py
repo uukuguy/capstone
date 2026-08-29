@@ -27,10 +27,13 @@ from capability_agent.application import (
     JsonOutputRenderer,
     OutputRenderer,
     PolicyConflictError,
+    PreparedApplication,
+    PreparedBinding,
     PreparedDomainRuntime,
     PresentationError,
     ReportShell,
     ValidatedDomainOutput,
+    prepare_application,
     prepare_domain_runtime,
 )
 from capability_agent.domain import (
@@ -109,6 +112,8 @@ __all__ = [
     "OutputRenderer",
     "PolicyConflictError",
     "PreparedDomainEndpoint",
+    "PreparedApplication",
+    "PreparedBinding",
     "PreparedDomainRuntime",
     "PresentationError",
     "PresentationProvider",
@@ -119,5 +124,6 @@ __all__ = [
     "VerifiedArtifact",
     "VerifiedInvocation",
     "VerifiedReferenceSet",
+    "prepare_application",
     "prepare_domain_runtime",
 ]
