@@ -58,7 +58,7 @@ def _freeze_json(value: Any, *, label: str = "context", max_depth: int = 64) -> 
         return _freeze_json_value(value, label=label, active=set(), depth=0, max_depth=max_depth)
     except ContextModelError:
         raise
-    except (RecursionError, RuntimeError, TypeError, ValueError):
+    except Exception:
         raise ContextModelError(f"{label} contains an unsafe JSON value") from None
 
 
@@ -116,9 +116,7 @@ def _freeze_json_value(
         if not math.isfinite(value):
             raise ContextModelError(f"{label} float values must be finite")
         return value
-    raise ContextModelError(
-        f"{label} contains unsupported JSON value: {type(value).__name__}"
-    )
+    raise ContextModelError(f"{label} contains an unsupported JSON value")
 
 
 def _freeze_model_json_fields(model: Any, fields: tuple[str, ...], *, label: str) -> None:
@@ -135,7 +133,12 @@ def _freeze_model_json_fields(model: Any, fields: tuple[str, ...], *, label: str
 class _ContextModel(StrictFrozenModel):
     """Strict immutable Pydantic base for context-owned models."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        strict=True,
+        hide_input_in_errors=True,
+    )
 
 
 class CoreContext(_ContextModel):
@@ -155,21 +158,25 @@ class CoreContext(_ContextModel):
     answer_lifecycle: Mapping[str, Any] = Field(default_factory=dict)
 
     @field_validator(
+        "input",
+        "runtime",
         "questions",
         "turns",
+        "active_turn",
         "decisions",
         "diagnostics",
         "consumed_refs",
         "produced_refs",
         "result_refs",
         "evidence_refs",
+        "answer_lifecycle",
         mode="before",
     )
     @classmethod
-    def accept_json_arrays(cls, value: Any) -> Any:
-        if isinstance(value, list):
-            return tuple(value)
-        return value
+    def validate_json_values(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return _freeze_json(value, label="core")
 
     @model_validator(mode="after")
     def freeze_values(self) -> "CoreContext":
@@ -200,6 +207,13 @@ class DomainStateEnvelope(_ContextModel):
     schema_id: str = Field(min_length=1)
     revision: int = Field(default=0, ge=0)
     state: Mapping[str, Any] = Field(default_factory=dict)
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state_value(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return _freeze_json(value, label="domain state")
 
     @model_validator(mode="after")
     def freeze_values(self) -> "DomainStateEnvelope":
@@ -247,6 +261,13 @@ class ContextEventDraft(_ContextModel):
     timestamp: str | None = Field(default=None, min_length=1)
     payload: Mapping[str, Any] = Field(default_factory=dict)
 
+    @field_validator("payload", mode="before")
+    @classmethod
+    def validate_payload_value(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return _freeze_json(value, label="context event payload")
+
     @field_validator("binding_id")
     @classmethod
     def validate_binding_id(cls, value: str | None) -> str | None:
@@ -281,6 +302,13 @@ class ContextEvent(_ContextModel):
     previous_state_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     next_revision: int = Field(ge=1)
     next_state_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("payload", mode="before")
+    @classmethod
+    def validate_payload_value(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return _freeze_json(value, label="context event payload")
 
     @field_validator("binding_id")
     @classmethod
@@ -321,6 +349,16 @@ class ApplicationContext(_ContextModel):
     core: CoreContext = Field(default_factory=CoreContext)
     domains: Mapping[str, DomainStateEnvelope] = Field(default_factory=dict)
 
+    @field_validator("domains", mode="before")
+    @classmethod
+    def validate_domains_value(cls, value: Any) -> Any:
+        if not isinstance(value, Mapping):
+            return value
+        try:
+            return dict(value.items())
+        except Exception:
+            raise ContextModelError("context domains contains an unsafe mapping") from None
+
     @field_validator("run_id")
     @classmethod
     def validate_run_id(cls, value: str) -> str:
@@ -350,7 +388,11 @@ class ApplicationContext(_ContextModel):
         status: Literal["initializing", "running", "completed", "failed"] = "initializing",
     ) -> "ApplicationContext":
         envelopes: dict[str, DomainStateEnvelope] = {}
-        for binding_id, value in domains.items():
+        try:
+            domain_items = tuple(domains.items())
+        except Exception:
+            raise ContextModelError("context domains contains an unsafe mapping") from None
+        for binding_id, value in domain_items:
             if isinstance(value, str):
                 value = DomainStateEnvelope(schema_id=value)
             elif not isinstance(value, DomainStateEnvelope):
@@ -361,7 +403,7 @@ class ApplicationContext(_ContextModel):
         core_model = (
             core
             if isinstance(core, CoreContext)
-            else CoreContext.model_validate(core or {})
+            else CoreContext.model_validate({} if core is None else core)
         )
         context = cls(
             run_id=run_id,

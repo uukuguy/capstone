@@ -41,6 +41,14 @@ class ApplicationContextStore:
             raise ContextStoreError("workspace and context run identifiers differ")
         self._workspace = workspace
         self._snapshot = snapshot
+        self._ledger_identity = _file_identity(
+            workspace.context_events_path,
+            label="context ledger",
+        )
+        self._snapshot_identity = _file_identity(
+            workspace.context_snapshot_path,
+            label="context snapshot",
+        )
         self._append_lock = RLock()
         self._unavailable = False
 
@@ -132,6 +140,16 @@ class ApplicationContextStore:
 
             temporary: Path | None = None
             try:
+                _require_file_identity(
+                    self._workspace.context_snapshot_path,
+                    self._snapshot_identity,
+                    label="context snapshot",
+                )
+                _require_file_identity(
+                    self._workspace.context_events_path,
+                    self._ledger_identity,
+                    label="context ledger",
+                )
                 temporary = _stage_snapshot(
                     self._workspace.context_snapshot_path,
                     next_snapshot.model_dump(mode="json"),
@@ -139,9 +157,14 @@ class ApplicationContextStore:
                 _append_jsonl_fsync(
                     self._workspace.context_events_path,
                     event.model_dump(mode="json"),
+                    expected_identity=self._ledger_identity,
                 )
                 _replace_snapshot(temporary, self._workspace.context_snapshot_path)
                 temporary = None
+                self._snapshot_identity = _file_identity(
+                    self._workspace.context_snapshot_path,
+                    label="context snapshot",
+                )
             except ContextStoreError:
                 self._unavailable = True
                 raise
@@ -167,11 +190,14 @@ class ApplicationContextStore:
         )
         _require_regular_file(path, label="context ledger")
         try:
-            raw_lines = path.read_bytes().splitlines()
+            raw_bytes = path.read_bytes()
         except OSError:
             raise ContextStoreError("context ledger cannot be read") from None
-        if not raw_lines:
+        if not raw_bytes:
             raise ContextStoreError("context ledger is empty")
+        if not raw_bytes.endswith(b"\n"):
+            raise ContextStoreError("context ledger must end with a newline")
+        raw_lines = raw_bytes.splitlines()
 
         state: ApplicationContext | None = None
         expected_sequence = 1
@@ -278,12 +304,14 @@ def _has_content(path: Path) -> bool:
         raise ContextStoreError("context file cannot be inspected") from None
 
 
-def _require_regular_file(path: Path, *, label: str, allow_missing: bool = False) -> None:
+def _require_regular_file(
+    path: Path, *, label: str, allow_missing: bool = False
+) -> tuple[int, int] | None:
     try:
         metadata = path.lstat()
     except FileNotFoundError:
         if allow_missing:
-            return
+            return None
         raise ContextStoreError(f"{label} does not exist") from None
     except OSError:
         raise ContextStoreError(f"{label} cannot be inspected") from None
@@ -291,15 +319,46 @@ def _require_regular_file(path: Path, *, label: str, allow_missing: bool = False
         raise ContextStoreError(f"{label} cannot be a symlink")
     if not stat.S_ISREG(metadata.st_mode):
         raise ContextStoreError(f"{label} is not a regular file")
+    return metadata.st_dev, metadata.st_ino
 
 
-def _append_jsonl_fsync(path: Path, payload: Mapping[str, Any]) -> None:
-    _require_regular_file(path, label="context ledger", allow_missing=True)
+def _file_identity(path: Path, *, label: str) -> tuple[int, int]:
+    identity = _require_regular_file(path, label=label)
+    assert identity is not None
+    return identity
+
+
+def _require_file_identity(
+    path: Path,
+    expected: tuple[int, int],
+    *,
+    label: str,
+) -> None:
+    actual = _file_identity(path, label=label)
+    if actual != expected:
+        raise ContextStoreError(f"{label} changed")
+
+
+def _append_jsonl_fsync(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    expected_identity: tuple[int, int] | None = None,
+) -> None:
+    identity = _require_regular_file(path, label="context ledger")
+    if expected_identity is not None and identity != expected_identity:
+        raise ContextStoreError("context ledger changed")
     encoded = canonical_json_bytes(payload)
-    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_WRONLY | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
     descriptor: int | None = None
     try:
         descriptor = os.open(path, flags, 0o600)
+        metadata = os.fstat(descriptor)
+        opened_identity = (metadata.st_dev, metadata.st_ino)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise OSError("context ledger is not a regular file")
+        if expected_identity is not None and opened_identity != expected_identity:
+            raise OSError("context ledger changed")
         with os.fdopen(descriptor, "ab", closefd=True) as stream:
             descriptor = None
             written = stream.write(encoded)
@@ -316,7 +375,7 @@ def _append_jsonl_fsync(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _stage_snapshot(path: Path, payload: Mapping[str, Any]) -> Path:
-    _require_regular_file(path, label="context snapshot", allow_missing=True)
+    _require_regular_file(path, label="context snapshot")
     temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     descriptor: int | None = None
@@ -339,7 +398,7 @@ def _stage_snapshot(path: Path, payload: Mapping[str, Any]) -> Path:
 
 
 def _replace_snapshot(temporary: Path, destination: Path) -> None:
-    _require_regular_file(destination, label="context snapshot", allow_missing=True)
+    _require_regular_file(destination, label="context snapshot")
     try:
         os.replace(temporary, destination)
     except OSError:

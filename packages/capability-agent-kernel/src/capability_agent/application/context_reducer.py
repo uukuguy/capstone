@@ -267,11 +267,11 @@ def _validate_state_ownership(
                 raise ContextTransitionError("sibling binding field is not permitted")
             normalized_key = key.lower()
             if normalized_key in _OWNER_KEYS or normalized_key.endswith("_binding_id"):
-                if isinstance(item, str) and item != binding_id:
+                if type(item) is not str or item != binding_id:
                     raise ContextTransitionError("foreign reference ownership")
             if normalized_key in _OWNER_LIST_KEYS or normalized_key.endswith("_binding_ids"):
-                if isinstance(item, (list, tuple)) and any(
-                    not isinstance(owner, str) or owner != binding_id for owner in item
+                if not isinstance(item, (list, tuple)) or any(
+                    type(owner) is not str or owner != binding_id for owner in item
                 ):
                     raise ContextTransitionError("foreign reference ownership")
             _validate_state_ownership(

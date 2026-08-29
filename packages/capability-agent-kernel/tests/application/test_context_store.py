@@ -166,6 +166,76 @@ def test_replay_rejects_missing_or_empty_ledger(tmp_path: Path) -> None:
         ApplicationContextStore.replay(path)
 
 
+@pytest.mark.parametrize("target", ["ledger", "snapshot"])
+@pytest.mark.parametrize("replacement", [False, True])
+def test_append_fails_closed_when_persisted_destination_is_removed_or_replaced(
+    workspace: ApplicationWorkspace,
+    target: str,
+    replacement: bool,
+) -> None:
+    store = ApplicationContextStore.initialize(
+        workspace,
+        domains={
+            "grid": "pandapower-analysis-state/1.0",
+            "inventory": "inventory-state/1.0",
+        },
+    )
+    destination = (
+        workspace.context_events_path
+        if target == "ledger"
+        else workspace.context_snapshot_path
+    )
+    before = store.snapshot
+    before_snapshot = workspace.context_snapshot_path.read_bytes()
+    if replacement:
+        replacement_path = destination.with_name(f"{destination.name}.replacement")
+        replacement_path.write_bytes(destination.read_bytes())
+        os.replace(replacement_path, destination)
+    else:
+        destination.unlink()
+
+    with pytest.raises(ContextStoreError):
+        store.append(
+            ContextEventDraft(
+                event_type="diagnostic.recorded",
+                payload={"message": "must not persist"},
+            )
+        )
+
+    assert store.snapshot == before
+    if target == "ledger":
+        assert workspace.context_snapshot_path.read_bytes() == before_snapshot
+    elif replacement:
+        assert destination.read_bytes() == before_snapshot
+    else:
+        assert not destination.exists()
+    with pytest.raises(ContextStoreError, match="unavailable"):
+        store.append(
+            ContextEventDraft(
+                event_type="diagnostic.recorded",
+                payload={"message": "must remain unavailable"},
+            )
+        )
+
+
+def test_replay_rejects_a_non_empty_ledger_without_a_final_newline(
+    workspace: ApplicationWorkspace,
+) -> None:
+    ApplicationContextStore.initialize(
+        workspace,
+        domains={
+            "grid": "pandapower-analysis-state/1.0",
+            "inventory": "inventory-state/1.0",
+        },
+    )
+    raw = workspace.context_events_path.read_bytes()
+    assert raw.endswith(b"\n")
+    workspace.context_events_path.write_bytes(raw[:-1])
+
+    with pytest.raises(ContextStoreError, match="newline"):
+        ApplicationContextStore.replay(workspace.context_events_path)
+
+
 def test_durable_context_events_reject_nonportable_run_ids() -> None:
     with pytest.raises(ValueError, match="portable"):
         ContextEvent(
