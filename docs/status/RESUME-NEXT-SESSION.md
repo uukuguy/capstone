@@ -1,34 +1,44 @@
-# Workstream C Completion Checkpoint
+# Live Session Checkpoint
 
-> Updated: 2026-08-30 00:29 CST. **Climb target reached; this is a durable completion checkpoint, not an approved final handoff.**
+> Updated: 2026-08-30 01:06 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- Workstream C 已完成，最终 C-H005 run `20260829T161349Z-c-h005` 得分 100/100，9/9 gate 通过且无 blocker。
-- 第二个只读业务域已证明可仅通过公共 Kernel SPI 与 unchanged generic Pi transport 实例化。
-- 当前进入 climb 硬暂停；Workstream D 写治理或 Workstream E 多域组合均需新的明确范围。
+- Workstream C remains a completed inventory capability/domain fixture proof; it is not a completed second business-agent application.
+- The approved corrective design introduces Workstream C.1 to close the full Application Profile and first-domain instantiation gap.
+- The written specification is committed at `0b45243` and is awaiting user review before implementation planning.
 
 ## Where things stand
 
-- release source revision 为 `d4f3c50a3826444dfb2a957742513abaa13540a8`，closure digest 为 `90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406`。
-- reference service 11 tests、Domain Pack 14 tests 通过；六个 Python wheel 与两个 npm tarball 已在仓库外 clean-install smoke 通过。
-- protected-path checker 确认 capability-agent-kernel、pi-capability-tools 与 trajectory-workbench 与 baseline 一致且无工作树变化。
-- 原产品 closure 同时通过 doctor、688 agent tests、165 simulator tests、43 Pi tests、17 E2E tests 与 24/24 validation。
-- 全程在 main 工作，未创建临时 worktree 或 feature branch；本地提交尚未 push。
+- Canonical corrective specification: `docs/superpowers/specs/2026-08-30-domain-application-instantiation-closure-design.md`.
+- The new default architecture uses `ApplicationProfile`, `DomainBinding`, a domain-neutral application engine, and complete Domain Pack contracts.
+- Pandapower is the first complete domain instance and must pass both existing business task files through the new generic path.
+- Version 1.0.1 is a behavioral and safety reference; its naming and layouts are supported through an explicit compatibility adapter rather than used as framework defaults.
+- Inventory remains installed and tested as a conformance fixture; no inventory implementation expansion is authorized.
+- Work remains on `main`; no temporary worktree or feature branch exists. `main` is one design commit ahead of `origin/main`.
 
 ## In-flight work
 
-无实现中的工作。若继续升级，先为 Workstream D 或 E 建立新的批准设计、计划与 climb session；不得把 inventory 参考域直接扩成未治理写能力或动态插件系统。
+- Brainstorming design is complete and committed.
+- No implementation has started.
+- The user must review the written specification before the workflow transitions to `writing-plans`.
 
 ## Boundaries
 
-- Inventory 保持只读；Domain facts 只能来自 inventoryctl 的 current-run artifacts。
-- 不修改 protected framework paths；不引入动态发现、写治理或多域路由。
-- 不运行 provider validation。
-- 不遗留临时 worktree 或 feature branch。
+- Do not claim a complete domain application from package, transport, authority, or fixture conformance alone.
+- Do not begin Workstream D, Workstream E, dynamic plugin discovery, or a real second domain before C.1.
+- Generic Application/Kernel paths must not import or recognize pandapower/grid-specific behavior.
+- Generic results contain a Kernel-owned `core` section plus one Domain Pack-owned output per binding; Application Profiles select only the renderer.
+- Only the `grid-agent` compatibility entry projects that composite result to `question_id`/`answer_output`.
+- Provider-backed validation requires explicit credential and billing authorization at execution time.
+- Do not leave a temporary worktree or feature branch; integrate approved work on `main`.
 
 ## Immediate next action
 
-```sh
-python3 tools/climb/check-target.py
+Ask the user to review:
+
+```text
+docs/superpowers/specs/2026-08-30-domain-application-instantiation-closure-design.md
 ```
+
+After explicit written-spec approval, invoke the `writing-plans` skill and create the Workstream C.1 implementation plan. Do not start implementation before that approval.

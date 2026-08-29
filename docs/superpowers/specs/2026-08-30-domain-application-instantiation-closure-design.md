@@ -189,11 +189,17 @@ to `grid`, `gridctl`, pandapower, or v1.0.1 artifact identities.
 class ApplicationProfile:
     manifest: ApplicationManifest
     domains: tuple[DomainBinding, ...]
-    output_contract: OutputContract
+    output_renderer: OutputRenderer
     application_policy: ApplicationPolicy
     report_shell: ReportShell
     acceptance_profile: AcceptanceProfile
 ```
+
+`output_renderer` is mandatory but does not own result semantics. It serializes
+an already validated composite result to a selected delivery channel. The
+Framework Output Contract owns the `core` section; each Domain Output Contract
+owns its corresponding `domains.<binding_id>` section. An application cannot
+replace either contract with an unstructured callback.
 
 The first implementation rejects zero bindings and more than one binding. The
 cardinality restriction is a runtime feature gate, not a different type.
@@ -230,6 +236,7 @@ The current profile is extended to require or provide:
 | `DomainPolicyProvider` | Provide a deterministic domain policy fragment |
 | `GuideProvider` | Provide an allowlisted, digest-bound guide index |
 | `PresentationProvider` | Render domain labels, summaries, context, and report sections |
+| `DomainOutputContract` | Build and validate the binding's business output payload |
 | `DomainAcceptanceProfile` | Declare offline, scripted, and provider-backed acceptance cases |
 
 ### 4.5 Runtime provisioning
@@ -279,26 +286,90 @@ The Kernel reduces only core lifecycle state. A `DomainStateAdapter` validates
 and merges its own namespaced state. It cannot change another binding or turn a
 projection into authoritative evidence.
 
-### 4.7 Application result, CLI envelope, and compatibility adapters
+### 4.7 Framework and domain output contracts
 
-The new internal and persisted result schema is
-`capability-agent-result/1.0`, for example:
+Output is always composed from two separately owned contracts.
+
+The Kernel-owned `FrameworkOutputContract` defines the envelope and the `core`
+section:
+
+```python
+class FrameworkOutputContract(Protocol):
+    schema_id: str
+
+    def compose(
+        self,
+        core: CoreRunResult,
+        domains: Mapping[str, ValidatedDomainOutput],
+    ) -> ApplicationResult: ...
+```
+
+Every Domain Pack provides a `DomainOutputContract`:
+
+```python
+class DomainOutputContract(Protocol):
+    schema_id: str
+
+    def build(
+        self,
+        *,
+        binding_id: str,
+        context: DomainContextView,
+        committed_answers: tuple[CommittedAnswer, ...],
+    ) -> Mapping[str, object]: ...
+
+    def validate(self, payload: Mapping[str, object]) -> None: ...
+```
+
+The composite default is `capability-agent-output/1.0`:
 
 ```json
 {
-  "schema": "capability-agent-result/1.0",
-  "application_id": "pandapower-static-analysis",
-  "run_id": "run-...",
-  "status": "completed",
-  "output": {
-    "type": "report",
-    "path": "runs/run-.../report.md"
+  "schema": "capability-agent-output/1.0",
+  "core": {
+    "application_id": "pandapower-static-analysis",
+    "application_version": "1.0.1",
+    "run_id": "run-...",
+    "status": "completed",
+    "answer_refs": ["artifact:..."],
+    "report_ref": "artifact:...",
+    "diagnostic_refs": []
+  },
+  "domains": {
+    "grid": {
+      "domain_id": "pandapower-static-analysis",
+      "domain_version": "1.0.1",
+      "schema": "pandapower-static-analysis-output/1.0",
+      "status": "completed",
+      "payload": {
+        "mode": "continuous-static-analysis",
+        "instruction_count": 9,
+        "completed_count": 9,
+        "failed_count": 0,
+        "report_artifact_ref": "artifact:..."
+      }
+    }
   }
 }
 ```
 
-The repository CLI contract remains a domain-neutral projection of that result
-and writes exactly one object to stdout:
+The framework owns `schema`, `core`, the `domains` container, binding identity,
+and the rule that each binding has exactly one validated domain output. It
+treats domain payloads as opaque after schema validation. A Domain Pack owns
+only its schema and `payload`; it cannot overwrite `core`, another binding, or
+the container structure.
+
+`OutputRenderer` chooses JSON, JSONL, an HTTP response, or an immutable artifact
+reference whose target is the complete validated `ApplicationResult`. A generic
+renderer must preserve both sections and cannot omit or change core or domain
+fields. Only an explicitly versioned compatibility adapter may perform a lossy
+legacy projection. Progress and diagnostics remain outside the result channel.
+
+### 4.8 v1.0.1 output compatibility
+
+The current repository contract applies specifically to the `grid-agent`
+v1.0.1-compatible entry point. Its explicit compatibility adapter writes
+exactly:
 
 ```json
 {
@@ -307,8 +378,9 @@ and writes exactly one object to stdout:
 }
 ```
 
-No status, schema, diagnostic, event, or domain field is added to CLI stdout.
-The richer application result stays in controller state and run artifacts.
+No status, schema, diagnostic, event, or domain field is added to that
+compatibility stdout envelope. The richer application result stays in
+controller state and run artifacts.
 
 Legacy behavior is selected explicitly at an entry point:
 
@@ -319,11 +391,11 @@ AgentApplication(
 )
 ```
 
-The grid adapter may preserve legacy command names, question-ID conventions,
-workspace layout, historical artifact readers, and core-tool aliases. It does
-not own the two-field stdout rule, which is already the generic CLI default. It
-cannot change simulator truth, evidence admission, or answer-audit decisions.
-Without an explicit adapter, the generic defaults apply.
+The grid adapter owns the two-field stdout projection as well as legacy command
+names, question-ID conventions, workspace layout, historical artifact readers,
+and core-tool aliases. It cannot change simulator truth, evidence admission, or
+answer-audit decisions. Without an explicit adapter, the Application Profile's
+renderer emits the validated two-part composite result.
 
 ## 5. Registration, naming, and routing
 
@@ -505,7 +577,7 @@ def build_pandapower_application_profile() -> ApplicationProfile:
                 sharing_policy=deny_sharing(),
             ),
         ),
-        output_contract=default_result_contract(),
+        output_renderer=validated_json_output_renderer(),
         application_policy=default_read_only_application_policy(),
         report_shell=default_continuous_analysis_report(),
         acceptance_profile=pandapower_acceptance_profile(),
@@ -550,7 +622,7 @@ explicit pandapower ApplicationProfile
   -> Kernel commits the answer
   -> pandapower answer policy audits business references
   -> generic report shell and pandapower presenter produce the report
-  -> default generic result or explicit legacy adapter emits output
+  -> selected Output Contract or explicit legacy adapter emits output
 ```
 
 No module on the generic path may import pandapower code or recognize grid
@@ -569,8 +641,9 @@ framework defaults.
 | Domain tools | Binding-selected namespace |
 | Context | `application-context/1.0` |
 | Runtime descriptor | `capability-agent-runtime/1.0` |
-| Internal/persisted result | `capability-agent-result/1.0` |
-| CLI stdout | Exact `question_id`/`answer_output` AnswerEnvelope |
+| Framework output | `capability-agent-output/1.0` envelope and `core` contract |
+| Domain output | One Domain Pack-owned schema and payload per binding |
+| External rendering | Required `ApplicationProfile.output_renderer`; it cannot change either contract |
 | Artifacts | `runs/<run_id>/core/` and `runs/<run_id>/domains/<binding_id>/` |
 | Events | Application identity from ApplicationManifest |
 | Model tool transport | `@capability-agent/pi-tools` |
@@ -581,7 +654,7 @@ framework defaults.
 The grid compatibility adapter supports, where required:
 
 - `grid-agent run`, `analysis`, `report`, and current arguments;
-- current question-ID conventions within the generic two-field stdout envelope;
+- the exact `question_id`/`answer_output` stdout envelope;
 - existing `grid_*` core-tool aliases;
 - existing run artifact readers and layouts;
 - current reports and workbench readers;
@@ -730,6 +803,8 @@ Tests cover:
 - capability, namespace, guide, and core-tool collisions;
 - contract/runtime/protocol/authority disagreement;
 - deterministic policy composition and conflict rejection;
+- framework-core and domain-output schema ownership and validation;
+- rejection of domain attempts to overwrite core or sibling output;
 - credential isolation and secret redaction;
 - state-schema and revision enforcement;
 - cross-binding state and reference rejection;
@@ -758,7 +833,9 @@ Each run passes only if:
 - later turns can reuse only admitted state and references;
 - context replay matches the materialized snapshot;
 - reports and artifacts are traceable;
-- stdout contains exactly one object with `question_id` and `answer_output`.
+- output has a valid framework-owned `core` section and a valid
+  pandapower-owned `domains.grid` section;
+- the selected renderer preserves both sections without semantic rewriting.
 
 ### 12.4 Compatibility and repository gates
 
@@ -772,10 +849,10 @@ make validate
 make test-packages
 ```
 
-Compatibility tests additionally verify current grid question-ID conventions,
-supported command aliases, existing tool schemas, readable historical run
-formats, and unchanged simulator evidence rules. The exact two-field stdout
-envelope is a generic application gate as well as a compatibility gate.
+Compatibility tests additionally verify the exact two-field grid stdout
+envelope, current question-ID conventions, supported command aliases, existing
+tool schemas, readable historical run formats, and unchanged simulator evidence
+rules. That envelope is not imposed on other Application Profiles.
 
 ## 13. Completion claims
 
@@ -787,12 +864,14 @@ Workstream C.1 is complete only when:
 3. pandapower enters solely through its Domain Pack and explicit application
    composition root;
 4. new generic defaults do not depend on v1.0.1 names or layouts;
-5. both `task.md.txt` and `test.md.txt` pass through the new default path;
-6. both runs have auditable result, evidence, context, answer, and report
+5. every result separates framework-owned core output from contract-validated
+   domain output;
+6. both `task.md.txt` and `test.md.txt` pass through the new default path;
+7. both runs have auditable result, evidence, context, answer, and report
    lineage;
-7. the optional v1.0.1 compatibility entry remains supported;
-8. repository, package, and boundary gates pass;
-9. the result is integrated on `main` with no temporary worktree or feature
+8. the optional v1.0.1 compatibility entry remains supported;
+9. repository, package, and boundary gates pass;
+10. the result is integrated on `main` with no temporary worktree or feature
    branch left behind.
 
 Completion terminology is fixed:
