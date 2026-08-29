@@ -141,6 +141,8 @@ const MODEL_ROUTING_FIELDS = new Set([
   "commandargs",
   "toolnameprefix",
 ]);
+const MODEL_ROUTING_STEMS = Object.freeze(["endpoint", "command", "executable"]);
+const MODEL_ROUTING_SUFFIXES = new Set(["path", "command", "args", "arguments"]);
 
 /**
  * Validate and detach the controller-owned runtime descriptor.
@@ -443,7 +445,7 @@ export function buildCapabilityRequest(descriptor, capability, params, requestId
   for (const key of Reflect.ownKeys(params)) {
     if (
       typeof key !== "string" ||
-      MODEL_ROUTING_FIELDS.has(key.replaceAll(/[-_]/g, "").toLowerCase())
+      isModelRoutingField(key)
     ) {
       throw new TypeError(`capability arguments contain a controller-owned routing field: ${String(key)}`);
     }
@@ -455,6 +457,18 @@ export function buildCapabilityRequest(descriptor, capability, params, requestId
     capability,
     arguments: params,
   };
+}
+
+function isModelRoutingField(key) {
+  const canonicalKey = key.replaceAll(/[-_]/g, "").toLowerCase();
+  if (MODEL_ROUTING_FIELDS.has(canonicalKey)) {
+    return true;
+  }
+  return MODEL_ROUTING_STEMS.some(
+    (stem) =>
+      canonicalKey.startsWith(stem) &&
+      MODEL_ROUTING_SUFFIXES.has(canonicalKey.slice(stem.length)),
+  );
 }
 
 export function createCapabilityTool(descriptor, contract, runner) {

@@ -254,6 +254,55 @@ test("model arguments cannot select controller-owned routing metadata", () => {
   );
 });
 
+test("model arguments reject every controller routing stem and control suffix combination before invoke", async () => {
+  const routingFields = ["endpoint", "command", "executable"].flatMap((stem) =>
+    ["path", "command", "args", "arguments"].flatMap((suffix) => {
+      const capitalizedSuffix = `${suffix[0].toUpperCase()}${suffix.slice(1)}`;
+      return [
+        `${stem}${capitalizedSuffix}`,
+        `${stem}_${suffix}`,
+        `${stem}-${suffix}`,
+      ];
+    }),
+  );
+  const payloads = [];
+  const tool = createCapabilityTool(
+    runtimeV1,
+    contract("inventory_asset_list", "asset.list"),
+    async (payload) => {
+      payloads.push(payload);
+      return {
+        protocol: payload.protocol,
+        protocol_version: payload.protocol_version,
+        request_id: payload.request_id,
+        ok: true,
+        result: {},
+      };
+    },
+  );
+
+  for (const field of routingFields) {
+    await assert.rejects(
+      () => tool.execute("routing-alias", { [field]: "attacker" }),
+      /controller-owned routing field/,
+      field,
+    );
+  }
+  assert.deepEqual(payloads, []);
+});
+
+test("model arguments retain business result and status fields", () => {
+  const params = {
+    command_result: "complete",
+    endpoint_status: "available",
+    executable_summary: "bounded controller output",
+  };
+
+  const request = buildCapabilityRequest(runtimeV1, "asset.list", params, "business-fields");
+
+  assert.deepEqual(request.arguments, params);
+});
+
 test("catalog collision preflight has zero tool creation or registration side effects", async () => {
   const fixture = await runtimeV1Fixture();
   const collisionCatalogs = [
