@@ -237,6 +237,66 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
+    },
+    {
+      "hypothesis_id": "C-H004",
+      "run_id": "20260829T155425Z-c-h004",
+      "status": "falsified",
+      "recorded_at": "2026-08-29T23:54:25+08:00",
+      "local_score": 0.0,
+      "per_task": {
+        "authority_lineage": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_pack_spi": 0.0,
+        "generic_pi_transport": 0.0,
+        "product_compatibility": 0.0,
+        "reference_authority": 0.0
+      },
+      "gate_evidence": {
+        "authority_lineage": {
+          "artifact_path": "runs/climb/20260829T155425Z-c-h004/gate-output-authority_lineage.json",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/inventory-domain-pack",
+            "pytest",
+            "tests/test_authority.py",
+            "-q"
+          ],
+          "output_sha256": "4d49c221085c595c71f55717472c10a0b694620235e15137d1a6a460c12ea8db",
+          "release_source_revision": "a6515e0a6adccf009646520937a7ab1500b6815b",
+          "returncode": 4,
+          "status": "failed",
+          "stderr": "ERROR: file or directory not found: tests/test_authority.py",
+          "stdout": "no tests ran in 0.00s"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/a6515e0a6adccf009646520937a7ab1500b6815b/distribution_integrity.json",
+          "release_source_revision": "a6515e0a6adccf009646520937a7ab1500b6815b",
+          "status": "missing-receipt"
+        },
+        "domain_pack_spi": {
+          "artifact_path": "runs/climb/gate-receipts/a6515e0a6adccf009646520937a7ab1500b6815b/domain_pack_spi.json",
+          "release_source_revision": "a6515e0a6adccf009646520937a7ab1500b6815b",
+          "status": "missing-receipt"
+        },
+        "generic_pi_transport": {
+          "artifact_path": "runs/climb/gate-receipts/a6515e0a6adccf009646520937a7ab1500b6815b/generic_pi_transport.json",
+          "release_source_revision": "a6515e0a6adccf009646520937a7ab1500b6815b",
+          "status": "missing-receipt"
+        },
+        "product_compatibility": {
+          "focused_gate": "authority_lineage",
+          "status": "not-focused"
+        },
+        "reference_authority": {
+          "artifact_path": "runs/climb/gate-receipts/a6515e0a6adccf009646520937a7ab1500b6815b/reference_authority.json",
+          "release_source_revision": "a6515e0a6adccf009646520937a7ab1500b6815b",
+          "status": "missing-receipt"
+        }
+      },
+      "verdict": "matrix incomplete; advance next implementation hypothesis"
     }
   ]
 }

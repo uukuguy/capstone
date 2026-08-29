@@ -533,3 +533,5 @@ _Recovered pre-merge mainline entries._
 - 23:51 证明 unchanged generic Pi 可注册并执行 inventory 工具链 [180d5da]
 - 23:51 C-H003 得分 15/100，确认 generic Pi transport 门并推进 C-H004
 - 23:52 固化 C-H003 证据，使 authority lineage 红队验证可恢复 [264dc55]
+- 23:54 实现 inventory no-follow authority admission，阻断跨 run 与篡改引用 [a6515e0]
+- 23:54 C-H004 得分 20/100，确认 authority lineage 门并推进 C-H005 closure

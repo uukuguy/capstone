@@ -1,6 +1,6 @@
 # Research Tree — Workstream C Inventory Reference Domain
 
-> Generated deterministically from 3 climb runs.
+> Generated deterministically from 4 climb runs.
 
 **Session:** 2026-08-29-workstream-c-inventory-reference-domain
 
@@ -17,20 +17,20 @@
 
 ## In-flight
 
-- Phase: C-H004 implementation
-- Last cycle: 3
-- Next hypothesis: C-H004
-- Next action: Execute C-H004 through the deterministic local gate.
+- Phase: C-H005 implementation
+- Last cycle: 4
+- Next hypothesis: C-H005
+- Next action: Execute C-H005 through the deterministic local gate.
 
 ## Runs
 
 - 20260829T154313Z-c-h001: 25.0% — confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed
 - 20260829T154929Z-c-h002: 20.0% — confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed
 - 20260829T155126Z-c-h003: 15.0% — confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed
+- 20260829T155425Z-c-h004: 0.0% — matrix incomplete; advance next implementation hypothesis
 
 ## Active hypotheses
 
-- **C-H004**: inventory authority rejects foreign tampered symlinked and unlinked references
 - **C-H005**: installed inventory packages preserve protected framework paths and the grid product
 
 ## Confirmed
