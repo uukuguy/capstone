@@ -59,21 +59,24 @@ def test_active_state_selects_workstream_c_inventory_score_contract() -> None:
 
 
 def test_active_hypothesis_pool_and_session_start_at_c_h001() -> None:
-    hypotheses = _json(STATE / "hypotheses.yaml")["hypotheses"]
+    document = _json(STATE / "hypotheses.yaml")
+    hypotheses = document["hypotheses"]
     session = _json(STATE / "session-state.json")
 
     assert isinstance(hypotheses, list)
     assert [item["id"] for item in hypotheses] == EXPECTED_HYPOTHESES
     assert all(item["status"] == "pending" for item in hypotheses)
-    assert session == {
-        "falsified_routes": [],
-        "in_flight": None,
-        "last_cycle": 0,
-        "next_action": "Execute C-H001 through the deterministic local gate.",
-        "next_hypothesis": "C-H001",
-        "phase": "C-H001 implementation",
-        "session": "2026-08-29-workstream-c-inventory-reference-domain",
-    }
+    effective = {item["id"]: item["status"] for item in hypotheses}
+    for event in document["events"]:
+        effective[event["hypothesis_id"]] = event["status"]
+    expected_next = next(
+        (item for item in EXPECTED_HYPOTHESES if effective[item] == "pending"),
+        "none",
+    )
+    assert session["session"] == "2026-08-29-workstream-c-inventory-reference-domain"
+    assert session["next_hypothesis"] == expected_next
+    assert session["in_flight"] is None
+    assert session["falsified_routes"] == []
 
 
 def test_completed_workstream_b_state_is_archived() -> None:
@@ -88,6 +91,7 @@ def test_adapter_runtime_has_no_workstream_b_release_hard_coding() -> None:
         "tools/climb/train.sh",
         "tools/climb/eval-local.sh",
         "tools/climb/cycle.sh",
+        "tools/climb/check-target.py",
         "tools/climb/sync-cycle.py",
         "tools/climb/regen-tree.py",
     ):

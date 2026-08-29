@@ -8,7 +8,9 @@
       "cost_h": 0.5,
       "ranking": 1.0,
       "status": "pending",
-      "owned_score_keys": ["reference_authority"],
+      "owned_score_keys": [
+        "reference_authority"
+      ],
       "focused_gate": "reference_authority",
       "results": []
     },
@@ -20,7 +22,9 @@
       "cost_h": 0.5,
       "ranking": 0.9,
       "status": "pending",
-      "owned_score_keys": ["domain_pack_spi"],
+      "owned_score_keys": [
+        "domain_pack_spi"
+      ],
       "focused_gate": "domain_pack_spi",
       "results": []
     },
@@ -32,7 +36,9 @@
       "cost_h": 0.25,
       "ranking": 0.8,
       "status": "pending",
-      "owned_score_keys": ["generic_pi_transport"],
+      "owned_score_keys": [
+        "generic_pi_transport"
+      ],
       "focused_gate": "generic_pi_transport",
       "results": []
     },
@@ -44,7 +50,9 @@
       "cost_h": 0.5,
       "ranking": 0.7,
       "status": "pending",
-      "owned_score_keys": ["authority_lineage"],
+      "owned_score_keys": [
+        "authority_lineage"
+      ],
       "focused_gate": "authority_lineage",
       "results": []
     },
@@ -56,10 +64,69 @@
       "cost_h": 1.0,
       "ranking": 0.6,
       "status": "pending",
-      "owned_score_keys": ["distribution_integrity", "product_compatibility"],
+      "owned_score_keys": [
+        "distribution_integrity",
+        "product_compatibility"
+      ],
       "focused_gate": "product_compatibility",
       "results": []
     }
   ],
-  "events": []
+  "events": [
+    {
+      "hypothesis_id": "C-H001",
+      "run_id": "20260829T154313Z-c-h001",
+      "status": "confirmed",
+      "recorded_at": "2026-08-29T23:43:13+08:00",
+      "local_score": 25.0,
+      "per_task": {
+        "authority_lineage": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_pack_spi": 0.0,
+        "generic_pi_transport": 0.0,
+        "product_compatibility": 0.0,
+        "reference_authority": 25.0
+      },
+      "gate_evidence": {
+        "authority_lineage": {
+          "artifact_path": "runs/climb/gate-receipts/4bceb9c2d5020c6108e5dcc009f6876df7b60b6a/authority_lineage.json",
+          "release_source_revision": "4bceb9c2d5020c6108e5dcc009f6876df7b60b6a",
+          "status": "missing-receipt"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/4bceb9c2d5020c6108e5dcc009f6876df7b60b6a/distribution_integrity.json",
+          "release_source_revision": "4bceb9c2d5020c6108e5dcc009f6876df7b60b6a",
+          "status": "missing-receipt"
+        },
+        "domain_pack_spi": {
+          "artifact_path": "runs/climb/gate-receipts/4bceb9c2d5020c6108e5dcc009f6876df7b60b6a/domain_pack_spi.json",
+          "release_source_revision": "4bceb9c2d5020c6108e5dcc009f6876df7b60b6a",
+          "status": "missing-receipt"
+        },
+        "generic_pi_transport": {
+          "artifact_path": "runs/climb/gate-receipts/4bceb9c2d5020c6108e5dcc009f6876df7b60b6a/generic_pi_transport.json",
+          "release_source_revision": "4bceb9c2d5020c6108e5dcc009f6876df7b60b6a",
+          "status": "missing-receipt"
+        },
+        "product_compatibility": {
+          "focused_gate": "reference_authority",
+          "status": "not-focused"
+        },
+        "reference_authority": {
+          "artifact_path": "runs/climb/20260829T154313Z-c-h001/gate-output-reference_authority.json",
+          "command": [
+            "make",
+            "test-inventory-service"
+          ],
+          "output_sha256": "85338e5b50451237bb8bfe4cd7cce4d0a349a8d93ee62abf9e93dd0caece22a6",
+          "release_source_revision": "4bceb9c2d5020c6108e5dcc009f6876df7b60b6a",
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q\n...........                                                              [100%]\n11 passed in 0.36s"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
+    }
+  ]
 }

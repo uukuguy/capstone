@@ -1,6 +1,6 @@
 # Research Tree — Workstream C Inventory Reference Domain
 
-> Generated deterministically from 0 climb runs.
+> Generated deterministically from 1 climb runs.
 
 **Session:** 2026-08-29-workstream-c-inventory-reference-domain
 
@@ -17,18 +17,17 @@
 
 ## In-flight
 
-- Phase: C-H001 implementation
-- Last cycle: 0
-- Next hypothesis: C-H001
-- Next action: Execute C-H001 through the deterministic local gate.
+- Phase: C-H002 implementation
+- Last cycle: 1
+- Next hypothesis: C-H002
+- Next action: Execute C-H002 through the deterministic local gate.
 
 ## Runs
 
-- No scored cycle yet.
+- 20260829T154313Z-c-h001: 25.0% — confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed
 
 ## Active hypotheses
 
-- **C-H001**: registered inventory service owns deterministic read-only facts and current-run artifacts
 - **C-H002**: inventory Domain Pack installs and composes through only the public kernel SPI
 - **C-H003**: unchanged generic Pi tools execute inventory capabilities from the runtime descriptor
 - **C-H004**: inventory authority rejects foreign tampered symlinked and unlinked references
@@ -36,7 +35,7 @@
 
 ## Confirmed
 
-- None.
+- **C-H001**: registered inventory service owns deterministic read-only facts and current-run artifacts
 
 ## Negative cache
 

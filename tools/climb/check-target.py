@@ -34,6 +34,13 @@ def _target_value(target_path: Path) -> float | None:
 
 def main() -> int:
     state_dir = _state_dir()
+    config_path = state_dir / "config.yaml"
+    config = (
+        json.loads(config_path.read_text(encoding="utf-8"))
+        if config_path.is_file()
+        else {}
+    )
+    workstream_label = str(config.get("workstream_label") or config.get("session") or "climb")
     runs_path = state_dir / "runs.csv"
     session_path = state_dir / "session-state.json"
     target = _target_value(state_dir / "session-target.md")
@@ -61,7 +68,7 @@ def main() -> int:
                     if met
                     else "local score met; release closure pending"
                     if target is not None and current is not None and current >= target
-                    else "continue Workstream B package extraction"
+                    else f"continue {workstream_label}"
                 ),
             },
             sort_keys=True,
