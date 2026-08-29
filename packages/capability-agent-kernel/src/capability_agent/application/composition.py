@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Protocol
 
 from capability_agent.application.errors import (
     ApplicationConfigurationError,
+    CapabilityTransportError,
     DomainProvisioningError,
     PolicyConflictError,
 )
@@ -26,6 +28,7 @@ from capability_agent.tools.guide import GuideIndex
 
 
 _KERNEL_POLICY = "deny: arbitrary-subprocess, generic-file-access, generic-tools"
+_BINDING_ID = re.compile(r"^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _SENSITIVE_FIELDS = frozenset(
     {
         "access_token",
@@ -46,6 +49,42 @@ class CredentialBroker(Protocol):
     def issue(
         self, *, binding_id: str, scope: CredentialScope
     ) -> CredentialLease: ...
+
+
+class _CredentialScreeningExecutor:
+    __slots__ = ("_executor", "_lease")
+
+    def __init__(
+        self, executor: CapabilityExecutor, lease: CredentialLease
+    ) -> None:
+        self._executor = executor
+        self._lease = lease
+
+    def invoke(
+        self, capability: str, arguments: dict[str, object]
+    ) -> dict[str, object]:
+        invocation_failed = False
+        try:
+            result = self._executor.invoke(capability, arguments)
+        except Exception:
+            invocation_failed = True
+        if invocation_failed:
+            raise CapabilityTransportError("capability transport failed")
+
+        result_rejected = False
+        try:
+            _reject_credential_leak(
+                result,
+                self._lease,
+                location="runtime result",
+            )
+        except DomainProvisioningError:
+            result_rejected = True
+        if result_rejected:
+            raise CapabilityTransportError(
+                "credential-bearing capability result rejected"
+            )
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +141,7 @@ def prepare_application(
     credentials: CredentialBroker,
 ) -> PreparedApplication:
     """Prepare explicitly registered bindings without starting a model provider."""
-    _validate_application_profile(profile)
+    binding_workspaces = _validate_application_profile(profile, workspace=workspace)
     resolved = tuple(
         registry.resolve_binding(binding)
         for binding in sorted(profile.domains, key=lambda item: item.binding_id)
@@ -119,14 +158,14 @@ def prepare_application(
     prepared: dict[str, PreparedBinding] = {}
     try:
         for binding, lease in leases:
-            endpoint = _prepare_endpoint(binding, workspace, lease)
+            binding_workspace = binding_workspaces[binding.binding_id]
+            endpoint = _prepare_endpoint(binding, binding_workspace, lease)
             endpoints.append(endpoint)
             _reject_credential_leak(
                 endpoint.metadata,
                 lease,
                 location="endpoint metadata",
             )
-            binding_workspace = workspace / "domains" / binding.binding_id
             capability_documents = _load_domain_resources(
                 binding.profile,
                 credential_lease=lease,
@@ -146,8 +185,7 @@ def prepare_application(
                 runtime=runtime,
             )
     except BaseException:
-        for endpoint in reversed(endpoints):
-            endpoint.close()
+        _close_prepared_endpoints(endpoints)
         raise
     return PreparedApplication(
         profile=replace(profile, domains=resolved),
@@ -165,13 +203,13 @@ def _materialize_domain_runtime(
     guide_index_path: Path,
     credential_lease: CredentialLease | None = None,
 ) -> PreparedDomainRuntime:
-    environment_description = executor.invoke("environment.describe", {})
+    runtime_executor: CapabilityExecutor = executor
     if credential_lease is not None:
-        _reject_credential_leak(
-            environment_description,
+        runtime_executor = _CredentialScreeningExecutor(
+            executor,
             credential_lease,
-            location="runtime result",
         )
+    environment_description = runtime_executor.invoke("environment.describe", {})
     profile.manifest.assert_environment_compatible(environment_description)
     ToolCatalog.from_environment(
         capability_documents,
@@ -189,7 +227,7 @@ def _materialize_domain_runtime(
     authority = profile.create_authority(workspace)
     return PreparedDomainRuntime(
         profile=profile,
-        executor=executor,
+        executor=runtime_executor,
         authority=authority,
         environment_description=environment_description,
         capability_documents=capability_documents,
@@ -214,7 +252,9 @@ def _load_domain_resources(
     return capability_documents
 
 
-def _validate_application_profile(profile: ApplicationProfile) -> None:
+def _validate_application_profile(
+    profile: ApplicationProfile, *, workspace: Path
+) -> dict[str, Path]:
     domains = profile.domains
     if len(domains) != 1:
         raise ApplicationConfigurationError(
@@ -228,9 +268,40 @@ def _validate_application_profile(profile: ApplicationProfile) -> None:
         raise ApplicationConfigurationError("duplicate tool namespace")
     for binding in domains:
         _validate_complete_binding(binding)
+    return {
+        binding.binding_id: _resolve_binding_workspace(
+            workspace,
+            binding.binding_id,
+        )
+        for binding in domains
+    }
+
+
+def _resolve_binding_workspace(workspace: Path, binding_id: str) -> Path:
+    if not _BINDING_ID.fullmatch(binding_id):
+        raise ApplicationConfigurationError(
+            f"binding identifier {binding_id!r} is not portable"
+        )
+    try:
+        workspace_root = workspace.resolve(strict=False)
+        domains_path = workspace / "domains"
+        domains_root = domains_path.resolve(strict=False)
+        domains_root.relative_to(workspace_root)
+        binding_workspace = (domains_path / binding_id).resolve(strict=False)
+        binding_workspace.relative_to(domains_root)
+    except (OSError, ValueError):
+        raise ApplicationConfigurationError(
+            f"binding {binding_id!r} workspace escapes the application workspace"
+        ) from None
+    return binding_workspace
 
 
 def _validate_complete_binding(binding: DomainBinding) -> None:
+    if binding.tool_namespace != binding.profile.manifest.tool_name_prefix:
+        raise ApplicationConfigurationError(
+            f"domain binding {binding.binding_id!r} tool namespace does not "
+            "match its registered profile"
+        )
     missing = binding.profile.missing_application_components()
     if missing:
         raise ApplicationConfigurationError(
@@ -291,32 +362,33 @@ def _policy_directives(fragment: str) -> tuple[set[str], set[str]]:
 def _issue_credential_lease(
     broker: CredentialBroker, binding: DomainBinding
 ) -> CredentialLease:
+    lease_failed = False
     try:
         lease = broker.issue(
             binding_id=binding.binding_id,
             scope=binding.credential_scope,
         )
-        if lease.scope_id != binding.credential_scope.scope_id:
-            raise DomainProvisioningError(
-                f"binding {binding.binding_id!r} credential scope does not match"
-            )
-        expected = set(binding.credential_scope.credential_names)
-        actual = set(lease.credentials)
-        if actual != expected:
-            raise DomainProvisioningError(
-                f"binding {binding.binding_id!r} credential names do not match"
-            )
-        if any(not isinstance(value, str) for value in lease.credentials.values()):
-            raise DomainProvisioningError(
-                f"binding {binding.binding_id!r} credentials must be text"
-            )
-        return lease
-    except DomainProvisioningError:
-        raise
-    except Exception as exc:
+    except Exception:
+        lease_failed = True
+    if lease_failed:
         raise DomainProvisioningError(
-            f"binding {binding.binding_id!r} credential lease failed: {exc}"
-        ) from exc
+            f"binding {binding.binding_id!r} credential lease failed"
+        )
+    if lease.scope_id != binding.credential_scope.scope_id:
+        raise DomainProvisioningError(
+            f"binding {binding.binding_id!r} credential scope does not match"
+        )
+    expected = set(binding.credential_scope.credential_names)
+    actual = set(lease.credentials)
+    if actual != expected:
+        raise DomainProvisioningError(
+            f"binding {binding.binding_id!r} credential names do not match"
+        )
+    if any(not isinstance(value, str) for value in lease.credentials.values()):
+        raise DomainProvisioningError(
+            f"binding {binding.binding_id!r} credentials must be text"
+        )
+    return lease
 
 
 def _prepare_endpoint(
@@ -324,18 +396,30 @@ def _prepare_endpoint(
 ) -> PreparedDomainEndpoint:
     provisioner = binding.profile.provisioner
     assert provisioner is not None
+    provisioning_failed = False
     try:
-        return provisioner.prepare(
+        endpoint = provisioner.prepare(
             binding=binding,
-            workspace=workspace / "domains" / binding.binding_id,
+            workspace=workspace,
             credentials=lease,
         )
-    except DomainProvisioningError:
-        raise
-    except Exception as exc:
+    except Exception:
+        provisioning_failed = True
+    if provisioning_failed:
         raise DomainProvisioningError(
-            f"binding {binding.binding_id!r} provisioning failed: {exc}"
-        ) from exc
+            f"binding {binding.binding_id!r} provisioning failed"
+        )
+    return endpoint
+
+
+def _close_prepared_endpoints(
+    endpoints: list[PreparedDomainEndpoint] | tuple[PreparedDomainEndpoint, ...],
+) -> None:
+    for endpoint in reversed(endpoints):
+        try:
+            endpoint.close()
+        except BaseException:
+            continue
 
 
 def _reject_credential_leak(

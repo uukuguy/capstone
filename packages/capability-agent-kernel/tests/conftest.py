@@ -46,9 +46,14 @@ class RecordingEndpoint:
         default_factory=lambda: {"transport": "fixture"}
     )
     closed: bool = False
+    close_calls: int = 0
+    close_failure: Exception | None = None
 
     def close(self) -> None:
+        self.close_calls += 1
         self.closed = True
+        if self.close_failure is not None:
+            raise self.close_failure
 
 
 @dataclass
@@ -219,7 +224,7 @@ def complete_profile(inventory_profile) -> ApplicationProfile:
     )
     binding = DomainBinding(
         binding_id="fixture",
-        tool_namespace="fixture_",
+        tool_namespace="inventory_",
         profile=complete_domain,
         credential_scope=CredentialScope(),
         sharing_policy=DataSharingPolicy(),

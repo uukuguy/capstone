@@ -34,6 +34,7 @@ def test_inventory_profile_materializes_exact_provider_free_tool_inventory(
         guide_index_path=workspace / "guide-index.json",
     )
 
+    assert prepared.executor is executor
     catalog = json.loads(prepared.tool_catalog_path.read_text(encoding="utf-8"))
     assert executor.calls == [("environment.describe", {})]
     assert [tool["name"] for tool in catalog["tools"]] == [
