@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import math
 import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from capability_agent.application.errors import ApplicationConfigurationError
 
@@ -37,12 +38,25 @@ class _FrozenDict(dict[str, Any]):
 
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return _FrozenDict(
-            {str(key): _deep_freeze(item) for key, item in value.items()}
-        )
+        if any(not isinstance(key, str) for key in value):
+            raise ApplicationConfigurationError(
+                "domain output payload mappings require string keys"
+            )
+        return _FrozenDict({key: _deep_freeze(item) for key, item in value.items()})
     if isinstance(value, list | tuple):
         return tuple(_deep_freeze(item) for item in value)
-    return value
+    if value is None or type(value) in {str, bool, int}:
+        return value
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise ApplicationConfigurationError(
+                "domain output payload float values must be finite"
+            )
+        return value
+    raise ApplicationConfigurationError(
+        f"domain output payload contains unsupported JSON value: "
+        f"{type(value).__name__}"
+    )
 
 
 class CoreRunResult(_StrictFrozenModel):
@@ -71,7 +85,17 @@ with warnings.catch_warnings():
     class ValidatedDomainOutput(_StrictFrozenModel):
         schema: str
         status: str
-        payload: dict[str, object]
+        payload: Mapping[str, object]
+
+        @field_validator("payload", mode="before")
+        @classmethod
+        def validate_json_payload(cls, value: object) -> object:
+            return _deep_freeze(value)
+
+        @model_validator(mode="after")
+        def freeze_payload(self) -> "ValidatedDomainOutput":
+            object.__setattr__(self, "payload", _deep_freeze(self.payload))
+            return self
 
 
     class BoundDomainOutput(_StrictFrozenModel):
@@ -94,7 +118,7 @@ with warnings.catch_warnings():
 
         @model_validator(mode="after")
         def freeze_domains(self) -> "ApplicationResult":
-            object.__setattr__(self, "domains", _deep_freeze(self.domains))
+            object.__setattr__(self, "domains", _FrozenDict(self.domains))
             return self
 
 

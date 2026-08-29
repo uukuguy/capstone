@@ -191,6 +191,79 @@ def test_composed_payload_is_detached_from_original_input_mutation() -> None:
     }
 
 
+def test_validated_domain_output_rejects_mutable_sets() -> None:
+    mutable_tags = {"new"}
+
+    with pytest.raises(ApplicationConfigurationError, match="JSON value"):
+        ValidatedDomainOutput(
+            schema="inventory-output/1.0",
+            status="completed",
+            payload={"tags": mutable_tags},
+        )
+
+
+def test_framework_rejects_bypassed_set_before_and_after_source_mutation() -> None:
+    mutable_tags = {"new"}
+    domain = ValidatedDomainOutput.model_construct(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload={"tags": mutable_tags},
+    )
+
+    with pytest.raises(ApplicationConfigurationError, match="JSON value"):
+        FrameworkOutputComposer().compose(
+            core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+        )
+
+    mutable_tags.add("changed-after-validation")
+    with pytest.raises(ApplicationConfigurationError, match="JSON value"):
+        FrameworkOutputComposer().compose(
+            core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+        )
+
+
+def test_validated_domain_output_detaches_supported_original_values() -> None:
+    original_payload = {"summary": {"items": [{"count": 1}]}}
+    domain = ValidatedDomainOutput(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload=original_payload,
+    )
+
+    original_payload["summary"]["items"][0]["count"] = 9
+    original_payload["summary"]["items"].append({"count": 2})
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+    )
+
+    assert result.domains["inventory"].payload == {
+        "summary": {"items": ({"count": 1},)}
+    }
+
+
+@pytest.mark.parametrize(
+    ("unsupported", "message"),
+    [
+        (b"bytes", "JSON value"),
+        (object(), "JSON value"),
+        ({1: "non-string key"}, "string keys"),
+        (float("nan"), "finite"),
+        (float("inf"), "finite"),
+        (float("-inf"), "finite"),
+    ],
+    ids=("bytes", "custom-object", "non-string-key", "nan", "inf", "negative-inf"),
+)
+def test_validated_domain_output_rejects_unsupported_recursive_json_values(
+    unsupported: object, message: str
+) -> None:
+    with pytest.raises(ApplicationConfigurationError, match=message):
+        ValidatedDomainOutput(
+            schema="inventory-output/1.0",
+            status="completed",
+            payload={"nested": {"value": unsupported}},
+        )
+
+
 def test_json_output_renderer_canonicalizes_the_complete_result() -> None:
     result = FrameworkOutputComposer().compose(
         core=_core(), bindings=(_binding(),), domains={"inventory": _domain()}
