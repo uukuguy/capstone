@@ -1,36 +1,55 @@
-# Workstream B Final Handoff
+# Next-Session Handoff
 
-> Updated: 2026-08-28 19:51 CST. Workstream B is integrated and the temporary branch/worktree are removed.
+> Updated: 2026-08-29 21:59 CST. End of session.
 
 ## TL;DR
 
-- Active branch: `main`; the Workstream B implementation payload ends at `448c407`, local `main` remains ahead of `origin/main`, and no push was requested.
-- Workstream B Tasks 0–9, all original findings I-1 through I-11/M-1 through M-2, the five Important/one Minor second-round findings, and both third-round regressions are implemented, independently approved, merged, and reverified on `main`.
-- Climb B-H001 through B-H005 are confirmed; final B-H005 cycle 9 scored 100/100 with no release blockers and phase `complete` by live fixed-policy gate execution.
-- The temporary Workstream B worktree and feature branch have been removed; no integration cleanup remains.
+- Workstreams A、B 已完成、终审通过并集成到 `main`；临时分支和 worktree 均已删除。
+- 当前 `main`/`origin/main` 均位于 `f6109a2`。
+- 下一步应启动 Workstream C：用只读 inventory 或 ticket Domain Pack 证明新增业务领域无需修改 Kernel。
 
-## Durable evidence
+## Where things stand
 
-- Kernel, trajectory, generic Pi tools, simulator transport, and pandapower Domain Pack are physically extracted.
-- `grid-agent` assembles owning packages directly; source Pi installs use the frozen reviewed graph; Pi consumes a complete authoritative run descriptor; grid trajectory identities fail closed; invalid IDs retain the single-JSON CLI contract; safe IDs get exclusive invocation roots whose internal lease components are root-dirfd/no-follow bound; current-run evidence, guide index, and guide resource reads are fd-bound.
-- Final release source revision: `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b`; tree SHA-256: `9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9`; policy SHA-256: `efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114`.
-- Eight fresh same-revision receipts under `runs/climb/gate-receipts/e41783558afb57eb04ad04562c7d9b0fe6e6bf0b/` record same-user HMAC integrity for kernel, domain, generic Pi, app boundary, distribution, doctor, unit, and E2E outputs. They are not an independent trust root.
-- Final climb evidence: `runs/climb/20260828T111922Z-b-h005/manifest.json` links an immutable live closure that reran kernel/domain/Pi/app/dist, `make doctor`, `make test`, `make test-e2e`, and focused `make validate` at the same clean revision and policy. Score is 100/100 with `release_ready=true`, no blockers, and closure digest `5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247`.
-- Final fix report: `.superpowers/sdd/workstream-b-final-fix-report.md`.
-- `packages/capability-agent-kernel/uv.lock` is absent; the review/test byproduct was not retained.
-- Post-merge mainline verification passed package boundaries and six-artifact installation, `make doctor`, `make test` (688 agent, 165 simulator, 43 grid Pi), `make test-e2e` (17), and `make validate` (24/24).
+- Workstream B 最终 source revision：`e41783558afb57eb04ad04562c7d9b0fe6e6bf0b`。
+- 最终 B-H005：100/100，`release_ready=true`，零 blocker。
+- 主线验证：Agent 688、Simulator 165、Pi 43、E2E 17、能力矩阵 24/24。
+- 六个分发制品的仓库外安装测试通过。
+- 工作区仅有 `docs/status/JOURNAL.md` 的 project-state 尾记尚未提交。
 
-## Immediate next actions
+## What this session delivered
 
-1. Select the next approved framework workstream; Workstreams C–E remain deferred.
-2. Before 2026-09-30, validate and adopt a secure Pi dependency upgrade or renew the bounded risk decision with explicit review.
+- 中立 `capability-agent-kernel` 分发包。
+- 独立 `pandapower-domain-pack`。
+- 通用 `@capability-agent/pi-tools` 与兼容 grid wrapper。
+- 权威 runtime descriptor、运行目录隔离、证据与 guide no-follow 边界。
+- 固定策略 live release closure 与完整审查修复报告。
+- Workstream B 已合并到 `main`，临时 feature 分支/worktree 已清理。
 
-## Boundaries
+## Next steps
 
-- Preserve the exact stdout envelope and keep diagnostics on stderr.
-- Keep simulator truth, evidence, and network resources behind `gridctl` and `grid-capability/1.0`.
-- Do not claim the pinned Pi vulnerabilities are fixed: 2 High and 2 Moderate remain under `configs/runtime/pi-security-risk-exception-v1.json`, expiring 2026-09-30.
-- Do not claim the static risk gate discovers new advisories against unchanged versions; it binds the supported installed graph, pins, locks, expiry, and declared baseline.
-- Do not describe same-user HMAC receipts or local closure files as unforgeable third-party attestation; final local confidence comes from reproducible fixed-policy live execution.
-- Do not run provider validation without explicit billed-credential authorization.
-- Do not stop with the implementation stranded in a temporary worktree or feature branch.
+1. 为 Workstream C 编写并审批规格：选择只读 inventory 或 ticket 领域。
+2. 要求新 Domain Pack 只使用公开 SPI，不能修改 Kernel、通用 Pi tools、事件核心或 Workbench 核心。
+3. 建立跨领域 conformance tests，验证领域事实只能通过其 authority adapter 进入。
+4. 在 2026-09-30 前验证安全 Pi 升级，或重新审查期限风险例外。
+
+## Don’t go down these paths again
+
+- 不要通过复制或修改 Kernel 来适配第二业务领域。
+- 不要在 Workstream C 提前引入动态插件发现、企业写操作或多领域路由。
+- 不要开放 shell、任意文件、任意 Python、任意 subprocess 或原始业务对象给模型。
+- 不要把同用户 HMAC receipts 描述为第三方不可伪造证明。
+- 不要声称 Pi 的 2 High、2 Moderate 已修复。
+
+## Ready-to-paste commands
+
+```sh
+git status --short --branch
+git log --oneline -8
+make doctor
+make test
+make test-e2e
+make validate
+
+# 恢复下一会话
+$project-state resume
+```
