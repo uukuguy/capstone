@@ -79,6 +79,11 @@ def test_tool_catalog_does_not_create_a_domain_decision_tool() -> None:
     assert [tool.name for tool in catalog.tools] == ["grid_context_open"]
 
 
+def test_generic_core_catalog_requires_the_agent_namespace() -> None:
+    with pytest.raises(ToolCatalogError, match="agent_"):
+        CoreToolCatalog.default(namespace="grid_")
+
+
 def test_composite_catalog_keeps_core_tools_out_of_domain_catalog() -> None:
     catalog = CompositeToolCatalog.build(
         core=CoreToolCatalog.default(namespace="agent_"),
@@ -201,6 +206,17 @@ def test_composite_catalog_rejects_duplicate_final_tool_names() -> None:
         CompositeToolCatalog.build(
             core=CoreToolCatalog.default(namespace="agent_"),
             domains=(first, duplicated),
+        )
+
+
+def test_composite_catalog_rejects_duplicate_core_tool_names() -> None:
+    core = CoreToolCatalog.default(namespace="agent_")
+    duplicated = replace(core, tools=(*core.tools, core.tools[0]))
+
+    with pytest.raises(ToolCatalogError, match="final tool names"):
+        CompositeToolCatalog.build(
+            core=duplicated,
+            domains=(_domain("grid", "grid_"),),
         )
 
 

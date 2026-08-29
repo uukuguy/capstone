@@ -180,6 +180,8 @@ class CoreToolCatalog:
 
     @classmethod
     def default(cls, *, namespace: str = "agent_") -> "CoreToolCatalog":
+        if namespace != "agent_":
+            raise ToolCatalogError("generic core tool namespace must be agent_")
         _validate_tool_name_prefix(namespace)
         return cls(namespace=namespace, tools=(_decision_tool(namespace),))
 

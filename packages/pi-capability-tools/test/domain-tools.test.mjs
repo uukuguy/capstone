@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -69,6 +70,40 @@ test("validates one binding-aware runtime descriptor", () => {
   assert.equal(Object.isFrozen(descriptor.domains[0]), true);
 });
 
+test("runtime v1 requires distinct agent-prefixed core tools", () => {
+  for (const core of [
+    { decisionToolName: "grid_record_decision", contextToolName: "agent_context_get" },
+    { decisionToolName: "agent_record_decision", contextToolName: "grid_context_get" },
+    { decisionToolName: "agent_record_decision", contextToolName: "agent_record_decision" },
+  ]) {
+    assert.throws(
+      () => validateRuntimeDescriptor({ ...runtimeV1, core }),
+      /runtime descriptor core/,
+    );
+  }
+});
+
+test("runtime v1 rejects a domain guide collision with a core tool", () => {
+  const core = {
+    decisionToolName: "agent_guide_open",
+    contextToolName: "agent_context_get",
+  };
+  assert.throws(
+    () =>
+      validateRuntimeDescriptor({
+        ...runtimeV1,
+        core,
+        domains: [
+          {
+            ...runtimeV1.domains[0],
+            guideToolName: core.decisionToolName,
+          },
+        ],
+      }),
+    /tool name collision/,
+  );
+});
+
 test("runtime v1 rejects unknown keys and any domain count except one", () => {
   for (const invalid of [
     { ...runtimeV1, unexpected: true },
@@ -111,6 +146,26 @@ test("runtime v1 confines domain-owned paths to the binding workspace", () => {
   );
 });
 
+test("runtime v1 confines every optional core path to the binding workspace", () => {
+  for (const field of [
+    "activeTurnPath",
+    "analysisContextViewPath",
+    "trajectoryRequestsPath",
+    "trajectoryCaptureStatePath",
+    "trajectoryAllowedRefsPath",
+    "trajectoryAcksPath",
+  ]) {
+    assert.throws(
+      () =>
+        validateRuntimeDescriptor({
+          ...runtimeV1,
+          core: { ...runtimeV1.core, [field]: `/tmp/outside/${field}` },
+        }),
+      new RegExp(`${field}.*outside.*workspacePath`),
+    );
+  }
+});
+
 test("routes a capability only through the controller-selected binding", async () => {
   const payloads = [];
   const tool = createCapabilityTool(
@@ -143,27 +198,94 @@ test("routes a capability only through the controller-selected binding", async (
 });
 
 test("model arguments cannot select controller-owned routing metadata", () => {
-  for (const field of [
-    "binding",
-    "bindingId",
-    "binding_id",
-    "executable",
-    "executableArgs",
-    "executable_args",
-    "protocol",
-    "protocolVersion",
-    "protocol_version",
-    "authority",
-    "authorityId",
-    "authority_id",
-    "workspace",
-    "workspacePath",
-    "workspace_path",
-  ]) {
+  const reservedSpellings = [
+    "binding", "bindingId", "binding_id",
+    "executable", "executableArgs", "executable_args",
+    "protocol", "version", "protocolVersion", "protocol_version",
+    "authority", "authorityId", "authority_id",
+    "workspace", "workspacePath", "workspace_path",
+    "toolCatalogPath", "tool_catalog_path", "toolCatalog", "tool_catalog", "catalogPath", "catalog_path", "catalog",
+    "guideToolName", "guide_tool_name", "guideTool", "guide_tool",
+    "guideIndexPath", "guide_index_path", "guideIndex", "guide_index",
+    "guideRootPath", "guide_root_path", "guideRoot", "guide_root",
+    "guideIndexSha256", "guide_index_sha256", "guideDigest", "guide_digest",
+    "contextToolName", "context_tool_name", "contextTool", "context_tool",
+    "decisionToolName", "decision_tool_name", "decisionTool", "decision_tool",
+    "activeTurnPath", "active_turn_path",
+    "analysisContextViewPath", "analysis_context_view_path",
+    "trajectoryRequestsPath", "trajectory_requests_path",
+    "trajectoryCaptureStatePath", "trajectory_capture_state_path",
+    "trajectoryAllowedRefsPath", "trajectory_allowed_refs_path",
+    "trajectoryAcksPath", "trajectory_acks_path",
+  ];
+  for (const field of reservedSpellings) {
     assert.throws(
       () => buildCapabilityRequest(runtimeV1, "asset.list", { [field]: "attacker" }, "r-1"),
       /controller-owned routing field/,
     );
+  }
+  assert.throws(
+    () => buildCapabilityRequest(runtimeV1, "asset.list", { [Symbol("binding")]: "attacker" }, "r-1"),
+    /controller-owned routing field/,
+  );
+});
+
+test("catalog collision preflight has zero tool creation or registration side effects", async () => {
+  const fixture = await runtimeV1Fixture();
+  const collisionCatalogs = [
+    [contract("inventory_asset_list", "asset.list"), contract("inventory_asset_list", "asset.get")],
+    [contract("inventory_guide_open", "guide.shadow")],
+    [contract("agent_record_decision", "core.shadow")],
+    [contract("agent_context_get", "context.shadow")],
+  ];
+
+  for (const tools of collisionCatalogs) {
+    await writeFile(fixture.catalogPath, JSON.stringify({ tools }), "utf8");
+    let created = 0;
+    let registered = 0;
+    const extension = createDomainToolsExtension(fixture.descriptor, {
+      createTool() {
+        created += 1;
+        return { name: "unexpected" };
+      },
+    });
+
+    assert.throws(
+      () => extension({ registerTool: () => { registered += 1; } }),
+      /tool name collision/,
+    );
+    assert.equal(created, 0);
+    assert.equal(registered, 0);
+  }
+});
+
+test("runtime realpath confinement rejects core and guide symlink escapes", async () => {
+  for (const category of ["trajectoryAcksPath", "guideRootPath"]) {
+    const fixture = await runtimeV1Fixture({ withTrajectory: category === "trajectoryAcksPath" });
+    const outside = join(fixture.root, `outside-${category}`);
+    if (category === "guideRootPath") {
+      await mkdir(outside);
+    } else {
+      await writeFile(outside, "{}", "utf8");
+    }
+    const link = join(fixture.workspace, `linked-${category}`);
+    await symlink(outside, link);
+    const descriptor = category === "guideRootPath"
+      ? {
+          ...fixture.descriptor,
+          domains: [{ ...fixture.descriptor.domains[0], guideRootPath: link }],
+        }
+      : {
+          ...fixture.descriptor,
+          core: { ...fixture.descriptor.core, trajectoryAcksPath: link },
+        };
+    let registered = 0;
+
+    assert.throws(
+      () => createDomainToolsExtension(descriptor)({ registerTool: () => { registered += 1; } }),
+      new RegExp(`${category}.*outside.*workspacePath`),
+    );
+    assert.equal(registered, 0);
   }
 });
 
@@ -177,6 +299,16 @@ test("converts the legacy descriptor through an explicit compatibility path", ()
   assert.equal(converted.domains[0].bindingId, "inventory");
   assert.equal(converted.domains[0].authorityId, "inventoryctl");
   assert.equal(converted.domains[0].protocol, "inventory-capability");
+});
+
+test("legacy conversion rejects collisions among its valid alias names", () => {
+  for (const invalid of [
+    { ...inventory, contextToolName: inventory.guideToolName },
+    { ...inventory, decisionToolName: inventory.guideToolName },
+    { ...inventory, decisionToolName: inventory.contextToolName },
+  ]) {
+    assert.throws(() => legacyDescriptorToRuntimeV1(invalid), /tool name collision/);
+  }
 });
 
 test("builds a descriptor-owned capability request", () => {
@@ -365,6 +497,65 @@ test("registers descriptor-prefixed bounded tools", async () => {
   );
   assert.deepEqual(registered, []);
 });
+
+function contract(name, capability) {
+  return {
+    name,
+    capability,
+    description: `Fixture ${capability}`,
+    input_schema: { type: "object", additionalProperties: false, properties: {} },
+  };
+}
+
+async function runtimeV1Fixture({ withTrajectory = false } = {}) {
+  const root = await mkdtemp(join(tmpdir(), "capability-runtime-v1-"));
+  const workspace = join(root, "run/domains/inventory");
+  const guideRootPath = join(workspace, "guides");
+  const catalogPath = join(workspace, "tool-catalog.json");
+  const guideIndexPath = join(workspace, "guide-index.json");
+  await mkdir(guideRootPath, { recursive: true });
+  await writeFile(catalogPath, JSON.stringify({ tools: [] }), "utf8");
+  const guideIndex = JSON.stringify({
+    protocol: "inventory-guide-index",
+    version: "1.0",
+    root: guideRootPath,
+    resources: {},
+  });
+  await writeFile(guideIndexPath, guideIndex, "utf8");
+  const core = { ...runtimeV1.core };
+  if (withTrajectory) {
+    const trajectoryRequestsPath = join(workspace, "trajectory-requests");
+    await mkdir(trajectoryRequestsPath);
+    const paths = {
+      activeTurnPath: join(workspace, "active-turn.json"),
+      trajectoryCaptureStatePath: join(workspace, "capture-state.json"),
+      trajectoryAllowedRefsPath: join(workspace, "allowed-refs.json"),
+      trajectoryAcksPath: join(workspace, "acks.json"),
+    };
+    await Promise.all(Object.values(paths).map((path) => writeFile(path, "{}", "utf8")));
+    Object.assign(core, paths, { trajectoryRequestsPath });
+  }
+  return {
+    root,
+    workspace,
+    catalogPath,
+    descriptor: {
+      ...runtimeV1,
+      core,
+      domains: [
+        {
+          ...runtimeV1.domains[0],
+          executableArgs: ["request", "--workspace", workspace],
+          toolCatalogPath: catalogPath,
+          guideIndexPath,
+          guideRootPath,
+          guideIndexSha256: createHash("sha256").update(guideIndex).digest("hex"),
+          workspacePath: workspace,
+        },
+      ],
+    },
+  };
+}
 
 async function transportFixture(body) {
   const root = await mkdtemp(join(tmpdir(), "capability-transport-"));
