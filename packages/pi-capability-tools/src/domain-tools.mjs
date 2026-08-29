@@ -18,7 +18,7 @@ import { configureModelRequestCapture } from "./model-request-capture.mjs";
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
 
-const DESCRIPTOR_KEYS = new Set([
+const LEGACY_DESCRIPTOR_KEYS = new Set([
   "protocol",
   "protocolVersion",
   "executable",
@@ -40,8 +40,35 @@ const DESCRIPTOR_KEYS = new Set([
   "trajectoryAcksPath",
   "piRuntime",
 ]);
+const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
+const APPLICATION_KEYS = new Set(["applicationId", "runId", "piRuntime"]);
+const CORE_KEYS = new Set([
+  "decisionToolName",
+  "contextToolName",
+  "activeTurnPath",
+  "analysisContextViewPath",
+  "trajectoryRequestsPath",
+  "trajectoryCaptureStatePath",
+  "trajectoryAllowedRefsPath",
+  "trajectoryAcksPath",
+]);
+const DOMAIN_KEYS = new Set([
+  "bindingId",
+  "protocol",
+  "protocolVersion",
+  "executable",
+  "executableArgs",
+  "toolCatalogPath",
+  "guideToolName",
+  "guideIndexPath",
+  "guideRootPath",
+  "guideIndexSha256",
+  "workspacePath",
+  "authorityId",
+]);
 const PROTOCOL_PATTERN = /^[a-z][a-z0-9.-]*$/;
 const PROTOCOL_VERSION_PATTERN = /^\d+\.\d+$/;
+const BINDING_ID_PATTERN = /^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const EXECUTABLE_PATTERN = /^[^/\\]+$/;
 const TOOL_PREFIX_PATTERN = /^[a-z][a-z0-9_]*_$/;
 const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
@@ -69,6 +96,25 @@ const MAX_TRANSPORT_LIMITS = Object.freeze({
   timeoutMs: 120_000,
   maxOutputBytes: 4_194_304,
 });
+const LEGACY_RUNTIME_DESCRIPTORS = new WeakSet();
+const SELECTED_BINDING_RUNTIMES = new WeakSet();
+const MODEL_ROUTING_FIELDS = new Set([
+  "binding",
+  "bindingId",
+  "binding_id",
+  "executable",
+  "executableArgs",
+  "executable_args",
+  "protocol",
+  "protocolVersion",
+  "protocol_version",
+  "authority",
+  "authorityId",
+  "authority_id",
+  "workspace",
+  "workspacePath",
+  "workspace_path",
+]);
 
 /**
  * Validate and detach the controller-owned runtime descriptor.
@@ -77,11 +123,68 @@ const MAX_TRANSPORT_LIMITS = Object.freeze({
  * executable and argument template can never be supplied by tool input.
  */
 export function validateRuntimeDescriptor(value) {
+  if (LEGACY_RUNTIME_DESCRIPTORS.has(value)) {
+    return value;
+  }
+  if (isPlainObject(value) && value.schema !== undefined) {
+    return validateRuntimeV1(value);
+  }
+  return legacyDescriptorToRuntimeV1(value);
+}
+
+export function legacyDescriptorToRuntimeV1(value) {
+  const legacy = validateLegacyRuntimeDescriptor(value);
+  const bindingId = legacy.toolNamePrefix.slice(0, -1).replaceAll("_", "-");
+  if (!BINDING_ID_PATTERN.test(bindingId)) {
+    throw new TypeError("legacy runtime descriptor toolNamePrefix cannot form a bindingId");
+  }
+  const core = compactObject({
+    decisionToolName: legacy.decisionToolName,
+    contextToolName: legacy.contextToolName,
+    activeTurnPath: legacy.activeTurnPath,
+    analysisContextViewPath: legacy.analysisContextViewPath,
+    trajectoryRequestsPath: legacy.trajectoryRequestsPath,
+    trajectoryCaptureStatePath: legacy.trajectoryCaptureStatePath,
+    trajectoryAllowedRefsPath: legacy.trajectoryAllowedRefsPath,
+    trajectoryAcksPath: legacy.trajectoryAcksPath,
+  });
+  const domain = compactObject({
+    bindingId,
+    protocol: legacy.protocol,
+    protocolVersion: legacy.protocolVersion,
+    executable: legacy.executable,
+    executableArgs: legacy.executableArgs,
+    toolCatalogPath: legacy.toolCatalogPath,
+    guideToolName: legacy.guideToolName,
+    guideIndexPath: legacy.guideIndexPath,
+    guideRootPath: legacy.guideRootPath,
+    guideIndexSha256: legacy.guideIndexSha256,
+    workspacePath: legacy.workspacePath,
+    authorityId: legacy.executable,
+  });
+  const runtime = validateRuntimeV1(
+    {
+      schema: "capability-agent-runtime/1.0",
+      application: compactObject({
+        applicationId: "legacy-capability-agent",
+        runId: "legacy-run",
+        piRuntime: legacy.piRuntime,
+      }),
+      core,
+      domains: [domain],
+    },
+    { legacy: true },
+  );
+  LEGACY_RUNTIME_DESCRIPTORS.add(runtime);
+  return runtime;
+}
+
+function validateLegacyRuntimeDescriptor(value) {
   if (!isPlainObject(value)) {
     throw new TypeError("runtime descriptor must be a plain object");
   }
   for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== "string" || !DESCRIPTOR_KEYS.has(key)) {
+    if (typeof key !== "string" || !LEGACY_DESCRIPTOR_KEYS.has(key)) {
       throw new TypeError(`runtime descriptor contains an unknown field: ${String(key)}`);
     }
   }
@@ -136,13 +239,157 @@ export function validateRuntimeDescriptor(value) {
   return Object.freeze(descriptor);
 }
 
+function validateRuntimeV1(value, options = {}) {
+  requireExactKeys(value, RUNTIME_V1_KEYS, "runtime descriptor");
+  if (value.schema !== "capability-agent-runtime/1.0") {
+    throw new TypeError("runtime descriptor schema is invalid");
+  }
+  requireExactKeys(value.application, APPLICATION_KEYS, "runtime descriptor application", {
+    required: ["applicationId", "runId"],
+  });
+  const application = {
+    applicationId: requireNonEmptyString(value.application.applicationId, "applicationId"),
+    runId: requireNonEmptyString(value.application.runId, "runId"),
+  };
+  if (value.application.piRuntime !== undefined) {
+    application.piRuntime = cloneRuntime(value.application.piRuntime);
+  }
+
+  requireExactKeys(value.core, CORE_KEYS, "runtime descriptor core", {
+    required: ["decisionToolName", "contextToolName"],
+  });
+  const core = {
+    decisionToolName: requirePattern(
+      value.core.decisionToolName,
+      "core decisionToolName",
+      TOOL_NAME_PATTERN,
+    ),
+    contextToolName: requirePattern(
+      value.core.contextToolName,
+      "core contextToolName",
+      TOOL_NAME_PATTERN,
+    ),
+  };
+  for (const key of [
+    "activeTurnPath",
+    "analysisContextViewPath",
+    "trajectoryRequestsPath",
+    "trajectoryCaptureStatePath",
+    "trajectoryAllowedRefsPath",
+    "trajectoryAcksPath",
+  ]) {
+    if (value.core[key] !== undefined) {
+      core[key] = requireAbsolutePath(value.core[key], `core ${key}`);
+    }
+  }
+
+  if (!Array.isArray(value.domains) || value.domains.length !== 1) {
+    throw new TypeError("runtime descriptor requires exactly one domain binding");
+  }
+  const domain = validateRuntimeDomain(value.domains[0], options);
+  const runtime = Object.freeze({
+    schema: value.schema,
+    application: Object.freeze(application),
+    core: Object.freeze(core),
+    domains: Object.freeze([domain]),
+  });
+  return runtime;
+}
+
+function validateRuntimeDomain(value, { legacy = false } = {}) {
+  requireExactKeys(value, DOMAIN_KEYS, "runtime descriptor domain", {
+    required: legacy
+      ? [
+          "bindingId",
+          "protocol",
+          "protocolVersion",
+          "executable",
+          "executableArgs",
+          "guideToolName",
+          "authorityId",
+        ]
+      : [...DOMAIN_KEYS],
+  });
+  const bindingId = requirePattern(value.bindingId, "domain bindingId", BINDING_ID_PATTERN);
+  const protocol = requirePattern(value.protocol, "domain protocol", PROTOCOL_PATTERN);
+  const protocolVersion = requirePattern(
+    value.protocolVersion,
+    "domain protocolVersion",
+    PROTOCOL_VERSION_PATTERN,
+  );
+  const executable = requireExecutable(value.executable);
+  const executableArgs = Object.freeze([
+    ...requireStringArray(value.executableArgs, "domain executableArgs"),
+  ]);
+  const guideToolName = requirePattern(
+    value.guideToolName,
+    "domain guideToolName",
+    TOOL_NAME_PATTERN,
+  );
+  const toolNamePrefix = toolPrefixFromGuideName(guideToolName);
+  const authorityId = requirePattern(value.authorityId, "domain authorityId", PROTOCOL_PATTERN);
+  const domain = {
+    bindingId,
+    protocol,
+    protocolVersion,
+    executable,
+    executableArgs,
+    guideToolName: requireBoundedToolName(
+      guideToolName,
+      "domain guideToolName",
+      toolNamePrefix,
+    ),
+    authorityId,
+  };
+  const pathFields = ["workspacePath", "toolCatalogPath", "guideIndexPath", "guideRootPath"];
+  for (const key of pathFields) {
+    if (value[key] !== undefined) {
+      domain[key] = requireAbsolutePath(value[key], `domain ${key}`);
+    }
+  }
+  if (!legacy) {
+    const workspacePath = domain.workspacePath;
+    if (workspacePath === undefined) {
+      throw new TypeError("runtime descriptor domain workspacePath is required");
+    }
+    for (const key of ["toolCatalogPath", "guideIndexPath", "guideRootPath"]) {
+      if (domain[key] !== undefined && (!legacy || key !== "guideRootPath")) {
+        requireInside(domain[key], workspacePath, key);
+      }
+    }
+    for (const argument of executableArgs) {
+      if (isAbsolute(argument) && !isInside(resolve(argument), workspacePath)) {
+        throw new TypeError(
+          "runtime descriptor domain executableArgs path is outside workspacePath",
+        );
+      }
+    }
+  }
+  if (value.guideIndexSha256 !== undefined) {
+    domain.guideIndexSha256 = requirePattern(
+      value.guideIndexSha256,
+      "domain guideIndexSha256",
+      SHA256_PATTERN,
+    );
+  }
+  return Object.freeze(domain);
+}
+
 export function buildCapabilityRequest(descriptor, capability, params, requestId = randomUUID()) {
-  const runtime = validateRuntimeDescriptor(descriptor);
+  const runtime = selectedBindingRuntime(descriptor);
   if (typeof capability !== "string" || capability.length === 0) {
     throw new TypeError("capability must be a non-empty string");
   }
   if (typeof requestId !== "string" || requestId.length === 0) {
     throw new TypeError("requestId must be a non-empty string");
+  }
+  if (!isPlainObject(params)) {
+    throw new TypeError("capability arguments must be a plain object");
+  }
+  for (const key of Reflect.ownKeys(params)) {
+    if (typeof key !== "string" || MODEL_ROUTING_FIELDS.has(key)) {
+      throw new TypeError(`capability arguments contain a controller-owned routing field: ${String(key)}`);
+    }
   }
   return {
     protocol: runtime.protocol,
@@ -154,7 +401,7 @@ export function buildCapabilityRequest(descriptor, capability, params, requestId
 }
 
 export function createCapabilityTool(descriptor, contract, runner) {
-  const runtime = validateRuntimeDescriptor(descriptor);
+  const runtime = selectedBindingRuntime(descriptor);
   validateContract(contract, runtime);
   const executeRunner = runner ?? ((payload) => runCapability(payload, runtime));
   return defineTool({
@@ -197,7 +444,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
  * descriptor. The returned callback is compatible with Pi's extension API.
  */
 export function createDomainToolsExtension(descriptor, options = {}) {
-  const runtime = validateRuntimeDescriptor(descriptor);
+  const runtime = selectedBindingRuntime(descriptor);
   if (
     !isPlainObject(options) ||
     (options.createTool !== undefined && typeof options.createTool !== "function") ||
@@ -275,7 +522,7 @@ export function sanitizeEnvironment(env, selectedNames = []) {
 }
 
 export function runCapability(payload, descriptor, selectedNames = [], transportLimits = undefined) {
-  const runtime = validateRuntimeDescriptor(descriptor);
+  const runtime = selectedBindingRuntime(descriptor);
   const limits = validateTransportLimits(transportLimits);
   return new Promise((resolveResponse) => {
     const child = spawn(runtime.executable, runtime.executableArgs, {
@@ -875,6 +1122,72 @@ function validateContract(contract, descriptor) {
   if (!isPlainObject(contract.input_schema)) {
     throw new TypeError("capability contract input_schema must be an object");
   }
+}
+
+function selectedBindingRuntime(value) {
+  if (SELECTED_BINDING_RUNTIMES.has(value)) {
+    return value;
+  }
+  const runtime = validateRuntimeDescriptor(value);
+  const domain = runtime.domains[0];
+  const selected = Object.freeze({
+    ...domain,
+    toolNamePrefix: toolPrefixFromGuideName(domain.guideToolName),
+    contextToolName: runtime.core.contextToolName,
+    decisionToolName: runtime.core.decisionToolName,
+    activeTurnPath: runtime.core.activeTurnPath,
+    analysisContextViewPath: runtime.core.analysisContextViewPath,
+    trajectoryRequestsPath: runtime.core.trajectoryRequestsPath,
+    trajectoryCaptureStatePath: runtime.core.trajectoryCaptureStatePath,
+    trajectoryAllowedRefsPath: runtime.core.trajectoryAllowedRefsPath,
+    trajectoryAcksPath: runtime.core.trajectoryAcksPath,
+    piRuntime: runtime.application.piRuntime,
+  });
+  SELECTED_BINDING_RUNTIMES.add(selected);
+  return selected;
+}
+
+function requireExactKeys(value, allowed, label, { required = [] } = {}) {
+  if (!isPlainObject(value)) {
+    throw new TypeError(`${label} must be a plain object`);
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new TypeError(`${label} contains an unknown field: ${String(key)}`);
+    }
+  }
+  for (const key of required) {
+    if (!Object.hasOwn(value, key)) {
+      throw new TypeError(`${label} is missing required field: ${key}`);
+    }
+  }
+}
+
+function requireNonEmptyString(value, name) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(`runtime descriptor ${name} must be a non-empty string`);
+  }
+  return value;
+}
+
+function toolPrefixFromGuideName(value) {
+  const suffix = "guide_open";
+  if (typeof value !== "string" || !value.endsWith(suffix)) {
+    throw new TypeError("runtime descriptor domain guideToolName must end with guide_open");
+  }
+  const prefix = value.slice(0, -suffix.length);
+  return requirePattern(prefix, "domain toolNamePrefix", TOOL_PREFIX_PATTERN);
+}
+
+function requireInside(candidate, root, name) {
+  if (!isInside(candidate, root)) {
+    throw new TypeError(`runtime descriptor domain ${name} is outside workspacePath`);
+  }
+  return candidate;
+}
+
+function compactObject(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
 function requirePattern(value, name, pattern) {

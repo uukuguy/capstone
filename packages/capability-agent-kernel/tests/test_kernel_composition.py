@@ -39,7 +39,6 @@ def test_inventory_profile_materializes_exact_provider_free_tool_inventory(
     assert executor.calls == [("environment.describe", {})]
     assert [tool["name"] for tool in catalog["tools"]] == [
         "inventory_asset_list",
-        "inventory_record_decision",
     ]
 
 

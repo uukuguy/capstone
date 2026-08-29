@@ -9,6 +9,7 @@ import {
   buildCapabilityRequest,
   createCapabilityTool,
   createDomainToolsExtension,
+  legacyDescriptorToRuntimeV1,
   runCapability,
   sanitizeEnvironment,
   validateRuntimeDescriptor,
@@ -23,6 +24,159 @@ const inventory = Object.freeze({
   guideToolName: "inventory_guide_open",
   contextToolName: "inventory_analysis_context_get",
   decisionToolName: "inventory_record_decision",
+});
+
+const runtimeV1 = Object.freeze({
+  schema: "capability-agent-runtime/1.0",
+  application: Object.freeze({ applicationId: "fixture-app", runId: "run-1" }),
+  core: Object.freeze({
+    decisionToolName: "agent_record_decision",
+    contextToolName: "agent_context_get",
+  }),
+  domains: Object.freeze([
+    Object.freeze({
+      bindingId: "inventory",
+      protocol: "inventory-capability",
+      protocolVersion: "1.0",
+      executable: "inventoryctl",
+      executableArgs: Object.freeze([
+        "request",
+        "--workspace",
+        "/tmp/run/domains/inventory",
+      ]),
+      toolCatalogPath: "/tmp/run/domains/inventory/tool-catalog.json",
+      guideToolName: "inventory_guide_open",
+      guideIndexPath: "/tmp/run/domains/inventory/guide-index.json",
+      guideRootPath: "/tmp/run/domains/inventory/guides",
+      guideIndexSha256: "a".repeat(64),
+      workspacePath: "/tmp/run/domains/inventory",
+      authorityId: "inventoryctl",
+    }),
+  ]),
+});
+
+test("validates one binding-aware runtime descriptor", () => {
+  const descriptor = validateRuntimeDescriptor(runtimeV1);
+
+  assert.equal(descriptor.schema, "capability-agent-runtime/1.0");
+  assert.equal(descriptor.domains.length, 1);
+  assert.equal(descriptor.domains[0].bindingId, "inventory");
+  assert.equal(descriptor.domains[0].authorityId, "inventoryctl");
+  assert.equal(Object.isFrozen(descriptor), true);
+  assert.equal(Object.isFrozen(descriptor.application), true);
+  assert.equal(Object.isFrozen(descriptor.core), true);
+  assert.equal(Object.isFrozen(descriptor.domains), true);
+  assert.equal(Object.isFrozen(descriptor.domains[0]), true);
+});
+
+test("runtime v1 rejects unknown keys and any domain count except one", () => {
+  for (const invalid of [
+    { ...runtimeV1, unexpected: true },
+    { ...runtimeV1, application: { ...runtimeV1.application, unexpected: true } },
+    { ...runtimeV1, core: { ...runtimeV1.core, unexpected: true } },
+    {
+      ...runtimeV1,
+      domains: [{ ...runtimeV1.domains[0], unexpected: true }],
+    },
+    { ...runtimeV1, domains: [] },
+    { ...runtimeV1, domains: [runtimeV1.domains[0], runtimeV1.domains[0]] },
+  ]) {
+    assert.throws(() => validateRuntimeDescriptor(invalid), /runtime descriptor/);
+  }
+});
+
+test("runtime v1 confines domain-owned paths to the binding workspace", () => {
+  for (const field of ["toolCatalogPath", "guideIndexPath", "guideRootPath"]) {
+    const invalid = {
+      ...runtimeV1,
+      domains: [{ ...runtimeV1.domains[0], [field]: `/tmp/outside/${field}` }],
+    };
+    assert.throws(
+      () => validateRuntimeDescriptor(invalid),
+      new RegExp(`${field}.*outside.*workspacePath`),
+    );
+  }
+  assert.throws(
+    () =>
+      validateRuntimeDescriptor({
+        ...runtimeV1,
+        domains: [
+          {
+            ...runtimeV1.domains[0],
+            executableArgs: ["request", "--workspace", "/tmp/outside"],
+          },
+        ],
+      }),
+    /executableArgs.*outside.*workspacePath/,
+  );
+});
+
+test("routes a capability only through the controller-selected binding", async () => {
+  const payloads = [];
+  const tool = createCapabilityTool(
+    runtimeV1,
+    {
+      name: "inventory_asset_list",
+      capability: "asset.list",
+      description: "List assets",
+      input_schema: { type: "object", additionalProperties: false, properties: {} },
+    },
+    async (payload) => {
+      payloads.push(payload);
+      return {
+        protocol: "inventory-capability",
+        protocol_version: "1.0",
+        request_id: payload.request_id,
+        ok: true,
+        result: { assets: [] },
+      };
+    },
+  );
+
+  await tool.execute("call-1", { value: "controller-bound" });
+
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].protocol, "inventory-capability");
+  assert.equal(payloads[0].protocol_version, "1.0");
+  assert.equal(payloads[0].capability, "asset.list");
+  assert.deepEqual(payloads[0].arguments, { value: "controller-bound" });
+});
+
+test("model arguments cannot select controller-owned routing metadata", () => {
+  for (const field of [
+    "binding",
+    "bindingId",
+    "binding_id",
+    "executable",
+    "executableArgs",
+    "executable_args",
+    "protocol",
+    "protocolVersion",
+    "protocol_version",
+    "authority",
+    "authorityId",
+    "authority_id",
+    "workspace",
+    "workspacePath",
+    "workspace_path",
+  ]) {
+    assert.throws(
+      () => buildCapabilityRequest(runtimeV1, "asset.list", { [field]: "attacker" }, "r-1"),
+      /controller-owned routing field/,
+    );
+  }
+});
+
+test("converts the legacy descriptor through an explicit compatibility path", () => {
+  const converted = legacyDescriptorToRuntimeV1(inventory);
+
+  assert.equal(converted.schema, "capability-agent-runtime/1.0");
+  assert.equal(converted.application.applicationId, "legacy-capability-agent");
+  assert.equal(converted.core.contextToolName, "inventory_analysis_context_get");
+  assert.equal(converted.core.decisionToolName, "inventory_record_decision");
+  assert.equal(converted.domains[0].bindingId, "inventory");
+  assert.equal(converted.domains[0].authorityId, "inventoryctl");
+  assert.equal(converted.domains[0].protocol, "inventory-capability");
 });
 
 test("builds a descriptor-owned capability request", () => {
@@ -112,52 +266,6 @@ test("fails closed when a capability response has the wrong correlation", async 
 
   assert.equal(result.isError, true);
   assert.equal(result.details.error.code, "response_correlation_mismatch");
-});
-
-test("keeps process selection outside model-owned tool parameters", async () => {
-  const payloads = [];
-  const tool = createCapabilityTool(
-    inventory,
-    {
-      name: "inventory_asset_list",
-      capability: "asset.list",
-      description: "List assets",
-      input_schema: { type: "object", additionalProperties: false, properties: {} },
-    },
-    async (payload) => {
-      payloads.push(payload);
-      return {
-        protocol: "inventory-capability",
-        protocol_version: "1.0",
-        request_id: payload.request_id,
-        ok: true,
-        result: { assets: [] },
-      };
-    },
-  );
-
-  await tool.execute("call-1", {
-    executable: "attacker",
-    executableArgs: ["--dangerous"],
-    protocol: "attacker-capability",
-    value: "kept-as-argument",
-  });
-
-  assert.deepEqual(payloads, [
-    {
-      protocol: "inventory-capability",
-      protocol_version: "1.0",
-      request_id: payloads[0].request_id,
-      capability: "asset.list",
-      arguments: {
-        executable: "attacker",
-        executableArgs: ["--dangerous"],
-        protocol: "attacker-capability",
-        value: "kept-as-argument",
-      },
-    },
-  ]);
-  assert.match(payloads[0].request_id, /^[0-9a-f-]{36}$/);
 });
 
 test("generic source has no product-specific protocol, executable, prefix, or environment literals", async () => {

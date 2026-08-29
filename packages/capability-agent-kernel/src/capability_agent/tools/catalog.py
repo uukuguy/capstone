@@ -15,6 +15,8 @@ _TOOL_NAME_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]*_$")
 _SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 _JSON_SCHEMA_TYPES = {"array", "boolean", "integer", "null", "number", "object", "string"}
 _DEFAULT_TOOL_NAME_PREFIX = "tool_"
+_BINDING_ID_PATTERN = re.compile(r"^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+_PROTOCOL_VERSION_PATTERN = re.compile(r"^\d+\.\d+$")
 
 
 class ToolCatalogError(ValueError):
@@ -37,6 +39,23 @@ class ToolDocument:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class CapabilityKey:
+    binding_id: str
+    capability_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class BoundToolDocument:
+    name: str
+    key: CapabilityKey
+    description: str
+    input_schema: dict[str, Any]
+    authority_id: str
+    protocol: str
+    protocol_version: str
+
+
 class ToolCatalog:
     def __init__(
         self,
@@ -54,7 +73,6 @@ class ToolCatalog:
         )
         for tool in tools:
             _validate_tool_name(tool.name, tool_name_prefix)
-        tools = (*tools, _decision_tool(tool_name_prefix))
         names = [tool.name for tool in tools]
         if len(set(names)) != len(names):
             raise ToolCatalogError("tool names must be unique")
@@ -153,6 +171,203 @@ class ToolCatalog:
         payload = {"fingerprint": fingerprint, **body}
         path.write_text(_canonical_json(payload) + "\n", encoding="utf-8")
         return path
+
+
+@dataclass(frozen=True, slots=True)
+class CoreToolCatalog:
+    namespace: str
+    tools: tuple[ToolDocument, ...]
+
+    @classmethod
+    def default(cls, *, namespace: str = "agent_") -> "CoreToolCatalog":
+        _validate_tool_name_prefix(namespace)
+        return cls(namespace=namespace, tools=(_decision_tool(namespace),))
+
+
+@dataclass(frozen=True, slots=True)
+class BoundDomainCatalog:
+    binding_id: str
+    tool_namespace: str
+    tools: tuple[BoundToolDocument, ...]
+    authority_id: str
+    protocol: str
+    protocol_version: str
+    guide_tool_name: str | None = None
+    context_tool_name: str | None = None
+
+    @classmethod
+    def fixture(
+        cls,
+        binding_id: str,
+        tool_namespace: str,
+        documents: tuple[dict[str, object], ...] | list[dict[str, object]],
+        *,
+        authority_id: str | None = None,
+        protocol: str | None = None,
+        protocol_version: str = "1.0",
+        guide_tool_name: str | None = None,
+        context_tool_name: str | None = None,
+    ) -> "BoundDomainCatalog":
+        authority_id = authority_id or f"{binding_id}ctl"
+        protocol = protocol or f"{binding_id}-capability"
+        catalog = ToolCatalog.from_documents(
+            tuple(documents),
+            tool_name_prefix=tool_namespace,
+        )
+        return cls._bind(
+            binding_id=binding_id,
+            tool_namespace=tool_namespace,
+            catalog=catalog,
+            authority_id=authority_id,
+            protocol=protocol,
+            protocol_version=protocol_version,
+            guide_tool_name=guide_tool_name,
+            context_tool_name=context_tool_name,
+        )
+
+    @classmethod
+    def from_prepared(
+        cls,
+        prepared: object,
+        *,
+        guide_tool_name: str | None = None,
+        context_tool_name: str | None = None,
+    ) -> "BoundDomainCatalog":
+        binding = prepared.binding
+        runtime = prepared.runtime
+        manifest = binding.profile.manifest
+        if (
+            runtime.authority.authority_id != manifest.authority_id
+            or runtime.environment_description.get("protocol") != manifest.protocol
+            or runtime.environment_description.get("protocol_version")
+            != manifest.protocol_version
+        ):
+            raise ToolCatalogError("prepared binding routing metadata does not agree")
+        catalog = ToolCatalog.from_environment(
+            runtime.capability_documents,
+            runtime.environment_description,
+            tool_name_prefix=binding.tool_namespace,
+            protocol=_schema_id_from_prefix(binding.tool_namespace, "tool-catalog"),
+            description_builder=binding.profile.tool_description_builder,
+        )
+        return cls._bind(
+            binding_id=binding.binding_id,
+            tool_namespace=binding.tool_namespace,
+            catalog=catalog,
+            authority_id=manifest.authority_id,
+            protocol=manifest.protocol,
+            protocol_version=manifest.protocol_version,
+            guide_tool_name=guide_tool_name,
+            context_tool_name=context_tool_name,
+        )
+
+    @classmethod
+    def _bind(
+        cls,
+        *,
+        binding_id: str,
+        tool_namespace: str,
+        catalog: ToolCatalog,
+        authority_id: str,
+        protocol: str,
+        protocol_version: str,
+        guide_tool_name: str | None,
+        context_tool_name: str | None,
+    ) -> "BoundDomainCatalog":
+        _validate_binding_metadata(
+            binding_id=binding_id,
+            authority_id=authority_id,
+            protocol=protocol,
+            protocol_version=protocol_version,
+        )
+        for label, tool_name in (
+            ("guide_tool_name", guide_tool_name),
+            ("context_tool_name", context_tool_name),
+        ):
+            if tool_name is not None:
+                try:
+                    _validate_tool_name(tool_name, tool_namespace)
+                except ToolCatalogError as exc:
+                    raise ToolCatalogError(f"{label} is invalid") from exc
+        return cls(
+            binding_id=binding_id,
+            tool_namespace=tool_namespace,
+            tools=tuple(
+                BoundToolDocument(
+                    name=tool.name,
+                    key=CapabilityKey(binding_id, tool.capability),
+                    description=tool.description,
+                    input_schema=tool.input_schema,
+                    authority_id=authority_id,
+                    protocol=protocol,
+                    protocol_version=protocol_version,
+                )
+                for tool in catalog.tools
+            ),
+            authority_id=authority_id,
+            protocol=protocol,
+            protocol_version=protocol_version,
+            guide_tool_name=guide_tool_name,
+            context_tool_name=context_tool_name,
+        )
+
+
+class CompositeToolCatalog:
+    def __init__(
+        self,
+        *,
+        core_tools: tuple[ToolDocument, ...],
+        domain_tools: tuple[BoundToolDocument, ...],
+    ) -> None:
+        self.core_tools = core_tools
+        self.domain_tools = domain_tools
+        self._by_name = {
+            tool.name: tool for tool in (*self.core_tools, *self.domain_tools)
+        }
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        core: CoreToolCatalog,
+        domains: tuple[BoundDomainCatalog, ...],
+    ) -> "CompositeToolCatalog":
+        binding_ids = [domain.binding_id for domain in domains]
+        if len(set(binding_ids)) != len(binding_ids):
+            raise ToolCatalogError("binding IDs must be unique")
+        namespaces = [domain.tool_namespace for domain in domains]
+        if len(set(namespaces)) != len(namespaces):
+            raise ToolCatalogError("tool namespaces must be unique")
+        if any(namespace == core.namespace for namespace in namespaces):
+            raise ToolCatalogError("reserved core namespace cannot be used by a domain")
+
+        core_names = [tool.name for tool in core.tools]
+        domain_tools = tuple(tool for domain in domains for tool in domain.tools)
+        routing_names = [
+            tool.name for tool in domain_tools
+        ] + [
+            name
+            for domain in domains
+            for name in (domain.guide_tool_name, domain.context_tool_name)
+            if name is not None
+        ]
+        if any(name.startswith(core.namespace) for name in routing_names):
+            raise ToolCatalogError("reserved core namespace cannot be used by a domain")
+        final_names = [*core_names, *routing_names]
+        if len(set(final_names)) != len(final_names):
+            raise ToolCatalogError("final tool names must be unique")
+        if len(domains) != 1:
+            raise ToolCatalogError("composite catalog requires exactly one domain binding")
+        return cls(
+            core_tools=tuple(sorted(core.tools, key=lambda tool: tool.name)),
+            domain_tools=tuple(sorted(domain_tools, key=lambda tool: tool.name)),
+        )
+
+    def require(self, name: str) -> ToolDocument | BoundToolDocument:
+        try:
+            return self._by_name[name]
+        except KeyError as exc:
+            raise KeyError(f"unknown tool: {name}") from exc
 
 
 
@@ -313,6 +528,25 @@ def _validate_tool_name(tool_name: object, tool_name_prefix: str) -> None:
         or len(tool_name) == len(tool_name_prefix)
     ):
         raise ToolCatalogError("tool_name is invalid")
+
+
+def _validate_binding_metadata(
+    *,
+    binding_id: str,
+    authority_id: str,
+    protocol: str,
+    protocol_version: str,
+) -> None:
+    if not isinstance(binding_id, str) or not _BINDING_ID_PATTERN.fullmatch(binding_id):
+        raise ToolCatalogError("binding_id is invalid")
+    for label, value in (("authority_id", authority_id), ("protocol", protocol)):
+        if not isinstance(value, str) or not _CAPABILITY_ID_PATTERN.fullmatch(value):
+            raise ToolCatalogError(f"{label} is invalid")
+    if (
+        not isinstance(protocol_version, str)
+        or not _PROTOCOL_VERSION_PATTERN.fullmatch(protocol_version)
+    ):
+        raise ToolCatalogError("protocol_version is invalid")
 
 
 def _validate_json_schema(schema: dict[str, Any], *, path: str) -> None:

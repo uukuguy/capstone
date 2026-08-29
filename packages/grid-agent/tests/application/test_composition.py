@@ -181,7 +181,6 @@ def test_synthetic_domain_materializes_through_public_seams(tmp_path: Path) -> N
     assert prepared.capability_documents == (_asset_document(),)
     assert [tool["name"] for tool in catalog["tools"]] == [
         "inventory_asset_list",
-        "inventory_record_decision",
     ]
     assert "grid_asset_list" not in prepared.tool_catalog_path.read_text(encoding="utf-8")
     assert guide["root"] == str(profile.manifest.guide_root.resolve())
