@@ -7,6 +7,22 @@ from capability_agent.application.composition import (
     prepare_application,
     prepare_domain_runtime,
 )
+from capability_agent.application.context_models import (
+    APPLICATION_CONTEXT_EVENT_SCHEMA,
+    APPLICATION_CONTEXT_SCHEMA,
+    ApplicationContext,
+    ContextEvent,
+    ContextEventDraft,
+    CoreContext,
+    DomainStateEnvelope,
+    canonical_state_hash,
+)
+from capability_agent.application.context_reducer import (
+    ContextTransitionError,
+    initial_context,
+    reduce_context,
+)
+from capability_agent.application.context_store import ApplicationContextStore, ContextStoreError
 from capability_agent.application.errors import (
     AnswerCommitError,
     ApplicationConfigurationError,
@@ -41,21 +57,32 @@ from capability_agent.application.profile import (
     ReportShell,
 )
 from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
+from capability_agent.application.workspace import ApplicationWorkspace, WorkspaceError
 
 __all__ = [
     "AcceptanceProfile",
+    "APPLICATION_CONTEXT_EVENT_SCHEMA",
+    "APPLICATION_CONTEXT_SCHEMA",
     "AnswerCommitError",
     "ApplicationConfigurationError",
+    "ApplicationContext",
+    "ApplicationContextStore",
     "ApplicationManifest",
     "ApplicationPolicy",
     "ApplicationProfile",
     "ApplicationResult",
+    "ApplicationWorkspace",
     "AuthorityIntegrityError",
     "BindingIdentity",
     "BoundDomainOutput",
     "CapabilityAgentError",
     "CapabilityRoutingError",
     "CapabilityTransportError",
+    "ContextEvent",
+    "ContextEventDraft",
+    "ContextStoreError",
+    "ContextTransitionError",
+    "CoreContext",
     "CoreRunResult",
     "CredentialScope",
     "DataSharingPolicy",
@@ -65,6 +92,7 @@ __all__ = [
     "DomainProvisioningError",
     "DomainRegistrationError",
     "DomainRegistry",
+    "DomainStateEnvelope",
     "FrameworkOutputComposer",
     "JsonOutputRenderer",
     "OutputRenderer",
@@ -75,6 +103,10 @@ __all__ = [
     "PresentationError",
     "ReportShell",
     "ValidatedDomainOutput",
+    "WorkspaceError",
+    "canonical_state_hash",
+    "initial_context",
     "prepare_application",
     "prepare_domain_runtime",
+    "reduce_context",
 ]
