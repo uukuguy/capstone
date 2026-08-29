@@ -25,3 +25,9 @@ Append-only decisions for the active Workstream C climb session.
 - Verdict: FALSIFIED.
 - Local score: 0.00; subscores: {"authority_lineage": 0.0, "distribution_integrity": 0.0, "domain_pack_spi": 0.0, "generic_pi_transport": 0.0, "product_compatibility": 0.0, "reference_authority": 0.0}.
 - Decision: CONTINUE — matrix incomplete; advance next implementation hypothesis.
+
+## Cycle 5 — C-H004
+
+- Verdict: CONFIRMED.
+- Local score: 20.00; subscores: {"authority_lineage": 20.0, "distribution_integrity": 0.0, "domain_pack_spi": 0.0, "generic_pi_transport": 0.0, "product_compatibility": 0.0, "reference_authority": 0.0}.
+- Decision: CONTINUE — matrix incomplete; advance next implementation hypothesis.

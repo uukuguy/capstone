@@ -4,22 +4,22 @@
 
 ## TL;DR
 
-- Workstream C 实现已完成；首次 C-H005 closure 有 8/9 gate 通过。
+- Workstream C 实现已完成；修复后 C-H004 已确认，累计 focused coverage 为 80/100。
 - inventory authority、Domain Pack、unchanged generic Pi、current-run lineage 与六 wheel clean-install 均已实现并通过 focused gates。
-- 唯一失败是 authority pytest 路径错误（rc=4、未发现测试），不是实现测试失败；下一动作是修复固定策略并从 C-H004 重新取证。
+- 首次 C-H005 的唯一失败是已修复的 authority pytest 路径错误；下一动作是在新策略 revision 上完整重跑 C-H005。
 
 ## Where things stand
 
-- climb 已确认 C-H001 至 C-H003；C-H004 旧 cycle 因同一路径错误实际为 falsified，必须重新执行。
+- climb 已确认 C-H001 至 C-H004；旧 C-H004 falsified 记录保留用于审计，新 cycle 5 真实执行 6 tests 并得分 20。
 - reference service 11 tests、Domain Pack 14 tests 通过；六个 Python wheel 与两个 npm tarball 已在仓库外 clean-install smoke 通过。
 - protected-path checker 确认 capability-agent-kernel、pi-capability-tools 与 trajectory-workbench 与 baseline 一致且无工作树变化。
-- 当前 main 比 origin/main 领先 14 个提交；全程在 main 工作，未创建临时 worktree 或 feature branch。
+- 当前 main 比 origin/main 领先 15 个提交；全程在 main 工作，未创建临时 worktree 或 feature branch。
 
 ## In-flight work
 
-1. 用 adapter 红测锁定 authority gate 的仓库根路径。
-2. 提交固定策略修复后重新执行 C-H004，确认 20 分 lineage gate。
-3. 在新的同一干净 revision 上完整重跑 `tools/climb/cycle.sh C-H005`，不复用首次 8 个通过结果。
+1. 提交 C-H004 confirmed climb state。
+2. 在新策略的同一干净 revision 上完整重跑 `tools/climb/cycle.sh C-H005`。
+3. 达到 100/100 后更新结构状态并执行最终 verification/handoff 检查。
 
 ## Boundaries
 

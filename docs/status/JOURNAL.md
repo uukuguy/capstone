@@ -539,3 +539,5 @@ _Recovered pre-merge mainline entries._
 - 00:08 将 inventory 六 wheel 安装与 protected-path 校验纳入发行边界 [571bbf2]
 - 00:15 记录第二领域实例化证明与剩余边界，为 C-H005 closure 提供权威说明 [fcfa322]
 - 00:22 C-H005 现场重跑 8/9 通过，发现 authority pytest 路径相对仓库根配置错误
+- 00:25 修复并测试 authority gate 根路径，确保 closure 真正执行 lineage 红队测试 [d4f3c50]
+- 00:27 重跑 C-H004 得分 20/100，确认六项 authority lineage 红队测试真实执行
