@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 from pydantic import ValidationError
@@ -261,6 +262,90 @@ def test_validated_domain_output_rejects_unsupported_recursive_json_values(
             schema="inventory-output/1.0",
             status="completed",
             payload={"nested": {"value": unsupported}},
+        )
+
+
+def test_validated_domain_output_rejects_cyclic_mapping() -> None:
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+
+    with pytest.raises(ApplicationConfigurationError, match="cycle"):
+        ValidatedDomainOutput(
+            schema="inventory-output/1.0",
+            status="completed",
+            payload={"cyclic": cyclic},
+        )
+
+
+def test_validated_domain_output_rejects_cyclic_list() -> None:
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
+
+    with pytest.raises(ApplicationConfigurationError, match="cycle"):
+        ValidatedDomainOutput(
+            schema="inventory-output/1.0",
+            status="completed",
+            payload={"cyclic": cyclic},
+        )
+
+
+@pytest.mark.parametrize("container_kind", ["mapping", "list"])
+def test_framework_defensively_rejects_bypassed_cycles(
+    container_kind: str,
+) -> None:
+    if container_kind == "mapping":
+        cyclic_mapping: dict[str, object] = {}
+        cyclic_mapping["self"] = cyclic_mapping
+        cyclic: object = cyclic_mapping
+    else:
+        cyclic_list: list[object] = []
+        cyclic_list.append(cyclic_list)
+        cyclic = cyclic_list
+    domain = ValidatedDomainOutput.model_construct(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload={"cyclic": cyclic},
+    )
+
+    with pytest.raises(ApplicationConfigurationError, match="cycle"):
+        FrameworkOutputComposer().compose(
+            core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+        )
+
+
+def test_validated_domain_output_accepts_repeated_acyclic_aliases() -> None:
+    shared = {"items": [{"count": 1}]}
+    original_payload = {"left": shared, "right": shared}
+
+    domain = ValidatedDomainOutput(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload=original_payload,
+    )
+    shared["items"].append({"count": 2})
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+    )
+
+    assert result.domains["inventory"].payload == {
+        "left": {"items": ({"count": 1},)},
+        "right": {"items": ({"count": 1},)},
+    }
+
+
+def test_validated_domain_output_translates_excessive_nesting() -> None:
+    payload: dict[str, object] = {}
+    cursor = payload
+    for _ in range(sys.getrecursionlimit() + 100):
+        nested: dict[str, object] = {}
+        cursor["nested"] = nested
+        cursor = nested
+
+    with pytest.raises(ApplicationConfigurationError, match="nesting"):
+        ValidatedDomainOutput(
+            schema="inventory-output/1.0",
+            status="completed",
+            payload=payload,
         )
 
 

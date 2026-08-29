@@ -37,14 +37,48 @@ class _FrozenDict(dict[str, Any]):
 
 
 def _deep_freeze(value: Any) -> Any:
+    try:
+        return _deep_freeze_value(value, set())
+    except RecursionError as error:
+        raise ApplicationConfigurationError(
+            "domain output payload nesting exceeds the supported depth"
+        ) from error
+
+
+def _deep_freeze_value(value: Any, active_containers: set[int]) -> Any:
     if isinstance(value, Mapping):
-        if any(not isinstance(key, str) for key in value):
+        identity = id(value)
+        if identity in active_containers:
             raise ApplicationConfigurationError(
-                "domain output payload mappings require string keys"
+                "domain output payload contains a container cycle"
             )
-        return _FrozenDict({key: _deep_freeze(item) for key, item in value.items()})
+        active_containers.add(identity)
+        try:
+            if any(not isinstance(key, str) for key in value):
+                raise ApplicationConfigurationError(
+                    "domain output payload mappings require string keys"
+                )
+            return _FrozenDict(
+                {
+                    key: _deep_freeze_value(item, active_containers)
+                    for key, item in value.items()
+                }
+            )
+        finally:
+            active_containers.remove(identity)
     if isinstance(value, list | tuple):
-        return tuple(_deep_freeze(item) for item in value)
+        identity = id(value)
+        if identity in active_containers:
+            raise ApplicationConfigurationError(
+                "domain output payload contains a container cycle"
+            )
+        active_containers.add(identity)
+        try:
+            return tuple(
+                _deep_freeze_value(item, active_containers) for item in value
+            )
+        finally:
+            active_containers.remove(identity)
     if value is None or type(value) in {str, bool, int}:
         return value
     if type(value) is float:
