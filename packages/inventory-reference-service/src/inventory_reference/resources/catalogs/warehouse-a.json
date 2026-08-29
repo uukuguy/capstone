@@ -1,0 +1,56 @@
+{
+  "schema_version": "inventory-catalog/1.0",
+  "catalog_id": "warehouse-a",
+  "assets": [
+    {
+      "asset_id": "asset-bearing-001",
+      "name": "Pump shaft bearing",
+      "category": "mechanical",
+      "location": "shenzhen-b",
+      "quantity_on_hand": 3,
+      "reorder_level": 5,
+      "unit": "piece",
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "asset_id": "asset-breaker-001",
+      "name": "Vacuum circuit breaker",
+      "category": "electrical",
+      "location": "shanghai-a",
+      "quantity_on_hand": 12,
+      "reorder_level": 5,
+      "unit": "piece",
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "asset_id": "asset-gloves-001",
+      "name": "Insulating gloves",
+      "category": "safety",
+      "location": "shanghai-a",
+      "quantity_on_hand": 8,
+      "reorder_level": 10,
+      "unit": "pair",
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "asset_id": "asset-pump-001",
+      "name": "Cooling water pump",
+      "category": "mechanical",
+      "location": "shenzhen-b",
+      "quantity_on_hand": 20,
+      "reorder_level": 4,
+      "unit": "piece",
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "asset_id": "asset-relay-001",
+      "name": "Protection relay",
+      "category": "electrical",
+      "location": "beijing-c",
+      "quantity_on_hand": 48,
+      "reorder_level": 10,
+      "unit": "piece",
+      "updated_at": "2026-08-01T00:00:00Z"
+    }
+  ]
+}

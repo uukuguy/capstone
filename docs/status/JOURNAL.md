@@ -523,3 +523,4 @@ _Recovered pre-merge mainline entries._
 - 23:24 保存 Workstream B 最终 handoff，为 Workstream C 建立干净恢复边界 [a54cab1]
 - 23:26 锁定只读 inventory 参考域设计，以零 Kernel 修改证明跨领域实例化 [4108c72]
 - 23:32 拆解 Workstream C 七项 TDD 计划，使六门 climb 评分可独立闭环 [32a84c8]
+- 23:38 启动 Workstream C climb 会话并固化 protected-path baseline [05444ff]
