@@ -520,3 +520,4 @@ _Recovered pre-merge mainline entries._
 - 19:51 回收并验证主线状态日志，移除 Workstream B worktree 与 feature 分支
 - 19:54 记录 Workstream B 主线集成与状态回收，确保恢复点不再指向已删 worktree [2ea91dc]
 - 19:55 固化最终恢复棒，使后续会话直接从 main 继续 [f6109a2]
+- 23:24 保存 Workstream B 最终 handoff，为 Workstream C 建立干净恢复边界 [a54cab1]
