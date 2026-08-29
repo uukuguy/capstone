@@ -12,6 +12,7 @@ from capability_agent.tools.catalog import (
     CoreToolCatalog,
     ToolCatalog,
     ToolCatalogError,
+    ToolDocument,
 )
 
 
@@ -82,6 +83,40 @@ def test_tool_catalog_does_not_create_a_domain_decision_tool() -> None:
 def test_generic_core_catalog_requires_the_agent_namespace() -> None:
     with pytest.raises(ToolCatalogError, match="agent_"):
         CoreToolCatalog.default(namespace="grid_")
+
+
+def test_composite_catalog_rejects_a_directly_constructed_non_agent_core() -> None:
+    core = CoreToolCatalog(
+        namespace="grid_",
+        tools=(
+            ToolDocument(
+                name="grid_record_decision",
+                capability="grid_record_decision",
+                description="Legacy alias must not enter the generic core.",
+                input_schema={"type": "object"},
+            ),
+        ),
+    )
+
+    with pytest.raises(ToolCatalogError, match="agent_"):
+        CompositeToolCatalog.build(core=core, domains=(_domain("grid", "grid_"),))
+
+
+def test_composite_catalog_rejects_non_agent_tools_in_the_generic_core() -> None:
+    core = CoreToolCatalog(
+        namespace="agent_",
+        tools=(
+            ToolDocument(
+                name="grid_record_decision",
+                capability="grid_record_decision",
+                description="Legacy alias must not enter the generic core.",
+                input_schema={"type": "object"},
+            ),
+        ),
+    )
+
+    with pytest.raises(ToolCatalogError, match="agent_"):
+        CompositeToolCatalog.build(core=core, domains=(_domain("grid", "grid_"),))
 
 
 def test_composite_catalog_keeps_core_tools_out_of_domain_catalog() -> None:

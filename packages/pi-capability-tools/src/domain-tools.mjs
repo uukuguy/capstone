@@ -133,6 +133,13 @@ const MODEL_ROUTING_FIELDS = new Set([
   "trajectorycapturestatepath",
   "trajectoryallowedrefspath",
   "trajectoryackspath",
+  "args",
+  "arguments",
+  "endpoint",
+  "endpointpath",
+  "command",
+  "commandargs",
+  "toolnameprefix",
 ]);
 
 /**
@@ -325,6 +332,9 @@ function validateRuntimeV1(value, options = {}) {
     throw new TypeError("runtime descriptor tool name collision");
   }
   if (!options.legacy) {
+    if (domain.guideToolName.startsWith("agent_")) {
+      throw new TypeError("runtime descriptor agent_ namespace is reserved for core tools");
+    }
     for (const [key, candidate] of Object.entries(core)) {
       if (key.endsWith("Path")) {
         requireInside(candidate, domain.workspacePath, key);
@@ -433,7 +443,7 @@ export function buildCapabilityRequest(descriptor, capability, params, requestId
   for (const key of Reflect.ownKeys(params)) {
     if (
       typeof key !== "string" ||
-      MODEL_ROUTING_FIELDS.has(key.replaceAll("_", "").toLowerCase())
+      MODEL_ROUTING_FIELDS.has(key.replaceAll(/[-_]/g, "").toLowerCase())
     ) {
       throw new TypeError(`capability arguments contain a controller-owned routing field: ${String(key)}`);
     }
@@ -565,18 +575,24 @@ function preflightContracts(contracts, runtime) {
     runtime.decisionToolName,
   ]);
   const legacy = LEGACY_SELECTED_BINDING_RUNTIMES.has(runtime);
+  let legacyDecisionAliases = 0;
   for (const contract of contracts) {
     if (
       legacy &&
       isPlainObject(contract) &&
       contract.name === runtime.decisionToolName
     ) {
+      legacyDecisionAliases += 1;
+      if (legacyDecisionAliases > 1) {
+        throw new TypeError("runtime descriptor tool name collision");
+      }
       continue;
     }
     if (
       !isPlainObject(contract) ||
       typeof contract.name !== "string" ||
-      names.has(contract.name)
+      names.has(contract.name) ||
+      (!legacy && contract.name.startsWith("agent_"))
     ) {
       throw new TypeError("runtime descriptor tool name collision");
     }
@@ -602,6 +618,7 @@ export function sanitizeEnvironment(env, selectedNames = []) {
 
 export function runCapability(payload, descriptor, selectedNames = [], transportLimits = undefined) {
   const runtime = selectedBindingRuntime(descriptor);
+  validateExecutableArgumentPaths(runtime);
   const limits = validateTransportLimits(transportLimits);
   return new Promise((resolveResponse) => {
     const child = spawn(runtime.executable, runtime.executableArgs, {
@@ -678,6 +695,44 @@ export function runCapability(payload, descriptor, selectedNames = [], transport
     });
     child.stdin.end(JSON.stringify(payload));
   });
+}
+
+function validateExecutableArgumentPaths(runtime) {
+  const absoluteArguments = runtime.executableArgs.filter((argument) => isAbsolute(argument));
+  if (absoluteArguments.length === 0) {
+    return;
+  }
+  const workspaceValue = runtime.workspacePath ?? workspaceArgument(runtime.executableArgs);
+  if (workspaceValue === undefined) {
+    throw new TypeError(
+      "runtime descriptor executableArgs absolute paths require workspacePath",
+    );
+  }
+  const workspacePath = requiredExistingRealPath(workspaceValue, "workspacePath");
+  for (const argument of absoluteArguments) {
+    let candidate;
+    try {
+      candidate = realpathSync(argument);
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw new TypeError(
+          `runtime descriptor executableArgs path is unavailable: ${error.message}`,
+        );
+      }
+      candidate = requiredWritableRealPath(argument, "executableArgs");
+    }
+    if (!isInside(candidate, workspacePath)) {
+      throw new TypeError(
+        "runtime descriptor executableArgs path is outside workspacePath",
+      );
+    }
+  }
+}
+
+function workspaceArgument(executableArgs) {
+  const index = executableArgs.indexOf("--workspace");
+  const candidate = index < 0 ? undefined : executableArgs[index + 1];
+  return typeof candidate === "string" && isAbsolute(candidate) ? candidate : undefined;
 }
 
 function validateTransportLimits(value) {

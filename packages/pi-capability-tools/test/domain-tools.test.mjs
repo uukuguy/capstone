@@ -104,6 +104,22 @@ test("runtime v1 rejects a domain guide collision with a core tool", () => {
   );
 });
 
+test("runtime v1 reserves the agent namespace from every domain tool name", () => {
+  assert.throws(
+    () =>
+      validateRuntimeDescriptor({
+        ...runtimeV1,
+        domains: [
+          {
+            ...runtimeV1.domains[0],
+            guideToolName: "agent_domain_guide_open",
+          },
+        ],
+      }),
+    /agent_.*reserved|reserved.*agent_/,
+  );
+});
+
 test("runtime v1 rejects unknown keys and any domain count except one", () => {
   for (const invalid of [
     { ...runtimeV1, unexpected: true },
@@ -217,6 +233,14 @@ test("model arguments cannot select controller-owned routing metadata", () => {
     "trajectoryCaptureStatePath", "trajectory_capture_state_path",
     "trajectoryAllowedRefsPath", "trajectory_allowed_refs_path",
     "trajectoryAcksPath", "trajectory_acks_path",
+    "binding-id", "executable-args", "protocol-version", "authority-id", "workspace-path",
+    "tool-catalog-path", "guide-tool-name", "guide-index-path", "guide-root-path",
+    "guide-index-sha256", "context-tool-name", "decision-tool-name", "active-turn-path",
+    "analysis-context-view-path", "trajectory-requests-path", "trajectory-capture-state-path",
+    "trajectory-allowed-refs-path", "trajectory-acks-path",
+    "args", "arguments", "endpoint", "endpointPath", "endpoint_path", "endpoint-path",
+    "command", "commandArgs", "command_args", "command-args",
+    "toolNamePrefix", "tool_name_prefix", "tool-name-prefix",
   ];
   for (const field of reservedSpellings) {
     assert.throws(
@@ -237,6 +261,7 @@ test("catalog collision preflight has zero tool creation or registration side ef
     [contract("inventory_guide_open", "guide.shadow")],
     [contract("agent_record_decision", "core.shadow")],
     [contract("agent_context_get", "context.shadow")],
+    [contract("agent_domain_tool", "domain.shadow")],
   ];
 
   for (const tools of collisionCatalogs) {
@@ -289,6 +314,79 @@ test("runtime realpath confinement rejects core and guide symlink escapes", asyn
   }
 });
 
+test("spawn rejects absolute executable argument paths that escape through symlinks", async () => {
+  const fixture = await runtimeV1Fixture();
+  const outsideFile = join(fixture.root, "outside-argument.json");
+  const outsideDirectory = join(fixture.root, "outside-argument-directory");
+  await writeFile(outsideFile, "{}", "utf8");
+  await mkdir(outsideDirectory);
+  const existingLink = join(fixture.workspace, "existing-argument-link");
+  const parentLink = join(fixture.workspace, "argument-parent-link");
+  await symlink(outsideFile, existingLink);
+  await symlink(outsideDirectory, parentLink);
+
+  for (const argument of [existingLink, join(parentLink, "new-output.json")]) {
+    const descriptor = {
+      ...fixture.descriptor,
+      domains: [
+        {
+          ...fixture.descriptor.domains[0],
+          executableArgs: ["request", argument],
+        },
+      ],
+    };
+    const payload = buildCapabilityRequest(descriptor, "asset.list", {}, "escape-request");
+
+    assert.throws(
+      () => runCapability(payload, descriptor),
+      /executableArgs.*outside.*workspacePath/,
+    );
+  }
+});
+
+test("spawn accepts existing and future absolute arguments confined to the workspace", async () => {
+  const fixture = await runtimeV1Fixture();
+  const transport = await transportFixture(`
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const request = JSON.parse(input);
+      process.stdout.write(JSON.stringify({
+        protocol: request.protocol,
+        protocol_version: request.protocol_version,
+        request_id: request.request_id,
+        ok: true,
+        result: {},
+      }));
+    });
+  `);
+  const existingPath = join(fixture.workspace, "existing-input.json");
+  const futurePath = join(fixture.workspace, "future-output.json");
+  await writeFile(existingPath, "{}", "utf8");
+  const descriptor = {
+    ...fixture.descriptor,
+    domains: [
+      {
+        ...fixture.descriptor.domains[0],
+        executable: transport.name,
+        executableArgs: [existingPath, futurePath],
+      },
+    ],
+  };
+  const payload = buildCapabilityRequest(descriptor, "asset.list", {}, "confined-request");
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${transport.bin}:${originalPath ?? ""}`;
+
+  try {
+    const response = await runCapability(payload, descriptor);
+    assert.equal(response.ok, true);
+    assert.equal(response.request_id, "confined-request");
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
 test("converts the legacy descriptor through an explicit compatibility path", () => {
   const converted = legacyDescriptorToRuntimeV1(inventory);
 
@@ -309,6 +407,45 @@ test("legacy conversion rejects collisions among its valid alias names", () => {
   ]) {
     assert.throws(() => legacyDescriptorToRuntimeV1(invalid), /tool name collision/);
   }
+});
+
+test("legacy catalog permits at most one decision alias", async () => {
+  const fixture = await runtimeV1Fixture();
+  await writeFile(
+    fixture.catalogPath,
+    JSON.stringify({
+      tools: [
+        contract("inventory_record_decision", "inventory_record_decision"),
+        contract("inventory_record_decision", "inventory_record_decision"),
+      ],
+    }),
+    "utf8",
+  );
+  const domain = fixture.descriptor.domains[0];
+  const legacy = {
+    ...inventory,
+    executableArgs: ["request", "--workspace", fixture.workspace],
+    toolCatalogPath: domain.toolCatalogPath,
+    guideIndexPath: domain.guideIndexPath,
+    guideRootPath: domain.guideRootPath,
+    guideIndexSha256: domain.guideIndexSha256,
+    workspacePath: domain.workspacePath,
+  };
+  let created = 0;
+  let registered = 0;
+
+  assert.throws(
+    () =>
+      createDomainToolsExtension(legacy, {
+        createTool() {
+          created += 1;
+          return { name: "unexpected" };
+        },
+      })({ registerTool: () => { registered += 1; } }),
+    /tool name collision/,
+  );
+  assert.equal(created, 0);
+  assert.equal(registered, 0);
 });
 
 test("builds a descriptor-owned capability request", () => {

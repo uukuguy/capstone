@@ -334,6 +334,10 @@ class CompositeToolCatalog:
         core: CoreToolCatalog,
         domains: tuple[BoundDomainCatalog, ...],
     ) -> "CompositeToolCatalog":
+        if core.namespace != "agent_" or any(
+            not tool.name.startswith("agent_") for tool in core.tools
+        ):
+            raise ToolCatalogError("generic core tools must use the agent_ namespace")
         binding_ids = [domain.binding_id for domain in domains]
         if len(set(binding_ids)) != len(binding_ids):
             raise ToolCatalogError("binding IDs must be unique")
