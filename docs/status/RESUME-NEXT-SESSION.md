@@ -1,25 +1,24 @@
-# Live Session Checkpoint
+# Workstream C Completion Checkpoint
 
-> Updated: 2026-08-30 00:22 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-08-30 00:29 CST. **Climb target reached; this is a durable completion checkpoint, not an approved final handoff.**
 
 ## TL;DR
 
-- Workstream C 实现已完成；修复后 C-H004 已确认，累计 focused coverage 为 80/100。
-- inventory authority、Domain Pack、unchanged generic Pi、current-run lineage 与六 wheel clean-install 均已实现并通过 focused gates。
-- 首次 C-H005 的唯一失败是已修复的 authority pytest 路径错误；下一动作是在新策略 revision 上完整重跑 C-H005。
+- Workstream C 已完成，最终 C-H005 run `20260829T161349Z-c-h005` 得分 100/100，9/9 gate 通过且无 blocker。
+- 第二个只读业务域已证明可仅通过公共 Kernel SPI 与 unchanged generic Pi transport 实例化。
+- 当前进入 climb 硬暂停；Workstream D 写治理或 Workstream E 多域组合均需新的明确范围。
 
 ## Where things stand
 
-- climb 已确认 C-H001 至 C-H004；旧 C-H004 falsified 记录保留用于审计，新 cycle 5 真实执行 6 tests 并得分 20。
+- release source revision 为 `d4f3c50a3826444dfb2a957742513abaa13540a8`，closure digest 为 `90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406`。
 - reference service 11 tests、Domain Pack 14 tests 通过；六个 Python wheel 与两个 npm tarball 已在仓库外 clean-install smoke 通过。
 - protected-path checker 确认 capability-agent-kernel、pi-capability-tools 与 trajectory-workbench 与 baseline 一致且无工作树变化。
-- 当前 main 比 origin/main 领先 15 个提交；全程在 main 工作，未创建临时 worktree 或 feature branch。
+- 原产品 closure 同时通过 doctor、688 agent tests、165 simulator tests、43 Pi tests、17 E2E tests 与 24/24 validation。
+- 全程在 main 工作，未创建临时 worktree 或 feature branch；本地提交尚未 push。
 
 ## In-flight work
 
-1. 提交 C-H004 confirmed climb state。
-2. 在新策略的同一干净 revision 上完整重跑 `tools/climb/cycle.sh C-H005`。
-3. 达到 100/100 后更新结构状态并执行最终 verification/handoff 检查。
+无实现中的工作。若继续升级，先为 Workstream D 或 E 建立新的批准设计、计划与 climb session；不得把 inventory 参考域直接扩成未治理写能力或动态插件系统。
 
 ## Boundaries
 
@@ -31,5 +30,5 @@
 ## Immediate next action
 
 ```sh
-uv run --project packages/grid-agent pytest tools/climb/tests -q
+python3 tools/climb/check-target.py
 ```

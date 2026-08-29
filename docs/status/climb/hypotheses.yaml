@@ -357,6 +357,193 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
+    },
+    {
+      "hypothesis_id": "C-H005",
+      "run_id": "20260829T161349Z-c-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-30T00:20:58+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "authority_lineage": 20.0,
+        "distribution_integrity": 10.0,
+        "domain_pack_spi": 20.0,
+        "generic_pi_transport": 15.0,
+        "product_compatibility": 10.0,
+        "reference_authority": 25.0
+      },
+      "gate_evidence": {
+        "authority_lineage": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/inventory-domain-pack",
+            "pytest",
+            "packages/inventory-domain-pack/tests/test_authority.py",
+            "-q"
+          ],
+          "gate_key": "authority_lineage",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/04-authority_lineage.output.json",
+          "output_sha256": "1432d2ea55b2218fdbe03f8982d2c0d93167854ea6d59438bbb3607523639d68",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "327e8b8b0c129ec55b1015055b16be30a98cdf5a879ac4a002402c8fc9d7ca44"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "gate_key": "distribution_integrity",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/05-distribution_integrity.output.json",
+          "output_sha256": "6f6e9e1c3097b2d3dc4ef11c9b1e359e3ff15a620e727133ff62e87871bd9b82",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "968091c26d8fd114eedc0187021b6631f2e76dcedbcb0e2afd5a85549aa92ee6",
+          "stdout_sha256": "502bf8637cbf87fa676b52af3b64ccdc63f35448dbba375814b2f5df2bd45c5a"
+        },
+        "domain_pack_spi": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "make",
+            "test-inventory-domain"
+          ],
+          "gate_key": "domain_pack_spi",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/02-domain_pack_spi.output.json",
+          "output_sha256": "999220793f790517f209d2254575edd9f0e406be5cd233299e322508dfada4d2",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "95e71d876f9de5fa87dc0fcad9d2b7b11f12545c1b4934d51fdf0ca633a0bf74"
+        },
+        "generic_pi_transport": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "make",
+            "test-inventory-pi"
+          ],
+          "gate_key": "generic_pi_transport",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/03-generic_pi_transport.output.json",
+          "output_sha256": "9a658fc377b4952117151e7eab06f9cecbae0a82d578b49124b6f722c77cf8ed",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "442633ac280005944eec7fe94de43012d1ee9d53c441fa4066b143f2fe02533b"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "gate_key": "product_compatibility",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/09-product_compatibility.output.json",
+          "output_sha256": "10f1f0e9b2529a9fdb9f848bbee2eb2132193ce7b918b7654448cbd229a2372a",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "prerequisite_receipts": {
+            "doctor": {
+              "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+              "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+              "command": [
+                "make",
+                "doctor"
+              ],
+              "gate_key": "doctor",
+              "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/06-doctor.output.json",
+              "output_sha256": "c75290971e1c693132dd52eadcbaca324c91dd1dd9ca63f1117bc1b55c2b8f5c",
+              "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+              "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+              "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "4def92553b7ae277edc94b28c4c4cad80d168459f8cccb12bec1c65a585b696a"
+            },
+            "test": {
+              "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+              "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+              "command": [
+                "make",
+                "test"
+              ],
+              "gate_key": "test",
+              "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/07-test.output.json",
+              "output_sha256": "72d3114089647a274fe19cd27ad6895d00e91cebe8dd5d958a09459c1afc58dc",
+              "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+              "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+              "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "431ec8ae7eea15d6cfeab4fa67b8f1246c830a69e9f69a3c5b26f44e8259ad24"
+            },
+            "test-e2e": {
+              "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+              "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+              "command": [
+                "make",
+                "test-e2e"
+              ],
+              "gate_key": "test-e2e",
+              "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/08-test-e2e.output.json",
+              "output_sha256": "8ac78590ce26d7fd682cfd3129f3278266d62bc7d9357ac670f288cf66646805",
+              "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+              "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+              "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "199391195cdf0533b136eefa57bd0f2fde2fb90c0d6468e2ea8fe714a2157c33"
+            }
+          },
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "bbe66c4162c291b3712723f9d999a6354b355d2f8a36ddaa55bf7340579c33cf"
+        },
+        "reference_authority": {
+          "artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure.json",
+          "closure_digest": "90191ca4034eee2d01b7944073abcd3b47b7b6c274efc53a949b0b45ed6f9406",
+          "command": [
+            "make",
+            "test-inventory-service"
+          ],
+          "gate_key": "reference_authority",
+          "output_artifact_path": "runs/climb/20260829T161349Z-c-h005/release-closure/01-reference_authority.output.json",
+          "output_sha256": "f9629f7d529acb5a471e64babf2e5e006e8f4e611b4c78ba2d9c458341d69965",
+          "policy_sha256": "8da68acefc49a4ebc28de20a411fbec982fb2b72a23f97fec2f2b74df7abe9c2",
+          "release_source_revision": "d4f3c50a3826444dfb2a957742513abaa13540a8",
+          "release_source_tree_sha256": "9f1eb815828f4e598b2f916a40e2ca3a832d3b4a7a3b847ff29a6d53a4140b0e",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "ef5160c81ad075ae0e4fdfb90e670b4ed35dff456236166918377d1d2e9a77db"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
     }
   ]
 }

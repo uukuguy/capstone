@@ -6,7 +6,7 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: Workstream C read-only inventory reference domain is implemented on `main`; a fixed-policy authority test path defect found by the first C-H005 closure is repaired and C-H004/C-H005 re-execution is next.
+- Active work package: none. Workstream C read-only inventory reference domain is complete on `main` with a 100/100 deterministic release closure.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.
 - Deferred work packages: Workstreams D-E remain future work for enterprise action governance and multi-domain discovery/composition.
 
@@ -37,7 +37,7 @@
 - Verification: unit, package-boundary, protected-path, six-wheel install-mode artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
 - Release evidence: the final B-H005 run `runs/climb/20260828T111922Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b` and tree digest `9ff57149...`; all nine outputs are `closure-passed` and linked by closure digest `5049c057...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
 - Mainline integration: `main` was fast-forwarded to `448c407`, then reverified with package boundaries and installed-artifact smoke, 688 grid-agent tests, 165 simulator tests, 43 grid Pi tests, 17 E2E tests, and the 24/24 validation matrix. The temporary Workstream B worktree and feature branch were removed.
-- Workstream C evidence: C-H001 through C-H003 are confirmed. The C-H004 implementation passes its six focused red-team tests, but its first climb cycle was falsified because the fixed command resolved `tests/test_authority.py` from the repository root. The policy path is repaired; C-H004 and all nine C-H005 gates must be rerun without carrying forward the first closure's eight passing results.
+- Workstream C evidence: final run `runs/climb/20260829T161349Z-c-h005` scored 100/100 with no blockers. It reran all nine gates at release-source revision `d4f3c50a3826444dfb2a957742513abaa13540a8`, policy digest `8da68ace...`, source-tree digest `9f1eb815...`, and closure digest `90191ca4...`. The closure passed 11 reference-service tests, 14 Domain Pack tests, unchanged generic Pi transport, six authority red-team tests, six-wheel/two-tarball clean-install smoke, doctor, 688 agent tests, 165 simulator tests, 43 Pi tests, 17 E2E tests, protected-path validation, and 24/24 capability coverage. The earlier path-error closure and falsified C-H004 cycle remain preserved for audit and were not carried forward.
 
 ## Open Problems (theme-level)
 
