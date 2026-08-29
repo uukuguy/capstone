@@ -1,0 +1,30 @@
+{
+  "id": "stock.summary",
+  "tool_name": "inventory_stock_summary",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["inventory.catalog"],
+    "consumes_state": ["inventory.catalog"],
+    "produces_state": ["inventory.stock-summary"],
+    "invalidates_state": [],
+    "result_kind": "inventory.stock-summary",
+    "projector": "inventory-stock-summary-v1"
+  },
+  "purpose": "Compute deterministic stock totals and reorder candidates for an opened catalog.",
+  "applies_to": ["stock overview", "reorder candidate discovery"],
+  "not_for": ["placing purchase orders", "reserving or transferring stock"],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["context_ref"],
+    "properties": {
+      "context_ref": {"type": "string", "minLength": 1}
+    }
+  },
+  "requires": ["a context_ref returned by inventory_catalog_open"],
+  "produces": ["content-addressed stock summary", "current-run evidence"],
+  "common_next": ["asset.get", "asset.list"],
+  "recovery": {
+    "context_not_found": ["Call inventory_catalog_open in the current run."]
+  }
+}

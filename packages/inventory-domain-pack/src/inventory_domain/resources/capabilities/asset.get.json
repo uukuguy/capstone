@@ -1,0 +1,32 @@
+{
+  "id": "asset.get",
+  "tool_name": "inventory_asset_get",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["inventory.catalog"],
+    "consumes_state": ["inventory.catalog"],
+    "produces_state": ["inventory.assets"],
+    "invalidates_state": [],
+    "result_kind": "inventory.asset",
+    "projector": "inventory-asset-v1"
+  },
+  "purpose": "Read one registered inventory asset by its stable identifier.",
+  "applies_to": ["asset detail lookup"],
+  "not_for": ["inventory mutation", "guessing unknown asset identifiers"],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["context_ref", "asset_id"],
+    "properties": {
+      "context_ref": {"type": "string", "minLength": 1},
+      "asset_id": {"type": "string", "minLength": 1, "maxLength": 100}
+    }
+  },
+  "requires": ["a context_ref returned by inventory_catalog_open"],
+  "produces": ["content-addressed asset result", "current-run evidence"],
+  "common_next": ["asset.list", "stock.summary"],
+  "recovery": {
+    "asset_not_found": ["Use inventory_asset_list to discover asset identifiers."],
+    "context_not_found": ["Call inventory_catalog_open in the current run."]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "catalog.open",
+  "tool_name": "inventory_catalog_open",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": ["inventory.catalog"],
+    "invalidates_state": ["inventory.assets", "inventory.stock-summary"],
+    "result_kind": "inventory.context",
+    "projector": "inventory-context-v1"
+  },
+  "purpose": "Open one registered read-only inventory catalog for the current run.",
+  "applies_to": ["inventory discovery", "binding a catalog revision"],
+  "not_for": ["creating or mutating inventory", "unregistered catalogs"],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["catalog_id"],
+    "properties": {
+      "catalog_id": {"type": "string", "minLength": 1, "maxLength": 100}
+    }
+  },
+  "requires": [],
+  "produces": ["current-run context_ref", "registered revision_ref"],
+  "common_next": ["asset.list", "asset.get", "stock.summary"],
+  "recovery": {
+    "catalog_not_found": ["Use the registered catalog id warehouse-a."]
+  }
+}

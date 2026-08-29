@@ -1,0 +1,34 @@
+{
+  "id": "asset.list",
+  "tool_name": "inventory_asset_list",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["inventory.catalog"],
+    "consumes_state": ["inventory.catalog"],
+    "produces_state": ["inventory.assets"],
+    "invalidates_state": [],
+    "result_kind": "inventory.asset-list",
+    "projector": "inventory-asset-v1"
+  },
+  "purpose": "List bounded asset summaries from an opened registered catalog.",
+  "applies_to": ["read-only inventory search", "category and location filtering"],
+  "not_for": ["inventory mutation", "unbounded export"],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["context_ref"],
+    "properties": {
+      "context_ref": {"type": "string", "minLength": 1},
+      "category": {"type": "string", "minLength": 1, "maxLength": 100},
+      "location": {"type": "string", "minLength": 1, "maxLength": 100},
+      "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+    }
+  },
+  "requires": ["a context_ref returned by inventory_catalog_open"],
+  "produces": ["content-addressed asset-list result", "current-run evidence"],
+  "common_next": ["asset.get", "stock.summary"],
+  "recovery": {
+    "context_not_found": ["Call inventory_catalog_open in the current run."],
+    "invalid_arguments": ["Use the published filters and a limit from 1 through 100."]
+  }
+}
