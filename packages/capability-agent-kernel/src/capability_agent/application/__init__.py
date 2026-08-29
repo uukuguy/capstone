@@ -1,8 +1,74 @@
-"""Application-neutral runtime preparation."""
+"""Application composition and output contracts."""
 
 from capability_agent.application.composition import (
     PreparedDomainRuntime,
     prepare_domain_runtime,
 )
+from capability_agent.application.errors import (
+    AnswerCommitError,
+    ApplicationConfigurationError,
+    AuthorityIntegrityError,
+    CapabilityAgentError,
+    CapabilityRoutingError,
+    CapabilityTransportError,
+    DomainProjectionError,
+    DomainProvisioningError,
+    DomainRegistrationError,
+    PolicyConflictError,
+    PresentationError,
+)
+from capability_agent.application.manifest import ApplicationManifest
+from capability_agent.application.output import (
+    ApplicationResult,
+    BindingIdentity,
+    BoundDomainOutput,
+    CoreRunResult,
+    FrameworkOutputComposer,
+    JsonOutputRenderer,
+    OutputRenderer,
+    ValidatedDomainOutput,
+)
+from capability_agent.application.profile import (
+    AcceptanceProfile,
+    ApplicationPolicy,
+    ApplicationProfile,
+    CredentialScope,
+    DataSharingPolicy,
+    DomainBinding,
+    ReportShell,
+)
+from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
 
-__all__ = ["PreparedDomainRuntime", "prepare_domain_runtime"]
+__all__ = [
+    "AcceptanceProfile",
+    "AnswerCommitError",
+    "ApplicationConfigurationError",
+    "ApplicationManifest",
+    "ApplicationPolicy",
+    "ApplicationProfile",
+    "ApplicationResult",
+    "AuthorityIntegrityError",
+    "BindingIdentity",
+    "BoundDomainOutput",
+    "CapabilityAgentError",
+    "CapabilityRoutingError",
+    "CapabilityTransportError",
+    "CoreRunResult",
+    "CredentialScope",
+    "DataSharingPolicy",
+    "DomainBinding",
+    "DomainProfileFactory",
+    "DomainProjectionError",
+    "DomainProvisioningError",
+    "DomainRegistrationError",
+    "DomainRegistry",
+    "FrameworkOutputComposer",
+    "JsonOutputRenderer",
+    "OutputRenderer",
+    "PolicyConflictError",
+    "PreparedDomainRuntime",
+    "PresentationError",
+    "ReportShell",
+    "ValidatedDomainOutput",
+    "prepare_domain_runtime",
+]
