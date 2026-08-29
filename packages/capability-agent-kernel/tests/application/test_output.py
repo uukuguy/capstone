@@ -132,6 +132,65 @@ def test_output_models_are_strict_frozen_and_reject_extra_fields() -> None:
         result.schema = "changed"
 
 
+def test_application_result_domains_reject_replacement_and_mutation() -> None:
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": _domain()}
+    )
+
+    with pytest.raises(TypeError, match="mapping is immutable"):
+        result.domains["replacement"] = result.domains["inventory"]
+    with pytest.raises(TypeError, match="mapping is immutable"):
+        result.domains.clear()
+
+
+def test_bound_domain_payload_rejects_reserved_key_insertion() -> None:
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": _domain()}
+    )
+
+    with pytest.raises(TypeError, match="mapping is immutable"):
+        result.domains["inventory"].payload["core"] = {}
+
+
+def test_bound_domain_payload_deeply_rejects_nested_mutation() -> None:
+    domain = ValidatedDomainOutput(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload={"summary": {"items": [{"count": 1}]}},
+    )
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+    )
+    summary = result.domains["inventory"].payload["summary"]
+    items = summary["items"]
+
+    with pytest.raises(TypeError, match="mapping is immutable"):
+        summary["extra"] = True
+    with pytest.raises(TypeError):
+        items[0] = {"count": 2}
+    with pytest.raises(TypeError, match="mapping is immutable"):
+        items[0]["count"] = 2
+
+
+def test_composed_payload_is_detached_from_original_input_mutation() -> None:
+    original_payload = {"summary": {"items": [{"count": 1}]}}
+    domain = ValidatedDomainOutput(
+        schema="inventory-output/1.0",
+        status="completed",
+        payload=original_payload,
+    )
+    result = FrameworkOutputComposer().compose(
+        core=_core(), bindings=(_binding(),), domains={"inventory": domain}
+    )
+
+    original_payload["summary"]["items"][0]["count"] = 9
+    original_payload["summary"]["items"].append({"count": 2})
+
+    assert result.domains["inventory"].payload == {
+        "summary": {"items": ({"count": 1},)}
+    }
+
+
 def test_json_output_renderer_canonicalizes_the_complete_result() -> None:
     result = FrameworkOutputComposer().compose(
         core=_core(), bindings=(_binding(),), domains={"inventory": _domain()}

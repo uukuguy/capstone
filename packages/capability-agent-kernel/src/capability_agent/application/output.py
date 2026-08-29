@@ -5,15 +5,44 @@ from __future__ import annotations
 import json
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Any, Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from capability_agent.application.errors import ApplicationConfigurationError
 
 
 class _StrictFrozenModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+
+class _FrozenDict(dict[str, Any]):
+    """A JSON-compatible dictionary that rejects every in-place mutation."""
+
+    def __init__(self, values: Mapping[str, Any]) -> None:
+        dict.__init__(self, values)
+
+    def _immutable(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("mapping is immutable")
+
+    __delitem__ = _immutable
+    __setitem__ = _immutable
+    __ior__ = _immutable  # type: ignore[reportAssignmentType]
+    clear = _immutable
+    pop = _immutable
+    popitem = _immutable  # type: ignore[reportAssignmentType]
+    setdefault = _immutable  # type: ignore[reportAssignmentType]
+    update = _immutable  # type: ignore[reportAssignmentType]
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return _FrozenDict(
+            {str(key): _deep_freeze(item) for key, item in value.items()}
+        )
+    if isinstance(value, list | tuple):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
 
 
 class CoreRunResult(_StrictFrozenModel):
@@ -50,13 +79,23 @@ with warnings.catch_warnings():
         domain_version: str
         schema: str
         status: str
-        payload: dict[str, object]
+        payload: Mapping[str, object]
+
+        @model_validator(mode="after")
+        def freeze_payload(self) -> "BoundDomainOutput":
+            object.__setattr__(self, "payload", _deep_freeze(self.payload))
+            return self
 
 
     class ApplicationResult(_StrictFrozenModel):
         schema: str
         core: CoreRunResult
-        domains: dict[str, BoundDomainOutput]
+        domains: Mapping[str, BoundDomainOutput]
+
+        @model_validator(mode="after")
+        def freeze_domains(self) -> "ApplicationResult":
+            object.__setattr__(self, "domains", _deep_freeze(self.domains))
+            return self
 
 
 class OutputRenderer(Protocol):
