@@ -26,6 +26,12 @@ class CredentialLease:
     credentials: Mapping[str, str]
 
 
+@dataclass
+class MutableCredentialLease:
+    scope_id: str
+    credentials: Mapping[str, str]
+
+
 class EmptyCredentialBroker:
     def __init__(self) -> None:
         self.calls: list[tuple[str, CredentialScope]] = []
@@ -59,6 +65,23 @@ class FailingCredentialBroker(EmptyCredentialBroker):
     ) -> CredentialLease:
         self.calls.append((binding_id, scope))
         raise self.failure
+
+
+class CredentialMutatingProvisioner:
+    def __init__(self, delegate) -> None:
+        self.delegate = delegate
+        self.mutation_blocked = False
+
+    def prepare(self, *, binding, workspace, credentials):
+        try:
+            credentials.credentials["token"] = "provisioner-replacement"
+        except TypeError:
+            self.mutation_blocked = True
+        return self.delegate.prepare(
+            binding=binding,
+            workspace=workspace,
+            credentials=credentials,
+        )
 
 
 @dataclass(frozen=True)
@@ -139,8 +162,9 @@ def test_prepare_application_resolves_only_explicit_registration(
     assert prepared.bindings["fixture"].binding.profile is registered_profile
     assert prepared.profile.domains[0].profile is registered_profile
     prepared_binding = prepared.bindings["fixture"]
-    assert prepared_binding.runtime.executor is not prepared_binding.endpoint.executor
-    assert prepared_binding.endpoint.executor.calls == [
+    assert prepared_binding.endpoint.executor is prepared_binding.runtime.executor
+    assert registered_profile.provisioner is not None
+    assert registered_profile.provisioner.endpoint.executor.calls == [
         ("environment.describe", {})
     ]
     assert prepared.bindings["fixture"].runtime.tool_catalog_path == (
@@ -657,6 +681,164 @@ def test_prepared_runtime_executor_sanitizes_later_transport_exception(
         runtime_executor.invoke("asset.list", {})
 
     _assert_sanitized(caught.value, "credential-secret")
+
+
+@pytest.mark.parametrize("failure_kind", ["result", "exception"])
+def test_every_public_prepared_executor_uses_the_credential_boundary(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+    failure_kind: str,
+) -> None:
+    profile = _scoped_profile(complete_profile)
+    provisioner = profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    broker = StaticCredentialBroker(
+        CredentialLease(
+            scope_id="isolated",
+            credentials={"token": "credential-secret"},
+        )
+    )
+    prepared = prepare_application(
+        profile,
+        registry=_registry_for(profile),
+        workspace=tmp_path / "run",
+        credentials=broker,
+    )
+    prepared_binding = prepared.bindings["fixture"]
+    assert prepared_binding.endpoint.executor is prepared_binding.runtime.executor
+    if failure_kind == "result":
+        provisioner.endpoint.executor.environment = {
+            "payload": "credential-secret"
+        }
+    else:
+        def fail(
+            capability: str, arguments: dict[str, object]
+        ) -> dict[str, object]:
+            raise RuntimeError("credential-secret")
+
+        provisioner.endpoint.executor.invoke = fail
+
+    with pytest.raises(CapabilityTransportError) as caught:
+        prepared_binding.endpoint.executor.invoke("asset.list", {})
+
+    _assert_sanitized(caught.value, "credential-secret")
+
+
+def test_broker_credential_mutation_cannot_redefine_runtime_screening(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+) -> None:
+    profile = _scoped_profile(complete_profile)
+    provisioner = profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    original_credentials = {"token": "original-secret"}
+    lease = MutableCredentialLease(
+        scope_id="isolated",
+        credentials=original_credentials,
+    )
+    prepared = prepare_application(
+        profile,
+        registry=_registry_for(profile),
+        workspace=tmp_path / "run",
+        credentials=StaticCredentialBroker(lease),
+    )
+    original_credentials["token"] = "mutated-secret"
+    original_credentials.clear()
+    lease.credentials = {"token": "replacement-secret"}
+    runtime_executor = prepared.bindings["fixture"].runtime.executor
+    provisioner.endpoint.executor.environment = {
+        "payload": "original-secret"
+    }
+
+    with pytest.raises(CapabilityTransportError):
+        runtime_executor.invoke("asset.list", {})
+
+    provisioner.endpoint.executor.environment = {
+        "payload": "replacement-secret"
+    }
+    assert runtime_executor.invoke("asset.list", {}) == {
+        "payload": "replacement-secret"
+    }
+
+
+def test_provisioner_receives_an_immutable_private_credential_snapshot(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+) -> None:
+    profile = _scoped_profile(complete_profile)
+    binding = profile.domains[0]
+    delegate = binding.profile.provisioner
+    assert delegate is not None
+    mutating_provisioner = CredentialMutatingProvisioner(delegate)
+    domain_profile = replace(
+        binding.profile,
+        provisioner=mutating_provisioner,
+    )
+    profile = replace(
+        profile,
+        domains=(replace(binding, profile=domain_profile),),
+    )
+    prepared = prepare_application(
+        profile,
+        registry=_registry_for(profile),
+        workspace=tmp_path / "run",
+        credentials=StaticCredentialBroker(
+            MutableCredentialLease(
+                scope_id="isolated",
+                credentials={"token": "credential-secret"},
+            )
+        ),
+    )
+    issued_snapshot = delegate.calls[0][2]
+
+    assert mutating_provisioner.mutation_blocked is True
+    with pytest.raises(TypeError):
+        issued_snapshot.credentials["token"] = "external-replacement"
+    assert "credential-secret" not in repr(issued_snapshot)
+    assert "credential-secret" not in str(issued_snapshot)
+    assert prepared.bindings["fixture"].runtime.executor is (
+        prepared.bindings["fixture"].endpoint.executor
+    )
+
+
+def test_public_endpoint_metadata_is_detached_deeply_read_only_and_safe(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+) -> None:
+    provisioner = complete_profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    raw_metadata = {
+        "transport": "fixture",
+        "limits": {"timeout": 10},
+        "labels": ["initial"],
+    }
+    provisioner.endpoint.metadata = raw_metadata
+    prepared = prepare_application(
+        complete_profile,
+        registry=_registry_for(complete_profile),
+        workspace=tmp_path / "run",
+        credentials=EmptyCredentialBroker(),
+    )
+    public_endpoint = prepared.bindings["fixture"].endpoint
+    raw_metadata["transport"] = "mutated"
+    raw_metadata["limits"]["timeout"] = 999
+    raw_metadata["labels"].append("mutated")
+    raw_metadata["api_key"] = "late-secret"
+
+    assert public_endpoint.metadata == {
+        "labels": ("initial",),
+        "limits": {"timeout": 10},
+        "transport": "fixture",
+    }
+    with pytest.raises(TypeError):
+        public_endpoint.metadata["transport"] = "external"
+    with pytest.raises(TypeError):
+        public_endpoint.metadata["limits"]["timeout"] = 20
+    assert "late-secret" not in repr(public_endpoint)
+    assert "late-secret" not in str(public_endpoint)
+
+    public_endpoint.close()
+    assert provisioner.endpoint.close_calls == 1
 
 
 @pytest.mark.parametrize("source", ["application", "domain", "between"])

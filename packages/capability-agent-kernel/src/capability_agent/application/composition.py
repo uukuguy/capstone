@@ -51,6 +51,19 @@ class CredentialBroker(Protocol):
     ) -> CredentialLease: ...
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class _CredentialSnapshot:
+    scope_id: str
+    credentials: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "credentials",
+            MappingProxyType(dict(self.credentials)),
+        )
+
+
 class _CredentialScreeningExecutor:
     __slots__ = ("_executor", "_lease")
 
@@ -85,6 +98,31 @@ class _CredentialScreeningExecutor:
                 "credential-bearing capability result rejected"
             )
         return result
+
+
+class _PreparedEndpointView:
+    __slots__ = ("_close", "_executor", "_metadata")
+
+    def __init__(
+        self,
+        endpoint: PreparedDomainEndpoint,
+        executor: CapabilityExecutor,
+        metadata: Mapping[str, object],
+    ) -> None:
+        self._close = endpoint.close
+        self._executor = executor
+        self._metadata = metadata
+
+    @property
+    def executor(self) -> CapabilityExecutor:
+        return self._executor
+
+    @property
+    def metadata(self) -> Mapping[str, object]:
+        return self._metadata
+
+    def close(self) -> None:
+        self._close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,8 +199,9 @@ def prepare_application(
             binding_workspace = binding_workspaces[binding.binding_id]
             endpoint = _prepare_endpoint(binding, binding_workspace, lease)
             endpoints.append(endpoint)
+            endpoint_metadata = _snapshot_endpoint_metadata(endpoint.metadata)
             _reject_credential_leak(
-                endpoint.metadata,
+                endpoint_metadata,
                 lease,
                 location="endpoint metadata",
             )
@@ -181,7 +220,11 @@ def prepare_application(
             )
             prepared[binding.binding_id] = PreparedBinding(
                 binding=binding,
-                endpoint=endpoint,
+                endpoint=_PreparedEndpointView(
+                    endpoint,
+                    runtime.executor,
+                    endpoint_metadata,
+                ),
                 runtime=runtime,
             )
     except BaseException:
@@ -361,7 +404,7 @@ def _policy_directives(fragment: str) -> tuple[set[str], set[str]]:
 
 def _issue_credential_lease(
     broker: CredentialBroker, binding: DomainBinding
-) -> CredentialLease:
+) -> _CredentialSnapshot:
     lease_failed = False
     try:
         lease = broker.issue(
@@ -374,21 +417,31 @@ def _issue_credential_lease(
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} credential lease failed"
         )
-    if lease.scope_id != binding.credential_scope.scope_id:
+    snapshot_failed = False
+    try:
+        scope_id = lease.scope_id
+        credential_values = dict(lease.credentials)
+    except Exception:
+        snapshot_failed = True
+    if snapshot_failed:
+        raise DomainProvisioningError(
+            f"binding {binding.binding_id!r} credential lease failed"
+        )
+    if scope_id != binding.credential_scope.scope_id:
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} credential scope does not match"
         )
     expected = set(binding.credential_scope.credential_names)
-    actual = set(lease.credentials)
+    actual = set(credential_values)
     if actual != expected:
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} credential names do not match"
         )
-    if any(not isinstance(value, str) for value in lease.credentials.values()):
+    if any(not isinstance(value, str) for value in credential_values.values()):
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} credentials must be text"
         )
-    return lease
+    return _CredentialSnapshot(scope_id, credential_values)
 
 
 def _prepare_endpoint(
@@ -420,6 +473,48 @@ def _close_prepared_endpoints(
             endpoint.close()
         except BaseException:
             continue
+
+
+def _snapshot_endpoint_metadata(
+    metadata: Mapping[str, object],
+) -> Mapping[str, object]:
+    snapshot = _freeze_metadata_value(metadata, active=set())
+    if not isinstance(snapshot, Mapping):
+        raise DomainProvisioningError("endpoint metadata is not a mapping")
+    return snapshot
+
+
+def _freeze_metadata_value(value: object, *, active: set[int]) -> object:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Mapping):
+        identity = id(value)
+        if identity in active:
+            raise DomainProvisioningError("endpoint metadata contains a cycle")
+        active.add(identity)
+        try:
+            frozen: dict[str, object] = {}
+            for key, nested in value.items():
+                if not isinstance(key, str):
+                    raise DomainProvisioningError(
+                        "endpoint metadata keys must be text"
+                    )
+                frozen[key] = _freeze_metadata_value(nested, active=active)
+            return MappingProxyType(frozen)
+        finally:
+            active.remove(identity)
+    if isinstance(value, (list, tuple)):
+        identity = id(value)
+        if identity in active:
+            raise DomainProvisioningError("endpoint metadata contains a cycle")
+        active.add(identity)
+        try:
+            return tuple(
+                _freeze_metadata_value(item, active=active) for item in value
+            )
+        finally:
+            active.remove(identity)
+    raise DomainProvisioningError("endpoint metadata value is not safely detachable")
 
 
 def _reject_credential_leak(
