@@ -326,6 +326,115 @@ git commit -m "feat: define complete application contracts"
 
 ---
 
+### Task 1A: Separate the active C.1 protected-path policy from historical Workstream C evidence
+
+**Files:**
+- Create: `configs/runtime/application-instantiation-protected-paths.json`
+- Modify: `tools/check_protected_paths.py`
+- Modify: `tools/tests/test_check_protected_paths.py`
+- Modify: `Makefile`
+- Modify: `docs/RUNBOOK.md`
+
+**Interfaces:**
+- Preserves unchanged: `docs/status/climb/config.yaml` and all Workstream C
+  closure evidence.
+- Produces: the active repository protection policy used by
+  `make check-protected-paths` and `make validate` during C.1.
+- Allows planned changes to Kernel, generic Pi transport, workbench,
+  `grid-agent`, and the pandapower Domain Pack.
+
+- [ ] **Step 1: Write failing policy-selection and invariant tests**
+
+Require the checker default and the Make target to select
+`configs/runtime/application-instantiation-protected-paths.json`. Load that
+file and assert its protected path set is exactly:
+
+```python
+{
+    "configs/capabilities/pandapower-3.4.0-static-analysis.json",
+    "packages/grid-simulator",
+    "packages/inventory-domain-pack",
+    "packages/inventory-reference-service",
+    "validation/questions/task.md.txt",
+    "validation/questions/test.md.txt",
+}
+```
+
+Assert Kernel, `pi-capability-tools`, `trajectory-workbench`, `grid-agent`, and
+`pandapower-domain-pack` are not protected by this C.1 policy because later
+approved tasks modify them. Existing tests must continue to prove an explicit
+custom configuration is honored.
+
+- [ ] **Step 2: Run the focused tests and verify RED**
+
+```sh
+uv run --project packages/grid-agent pytest \
+  tools/tests/test_check_protected_paths.py -q
+```
+
+Expected: the new default/configuration assertions fail because the checker
+still defaults to the historical Workstream C climb policy and the C.1 policy
+file does not exist.
+
+- [ ] **Step 3: Add the C.1 policy with committed tree identities**
+
+For each protected path, obtain its committed Git object identity with:
+
+```sh
+git rev-parse "HEAD:<protected-path>"
+```
+
+Write those exact 40-character identities under matching `protected_paths`
+and `protected_path_digests` keys. Do not derive identities from working-tree
+content, and do not edit `docs/status/climb/config.yaml`.
+
+- [ ] **Step 4: Select the active policy explicitly**
+
+Change the checker's default path and help text to the new runtime config.
+Make the Make target explicit and non-overridable:
+
+```make
+check-protected-paths:
+	python3 tools/check_protected_paths.py \
+		--config configs/runtime/application-instantiation-protected-paths.json
+```
+
+This operational policy protects immutable C.1 inputs and truth boundaries;
+the historical climb configuration continues to attest Workstream C at its
+recorded source revision.
+
+- [ ] **Step 5: Document the lifecycle separation**
+
+Update the runbook to distinguish the active C.1 repository gate from the
+unchanged Workstream C climb evidence. State the exact protected set and why
+the planned mutable framework/application paths are excluded.
+
+- [ ] **Step 6: Run focused and repository validation**
+
+```sh
+uv run --project packages/grid-agent pytest \
+  tools/tests/test_check_protected_paths.py -q
+make check-protected-paths
+make validate
+git diff --check
+git diff --exit-code -- docs/status/climb/config.yaml
+```
+
+Expected: every command passes, `protected-paths: ok` is printed, capability
+coverage remains 24/24, and the historical Workstream C configuration has no
+diff.
+
+- [ ] **Step 7: Commit the lifecycle correction**
+
+```sh
+git add configs/runtime/application-instantiation-protected-paths.json \
+  tools/check_protected_paths.py tools/tests/test_check_protected_paths.py \
+  Makefile docs/RUNBOOK.md
+git commit -m "fix: separate C1 protected path policy"
+```
+
+---
+
 ### Task 2: Build explicit registration and complete runtime preparation
 
 **Files:**
@@ -1285,11 +1394,13 @@ git commit -m "test: close first domain application instantiation"
 
 ## Dependency order
 
-Execute Tasks 0-11 in order. Tasks 1-5 define the public contracts and
-lifecycle that Task 6 extracts into a complete runner. Task 7 supplies the
-first real Domain Pack. Tasks 8-9 wire operator projections and application
-entry points. Task 10 establishes deterministic regression coverage. Task 11
-is the only provider-backed completion gate and must run last.
+Execute Tasks 0, 1, 1A, and 2-11 in order. Task 1A separates the active C.1
+protection policy from Workstream C's immutable historical evidence. Tasks 1-5
+define the public contracts and lifecycle that Task 6 extracts into a complete
+runner. Task 7 supplies the first real Domain Pack. Tasks 8-9 wire operator
+projections and application entry points. Task 10 establishes deterministic
+regression coverage. Task 11 is the only provider-backed completion gate and
+must run last.
 
 Do not expand inventory or remove the one-binding gate during C.1. C.2 may
 select and instantiate a second useful business domain only after Task 11.
