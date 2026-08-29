@@ -529,3 +529,4 @@ _Recovered pre-merge mainline entries._
 - 23:44 固化 C-H001 证据与通用 target 状态，使下一循环可恢复 [c8d6a97]
 - 23:49 实现 inventory Domain Pack 公共 SPI、资源、executor 与 projector [56865a6]
 - 23:49 C-H002 得分 20/100，确认 Domain Pack SPI 门并推进 C-H003
+- 23:50 固化 C-H002 证据与恢复点，使 generic Pi 验证可继续 [4ea031b]

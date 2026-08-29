@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-inventory-service test-inventory-domain test-simulator test-tools test-e2e validate validate-provider check-package-boundaries test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-provider check-package-boundaries test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -18,6 +18,7 @@ help:
 	@echo "  make test                  Run all offline verification"
 	@echo "  make test-inventory-service  Test the read-only inventory authority"
 	@echo "  make test-inventory-domain   Test the inventory Domain Pack SPI"
+	@echo "  make test-inventory-pi       Test unchanged generic Pi with inventory tools"
 	@echo "  make test-e2e              Run offline CLI and scripted Pi-to-gridctl scenarios"
 	@echo "  make validate              Run deterministic WP-A validation"
 	@echo "  make validate-provider PROVIDER=... [MODEL=...]  Run optional billed provider validation"
@@ -97,6 +98,9 @@ test-inventory-service:
 
 test-inventory-domain:
 	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests -q
+
+test-inventory-pi:
+	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-domain-package:
 	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
