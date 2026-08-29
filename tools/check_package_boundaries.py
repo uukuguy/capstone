@@ -18,6 +18,20 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "pandapower",
     ),
     "packages/pandapower-domain-pack/src": ("grid_agent",),
+    "packages/inventory-reference-service/src": (
+        "capability_agent",
+        "grid_agent",
+        "grid_simulator",
+        "inventory_domain",
+        "pandapower_domain",
+        "pandapower",
+    ),
+    "packages/inventory-domain-pack/src": (
+        "grid_agent",
+        "grid_simulator",
+        "pandapower_domain",
+        "pandapower",
+    ),
     "packages/grid-agent/src/grid_agent/cli": (
         "grid_agent.application.composition",
         "grid_agent.domain",
@@ -79,11 +93,27 @@ EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
 SOURCE_PATH_LITERAL_ROOTS = (
     "packages/capability-agent-kernel/src",
     "packages/pandapower-domain-pack/src",
+    "packages/inventory-reference-service/src",
+    "packages/inventory-domain-pack/src",
 )
-PACKAGE_ROOTS = (
-    Path("packages/capability-agent-kernel"),
-    Path("packages/pandapower-domain-pack"),
-)
+FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
+    Path("packages/capability-agent-kernel"): ("grid-agent",),
+    Path("packages/pandapower-domain-pack"): ("grid-agent",),
+    Path("packages/inventory-reference-service"): (
+        "capability-agent-kernel",
+        "inventory-domain-pack",
+        "grid-agent",
+        "grid-simulator",
+        "pandapower-domain-pack",
+        "pandapower",
+    ),
+    Path("packages/inventory-domain-pack"): (
+        "grid-agent",
+        "grid-simulator",
+        "pandapower-domain-pack",
+        "pandapower",
+    ),
+}
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
 
 
@@ -140,10 +170,18 @@ def check_boundaries(root: Path) -> list[str]:
         if absolute_source_root.exists():
             violations.extend(check_source_path_literals(root, absolute_source_root))
 
-    for package_root in PACKAGE_ROOTS:
+    for package_root, forbidden_dependencies in (
+        FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT.items()
+    ):
         absolute_package_root = root / package_root
         if absolute_package_root.exists():
-            violations.extend(check_pyproject(root, absolute_package_root))
+            violations.extend(
+                check_pyproject(
+                    root,
+                    absolute_package_root,
+                    forbidden_dependencies,
+                )
+            )
 
     return violations
 
@@ -202,32 +240,40 @@ def source_path_literals(tree: ast.AST) -> Iterable[str]:
                 yield match.group(0)
 
 
-def check_pyproject(root: Path, package_root: Path) -> list[str]:
+def check_pyproject(
+    root: Path,
+    package_root: Path,
+    forbidden_dependencies: tuple[str, ...],
+) -> list[str]:
     pyproject = package_root / "pyproject.toml"
     if not pyproject.exists():
         return []
     document = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     relative_path = pyproject.relative_to(root).as_posix()
     violations: list[str] = []
-    if contains_grid_agent_dependency(document.get("project", {})):
-        violations.append(f"{relative_path} depends on grid-agent")
+    dependencies = dependency_names(document.get("project", {}))
+    for forbidden_dependency in forbidden_dependencies:
+        if forbidden_dependency in dependencies:
+            violations.append(
+                f"{relative_path} depends on {forbidden_dependency}"
+            )
     for source_path in source_literals_in_value(document):
         violations.append(f"{relative_path} contains source path {source_path}")
     return violations
 
 
-def contains_grid_agent_dependency(project: object) -> bool:
+def dependency_names(project: object) -> set[str]:
     if not isinstance(project, dict):
-        return False
+        return set()
     dependencies = project.get("dependencies", ())
     optional_dependencies = project.get("optional-dependencies", {})
-    return any(
-        canonical_dependency_name(dependency_name(dependency)) == "grid-agent"
+    return {
+        canonical_dependency_name(dependency_name(dependency))
         for dependency in dependency_strings(dependencies)
-    ) or any(
-        canonical_dependency_name(dependency_name(dependency)) == "grid-agent"
+    } | {
+        canonical_dependency_name(dependency_name(dependency))
         for dependency in dependency_strings(optional_dependencies)
-    )
+    }
 
 
 def dependency_strings(value: object) -> Iterable[str]:

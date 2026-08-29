@@ -229,6 +229,131 @@ def test_clean_future_roots_pass(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_inventory_reference_service_rejects_framework_and_domain_imports(
+    tmp_path: Path,
+) -> None:
+    source_root = (
+        tmp_path
+        / "packages/inventory-reference-service/src/inventory_reference"
+    )
+    source_root.mkdir(parents=True)
+    (source_root / "bad.py").write_text(
+        "\n".join(
+            [
+                "import capability_agent",
+                "import grid_agent",
+                "import grid_simulator",
+                "import inventory_domain",
+                "import pandapower",
+                "import pandapower_domain",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports capability_agent",
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports grid_agent",
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports grid_simulator",
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports inventory_domain",
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports pandapower",
+        "packages/inventory-reference-service/src/inventory_reference/bad.py imports pandapower_domain",
+    ]
+
+
+def test_inventory_domain_pack_rejects_grid_and_pandapower_imports(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "packages/inventory-domain-pack/src/inventory_domain"
+    source_root.mkdir(parents=True)
+    (source_root / "bad.py").write_text(
+        "\n".join(
+            [
+                "import grid_agent",
+                "import grid_simulator",
+                "import pandapower",
+                "import pandapower_domain",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/inventory-domain-pack/src/inventory_domain/bad.py imports grid_agent",
+        "packages/inventory-domain-pack/src/inventory_domain/bad.py imports grid_simulator",
+        "packages/inventory-domain-pack/src/inventory_domain/bad.py imports pandapower",
+        "packages/inventory-domain-pack/src/inventory_domain/bad.py imports pandapower_domain",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("package", "dependency"),
+    [
+        ("inventory-reference-service", "capability-agent-kernel"),
+        ("inventory-reference-service", "inventory-domain-pack"),
+        ("inventory-reference-service", "grid-agent"),
+        ("inventory-reference-service", "grid-simulator"),
+        ("inventory-reference-service", "pandapower-domain-pack"),
+        ("inventory-reference-service", "pandapower"),
+        ("inventory-domain-pack", "grid-agent"),
+        ("inventory-domain-pack", "grid-simulator"),
+        ("inventory-domain-pack", "pandapower-domain-pack"),
+        ("inventory-domain-pack", "pandapower"),
+    ],
+)
+def test_inventory_packages_reject_forbidden_dependencies(
+    tmp_path: Path,
+    package: str,
+    dependency: str,
+) -> None:
+    write_pyproject(
+        tmp_path / f"packages/{package}/pyproject.toml",
+        f'dependencies = ["{dependency}"]',
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        f"packages/{package}/pyproject.toml depends on {dependency}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "package",
+    ["inventory-reference-service", "inventory-domain-pack"],
+)
+def test_inventory_packages_reject_source_layout_literals(
+    tmp_path: Path,
+    package: str,
+) -> None:
+    package_module = package.replace("-reference-service", "_reference").replace(
+        "-domain-pack", "_domain"
+    )
+    source_root = tmp_path / f"packages/{package}/src/{package_module}"
+    source_root.mkdir(parents=True)
+    (source_root / "bad.py").write_text(
+        'SOURCE = "packages/capability-agent-kernel/src"\n',
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        f"packages/{package}/src/{package_module}/bad.py contains source path "
+        "packages/capability-agent-kernel/src"
+    ]
+
+
 def test_absent_future_roots_pass(tmp_path: Path) -> None:
     result = run_checker(tmp_path)
 

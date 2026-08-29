@@ -18,10 +18,13 @@ mkdir -p "$artifact_dir" "$run_dir" "$grid_pack_dir"
 cd "$repo_root"
 
 python3 tools/check_package_boundaries.py
+python3 tools/check_protected_paths.py
 
 uv build --project packages/capability-agent-kernel --out-dir "$artifact_dir"
 uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
+uv build --project packages/inventory-reference-service --out-dir "$artifact_dir"
+uv build --project packages/inventory-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/grid-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
 cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
@@ -46,11 +49,13 @@ python_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl
   "$artifact_dir"/grid_simulator-*.whl
   "$artifact_dir"/pandapower_domain_pack-*.whl
+  "$artifact_dir"/inventory_reference_service-*.whl
+  "$artifact_dir"/inventory_domain_pack-*.whl
   "$artifact_dir"/grid_agent-*.whl
 )
 
-if [ "${#python_wheels[@]}" -ne 4 ]; then
-  echo "expected four Python wheels in $artifact_dir" >&2
+if [ "${#python_wheels[@]}" -ne 6 ]; then
+  echo "expected six Python wheels in $artifact_dir" >&2
   exit 1
 fi
 for wheel in "${python_wheels[@]}"; do
@@ -67,7 +72,7 @@ smoke_file="$run_dir/installed_smoke.py"
 cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"
 (
   cd "$run_dir"
-  "$venv_dir/bin/python" "$smoke_file"
+  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/python" "$smoke_file"
 )
 
 inspect_npm_tarball() {

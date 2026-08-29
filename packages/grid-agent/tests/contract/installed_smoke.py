@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from dataclasses import replace
 from pathlib import Path
 
 from capability_agent import DomainManifest, prepare_domain_runtime
 from pandapower_domain import build_pandapower_profile
+from inventory_domain import build_inventory_profile
 
 
 class FakeExecutor:
@@ -73,6 +75,50 @@ def main() -> None:
         assert any(tool["name"] == "grid_environment_describe" for tool in catalog["tools"])
         assert guide_index["protocol"] == "grid-guide-index"
         assert "overview" in guide_index["resources"]
+
+    inventory_profile = build_inventory_profile()
+    inventory_profile.manifest.assert_resources_present()
+    assert inventory_profile.manifest.protocol == "inventory-capability"
+    inventoryctl = shutil.which("inventoryctl")
+    assert inventoryctl is not None
+
+    with tempfile.TemporaryDirectory(prefix="inventory-installed-smoke-") as scratch:
+        workspace = Path(scratch) / "run"
+        workspace.mkdir()
+        prepared = prepare_domain_runtime(
+            inventory_profile,
+            executable=Path(inventoryctl),
+            workspace=workspace,
+            tool_catalog_path=workspace / "tool-catalog.json",
+            guide_index_path=workspace / "guide-index.json",
+        )
+        tool_names = [
+            tool["name"]
+            for tool in json.loads(
+                prepared.tool_catalog_path.read_text(encoding="utf-8")
+            )["tools"]
+        ]
+        assert tool_names == [
+            "inventory_asset_get",
+            "inventory_asset_list",
+            "inventory_catalog_open",
+            "inventory_record_decision",
+            "inventory_stock_summary",
+        ]
+
+        executor = inventory_profile.executor_factory(
+            Path(inventoryctl), workspace, 60.0
+        )
+        opened = executor.invoke("catalog.open", {"catalog_id": "warehouse-a"})
+        result = executor.invoke(
+            "asset.list", {"context_ref": opened["context_ref"], "limit": 2}
+        )
+        admitted = prepared.authority.admit(
+            "asset.list", result, tuple(result["evidence_refs"])
+        )
+        assert len(admitted.results) == 1
+        assert len(admitted.evidence) == len(set(result["evidence_refs"]))
+        assert admitted.evidence
 
     print("installed-smoke: ok")
 
