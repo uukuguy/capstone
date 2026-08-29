@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-provider check-package-boundaries check-protected-paths test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -23,6 +23,7 @@ help:
 	@echo "  make test-e2e              Run offline CLI and scripted Pi-to-gridctl scenarios"
 	@echo "  make validate              Run deterministic WP-A validation"
 	@echo "  make validate-provider PROVIDER=... [MODEL=...]  Run optional billed provider validation"
+	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
 
 setup: setup-agent setup-simulator setup-tools setup-workbench build-workbench
@@ -130,6 +131,8 @@ validate: check-runtime-risk check-protected-paths
 
 check-package-boundaries:
 	python3 tools/check_package_boundaries.py
+
+check-application-boundaries: check-package-boundaries
 
 check-protected-paths:
 	python3 tools/check_protected_paths.py

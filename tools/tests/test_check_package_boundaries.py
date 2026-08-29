@@ -29,6 +29,27 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
     assert result.stdout == ""
 
 
+def test_application_rejects_grid_owned_semantic_literals(tmp_path: Path) -> None:
+    application_src = (
+        tmp_path
+        / "packages/capability-agent-kernel/src/capability_agent/application"
+    )
+    application_src.mkdir(parents=True)
+    (application_src / "bad.py").write_text(
+        'GRID_TOOL = "grid_analysis_powerflow_ac"\n',
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/capability-agent-kernel/src/capability_agent/application/bad.py "
+        "contains grid-owned semantic token grid_",
+    ]
+    assert result.stdout == ""
+
+
 @pytest.mark.parametrize(
     "source",
     [

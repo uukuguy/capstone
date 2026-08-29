@@ -96,6 +96,9 @@ SOURCE_PATH_LITERAL_ROOTS = (
     "packages/inventory-reference-service/src",
     "packages/inventory-domain-pack/src",
 )
+GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
+    "packages/capability-agent-kernel/src/capability_agent/application",
+)
 FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
     Path("packages/capability-agent-kernel"): ("grid-agent",),
     Path("packages/pandapower-domain-pack"): ("grid-agent",),
@@ -115,6 +118,16 @@ FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
     ),
 }
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
+FORBIDDEN_GENERIC_PATTERNS = {
+    "gridctl": re.compile(r"(?<![a-z0-9_])gridctl(?![a-z0-9_])"),
+    "grid_": re.compile(r"\bgrid_[a-z0-9_]*\b"),
+    "pandapower": re.compile(r"(?<![a-z0-9_])pandapower(?:_domain)?(?![a-z0-9_])"),
+    "power-flow": re.compile(r"\bpower[-_ ]?flow\b"),
+    "voltage": re.compile(r"\bvoltage\b"),
+    "bus": re.compile(r"\bbus(?:es)?\b"),
+    "branch": re.compile(r"\bbranch(?:es)?\b"),
+    "n-1": re.compile(r"\bn[-_ ]?1\b"),
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,6 +183,13 @@ def check_boundaries(root: Path) -> list[str]:
         if absolute_source_root.exists():
             violations.extend(check_source_path_literals(root, absolute_source_root))
 
+    for source_root in GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS:
+        absolute_source_root = root / source_root
+        if absolute_source_root.exists():
+            violations.extend(
+                check_generic_semantic_literals(root, absolute_source_root)
+            )
+
     for package_root, forbidden_dependencies in (
         FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT.items()
     ):
@@ -217,6 +237,19 @@ def check_source_path_literals(root: Path, source_root: Path) -> list[str]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for source_path in source_path_literals(tree):
             violations.append(f"{relative_path} contains source path {source_path}")
+    return violations
+
+
+def check_generic_semantic_literals(root: Path, source_root: Path) -> list[str]:
+    violations: list[str] = []
+    for path in sorted(source_root.rglob("*.py")):
+        text = path.read_text(encoding="utf-8").lower()
+        for token, pattern in FORBIDDEN_GENERIC_PATTERNS.items():
+            if pattern.search(text):
+                relative = path.relative_to(root).as_posix()
+                violations.append(
+                    f"{relative} contains grid-owned semantic token {token}"
+                )
     return violations
 
 
