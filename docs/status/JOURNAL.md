@@ -535,3 +535,5 @@ _Recovered pre-merge mainline entries._
 - 23:52 固化 C-H003 证据，使 authority lineage 红队验证可恢复 [264dc55]
 - 23:54 实现 inventory no-follow authority admission，阻断跨 run 与篡改引用 [a6515e0]
 - 23:54 C-H004 得分 20/100，确认 authority lineage 门并推进 C-H005 closure
+- 23:55 固化 C-H004 红队证据，使分发与全产品 closure 可恢复 [3c89680]
+- 00:08 将 inventory 六 wheel 安装与 protected-path 校验纳入发行边界 [571bbf2]

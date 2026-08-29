@@ -14,11 +14,11 @@ make setup
 make doctor
 ```
 
-`make setup` 分别同步 `grid-agent`、`grid-simulator`、`capability-agent-kernel` 与 `pandapower-domain-pack` 的本地 path 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。
+`make setup` 分别同步 grid 产品的 `grid-agent`、`grid-simulator`、`capability-agent-kernel` 与 `pandapower-domain-pack` 本地 path 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。
 
 ## 包模式与安装验证
 
-本仓库现在按四个 Python 发行包和两个 Pi npm 包组装：
+本仓库现在包含六个 Python 发行包和两个 Pi npm 包；前四个组成 grid 产品，后两个是跨业务实例化证明：
 
 | 发行包 | 资源所有权 |
 | --- | --- |
@@ -26,16 +26,33 @@ make doctor
 | `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和证据 |
 | `pandapower-domain-pack` | pandapower 静态分析 Profile、能力契约、系统策略、指南、资源定位和兼容适配器 |
 | `grid-agent` | CLI、Provider/Pi 运行时、认证、连续分析、报告、工作台服务和 stdout 答案封装 |
+| `inventory-reference-service` | `inventoryctl`、已登记只读 catalog、`inventory-capability/1.0` 与内容寻址业务工件 |
+| `inventory-domain-pack` | 只依赖公共 Kernel SPI 与 reference service 的 inventory Profile、策略、指南、执行器、投影和 authority |
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
 
-源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建四个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
+源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建六个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
 
 ```sh
 make test-packages
 ```
 
-该门禁也会运行 package boundary 检查并检查 npm tarball 成员，拒绝测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部 CLI、Pi 工具名、`grid-capability/1.0`、stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界。
+该门禁也会运行 package boundary、protected-path digest 和 npm tarball 成员检查，拒绝反向业务依赖、源码路径耦合、测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部 CLI、Pi 工具名、`grid-capability/1.0`、stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界。
+
+## Inventory 参考域验证
+
+Workstream C 提供一个只读、非 grid 的第二领域，用于验证框架实例化能力，不是当前 `grid-agent` CLI 的可切换产品模式。执行完整参考域门禁：
+
+```sh
+make test-inventory
+make test-packages
+```
+
+`inventory-reference-service` 发布 `inventoryctl`，仅接受 `inventory-capability/1.0` 的 `catalog.open`、`asset.list`、`asset.get` 与 `stock.summary` 只读能力。`inventory-domain-pack` 通过公共 `DomainRuntimeProfile` 注入 contract source、executor、projector registry 和 current-run authority。通用 `@capability-agent/pi-tools` 从 runtime descriptor 生成并执行 `inventory_*` 工具；模型仍不会获得 shell、任意 Python、通用文件操作或原始业务对象。
+
+inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/context/result/evidence:sha256:*` 内容引用持久化。authority 使用 no-follow、同绑定校验拒绝跨 run、篡改、符号链接、引用类型错配与未关联证据。该参考域没有创建、更新、预留、调拨或删除操作。
+
+`make validate` 会校验 Workstream C 配置中三个 protected framework path 的 Git tree digest 与工作树清洁性；它们是 `capability-agent-kernel`、`pi-capability-tools` 和 `trajectory-workbench`。这使“第二领域未通过修改框架核心而作弊”成为可执行发布条件。
 
 ## 主路径：执行自然语言分析问题
 
@@ -179,19 +196,20 @@ Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具�
 make test
 make test-e2e
 make validate
+make test-inventory
 make test-packages
 ```
 
-`make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-packages` 构建并安装干净发行工件，验证四个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
+`make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport 测试。`make test-packages` 构建并安装干净发行工件，验证六个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
 
-Workstream B 的最终本地 release closure 必须从已提交且干净的 release-source revision 运行：
+Workstream C 的最终本地 release closure 必须从已提交且干净的 release-source revision 运行：
 
 ```sh
-tools/climb/cycle.sh B-H005
+tools/climb/cycle.sh C-H005
 ```
 
-该入口不接受 gate 或 command 覆盖。它按 `docs/status/climb/config.yaml` 中受固定 allowlist 校验的顺序，现场执行 kernel、Domain Pack、通用 Pi、应用边界、发行工件、`make doctor`、`make test`、`make test-e2e` 和 focused `make validate` 共九个门。策略文件本身、精确命令、权重、前置图和 release pathspec 都进入 policy/source tree digest；每个门前后都重新检查 clean revision、tree digest 和 policy digest。只读 closure 链记录命令、rc、stdout/stderr digest 和完整输出 digest，最终 100 分不读取 carry-forward receipt。
+该入口不接受 gate 或 command 覆盖。它按 `docs/status/climb/config.yaml` 中受固定 allowlist 校验的顺序，现场执行 inventory reference authority、Domain Pack SPI、通用 Pi transport、authority lineage、发行工件、`make doctor`、`make test`、`make test-e2e` 和 `make validate` 共九个门。策略文件本身、精确命令、权重、前置图、protected-path baseline 和 release pathspec 都进入 policy/source tree digest；每个门前后都重新检查 clean revision、tree digest 和 policy digest。只读 closure 链记录命令、rc、stdout/stderr digest 和完整输出 digest，最终 100 分不读取 carry-forward receipt。
 
 `tools/climb/gate-receipt.py <gate-key>` 仍可为同一 revision 生成内容寻址的机械记录。其 mode-0600 HMAC 只用于发现意外损坏；密钥和验证器对同一 OS 用户可见，因此它不是独立信任根，也不能证明同一用户无法重签。release closure 会现场重跑全部门，不以这些 HMAC receipt 代替执行。该本地链只证明本次本机命令的可复核执行，不宣称具有 CI/外部签名者的跨主体不可伪造性。
 

@@ -1,5 +1,8 @@
 # Workstream C Inventory Reference Domain Design
 
+Implementation status: implemented on `main`; deterministic completion evidence
+is owned by the Workstream C climb session under `docs/status/climb/`.
+
 **Date:** 2026-08-29
 
 **Status:** Approved program increment selected from the previously approved general-framework design

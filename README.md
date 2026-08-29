@@ -55,8 +55,10 @@ simulator boundary.
 
 ## Package Assembly
 
-The repository is assembled from four Python distributions and two Pi npm
-packages:
+The repository now contains six independently buildable Python distributions
+and two Pi npm packages. Four distributions assemble the grid product; two form
+the read-only inventory reference domain used to prove the public Domain Pack
+SPI:
 
 | Distribution | Responsibility |
 | --- | --- |
@@ -64,11 +66,13 @@ packages:
 | `grid-simulator` | `gridctl`, registered pandapower networks, deterministic calculations, result datasets, and simulator evidence |
 | `pandapower-domain-pack` | Pandapower static-analysis domain profile, policy, guides, capability contracts, resource ownership, and compatibility adapters |
 | `grid-agent` | CLI, provider/Pi runtime setup, authentication, continuous analysis, reporting, workbench service, and final JSON answer envelope |
+| `inventory-reference-service` | `inventoryctl`, a registered read-only catalog, strict `inventory-capability/1.0`, and content-addressed inventory artifacts |
+| `inventory-domain-pack` | Inventory profile, policy, guides, contracts, executor, projectors, and current-run artifact authority built only on the public kernel SPI |
 | `@capability-agent/pi-tools` | Generic descriptor-driven Pi capability request transport and request capture |
 | `@grid-static-analysis/pi-grid-tools` | Grid-compatible Pi extension wrapper that preserves existing `grid_*` tools and guide behavior |
 
 Source-mode development uses the local path dependencies pinned in the package
-manifests. Install-mode verification builds all four Python wheels plus both npm
+manifests. Install-mode verification builds all six Python wheels plus both npm
 tarballs, installs them outside the repository, and runs smoke checks without
 importing from source paths:
 
@@ -76,11 +80,17 @@ importing from source paths:
 make test-packages
 ```
 
-The external CLI, Pi tool names, `grid-capability/1.0` protocol, stdout JSON
+The inventory reference domain reuses the unchanged generic Pi transport and
+kernel composition path while protected framework paths remain byte-identical.
+This proves that a separately packaged, read-only business authority can
+instantiate the single-domain framework without copying `grid-agent` or
+modifying the kernel. The shipped `grid-agent` CLI still explicitly selects the
+pandapower profile; dynamic discovery, runtime domain selection, multi-domain
+routing, and governed write actions remain future work.
+
+The external grid CLI, Pi tool names, `grid-capability/1.0` protocol, stdout JSON
 envelope, stderr diagnostics, `runs/` evidence layout, and simulator-owned truth
-contract remain unchanged. Workstreams C-E are not implemented yet; the current
-system is the extracted pandapower static-analysis application, not a
-business-agnostic multi-domain framework.
+contract remain unchanged.
 
 ## Quick Start
 
@@ -166,6 +176,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make test-inventory
 make test-packages
 ```
 
@@ -180,6 +191,8 @@ explicit credentials, and may incur provider charges.
 | `packages/grid-simulator/` | `gridctl`, registered models, pandapower execution, results, and evidence |
 | `packages/pandapower-domain-pack/` | Pandapower domain profile, contracts, policy, guides, resources, and adapters |
 | `packages/grid-agent/` | CLI, Pi/LLM runtime, context, reports, workbench service, and answer envelope |
+| `packages/inventory-reference-service/` | Read-only registered inventory authority, protocol, artifacts, and `inventoryctl` |
+| `packages/inventory-domain-pack/` | Reference inventory Domain Pack using the public kernel SPI and generic Pi transport |
 | `packages/pi-capability-tools/` | Generic descriptor-driven Pi capability transport and request capture |
 | `packages/pi-grid-tools/` | Grid-compatible Pi tools wrapper, guides, and request capture |
 | `packages/trajectory-workbench/` | Read-only React/TypeScript trajectory investigation UI |

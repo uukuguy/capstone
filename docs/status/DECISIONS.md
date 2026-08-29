@@ -1,5 +1,14 @@
 # Architectural Decisions
 
+## 2026-08-29 — A read-only inventory authority is the cross-domain conformance proof
+
+- **Decision:** instantiate a second, independently packaged domain with `inventory-reference-service` and `inventory-domain-pack`, using only the public Kernel Domain Pack SPI and unchanged generic Pi transport.
+- **Reason:** a non-grid authority with its own protocol, resources, projectors, and current-run evidence proves reuse more strongly than another in-memory fixture while avoiding premature write-governance and multi-domain routing concerns.
+- **Boundary:** inventory capabilities are read-only and remain a conformance/reference product, not a runtime-selectable `grid-agent` mode. Dynamic discovery and multi-domain composition remain Workstream E; governed mutations remain Workstream D.
+- **Protection:** `capability-agent-kernel`, `pi-capability-tools`, and `trajectory-workbench` are digest-pinned protected paths. Package and release gates reject changes, reverse dependencies, and source-layout coupling.
+- **Specification:** `docs/superpowers/specs/2026-08-29-workstream-c-inventory-reference-domain-design.md`
+- **Plan:** `docs/superpowers/plans/2026-08-29-workstream-c-inventory-reference-domain.md`
+
 ## 2026-08-19 — Answer submission is controller-owned
 
 - **Decision:** Pi/LLM may use only project-defined grid tools and `grid_guide_open`; after tool use it returns ordinary reader-facing final text. `grid-agent` deterministically commits that text and binds the current turn's consumed and produced result/evidence lineage.

@@ -151,6 +151,8 @@ grid-agent controller
 - [`packages/capability-agent-kernel/src/capability_agent/tools/catalog.py`](../../packages/capability-agent-kernel/src/capability_agent/tools/catalog.py)：加载、校验、筛选和物化统一工具目录。
 - [`packages/capability-agent-kernel/src/capability_agent/application/composition.py`](../../packages/capability-agent-kernel/src/capability_agent/application/composition.py)：按注入 Profile 物化工具目录、指南索引、执行器和 authority。
 - [`packages/pandapower-domain-pack/src/pandapower_domain/profile.py`](../../packages/pandapower-domain-pack/src/pandapower_domain/profile.py)：声明当前 pandapower 静态分析领域 Profile 和兼容适配器。
+- [`packages/inventory-domain-pack/src/inventory_domain/profile.py`](../../packages/inventory-domain-pack/src/inventory_domain/profile.py)：使用相同公共 SPI 声明只读 inventory 参考领域 Profile。
+- [`packages/inventory-reference-service/src/inventory_reference/cli.py`](../../packages/inventory-reference-service/src/inventory_reference/cli.py)：实现独立的 `inventory-capability/1.0` 业务权威边界。
 - [`packages/pi-capability-tools/src/domain-tools.mjs`](../../packages/pi-capability-tools/src/domain-tools.mjs)：按运行时描述符构造通用 Pi capability tools。
 - [`packages/pi-grid-tools/src/domain-tools.mjs`](../../packages/pi-grid-tools/src/domain-tools.mjs)：保留当前 grid 产品的 Pi 扩展入口和工具名兼容。
 - [`packages/grid-simulator/src/grid_simulator/cli.py`](../../packages/grid-simulator/src/grid_simulator/cli.py)：校验 capability、输入、调度结果和输出契约。
@@ -181,11 +183,31 @@ CLI selects pandapower_domain.build_pandapower_profile()
 
 Pi 侧同样分成两个 npm 包：`@capability-agent/pi-tools` 提供描述符驱动的通用能力请求传输、运行时身份校验、相关性检查和模型请求捕获；`@grid-static-analysis/pi-grid-tools` 是当前 grid 产品的兼容包装，继续发布既有 `grid_*` 工具和 `grid_guide_open`。
 
+Workstream C 增加了不依赖 grid 产品的第二条实例化路径，用于验证上述边界确实是公共 SPI，而不只是 pandapower 内部重排：
+
+```text
+build_inventory_profile()
+  -> prepare_domain_runtime(profile, workspace, inventoryctl)
+     -> packaged inventory contracts + guides + policy
+     -> inventory_environment.describe
+     -> inventory_* tool catalog
+     -> InventoryArtifactAuthority scoped to current run
+  -> unchanged @capability-agent/pi-tools invokes inventory-capability/1.0
+  -> inventoryctl reads the registered read-only catalog
+  -> InventoryProjectorRegistry projects only admitted artifacts
+```
+
+`inventory-reference-service` 是独立业务 authority 包，拥有已登记 catalog、严格 request/response 协议、确定性查询和内容寻址 revision/context/result/evidence；它不依赖 Kernel、`grid-agent`、`grid-simulator` 或 pandapower。`inventory-domain-pack` 只依赖 `capability-agent-kernel` 与 reference service，并通过 `DomainRuntimeProfile` 提供契约源、executor、projector registry 和 authority。它不导入 grid 或 pandapower 实现。
+
+这条路径复用的是未修改的 `capability-agent-kernel` 与 `@capability-agent/pi-tools`。发布门禁把这两个路径及 `trajectory-workbench` 的 Git tree digest 固定为 protected baseline，并同时拒绝 dirty/untracked 变化、反向包依赖和源码布局字面量。由此已经证明：对一个新的、只读、单领域业务资源，可以通过独立 authority + Domain Pack 实例化 AI capability runtime，并获得同类的 contract、tool transport、projection 与 current-run evidence 约束。
+
+证明范围仍有明确上限。当前 `grid-agent` CLI 显式选择 `build_pandapower_profile()`；inventory 是 conformance/reference domain，不是 CLI 的动态可选模式。动态插件发现、运行时领域选择、多领域上下文/工具命名冲突处理，以及有副作用能力的审批、幂等和补偿治理，分别属于后续多域组合与企业动作治理工作。
+
 Pi 的发行边界目前固定在 0.80.6，并带有一个明确有期限的安全风险例外：[`configs/runtime/pi-security-risk-exception-v1.json`](../../configs/runtime/pi-security-risk-exception-v1.json)。该例外记录 2 个 High、2 个 Moderate 风险，包括 provider HTTP 响应处理中的信息泄露/崩溃面和依赖解析 DoS；隔离 provider secret、限制 capability 子进程资源以及只暴露 allowlisted 工具只能降低攻击面，不能修复依赖漏洞。确定性 gate 禁止 pin、lock、实际安装图或已声明风险计数相对该例外漂移，并在 2026-09-30 后 fail closed；它不会自行发现相同锁版本后来新增的 advisory，release 操作者仍须复核可信 registry/audit 信息。架构目标是完成 Pi >=0.84.3 的安全升级与兼容性复验。
 
 本地发行评分采用 execute-all closure，而不是把同用户 HMAC 当作不可伪造证明。`docs/status/climb/config.yaml` 连同精确命令、权重、前置关系和 release pathspec 进入版本化 policy/source digest；B-H005 closure 在同一干净 revision 上依次现场执行五个包/边界门、`doctor`、unit、E2E 和 focused `validate`。每个输出以只读链记录 stdout/stderr/content digest，最终 manifest 传播 revision、tree、policy 和 closure digest。ignored receipt 的 HMAC 只检测意外损坏：同一 OS 用户能读取本地密钥，所以该机制不构成跨主体信任边界，也不替代现场执行或未来 CI 签名。
 
-Workstream B 的物理包抽取已完成；Workstreams C-E 尚未实现。因此当前系统仍是 pandapower 静态分析应用，不是业务无关的多领域成品框架。模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生。
+Workstream B 的物理包抽取和 Workstream C 的只读 inventory 参考域已经实现。系统因此具备“由公共 SPI 实例化不同只读业务 authority”的落地证据，但还不是能够动态发现、选择或编排多个领域的成品平台。当前 grid 产品模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生；inventory 事实则只在独立参考域测试链中通过 `inventoryctl` 产生和接纳。
 
 ## 5. 基于注册工具的组合推理
 

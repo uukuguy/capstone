@@ -40,7 +40,7 @@ LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、
 
 ## 包组装
 
-仓库由四个 Python 发行包和两个 Pi npm 包组装：
+仓库现在包含六个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，另外两个构成只读 inventory 参考域，用于证明公共 Domain Pack SPI：
 
 | 发行包 | 职责 |
 | --- | --- |
@@ -48,16 +48,20 @@ LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、
 | `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和模拟器证据 |
 | `pandapower-domain-pack` | pandapower 静态分析领域 Profile、策略、指南、能力契约、资源所有权和兼容适配器 |
 | `grid-agent` | CLI、Provider/Pi 运行时初始化、认证、连续分析、报告、工作台服务和最终 JSON 答案封装 |
+| `inventory-reference-service` | `inventoryctl`、已登记只读目录、严格的 `inventory-capability/1.0` 和内容寻址 inventory 工件 |
+| `inventory-domain-pack` | 仅基于公共内核 SPI 的 inventory Profile、策略、指南、契约、执行器、投影器和当前运行工件权威 |
 | `@capability-agent/pi-tools` | 通用的描述符驱动 Pi 能力请求传输与请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 保留现有 `grid_*` 工具和指南行为的 grid 兼容 Pi 扩展包装 |
 
-源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建四个 Python wheel 与两个 npm tarball，在仓库外安装并执行冒烟检查，确保不会从源码路径导入：
+源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建六个 Python wheel 与两个 npm tarball，在仓库外安装并执行冒烟检查，确保不会从源码路径导入：
 
 ```sh
 make test-packages
 ```
 
-外部 CLI、Pi 工具名、`grid-capability/1.0` 协议、stdout JSON 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。Workstreams C-E 尚未实现；当前系统是已抽取包边界的 pandapower 静态分析应用，不是业务无关的多领域成品框架。
+inventory 参考域复用未修改的通用 Pi transport 和内核组合路径，同时 protected framework paths 保持字节级一致。这证明了独立打包的只读业务权威可以在不复制 `grid-agent`、不修改内核的前提下实例化单领域框架。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；动态发现、运行时领域选择、多领域路由和受治理的写操作仍属于后续工作。
+
+外部 grid CLI、Pi 工具名、`grid-capability/1.0` 协议、stdout JSON 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。
 
 ## 快速开始
 
@@ -127,6 +131,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make test-inventory
 make test-packages
 ```
 
@@ -140,6 +145,8 @@ make test-packages
 | `packages/grid-simulator/` | `gridctl`、登记模型、pandapower 执行、结果和证据 |
 | `packages/pandapower-domain-pack/` | pandapower 领域 Profile、契约、策略、指南、资源和适配器 |
 | `packages/grid-agent/` | CLI、Pi/LLM 运行时、上下文、报告、工作台服务和答案封装 |
+| `packages/inventory-reference-service/` | 只读已登记 inventory 权威、协议、工件和 `inventoryctl` |
+| `packages/inventory-domain-pack/` | 使用公共内核 SPI 与通用 Pi transport 的 inventory 参考 Domain Pack |
 | `packages/pi-capability-tools/` | 通用描述符驱动 Pi 能力传输与请求捕获 |
 | `packages/pi-grid-tools/` | grid 兼容 Pi 工具包装、指南和请求捕获 |
 | `packages/trajectory-workbench/` | 只读 React/TypeScript 轨迹调查 UI |
