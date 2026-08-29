@@ -149,6 +149,7 @@ def main() -> int:
 
     state_dir = _state_dir()
     config = _load_config(state_dir)
+    workstream_label = str(config.get("workstream_label") or config["session"])
     score_keys = _score_keys(config)
     hypotheses_path = state_dir / "hypotheses.yaml"
     document = load_json_object(hypotheses_path)
@@ -171,10 +172,14 @@ def main() -> int:
     focused_status = focused_evidence.get("status")
     if score.get("hypothesis_gate_passed") and focused_status in {"passed", "closure-passed"}:
         status = "confirmed"
-        verdict = "confirmed: owned deterministic Workstream B gate passed"
+        verdict = f"confirmed: owned deterministic {workstream_label} gate passed"
     else:
         status = "falsified"
-        verdict = str(decision.get("reason", "owned deterministic Workstream B gate failed"))
+        verdict = str(
+            decision.get(
+                "reason", f"owned deterministic {workstream_label} gate failed"
+            )
+        )
 
     now = datetime.now(timezone.utc).astimezone()
     run_id = args.run_dir.name

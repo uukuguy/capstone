@@ -1,0 +1,1025 @@
+{
+  "hypotheses": [
+    {
+      "id": "B-H001",
+      "description": "artifact and import characterization can define a safe extraction baseline without changing behavior",
+      "parent_paradigm": "package-extraction-baseline",
+      "expected_lift": "deterministic Workstream B baseline",
+      "cost_h": 1,
+      "ranking": 1.0,
+      "status": "pending",
+      "created_at": "2026-08-28T00:00:00+08:00",
+      "owned_score_keys": [
+        "kernel_independence"
+      ],
+      "focused_gate": "kernel_independence",
+      "results": []
+    },
+    {
+      "id": "B-H002",
+      "description": "the approved neutral slice can move into capability-agent-kernel with compatibility imports preserving callers",
+      "parent_paradigm": "python-kernel-extraction",
+      "expected_lift": "independent kernel package with compatibility imports",
+      "cost_h": 4,
+      "ranking": 0.95,
+      "status": "pending",
+      "created_at": "2026-08-28T00:00:00+08:00",
+      "owned_score_keys": [
+        "kernel_independence"
+      ],
+      "focused_gate": "kernel_independence",
+      "results": []
+    },
+    {
+      "id": "B-H003",
+      "description": "Pi registration and request transport can become descriptor-driven without exposing arbitrary process execution",
+      "parent_paradigm": "generic-pi-tools",
+      "expected_lift": "descriptor-driven Pi tool package",
+      "cost_h": 4,
+      "ranking": 0.9,
+      "status": "pending",
+      "created_at": "2026-08-28T00:00:00+08:00",
+      "owned_score_keys": [
+        "pi_tool_generalization"
+      ],
+      "focused_gate": "pi_tool_generalization",
+      "results": []
+    },
+    {
+      "id": "B-H004",
+      "description": "all pandapower Profile dependencies can move or invert so the domain pack has no application dependency",
+      "parent_paradigm": "pandapower-domain-pack",
+      "expected_lift": "domain ownership without grid-agent dependency",
+      "cost_h": 6,
+      "ranking": 0.85,
+      "status": "pending",
+      "created_at": "2026-08-28T00:00:00+08:00",
+      "owned_score_keys": [
+        "domain_ownership"
+      ],
+      "focused_gate": "domain_ownership",
+      "results": []
+    },
+    {
+      "id": "B-H005",
+      "description": "grid-agent can assemble the extracted artifacts and remain behavior-compatible under clean installation and all deterministic gates",
+      "parent_paradigm": "application-composition",
+      "expected_lift": "application thinness, distribution integrity, and product compatibility",
+      "cost_h": 8,
+      "ranking": 0.8,
+      "status": "pending",
+      "created_at": "2026-08-28T00:00:00+08:00",
+      "owned_score_keys": [
+        "application_thinness",
+        "distribution_integrity",
+        "product_compatibility"
+      ],
+      "focused_gate": "product_compatibility",
+      "results": []
+    }
+  ],
+  "events": [
+    {
+      "hypothesis_id": "B-H001",
+      "run_id": "20260828T024636Z-b-h001",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T10:46:36+08:00",
+      "local_score": 25.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 0.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 0.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "kernel_independence",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "missing_paths": [
+            "packages/capability-agent-kernel/pyproject.toml",
+            "packages/pandapower-domain-pack/pyproject.toml",
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        },
+        "domain_ownership": {
+          "missing_paths": [
+            "packages/pandapower-domain-pack/pyproject.toml"
+          ],
+          "status": "missing"
+        },
+        "kernel_independence": {
+          "command": [
+            "python3",
+            "-c",
+            "print('workstream b artifact characterization gate: ok')"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "workstream b artifact characterization gate: ok"
+        },
+        "pi_tool_generalization": {
+          "missing_paths": [
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        },
+        "product_compatibility": {
+          "missing_paths": [
+            "packages/capability-agent-kernel/pyproject.toml",
+            "packages/pandapower-domain-pack/pyproject.toml",
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H002",
+      "run_id": "20260828T041418Z-b-h002",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T12:14:18+08:00",
+      "local_score": 25.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 0.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 0.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "kernel_independence",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "missing_paths": [
+            "packages/pandapower-domain-pack/pyproject.toml",
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        },
+        "domain_ownership": {
+          "missing_paths": [
+            "packages/pandapower-domain-pack/pyproject.toml"
+          ],
+          "status": "missing"
+        },
+        "kernel_independence": {
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "........                                                                 [100%]\n8 passed in 0.06s"
+        },
+        "pi_tool_generalization": {
+          "missing_paths": [
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        },
+        "product_compatibility": {
+          "missing_paths": [
+            "packages/pandapower-domain-pack/pyproject.toml",
+            "packages/pi-capability-tools/package.json"
+          ],
+          "status": "missing"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H003",
+      "run_id": "20260828T053324Z-b-h003",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T13:33:25+08:00",
+      "local_score": 15.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 0.0,
+        "kernel_independence": 0.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "domain_ownership": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "kernel_independence": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        },
+        "pi_tool_generalization": {
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "> @capability-agent/pi-tools@0.1.0 test\n> node --test\n\n✔ builds a descriptor-owned capability request (0.8205ms)\n✔ rejects invalid runtime descriptors before tool creation (0.338667ms)\n✔ rejects unbounded capability contract names before tool creation (0.183709ms)\n✔ requires the exact four keys in descriptor Pi runtime identity (0.20975ms)\n✔ fails closed when a capability response has the wrong correlation (0.407334ms)\n✔ keeps process selection outside model-owned tool parameters (0.221708ms)\n✔ generic source has no product-specific protocol, executable, prefix, or environment literals (3.775583ms)\n✔ sanitizes credentials without requiring a product namespace (0.22725ms)\n✔ registers descriptor-prefixed bounded tools (0.469958ms)\n✔ captures the canonical request from before_model_request without provider payloads (33.235083ms)\n✔ refuses to replace an existing request path (5.651666ms)\nℹ tests 11\nℹ suites 0\nℹ pass 11\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 676.402459"
+        },
+        "product_compatibility": {
+          "focused_gate": "pi_tool_generalization",
+          "status": "not-focused"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H004",
+      "run_id": "20260828T054809Z-b-h004",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T13:48:09+08:00",
+      "local_score": 20.0,
+      "per_task": {
+        "application_thinness": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 0.0,
+        "pi_tool_generalization": 0.0,
+        "product_compatibility": 0.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "distribution_integrity": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "domain_ownership": {
+          "command": [
+            "python3",
+            "tools/check_package_boundaries.py"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "package-boundaries: ok"
+        },
+        "kernel_independence": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "pi_tool_generalization": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        },
+        "product_compatibility": {
+          "focused_gate": "domain_ownership",
+          "status": "not-focused"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T071005Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T15:11:10+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/gate-receipts/application_thinness.json",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/application_thinness.output.txt",
+          "returncode": 0,
+          "source_commit": "79c1d98cd4d5d8308543d256133cc24785bc21d2",
+          "status": "receipt-passed"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/distribution_integrity.json",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/distribution_integrity.output.txt",
+          "returncode": 0,
+          "source_commit": "79c1d98cd4d5d8308543d256133cc24785bc21d2",
+          "status": "receipt-passed"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/20260828T054809Z-b-h004/local-eval.json",
+          "command": [
+            "python3",
+            "tools/check_package_boundaries.py"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H004",
+          "source_run_id": "20260828T054809Z-b-h004",
+          "status": "carried-forward"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/20260828T041418Z-b-h002/local-eval.json",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H002",
+          "source_run_id": "20260828T041418Z-b-h002",
+          "status": "carried-forward"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/20260828T053324Z-b-h003/local-eval.json",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H003",
+          "source_run_id": "20260828T053324Z-b-h003",
+          "status": "carried-forward"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T071005Z-b-h005/gate-output-product_compatibility.json",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json\npython3 tools/capability_matrix.py --check\npandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T074352Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T15:45:02+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/application_thinness.json",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/application_thinness.output.txt",
+          "release_source_revision": "17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/distribution_integrity.json",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2/distribution_integrity.output.txt",
+          "release_source_revision": "17b8c0bf7d3aab6c2cb9353ebbd2a707d9e488b2",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/20260828T054809Z-b-h004/local-eval.json",
+          "command": [
+            "python3",
+            "tools/check_package_boundaries.py"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H004",
+          "source_run_id": "20260828T054809Z-b-h004",
+          "status": "carried-forward"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/20260828T041418Z-b-h002/local-eval.json",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H002",
+          "source_run_id": "20260828T041418Z-b-h002",
+          "status": "carried-forward"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/20260828T053324Z-b-h003/local-eval.json",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "returncode": 0,
+          "source_hypothesis_id": "B-H003",
+          "source_run_id": "20260828T053324Z-b-h003",
+          "status": "carried-forward"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T074352Z-b-h005/gate-output-product_compatibility.json",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "uv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json\npython3 tools/capability_matrix.py --check\npandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T092537Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T17:26:45+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/application_thinness.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/application_thinness.output.txt",
+          "output_sha256": "5e765302b10d658ad5c056dd71f78a20c1b5c8576d1614cfef1c3f63d764a66c",
+          "receipt_digest": "3514e16fd48afb17d89c751ebb787b853cde832286ffc0b00295f8b9e6446503",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/distribution_integrity.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/distribution_integrity.output.txt",
+          "output_sha256": "4e9e5938a53c37ab337102a79663f1ce98519d73a34e3ce57cac0727e83b39c6",
+          "receipt_digest": "6f08c3515a7a7e1151f9d4f4d0f024328aaeac58376d005682aaa5fc41c2998e",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/domain_ownership.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "make",
+            "test-domain-package"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/domain_ownership.output.txt",
+          "output_sha256": "1dcc70d9f511ed420adf087b63347322e33df78b92d53d4d49f4e013fd7ab037",
+          "receipt_digest": "46caf0c0d357cfa5056596820ee187a10b0a5e7e90ef7c48ba9d3b0e2507d9fa",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/kernel_independence.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/kernel_independence.output.txt",
+          "output_sha256": "4f7bef9e451a656e5f22445c4fc84d6e8576bc847de21a06b29927ecbaa6af11",
+          "receipt_digest": "08a300f4e9e1361889ccd2e06e458d762820858e9541571ac12cacd0b83d953c",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/pi_tool_generalization.json",
+          "attestation_id": "db094ffbb5d61d633ceb3f1d",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/pi_tool_generalization.output.txt",
+          "output_sha256": "68e20f8f66bd70c4f8c057b4bef191e03e9a859c2402dfc0af2600b75df3fecd",
+          "receipt_digest": "310d2b7c80068226fcd788aeafee66153684987f6374fdbe410aa86c25266a1d",
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+          "returncode": 0,
+          "status": "receipt-passed"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T092537Z-b-h005/gate-output-product_compatibility.json",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "output_sha256": "5c283381b99e64448c813efd93ee621c2a01a104891186c86693fe650d1593f4",
+          "prerequisite_receipts": {
+            "doctor": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/doctor.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "doctor"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/doctor.output.txt",
+              "output_sha256": "f20b63e2848db91520bb2a077a0c65a3345ed68e0c6c32f55378483ad9bdb1c2",
+              "receipt_digest": "31659bd6343f121a63362030646b4c997c273678ace3a5432396e2ece4ba0a5b",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            },
+            "test": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "test"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test.output.txt",
+              "output_sha256": "24168d2a31a2d40e90855ae708a8603eb3e512228abcaec5fa3b81b0bb92adde",
+              "receipt_digest": "7ff6b4be04794fb5a4aaf422415d286cbb2be91bc9b66a401b7eda4f8487184c",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            },
+            "test-e2e": {
+              "artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test-e2e.json",
+              "attestation_id": "db094ffbb5d61d633ceb3f1d",
+              "command": [
+                "make",
+                "test-e2e"
+              ],
+              "output_artifact_path": "runs/climb/gate-receipts/c146f5564220f622fedbbddd35b13696333d7534/test-e2e.output.txt",
+              "output_sha256": "20b935d5bcc23df0b6053163176a5f23a5f55e4677580bc6011b3fb67b410755",
+              "receipt_digest": "e84c7bf5ea5848fe2892402cc103dfdf9be1116718c9e7fcdb4c138327de7b70",
+              "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+              "release_source_tree_sha256": "47fdb5d8b7df9de8fd7f624c5d55dc786eecf685853bedeccb47e4da14d8da20",
+              "returncode": 0,
+              "status": "receipt-passed"
+            }
+          },
+          "release_source_revision": "c146f5564220f622fedbbddd35b13696333d7534",
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "python3 tools/check_runtime_risk_exception.py\nruntime-risk-exception: accepted 2 high, 2 moderate through 2026-09-30\nuv run --project packages/grid-agent python validation/run.py --mode offline --suite task-required --report runs/validation-offline.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-core --report runs/validation-scripted.json\nuv run --project packages/grid-agent python validation/run.py --mode scripted-pi --suite static-analysis-full --report runs/validation-static-analysis-full.json\npython3 tools/capability_matrix.py --check\npandapower 3.4.0 static-analysis coverage: 24/24 (100.00%) partial=0 missing=0 release_ready=True"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T104349Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T18:48:14+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "gate_key": "application_thinness",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/04-application_thinness.output.json",
+          "output_sha256": "5df3cdd24bfc9087dcb1c685555c03e48182dfcb10d50e1113750c455c1c1cfe",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "075c616c5e4c4edb14aa30344c24de3e43c932e34a891db0578c42291adfdf82"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "gate_key": "distribution_integrity",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/05-distribution_integrity.output.json",
+          "output_sha256": "477bafac34480159738e3c3d627f14b949d8570761be0d5c7f4a247516f316a2",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "32e4522f5a7dc689ea369bceb4f37a73bcea159ba9e957f6ba25e430bdfad96f",
+          "stdout_sha256": "707a32a5bd53399bd9033f776ff242ff58420a7e7eebd79744cb7b928f5513b6"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "make",
+            "test-domain-package"
+          ],
+          "gate_key": "domain_ownership",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/02-domain_ownership.output.json",
+          "output_sha256": "ed3481a3149a1288ce4d39cf19cfaf74f18488ab207d00cfac06696ed1f3e899",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "17ae449cb52993ea229e9678784e352390e15280b5791acd0af46f56acd53741"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "gate_key": "kernel_independence",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/01-kernel_independence.output.json",
+          "output_sha256": "bb38e41a7b0595646d71106860f676075ff74b03152b794171876b539be334ab",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e8357a2f79099c9a2d4de880ff2a7a662b755a977c93fdd3d60741c8f9053455"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "gate_key": "pi_tool_generalization",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/03-pi_tool_generalization.output.json",
+          "output_sha256": "37be762e5f75cd96bcdda0dd728895236afb32f3cfd50c3e57ade5f3e3689f1e",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "c73fde414857695f7a4aa9da56937e673ec38559814dd5932fc43bcc0e3afe50"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+          "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "gate_key": "product_compatibility",
+          "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/09-product_compatibility.output.json",
+          "output_sha256": "07b4715ff1f8bf567ff43f8c0e5b11730f58cf5e13a807cc6f349c49cc65a7b8",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "prerequisite_receipts": {
+            "doctor": {
+              "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+              "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+              "command": [
+                "make",
+                "doctor"
+              ],
+              "gate_key": "doctor",
+              "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/06-doctor.output.json",
+              "output_sha256": "4b7dbae74aec7fa9c9208a72a1fe122ef2ad7f94e7320dd69b9203e889ded41e",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+              "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "f135565309145543864d6ffa07f94f50d968527ca7b31fd3ae9744492098bdf7"
+            },
+            "test": {
+              "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+              "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+              "command": [
+                "make",
+                "test"
+              ],
+              "gate_key": "test",
+              "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/07-test.output.json",
+              "output_sha256": "543668c5cb7a737a74d8b5f05772ef6f4d6040094920b1865199c43ea2bd9321",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+              "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "d5e173b723810d40a5c5ea6d16daeffefc5f34d55f884c7e81aba09033bc68d7"
+            },
+            "test-e2e": {
+              "artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure.json",
+              "closure_digest": "8f5924f291540374271362cc3fe8a76e80416694c4d0ffe8a0fbb0ee2596f6e1",
+              "command": [
+                "make",
+                "test-e2e"
+              ],
+              "gate_key": "test-e2e",
+              "output_artifact_path": "runs/climb/20260828T104349Z-b-h005/release-closure/08-test-e2e.output.json",
+              "output_sha256": "7bbfb430c3c8856d82a349aca70bd9ada6bbe02b5b7a3c804f0ed8018a584671",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+              "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "2b1a50887ee1b1d74a9897f852bffb2ac9981e945c3c99257476eae2001ed9c3"
+            }
+          },
+          "release_source_revision": "ea10df5a143eed6c11e3542618bb68fc42f792e2",
+          "release_source_tree_sha256": "84b7dba2d69a00c4e87ca49b3f092091a7e920541eded47f59c6f16f6dca4c57",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "f2cf504a7f7b137ca0319365389581d03a58dfd588a105172629f671a03d7206"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    },
+    {
+      "hypothesis_id": "B-H005",
+      "run_id": "20260828T111922Z-b-h005",
+      "status": "confirmed",
+      "recorded_at": "2026-08-28T19:23:55+08:00",
+      "local_score": 100.0,
+      "per_task": {
+        "application_thinness": 10.0,
+        "distribution_integrity": 10.0,
+        "domain_ownership": 20.0,
+        "kernel_independence": 25.0,
+        "pi_tool_generalization": 15.0,
+        "product_compatibility": 20.0
+      },
+      "gate_evidence": {
+        "application_thinness": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "make",
+            "check-package-boundaries"
+          ],
+          "gate_key": "application_thinness",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/04-application_thinness.output.json",
+          "output_sha256": "5df3cdd24bfc9087dcb1c685555c03e48182dfcb10d50e1113750c455c1c1cfe",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "075c616c5e4c4edb14aa30344c24de3e43c932e34a891db0578c42291adfdf82"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "make",
+            "test-packages"
+          ],
+          "gate_key": "distribution_integrity",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/05-distribution_integrity.output.json",
+          "output_sha256": "84221fce52cca86ce792a6006319b96e7ebb577c94792fb1ffae9884facdb95d",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "86acecc0a5b00a921cdbd9a3020addd6e4a8ce284381576dec50f821e88e741f",
+          "stdout_sha256": "707a32a5bd53399bd9033f776ff242ff58420a7e7eebd79744cb7b928f5513b6"
+        },
+        "domain_ownership": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "make",
+            "test-domain-package"
+          ],
+          "gate_key": "domain_ownership",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/02-domain_ownership.output.json",
+          "output_sha256": "8e7db299c6ff6e15a212a608f8621a06c4a5596ab4853e79272ad99482a1ff01",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "aec07d43240d4e53058395009466e08a5b279f4586e7c27317932cec1ebc55d8"
+        },
+        "kernel_independence": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "uv",
+            "run",
+            "--project",
+            "packages/grid-agent",
+            "pytest",
+            "packages/capability-agent-kernel/tests",
+            "-q"
+          ],
+          "gate_key": "kernel_independence",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/01-kernel_independence.output.json",
+          "output_sha256": "e01e2d004c79500b2849751803aa41081edf3e7c02424992d6133cec92c496af",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "bdfb4d042c45f584bc5f7826834f1155e8e37968e7938b6672c97f3e7d5bddb3"
+        },
+        "pi_tool_generalization": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "npm",
+            "test",
+            "--prefix",
+            "packages/pi-capability-tools"
+          ],
+          "gate_key": "pi_tool_generalization",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/03-pi_tool_generalization.output.json",
+          "output_sha256": "27ef5e26c7b54d9e64eb0beaf13deaf9076e9a43d4d77f6b8bbbe6a634d3750c",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "fef7ff9487395d63407987893cc2d9300ffe1583712af68ef0708ba91a390fea"
+        },
+        "product_compatibility": {
+          "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+          "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+          "command": [
+            "make",
+            "validate"
+          ],
+          "gate_key": "product_compatibility",
+          "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/09-product_compatibility.output.json",
+          "output_sha256": "07b4715ff1f8bf567ff43f8c0e5b11730f58cf5e13a807cc6f349c49cc65a7b8",
+          "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+          "prerequisite_receipts": {
+            "doctor": {
+              "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+              "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+              "command": [
+                "make",
+                "doctor"
+              ],
+              "gate_key": "doctor",
+              "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/06-doctor.output.json",
+              "output_sha256": "4b7dbae74aec7fa9c9208a72a1fe122ef2ad7f94e7320dd69b9203e889ded41e",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+              "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "f135565309145543864d6ffa07f94f50d968527ca7b31fd3ae9744492098bdf7"
+            },
+            "test": {
+              "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+              "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+              "command": [
+                "make",
+                "test"
+              ],
+              "gate_key": "test",
+              "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/07-test.output.json",
+              "output_sha256": "6a2705a1c0611a60996de17fbe71fc0a8a69876410ba58b0db6158d6ba347d97",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+              "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "adf8284208db51a71f66eafc456d43b9a971e053004a34d14b4606703a498bbd"
+            },
+            "test-e2e": {
+              "artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure.json",
+              "closure_digest": "5049c057d9ca3283661465f57b0626da95dd79e562e71d73385c86b7261cb247",
+              "command": [
+                "make",
+                "test-e2e"
+              ],
+              "gate_key": "test-e2e",
+              "output_artifact_path": "runs/climb/20260828T111922Z-b-h005/release-closure/08-test-e2e.output.json",
+              "output_sha256": "11ffc01f60fc8b5d0d1791b8c27f863e62c170d2395daeb749729d6e0f374675",
+              "policy_sha256": "efe8fc8e8ec02eee00ecb94d0b4e939985acf5c5ed4ac3ec76722dd813da4114",
+              "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+              "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+              "returncode": 0,
+              "status": "closure-passed",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_sha256": "be59fbdec32c38b8d335df8aa4f73b0fe9a7bf5517f30f005d64ff6e21b04423"
+            }
+          },
+          "release_source_revision": "e41783558afb57eb04ad04562c7d9b0fe6e6bf0b",
+          "release_source_tree_sha256": "9ff57149f3f03f7b3e223768738ca24bea9906b4427269e95709432600410ad9",
+          "returncode": 0,
+          "status": "closure-passed",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "f2cf504a7f7b137ca0319365389581d03a58dfd588a105172629f671a03d7206"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream B gate passed"
+    }
+  ]
+}

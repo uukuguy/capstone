@@ -6,8 +6,6 @@ import subprocess
 from pathlib import Path
 
 from climb_evidence import (
-    CANONICAL_SCORE_WEIGHTS,
-    CLOSURE_GATE_ORDER,
     JsonObject,
     artifact_dir,
     as_object,
@@ -16,6 +14,8 @@ from climb_evidence import (
     policy_sha256,
     release_source_tree_sha256,
     require_clean_release_source,
+    release_gate_order,
+    release_score_weights,
     secure_artifact_makedirs,
     sha256_bytes,
     source_revision,
@@ -42,6 +42,7 @@ def execute_release_closure(root: Path, run_dir: Path) -> JsonObject:
     config_path = root / "docs/status/climb/config.yaml"
     config = load_json_object(config_path)
     validate_release_policy(config)
+    gate_order = release_gate_order(config)
     require_clean_release_source(config, root)
     release_revision = source_revision(config, root)
     tree_sha256 = release_source_tree_sha256(config, release_revision, root)
@@ -62,7 +63,7 @@ def execute_release_closure(root: Path, run_dir: Path) -> JsonObject:
     score_gates = as_object(config.get("score_gates"), "score_gates")
     receipt_gates = as_object(config.get("receipt_gates"), "receipt_gates")
     gate_results: list[JsonObject] = []
-    for index, key in enumerate(CLOSURE_GATE_ORDER, start=1):
+    for index, key in enumerate(gate_order, start=1):
         _assert_release_binding(
             root,
             config_path,
@@ -123,13 +124,13 @@ def execute_release_closure(root: Path, run_dir: Path) -> JsonObject:
 
     closure: JsonObject = {
         "all_passed": all(result["returncode"] == 0 for result in gate_results),
-        "gate_order": list(CLOSURE_GATE_ORDER),
+        "gate_order": list(gate_order),
         "gate_results": gate_results,
         "mode": "rerun-all-gates-v1",
         "policy_sha256": command_policy_sha256,
         "release_source_revision": release_revision,
         "release_source_tree_sha256": tree_sha256,
-        "schema_version": "workstream-b-release-closure/1.0",
+        "schema_version": "climb-release-closure/1.0",
         "trust_scope": "local live execution; same-user HMAC is integrity-only",
     }
     closure_digest = sha256_bytes(canonical_json_bytes(closure))
@@ -180,6 +181,7 @@ def _score_from_closure(
     root: Path,
     artifact_root: Path,
 ) -> JsonObject:
+    score_weights = release_score_weights(config)
     results = {str(result["gate_key"]): result for result in gate_results}
     closure_artifact_path = stable_path(
         closure_path,
@@ -189,7 +191,7 @@ def _score_from_closure(
     )
     per_task: dict[str, float] = {}
     evidence: dict[str, JsonObject] = {}
-    for key, weight in CANONICAL_SCORE_WEIGHTS.items():
+    for key, weight in score_weights.items():
         result = results[key]
         passed = result["returncode"] == 0
         per_task[key] = weight if passed else 0.0
@@ -224,7 +226,7 @@ def _score_from_closure(
     total = sum(per_task.values())
     blockers = [
         f"{key}: {evidence[key]['status']}"
-        for key, weight in CANONICAL_SCORE_WEIGHTS.items()
+        for key, weight in score_weights.items()
         if per_task[key] != weight or evidence[key]["status"] != "closure-passed"
     ]
     return {
@@ -233,7 +235,7 @@ def _score_from_closure(
         "focused_gate": "product_compatibility",
         "gate_evidence": evidence,
         "hypothesis_gate_passed": product["status"] == "closure-passed",
-        "hypothesis_id": "B-H005",
+        "hypothesis_id": str(config.get("release_hypothesis_id") or "release"),
         "per_task": per_task,
         "policy_sha256": command_policy_sha256,
         "release_blockers": blockers,

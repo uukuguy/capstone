@@ -21,6 +21,11 @@ def _state_dir() -> Path:
 def main() -> None:
     state_dir = _state_dir()
     config = json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
+    session_slug = str(config["session"]).split("-", 3)[-1]
+    workstream_label = str(
+        config.get("workstream_label") or session_slug.replace("-", " ").title()
+    )
+    target_description = str(config.get("target_description") or "100% local score.")
     hypothesis_document = json.loads((state_dir / "hypotheses.yaml").read_text(encoding="utf-8"))
     hypotheses = hypothesis_document["hypotheses"]
     effective_status = {item["id"]: item["status"] for item in hypotheses}
@@ -45,13 +50,13 @@ def main() -> None:
     }
     (state_dir / "research-tree.json").write_text(json.dumps(tree, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
-        "# Research Tree — Workstream B Package Extraction",
+        f"# Research Tree — {workstream_label}",
         "",
         f"> Generated deterministically from {len(runs)} climb runs.",
         "",
         f"**Session:** {config['session']}",
         "",
-        "**Target:** 100% package extraction score with all release gates closed.",
+        f"**Target:** {target_description}",
         "",
         "## Score Contract",
         "",

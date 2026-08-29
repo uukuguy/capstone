@@ -38,12 +38,15 @@ manifest_path = Path(sys.argv[2])
 hypothesis_id = sys.argv[3]
 stamp = sys.argv[4]
 config = json.loads((state_dir / "config.yaml").read_text(encoding="utf-8"))
+session = str(config["session"])
+session_slug = session.split("-", 3)[-1]
+run_kind = str(config.get("run_kind") or f"{session_slug}-gate")
 manifest_path.write_text(
     json.dumps(
         {
             "hypothesis_id": hypothesis_id,
-            "kind": "workstream-b-package-extraction-gate",
-            "session": config["session"],
+            "kind": run_kind,
+            "session": session,
             "started_at": stamp,
         },
         sort_keys=True,

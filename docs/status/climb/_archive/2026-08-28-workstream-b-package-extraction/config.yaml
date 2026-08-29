@@ -1,0 +1,93 @@
+{
+  "artifact_dir": "runs/climb",
+  "paradigm_field": "package_extraction_boundary",
+  "push_mode": "local-gate",
+  "run_tag_marker": "-climb-b-",
+  "score_direction": "max",
+  "release_source": {
+    "enforce_clean": true,
+    "include_pathspecs": ["AGENTS.md", "CLAUDE.md", "Makefile", "README.md", "README.zh-CN.md", "packages", "tools", "validation", "configs", "schemas", "skills", "docs/RUNBOOK.md", "docs/architecture", "docs/status/climb/config.yaml"],
+    "exclude_pathspecs": [".superpowers"]
+  },
+  "closure": {
+    "gate_order": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "doctor", "test", "test-e2e", "product_compatibility"],
+    "mode": "rerun-all-gates-v1"
+  },
+  "score_gates": {
+    "application_thinness": {
+      "command": ["make", "check-package-boundaries"],
+      "hypothesis_id": "B-H005",
+      "receipt_required": true,
+      "required_paths": ["tools/check_package_boundaries.py"]
+    },
+    "distribution_integrity": {
+      "command": ["make", "test-packages"],
+      "hypothesis_id": "B-H005",
+      "receipt_required": true,
+      "required_paths": ["packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+    },
+    "domain_ownership": {
+      "command": ["make", "test-domain-package"],
+      "hypothesis_id": "B-H004",
+      "receipt_required": true,
+      "required_paths": ["packages/pandapower-domain-pack/pyproject.toml", "tools/check_package_boundaries.py"]
+    },
+    "kernel_independence": {
+      "command": [
+        "uv",
+        "run",
+        "--project",
+        "packages/grid-agent",
+        "pytest",
+        "packages/capability-agent-kernel/tests",
+        "-q"
+      ],
+      "hypothesis_id": "B-H001",
+      "hypothesis_ids": ["B-H001", "B-H002"],
+      "receipt_required": true,
+      "required_paths": [
+        "packages/capability-agent-kernel/pyproject.toml",
+        "packages/capability-agent-kernel/src/capability_agent/__init__.py",
+        "packages/capability-agent-kernel/tests/test_boundaries.py"
+      ]
+    },
+    "pi_tool_generalization": {
+      "command": ["npm", "test", "--prefix", "packages/pi-capability-tools"],
+      "hypothesis_id": "B-H003",
+      "receipt_required": true,
+      "required_paths": ["packages/pi-capability-tools/package.json"]
+    },
+    "product_compatibility": {
+      "command": ["make", "validate"],
+      "hypothesis_id": "B-H005",
+      "prerequisite_receipts": ["doctor", "test", "test-e2e"],
+      "required_paths": ["tools/check_package_boundaries.py", "packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+    }
+  },
+  "receipt_gates": {
+    "doctor": {
+      "command": ["make", "doctor"],
+      "required_paths": ["packages/grid-agent/pyproject.toml"]
+    },
+    "test": {
+      "command": ["make", "test"],
+      "required_paths": ["Makefile"]
+    },
+    "test-e2e": {
+      "command": ["make", "test-e2e"],
+      "required_paths": ["packages/grid-agent/tests/e2e"]
+    }
+  },
+  "score_name": "workstream_b_package_extraction_score",
+  "score_weights": {
+    "kernel_independence": 25.0,
+    "domain_ownership": 20.0,
+    "pi_tool_generalization": 15.0,
+    "application_thinness": 10.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 20.0
+  },
+  "session": "2026-08-28-workstream-b-package-extraction",
+  "state_dir": "docs/status/climb",
+  "subscores": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "product_compatibility"]
+}

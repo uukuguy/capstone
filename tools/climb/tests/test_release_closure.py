@@ -13,11 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import release_closure  # noqa: E402
 from climb_evidence import (  # noqa: E402
-    CLOSURE_GATE_ORDER,
     as_list,
     as_object,
     load_json_object,
     policy_sha256,
+    release_gate_order,
+    release_score_weights,
     sign_receipt,
     validate_release_policy,
 )
@@ -70,7 +71,8 @@ def test_release_closure_executes_every_fixed_gate_and_writes_readonly_chain(
     score_gates = as_object(config.get("score_gates"), "score_gates")
     receipt_gates = as_object(config.get("receipt_gates"), "receipt_gates")
     expected_commands = []
-    for key in CLOSURE_GATE_ORDER:
+    gate_order = release_gate_order(config)
+    for key in gate_order:
         raw_gate = score_gates.get(key) or receipt_gates.get(key)
         gate = as_object(raw_gate, f"gate {key}")
         expected_commands.append(
@@ -84,7 +86,7 @@ def test_release_closure_executes_every_fixed_gate_and_writes_readonly_chain(
     closure_path = run_dir / "release-closure.json"
     assert stat.S_IMODE(closure_path.stat().st_mode) == 0o400
     closure = json.loads(closure_path.read_text(encoding="utf-8"))
-    assert closure["gate_order"] == list(CLOSURE_GATE_ORDER)
+    assert closure["gate_order"] == list(gate_order)
     assert closure["closure_digest"]
     assert all(result["stdout_sha256"] for result in closure["gate_results"])
     for result in closure["gate_results"]:
@@ -117,13 +119,22 @@ def test_same_user_forged_receipt_cannot_mask_a_live_closure_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo, run_dir = _release_repo(tmp_path)
-    forged = repo / "runs/climb/gate-receipts/forged/kernel_independence.json"
+    config = load_json_object(repo / "docs/status/climb/config.yaml")
+    score_weights = release_score_weights(config)
+    failed_gate = next(iter(score_weights))
+    score_gates = as_object(config.get("score_gates"), "score_gates")
+    failed_gate_config = as_object(score_gates.get(failed_gate), failed_gate)
+    failed_command = [
+        str(part)
+        for part in as_list(failed_gate_config.get("command"), "failed command")
+    ]
+    forged = repo / f"runs/climb/gate-receipts/forged/{failed_gate}.json"
     forged.parent.mkdir(parents=True)
     same_user_key = b"same-user-visible-integrity-key"
     forged.write_text(
         json.dumps(
             sign_receipt(
-                {"gate_key": "kernel_independence", "returncode": 0, "status": "passed"},
+                {"gate_key": failed_gate, "returncode": 0, "status": "passed"},
                 same_user_key,
             ),
             sort_keys=True,
@@ -132,32 +143,24 @@ def test_same_user_forged_receipt_cannot_mask_a_live_closure_failure(
         encoding="utf-8",
     )
 
-    def fail_kernel(command: list[str], root: Path) -> subprocess.CompletedProcess[str]:
+    def fail_selected_gate(command: list[str], root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             command,
-            19 if command == [
-                "uv",
-                "run",
-                "--project",
-                "packages/grid-agent",
-                "pytest",
-                "packages/capability-agent-kernel/tests",
-                "-q",
-            ] else 0,
+            19 if command == failed_command else 0,
             "live gate\n",
             "",
         )
 
-    monkeypatch.setattr(release_closure, "run_gate_command", fail_kernel)
+    monkeypatch.setattr(release_closure, "run_gate_command", fail_selected_gate)
 
     score = release_closure.execute_release_closure(repo, run_dir)
 
     per_task = as_object(score.get("per_task"), "per_task")
     evidence = as_object(score.get("gate_evidence"), "gate_evidence")
-    kernel = as_object(evidence.get("kernel_independence"), "kernel evidence")
-    assert per_task["kernel_independence"] == 0.0
+    failed = as_object(evidence.get(failed_gate), "failed gate evidence")
+    assert per_task[failed_gate] == 0.0
     assert score["release_ready"] is False
-    assert kernel["status"] == "closure-failed"
+    assert failed["status"] == "closure-failed"
 
 
 def test_release_closure_rejects_dirty_included_source_before_gates(

@@ -1,67 +1,123 @@
 {
   "artifact_dir": "runs/climb",
-  "paradigm_field": "package_extraction_boundary",
+  "paradigm_field": "inventory_reference_boundary",
   "push_mode": "local-gate",
-  "run_tag_marker": "-climb-b-",
+  "run_tag_marker": "-climb-c-",
   "score_direction": "max",
+  "score_name": "workstream_c_inventory_reference_domain_score",
+  "session": "2026-08-29-workstream-c-inventory-reference-domain",
+  "state_dir": "docs/status/climb",
+  "workstream_label": "Workstream C Inventory Reference Domain",
+  "target_description": "100% inventory reference-domain score with protected framework paths unchanged.",
+  "release_hypothesis_id": "C-H005",
+  "release_policy_id": "workstream-c-inventory-v1",
+  "protected_paths": [
+    "packages/capability-agent-kernel",
+    "packages/pi-capability-tools",
+    "packages/trajectory-workbench"
+  ],
+  "protected_path_digests": {
+    "packages/capability-agent-kernel": "70ff273e97e8b9e82b8eac8165570c31fea3caf1",
+    "packages/pi-capability-tools": "ca9d7d4795180cd259530300c6cb073ef10af195",
+    "packages/trajectory-workbench": "65f982eabed7f7ff63243e8f634e863703feb96e"
+  },
   "release_source": {
     "enforce_clean": true,
-    "include_pathspecs": ["AGENTS.md", "CLAUDE.md", "Makefile", "README.md", "README.zh-CN.md", "packages", "tools", "validation", "configs", "schemas", "skills", "docs/RUNBOOK.md", "docs/architecture", "docs/status/climb/config.yaml"],
+    "include_pathspecs": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "Makefile",
+      "README.md",
+      "README.zh-CN.md",
+      "packages",
+      "tools",
+      "validation",
+      "configs",
+      "schemas",
+      "skills",
+      "docs/RUNBOOK.md",
+      "docs/architecture",
+      "docs/status/climb/config.yaml"
+    ],
     "exclude_pathspecs": [".superpowers"]
   },
   "closure": {
-    "gate_order": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "doctor", "test", "test-e2e", "product_compatibility"],
+    "gate_order": [
+      "reference_authority",
+      "domain_pack_spi",
+      "generic_pi_transport",
+      "authority_lineage",
+      "distribution_integrity",
+      "doctor",
+      "test",
+      "test-e2e",
+      "product_compatibility"
+    ],
     "mode": "rerun-all-gates-v1"
   },
+  "score_weights": {
+    "reference_authority": 25.0,
+    "domain_pack_spi": 20.0,
+    "generic_pi_transport": 15.0,
+    "authority_lineage": 20.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 10.0
+  },
+  "subscores": [
+    "reference_authority",
+    "domain_pack_spi",
+    "generic_pi_transport",
+    "authority_lineage",
+    "distribution_integrity",
+    "product_compatibility"
+  ],
   "score_gates": {
-    "application_thinness": {
-      "command": ["make", "check-package-boundaries"],
-      "hypothesis_id": "B-H005",
+    "reference_authority": {
+      "command": ["make", "test-inventory-service"],
+      "hypothesis_id": "C-H001",
       "receipt_required": true,
-      "required_paths": ["tools/check_package_boundaries.py"]
+      "required_paths": ["packages/inventory-reference-service/pyproject.toml"]
     },
-    "distribution_integrity": {
-      "command": ["make", "test-packages"],
-      "hypothesis_id": "B-H005",
+    "domain_pack_spi": {
+      "command": ["make", "test-inventory-domain"],
+      "hypothesis_id": "C-H002",
       "receipt_required": true,
-      "required_paths": ["packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+      "required_paths": ["packages/inventory-domain-pack/pyproject.toml"]
     },
-    "domain_ownership": {
-      "command": ["make", "test-domain-package"],
-      "hypothesis_id": "B-H004",
+    "generic_pi_transport": {
+      "command": ["make", "test-inventory-pi"],
+      "hypothesis_id": "C-H003",
       "receipt_required": true,
-      "required_paths": ["packages/pandapower-domain-pack/pyproject.toml", "tools/check_package_boundaries.py"]
+      "required_paths": ["tools/test_inventory_pi_transport.mjs"]
     },
-    "kernel_independence": {
+    "authority_lineage": {
       "command": [
         "uv",
         "run",
         "--project",
-        "packages/grid-agent",
+        "packages/inventory-domain-pack",
         "pytest",
-        "packages/capability-agent-kernel/tests",
+        "tests/test_authority.py",
         "-q"
       ],
-      "hypothesis_id": "B-H001",
-      "hypothesis_ids": ["B-H001", "B-H002"],
+      "hypothesis_id": "C-H004",
+      "receipt_required": true,
+      "required_paths": ["packages/inventory-domain-pack/tests/test_authority.py"]
+    },
+    "distribution_integrity": {
+      "command": ["make", "test-packages"],
+      "hypothesis_id": "C-H005",
       "receipt_required": true,
       "required_paths": [
-        "packages/capability-agent-kernel/pyproject.toml",
-        "packages/capability-agent-kernel/src/capability_agent/__init__.py",
-        "packages/capability-agent-kernel/tests/test_boundaries.py"
+        "packages/inventory-reference-service/pyproject.toml",
+        "packages/inventory-domain-pack/pyproject.toml"
       ]
-    },
-    "pi_tool_generalization": {
-      "command": ["npm", "test", "--prefix", "packages/pi-capability-tools"],
-      "hypothesis_id": "B-H003",
-      "receipt_required": true,
-      "required_paths": ["packages/pi-capability-tools/package.json"]
     },
     "product_compatibility": {
       "command": ["make", "validate"],
-      "hypothesis_id": "B-H005",
+      "hypothesis_id": "C-H005",
       "prerequisite_receipts": ["doctor", "test", "test-e2e"],
-      "required_paths": ["tools/check_package_boundaries.py", "packages/capability-agent-kernel/pyproject.toml", "packages/pandapower-domain-pack/pyproject.toml", "packages/pi-capability-tools/package.json"]
+      "required_paths": ["tools/check_package_boundaries.py"]
     }
   },
   "receipt_gates": {
@@ -77,17 +133,5 @@
       "command": ["make", "test-e2e"],
       "required_paths": ["packages/grid-agent/tests/e2e"]
     }
-  },
-  "score_name": "workstream_b_package_extraction_score",
-  "score_weights": {
-    "kernel_independence": 25.0,
-    "domain_ownership": 20.0,
-    "pi_tool_generalization": 15.0,
-    "application_thinness": 10.0,
-    "distribution_integrity": 10.0,
-    "product_compatibility": 20.0
-  },
-  "session": "2026-08-28-workstream-b-package-extraction",
-  "state_dir": "docs/status/climb",
-  "subscores": ["kernel_independence", "domain_ownership", "pi_tool_generalization", "application_thinness", "distribution_integrity", "product_compatibility"]
+  }
 }

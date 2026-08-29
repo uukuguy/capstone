@@ -3,8 +3,15 @@ set -euo pipefail
 
 ROOT=$(git rev-parse --show-toplevel)
 HYPOTHESIS_ID=${1:?usage: cycle.sh H-NNN}
+RELEASE_HYPOTHESIS_ID=$(python3 - "$ROOT/docs/status/climb/config.yaml" <<'PY'
+import json
+import sys
+
+print(json.load(open(sys.argv[1], encoding="utf-8")).get("release_hypothesis_id", ""))
+PY
+)
 RUN_DIR=$("$ROOT/tools/climb/train.sh" "$HYPOTHESIS_ID")
-if [ "$HYPOTHESIS_ID" = "B-H005" ]; then
+if [ "$HYPOTHESIS_ID" = "$RELEASE_HYPOTHESIS_ID" ]; then
   "$ROOT/tools/climb/release-closure.py" "$RUN_DIR" >"$RUN_DIR/local-eval.json"
   chmod 400 "$RUN_DIR/local-eval.json"
 else
@@ -19,7 +26,7 @@ fi
   "$RUN_DIR" \
   "$RUN_DIR/local-eval.json" \
   "$RUN_DIR/decision.json"
-if [ "$HYPOTHESIS_ID" = "B-H005" ]; then
+if [ "$HYPOTHESIS_ID" = "$RELEASE_HYPOTHESIS_ID" ]; then
   chmod 400 "$RUN_DIR/decision.json" "$RUN_DIR/manifest.json"
   if [ -f "$RUN_DIR/push.json" ]; then
     chmod 400 "$RUN_DIR/push.json"

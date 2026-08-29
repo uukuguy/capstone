@@ -1,50 +1,42 @@
-# Research Tree — Workstream B Package Extraction
+# Research Tree — Workstream C Inventory Reference Domain
 
-> Generated deterministically from 9 climb runs.
+> Generated deterministically from 0 climb runs.
 
-**Session:** 2026-08-28-workstream-b-package-extraction
+**Session:** 2026-08-29-workstream-c-inventory-reference-domain
 
-**Target:** 100% package extraction score with all release gates closed.
+**Target:** 100% inventory reference-domain score with protected framework paths unchanged.
 
 ## Score Contract
 
-- kernel_independence: 25
-- domain_ownership: 20
-- pi_tool_generalization: 15
-- application_thinness: 10
+- reference_authority: 25
+- domain_pack_spi: 20
+- generic_pi_transport: 15
+- authority_lineage: 20
 - distribution_integrity: 10
-- product_compatibility: 20
+- product_compatibility: 10
 
 ## In-flight
 
-- Phase: complete
-- Last cycle: 9
-- Next hypothesis: none
-- Next action: Target met; proceed with integration review and mainline closure.
+- Phase: C-H001 implementation
+- Last cycle: 0
+- Next hypothesis: C-H001
+- Next action: Execute C-H001 through the deterministic local gate.
 
 ## Runs
 
-- 20260828T024636Z-b-h001: 25.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T041418Z-b-h002: 25.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T053324Z-b-h003: 15.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T054809Z-b-h004: 20.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T071005Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T074352Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T092537Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T104349Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
-- 20260828T111922Z-b-h005: 100.0% — confirmed: owned deterministic Workstream B gate passed
+- No scored cycle yet.
 
 ## Active hypotheses
 
-- None.
+- **C-H001**: registered inventory service owns deterministic read-only facts and current-run artifacts
+- **C-H002**: inventory Domain Pack installs and composes through only the public kernel SPI
+- **C-H003**: unchanged generic Pi tools execute inventory capabilities from the runtime descriptor
+- **C-H004**: inventory authority rejects foreign tampered symlinked and unlinked references
+- **C-H005**: installed inventory packages preserve protected framework paths and the grid product
 
 ## Confirmed
 
-- **B-H001**: artifact and import characterization can define a safe extraction baseline without changing behavior
-- **B-H002**: the approved neutral slice can move into capability-agent-kernel with compatibility imports preserving callers
-- **B-H003**: Pi registration and request transport can become descriptor-driven without exposing arbitrary process execution
-- **B-H004**: all pandapower Profile dependencies can move or invert so the domain pack has no application dependency
-- **B-H005**: grid-agent can assemble the extracted artifacts and remain behavior-compatible under clean installation and all deterministic gates
+- None.
 
 ## Negative cache
 

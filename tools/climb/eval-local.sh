@@ -60,6 +60,7 @@ config = load_json_object(state_dir / "config.yaml")
 manifest = load_json_object(run_dir / "manifest.json")
 hypothesis_id = str(manifest["hypothesis_id"])
 session_id = str(config["session"])
+release_hypothesis_id = str(config.get("release_hypothesis_id") or "")
 weights = {key: float(value) for key, value in as_object(config["score_weights"], "score_weights").items()}
 gates = as_object(config.get("score_gates"), "score_gates")
 receipt_gates = object_or_empty(config.get("receipt_gates"))
@@ -80,7 +81,7 @@ release_revision = source_revision(config, root)
 if (
     state_dir.resolve() == (root / "docs/status/climb").resolve()
     and config.get("closure") is not None
-    and hypothesis_id == "B-H005"
+    and hypothesis_id == release_hypothesis_id
 ):
     validate_release_policy(config)
     require_clean_release_source(config, root)

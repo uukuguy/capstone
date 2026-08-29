@@ -75,6 +75,45 @@ CANONICAL_SCORE_WEIGHTS = {
     "distribution_integrity": 10.0,
     "product_compatibility": 20.0,
 }
+INVENTORY_RELEASE_POLICY_ID = "workstream-c-inventory-v1"
+INVENTORY_CLOSURE_GATE_ORDER = (
+    "reference_authority",
+    "domain_pack_spi",
+    "generic_pi_transport",
+    "authority_lineage",
+    "distribution_integrity",
+    "doctor",
+    "test",
+    "test-e2e",
+    "product_compatibility",
+)
+INVENTORY_GATE_COMMANDS: dict[str, tuple[str, ...]] = {
+    "reference_authority": ("make", "test-inventory-service"),
+    "domain_pack_spi": ("make", "test-inventory-domain"),
+    "generic_pi_transport": ("make", "test-inventory-pi"),
+    "authority_lineage": (
+        "uv",
+        "run",
+        "--project",
+        "packages/inventory-domain-pack",
+        "pytest",
+        "tests/test_authority.py",
+        "-q",
+    ),
+    "distribution_integrity": ("make", "test-packages"),
+    "doctor": ("make", "doctor"),
+    "test": ("make", "test"),
+    "test-e2e": ("make", "test-e2e"),
+    "product_compatibility": ("make", "validate"),
+}
+INVENTORY_SCORE_WEIGHTS = {
+    "reference_authority": 25.0,
+    "domain_pack_spi": 20.0,
+    "generic_pi_transport": 15.0,
+    "authority_lineage": 20.0,
+    "distribution_integrity": 10.0,
+    "product_compatibility": 10.0,
+}
 
 
 def as_object(value: object, name: str) -> JsonObject:
@@ -109,13 +148,41 @@ def policy_sha256(config: JsonObject) -> str:
     return sha256_bytes(canonical_json_bytes(config))
 
 
+def release_gate_order(config: JsonObject) -> tuple[str, ...]:
+    policy_id = config.get("release_policy_id")
+    if policy_id is None:
+        return CLOSURE_GATE_ORDER
+    if policy_id == INVENTORY_RELEASE_POLICY_ID:
+        return INVENTORY_CLOSURE_GATE_ORDER
+    raise ValueError(f"unknown release policy id: {policy_id}")
+
+
+def release_gate_commands(config: JsonObject) -> dict[str, tuple[str, ...]]:
+    return (
+        INVENTORY_GATE_COMMANDS
+        if config.get("release_policy_id") == INVENTORY_RELEASE_POLICY_ID
+        else CANONICAL_GATE_COMMANDS
+    )
+
+
+def release_score_weights(config: JsonObject) -> dict[str, float]:
+    return (
+        INVENTORY_SCORE_WEIGHTS
+        if config.get("release_policy_id") == INVENTORY_RELEASE_POLICY_ID
+        else CANONICAL_SCORE_WEIGHTS
+    )
+
+
 def validate_release_policy(config: JsonObject) -> None:
-    """Reject a weakened Workstream B release policy before any gate runs."""
+    """Reject a weakened versioned release policy before any gate runs."""
 
     try:
+        gate_order = release_gate_order(config)
+        gate_commands = release_gate_commands(config)
+        score_weights = release_score_weights(config)
         closure = as_object(config.get("closure"), "closure")
         if closure != {
-            "gate_order": list(CLOSURE_GATE_ORDER),
+            "gate_order": list(gate_order),
             "mode": "rerun-all-gates-v1",
         }:
             raise ValueError("closure mode or gate order changed")
@@ -127,27 +194,21 @@ def validate_release_policy(config: JsonObject) -> None:
         }:
             raise ValueError("release-source pathspec policy changed")
         weights = as_object(config.get("score_weights"), "score_weights")
-        if set(weights) != set(CANONICAL_SCORE_WEIGHTS) or any(
+        if set(weights) != set(score_weights) or any(
             float(str(weights[key])) != expected
-            for key, expected in CANONICAL_SCORE_WEIGHTS.items()
+            for key, expected in score_weights.items()
         ):
             raise ValueError("score weights changed")
-        if config.get("subscores") != list(CANONICAL_SCORE_WEIGHTS):
+        if config.get("subscores") != list(score_weights):
             raise ValueError("score key order changed")
         score_gates = as_object(config.get("score_gates"), "score_gates")
         receipt_gates = as_object(config.get("receipt_gates"), "receipt_gates")
-        for key, expected in CANONICAL_GATE_COMMANDS.items():
+        for key, expected in gate_commands.items():
             section = receipt_gates if key in {"doctor", "test", "test-e2e"} else score_gates
             gate = as_object(section.get(key), f"gate {key}")
             if gate.get("command") != list(expected):
                 raise ValueError(f"gate command changed: {key}")
-        for key in (
-            "kernel_independence",
-            "domain_ownership",
-            "pi_tool_generalization",
-            "application_thinness",
-            "distribution_integrity",
-        ):
+        for key in tuple(score_weights)[:-1]:
             gate = as_object(score_gates.get(key), f"gate {key}")
             if gate.get("receipt_required") is not True:
                 raise ValueError(f"receipt gate policy changed: {key}")
