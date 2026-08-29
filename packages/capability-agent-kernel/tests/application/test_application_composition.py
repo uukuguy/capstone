@@ -84,6 +84,56 @@ class CredentialMutatingProvisioner:
         )
 
 
+class ExplodingTextKey(str):
+    def __new__(cls, value: str, secret: str):
+        key = super().__new__(cls, value)
+        key.secret = secret
+        return key
+
+    def __str__(self) -> str:
+        raise RuntimeError(self.secret)
+
+
+class HostileMapping(Mapping[object, object]):
+    def __init__(self, failure_kind: str, secret: str) -> None:
+        self.failure_kind = failure_kind
+        self.secret = secret
+
+    def __getitem__(self, key: object) -> object:
+        raise KeyError(key)
+
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+    def items(self):
+        if self.failure_kind == "items":
+            raise RuntimeError(self.secret)
+        if self.failure_kind == "iteration":
+            return self._failing_items()
+        return ((ExplodingTextKey("safe", self.secret), "safe"),)
+
+    def _failing_items(self):
+        yield from ()
+        raise RuntimeError(self.secret)
+
+
+class ExplodingMetadataEndpoint:
+    def __init__(self, executor: object, secret: str) -> None:
+        self.executor = executor
+        self.secret = secret
+        self.close_calls = 0
+
+    @property
+    def metadata(self) -> Mapping[str, object]:
+        raise RuntimeError(self.secret)
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
 @dataclass(frozen=True)
 class Policy:
     fragment: str
@@ -839,6 +889,112 @@ def test_public_endpoint_metadata_is_detached_deeply_read_only_and_safe(
 
     public_endpoint.close()
     assert provisioner.endpoint.close_calls == 1
+
+
+def test_public_endpoint_close_sanitizes_failure_and_is_consumed(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+) -> None:
+    provisioner = complete_profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    prepared = prepare_application(
+        complete_profile,
+        registry=_registry_for(complete_profile),
+        workspace=tmp_path / "run",
+        credentials=EmptyCredentialBroker(),
+    )
+    provisioner.endpoint.close_failure = RuntimeError("close-secret")
+    public_endpoint = prepared.bindings["fixture"].endpoint
+
+    with pytest.raises(DomainProvisioningError) as caught:
+        public_endpoint.close()
+
+    _assert_sanitized(caught.value, "close-secret")
+    public_endpoint.close()
+    assert provisioner.endpoint.close_calls == 1
+
+
+def test_public_endpoint_close_is_idempotent_after_success(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+) -> None:
+    provisioner = complete_profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    prepared = prepare_application(
+        complete_profile,
+        registry=_registry_for(complete_profile),
+        workspace=tmp_path / "run",
+        credentials=EmptyCredentialBroker(),
+    )
+    public_endpoint = prepared.bindings["fixture"].endpoint
+
+    public_endpoint.close()
+    public_endpoint.close()
+
+    assert provisioner.endpoint.close_calls == 1
+
+
+@pytest.mark.parametrize(
+    "failure_kind",
+    ["property", "items", "iteration", "key-conversion"],
+)
+def test_endpoint_metadata_failures_are_sanitized_and_closed(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+    failure_kind: str,
+) -> None:
+    provisioner = complete_profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    raw_endpoint = provisioner.endpoint
+    if failure_kind == "property":
+        endpoint = ExplodingMetadataEndpoint(
+            raw_endpoint.executor,
+            "metadata-secret",
+        )
+        provisioner.endpoint = endpoint
+    else:
+        endpoint = raw_endpoint
+        endpoint.metadata = HostileMapping(failure_kind, "metadata-secret")
+
+    with pytest.raises(DomainProvisioningError) as caught:
+        prepare_application(
+            complete_profile,
+            registry=_registry_for(complete_profile),
+            workspace=tmp_path / "run",
+            credentials=EmptyCredentialBroker(),
+        )
+
+    _assert_sanitized(caught.value, "metadata-secret")
+    assert endpoint.close_calls == 1
+    assert raw_endpoint.executor.calls == []
+
+
+@pytest.mark.parametrize(
+    "failure_kind",
+    ["items", "iteration", "key-conversion"],
+)
+def test_public_executor_sanitizes_hostile_result_traversal(
+    complete_profile: ApplicationProfile,
+    tmp_path: Path,
+    failure_kind: str,
+) -> None:
+    provisioner = complete_profile.domains[0].profile.provisioner
+    assert provisioner is not None
+    prepared = prepare_application(
+        complete_profile,
+        registry=_registry_for(complete_profile),
+        workspace=tmp_path / "run",
+        credentials=EmptyCredentialBroker(),
+    )
+    provisioner.endpoint.executor.environment = HostileMapping(
+        failure_kind,
+        "result-secret",
+    )
+
+    with pytest.raises(CapabilityTransportError) as caught:
+        prepared.bindings["fixture"].endpoint.executor.invoke("asset.list", {})
+
+    _assert_sanitized(caught.value, "result-secret")
 
 
 @pytest.mark.parametrize("source", ["application", "domain", "between"])

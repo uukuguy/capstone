@@ -85,6 +85,7 @@ class _CredentialScreeningExecutor:
             raise CapabilityTransportError("capability transport failed")
 
         result_rejected = False
+        result_screening_failed = False
         try:
             _reject_credential_leak(
                 result,
@@ -93,15 +94,19 @@ class _CredentialScreeningExecutor:
             )
         except DomainProvisioningError:
             result_rejected = True
+        except Exception:
+            result_screening_failed = True
         if result_rejected:
             raise CapabilityTransportError(
                 "credential-bearing capability result rejected"
             )
+        if result_screening_failed:
+            raise CapabilityTransportError("capability result screening failed")
         return result
 
 
 class _PreparedEndpointView:
-    __slots__ = ("_close", "_executor", "_metadata")
+    __slots__ = ("_close", "_closed", "_executor", "_metadata")
 
     def __init__(
         self,
@@ -110,6 +115,7 @@ class _PreparedEndpointView:
         metadata: Mapping[str, object],
     ) -> None:
         self._close = endpoint.close
+        self._closed = False
         self._executor = executor
         self._metadata = metadata
 
@@ -122,7 +128,16 @@ class _PreparedEndpointView:
         return self._metadata
 
     def close(self) -> None:
-        self._close()
+        if self._closed:
+            return
+        self._closed = True
+        close_failed = False
+        try:
+            self._close()
+        except Exception:
+            close_failed = True
+        if close_failed:
+            raise DomainProvisioningError("prepared endpoint cleanup failed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,12 +214,7 @@ def prepare_application(
             binding_workspace = binding_workspaces[binding.binding_id]
             endpoint = _prepare_endpoint(binding, binding_workspace, lease)
             endpoints.append(endpoint)
-            endpoint_metadata = _snapshot_endpoint_metadata(endpoint.metadata)
-            _reject_credential_leak(
-                endpoint_metadata,
-                lease,
-                location="endpoint metadata",
-            )
+            endpoint_metadata = _prepare_endpoint_metadata(endpoint, lease)
             capability_documents = _load_domain_resources(
                 binding.profile,
                 credential_lease=lease,
@@ -482,6 +492,39 @@ def _snapshot_endpoint_metadata(
     if not isinstance(snapshot, Mapping):
         raise DomainProvisioningError("endpoint metadata is not a mapping")
     return snapshot
+
+
+def _prepare_endpoint_metadata(
+    endpoint: PreparedDomainEndpoint,
+    lease: CredentialLease,
+) -> Mapping[str, object]:
+    metadata_failed = False
+    try:
+        metadata = _snapshot_endpoint_metadata(endpoint.metadata)
+    except Exception:
+        metadata_failed = True
+    if metadata_failed:
+        raise DomainProvisioningError("endpoint metadata preparation failed")
+
+    metadata_rejected = False
+    metadata_screening_failed = False
+    try:
+        _reject_credential_leak(
+            metadata,
+            lease,
+            location="endpoint metadata",
+        )
+    except DomainProvisioningError:
+        metadata_rejected = True
+    except Exception:
+        metadata_screening_failed = True
+    if metadata_rejected:
+        raise DomainProvisioningError(
+            "credential-bearing endpoint metadata rejected"
+        )
+    if metadata_screening_failed:
+        raise DomainProvisioningError("endpoint metadata screening failed")
+    return metadata
 
 
 def _freeze_metadata_value(value: object, *, active: set[int]) -> object:
