@@ -182,6 +182,61 @@
         }
       },
       "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
+    },
+    {
+      "hypothesis_id": "C-H003",
+      "run_id": "20260829T155126Z-c-h003",
+      "status": "confirmed",
+      "recorded_at": "2026-08-29T23:51:27+08:00",
+      "local_score": 15.0,
+      "per_task": {
+        "authority_lineage": 0.0,
+        "distribution_integrity": 0.0,
+        "domain_pack_spi": 0.0,
+        "generic_pi_transport": 15.0,
+        "product_compatibility": 0.0,
+        "reference_authority": 0.0
+      },
+      "gate_evidence": {
+        "authority_lineage": {
+          "artifact_path": "runs/climb/gate-receipts/180d5da4ec94f6f731f9c2f2312fda6e77cf6d87/authority_lineage.json",
+          "release_source_revision": "180d5da4ec94f6f731f9c2f2312fda6e77cf6d87",
+          "status": "missing-receipt"
+        },
+        "distribution_integrity": {
+          "artifact_path": "runs/climb/gate-receipts/180d5da4ec94f6f731f9c2f2312fda6e77cf6d87/distribution_integrity.json",
+          "release_source_revision": "180d5da4ec94f6f731f9c2f2312fda6e77cf6d87",
+          "status": "missing-receipt"
+        },
+        "domain_pack_spi": {
+          "artifact_path": "runs/climb/gate-receipts/180d5da4ec94f6f731f9c2f2312fda6e77cf6d87/domain_pack_spi.json",
+          "release_source_revision": "180d5da4ec94f6f731f9c2f2312fda6e77cf6d87",
+          "status": "missing-receipt"
+        },
+        "generic_pi_transport": {
+          "artifact_path": "runs/climb/20260829T155126Z-c-h003/gate-output-generic_pi_transport.json",
+          "command": [
+            "make",
+            "test-inventory-pi"
+          ],
+          "output_sha256": "50fcaee6d7e508877a2c8a7687573c9d51baa9441205c8b4979332800f02ad0d",
+          "release_source_revision": "180d5da4ec94f6f731f9c2f2312fda6e77cf6d87",
+          "returncode": 0,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q\n.                                                                        [100%]\n1 passed in 0.95s"
+        },
+        "product_compatibility": {
+          "focused_gate": "generic_pi_transport",
+          "status": "not-focused"
+        },
+        "reference_authority": {
+          "artifact_path": "runs/climb/gate-receipts/180d5da4ec94f6f731f9c2f2312fda6e77cf6d87/reference_authority.json",
+          "release_source_revision": "180d5da4ec94f6f731f9c2f2312fda6e77cf6d87",
+          "status": "missing-receipt"
+        }
+      },
+      "verdict": "confirmed: owned deterministic Workstream C Inventory Reference Domain gate passed"
     }
   ]
 }
