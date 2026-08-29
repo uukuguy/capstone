@@ -25,8 +25,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("docs/status/climb/config.yaml"),
-        help="Climb configuration containing protected path tree digests.",
+        default=Path(
+            "configs/runtime/application-instantiation-protected-paths.json"
+        ),
+        help=(
+            "Active C.1 protected-path policy at "
+            "configs/runtime/application-instantiation-protected-paths.json."
+        ),
     )
     args = parser.parse_args(argv)
     root = args.root.resolve()

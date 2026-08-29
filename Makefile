@@ -135,7 +135,8 @@ check-package-boundaries:
 check-application-boundaries: check-package-boundaries
 
 check-protected-paths:
-	python3 tools/check_protected_paths.py
+	python3 tools/check_protected_paths.py \
+		--config configs/runtime/application-instantiation-protected-paths.json
 
 test-packages:
 	bash tools/test_package_artifacts.sh

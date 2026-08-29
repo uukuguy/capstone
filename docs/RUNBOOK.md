@@ -203,6 +203,10 @@ make test-packages
 `make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport 测试。`make test-packages` 构建并安装干净发行工件，验证六个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
 
+`make check-protected-paths` 和 `make validate` 使用当前 C.1 repository gate：`configs/runtime/application-instantiation-protected-paths.json`。该运行时策略固定保护不可变的 acceptance 输入和 simulator truth boundary：`configs/capabilities/pandapower-3.4.0-static-analysis.json`、`packages/grid-simulator`、`packages/inventory-domain-pack`、`packages/inventory-reference-service`、`validation/questions/task.md.txt` 与 `validation/questions/test.md.txt`。每项 digest 均来自该路径的已提交 `HEAD:<path>` Git 对象；gate 同时拒绝这些路径的 working-tree 变更。
+
+该 C.1 策略刻意不保护将在已批准后续任务中变更的 `packages/capability-agent-kernel`、`packages/pi-capability-tools`、`packages/trajectory-workbench`、`packages/grid-agent` 和 `packages/pandapower-domain-pack`。这不会改写 Workstream C 的历史证据：`docs/status/climb/config.yaml` 继续以其记录的 source revision 与 protected-path baseline 证明当时的 closure。
+
 Workstream C 的最终本地 release closure 必须从已提交且干净的 release-source revision 运行：
 
 ```sh
