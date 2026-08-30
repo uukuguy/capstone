@@ -6,32 +6,44 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 from pydantic import JsonValue, ValidationError
 
 from capability_agent.application import (
+    ActiveTurnHandle,
     ApplicationContextStore,
     ApplicationInvocationProjector,
+    ApplicationProfile,
+    ApplicationOutcome,
+    CredentialScope,
     ApplicationWorkspace,
     DomainRegistry,
+    FinalizedTurn,
+    PreparedApplication,
+    PreparedBinding,
     TurnController,
     prepare_application,
 )
+from capability_agent.application.composition import CredentialBroker
+from capability_agent.application.context_models import PORTABLE_ID_PATTERN
 from capability_agent.application.errors import AnswerCommitError
+from capability_agent.domain.provisioning import CredentialLease
 from capability_agent.tools.catalog import (
     BoundDomainCatalog,
+    BoundToolDocument,
     CompositeToolCatalog,
     CoreToolCatalog,
 )
+from capability_agent.trajectory.answers import AnswerClaim
 from grid_agent.application.composition import build_generic_application, run_generic_application
 from grid_agent.application.registry import ApplicationRegistry
 from grid_agent.application.workspace import RunWorkspace
@@ -42,12 +54,14 @@ from grid_agent.simulator.locator import GridctlLocator
 from grid_agent.validation.cases import ValidationCase, load_cases
 from grid_agent.validation.corpus import AnswerCorpus, AnswerCorpusError, evaluate_corpus_trace, load_answer_corpus
 from grid_agent.validation.oracles import ORACLES, ToolResultEvent
+from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 
 
 _OPERATION_CAPABILITIES = {
     "element.resolve": "model.element.get",
     "powerflow.run_ac": "analysis.powerflow.ac.run",
 }
+SemanticEventCallback = Callable[[Mapping[str, object], int | None], None]
 
 
 @dataclass(frozen=True)
@@ -55,12 +69,12 @@ class ApplicationExecution:
     """Inspectable result of one provider-free generic application run."""
 
     case: Mapping[str, object]
-    outcome: object
+    outcome: ApplicationOutcome
     workspace: ApplicationWorkspace
     store: ApplicationContextStore
     transport: "ScriptedApplicationTransport"
     controller: "AuditingTurnController"
-    prepared: object
+    prepared: PreparedApplication
 
 
 class ScriptedApplicationTransport:
@@ -76,18 +90,16 @@ class ScriptedApplicationTransport:
         self,
         case: Mapping[str, object],
         *,
-        prepared: object,
+        prepared: PreparedApplication,
         catalog: CompositeToolCatalog,
     ) -> None:
         self.case = case
         self.run_id = str(case["run_id"])
-        bindings = getattr(prepared, "bindings", {})
-        self._binding = bindings["grid"]
-        self._catalog = catalog
-        self._tool_by_capability = {
+        self._binding: PreparedBinding = prepared.bindings["grid"]
+        self._tool_by_capability: dict[str, BoundToolDocument] = {
             tool.key.capability_id: tool for tool in catalog.domain_tools
         }
-        runtime = getattr(self._binding, "runtime")
+        runtime = self._binding.runtime
         self._projector_by_capability: dict[str, tuple[str, str | None]] = {}
         for document in runtime.capability_documents:
             capability = document.get("id")
@@ -132,7 +144,7 @@ class ScriptedApplicationTransport:
         self,
         question: str,
         *,
-        on_semantic_event: object | None = None,
+        on_semantic_event: SemanticEventCallback | None = None,
         correlation_id: str | None = None,
     ) -> str:
         questions = self.case.get("questions")
@@ -146,7 +158,6 @@ class ScriptedApplicationTransport:
 
         self._current_result_refs = ()
         self._current_evidence_refs = ()
-        current_calls: list[dict[str, object]] = []
         steps = scripted.get("steps")
         if not isinstance(steps, list) or not steps:
             raise RuntimeError("scripted application question has no semantic steps")
@@ -165,18 +176,11 @@ class ScriptedApplicationTransport:
                 result_ref=self._result_ref,
                 asset_ref=self._asset_ref,
             )
-            result = self._invoke(
+            self._invoke(
                 capability,
                 resolved_arguments,
                 turn_id=correlation_id,
                 on_semantic_event=on_semantic_event,
-            )
-            current_calls.append(
-                {
-                    "capability": capability,
-                    "arguments": resolved_arguments,
-                    "result": result,
-                }
             )
         self._question_index += 1
         return (
@@ -190,7 +194,7 @@ class ScriptedApplicationTransport:
         arguments: dict[str, object],
         *,
         turn_id: str,
-        on_semantic_event: object | None,
+        on_semantic_event: SemanticEventCallback | None,
     ) -> dict[str, object]:
         try:
             tool = self._tool_by_capability[capability]
@@ -291,19 +295,31 @@ class ScriptedApplicationTransport:
 class AuditingTurnController(TurnController):
     """Pass scripted current-turn refs through the real answer audit."""
 
-    def __init__(self, *, transport: ScriptedApplicationTransport, **kwargs: object) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        *,
+        transport: ScriptedApplicationTransport,
+        store: ApplicationContextStore,
+        workspace: ApplicationWorkspace,
+        bindings: Mapping[str, object],
+    ) -> None:
+        super().__init__(store=store, workspace=workspace, bindings=bindings)
         self.transport = transport
-        self.finalized_turns: list[object] = []
+        self.finalized_turns: list[FinalizedTurn] = []
 
     def submit(
         self,
-        handle: object,
+        handle: ActiveTurnHandle,
         *,
         answer_output: str,
+        referenced_bindings: Iterable[str] = (),
+        result_refs: Iterable[str] = (),
+        evidence_refs: Iterable[str] = (),
+        claims: Iterable[AnswerClaim | Mapping[str, object]] = (),
         duration_seconds: float,
-        **_: object,
-    ) -> object:
+        submission_id: str | None = None,
+    ) -> FinalizedTurn:
+        del referenced_bindings, result_refs, evidence_refs, claims, submission_id
         result_refs = self.transport.current_result_refs
         evidence_refs = self.transport.current_evidence_refs
         references = (*result_refs, *evidence_refs)
@@ -331,6 +347,103 @@ class AuditingTurnController(TurnController):
         return finalized
 
 
+def _remove_generated_application_run(runs_root: Path, run_id: str) -> None:
+    """Remove exactly one validated generated run directory, if present."""
+
+    candidate = _validated_generated_run_path(runs_root, run_id)
+    try:
+        metadata = candidate.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise ValueError("generated application run path cannot be inspected") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ValueError("generated application run path must not be a symlink")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("generated application run path must be a directory")
+    shutil.rmtree(candidate)
+
+
+def _validated_generated_run_path(runs_root: Path, run_id: str) -> Path:
+    """Resolve and contain a generated run path before any destructive action."""
+
+    if not isinstance(runs_root, Path):
+        raise ValueError("runs root must be a path")
+    if not isinstance(run_id, str) or not PORTABLE_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("application run identifier must be a portable identifier")
+    try:
+        root = Path(os.path.abspath(os.fspath(runs_root)))
+    except (TypeError, ValueError, OSError) as exc:
+        raise ValueError("runs root is invalid") from exc
+    _reject_cleanup_symlink_ancestors(root, label="runs root")
+    candidate = root / run_id
+    _reject_cleanup_symlink_ancestors(candidate, label="generated application run")
+    try:
+        resolved_root = root.resolve(strict=False)
+        resolved_candidate = candidate.resolve(strict=False)
+        if resolved_candidate.parent != resolved_root:
+            raise ValueError("generated application run path escapes runs root")
+    except ValueError:
+        raise
+    except OSError as exc:
+        raise ValueError("generated application run path cannot be resolved") from exc
+    return candidate
+
+
+def _reject_cleanup_symlink_ancestors(path: Path, *, label: str) -> None:
+    """Reject symlinks and non-directory ancestors, including missing roots."""
+
+    current = path
+    while True:
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            parent = current.parent
+            if parent == current:
+                return
+            current = parent
+            continue
+        except OSError as exc:
+            raise ValueError(f"{label} cannot be inspected") from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(f"{label} must not contain a symlink")
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"{label} must be a directory")
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
+
+
+def _with_pandapower_timeout(
+    profile: ApplicationProfile,
+    timeout_seconds: float,
+) -> ApplicationProfile:
+    """Clone the first-domain profile with the validation timeout threaded through."""
+
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    bindings = []
+    for binding in profile.domains:
+        provisioner = binding.profile.provisioner
+        if not isinstance(provisioner, PandapowerRuntimeProvisioner):
+            raise ValueError("pandapower application provisioner is unavailable")
+        configured = PandapowerRuntimeProvisioner(
+            executable=provisioner.executable,
+            repository_root=provisioner.repository_root,
+            environ=provisioner.environ,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=provisioner.max_output_bytes,
+        )
+        bindings.append(
+            replace(
+                binding,
+                profile=replace(binding.profile, provisioner=configured),
+            )
+        )
+    return replace(profile, domains=tuple(bindings))
+
+
 def execute_application_case(
     case: Path | Mapping[str, object],
     *,
@@ -342,13 +455,14 @@ def execute_application_case(
     document = _load_application_document(case)
     application_id = str(document["application_id"])
     run_id = str(document["run_id"])
-    run_path = Path(runs_root) / run_id
-    # This path is exclusively generated by this provider-free validation.
-    shutil.rmtree(run_path, ignore_errors=True)
+    _remove_generated_application_run(runs_root, run_id)
 
     from grid_agent.application.profile import build_pandapower_application_profile
 
-    profile = build_pandapower_application_profile()
+    profile = _with_pandapower_timeout(
+        build_pandapower_application_profile(),
+        timeout_seconds,
+    )
     if profile.manifest.application_id != application_id:
         raise ValueError("application case targets an unregistered application")
     registry = ApplicationRegistry()
@@ -452,12 +566,23 @@ def execute_application_case(
     )
 
 
-class _EmptyApplicationCredentialBroker:
-    def issue(self, *, binding_id: str, scope: object) -> object:
+@dataclass
+class _EmptyApplicationCredentialLease:
+    scope_id: str
+    credentials: Mapping[str, str]
+
+
+class _EmptyApplicationCredentialBroker(CredentialBroker):
+    def issue(
+        self, *, binding_id: str, scope: CredentialScope
+    ) -> CredentialLease:
         del binding_id
-        if tuple(getattr(scope, "credential_names", ())) != ():
+        if scope.credential_names != ():
             raise ValueError("application acceptance credentials must be empty")
-        return SimpleNamespace(scope_id=getattr(scope, "scope_id"), credentials={})
+        return _EmptyApplicationCredentialLease(
+            scope_id=scope.scope_id,
+            credentials={},
+        )
 
 
 def _load_application_document(case: Path | Mapping[str, object]) -> Mapping[str, object]:
@@ -888,9 +1013,10 @@ def _evaluate_application_execution(
             errors["output"].append(f"rendered output is not JSON: {exc}")
 
     report_path = getattr(outcome, "report_path", None)
+    core_payload = result_payload.get("core")
     report_ref = (
-        result_payload.get("core", {}).get("report_ref")
-        if isinstance(result_payload.get("core"), Mapping)
+        core_payload.get("report_ref")
+        if isinstance(core_payload, Mapping)
         else None
     )
     if not isinstance(report_path, Path) or not report_path.is_file():

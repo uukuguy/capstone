@@ -5,13 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from validation.run import execute_application_case
+from validation.run import (
+    _remove_generated_application_run,
+    execute_application_case,
+)
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -36,11 +40,14 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     execution = execute_application_case(
         case_path,
         runs_root=tmp_path / "runs",
+        timeout_seconds=17.0,
     )
     outcome = execution.outcome
+    questions = execution.case["questions"]
+    assert isinstance(questions, list)
 
     assert outcome.status == "completed"
-    assert outcome.completed_questions == len(execution.case["questions"])
+    assert outcome.completed_questions == len(questions)
     assert outcome.total_questions == outcome.completed_questions
     assert execution.transport.started is True
     assert execution.transport.stopped is True
@@ -48,17 +55,18 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     assert len(execution.transport.semantic_events) == 2 * len(execution.transport.calls)
 
     # The model reuses the context emitted by the first real context.open call.
-    context_refs = {
-        result["context_ref"]
-        for call in execution.transport.calls
-        if isinstance(call.get("result"), dict)
-        for result in (call["result"],)
-        if isinstance(result.get("context_ref"), str)
-    }
+    context_refs: set[str] = set()
+    for call in execution.transport.calls:
+        result = call.get("result")
+        if isinstance(result, Mapping):
+            context_ref = result.get("context_ref")
+            if isinstance(context_ref, str):
+                context_refs.add(context_ref)
     assert len(context_refs) == 1
 
     # The runner returns the framework-owned composite output, not the legacy
     # two-field compatibility envelope.
+    assert isinstance(outcome.rendered, str)
     rendered = json.loads(outcome.rendered)
     assert set(rendered) == {"schema", "core", "domains"}
     assert rendered["schema"] == "capability-agent-output/1.0"
@@ -87,6 +95,7 @@ def test_scripted_pandapower_application_preserves_run_lineage(
             )
             for diagnostic in finalized.audit_diagnostics
         )
+        assert finalized.answer_path is not None
         answer_payload = json.loads(finalized.answer_path.read_text(encoding="utf-8"))
         assert answer_payload["result_refs"] == list(finalized.result_refs)
         assert answer_payload["evidence_refs"] == list(finalized.evidence_refs)
@@ -96,12 +105,15 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     # validation report formatting.
     report_path = outcome.report_path
     report_ref = rendered["core"]["report_ref"]
+    assert report_path is not None
     assert report_path.is_file()
     assert report_ref == "artifact:sha256:" + hashlib.sha256(
         report_path.read_bytes()
     ).hexdigest()
     assert report_ref in execution.store.snapshot.core.produced_refs
     assert execution.store.verify_materialized_snapshot() == execution.store.snapshot
+    endpoint_metadata = execution.prepared.bindings["grid"].endpoint.metadata
+    assert endpoint_metadata["timeout_seconds"] == pytest.approx(17.0)
 
     # Domain state is opaque to the Kernel but must be populated by the
     # Domain Pack projector and retain the simulator references from this run.
@@ -109,3 +121,82 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     assert domain_state["model"]
     assert execution.transport.all_result_refs
     assert execution.transport.all_evidence_refs
+
+
+@pytest.mark.parametrize("run_id", ("../sentinel", "nested/run"))
+def test_application_run_cleanup_rejects_path_traversal_without_touching_sentinel(
+    tmp_path: Path,
+    run_id: str,
+) -> None:
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="portable identifier"):
+        _remove_generated_application_run(runs_root, run_id)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_application_run_cleanup_rejects_absolute_id_without_touching_sentinel(
+    tmp_path: Path,
+) -> None:
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    sentinel = tmp_path / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="portable identifier"):
+        _remove_generated_application_run(runs_root, str(tmp_path / "outside"))
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_application_run_cleanup_rejects_symlink_candidate_without_following_it(
+    tmp_path: Path,
+) -> None:
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (runs_root / "safe-run").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        _remove_generated_application_run(runs_root, "safe-run")
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert (runs_root / "safe-run").is_symlink()
+
+
+def test_application_run_cleanup_rejects_symlink_runs_root(
+    tmp_path: Path,
+) -> None:
+    real_root = tmp_path / "real-runs"
+    real_root.mkdir()
+    runs_root = tmp_path / "runs"
+    runs_root.symlink_to(real_root, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        _remove_generated_application_run(runs_root, "safe-run")
+
+
+def test_application_run_cleanup_deletes_only_the_named_generated_run(
+    tmp_path: Path,
+) -> None:
+    runs_root = tmp_path / "runs"
+    runs_root.mkdir()
+    generated = runs_root / "safe-run"
+    generated.mkdir()
+    (generated / "generated.txt").write_text("remove", encoding="utf-8")
+    sibling = runs_root / "keep-run"
+    sibling.mkdir()
+    sentinel = sibling / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    _remove_generated_application_run(runs_root, "safe-run")
+
+    assert not generated.exists()
+    assert sentinel.read_text(encoding="utf-8") == "keep"
