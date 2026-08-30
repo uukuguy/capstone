@@ -2,20 +2,22 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from capability_agent.application import AgentApplication
 from capability_agent.application.errors import ApplicationConfigurationError
 from capability_agent.application.output import (
     JsonOutputRenderer,
-    ValidatedDomainOutput,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
 
-from grid_agent.application.composition import run_generic_application
+from grid_agent.application.composition import (
+    build_generic_application,
+    run_generic_application,
+)
 from grid_agent.application.profile import build_pandapower_application_profile
 
 
@@ -36,25 +38,6 @@ class _Provider:
 
     def stop(self) -> None:
         self.stopped = True
-
-
-@dataclass
-class _Controller:
-    starts: list[tuple[int, str]]
-    submits: list[str]
-
-    def start(self, ordinal: int, question: str) -> SimpleNamespace:
-        self.starts.append((ordinal, question))
-        return SimpleNamespace(turn_id=f"run-1-t{ordinal:03d}")
-
-    def submit(self, _handle: object, *, answer_output: str, **_kwargs: object) -> SimpleNamespace:
-        self.submits.append(answer_output)
-        return SimpleNamespace(
-            status="success",
-            answer_ref=f"answer:sha256:{'a' * 64}",
-            answer_output=answer_output,
-            result_refs=(),
-        )
 
 
 class _Renderer:
@@ -82,20 +65,12 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
     profile = build_pandapower_application_profile()
     workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
     provider = _Provider()
-    controller = _Controller([], [])
-    application = AgentApplication(
-        profile=profile,
+    application = build_generic_application(
+        "pandapower-static-analysis",
         prepared_application=_prepared(profile),
         provider=provider,
         workspace=workspace,
-        turn_controller=controller,
         catalog=object(),
-        report_shell=SimpleNamespace(render=lambda **_kwargs: "# report\n"),
-        domain_output_builder=lambda **_kwargs: ValidatedDomainOutput(
-            schema="pandapower-static-analysis-output/1.0",
-            status="completed",
-            payload={"instruction_count": 2, "completed_count": 2, "failed_count": 0},
-        ),
     )
 
     outcome = run_generic_application(
@@ -104,14 +79,29 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
         application=application,
     )
 
-    assert outcome.status == "completed"
+    assert outcome.status == "completed", outcome.error
     assert provider.started is True
     assert provider.stopped is True
-    assert controller.starts == [(1, "question one"), (2, "question two")]
     assert outcome.result.schema == "capability-agent-output/1.0"
     assert outcome.result.core.application_id == "pandapower-static-analysis"
+    assert outcome.result.core.report_ref is not None
     assert tuple(outcome.result.domains) == ("grid",)
-    assert outcome.result.domains["grid"].payload["completed_count"] == 2
+    domain_payload = outcome.result.domains["grid"].payload
+    assert domain_payload == {
+        "mode": "continuous-static-analysis",
+        "instruction_count": 2,
+        "completed_count": 2,
+        "failed_count": 0,
+        "report_artifact_ref": outcome.result.core.report_ref,
+    }
+    assert workspace.output_path.joinpath("report.md").is_file()
+    report_digest = sha256(
+        workspace.output_path.joinpath("report.md").read_bytes()
+    ).hexdigest()
+    assert outcome.result.core.report_ref == f"artifact:sha256:{report_digest}"
+    assert outcome.result.core.report_ref in workspace.root.joinpath(
+        "core/context-events.jsonl"
+    ).read_text(encoding="utf-8")
     assert isinstance(outcome.rendered, str)
     rendered = json.loads(outcome.rendered)
     assert set(rendered) == {"schema", "core", "domains"}
@@ -131,6 +121,9 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
         "status",
         "payload",
     }
+    assert rendered["core"]["report_ref"] == rendered["domains"]["grid"][
+        "payload"
+    ]["report_artifact_ref"]
 
 
 def test_generic_entrypoint_rejects_request_for_a_different_application(
@@ -138,19 +131,12 @@ def test_generic_entrypoint_rejects_request_for_a_different_application(
 ) -> None:
     profile = build_pandapower_application_profile()
     workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
-    application = AgentApplication(
-        profile=profile,
+    application = build_generic_application(
+        "pandapower-static-analysis",
         prepared_application=_prepared(profile),
         provider=_Provider(),
         workspace=workspace,
-        turn_controller=_Controller([], []),
         catalog=object(),
-        report_shell=SimpleNamespace(render=lambda **_kwargs: "# report\n"),
-        domain_output_builder=lambda **_kwargs: ValidatedDomainOutput(
-            schema="pandapower-static-analysis-output/1.0",
-            status="completed",
-            payload={"instruction_count": 0, "completed_count": 0, "failed_count": 0},
-        ),
     )
 
     with pytest.raises(ApplicationConfigurationError, match="identity"):

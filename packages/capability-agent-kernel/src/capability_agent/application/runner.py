@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import copy
 import inspect
 import os
 import stat
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from pathlib import Path
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from capability_agent.application.composition import (
     PreparedApplication,
@@ -40,7 +41,6 @@ from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.catalog import ProviderCatalog, ProviderCatalogSource
 from capability_agent.runtime.descriptor import descriptor_from_endpoint, write_runtime_descriptor
 from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
-from capability_agent.runtime.extension import PiExtensionLocator
 from capability_agent.runtime.locator import PiRuntimeLocator
 from capability_agent.runtime.models import CliLLMOptions, ResolvedLLM
 from capability_agent.runtime.resolver import resolve_llm
@@ -50,6 +50,10 @@ from capability_agent.tools.catalog import (
     BoundDomainCatalog,
     CompositeToolCatalog,
     CoreToolCatalog,
+)
+from capability_agent.trajectory.artifacts import (
+    ArtifactIntegrityError,
+    ImmutableArtifactRegistry,
 )
 
 
@@ -260,6 +264,21 @@ class AgentApplication:
                 active_turn = None
                 if getattr(finalized, "status", "success") != "success":
                     raise ApplicationConfigurationError("question did not produce an accepted answer")
+            preliminary_core = self._build_core_result(
+                request=request,
+                workspace=workspace,
+                completed_answers=tuple(completed_answers),
+                report_ref=None,
+            )
+            report_path, report_ref = self._write_report(
+                request=request,
+                workspace=workspace,
+                store=store,
+                core=preliminary_core,
+                completed_answers=tuple(completed_answers),
+                prepared=prepared,
+            )
+            self._record_report_reference(store, report_ref)
             result = self._build_result(
                 request=request,
                 workspace=workspace,
@@ -267,16 +286,9 @@ class AgentApplication:
                 bindings=bindings,
                 controller=controller,
                 completed_answers=tuple(completed_answers),
+                report_ref=report_ref,
             )
             rendered = self._render(result)
-            report_path = self._write_report(
-                request=request,
-                workspace=workspace,
-                store=store,
-                result=result,
-                completed_answers=tuple(completed_answers),
-                prepared=prepared,
-            )
             self._mark_completed(store, len(completed_answers), len(request.questions))
             return ApplicationOutcome(
                 result=result,
@@ -364,9 +376,9 @@ class AgentApplication:
             raise ApplicationConfigurationError("prepared application inputs are incomplete")
         return prepare_application(
             self.profile,
-            registry=self.registry,
+            registry=cast(Any, self.registry),
             workspace=self.workspace.root,
-            credentials=self.credentials,
+            credentials=cast(Any, self.credentials),
         )
 
     def _ensure_workspace(
@@ -496,7 +508,7 @@ class AgentApplication:
         if not isinstance(self.provider_catalog, ProviderCatalog):
             source = self.provider_catalog
             if source is not None and callable(getattr(source, "load", None)):
-                source = source.load()
+                source = _call_method(source, "load")
             if not isinstance(source, ProviderCatalog):
                 return None
             provider_catalog = source
@@ -540,18 +552,16 @@ class AgentApplication:
             binding = bindings[binding_id]
             endpoint = getattr(binding, "endpoint", None)
             runtime = getattr(binding, "runtime", None)
+            binding_profile = getattr(getattr(binding, "binding", None), "profile", None)
+            manifest = getattr(binding_profile, "manifest", None)
             runtime_dir = workspace.domain_runtime_path(binding_id)
             descriptor_path = runtime_dir / "runtime-descriptor.json"
             descriptor = descriptor_from_endpoint(
                 binding_id=binding_id,
                 workspace=workspace.root,
                 endpoint=endpoint,
-                protocol=getattr(getattr(binding, "binding", None), "profile", None)
-                and getattr(getattr(binding.binding, "profile", None), "manifest", None).protocol
-                or "",
-                protocol_version=getattr(getattr(binding, "binding", None), "profile", None)
-                and getattr(getattr(binding.binding, "profile", None), "manifest", None).protocol_version
-                or "",
+                protocol=getattr(manifest, "protocol", ""),
+                protocol_version=getattr(manifest, "protocol_version", ""),
                 authority_id=getattr(getattr(runtime, "authority", None), "authority_id", ""),
                 application_id=request.application_id,
                 run_id=workspace.run_id,
@@ -600,7 +610,7 @@ class AgentApplication:
         trace = JsonlTraceWriter(trace_path, secret_values={resolved.secret.value} if resolved.secret else set())
         return PiRpcClient(
             launch,
-            SimpleNamespace(root_path=self.runtime_paths.workspace),
+            cast(Any, SimpleNamespace(root_path=self.runtime_paths.workspace)),
             trace,
             secret_values={resolved.secret.value} if resolved.secret else set(),
         )
@@ -614,6 +624,7 @@ class AgentApplication:
         bindings: Mapping[str, object],
         controller: object,
         completed_answers: tuple[object, ...],
+        report_ref: str | None,
     ) -> ApplicationResult:
         identities = self.binding_identities or tuple(
             BindingIdentity(
@@ -631,7 +642,28 @@ class AgentApplication:
                 binding,
                 store,
                 completed_answers,
+                report_ref=report_ref,
             )
+        core = self._build_core_result(
+            request=request,
+            workspace=workspace,
+            completed_answers=completed_answers,
+            report_ref=report_ref,
+        )
+        return self.output_composer.compose(
+            core=core,
+            bindings=identities,
+            domains=domain_outputs,
+        )
+
+    def _build_core_result(
+        self,
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace | None,
+        completed_answers: tuple[object, ...],
+        report_ref: str | None,
+    ) -> CoreRunResult:
         answer_refs = tuple(
             ref
             for answer in completed_answers
@@ -639,19 +671,14 @@ class AgentApplication:
             if ref
         )
         manifest = getattr(self.profile, "manifest", None)
-        core = CoreRunResult(
+        return CoreRunResult(
             application_id=getattr(manifest, "application_id", request.application_id),
             application_version=getattr(manifest, "version", "1.0.0"),
             run_id=getattr(workspace, "run_id", request.run_id or "run"),
             status="completed",
             answer_refs=answer_refs,
-            report_ref=None,
+            report_ref=report_ref,
             diagnostic_refs=(),
-        )
-        return self.output_composer.compose(
-            core=core,
-            bindings=identities,
-            domains=domain_outputs,
         )
 
     def _build_domain_output(
@@ -660,13 +687,20 @@ class AgentApplication:
         binding: object | None,
         store: ApplicationContextStore | None,
         completed_answers: tuple[object, ...],
+        *,
+        report_ref: str | None,
     ) -> ValidatedDomainOutput:
+        context = store.snapshot if store is not None else None
+        if report_ref is not None:
+            context = _with_report_reference(context, report_ref)
         if self.domain_output_builder is not None:
-            return self.domain_output_builder(
+            return _call_factory(
+                self.domain_output_builder,
                 binding_id=binding_id,
                 binding=binding,
-                context=store.snapshot if store is not None else None,
+                context=context,
                 committed_answers=completed_answers,
+                report_ref=report_ref,
             )
         profile = getattr(binding, "profile", None)
         profile = profile or getattr(getattr(binding, "binding", None), "profile", None)
@@ -679,6 +713,8 @@ class AgentApplication:
             adapter = getattr(profile, "state_adapter", None)
             if adapter is not None:
                 context = _call_factory(adapter.build_context, binding_id=binding_id, state=state)
+        if report_ref is not None:
+            context = _with_report_reference(context, report_ref)
         payload = _call_factory(
             contract.build,
             binding_id=binding_id,
@@ -687,7 +723,7 @@ class AgentApplication:
         )
         if not isinstance(payload, Mapping):
             raise ApplicationConfigurationError("domain output contract returned a non-object")
-        _call_factory(contract.validate, payload)
+        _validate_domain_output(contract, payload, context)
         return ValidatedDomainOutput(
             schema=getattr(contract, "schema_id"),
             status="completed",
@@ -755,12 +791,12 @@ class AgentApplication:
         request: ApplicationRequest,
         workspace: ApplicationWorkspace | None,
         store: ApplicationContextStore | None,
-        result: ApplicationResult,
+        core: CoreRunResult,
         completed_answers: tuple[object, ...],
         prepared: object | None = None,
-    ) -> Path | None:
+    ) -> tuple[Path | None, str | None]:
         if workspace is None:
-            return None
+            return None, None
         presentation = None
         bindings = _prepared_bindings(
             self.prepared_application if prepared is None else prepared
@@ -788,14 +824,45 @@ class AgentApplication:
             references=references,
             context=store.snapshot if store is not None else None,
             presentation=presentation,
-            core=result.core.model_dump(mode="json"),
-            domains={key: value.model_dump(mode="json") for key, value in result.domains.items()},
+            core=core.model_dump(mode="json"),
+            domains={},
         )
         if not isinstance(report, str):
             raise PresentationError("report shell must return text")
         path = workspace.output_path / "report.md"
         _write_report_atomically(path, report)
-        return path
+        try:
+            pointer = ImmutableArtifactRegistry(
+                workspace.root,
+                path_policy=_ReportArtifactPathPolicy(),
+            ).register_existing("report", "report", path)
+        except (ArtifactIntegrityError, OSError, ValueError):
+            raise PresentationError("report artifact admission failed") from None
+        return path, pointer.ref
+
+    def _record_report_reference(
+        self, store: ApplicationContextStore | None, report_ref: str | None
+    ) -> None:
+        if store is None or report_ref is None:
+            return
+        snapshot = getattr(store, "snapshot", None)
+        core = getattr(snapshot, "core", None)
+        produced_refs = getattr(core, "produced_refs", ())
+        if report_ref in produced_refs:
+            return
+        from capability_agent.application.context_models import ContextEventDraft
+
+        try:
+            store.append(
+                ContextEventDraft(
+                    event_type="reference.produced",
+                    payload={"ref": report_ref},
+                )
+            )
+        except Exception as exc:
+            raise ApplicationConfigurationError(
+                "report reference could not be persisted"
+            ) from exc
 
     def _mark_completed(
         self, store: ApplicationContextStore | None, completed: int, total: int
@@ -991,6 +1058,83 @@ def _call_factory(factory: Callable[..., Any], *args: object, **kwargs: object) 
     return factory(*args, **accepted)
 
 
+def _validate_domain_output(
+    contract: object,
+    payload: Mapping[str, object],
+    context: object | None,
+) -> None:
+    """Validate a domain payload against the same run-scoped context.
+
+    Most domain contracts expose the historical ``validate(payload)`` method,
+    while a context-aware contract may opt into ``validate_with_context``.  A
+    few existing contracts also expose ``allowed_references`` as a constructor
+    option.  For those contracts, validate through a shallow run-local copy so
+    the admitted references are available without mutating a profile shared by
+    another run.
+    """
+
+    context_validator = getattr(contract, "validate_with_context", None)
+    if callable(context_validator):
+        _call_factory(context_validator, payload, context=context)
+        return
+    validator = getattr(contract, "validate", None)
+    if not callable(validator):
+        raise ApplicationConfigurationError("domain output contract validator is unavailable")
+
+    scoped_contract = _scope_output_contract(contract, _context_admitted_references(context))
+    _call_factory(getattr(scoped_contract, "validate"), payload, context=context)
+
+
+def _scope_output_contract(contract: object, references: frozenset[str]) -> object:
+    """Bind admitted references to an opt-in contract without shared mutation."""
+
+    if not references:
+        return contract
+    missing = object()
+    configured = getattr(contract, "allowed_references", missing)
+    if configured is not None or configured is missing:
+        return contract
+    try:
+        scoped_contract = copy.copy(contract)
+        setattr(scoped_contract, "allowed_references", references)
+    except (AttributeError, TypeError):
+        return contract
+    return scoped_contract
+
+
+def _context_admitted_references(context: object | None) -> frozenset[str]:
+    """Read only generic admission fields from an opaque context view."""
+
+    if context is None:
+        return frozenset()
+    raw = _context_mapping(context)
+    references: set[str] = set()
+    for source in (raw, raw.get("state")):
+        if not isinstance(source, Mapping):
+            continue
+        for key in ("admitted_artifact_refs", "admitted_refs", "allowed_references"):
+            values = source.get(key)
+            if isinstance(values, str):
+                values = (values,)
+            if isinstance(values, Sequence):
+                references.update(value for value in values if isinstance(value, str))
+    return frozenset(references)
+
+
+def _context_mapping(context: object) -> dict[str, object]:
+    dump = getattr(context, "model_dump", None)
+    if callable(dump):
+        try:
+            value = dump(mode="python")
+        except TypeError:
+            value = dump()
+        if isinstance(value, Mapping):
+            return {str(key): item for key, item in value.items()}
+    if isinstance(context, Mapping):
+        return {str(key): item for key, item in context.items()}
+    return {}
+
+
 def _call_prompt(
     transport: object,
     question: str,
@@ -1026,6 +1170,55 @@ def _call_prompt(
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")
     return answer
+
+
+@dataclass(frozen=True, slots=True)
+class _ReportArtifactPathPolicy:
+    """Bind the generic report artifact to the published report path."""
+
+    def candidate_paths(
+        self, run_root: Path, kind: str, identity: str
+    ) -> tuple[Path, ...]:
+        if kind != "report" or identity != "report":
+            raise ArtifactIntegrityError("report artifact identity is invalid")
+        return (run_root / "output" / "report.md",)
+
+    def identity_for_path(self, kind: str, relative_path: PurePosixPath) -> str:
+        if kind == "report" and relative_path == PurePosixPath("output/report.md"):
+            return "report"
+        raise ArtifactIntegrityError("report artifact path is invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class _ReportAwareDomainContext:
+    """Expose generic report admission alongside an opaque domain context."""
+
+    base: object | None
+    report_artifact_ref: str
+
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+        del mode
+        values: dict[str, object] = {}
+        if self.base is not None:
+            dump = getattr(self.base, "model_dump", None)
+            if callable(dump):
+                try:
+                    candidate = dump(mode="python")
+                except TypeError:
+                    candidate = dump()
+                if isinstance(candidate, Mapping):
+                    values.update({str(key): value for key, value in candidate.items()})
+            elif isinstance(self.base, Mapping):
+                values.update({str(key): value for key, value in self.base.items()})
+        values["report_artifact_ref"] = self.report_artifact_ref
+        values["admitted_artifact_refs"] = (self.report_artifact_ref,)
+        return values
+
+
+def _with_report_reference(
+    context: object | None, report_ref: str
+) -> _ReportAwareDomainContext:
+    return _ReportAwareDomainContext(context, report_ref)
 
 
 def _write_report_atomically(path: Path, report: str) -> None:

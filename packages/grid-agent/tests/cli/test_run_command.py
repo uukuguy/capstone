@@ -6,8 +6,12 @@ from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
+from capability_agent.application import AgentApplication, ApplicationWorkspace
+
+import grid_agent.application.composition as grid_composition
 from grid_agent.cli import app as cli_module
 from grid_agent.cli.app import app
+from grid_agent.application.profile import build_pandapower_application_profile
 
 
 def test_analysis_generic_requires_application_and_instructions() -> None:
@@ -117,3 +121,80 @@ def test_analysis_generic_never_projects_failed_run_to_legacy_envelope(
     assert result.stdout == ""
     assert "question_id" not in result.stdout
     assert "generic application failed" in result.stderr
+
+
+def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    instructions = tmp_path / "instructions.txt"
+    instructions.write_text("question one\nquestion two\n", encoding="utf-8")
+    profile = build_pandapower_application_profile()
+    binding = profile.domains[0]
+    provider = SimpleNamespace(
+        start=lambda: None,
+        prompt_and_wait=lambda _question, **_kwargs: "validated answer",
+        stop=lambda: None,
+    )
+
+    def build_application(_application_id: str, **kwargs: object) -> AgentApplication:
+        workspace_root = kwargs["workspace_root"]
+        assert isinstance(workspace_root, Path)
+        workspace = ApplicationWorkspace.create(
+            workspace_root,
+            run_id="cli-near-real",
+            binding_ids=("grid",),
+        )
+        prepared = SimpleNamespace(
+            bindings={
+                "grid": SimpleNamespace(
+                    binding=binding,
+                    endpoint=SimpleNamespace(close=lambda: None),
+                    runtime=SimpleNamespace(),
+                )
+            }
+        )
+        return AgentApplication(
+            profile=profile,
+            prepared_application=prepared,
+            provider=provider,
+            workspace=workspace,
+            catalog=object(),
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(grid_composition, "build_generic_application", build_application)
+    monkeypatch.setattr(
+        cli_module,
+        "GenericProviderCatalog",
+        SimpleNamespace(load=lambda _path: object()),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "analysis-generic",
+            "--application",
+            "pandapower-static-analysis",
+            "--instructions",
+            str(instructions),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    rendered = json.loads(result.stdout)
+    assert rendered["schema"] == "capability-agent-output/1.0"
+    assert rendered["core"]["run_id"] == "cli-near-real"
+    domain = rendered["domains"]["grid"]
+    assert domain["schema"] == "pandapower-static-analysis-output/1.0"
+    assert domain["payload"] == {
+        "mode": "continuous-static-analysis",
+        "instruction_count": 2,
+        "completed_count": 2,
+        "failed_count": 0,
+        "report_artifact_ref": rendered["core"]["report_ref"],
+    }
+    report_path = tmp_path / "runs/cli-near-real/output/report.md"
+    assert report_path.is_file()
+    assert "question_id" not in result.stdout
+    assert "generic application failed" not in result.stderr
