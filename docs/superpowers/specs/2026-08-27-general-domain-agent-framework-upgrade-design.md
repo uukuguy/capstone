@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-27
 
-**Status:** Workstreams A and B implemented for the pandapower static-analysis application; Workstreams C-E remain unimplemented
+**Status:** Historical program-design baseline. Status statements in the body describe the 2026-08-27 design point and are retained as decision history.
+
+**Implementation update:** Workstreams A/B, the Workstream C inventory conformance fixture, and C.1 pandapower application-instantiation closure are implemented; C.2 and Workstreams D-E remain unimplemented. See [`CURRENT-STATE.md`](../../status/CURRENT-STATE.md) for current structural status.
 
 **Current product:** `grid-agent` 1.0.1 assembled from extracted kernel, simulator, pandapower domain, application, and Pi tool packages
 

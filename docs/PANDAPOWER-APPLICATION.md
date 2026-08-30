@@ -1,6 +1,6 @@
 # Pandapower Static-Analysis Application
 
-> Status: approved design; Makefile entry implementation pending.
+> Status: current operator reference.
 
 This is the single operator reference for the first production domain
 application. It defines how to run the complete pandapower static-analysis

@@ -19,6 +19,8 @@
 | 主产品/评测路径 | `make run-llm QUESTION="..."` | Pi/LLM 解释自然语言并组合 domain tools；stdout 是单个答案 JSON，stderr 有 Pi 工具轨迹。 |
 | 连续系统仿真分析 | `make analysis [INSTRUCTIONS=...]` | 缺省运行 TASK 指令集；stdout 是单个最终报告 envelope，stderr 有进度与检查点，所有工件位于一个 `runs/<analysis_id>/` 目录。 |
 | 兼容报告入口 | `make report [INSTRUCTIONS=...]` | `make analysis` 的兼容别名；不再启动每题一个子进程。 |
+| 正式第一领域应用 | `make application [INSTRUCTIONS=...]` | stdout 是 `capability-agent-output/1.0` 组合对象；当前运行工件按 `core` 与 `domains.grid` 分层。 |
+| 第一领域无 Provider 验收 | `make validate-application` | 两个 scripted application case 的实例化、lineage、context replay、answer audit、report 和组合输出检查全部通过。 |
 | 本地轨迹工作台检查 | `make trajectory PORT=8765` | 先构建打包 SPA，再在 `127.0.0.1` 提供 workbench 与固定 GET API；服务日志仅写 stderr。 |
 | 离线冒烟 | `make run QUESTION="..."` | 只验证确定性离线知识/诊断路由；不代替智能体能力验证。 |
 | Pi 安装/认证 | `make install-pi`、`make auth-import-pi`、`make auth-login` | 仅在使用托管 Pi 或 `openai-codex` OAuth 时需要。 |
@@ -97,6 +99,12 @@ stdout 必须只有一个最终 `AnswerEnvelope`，`question_id` 形如 `analysi
 `make report` 和 `grid-agent report --questions PATH` 仅为迁移期兼容别名，委托同一条连续分析路径。它们不再接受独立 `OUTPUT`、`--output` 或 `--report-path`，也不再为每个问题启动一个 `grid-agent run` 子进程。当前版本没有 resume、命名 session 或 session 切换；中断后应检查已写入的同一分析目录并重新运行指令集。
 
 答案草稿通过受控提交后即为已接受答案；完整性诊断会作为单独的诊断写入报告，明确列出发现、影响和复核建议，但不会把已接受答案改写为“未采纳”。同一分析目录中的 `output/answers.jsonl` 仍只记录受控的逐回合答案 envelope。
+
+<a id="first-domain-application-reproduction-c1"></a>
+
+## 第一领域应用复现（C.1）
+
+C.1 已完成。正式生产入口是 `make application`；Provider-backed canonical 业务任务、组合输出契约、v1.0.1 compatibility 对照、当前运行证据审计和无 Provider 门禁统一见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。本手册保留其余共享 CLI、离线验证和轨迹检查步骤。
 
 ## 3. 离线知识与确定性诊断
 

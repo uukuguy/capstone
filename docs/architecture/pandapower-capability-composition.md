@@ -238,13 +238,13 @@ ApplicationProfile
 
 `run`、`analysis` 和 `report` 是显式的 v1.0.1 compatibility adapter 路径。它们在内部先运行并验证丰富的通用结果，再有意投影为历史 stdout 的精确两个字段：`question_id` 与 `answer_output`。这两个字段是旧入口的兼容交付契约，不是所有领域的通用输出契约。
 
-Task 10 的 `application-instantiation` gate 使用 provider-free scripted model transport，对两个脚本案例执行真实语义 `gridctl` 调用，并检查当前运行 result/evidence lineage、上下文复用、答案审计、报告创建/摘要/接纳、replay equality 以及 `core` + `domains.grid`。它证明第一领域的应用 wiring 已可控、可复现；C.1 仍为 in progress，只有 Task 11 将 `validation/questions/task.md.txt` 与 `validation/questions/test.md.txt` 两个 canonical v1.0.1 业务任务通过 `analysis-generic` 并完成授权 Provider 证据审计后才能关闭。
+Task 10 的 `application-instantiation` gate 使用 provider-free scripted model transport，对两个脚本案例执行真实语义 `gridctl` 调用，并检查当前运行 result/evidence lineage、上下文复用、答案审计、报告创建/摘要/接纳、replay equality 以及 `core` + `domains.grid`。Task 11 随后使用获得授权的 Provider，将 `validation/questions/task.md.txt` 与 `validation/questions/test.md.txt` 两个 canonical v1.0.1 业务任务通过 `analysis-generic`，并完成当前运行证据、答案、报告和 replay 审计。第一领域的应用 wiring 与业务复现均已完成，C.1 已关闭。
 
 Pi 的发行边界目前固定在 0.80.6，并带有一个明确有期限的安全风险例外：[`configs/runtime/pi-security-risk-exception-v1.json`](../../configs/runtime/pi-security-risk-exception-v1.json)。该例外记录 2 个 High、2 个 Moderate 风险，包括 provider HTTP 响应处理中的信息泄露/崩溃面和依赖解析 DoS；隔离 provider secret、限制 capability 子进程资源以及只暴露 allowlisted 工具只能降低攻击面，不能修复依赖漏洞。确定性 gate 禁止 pin、lock、实际安装图或已声明风险计数相对该例外漂移，并在 2026-09-30 后 fail closed；它不会自行发现相同锁版本后来新增的 advisory，release 操作者仍须复核可信 registry/audit 信息。架构目标是完成 Pi >=0.84.3 的安全升级与兼容性复验。
 
 本地发行评分采用 execute-all closure，而不是把同用户 HMAC 当作不可伪造证明。`docs/status/climb/config.yaml` 连同精确命令、权重、前置关系和 release pathspec 进入版本化 policy/source digest；B-H005 closure 在同一干净 revision 上依次现场执行五个包/边界门、`doctor`、unit、E2E 和 focused `validate`。每个输出以只读链记录 stdout/stderr/content digest，最终 manifest 传播 revision、tree、policy 和 closure digest。ignored receipt 的 HMAC 只检测意外损坏：同一 OS 用户能读取本地密钥，所以该机制不构成跨主体信任边界，也不替代现场执行或未来 CI 签名。
 
-Workstream B 的物理包抽取、Workstream C 的只读 inventory fixture 参考域，以及 C.1 Task 0-10 的第一领域通用应用 wiring 已实现。系统因此具备“由公共 SPI 装配不同只读业务 authority”的基础证据，但还不是能够动态发现、选择或编排多个领域的成品平台；C.1 在 Task 11 前仍未完成业务复现验收。当前 grid 产品模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生；inventory 事实则只在独立参考域测试链中通过 `inventoryctl` 产生和接纳。
+Workstream B 的物理包抽取、Workstream C 的只读 inventory fixture 参考域，以及 C.1 第一领域通用应用 wiring 和业务复现均已实现。系统已有一个通过完整 Application Profile 实例化和验收的真实 pandapower 领域，以及一个用于公共 SPI conformance 的 inventory fixture；它仍不是能够动态发现、选择或编排多个领域的成品平台，真实第二业务领域尚未选择。当前 grid 产品模型可见工具仍是原有 `grid_*` 工具，所有网络事实仍通过 `gridctl` 的 `grid-capability/1.0` 边界产生；inventory 事实则只在独立参考域测试链中通过 `inventoryctl` 产生和接纳。
 
 ## 5. 基于注册工具的组合推理
 

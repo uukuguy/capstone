@@ -77,22 +77,19 @@ ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
-使用 `analysis-generic` 运行显式登记的应用：
+运行正式内建的 pandapower 应用：
 
 ```sh
-make analysis-generic \
-  APPLICATION=pandapower-static-analysis \
-  INSTRUCTIONS=validation/questions/task.md.txt \
-  PROVIDER=<authorized-provider>
+make application
 ```
 
-可在 `runs/<run_id>/` 检查当前运行的结果和证据 lineage、上下文快照与 replay、答案审计以及已接纳的报告工件。无 Provider 验收门禁会使用同一个已准备的 pandapower endpoint，通过真实语义 `gridctl` 调用覆盖两种脚本化业务任务：
+如需显式指定指令文件、Provider 或模型，请使用 Makefile 覆盖参数；完整的运行、输出、计费和当前运行证据契约见 [Pandapower Static-Analysis Application](docs/PANDAPOWER-APPLICATION.md)。无 Provider 验收门禁会使用同一个已准备的 pandapower endpoint，通过真实语义 `gridctl` 调用：
 
 ```sh
 make validate-application
 ```
 
-`inventory-domain-pack` 仅用于 fixture/conformance 参考；它不是第二个生产 CLI 模式，也不表示已经选定了有用的第二领域智能体。C.1 仍处于进行中，直到 Task 11 使用获得授权的 Provider 证据，将两个 canonical v1.0.1 业务任务文件都通过 `analysis-generic`。
+`inventory-domain-pack` 仅用于 fixture/conformance 参考；它不是第二个生产 CLI 模式，也不表示已经选定了有用的第二领域智能体。C.1 已完成：两个 canonical v1.0.1 业务任务文件均已使用获得授权的 Provider 通过正式应用路径，显式兼容路径也保留了 v1.0.1 答案封装。正式操作流程见 [Pandapower Static-Analysis Application](docs/PANDAPOWER-APPLICATION.md)。
 
 通用组合结果有意不同于显式的 v1.0.1 兼容投影。`run`、`analysis` 和 `report` 命令保留版本化适配器及其精确的双字段 stdout 对象（`question_id` 与 `answer_output`）；适配器渲染旧版封装前，内部丰富结果仍会先完成验证。
 
@@ -133,6 +130,7 @@ make run-llm QUESTION="对 IEEE-39 节点系统运行交流潮流，并报告有
 | LLM 驱动的单题分析 | `make run-llm QUESTION="..."` |
 | 连续多题分析 | `make analysis INSTRUCTIONS=path/to/instructions.txt` |
 | 连续分析兼容别名 | `make report INSTRUCTIONS=path/to/instructions.txt` |
+| 正式 pandapower 应用 | `make application [INSTRUCTIONS=...]` |
 | 通用登记应用 | `make analysis-generic APPLICATION=... INSTRUCTIONS=...` |
 | 无 Provider 应用验收 | `make validate-application` |
 | 构建并启动只读工作台 | `make trajectory PORT=8765` |

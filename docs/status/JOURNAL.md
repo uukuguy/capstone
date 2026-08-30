@@ -620,3 +620,7 @@ _Recovered pre-merge mainline entries._
 
 - 01:20 固化 C.1 最终 handoff，确保下一会话从 C.2 领域选择恢复 [4334a39]
 - 01:24 修正 handoff 的 closure checkpoint 措辞，避免将历史基线误读为当前 HEAD
+- 04:31 固化 pandapower 正式应用入口设计，约束 generic 与 v1.0.1 兼容边界 [91eb20c]
+- 04:41 新增 make application 正式入口，复用 generic runtime 并保留 v1.0.1 兼容 [d9259c4]
+- 04:44 发现未显式 Provider 的 generic 运行未适配 GRID_AGENT_LLM 配置，错误回退至本地 OpenAI 占位凭据并返回 401；已保留失败运行证据
+- 05:10 映射产品 LLM 配置至 generic runtime，修复错误默认 Provider [51d400b]

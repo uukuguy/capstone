@@ -100,14 +100,10 @@ make analysis INSTRUCTIONS=validation/questions/task.md.txt
 
 ## 通用应用实例化路径
 
-需要运行显式登记的通用应用，并保留框架与领域两部分结果时，使用
-`analysis-generic`：
+正式内建 pandapower 应用的入口是：
 
 ```sh
-make analysis-generic \
-  APPLICATION=pandapower-static-analysis \
-  INSTRUCTIONS=validation/questions/task.md.txt \
-  PROVIDER=<authorized-provider>
+make application
 ```
 
 它沿着 `ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack`
@@ -117,7 +113,7 @@ make analysis-generic \
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
-运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`analysis-generic` 是需要 Provider 的产品入口；不要把 Provider 凭据写进参数以外的提交文件、日志或工件。
+运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`make application` 是需要 Provider 的正式产品入口；不要把 Provider 凭据写进参数以外的提交文件、日志或工件。完整参数、输出契约、兼容边界和当前运行证据检查见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
 
 Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同一份已准备 pandapower endpoint，再由真实语义 `gridctl` 执行工具调用。它覆盖 `validation/application/` 中的两个脚本案例，并检查当前运行引用、上下文复用、答案审计、报告摘要/接纳、replay equality 和 `core` + `domains.grid` 输出：
 
@@ -125,7 +121,9 @@ Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同
 make validate-application
 ```
 
-该门禁是应用 wiring 与安全边界的可复现验收，不等同于 Provider-backed 业务完成。`inventory-domain-pack` 只用于 fixture/conformance 参考，不是生产 CLI 的第二领域模式。C.1 在 Task 11 将两个 `validation/questions/` canonical v1.0.1 业务任务都通过 `analysis-generic` 并完成证据审计前，必须保持为 in progress。
+该门禁是应用 wiring 与安全边界的可复现验收，不等同于 Provider-backed 业务运行。C.1 已完成：`validation/questions/task.md.txt` 与 `validation/questions/test.md.txt` 均已通过获得授权的 Provider 在 `analysis-generic` 路径完成，并通过当前运行证据、答案、报告和 replay 审计；显式 v1.0.1 compatibility 路径也已通过。`inventory-domain-pack` 仍只用于 fixture/conformance 参考，不是生产 CLI 的第二领域模式。
+
+第一领域完整应用的 Provider-backed 复现、当前运行证据审计，以及无 Provider 门禁的组合方式统一记录在 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
 
 `run`、`analysis` 和 `report` 是显式的 v1.0.1 兼容路径，仍由兼容适配器输出 stdout 中精确的 `question_id` 与 `answer_output` 两个字段；通用入口的组合 `core` 与 `domains` 结果不会被误称为这两个字段。
 

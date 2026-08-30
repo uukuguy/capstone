@@ -112,20 +112,17 @@ contract, for example:
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
-Run an explicitly registered application with `analysis-generic`:
+Run the formal built-in pandapower application:
 
 ```sh
-make analysis-generic \
-  APPLICATION=pandapower-static-analysis \
-  INSTRUCTIONS=validation/questions/task.md.txt \
-  PROVIDER=<authorized-provider>
+make application
 ```
 
-Inspect the resulting `runs/<run_id>/` directory for the current-run result and
-evidence lineage, context snapshots and replay, answer audits, and the admitted
-report artifact. The provider-free acceptance gate exercises the same prepared
-pandapower endpoint and real semantic `gridctl` calls for both scripted business
-task shapes:
+For an explicit instruction file, Provider, or model, use Makefile overrides;
+the complete runtime, output, billing, and current-run evidence contract is in
+[Pandapower Static-Analysis Application](docs/PANDAPOWER-APPLICATION.md). The
+provider-free acceptance gate exercises the same prepared pandapower endpoint
+and real semantic `gridctl` calls:
 
 ```sh
 make validate-application
@@ -133,9 +130,11 @@ make validate-application
 
 `inventory-domain-pack` is a fixture/conformance reference only; it is not a
 second production CLI mode or a claim that a useful second business agent has
-been selected. C.1 remains in progress until Task 11 runs both canonical
-v1.0.1 business task files through `analysis-generic` with authorized provider
-evidence.
+been selected. C.1 is complete: both canonical v1.0.1 business task files have
+passed through `analysis-generic` with authorized provider evidence, and the
+explicit compatibility path preserves the v1.0.1 answer envelope. See
+[Pandapower Static-Analysis Application](docs/PANDAPOWER-APPLICATION.md) for
+the canonical operator workflow.
 
 The generic composite result is deliberately different from the explicit
 v1.0.1 compatibility projection. The `run`, `analysis`, and `report` commands
@@ -187,6 +186,7 @@ runtime installation, and failure diagnosis.
 | LLM-led single question | `make run-llm QUESTION="..."` |
 | Continuous multi-question analysis | `make analysis INSTRUCTIONS=path/to/instructions.txt` |
 | Compatibility alias for continuous analysis | `make report INSTRUCTIONS=path/to/instructions.txt` |
+| Formal pandapower application | `make application [INSTRUCTIONS=...]` |
 | Generic registered application | `make analysis-generic APPLICATION=... INSTRUCTIONS=...` |
 | Provider-free application acceptance | `make validate-application` |
 | Build and serve the read-only workbench | `make trajectory PORT=8765` |

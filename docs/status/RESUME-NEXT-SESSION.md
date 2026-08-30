@@ -1,17 +1,18 @@
-# Next-Session Handoff
+# Live Session Checkpoint
 
-> Updated: 2026-08-30 20:19 CST. End of session.
+> Updated: 2026-08-31 05:00 CST. Session remains active.
 
 ## TL;DR
 
-- Workstream C.1 已完成：真实 pandapower 第一领域通过通用框架和 v1.0.1 兼容路径完成两组业务任务验收。
-- `main` 已与 `origin/main` 同步，工作区干净，仓库只有一个 worktree。
-- 下一步是定义 Workstream C.2：先选择真实、有用的第二业务领域并明确接口契约，不把 inventory fixture 当作生产领域继续扩展。
+- Workstream C.1 已完成；本会话另新增正式生产入口 `make application`，并完成一轮真实 DeepSeek 9/9 业务运行。
+- 发现并修复 generic runtime 对 `GRID_AGENT_LLM_*` 到 `CAPABILITY_AGENT_LLM_*` 的配置适配缺口，避免未显式参数时错误回退到 OpenAI。
+- 文档漂移已收敛到 `docs/PANDAPOWER-APPLICATION.md` 作为第一领域唯一详细操作参考；最终提交与工作树复核仍待完成。
 
 ## Where things stand
 
 - Generic `task.md.txt`：`run-20260830t112940z-69af42e9`，9/9。
 - Generic `test.md.txt`：`run-20260830t113619z-b162f4d5`，7/7。
+- 新正式入口真实运行：`run-20260830t204939z-90172af2`，DeepSeek `deepseek-v4-flash`，9/9，9 份答案与 21 个证据工件。
 - v1.0.1 compatibility：`analysis-20260830T113916Z`，7/7；stdout 严格只有 `question_id` 和 `answer_output`。
 - 最终门禁：
   - grid-agent：724 tests
@@ -32,17 +33,21 @@
 - 将 pandapower 实例化为第一个真实 Domain Pack，并通过真实 DeepSeek provider 业务任务验收。
 - 建立 provider-free `make validate-application` 验收以及当前运行证据、报告摘要、上下文 replay 校验。
 - 完成 C.1 保护策略、包边界、安装态验证和全仓门禁。
+- 增加 `make application`，固定 pandapower 默认应用并保留 `APPLICATION`、`INSTRUCTIONS`、`PROVIDER`、`MODEL` 覆盖。
+- 将泛型框架 LLM 命名空间适配到产品的 `GRID_AGENT_LLM_*` 配置；回归测试覆盖该映射。
+- 修正 README、RUNBOOK、手动验证、架构与设计状态的 C.1 漂移，并将生产操作细节集中到 `docs/PANDAPOWER-APPLICATION.md`。
 
 ## Next steps
 
-1. 定义 Workstream C.2 的真实第二领域选择标准和候选清单。
-2. 对候选领域先形成四项设计：
+1. 完成本会话变更的提交与最终 `git status`/文档检查；不得丢失已有用户改动。
+2. 若继续产品推进，定义 Workstream C.2 的真实第二领域选择标准和候选清单。
+3. 对候选领域先形成四项设计：
    - 真实业务任务与可量化验收标准
    - 权威业务接口或执行服务 API
    - Domain Pack 输入、能力、证据及领域输出契约
    - 必须保持在 Kernel 中立边界之外的领域职责
-3. 选定领域后再制定原子实施计划；在此之前不扩展 inventory fixture。
-4. Workstream E 之前继续保持 multiple bindings feature-gated。
+4. 选定领域后再制定原子实施计划；在此之前不扩展 inventory fixture。
+5. Workstream E 之前继续保持 multiple bindings feature-gated。
 
 ## Don’t go down these paths again
 
@@ -56,12 +61,9 @@
 ## Ready-to-paste commands
 
 ```sh
-git status --short --branch
-git worktree list
-git log --oneline -5
-
-make validate-application
+make application
 make doctor
+make validate-application
 make test
 make test-e2e
 make validate
@@ -71,7 +73,6 @@ make test-packages
 Provider-backed 回归仅在获得明确授权后执行：
 
 ```sh
-make analysis-generic APPLICATION=pandapower-static-analysis \
-  INSTRUCTIONS=validation/questions/task.md.txt \
+make application INSTRUCTIONS=validation/questions/task.md.txt \
   PROVIDER=deepseek MODEL=deepseek-v4-flash
 ```
