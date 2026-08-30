@@ -27,6 +27,11 @@ from pandapower_domain.models import (
     TurnRecord,
     VerifiedFact,
 )
+from pandapower_domain.state import (
+    PANDAPOWER_STATE_SCHEMA,
+    PandapowerDomainContext,
+    PandapowerStateAdapter,
+)
 
 __all__ = [
     "ActiveModelState",
@@ -54,4 +59,7 @@ __all__ = [
     "StrictFrozenModel",
     "TurnRecord",
     "VerifiedFact",
+    "PANDAPOWER_STATE_SCHEMA",
+    "PandapowerDomainContext",
+    "PandapowerStateAdapter",
 ]

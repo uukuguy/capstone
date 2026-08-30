@@ -6,12 +6,22 @@ import pytest
 
 from grid_agent.analysis.capabilities import KNOWN_CONTEXT_PROJECTORS
 from grid_agent.analysis.integrity import ContentReferenceVerifier
+from grid_agent.analysis.reducer import (
+    canonical_state_hash as compatibility_canonical_state_hash,
+    initial_context as compatibility_initial_context,
+    reduce_context as compatibility_reduce_context,
+)
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.domain import DomainRuntimeProfile
 from grid_agent.domain.projection import VerifiedInvocation
 from grid_agent.domains import build_pandapower_profile
 from grid_agent.simulator.client import GridctlClient
 from pandapower_domain import PandapowerResourceSet
+from pandapower_domain.state import (
+    canonical_state_hash as pandapower_canonical_state_hash,
+    initial_context as pandapower_initial_context,
+    reduce_context as pandapower_reduce_context,
+)
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -31,6 +41,19 @@ def test_pandapower_profile_owns_all_grid_runtime_resources() -> None:
     assert profile.manifest.capability_contract_root == resources.capability_contract_root
     assert profile.manifest.system_policy_path == resources.system_policy_path
     assert profile.manifest.guide_root == resources.guide_root
+    assert profile.missing_application_components() == ()
+    for component in (
+        profile.provisioner,
+        profile.state_adapter,
+        profile.answer_policy,
+        profile.policy_provider,
+        profile.guide_provider,
+        profile.presentation_provider,
+        profile.output_contract,
+        profile.acceptance_profile,
+    ):
+        assert component is not None
+        assert component.__class__.__module__.startswith("pandapower_domain.")
 
     legacy_owner_paths = (
         ROOT / "packages/grid-simulator/src",
@@ -79,6 +102,12 @@ def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> 
     } == KNOWN_CONTEXT_PROJECTORS
     with pytest.raises(LookupError, match="unknown projector"):
         profile.projector_registry.require("unknown-v1")
+
+
+def test_grid_reducer_is_only_a_pandapower_compatibility_export() -> None:
+    assert compatibility_canonical_state_hash is pandapower_canonical_state_hash
+    assert compatibility_initial_context is pandapower_initial_context
+    assert compatibility_reduce_context is pandapower_reduce_context
 
 
 def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> None:

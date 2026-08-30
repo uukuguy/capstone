@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pandapower_domain.models import AnalysisContext, VerifiedFact
+from pandapower_domain.presentation import render_pandapower_context
 
 
 CONTEXT_VIEW_VERSION = "analysis-context-view/1.0"
@@ -33,6 +34,11 @@ class ContextViewTooLarge(RuntimeError):
 
 
 def build_context_view(context: AnalysisContext) -> dict[str, Any]:
+    # The new application path passes an opaque DomainContextView.  Keep the
+    # historical bounded AnalysisContext projection below for v1.0.1 readers;
+    # domain objects are rendered by the Domain Pack presentation provider.
+    if not isinstance(context, AnalysisContext):
+        return dict(render_pandapower_context(context))
     view: dict[str, Any] = {
         "schema_version": CONTEXT_VIEW_VERSION,
         "analysis_id": context.analysis_id,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Sequence
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from grid_agent.trajectory.projection_models import (
     BusinessCausalRow,
@@ -14,42 +14,22 @@ from grid_agent.trajectory.projection_models import (
     BusinessTrajectory,
 )
 from capability_agent.trajectory.replay import ReplayEventLike
+from pandapower_domain.presentation import (
+    ArtifactResolver,
+    PandapowerProjectionIntegrityError as ProjectionIntegrityError,
+    is_verified_result_capability,
+    require_verified_simulator_artifacts,
+    semantic_tool_title as _pandapower_semantic_tool_title,
+)
 
 
 RULE_TOOL_ACTION = "tool-action/v1"
 RULE_CONTEXT_CHANGE = "context-state-delta/v1"
 RULE_VERIFIED_RESULT = "verified-simulator-result/v1"
 
-_SEMANTIC_TOOL_TITLES = {
-    "environment.describe": "核对仿真器协议和已发布能力",
-    "model.list": "确认可用的已注册网络模型",
-    "context.open": "打开只读网络仿真环境上下文",
-    "context.get": "读取已打开的仿真环境上下文",
-    "model.element.get": "定位问题涉及的网络元件",
-    "model.dataset.describe": "核对可查询的数据集与字段",
-    "model.dataset.query": "查询网络模型数据",
-    "topology.branch.endpoints.get": "核查支路两端母线",
-    "topology.components.get": "核查网络拓扑连通性",
-    "analysis.powerflow.ac.run": "运行交流潮流计算",
-    "result.branches.rank": "按支路运行指标筛选和排序",
-    "analysis.contingency.n_minus_one.run": "执行单支路 N-1 静态安全校核",
-    "evidence.get": "读取已持久化的仿真证据",
-    "grid_guide_open": "读取已发布的领域操作指南",
-    "grid_submit_answer": "提交带结构化证据的最终答案",
-}
-
-
-class ProjectionIntegrityError(RuntimeError):
-    """A business fact lacks its mandatory verified simulator evidence."""
-
-
-class ArtifactResolver(Protocol):
-    def verify(self, reference: str) -> Any: ...
-
-
 def semantic_tool_title(capability: str) -> str:
     """Return the registered semantic title, preserving unknown identifiers verbatim."""
-    return _SEMANTIC_TOOL_TITLES.get(capability, capability)
+    return _pandapower_semantic_tool_title(capability)
 
 
 def _payload(event: ReplayEventLike) -> dict[str, Any]:
@@ -73,15 +53,7 @@ def _verified_result_node(
     event: ReplayEventLike, artifacts: ArtifactResolver
 ) -> BusinessNode:
     references = (*event.refs.produced, *event.refs.evidence)
-    documents = tuple(artifacts.verify(reference) for reference in references)
-    if not documents or any(
-        getattr(document, "authority", None) != "gridctl"
-        or getattr(document, "integrity", None) != "verified"
-        for document in documents
-    ):
-        raise ProjectionIntegrityError(
-            "numerical business node requires a verified simulator artifact"
-        )
+    require_verified_simulator_artifacts(references, artifacts)
     return BusinessNode(
         id=f"business:{event.analysis_id}:{event.sequence}:result",
         source="observed",
@@ -96,7 +68,7 @@ def _verified_result_node(
 
 def _is_verified_result_capability(capability: str) -> bool:
     """Return whether a completed tool can establish a simulator result fact."""
-    return capability.startswith(("analysis.", "result."))
+    return is_verified_result_capability(capability)
 
 
 def _accepted_submissions(

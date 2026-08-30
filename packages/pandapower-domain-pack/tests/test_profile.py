@@ -63,3 +63,25 @@ def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> 
     } == KNOWN_CONTEXT_PROJECTORS
     with pytest.raises(LookupError, match="unknown projector"):
         profile.projector_registry.require("unknown-v1")
+
+
+def test_pandapower_profile_is_application_complete() -> None:
+    profile = build_pandapower_profile()
+
+    assert profile.missing_application_components() == ()
+    assert profile.output_contract is not None
+    assert profile.output_contract.schema_id == (
+        "pandapower-static-analysis-output/1.0"
+    )
+    for component in (
+        profile.provisioner,
+        profile.state_adapter,
+        profile.answer_policy,
+        profile.policy_provider,
+        profile.guide_provider,
+        profile.presentation_provider,
+        profile.output_contract,
+        profile.acceptance_profile,
+    ):
+        assert component is not None
+        assert component.__class__.__module__.startswith("pandapower_domain.")
