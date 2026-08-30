@@ -49,3 +49,19 @@ knowing domain vocabulary.
 
 None known. Existing controller status/resume bookkeeping changes were left
 untouched; the package-local generated `uv.lock` was removed as required.
+
+## Review fix
+
+- RED: a domain result identified only by `tool_name` was accepted, and a
+  run-root authority could admit an artifact from a sibling binding.
+- GREEN: domain routing now requires an event/start `CapabilityKey` that
+  exactly matches the registered bound tool; `tool_name` is consistency-only.
+  Admitted context/result/evidence paths now use the binding's declared domain
+  root (or an explicit owned sub-root), with realpath and no-follow checks.
+- Added coverage for run-root/sibling artifacts, symlink escape, and valid
+  binding-owned artifacts while preserving opaque core-tool handling.
+- Review focused: **39 passed**; application plus trajectory: **184 passed**;
+  Kernel full suite: **314 passed**.
+- Review gates: `make validate`, `make doctor`, `make test` (690 + 165 + 43),
+  `make test-e2e` (17), package boundaries, ruff, pyright, and
+  `git diff --check` all passed.

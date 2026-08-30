@@ -20,7 +20,6 @@ from capability_agent.tools.catalog import (
     CapabilityKey,
     CompositeToolCatalog,
     CoreToolCatalog,
-    ToolDocument,
 )
 from capability_agent.application.projector import ApplicationInvocationProjector
 
@@ -52,6 +51,7 @@ class Authority:
     )
     fail_admit: bool = False
     raise_base_exception: bool = False
+    admitted_references: References | None = None
 
     def admit(
         self,
@@ -64,6 +64,8 @@ class Authority:
             raise KeyboardInterrupt("backend interrupt")
         if self.fail_admit:
             raise RuntimeError("foreign backend secret should not escape")
+        if self.admitted_references is not None:
+            return self.admitted_references
         return References(
             results=(Artifact(RESULT_REF, self.workspace_root / "result.json"),),
             evidence=(Artifact(EVIDENCE_REF, self.workspace_root / "evidence.json"),),
@@ -409,6 +411,106 @@ def test_projector_rejects_unstructured_capability_alias(tmp_path: Path) -> None
 
     assert current.store.snapshot == before
     assert current.grid_authority.admit_calls == []
+
+
+def test_projector_rejects_domain_tool_name_without_structured_key(
+    tmp_path: Path,
+) -> None:
+    current = _harness(tmp_path)
+    projector = ApplicationInvocationProjector(
+        current.store, _catalog(), current.bindings
+    )
+    before = current.store.snapshot
+
+    with pytest.raises(CapabilityRoutingError, match="structured key"):
+        projector.observe(
+            {
+                "type": "tool_result",
+                "tool_name": "grid_asset_read",
+                "projector_id": "state-v1",
+                "ok": True,
+                "result": {"value": 1},
+            },
+            turn_id="run-1-t001",
+        )
+
+    assert current.store.snapshot == before
+    assert current.grid_authority.admit_calls == []
+
+
+def test_projector_rejects_sibling_artifact_when_authority_uses_run_root(
+    tmp_path: Path,
+) -> None:
+    current = _harness(tmp_path)
+    current.grid_authority.workspace_root = current.workspace.root
+    current.grid_authority.admitted_references = References(
+        results=(
+            Artifact(
+                RESULT_REF,
+                current.workspace.domain_roots["inventory"] / "result.json",
+            ),
+        ),
+        evidence=(
+            Artifact(
+                EVIDENCE_REF,
+                current.workspace.domain_roots["inventory"] / "evidence.json",
+            ),
+        ),
+    )
+    projector = ApplicationInvocationProjector(
+        current.store, _catalog(), current.bindings
+    )
+    before = current.store.snapshot
+
+    with pytest.raises(AuthorityIntegrityError, match="outside"):
+        projector.observe(
+            {
+                "type": "tool_result",
+                "tool_name": "grid_asset_read",
+                "capability_key": CapabilityKey("grid", "asset.read"),
+                "projector_id": "state-v1",
+                "ok": True,
+                "result": {"value": 1},
+                "evidence_refs": [EVIDENCE_REF],
+            },
+            turn_id="run-1-t001",
+        )
+
+    assert current.store.snapshot == before
+    assert current.grid_adapter.merge_calls == []
+
+
+def test_projector_rejects_symlinked_artifact_escape(
+    tmp_path: Path,
+) -> None:
+    current = _harness(tmp_path)
+    foreign = current.workspace.domain_roots["inventory"] / "foreign.json"
+    foreign.write_text("foreign", encoding="utf-8")
+    escaped = current.workspace.domain_roots["grid"] / "escaped.json"
+    escaped.symlink_to(foreign)
+    current.grid_authority.admitted_references = References(
+        results=(Artifact(RESULT_REF, escaped),)
+    )
+    projector = ApplicationInvocationProjector(
+        current.store, _catalog(), current.bindings
+    )
+    before = current.store.snapshot
+
+    with pytest.raises(AuthorityIntegrityError, match="outside"):
+        projector.observe(
+            {
+                "type": "tool_result",
+                "tool_name": "grid_asset_read",
+                "capability_key": CapabilityKey("grid", "asset.read"),
+                "projector_id": "state-v1",
+                "ok": True,
+                "result": {"value": 1},
+            },
+            turn_id="run-1-t001",
+        )
+
+    assert current.store.snapshot == before
+    assert current.grid_adapter.merge_calls == []
 
 
 def test_projector_rejects_foreign_event_turn_even_when_explicit_turn_is_current(

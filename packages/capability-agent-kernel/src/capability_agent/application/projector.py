@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
+import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,7 +126,8 @@ class ApplicationInvocationProjector:
         declared_result_refs = _declared_result_refs(event, result)
 
         authority = _binding_authority(binding)
-        authority_root = self._validate_authority_identity(tool, binding, authority)
+        self._validate_authority_identity(tool, binding, authority)
+        artifact_root = self._binding_artifact_root(binding_id, binding)
         references = self._admit_references(
             authority,
             key.capability_id,
@@ -132,16 +135,14 @@ class ApplicationInvocationProjector:
             evidence_refs,
         )
         context_refs = _artifact_refs(
-            references, "context", self._store.workspace, authority_root=authority_root
+            references, "context", self._store.workspace, artifact_root=artifact_root
         )
-        result_refs = _artifact_refs(
-            references, "results", self._store.workspace, authority_root=authority_root
-        )
+        result_refs = _artifact_refs(references, "results", self._store.workspace, artifact_root=artifact_root)
         admitted_evidence_refs = _artifact_refs(
             references,
             "evidence",
             self._store.workspace,
-            authority_root=authority_root,
+            artifact_root=artifact_root,
         )
         if declared_result_refs and not set(declared_result_refs).issubset(result_refs):
             raise AuthorityIntegrityError("capability result was not admitted")
@@ -161,7 +162,7 @@ class ApplicationInvocationProjector:
             references,
             "results",
             self._store.workspace,
-            authority_root=authority_root,
+            artifact_root=artifact_root,
         )
         active_revision_ref = result.get("revision_ref")
         if not isinstance(active_revision_ref, str):
@@ -210,7 +211,7 @@ class ApplicationInvocationProjector:
             schema_id=current_envelope.schema_id,
             references=references,
             context_refs=context_refs,
-            authority_root=authority_root,
+            artifact_root=artifact_root,
         )
         self._preflight_context(drafts)
         try:
@@ -235,16 +236,8 @@ class ApplicationInvocationProjector:
         event: Mapping[str, object],
         start: Mapping[str, object],
     ) -> BoundToolDocument | None:
-        event_key = _capability_key(
-            event.get("capability_key")
-            or event.get("capabilityKey")
-            or event.get("key")
-        )
-        start_key = _capability_key(
-            start.get("capability_key")
-            or start.get("capabilityKey")
-            or start.get("key")
-        )
+        event_key = _read_capability_key(event)
+        start_key = _read_capability_key(start)
         if event_key is not None and start_key is not None and event_key != start_key:
             raise CapabilityRoutingError("capability key changed during invocation")
         key = event_key or start_key
@@ -260,10 +253,16 @@ class ApplicationInvocationProjector:
             except KeyError:
                 raise CapabilityRoutingError("capability tool is not registered") from None
             if not isinstance(looked_up, BoundToolDocument):
+                # Core tools are intentionally outside domain projection. A
+                # core result may omit domain routing metadata, but a domain
+                # result may never derive its identity from ``tool_name``.
                 return None
-            if key is not None and looked_up.key != key:
+            if key is None:
+                raise CapabilityRoutingError(
+                    "domain capability result requires a structured key"
+                )
+            if looked_up.key != key:
                 raise CapabilityRoutingError("tool name and capability key disagree")
-            key = looked_up.key
         if key is None:
             capability_value = _first_string(event, "capability") or _first_string(start, "capability")
             if capability_value is not None:
@@ -363,7 +362,7 @@ class ApplicationInvocationProjector:
 
     def _validate_authority_identity(
         self, tool: BoundToolDocument, prepared: object, authority: object
-    ) -> Path:
+    ) -> None:
         actual = getattr(authority, "authority_id", None)
         if actual != tool.authority_id:
             raise CapabilityRoutingError("capability authority does not match its binding")
@@ -387,6 +386,34 @@ class ApplicationInvocationProjector:
             raise AuthorityIntegrityError("binding authority workspace is invalid") from None
         except KeyError:
             raise CapabilityRoutingError("capability binding workspace is not declared") from None
+
+    def _binding_artifact_root(self, binding_id: str, prepared: object) -> Path:
+        """Resolve an artifact root owned by one declared binding.
+
+        Authorities may be configured with the whole run root for legacy
+        reasons, but that root is never sufficient to authorize sibling
+        binding artifacts. An optional explicit ``artifact_root`` is accepted
+        only as a sub-root of the binding's declared domain directory.
+        """
+
+        try:
+            declared_root = self._store.workspace.domain_roots[binding_id]
+        except KeyError:
+            raise CapabilityRoutingError("capability binding workspace is not declared") from None
+        binding = getattr(prepared, "binding", prepared)
+        profile = getattr(binding, "profile", None)
+        runtime = getattr(prepared, "runtime", None)
+        explicit_roots = [
+            getattr(prepared, "artifact_root", None),
+            getattr(runtime, "artifact_root", None),
+            getattr(binding, "artifact_root", None),
+            getattr(profile, "artifact_root", None),
+        ]
+        explicit = next((value for value in explicit_roots if value is not None), None)
+        root = declared_root if explicit is None else explicit
+        if not isinstance(root, Path):
+            raise AuthorityIntegrityError("binding artifact root is invalid")
+        _validate_owned_root(root, declared_root, self._store.workspace)
         return root
 
     def _admit_references(
@@ -441,6 +468,8 @@ class ApplicationInvocationProjector:
                 state=current_copy,
                 delta=delta,
             )
+            if not isinstance(merged, Mapping):
+                raise DomainProjectionError("domain projector returned invalid state")
             merged_mapping = _json_mapping(merged, label="domain state")
             validate(binding_id=binding_id, state=merged_mapping)
         except DomainProjectionError:
@@ -468,7 +497,7 @@ class ApplicationInvocationProjector:
         schema_id: str,
         references: object,
         context_refs: tuple[str, ...],
-        authority_root: Path,
+        artifact_root: Path,
     ) -> tuple[ContextEventDraft, ...]:
         drafts: list[ContextEventDraft] = [
             ContextEventDraft(
@@ -510,7 +539,7 @@ class ApplicationInvocationProjector:
                         "path": _relative_artifact_path(
                             artifact,
                             self._store.workspace,
-                            authority_root=authority_root,
+                            artifact_root=artifact_root,
                         ),
                         "evidence_refs": evidence_refs,
                     },
@@ -533,7 +562,7 @@ class ApplicationInvocationProjector:
                         "path": _relative_artifact_path(
                             artifact,
                             self._store.workspace,
-                            authority_root=authority_root,
+                            artifact_root=artifact_root,
                         ),
                     },
                 )
@@ -711,10 +740,28 @@ def _capability_key(value: object) -> CapabilityKey | None:
     if isinstance(value, CapabilityKey):
         return value
     if isinstance(value, Mapping):
-        binding_id = value.get("binding_id") or value.get("bindingId")
-        capability_id = value.get("capability_id") or value.get("capabilityId")
-        if isinstance(binding_id, str) and isinstance(capability_id, str):
+        binding_id = value.get("binding_id", value.get("bindingId"))
+        capability_id = value.get("capability_id", value.get("capabilityId"))
+        if (
+            isinstance(binding_id, str)
+            and binding_id
+            and isinstance(capability_id, str)
+            and capability_id
+        ):
             return CapabilityKey(binding_id, capability_id)
+    return None
+
+
+def _read_capability_key(event: Mapping[str, object]) -> CapabilityKey | None:
+    """Read a structured key, rejecting malformed present aliases."""
+
+    for field in ("capability_key", "capabilityKey", "key"):
+        if field not in event:
+            continue
+        key = _capability_key(event[field])
+        if key is None:
+            raise CapabilityRoutingError("capability key is invalid")
+        return key
     return None
 
 
@@ -789,14 +836,14 @@ def _artifact_refs(
     group: str,
     workspace: ApplicationWorkspace,
     *,
-    authority_root: Path,
+    artifact_root: Path,
 ) -> tuple[str, ...]:
     output: list[str] = []
     for artifact in _artifacts(references, group):
         reference = getattr(artifact, "reference", None)
         if not isinstance(reference, str) or not reference:
             raise AuthorityIntegrityError("binding authority returned invalid artifact reference")
-        _validate_artifact_path(artifact, workspace, authority_root=authority_root)
+        _validate_artifact_path(artifact, workspace, artifact_root=artifact_root)
         if reference not in output:
             output.append(reference)
     return tuple(output)
@@ -807,7 +854,7 @@ def _artifact_paths(
     group: str,
     workspace: ApplicationWorkspace,
     *,
-    authority_root: Path,
+    artifact_root: Path,
 ) -> Mapping[str, str]:
     paths: dict[str, str] = {}
     for artifact in _artifacts(references, group):
@@ -815,7 +862,7 @@ def _artifact_paths(
         if not isinstance(reference, str):
             continue
         paths[reference] = _relative_artifact_path(
-            artifact, workspace, authority_root=authority_root
+            artifact, workspace, artifact_root=artifact_root
         )
     return paths
 
@@ -824,13 +871,20 @@ def _validate_artifact_path(
     artifact: object,
     workspace: ApplicationWorkspace,
     *,
-    authority_root: Path,
+    artifact_root: Path,
 ) -> None:
     path = getattr(artifact, "path", None)
     if not isinstance(path, Path):
         raise AuthorityIntegrityError("binding authority returned an invalid artifact path")
     try:
-        path.resolve().relative_to(authority_root.resolve())
+        root = _absolute_path(artifact_root)
+        candidate = _absolute_path(path)
+        candidate.relative_to(root)
+        _reject_symlink_chain(root, candidate)
+        resolved_root = root.resolve(strict=False)
+        resolved_path = candidate.resolve(strict=False)
+        resolved_path.relative_to(resolved_root)
+        resolved_path.relative_to(workspace.root.resolve(strict=False))
     except (OSError, ValueError):
         raise AuthorityIntegrityError("binding artifact is outside this run") from None
 
@@ -839,14 +893,62 @@ def _relative_artifact_path(
     artifact: object,
     workspace: ApplicationWorkspace,
     *,
-    authority_root: Path,
+    artifact_root: Path,
 ) -> str:
-    _validate_artifact_path(artifact, workspace, authority_root=authority_root)
+    _validate_artifact_path(artifact, workspace, artifact_root=artifact_root)
     path = getattr(artifact, "path")
     try:
         return str(path.resolve().relative_to(workspace.root.resolve()))
     except (OSError, ValueError):
         raise AuthorityIntegrityError("binding artifact is outside this run") from None
+
+
+def _validate_owned_root(
+    root: Path, declared_root: Path, workspace: ApplicationWorkspace
+) -> None:
+    """Ensure an explicit artifact root stays inside its binding directory."""
+
+    try:
+        root_absolute = _absolute_path(root)
+        declared_absolute = _absolute_path(declared_root)
+        root_absolute.relative_to(declared_absolute)
+        _reject_symlink_chain(declared_absolute, root_absolute)
+        resolved_root = root_absolute.resolve(strict=False)
+        resolved_declared = declared_absolute.resolve(strict=False)
+        resolved_root.relative_to(resolved_declared)
+        resolved_root.relative_to(workspace.root.resolve(strict=False))
+    except (OSError, ValueError):
+        raise AuthorityIntegrityError("binding artifact root is outside this run") from None
+
+
+def _absolute_path(path: Path) -> Path:
+    try:
+        return Path(os.path.abspath(os.fspath(path)))
+    except (OSError, TypeError, ValueError):
+        raise AuthorityIntegrityError("binding artifact path is invalid") from None
+
+
+def _reject_symlink_chain(root: Path, candidate: Path) -> None:
+    """Reject symlinks in an admitted root-to-artifact path (no-follow)."""
+
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError:
+        raise AuthorityIntegrityError("binding artifact is outside this run") from None
+    current = root
+    for part in (None, *relative.parts):
+        if part is not None:
+            current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            # A not-yet-created artifact is valid; existing ancestors have
+            # still been checked before the first missing component.
+            break
+        except OSError:
+            raise AuthorityIntegrityError("binding artifact path is invalid") from None
+        if stat.S_ISLNK(metadata.st_mode):
+            raise AuthorityIntegrityError("binding artifact is outside this run")
 
 
 def _json_mapping(value: Mapping[str, object], *, label: str) -> dict[str, object]:
