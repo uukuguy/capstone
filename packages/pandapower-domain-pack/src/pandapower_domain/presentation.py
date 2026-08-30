@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from pandapower_domain.models import AnalysisContext
 
@@ -80,8 +80,9 @@ def render_pandapower_context(context: object) -> dict[str, object]:
     if isinstance(context, AnalysisContext):
         return _legacy_context_summary(context)
     raw = _model_mapping(context)
-    if isinstance(raw.get("state"), Mapping):
-        state = raw["state"]
+    state_value = raw.get("state")
+    if isinstance(state_value, Mapping):
+        state = state_value
         result: dict[str, object] = {
             "schema_version": CONTEXT_VIEW_VERSION,
             "binding_id": raw.get("binding_id"),
@@ -94,7 +95,7 @@ def render_pandapower_context(context: object) -> dict[str, object]:
         }
     else:
         result = {"schema_version": CONTEXT_VIEW_VERSION, **raw}
-    return _sanitize(result)
+    return cast(dict[str, object], _sanitize(result))
 
 
 def render_pandapower_report(context: Mapping[str, object]) -> str:
@@ -128,28 +129,40 @@ def render_pandapower_report(context: Mapping[str, object]) -> str:
 
 def _legacy_context_summary(context: AnalysisContext) -> dict[str, object]:
     model = context.domain_state.model
-    return _sanitize(
-        {
-            "schema_version": CONTEXT_VIEW_VERSION,
-            "analysis_id": context.analysis_id,
-            "revision": context.revision,
-            "state_hash": context.state_hash,
-            "status": context.status,
-            "active_model": (
-                {
-                    "context_ref": model.context_ref,
-                    "revision_ref": model.revision_ref,
-                    "model_id": model.model_id,
-                    "source": model.source,
-                    "counts": model.counts,
-                }
-                if model is not None
-                else None
-            ),
-            "constraints": [item.model_dump(mode="json") for item in context.domain_state.constraints.values()],
-            "scenarios": [item.model_dump(mode="json") for item in context.domain_state.scenarios.values()],
-            "calculations": [item.model_dump(mode="json") for item in context.domain_state.calculations.values()],
-        }
+    return cast(
+        dict[str, object],
+        _sanitize(
+            {
+                "schema_version": CONTEXT_VIEW_VERSION,
+                "analysis_id": context.analysis_id,
+                "revision": context.revision,
+                "state_hash": context.state_hash,
+                "status": context.status,
+                "active_model": (
+                    {
+                        "context_ref": model.context_ref,
+                        "revision_ref": model.revision_ref,
+                        "model_id": model.model_id,
+                        "source": model.source,
+                        "counts": model.counts,
+                    }
+                    if model is not None
+                    else None
+                ),
+                "constraints": [
+                    item.model_dump(mode="json")
+                    for item in context.domain_state.constraints.values()
+                ],
+                "scenarios": [
+                    item.model_dump(mode="json")
+                    for item in context.domain_state.scenarios.values()
+                ],
+                "calculations": [
+                    item.model_dump(mode="json")
+                    for item in context.domain_state.calculations.values()
+                ],
+            }
+        ),
     )
 
 

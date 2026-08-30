@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from pandapower_domain.presentation import PandapowerPresentationProvider
 
 
@@ -22,9 +24,17 @@ def test_presenter_renders_bounded_summaries_without_raw_simulator_objects() -> 
     context = provider.render_context(_OpaqueFrame())
     report = provider.render_report(_OpaqueFrame())
 
-    assert context["model"]["model_id"] == "case9"
-    assert context["scenarios"][0]["status"] == "safe"
-    assert context["calculations"][0]["status"] == "converged"
+    model = context["model"]
+    scenarios = context["scenarios"]
+    calculations = context["calculations"]
+    assert isinstance(model, Mapping)
+    assert isinstance(scenarios, list) and scenarios
+    assert isinstance(calculations, list) and calculations
+    assert isinstance(scenarios[0], Mapping)
+    assert isinstance(calculations[0], Mapping)
+    assert model["model_id"] == "case9"
+    assert scenarios[0]["status"] == "safe"
+    assert calculations[0]["status"] == "converged"
     assert "<object" not in repr(context)
     assert "case9" in report
     assert "raw" not in report

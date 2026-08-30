@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from capability_agent.application.profile import DomainBinding
+from capability_agent.domain.execution import CapabilityExecutor
 from capability_agent.domain.provisioning import CredentialLease
 
 from pandapower_domain.execution import GridctlExecutor, sanitize_environment
@@ -34,7 +35,7 @@ class PandapowerProvisioningError(RuntimeError):
 class PreparedPandapowerEndpoint:
     """Run-scoped endpoint exposed to the generic composition layer."""
 
-    executor: GridctlExecutor
+    executor: CapabilityExecutor
     metadata: Mapping[str, object]
     _closed: bool = False
 
@@ -97,13 +98,15 @@ class PandapowerRuntimeProvisioner:
                 metadata_environment[name] = "<scrubbed>"
         metadata = {
             "binding_id": binding.binding_id,
-            "executable": str(target),
+            # The descriptor exposes only the validated basename.  The
+            # absolute target remains private to the executor below.
+            "executable": GRIDCTL_NAME,
             "executable_args": (
                 "request",
                 "--workspace",
                 str(binding_root),
             ),
-            "search_path": str(bin_path),
+            "search_path": (str(bin_path),),
             "timeout_seconds": self.timeout_seconds,
             "max_output_bytes": self.max_output_bytes,
             "environment": metadata_environment,

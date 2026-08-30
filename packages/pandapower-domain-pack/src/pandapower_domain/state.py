@@ -15,6 +15,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from capability_agent.domain.projection import (
+    DomainStateDelta as KernelDomainStateDelta,
+)
 from pandapower_domain.models import (
     ActiveTurn,
     AnalysisContext,
@@ -571,7 +574,7 @@ class PandapowerStateAdapter:
         *,
         binding_id: str,
         state: Mapping[str, object],
-        delta: DomainStateDelta,
+        delta: KernelDomainStateDelta,
     ) -> Mapping[str, object]:
         self.validate(binding_id=binding_id, state=state)
         body = {
@@ -580,7 +583,13 @@ class PandapowerStateAdapter:
             if key not in {_STATE_SCHEMA_KEY, _STATE_REVISION_KEY}
         }
         current = DomainState.model_validate(body)
-        updated = self._merge_delta(current, delta)
+        try:
+            domain_delta = DomainStateDelta.model_validate(
+                delta.model_dump(mode="python")
+            )
+        except Exception as exc:
+            raise ValueError("pandapower state delta is invalid") from exc
+        updated = self._merge_delta(current, domain_delta)
         previous_revision = state.get(_STATE_REVISION_KEY, 0)
         assert type(previous_revision) is int
         merged: dict[str, object] = {

@@ -13,7 +13,9 @@ def test_guide_provider_loads_only_digest_bound_allowlisted_documents() -> None:
     index = provider.load()
     assert index
     assert all(set(document) == {"resource_id", "title", "sha256"} for document in index)
-    opened = provider.open(index[0]["resource_id"])
+    resource_id = index[0]["resource_id"]
+    assert isinstance(resource_id, str)
+    opened = provider.open(resource_id)
     assert opened["sha256"] == index[0]["sha256"]
     assert opened["text"]
 
