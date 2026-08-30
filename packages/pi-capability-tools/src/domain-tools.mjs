@@ -504,7 +504,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
         );
       }
       if (response.ok !== true) {
-        const details = canonicalToolResult(contract.capability, response);
+        const details = canonicalToolResult(runtime, contract, response);
         return {
           content: [{ type: "text", text: JSON.stringify(response) }],
           details,
@@ -513,7 +513,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
       }
       return {
         content: [{ type: "text", text: JSON.stringify(response) }],
-        details: canonicalToolResult(contract.capability, response),
+        details: canonicalToolResult(runtime, contract, response),
       };
     },
   });
@@ -1380,6 +1380,19 @@ function validateContract(contract, descriptor) {
   if (!isPlainObject(contract.input_schema)) {
     throw new TypeError("capability contract input_schema must be an object");
   }
+  if (
+    !LEGACY_SELECTED_BINDING_RUNTIMES.has(descriptor) &&
+    (typeof contract.projector_id !== "string" || contract.projector_id.length === 0)
+  ) {
+    throw new TypeError("capability contract projector_id must be a non-empty string");
+  }
+  if (
+    contract.result_kind !== undefined &&
+    contract.result_kind !== null &&
+    typeof contract.result_kind !== "string"
+  ) {
+    throw new TypeError("capability contract result_kind must be a string or null");
+  }
 }
 
 function selectedBindingRuntime(value) {
@@ -1618,12 +1631,23 @@ function transportError(
   };
 }
 
-function canonicalToolResult(capability, response) {
+function canonicalToolResult(descriptor, contract, response) {
+  const routing = LEGACY_SELECTED_BINDING_RUNTIMES.has(descriptor)
+    ? {}
+    : {
+        capability_key: {
+          binding_id: descriptor.bindingId,
+          capability_id: contract.capability,
+        },
+        projector_id: contract.projector_id,
+        result_kind: contract.result_kind ?? null,
+      };
   if (response.ok === true) {
     const result = response.result ?? {};
     return {
       event: "tool_result",
-      capability,
+      capability: contract.capability,
+      ...routing,
       ok: true,
       result,
       evidence_refs: evidenceRefs(result),
@@ -1632,7 +1656,8 @@ function canonicalToolResult(capability, response) {
   const error = response.error ?? {};
   return {
     event: "tool_result",
-    capability,
+    capability: contract.capability,
+    ...routing,
     ok: false,
     result: {},
     error,

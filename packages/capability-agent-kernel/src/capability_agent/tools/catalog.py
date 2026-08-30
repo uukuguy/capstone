@@ -29,14 +29,20 @@ class ToolDocument:
     capability: str
     description: str
     input_schema: dict[str, Any]
+    projector_id: str | None = None
+    result_kind: str | None = None
 
     def as_json(self) -> dict[str, Any]:
-        return {
+        document = {
             "name": self.name,
             "capability": self.capability,
             "description": self.description,
             "input_schema": self.input_schema,
         }
+        if self.projector_id is not None:
+            document["projector_id"] = self.projector_id
+            document["result_kind"] = self.result_kind
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +60,8 @@ class BoundToolDocument:
     authority_id: str
     protocol: str
     protocol_version: str
+    projector_id: str | None = None
+    result_kind: str | None = None
 
 
 class ToolCatalog:
@@ -308,6 +316,8 @@ class BoundDomainCatalog:
                     authority_id=authority_id,
                     protocol=protocol,
                     protocol_version=protocol_version,
+                    projector_id=tool.projector_id,
+                    result_kind=tool.result_kind,
                 )
                 for tool in catalog.tools
             ),
@@ -400,7 +410,9 @@ def _materialize_tool(
 ) -> ToolDocument:
     _validate_document(document, tool_name_prefix)
     input_schema = document["input_schema"]
+    context_effect = document["context_effect"]
     assert isinstance(input_schema, dict)
+    assert isinstance(context_effect, dict)
     return ToolDocument(
         name=str(document["tool_name"]),
         capability=str(document["id"]),
@@ -410,6 +422,8 @@ def _materialize_tool(
             else describe_tool_document(document)
         ),
         input_schema=input_schema,
+        projector_id=str(context_effect["projector"]),
+        result_kind=context_effect["result_kind"],
     )
 
 

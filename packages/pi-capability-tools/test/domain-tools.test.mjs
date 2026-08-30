@@ -317,6 +317,8 @@ test("routes a capability only through the controller-selected binding", async (
       capability: "asset.list",
       description: "List assets",
       input_schema: { type: "object", additionalProperties: false, properties: {} },
+      projector_id: "inventory-state-v1",
+      result_kind: "asset.catalog",
     },
     async (payload) => {
       payloads.push(payload);
@@ -330,13 +332,19 @@ test("routes a capability only through the controller-selected binding", async (
     },
   );
 
-  await tool.execute("call-1", { value: "controller-bound" });
+  const output = await tool.execute("call-1", { value: "controller-bound" });
 
   assert.equal(payloads.length, 1);
   assert.equal(payloads[0].protocol, "inventory-capability");
   assert.equal(payloads[0].protocol_version, "1.0");
   assert.equal(payloads[0].capability, "asset.list");
   assert.deepEqual(payloads[0].arguments, { value: "controller-bound" });
+  assert.deepEqual(output.details.capability_key, {
+    binding_id: "inventory",
+    capability_id: "asset.list",
+  });
+  assert.equal(output.details.projector_id, "inventory-state-v1");
+  assert.equal(output.details.result_kind, "asset.catalog");
 });
 
 test("model arguments cannot select controller-owned routing metadata", () => {
@@ -816,6 +824,8 @@ function contract(name, capability) {
     capability,
     description: `Fixture ${capability}`,
     input_schema: { type: "object", additionalProperties: false, properties: {} },
+    projector_id: "inventory-state-v1",
+    result_kind: "asset.catalog",
   };
 }
 
