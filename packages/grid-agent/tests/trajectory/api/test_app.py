@@ -527,6 +527,22 @@ def create_native_catalog_app(tmp_path: Path) -> tuple[FastAPI, dict[str, str]]:
     return create_trajectory_app(catalog, CursorCodec.load_or_create(cache_root / "cursor.key"), static_root=write_static_fixture(tmp_path)), refs
 
 
+def test_business_page_exposes_recorded_framework_core_timeline(tmp_path: Path) -> None:
+    app, _ = create_native_catalog_app(tmp_path)
+
+    response = TestClient(app).get("/api/runs/analysis-native-artifacts/business")
+
+    assert response.status_code == 200
+    timeline = response.json()["core_timeline"]
+    assert timeline
+    assert timeline[0]["event_type"] == "analysis.started"
+    assert timeline[-1]["event_type"] == "analysis.completed"
+    assert [item["source_sequence"] for item in timeline] == sorted(
+        item["source_sequence"] for item in timeline
+    )
+    assert all(not item["event_type"].startswith("business.") for item in timeline)
+
+
 def write_native_run_with_historical_v1_request(runs_root: Path) -> tuple[Path, str]:
     run_root = runs_root / "analysis-historical-v1-request"
     run_root.mkdir(parents=True)

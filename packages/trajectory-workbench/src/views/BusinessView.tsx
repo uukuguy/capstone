@@ -2,6 +2,7 @@ import type {
   BindingMetadata,
   BusinessProblem,
   CoreTimelineItem,
+  DomainPayloadCollection,
   DomainPayloadView,
   JsonValue,
   LifecycleStatus,
@@ -28,7 +29,7 @@ interface BusinessViewProps {
   selectedBindingId?: string | null;
   onBindingChange?: (bindingId: string) => void;
   /** Domain-owned presentation hints; no semantic interpretation happens here. */
-  domainPayload?: DomainPayloadView | null;
+  domainPayload?: DomainPayloadCollection | null;
 }
 
 type BusinessViewItem = ({ type: 'node' } & BusinessTrajectoryRow) | { id: string; source_sequence: number; type: 'problem'; problem: BusinessProblem };
@@ -49,6 +50,21 @@ function filteredRows(problems: BusinessProblem[], state: WorkbenchState): Busin
 function presentationText(binding: BindingMetadata | null, key: string): string | null {
   const value = binding?.presentation?.[key];
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function isDomainPayloadView(value: DomainPayloadCollection): value is DomainPayloadView {
+  return 'binding_id' in value && typeof value.binding_id === 'string';
+}
+
+function selectedDomainPayload(
+  source: DomainPayloadCollection | null,
+  bindingId: string | null,
+): DomainPayloadView | null {
+  if (!source) return null;
+  if (isDomainPayloadView(source)) {
+    return bindingId === null || source.binding_id === bindingId ? source : null;
+  }
+  return bindingId === null ? null : source[bindingId] ?? null;
 }
 
 function inferredBinding(problems: BusinessProblem[]): BindingMetadata | null {
@@ -118,9 +134,12 @@ export function BusinessView({
   const selectedBinding = availableBindings.find((binding) => binding.binding_id === selectedBindingId)
     ?? availableBindings[0]
     ?? null;
-  const effectiveDomainPayload = domainPayload
-    ?? problems.find((problem) => problem.domain_payload)?.domain_payload
+  const selectedBindingIdForPayload = selectedBinding?.binding_id ?? null;
+  const rowDomainPayload = problems
+    .map((problem) => problem.domain_payload)
+    .find((payload) => payload && (selectedBindingIdForPayload === null || payload.binding_id === selectedBindingIdForPayload))
     ?? null;
+  const effectiveDomainPayload = selectedDomainPayload(domainPayload ?? rowDomainPayload, selectedBindingIdForPayload);
   const businessTitle = presentationText(selectedBinding, 'business_title');
   const sources: NodeSource[] = ['observed', 'derived', 'agent-declared'];
   const statuses: LifecycleStatus[] = ['running', 'completed', 'failed', 'interrupted', 'unavailable'];

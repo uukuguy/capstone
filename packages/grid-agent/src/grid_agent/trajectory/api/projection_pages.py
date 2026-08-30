@@ -29,6 +29,8 @@ from grid_agent.trajectory.projection_models import (
     AssistantResponse,
     ContextFrame,
     ContextFrameSummary,
+    CoreTimelineItem,
+    DomainPayloadView,
     LifecycleStatus,
     ModelRequest,
     NodeSource,
@@ -123,6 +125,12 @@ class ProjectionPageResponse(_ProjectionApiModel):
     )
     bindings: tuple[BindingProjectionMetadata, ...] = Field(
         default_factory=tuple, exclude_if=lambda value: not value
+    )
+    core_timeline: tuple[CoreTimelineItem, ...] = Field(
+        default_factory=tuple, exclude_if=lambda value: not value
+    )
+    domain_payload: DomainPayloadView | None = Field(
+        default=None, exclude_if=lambda value: value is None
     )
     binding_id: str | None = Field(
         default=None, min_length=1, exclude_if=lambda value: value is None
@@ -311,6 +319,8 @@ def projection_page(
         last_sequence=last_sequence,
         has_older=page.has_older,
         encoded_bytes=page.encoded_bytes,
+        core_timeline=projected.core_timeline,
+        domain_payload=projected.business.domain_payload,
         **_page_identity(projected),
     )
 

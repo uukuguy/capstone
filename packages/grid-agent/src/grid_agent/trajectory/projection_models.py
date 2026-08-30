@@ -153,6 +153,17 @@ LifecycleStatus = Literal[
 ]
 
 
+class CoreTimelineItem(_ProjectionModel):
+    """A framework lifecycle event exposed without domain interpretation."""
+
+    id: str = Field(min_length=1)
+    source_sequence: int = Field(ge=1)
+    event_type: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    status: LifecycleStatus
+    detail: str | None = None
+
+
 class ProjectionNode(_ProjectionModel):
     """The provenance fields shared by every projected node."""
 
@@ -571,6 +582,9 @@ class ProjectionDiagnostic(ProjectionNode):
 class ProjectedRun(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     source_fingerprint: str = Field(min_length=1)
+    core_timeline: tuple[CoreTimelineItem, ...] = Field(
+        default_factory=tuple, exclude_if=lambda value: not value
+    )
     application: ApplicationProjectionMetadata | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -623,6 +637,7 @@ __all__ = [
     "ContextFrame",
     "ContextFrameSummary",
     "ContextTimeline",
+    "CoreTimelineItem",
     "DomainPayloadView",
     "ExecutionLineage",
     "ExecutionSlice",

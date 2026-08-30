@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from grid_agent.trajectory.agent_projection import project_agent
 from grid_agent.trajectory.artifact_projection import project_artifacts
@@ -22,6 +22,7 @@ from grid_agent.trajectory.materialize import ProjectionMaterializer
 from grid_agent.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     BindingProjectionMetadata,
+    CoreTimelineItem,
     ProjectedRun,
     ProjectionDiagnostic,
 )
@@ -226,6 +227,7 @@ class ProjectionService:
         projected = ProjectedRun(
             analysis_id=events[0].analysis_id if events else run_root.name,
             source_fingerprint=source_fingerprint,
+            core_timeline=project_core_timeline(replay_events),
             application=metadata,
             agent=agent,
             business=business,
@@ -235,6 +237,40 @@ class ProjectionService:
         )
         ProjectionMaterializer(self.cache_root).write(projected, source_fingerprint)
         return projected
+
+
+def project_core_timeline(
+    events: Sequence[ReplayEventLike],
+) -> tuple[CoreTimelineItem, ...]:
+    """Project recorded framework lifecycle events without domain semantics.
+
+    Business declaration events are owned by the selected domain projection and
+    intentionally remain out of this timeline.  Every other event is carried by
+    its recorded sequence and type; statuses are a neutral lifecycle label, not
+    a recalculation of any domain result.
+    """
+
+    return tuple(
+        CoreTimelineItem(
+            id=f"core:{event.sequence}",
+            source_sequence=event.sequence,
+            event_type=event.event_type,
+            label=event.event_type,
+            status=_core_event_status(event.event_type),
+        )
+        for event in events
+        if not event.event_type.startswith("business.")
+    )
+
+
+def _core_event_status(event_type: str) -> Literal["running", "completed", "failed", "interrupted", "unavailable"]:
+    if event_type.endswith((".failed", ".rejected", ".exhausted")):
+        return "failed"
+    if event_type.endswith((".completed", ".submitted", ".projected", ".injected")):
+        return "completed"
+    if event_type.endswith((".started", ".scheduled")):
+        return "running"
+    return "unavailable"
 
 
 def _descriptor_paths(root: Path) -> tuple[Path, ...]:
@@ -406,4 +442,4 @@ def _safe_value(value: object, *, depth: int = 0) -> object:
     return None
 
 
-__all__ = ["ProjectionService"]
+__all__ = ["ProjectionService", "project_core_timeline"]

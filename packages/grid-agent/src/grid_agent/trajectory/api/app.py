@@ -455,6 +455,8 @@ def _business_page(
         last_sequence=page.last_sequence,
         has_older=page.has_older,
         encoded_bytes=page.encoded_bytes,
+        core_timeline=projected.core_timeline,
+        domain_payload=projected.business.domain_payload,
         **_page_identity(projected),
     )
 

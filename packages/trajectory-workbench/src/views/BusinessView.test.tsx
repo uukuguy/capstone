@@ -184,4 +184,86 @@ describe('BusinessView', () => {
     expect(screen.getByText('A-1')).toBeVisible();
     expect(screen.queryByText(/grid/i)).not.toBeInTheDocument();
   });
+
+  it('hides a payload owned by another binding after the binding selection changes', async () => {
+    const bindings: BindingMetadata[] = [
+      {
+        binding_id: 'inventory', domain_id: 'inventory-readonly', domain_version: '1.0.0',
+        authority_id: 'inventory-api', schema: 'inventory-output/1.0',
+      },
+      {
+        binding_id: 'billing', domain_id: 'billing-readonly', domain_version: '1.0.0',
+        authority_id: 'billing-api', schema: 'billing-output/1.0',
+      },
+    ];
+    const payload: DomainPayloadView = {
+      binding_id: 'inventory', domain_id: 'inventory-readonly', authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0', payload: { items: [{ sku: 'A-1' }] }, interpretation: 'opaque',
+    };
+    const { rerender } = render(<BusinessView
+      problems={[]}
+      state={initialWorkbenchState}
+      dispatch={vi.fn()}
+      bindings={bindings}
+      selectedBindingId="inventory"
+      domainPayload={payload}
+    />);
+
+    expect(screen.getByRole('region', { name: 'Domain payload' })).toBeVisible();
+    rerender(<BusinessView
+      problems={[]}
+      state={initialWorkbenchState}
+      dispatch={vi.fn()}
+      bindings={bindings}
+      selectedBindingId="billing"
+      domainPayload={payload}
+    />);
+
+    expect(screen.queryByRole('region', { name: 'Domain payload' })).not.toBeInTheDocument();
+    expect(screen.getByText('billing-readonly')).toBeVisible();
+  });
+
+  it('selects a binding-keyed payload collection by binding ID', async () => {
+    const bindings: BindingMetadata[] = [
+      {
+        binding_id: 'inventory', domain_id: 'inventory-readonly', domain_version: '1.0.0',
+        authority_id: 'inventory-api', schema: 'inventory-output/1.0',
+      },
+      {
+        binding_id: 'billing', domain_id: 'billing-readonly', domain_version: '1.0.0',
+        authority_id: 'billing-api', schema: 'billing-output/1.0',
+      },
+    ];
+    const payloads = {
+      inventory: {
+        binding_id: 'inventory', domain_id: 'inventory-readonly', authority_id: 'inventory-api',
+        schema: 'inventory-output/1.0', payload: { items: [{ sku: 'A-1' }] }, interpretation: 'opaque' as const,
+      },
+      billing: {
+        binding_id: 'billing', domain_id: 'billing-readonly', authority_id: 'billing-api',
+        schema: 'billing-output/1.0', payload: { invoices: [{ id: 'INV-1' }] }, interpretation: 'opaque' as const,
+      },
+    };
+    const { rerender } = render(<BusinessView
+      problems={[]}
+      state={initialWorkbenchState}
+      dispatch={vi.fn()}
+      bindings={bindings}
+      selectedBindingId="inventory"
+      domainPayload={payloads}
+    />);
+
+    expect(screen.getByText('A-1')).toBeVisible();
+    rerender(<BusinessView
+      problems={[]}
+      state={initialWorkbenchState}
+      dispatch={vi.fn()}
+      bindings={bindings}
+      selectedBindingId="billing"
+      domainPayload={payloads}
+    />);
+
+    expect(screen.getByText('INV-1')).toBeVisible();
+    expect(screen.queryByText('A-1')).not.toBeInTheDocument();
+  });
 });

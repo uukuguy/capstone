@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { TrajectoryApiClient } from '../api/client';
 import type {
   AgentEventRow, AgentPageRequest, AgentTurn, BindingMetadata, BusinessCausalRow, ContextFrame,
-  ContextFrameSummary, ContextPageRequest, CoreTimelineItem, DomainPayloadView, EvidenceIndex,
+  ContextFrameSummary, ContextPageRequest, CoreTimelineItem, DomainPayloadCollection, DomainPayloadView, EvidenceIndex,
   EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunSummary,
 } from '../api/types';
 import { prependBusinessRows, problemsFromBusinessRows } from '../api/business';
@@ -43,7 +43,7 @@ interface BusinessProjectionMetadata {
   applicationVersion: string | null;
   bindings: BindingMetadata[];
   coreTimeline: CoreTimelineItem[];
-  domainPayload: DomainPayloadView | null;
+  domainPayload: DomainPayloadCollection | null;
 }
 
 function emptyBusinessProjectionMetadata(): BusinessProjectionMetadata {
@@ -56,8 +56,15 @@ function emptyBusinessProjectionMetadata(): BusinessProjectionMetadata {
   };
 }
 
-function pageDomainPayload(page: ProjectionPage<BusinessCausalRow>): DomainPayloadView | null {
-  return page.domain_payload ?? page.items.find((item) => item.domain_payload)?.domain_payload ?? null;
+function pageDomainPayload(page: ProjectionPage<BusinessCausalRow>): DomainPayloadCollection | null {
+  if (page.domain_payload) return page.domain_payload;
+  const payloads = new Map<string, DomainPayloadView>();
+  for (const item of page.items) {
+    if (item.domain_payload) payloads.set(item.domain_payload.binding_id, item.domain_payload);
+  }
+  if (payloads.size === 0) return null;
+  if (payloads.size === 1) return [...payloads.values()][0] ?? null;
+  return Object.fromEntries(payloads.entries());
 }
 
 export function App({ client = api }: { client?: AppClient }) {

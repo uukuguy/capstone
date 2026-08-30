@@ -305,6 +305,7 @@ describe('App shell', () => {
     expect(selector).toHaveValue('asset-register');
     expect(screen.getByText('asset-registry')).toBeVisible();
     expect(screen.getByText('Asset register')).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Domain payload' })).not.toBeInTheDocument();
   });
 
   it('selecting Q7 synchronizes timeline, content, and inspector', async () => {

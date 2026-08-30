@@ -39,8 +39,13 @@ export interface DomainPayloadView {
   presentation?: JsonObject;
 }
 
+/** A page may carry one opaque result or a binding-keyed result collection. */
+export type DomainPayloadCollection = DomainPayloadView | Record<string, DomainPayloadView>;
+
 export interface CoreTimelineItem {
   id: string;
+  source_sequence?: number;
+  event_type?: string;
   label: string;
   status: LifecycleStatus;
   detail?: string | null;
@@ -59,7 +64,7 @@ export interface ProjectionPage<T> {
   application_version?: string;
   bindings?: BindingMetadata[];
   core_timeline?: CoreTimelineItem[];
-  domain_payload?: DomainPayloadView;
+  domain_payload?: DomainPayloadCollection;
   binding_id?: string;
   domain_id?: string;
   authority_id?: string;
