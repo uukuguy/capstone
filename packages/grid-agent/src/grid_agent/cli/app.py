@@ -164,6 +164,24 @@ def _runtime_environment(state_dir: Path) -> dict[str, str]:
     return {**dotenv_layer, **os.environ}
 
 
+def _generic_runtime_environment(environment: Mapping[str, str]) -> dict[str, str]:
+    """Adapt product-owned LLM settings to the generic runtime namespace."""
+
+    adapted = dict(environment)
+    for product_name, generic_name in (
+        ("GRID_AGENT_LLM_PROVIDER", "CAPABILITY_AGENT_LLM_PROVIDER"),
+        ("GRID_AGENT_LLM_MODEL", "CAPABILITY_AGENT_LLM_MODEL"),
+        ("GRID_AGENT_LLM_BASE_URL", "CAPABILITY_AGENT_LLM_BASE_URL"),
+        ("GRID_AGENT_LLM_API_KEY_ENV", "CAPABILITY_AGENT_LLM_API_KEY_ENV"),
+        ("GRID_AGENT_LLM_TIMEOUT_SECONDS", "CAPABILITY_AGENT_LLM_TIMEOUT_SECONDS"),
+        ("GRID_AGENT_LLM_MAX_RETRIES", "CAPABILITY_AGENT_LLM_MAX_RETRIES"),
+    ):
+        value = environment.get(product_name)
+        if value is not None:
+            adapted[generic_name] = value
+    return adapted
+
+
 class _ProgressReporter:
     def __init__(self, question: str) -> None:
         self.started_at = time.monotonic()
@@ -619,6 +637,9 @@ def analysis_generic(
             f"analysis-generic application={application} instructions={instructions}",
             err=True,
         )
+        runtime_environment = _generic_runtime_environment(
+            _runtime_environment(project_paths.root)
+        )
         outcome = run_generic_application(
             application,
             questions,
@@ -628,7 +649,7 @@ def analysis_generic(
                 project_paths.root / "configs/llm-providers.json"
             ),
             workspace_root=project_paths.runs_dir,
-            environment=_runtime_environment(project_paths.root),
+            environment=runtime_environment,
         )
         if outcome.status != "completed" or not isinstance(outcome.rendered, str):
             message = getattr(outcome, "error", None) or "generic application failed"

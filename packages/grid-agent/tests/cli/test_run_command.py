@@ -83,6 +83,54 @@ def test_analysis_generic_emits_the_validated_composite_result(
     assert "analysis-generic" in result.stderr
 
 
+def test_analysis_generic_adapts_product_llm_configuration_for_generic_runtime(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    instructions = tmp_path / "instructions.txt"
+    instructions.write_text("question\n", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def run_generic(*_args: object, **kwargs: object) -> object:
+        observed.update(kwargs)
+        return SimpleNamespace(status="completed", rendered="{}\n", result=object())
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli_module, "run_generic_application", run_generic)
+    monkeypatch.setattr(cli_module, "load_questions", lambda _path: ("question",))
+    monkeypatch.setattr(
+        cli_module,
+        "GenericProviderCatalog",
+        SimpleNamespace(load=lambda _path: object()),
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "_runtime_environment",
+        lambda _path: {
+            "GRID_AGENT_LLM_PROVIDER": "deepseek",
+            "GRID_AGENT_LLM_MODEL": "deepseek-v4-flash",
+            "DEEPSEEK_API_KEY": "test-key",
+        },
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "analysis-generic",
+            "--application",
+            "pandapower-static-analysis",
+            "--instructions",
+            str(instructions),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    environment = observed["environment"]
+    assert isinstance(environment, dict)
+    assert environment["CAPABILITY_AGENT_LLM_PROVIDER"] == "deepseek"
+    assert environment["CAPABILITY_AGENT_LLM_MODEL"] == "deepseek-v4-flash"
+
+
 def test_analysis_generic_never_projects_failed_run_to_legacy_envelope(
     tmp_path: Path,
     monkeypatch,

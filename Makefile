@@ -91,9 +91,12 @@ analysis-generic:
 	@test -f "$(INSTRUCTIONS)" || (echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2)
 	@uv run --project packages/grid-agent grid-agent analysis-generic --application "$(APPLICATION)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
 
-application: APPLICATION = pandapower-static-analysis
-application: INSTRUCTIONS = $(ANALYSIS_DEFAULT_INSTRUCTIONS)
-application: analysis-generic
+application:
+	@$(MAKE) --no-print-directory analysis-generic \
+		APPLICATION="$(if $(APPLICATION),$(APPLICATION),pandapower-static-analysis)" \
+		INSTRUCTIONS="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))" \
+		$(if $(PROVIDER),PROVIDER="$(PROVIDER)") \
+		$(if $(MODEL),MODEL="$(MODEL)")
 
 report: analysis
 
