@@ -23,9 +23,10 @@
   "output_schema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["context_ref", "model", "counts"],
+    "required": ["context_ref", "revision_ref", "model", "counts"],
     "properties": {
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
+      "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "model": {"type": "string", "minLength": 1},
       "counts": {
         "type": "object",

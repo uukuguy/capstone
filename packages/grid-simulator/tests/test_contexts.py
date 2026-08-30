@@ -125,6 +125,7 @@ def test_context_get_executes_against_verified_existing_context(tmp_path: Path) 
     assert fetched.ok is True
     assert fetched.result == {
         "context_ref": opened.result["context_ref"],
+        "revision_ref": opened.result["revision_ref"],
         "model": "ieee39",
         "counts": {"buses": 39, "lines": 35, "transformers": 11},
     }

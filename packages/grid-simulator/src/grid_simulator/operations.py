@@ -605,6 +605,7 @@ def _context_get(workspace: SimulatorWorkspace, engine: Pandapower340Engine, arg
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
     return {
         "context_ref": context.context_ref,
+        "revision_ref": context.revision_ref,
         "model": context.model_id,
         "counts": {"buses": int(len(net.bus)), "lines": int(len(net.line)), "transformers": int(len(net.trafo))},
     }
