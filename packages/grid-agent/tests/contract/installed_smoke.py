@@ -102,7 +102,6 @@ def main() -> None:
             "inventory_asset_get",
             "inventory_asset_list",
             "inventory_catalog_open",
-            "inventory_record_decision",
             "inventory_stock_summary",
         ]
 
