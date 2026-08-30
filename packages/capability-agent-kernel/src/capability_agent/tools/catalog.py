@@ -183,7 +183,10 @@ class CoreToolCatalog:
         if namespace != "agent_":
             raise ToolCatalogError("generic core tool namespace must be agent_")
         _validate_tool_name_prefix(namespace)
-        return cls(namespace=namespace, tools=(_decision_tool(namespace),))
+        return cls(
+            namespace=namespace,
+            tools=(_decision_tool(namespace), _context_tool(namespace)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,6 +425,23 @@ def _decision_tool(tool_name_prefix: str) -> ToolDocument:
                     "maxItems": 20,
                 },
             },
+        },
+    )
+
+
+def _context_tool(tool_name_prefix: str) -> ToolDocument:
+    tool_name = f"{tool_name_prefix}context_get"
+    return ToolDocument(
+        name=tool_name,
+        capability=tool_name,
+        description=(
+            "Return the controller-generated bounded read-only application "
+            "context view. This view is execution context, not domain truth."
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {},
         },
     )
 

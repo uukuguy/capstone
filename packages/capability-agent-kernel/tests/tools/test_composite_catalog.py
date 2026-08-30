@@ -125,7 +125,10 @@ def test_composite_catalog_keeps_core_tools_out_of_domain_catalog() -> None:
         domains=(_domain("grid", "grid_"),),
     )
 
-    assert [tool.name for tool in catalog.core_tools] == ["agent_record_decision"]
+    assert [tool.name for tool in catalog.core_tools] == [
+        "agent_context_get",
+        "agent_record_decision",
+    ]
     assert [tool.name for tool in catalog.domain_tools] == ["grid_context_open"]
     bound = catalog.require("grid_context_open")
     assert bound.key == CapabilityKey("grid", "context.open")

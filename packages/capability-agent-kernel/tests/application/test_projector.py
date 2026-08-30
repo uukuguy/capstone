@@ -264,6 +264,50 @@ def test_projector_keeps_core_tool_references_opaque(tmp_path: Path) -> None:
     assert current.store.snapshot.domains["inventory"].revision == 0
 
 
+def test_projector_keeps_context_core_tool_opaque_when_domain_call_is_in_flight(
+    tmp_path: Path,
+) -> None:
+    current = _harness(tmp_path)
+    projector = ApplicationInvocationProjector(
+        store=current.store,
+        catalog=_catalog(),
+        bindings=current.bindings,
+    )
+
+    projector.observe(
+        {
+            "type": "tool_execution_start",
+            "tool_call_id": "domain-call",
+            "tool_name": "grid_asset_read",
+        }
+    )
+    projector.observe(
+        {
+            "type": "tool_execution_start",
+            "tool_call_id": "core-call",
+            "tool_name": "agent_context_get",
+        }
+    )
+    assert (
+        projector.observe(
+            {
+                "type": "tool_result",
+                "tool_call_id": "core-call",
+                "tool_name": "agent_context_get",
+                "ok": True,
+                "result": {"revision": 1},
+            },
+            turn_id="run-1-t001",
+        )
+        is None
+    )
+
+    assert current.grid_authority.admit_calls == []
+    assert current.inventory_authority.admit_calls == []
+    assert current.store.snapshot.domains["grid"].revision == 0
+    assert current.store.snapshot.domains["inventory"].revision == 0
+
+
 def test_projector_integrity_failure_adds_no_result_evidence_or_state(
     tmp_path: Path,
 ) -> None:
