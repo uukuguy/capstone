@@ -156,4 +156,5 @@ def test_context_open_reports_selected_registered_model_source(tmp_path: Path) -
     assert response.result is not None
     assert response.result["model"] == "case9"
     assert response.result["source"] == "pandapower.networks.case9"
+    assert response.result["revision_ref"].startswith("revision:sha256:")
     assert response.result["counts"]["buses"] == 9

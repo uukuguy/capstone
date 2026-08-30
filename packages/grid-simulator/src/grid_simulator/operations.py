@@ -591,6 +591,7 @@ def _context_open(workspace: SimulatorWorkspace, engine: Pandapower340Engine, ar
     net = store.load_network(context.context_ref)
     return {
         "context_ref": context.context_ref,
+        "revision_ref": context.revision_ref,
         "model": context.model_id,
         "engine": engine.name,
         "pandapower_version": engine.version,

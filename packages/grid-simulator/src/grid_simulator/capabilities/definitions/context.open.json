@@ -23,9 +23,10 @@
   "output_schema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["context_ref", "model", "engine", "pandapower_version", "source", "semantic_sha256", "counts"],
+    "required": ["context_ref", "revision_ref", "model", "engine", "pandapower_version", "source", "semantic_sha256", "counts"],
     "properties": {
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
+      "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "model": {"type": "string", "minLength": 1},
       "engine": {"type": "string", "enum": ["pandapower"]},
       "pandapower_version": {"type": "string", "enum": ["3.4.0"]},
