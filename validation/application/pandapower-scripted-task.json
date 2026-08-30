@@ -1,0 +1,56 @@
+{
+  "schema_version": "application-instantiation/1.0",
+  "case_id": "pandapower-scripted-task",
+  "application_id": "pandapower-static-analysis",
+  "run_id": "application-scripted-task",
+  "questions": [
+    {
+      "id": "open-and-resolve-topology",
+      "text": "打开 IEEE-39 网络并解析线路 11 的端点。",
+      "steps": [
+        {
+          "capability": "context.open",
+          "arguments": {"model_id": "ieee39"}
+        },
+        {
+          "capability": "topology.branch.endpoints.get",
+          "arguments": {
+            "context_ref": "$context_ref",
+            "kind": "line",
+            "namespace": "pandapower_index",
+            "identifier": "11"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reuse-context-for-powerflow",
+      "text": "沿用已打开的网络执行一次交流潮流。",
+      "steps": [
+        {
+          "capability": "analysis.powerflow.ac.run",
+          "arguments": {
+            "context_ref": "$context_ref",
+            "algorithm": "nr"
+          }
+        }
+      ]
+    },
+    {
+      "id": "reuse-result-for-ranking",
+      "text": "沿用当前潮流结果列出负载率最高的三条线路。",
+      "steps": [
+        {
+          "capability": "result.branches.rank",
+          "arguments": {
+            "result_ref": "$result_ref",
+            "metric": "loading_percent",
+            "direction": "descending",
+            "limit": 3,
+            "element_kind": "line"
+          }
+        }
+      ]
+    }
+  ]
+}

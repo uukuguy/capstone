@@ -88,9 +88,60 @@ modifying the kernel. The shipped `grid-agent` CLI still explicitly selects the
 pandapower profile; dynamic discovery, runtime domain selection, multi-domain
 routing, and governed write actions remain future work.
 
-The external grid CLI, Pi tool names, `grid-capability/1.0` protocol, stdout JSON
-envelope, stderr diagnostics, `runs/` evidence layout, and simulator-owned truth
-contract remain unchanged.
+The external grid compatibility CLI, Pi tool names, `grid-capability/1.0`
+protocol, v1.0.1 two-field stdout envelope, stderr diagnostics, `runs/` evidence
+layout, and simulator-owned truth contract remain unchanged. The explicitly
+generic `analysis-generic` command uses the composite output contract described
+below.
+
+## Generic Application Path
+
+The reusable application seam is assembled in one direction:
+
+```text
+ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack
+```
+
+The Kernel owns the framework `core` section (run identity, lifecycle, status,
+turn and audit metadata). Each Domain Pack owns its own
+`domains.<binding_id>` section and its semantic payload. The generic entry point
+preserves both sections and emits the composite `capability-agent-output/1.0`
+contract, for example:
+
+```json
+{"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
+```
+
+Run an explicitly registered application with `analysis-generic`:
+
+```sh
+make analysis-generic \
+  APPLICATION=pandapower-static-analysis \
+  INSTRUCTIONS=validation/questions/task.md.txt \
+  PROVIDER=<authorized-provider>
+```
+
+Inspect the resulting `runs/<run_id>/` directory for the current-run result and
+evidence lineage, context snapshots and replay, answer audits, and the admitted
+report artifact. The provider-free acceptance gate exercises the same prepared
+pandapower endpoint and real semantic `gridctl` calls for both scripted business
+task shapes:
+
+```sh
+make validate-application
+```
+
+`inventory-domain-pack` is a fixture/conformance reference only; it is not a
+second production CLI mode or a claim that a useful second business agent has
+been selected. C.1 remains in progress until Task 11 runs both canonical
+v1.0.1 business task files through `analysis-generic` with authorized provider
+evidence.
+
+The generic composite result is deliberately different from the explicit
+v1.0.1 compatibility projection. The `run`, `analysis`, and `report` commands
+retain their versioned adapter and its exact two-field stdout object
+(`question_id` and `answer_output`); the richer internal result is still
+validated before the adapter renders the legacy envelope.
 
 ## Quick Start
 
@@ -136,6 +187,8 @@ runtime installation, and failure diagnosis.
 | LLM-led single question | `make run-llm QUESTION="..."` |
 | Continuous multi-question analysis | `make analysis INSTRUCTIONS=path/to/instructions.txt` |
 | Compatibility alias for continuous analysis | `make report INSTRUCTIONS=path/to/instructions.txt` |
+| Generic registered application | `make analysis-generic APPLICATION=... INSTRUCTIONS=...` |
+| Provider-free application acceptance | `make validate-application` |
 | Build and serve the read-only workbench | `make trajectory PORT=8765` |
 
 `grid-agent run` writes exactly one JSON object to stdout:
@@ -176,6 +229,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make validate-application
 make test-inventory
 make test-packages
 ```

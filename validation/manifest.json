@@ -6,6 +6,9 @@
     },
     "static-analysis-core": {
       "description": "growing semantic capability, recovery, and evidence regression set"
+    },
+    "application-instantiation": {
+      "description": "provider-free generic application wiring, lineage, audit, and output-contract acceptance"
     }
   }
 }

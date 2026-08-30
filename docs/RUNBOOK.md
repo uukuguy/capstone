@@ -37,7 +37,7 @@ make doctor
 make test-packages
 ```
 
-该门禁也会运行 package boundary、protected-path digest 和 npm tarball 成员检查，拒绝反向业务依赖、源码路径耦合、测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部 CLI、Pi 工具名、`grid-capability/1.0`、stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界。
+该门禁也会运行 package boundary、protected-path digest 和 npm tarball 成员检查，拒绝反向业务依赖、源码路径耦合、测试、fixture、缓存、仓库根文件、环境文件、source map、密钥相关路径和路径逃逸。它不改变外部兼容 CLI、Pi 工具名、`grid-capability/1.0`、v1.0.1 stdout/stderr 契约、`runs/` 证据布局或 simulator-owned truth 边界；`analysis-generic` 使用独立的组合输出契约。
 
 ## Inventory 参考域验证
 
@@ -97,6 +97,37 @@ make analysis INSTRUCTIONS=validation/questions/task.md.txt
 每次分析的输入副本、逐回合答案、上下文账本、上下文快照、证据、trace 和最终报告都保存在同一个 `runs/<analysis_id>/` 目录中；逐回合答案写入 `output/answers.jsonl`，不会流式写到 stdout。该迁移不支持独立 `--output`/`--report-path`、resume、命名 session 或 session 切换。
 
 `make report` 和 `grid-agent report --questions PATH` 是兼容别名，委托同一个连续分析路径；它们不再启动每题一个 `grid-agent run` 子进程。
+
+## 通用应用实例化路径
+
+需要运行显式登记的通用应用，并保留框架与领域两部分结果时，使用
+`analysis-generic`：
+
+```sh
+make analysis-generic \
+  APPLICATION=pandapower-static-analysis \
+  INSTRUCTIONS=validation/questions/task.md.txt \
+  PROVIDER=<authorized-provider>
+```
+
+它沿着 `ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack`
+组装运行时。Kernel 负责组合结果的 `core`（运行身份、生命周期、回合、审计和引用），Domain Pack 负责 `domains.<binding_id>` 的领域载荷；通用 stdout 结果遵循 `capability-agent-output/1.0`，不会把领域字段误当成所有应用共同的答案字段：
+
+```json
+{"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
+```
+
+运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`analysis-generic` 是需要 Provider 的产品入口；不要把 Provider 凭据写进参数以外的提交文件、日志或工件。
+
+Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同一份已准备 pandapower endpoint，再由真实语义 `gridctl` 执行工具调用。它覆盖 `validation/application/` 中的两个脚本案例，并检查当前运行引用、上下文复用、答案审计、报告摘要/接纳、replay equality 和 `core` + `domains.grid` 输出：
+
+```sh
+make validate-application
+```
+
+该门禁是应用 wiring 与安全边界的可复现验收，不等同于 Provider-backed 业务完成。`inventory-domain-pack` 只用于 fixture/conformance 参考，不是生产 CLI 的第二领域模式。C.1 在 Task 11 将两个 `validation/questions/` canonical v1.0.1 业务任务都通过 `analysis-generic` 并完成证据审计前，必须保持为 in progress。
+
+`run`、`analysis` 和 `report` 是显式的 v1.0.1 兼容路径，仍由兼容适配器输出 stdout 中精确的 `question_id` 与 `answer_output` 两个字段；通用入口的组合 `core` 与 `domains` 结果不会被误称为这两个字段。
 
 ## 本地轨迹工作台
 
@@ -196,12 +227,14 @@ Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具�
 make test
 make test-e2e
 make validate
+make validate-application
 make test-inventory
 make test-packages
 ```
 
 `make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport 测试。`make test-packages` 构建并安装干净发行工件，验证六个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
+`make validate-application` 是独立的 provider-free generic application gate，报告写入 `runs/validation-application-instantiation.json`；它验证第一领域 pandapower 的完整 Profile/Binding/Domain Pack 实例化，不选择或宣称第二个生产领域。
 
 `make check-protected-paths` 和 `make validate` 使用当前 C.1 repository gate：`configs/runtime/application-instantiation-protected-paths.json`。该运行时策略固定保护不可变的 acceptance 输入和 simulator truth boundary：`configs/capabilities/pandapower-3.4.0-static-analysis.json`、`packages/grid-simulator`、`packages/inventory-domain-pack`、`packages/inventory-reference-service`、`validation/questions/task.md.txt` 与 `validation/questions/test.md.txt`。每项 digest 均来自该路径的已提交 `HEAD:<path>` Git 对象；gate 同时拒绝这些路径的 working-tree 变更。
 

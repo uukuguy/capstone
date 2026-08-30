@@ -94,7 +94,10 @@ SOURCE_PATH_LITERAL_ROOTS = (
     "packages/inventory-domain-pack/src",
 )
 GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
-    "packages/capability-agent-kernel/src/capability_agent/application",
+    # The complete Kernel is domain-neutral.  Keep semantic vocabulary out of
+    # runtime, trajectory, and tool modules as well as application assembly;
+    # only explicit composition roots may name a business domain.
+    "packages/capability-agent-kernel/src/capability_agent",
 )
 FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
     Path("packages/capability-agent-kernel"): ("grid-agent",),
@@ -116,9 +119,12 @@ FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
 }
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
 FORBIDDEN_GENERIC_PATTERNS = {
+    "grid_agent": re.compile(r"\bgrid_agent\b"),
+    "grid_simulator": re.compile(r"\bgrid_simulator\b"),
     "gridctl": re.compile(r"(?<![a-z0-9_])gridctl(?![a-z0-9_])"),
     "grid_": re.compile(r"\bgrid_[a-z0-9_]*\b"),
-    "pandapower": re.compile(r"(?<![a-z0-9_])pandapower(?:_domain)?(?![a-z0-9_])"),
+    "pandapower_domain": re.compile(r"\bpandapower_domain\b"),
+    "pandapower": re.compile(r"\bpandapower\b"),
     "power-flow": re.compile(r"\bpower[-_ ]?flow\b"),
     "voltage": re.compile(r"\bvoltage\b"),
     "bus": re.compile(r"\bbus(?:es)?\b"),

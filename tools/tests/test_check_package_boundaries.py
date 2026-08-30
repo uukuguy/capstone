@@ -24,6 +24,10 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert result.stderr.splitlines() == [
+        "packages/capability-agent-kernel/src/capability_agent/bad.py "
+        "contains grid-owned semantic token grid_",
+        "packages/capability-agent-kernel/src/capability_agent/bad.py "
+        "contains grid-owned semantic token grid_agent",
         "packages/capability-agent-kernel/src/capability_agent/bad.py imports grid_agent.cli"
     ]
     assert result.stdout == ""
@@ -47,6 +51,67 @@ def test_application_rejects_grid_owned_semantic_literals(tmp_path: Path) -> Non
         "packages/capability-agent-kernel/src/capability_agent/application/bad.py "
         "contains grid-owned semantic token grid_",
     ]
+    assert result.stdout == ""
+
+
+def test_kernel_rejects_grid_owned_semantic_literals_outside_application(
+    tmp_path: Path,
+) -> None:
+    runtime_src = (
+        tmp_path
+        / "packages/capability-agent-kernel/src/capability_agent/runtime"
+    )
+    runtime_src.mkdir(parents=True)
+    (runtime_src / "bad.py").write_text(
+        'CAPABILITY = "power-flow"\n',
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "packages/capability-agent-kernel/src/capability_agent/runtime/bad.py "
+        "contains grid-owned semantic token power-flow",
+    ]
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    ("literal", "reported_token"),
+    (
+        ("grid_agent", "grid_agent"),
+        ("grid_simulator", "grid_simulator"),
+        ("pandapower_domain", "pandapower_domain"),
+        ("pandapower", "pandapower"),
+        ("gridctl", "gridctl"),
+        ("grid_", "grid_"),
+        ("power flow", "power-flow"),
+        ("voltage", "voltage"),
+        ("bus", "bus"),
+        ("branch", "branch"),
+        ("n-1", "n-1"),
+    ),
+)
+def test_kernel_rejects_each_grid_owned_semantic_literal(
+    tmp_path: Path,
+    literal: str,
+    reported_token: str,
+) -> None:
+    package_src = tmp_path / "packages/capability-agent-kernel/src/capability_agent"
+    package_src.mkdir(parents=True)
+    (package_src / "bad.py").write_text(
+        f'CAPABILITY = "{literal}"\n',
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert any(
+        f"contains grid-owned semantic token {reported_token}" in line
+        for line in result.stderr.splitlines()
+    )
     assert result.stdout == ""
 
 
@@ -175,6 +240,14 @@ def test_reports_sorted_ast_metadata_and_source_path_violations(
     assert result.returncode == 1
     assert result.stderr.splitlines() == [
         "packages/capability-agent-kernel/pyproject.toml depends on grid-agent",
+        "packages/capability-agent-kernel/src/capability_agent/bad_import.py "
+        "contains grid-owned semantic token grid_",
+        "packages/capability-agent-kernel/src/capability_agent/bad_import.py "
+        "contains grid-owned semantic token grid_agent",
+        "packages/capability-agent-kernel/src/capability_agent/bad_import.py "
+        "contains grid-owned semantic token grid_simulator",
+        "packages/capability-agent-kernel/src/capability_agent/bad_import.py "
+        "contains grid-owned semantic token pandapower",
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports grid_agent.cli",
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports grid_simulator.client",
         "packages/capability-agent-kernel/src/capability_agent/bad_import.py imports pandapower",

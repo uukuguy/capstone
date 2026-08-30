@@ -1,0 +1,57 @@
+{
+  "schema_version": "application-instantiation/1.0",
+  "case_id": "pandapower-scripted-test",
+  "application_id": "pandapower-static-analysis",
+  "run_id": "application-scripted-test",
+  "questions": [
+    {
+      "id": "open-and-describe-constraints",
+      "text": "打开 IEEE-39 网络并读取模型显式约束。",
+      "steps": [
+        {
+          "capability": "context.open",
+          "arguments": {"model_id": "ieee39"}
+        },
+        {
+          "capability": "model.constraints.describe",
+          "arguments": {"context_ref": "$context_ref"}
+        }
+      ]
+    },
+    {
+      "id": "resolve-element-from-reused-context",
+      "text": "沿用同一网络解析线路 17。",
+      "steps": [
+        {
+          "capability": "model.element.get",
+          "arguments": {
+            "context_ref": "$context_ref",
+            "kind": "line",
+            "namespace": "pandapower_index",
+            "identifier": "17"
+          }
+        },
+        {
+          "capability": "topology.branch.endpoints.get",
+          "arguments": {
+            "context_ref": "$context_ref",
+            "branch_ref": "$asset_ref"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run-contingency-from-resolved-element",
+      "text": "针对已解析线路执行单支路静态校核。",
+      "steps": [
+        {
+          "capability": "analysis.contingency.n_minus_one.run",
+          "arguments": {
+            "context_ref": "$context_ref",
+            "branch_refs": ["$asset_ref"]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -61,7 +61,40 @@ make test-packages
 
 inventory 参考域复用未修改的通用 Pi transport 和内核组合路径，同时 protected framework paths 保持字节级一致。这证明了独立打包的只读业务权威可以在不复制 `grid-agent`、不修改内核的前提下实例化单领域框架。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；动态发现、运行时领域选择、多领域路由和受治理的写操作仍属于后续工作。
 
-外部 grid CLI、Pi 工具名、`grid-capability/1.0` 协议、stdout JSON 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。
+外部 grid 兼容 CLI、Pi 工具名、`grid-capability/1.0` 协议、v1.0.1 双字段 stdout 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。显式的 `analysis-generic` 命令使用下文的组合输出契约。
+
+## 通用应用路径
+
+可复用的应用接缝按一个明确方向组装：
+
+```text
+ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack
+```
+
+内核拥有框架 `core` 部分（运行身份、生命周期、状态、回合和审计元数据）。每个 Domain Pack 独立拥有自己的 `domains.<binding_id>` 部分及其语义载荷。通用入口保留两部分，并输出组合的 `capability-agent-output/1.0` 契约，例如：
+
+```json
+{"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
+```
+
+使用 `analysis-generic` 运行显式登记的应用：
+
+```sh
+make analysis-generic \
+  APPLICATION=pandapower-static-analysis \
+  INSTRUCTIONS=validation/questions/task.md.txt \
+  PROVIDER=<authorized-provider>
+```
+
+可在 `runs/<run_id>/` 检查当前运行的结果和证据 lineage、上下文快照与 replay、答案审计以及已接纳的报告工件。无 Provider 验收门禁会使用同一个已准备的 pandapower endpoint，通过真实语义 `gridctl` 调用覆盖两种脚本化业务任务：
+
+```sh
+make validate-application
+```
+
+`inventory-domain-pack` 仅用于 fixture/conformance 参考；它不是第二个生产 CLI 模式，也不表示已经选定了有用的第二领域智能体。C.1 仍处于进行中，直到 Task 11 使用获得授权的 Provider 证据，将两个 canonical v1.0.1 业务任务文件都通过 `analysis-generic`。
+
+通用组合结果有意不同于显式的 v1.0.1 兼容投影。`run`、`analysis` 和 `report` 命令保留版本化适配器及其精确的双字段 stdout 对象（`question_id` 与 `answer_output`）；适配器渲染旧版封装前，内部丰富结果仍会先完成验证。
 
 ## 快速开始
 
@@ -100,6 +133,8 @@ make run-llm QUESTION="对 IEEE-39 节点系统运行交流潮流，并报告有
 | LLM 驱动的单题分析 | `make run-llm QUESTION="..."` |
 | 连续多题分析 | `make analysis INSTRUCTIONS=path/to/instructions.txt` |
 | 连续分析兼容别名 | `make report INSTRUCTIONS=path/to/instructions.txt` |
+| 通用登记应用 | `make analysis-generic APPLICATION=... INSTRUCTIONS=...` |
+| 无 Provider 应用验收 | `make validate-application` |
 | 构建并启动只读工作台 | `make trajectory PORT=8765` |
 
 `grid-agent run` 向 stdout 精确写入一个 JSON 对象：
@@ -131,6 +166,7 @@ make doctor
 make test
 make test-e2e
 make validate
+make validate-application
 make test-inventory
 make test-packages
 ```

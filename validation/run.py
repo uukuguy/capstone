@@ -13,10 +13,27 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 from pydantic import JsonValue, ValidationError
 
+from capability_agent.application import (
+    ApplicationContextStore,
+    ApplicationInvocationProjector,
+    ApplicationWorkspace,
+    DomainRegistry,
+    TurnController,
+    prepare_application,
+)
+from capability_agent.application.errors import AnswerCommitError
+from capability_agent.tools.catalog import (
+    BoundDomainCatalog,
+    CompositeToolCatalog,
+    CoreToolCatalog,
+)
+from grid_agent.application.composition import build_generic_application, run_generic_application
+from grid_agent.application.registry import ApplicationRegistry
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.contracts import AnswerEnvelope
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
@@ -31,6 +48,557 @@ _OPERATION_CAPABILITIES = {
     "element.resolve": "model.element.get",
     "powerflow.run_ac": "analysis.powerflow.ac.run",
 }
+
+
+@dataclass(frozen=True)
+class ApplicationExecution:
+    """Inspectable result of one provider-free generic application run."""
+
+    case: Mapping[str, object]
+    outcome: object
+    workspace: ApplicationWorkspace
+    store: ApplicationContextStore
+    transport: "ScriptedApplicationTransport"
+    controller: "AuditingTurnController"
+    prepared: object
+
+
+class ScriptedApplicationTransport:
+    """Deterministic model transport that calls only the prepared endpoint.
+
+    The transport is deliberately a model-side test double.  It receives a
+    prepared binding and dispatches the case's semantic capability plan to the
+    binding executor; no simulator implementation or expected answer is
+    imported here.
+    """
+
+    def __init__(
+        self,
+        case: Mapping[str, object],
+        *,
+        prepared: object,
+        catalog: CompositeToolCatalog,
+    ) -> None:
+        self.case = case
+        self.run_id = str(case["run_id"])
+        bindings = getattr(prepared, "bindings", {})
+        self._binding = bindings["grid"]
+        self._catalog = catalog
+        self._tool_by_capability = {
+            tool.key.capability_id: tool for tool in catalog.domain_tools
+        }
+        runtime = getattr(self._binding, "runtime")
+        self._projector_by_capability: dict[str, tuple[str, str | None]] = {}
+        for document in runtime.capability_documents:
+            capability = document.get("id")
+            effect = document.get("context_effect")
+            if not isinstance(capability, str) or not isinstance(effect, Mapping):
+                continue
+            projector = effect.get("projector")
+            result_kind = effect.get("result_kind")
+            if isinstance(projector, str) and projector:
+                self._projector_by_capability[capability] = (
+                    projector,
+                    result_kind if isinstance(result_kind, str) else None,
+                )
+        self._question_index = 0
+        self._context_ref: str | None = None
+        self._result_ref: str | None = None
+        self._asset_ref: str | None = None
+        self._current_result_refs: tuple[str, ...] = ()
+        self._current_evidence_refs: tuple[str, ...] = ()
+        self.all_result_refs: list[str] = []
+        self.all_evidence_refs: list[str] = []
+        self.calls: list[dict[str, object]] = []
+        self.semantic_events: list[Mapping[str, object]] = []
+        self.started = False
+        self.stopped = False
+
+    @property
+    def current_result_refs(self) -> tuple[str, ...]:
+        return self._current_result_refs
+
+    @property
+    def current_evidence_refs(self) -> tuple[str, ...]:
+        return self._current_evidence_refs
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def prompt_and_wait(
+        self,
+        question: str,
+        *,
+        on_semantic_event: object | None = None,
+        correlation_id: str | None = None,
+    ) -> str:
+        questions = self.case.get("questions")
+        if not isinstance(questions, list) or self._question_index >= len(questions):
+            raise RuntimeError("scripted application received an unexpected question")
+        scripted = questions[self._question_index]
+        if not isinstance(scripted, Mapping) or scripted.get("text") != question:
+            raise RuntimeError("scripted application question order changed")
+        if not isinstance(correlation_id, str) or not correlation_id:
+            raise RuntimeError("scripted application turn identity is missing")
+
+        self._current_result_refs = ()
+        self._current_evidence_refs = ()
+        current_calls: list[dict[str, object]] = []
+        steps = scripted.get("steps")
+        if not isinstance(steps, list) or not steps:
+            raise RuntimeError("scripted application question has no semantic steps")
+        for step in steps:
+            if not isinstance(step, Mapping):
+                raise RuntimeError("scripted application step is invalid")
+            capability = step.get("capability")
+            arguments = step.get("arguments", {})
+            if not isinstance(capability, str) or not capability:
+                raise RuntimeError("scripted application capability is invalid")
+            if not isinstance(arguments, Mapping):
+                raise RuntimeError("scripted application arguments are invalid")
+            resolved_arguments = _resolve_scripted_arguments(
+                arguments,
+                context_ref=self._context_ref,
+                result_ref=self._result_ref,
+                asset_ref=self._asset_ref,
+            )
+            result = self._invoke(
+                capability,
+                resolved_arguments,
+                turn_id=correlation_id,
+                on_semantic_event=on_semantic_event,
+            )
+            current_calls.append(
+                {
+                    "capability": capability,
+                    "arguments": resolved_arguments,
+                    "result": result,
+                }
+            )
+        self._question_index += 1
+        return (
+            "scripted semantic execution completed for question "
+            f"{self._question_index}: {question}"
+        )
+
+    def _invoke(
+        self,
+        capability: str,
+        arguments: dict[str, object],
+        *,
+        turn_id: str,
+        on_semantic_event: object | None,
+    ) -> dict[str, object]:
+        try:
+            tool = self._tool_by_capability[capability]
+        except KeyError as exc:
+            raise RuntimeError(f"scripted capability is not published: {capability}") from exc
+        projector_info = self._projector_by_capability.get(capability)
+        if projector_info is None:
+            raise RuntimeError(f"scripted capability has no projector contract: {capability}")
+        call_id = f"{self.run_id}-call-{len(self.calls) + 1:03d}"
+        key = {
+            "binding_id": tool.key.binding_id,
+            "capability_id": tool.key.capability_id,
+        }
+        start = {
+            "type": "tool_execution_start",
+            "call_id": call_id,
+            "tool_name": tool.name,
+            "capability": capability,
+            "capability_key": key,
+            "arguments": arguments,
+            "run_id": self.run_id,
+            "turn_id": turn_id,
+        }
+        self.semantic_events.append(start)
+        _emit_scripted_event(on_semantic_event, start, len(self.semantic_events))
+
+        endpoint = getattr(self._binding, "endpoint", None)
+        executor = getattr(endpoint, "executor", None)
+        invoke = getattr(executor, "invoke", None)
+        if not callable(invoke):
+            raise RuntimeError("prepared binding endpoint does not expose invoke")
+        result = invoke(capability, dict(arguments))
+        if not isinstance(result, Mapping):
+            raise RuntimeError("simulator capability returned a non-object")
+        normalized = dict(result)
+        # context.open intentionally returns semantic_sha256 rather than a
+        # second revision field.  The revision is the same simulator-issued
+        # content digest and is added only to the transport event consumed by
+        # the generic projector.
+        if capability == "context.open" and "revision_ref" not in normalized:
+            semantic_sha = normalized.get("semantic_sha256")
+            if not isinstance(semantic_sha, str) or not semantic_sha:
+                raise RuntimeError("context.open did not return a semantic digest")
+            normalized["revision_ref"] = f"revision:sha256:{semantic_sha}"
+        result_refs = _digest_refs(normalized, "result:sha256:")
+        evidence_refs = _digest_refs(normalized, "evidence:sha256:")
+        projector_id, result_kind = projector_info
+        completed: dict[str, object] = {
+            "type": "tool_result",
+            "call_id": call_id,
+            "tool_name": tool.name,
+            "capability": capability,
+            "capability_key": key,
+            "ok": True,
+            "result": normalized,
+            "result_refs": list(result_refs),
+            "evidence_refs": list(evidence_refs),
+            "projector_id": projector_id,
+            "run_id": self.run_id,
+            "turn_id": turn_id,
+        }
+        if result_kind is not None:
+            completed["result_kind"] = result_kind
+        self.semantic_events.append(completed)
+        _emit_scripted_event(on_semantic_event, completed, len(self.semantic_events))
+
+        self.calls.append(
+            {
+                "capability": capability,
+                "arguments": dict(arguments),
+                "result": normalized,
+                "result_refs": result_refs,
+                "evidence_refs": evidence_refs,
+            }
+        )
+        self._current_result_refs = _ordered_unique(
+            (*self._current_result_refs, *result_refs)
+        )
+        self._current_evidence_refs = _ordered_unique(
+            (*self._current_evidence_refs, *evidence_refs)
+        )
+        self.all_result_refs = list(_ordered_unique((*self.all_result_refs, *result_refs)))
+        self.all_evidence_refs = list(
+            _ordered_unique((*self.all_evidence_refs, *evidence_refs))
+        )
+        context_ref = normalized.get("context_ref")
+        if isinstance(context_ref, str):
+            self._context_ref = context_ref
+        result_ref = normalized.get("result_ref")
+        if isinstance(result_ref, str):
+            self._result_ref = result_ref
+        asset_ref = _preferred_asset_ref(normalized)
+        if asset_ref is not None:
+            self._asset_ref = asset_ref
+        return normalized
+
+
+class AuditingTurnController(TurnController):
+    """Pass scripted current-turn refs through the real answer audit."""
+
+    def __init__(self, *, transport: ScriptedApplicationTransport, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self.transport = transport
+        self.finalized_turns: list[object] = []
+
+    def submit(
+        self,
+        handle: object,
+        *,
+        answer_output: str,
+        duration_seconds: float,
+        **_: object,
+    ) -> object:
+        result_refs = self.transport.current_result_refs
+        evidence_refs = self.transport.current_evidence_refs
+        references = (*result_refs, *evidence_refs)
+        if not references:
+            raise AnswerCommitError("scripted semantic answer has no simulator lineage")
+        category = "evidence" if evidence_refs else "numerical_result"
+        claims = (
+            {
+                "statement": answer_output,
+                "category": category,
+                "result_refs": result_refs,
+                "evidence_refs": evidence_refs,
+            },
+        )
+        finalized = super().submit(
+            handle,
+            answer_output=answer_output,
+            referenced_bindings=("grid",),
+            result_refs=result_refs,
+            evidence_refs=evidence_refs,
+            claims=claims,
+            duration_seconds=duration_seconds,
+        )
+        self.finalized_turns.append(finalized)
+        return finalized
+
+
+def execute_application_case(
+    case: Path | Mapping[str, object],
+    *,
+    runs_root: Path,
+    timeout_seconds: float = 60.0,
+) -> ApplicationExecution:
+    """Run one JSON scripted case through the generic application entry point."""
+
+    document = _load_application_document(case)
+    application_id = str(document["application_id"])
+    run_id = str(document["run_id"])
+    run_path = Path(runs_root) / run_id
+    # This path is exclusively generated by this provider-free validation.
+    shutil.rmtree(run_path, ignore_errors=True)
+
+    from grid_agent.application.profile import build_pandapower_application_profile
+
+    profile = build_pandapower_application_profile()
+    if profile.manifest.application_id != application_id:
+        raise ValueError("application case targets an unregistered application")
+    registry = ApplicationRegistry()
+    registry.register(
+        profile.manifest.application_id,
+        profile.manifest.version,
+        lambda profile=profile: profile,
+    )
+    domain_registry = DomainRegistry()
+    for binding in profile.domains:
+        manifest = binding.profile.manifest
+        domain_registry.register(
+            manifest.domain_id,
+            manifest.version,
+            lambda profile=binding.profile: profile,
+        )
+
+    workspace = ApplicationWorkspace.create(
+        Path(runs_root),
+        run_id=run_id,
+        binding_ids=tuple(binding.binding_id for binding in profile.domains),
+    )
+    prepared = prepare_application(
+        profile,
+        registry=domain_registry,
+        workspace=workspace.root,
+        credentials=_EmptyApplicationCredentialBroker(),
+    )
+    binding = prepared.bindings["grid"]
+    adapter = binding.binding.profile.state_adapter
+    schema_id = getattr(adapter, "schema_id", None)
+    if not isinstance(schema_id, str) or not schema_id:
+        raise ValueError("pandapower binding does not expose a state schema")
+    questions = tuple(
+        str(question["text"])
+        for question in cast(list[Mapping[str, object]], document["questions"])
+    )
+    store = ApplicationContextStore.initialize(
+        workspace,
+        domains={"grid": schema_id},
+        core={
+            "input": {
+                "application_id": application_id,
+                "case_id": document["case_id"],
+                "questions": list(questions),
+            },
+            "runtime": {
+                "mode": "application-instantiation",
+                "provider": "scripted",
+                "model": "deterministic",
+            },
+        },
+    )
+    domain_catalog = BoundDomainCatalog.from_prepared(binding)
+    catalog = CompositeToolCatalog.build(
+        core=CoreToolCatalog.default(namespace="agent_"),
+        domains=(domain_catalog,),
+    )
+    transport = ScriptedApplicationTransport(
+        document,
+        prepared=prepared,
+        catalog=catalog,
+    )
+    projector = ApplicationInvocationProjector(
+        store=store,
+        catalog=catalog,
+        bindings=prepared.bindings,
+    )
+    controller = AuditingTurnController(
+        transport=transport,
+        store=store,
+        workspace=workspace,
+        bindings=prepared.bindings,
+    )
+    application = build_generic_application(
+        application_id,
+        version=profile.manifest.version,
+        registry=registry,
+        prepared_application=prepared,
+        provider=transport,
+        workspace=workspace,
+        store=store,
+        turn_controller=controller,
+        projector=projector,
+        catalog=catalog,
+    )
+    outcome = run_generic_application(
+        application_id,
+        questions,
+        application=application,
+        run_id=run_id,
+    )
+    return ApplicationExecution(
+        case=document,
+        outcome=outcome,
+        workspace=workspace,
+        store=store,
+        transport=transport,
+        controller=controller,
+        prepared=prepared,
+    )
+
+
+class _EmptyApplicationCredentialBroker:
+    def issue(self, *, binding_id: str, scope: object) -> object:
+        del binding_id
+        if tuple(getattr(scope, "credential_names", ())) != ():
+            raise ValueError("application acceptance credentials must be empty")
+        return SimpleNamespace(scope_id=getattr(scope, "scope_id"), credentials={})
+
+
+def _load_application_document(case: Path | Mapping[str, object]) -> Mapping[str, object]:
+    if isinstance(case, Path):
+        payload = json.loads(case.read_text(encoding="utf-8"))
+    else:
+        payload = case
+    if not isinstance(payload, Mapping):
+        raise ValueError("application case must be an object")
+    if payload.get("schema_version") != "application-instantiation/1.0":
+        raise ValueError("application case schema is invalid")
+    for field in ("case_id", "application_id", "run_id"):
+        if not isinstance(payload.get(field), str) or not payload[field]:
+            raise ValueError(f"application case {field} is invalid")
+    questions = payload.get("questions")
+    if not isinstance(questions, list) or not questions:
+        raise ValueError("application case questions are invalid")
+    seen_ids: set[str] = set()
+    for question in questions:
+        if not isinstance(question, Mapping):
+            raise ValueError("application case question is invalid")
+        question_id = question.get("id")
+        if not isinstance(question_id, str) or not question_id or question_id in seen_ids:
+            raise ValueError("application case question identifiers are invalid")
+        seen_ids.add(question_id)
+        if not isinstance(question.get("text"), str) or not question["text"].strip():
+            raise ValueError("application case question text is invalid")
+        steps = question.get("steps")
+        if not isinstance(steps, list) or not steps:
+            raise ValueError("application case question steps are invalid")
+        for step in steps:
+            if not isinstance(step, Mapping) or not isinstance(step.get("capability"), str):
+                raise ValueError("application case step is invalid")
+            if not isinstance(step.get("arguments", {}), Mapping):
+                raise ValueError("application case step arguments are invalid")
+    return payload
+
+
+def _resolve_scripted_arguments(
+    value: object,
+    *,
+    context_ref: str | None,
+    result_ref: str | None,
+    asset_ref: str | None,
+) -> dict[str, object]:
+    resolved = _resolve_scripted_value(
+        value,
+        context_ref=context_ref,
+        result_ref=result_ref,
+        asset_ref=asset_ref,
+    )
+    if not isinstance(resolved, Mapping):
+        raise RuntimeError("scripted application arguments must be an object")
+    return {str(key): item for key, item in resolved.items()}
+
+
+def _resolve_scripted_value(
+    value: object,
+    *,
+    context_ref: str | None,
+    result_ref: str | None,
+    asset_ref: str | None,
+) -> object:
+    if isinstance(value, str) and value.startswith("$"):
+        values = {
+            "$context_ref": context_ref,
+            "$result_ref": result_ref,
+            "$asset_ref": asset_ref,
+        }
+        if value not in values or not isinstance(values[value], str):
+            raise RuntimeError(f"scripted application reference is unavailable: {value}")
+        return values[value]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _resolve_scripted_value(
+                item,
+                context_ref=context_ref,
+                result_ref=result_ref,
+                asset_ref=asset_ref,
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _resolve_scripted_value(
+                item,
+                context_ref=context_ref,
+                result_ref=result_ref,
+                asset_ref=asset_ref,
+            )
+            for item in value
+        ]
+    return value
+
+
+def _emit_scripted_event(callback: object | None, event: Mapping[str, object], sequence: int) -> None:
+    if not callable(callback):
+        return
+    callback(event, sequence)
+
+
+def _digest_refs(value: object, prefix: str) -> tuple[str, ...]:
+    refs: list[str] = []
+    if isinstance(value, Mapping):
+        for nested in value.values():
+            refs.extend(_digest_refs(nested, prefix))
+    elif isinstance(value, list | tuple):
+        for nested in value:
+            refs.extend(_digest_refs(nested, prefix))
+    elif isinstance(value, str) and value.startswith(prefix) and len(value) == len(prefix) + 64:
+        refs.append(value)
+    return _ordered_unique(refs)
+
+
+def _preferred_asset_ref(value: Mapping[str, object]) -> str | None:
+    for key in ("asset_ref", "branch_ref"):
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.startswith("asset:"):
+            return candidate
+    for key in ("element", "branch"):
+        nested = value.get(key)
+        if isinstance(nested, Mapping):
+            candidate = nested.get("asset_ref")
+            if isinstance(candidate, str) and candidate.startswith("asset:"):
+                return candidate
+    for nested in value.values():
+        if isinstance(nested, Mapping):
+            candidate = _preferred_asset_ref(nested)
+            if candidate is not None:
+                return candidate
+        elif isinstance(nested, list):
+            for item in nested:
+                if isinstance(item, Mapping):
+                    candidate = _preferred_asset_ref(item)
+                    if candidate is not None:
+                        return candidate
+    return None
+
+
+def _ordered_unique(values: Sequence[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(value for value in values if isinstance(value, str)))
 
 
 def _repo_root() -> Path:
@@ -98,7 +666,9 @@ def _main_legacy(args: argparse.Namespace) -> int:
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run deterministic grid-agent validation cases.")
     parser.add_argument("--cases-root", type=Path, default=Path("validation"))
-    parser.add_argument("--mode", choices=("offline", "scripted-pi", "provider"))
+    parser.add_argument(
+        "--mode", choices=("offline", "scripted-pi", "provider", "application")
+    )
     parser.add_argument("--provider")
     parser.add_argument("--model")
     parser.add_argument("--report", type=Path)
@@ -123,7 +693,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("--report is required with --mode")
     if args.mode == "provider" and not args.provider:
         parser.error("--provider is required in provider mode")
-    if args.mode in {"offline", "scripted-pi"} and args.provider:
+    if args.mode in {"offline", "scripted-pi", "application"} and args.provider:
         parser.error("--provider is only valid in provider mode")
     return args
 
@@ -133,6 +703,8 @@ def _main_mode(args: argparse.Namespace) -> int:
     if len(suites) != 1:
         raise SystemExit("--mode requires exactly one --suite")
     case_ids = tuple(args.case_id or ())
+    if args.mode == "application":
+        return _main_application_mode(args, suite=suites[0], case_ids=case_ids)
     cases = _select_cases(load_cases(args.cases_root), suite=suites, case_id=case_ids)
     answer_corpus = _load_required_corpus(cases, args.answer_corpus)
     records = [_run_mode_case(case, args, answer_corpus=answer_corpus) for case in cases]
@@ -151,6 +723,295 @@ def _main_mode(args: argparse.Namespace) -> int:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0 if report["summary"]["failed"] == 0 else 1
+
+
+def _main_application_mode(
+    args: argparse.Namespace,
+    *,
+    suite: str,
+    case_ids: Sequence[str],
+) -> int:
+    if suite != "application-instantiation":
+        raise SystemExit(
+            "application mode requires the application-instantiation suite"
+        )
+    documents = _select_application_documents(
+        args.cases_root,
+        case_ids=case_ids,
+    )
+    records: list[dict[str, object]] = []
+    for path, document in documents:
+        started = time.monotonic()
+        try:
+            execution = execute_application_case(
+                document,
+                runs_root=_repo_root() / "runs",
+                timeout_seconds=args.timeout_seconds,
+            )
+            record = _evaluate_application_execution(execution)
+        except Exception as exc:
+            record = {
+                "type": "case",
+                "case_id": document.get("case_id"),
+                "passed": False,
+                "checks": {},
+                "errors": {"execution": [f"{type(exc).__name__}: {exc}"]},
+                "scores": {"application_instantiation": 0.0},
+                "metadata": {"case_path": str(path)},
+            }
+        record.setdefault("metadata", {})
+        metadata = record["metadata"]
+        if isinstance(metadata, Mapping):
+            record["metadata"] = {
+                **dict(metadata),
+                "case_path": str(path),
+                "duration_seconds": round(time.monotonic() - started, 3),
+            }
+        records.append(record)
+    passed = sum(1 for record in records if record["passed"] is True)
+    report = {
+        "type": "validation_report",
+        "version": "1.0",
+        "mode": args.mode,
+        "suite": suite,
+        "provider": None,
+        "model": None,
+        "summary": {
+            "total": len(records),
+            "passed": passed,
+            "failed": len(records) - passed,
+        },
+        "cases": records,
+    }
+    report_path = Path(args.report)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return 0 if report["summary"]["failed"] == 0 else 1
+
+
+def _select_application_documents(
+    cases_root: Path,
+    *,
+    case_ids: Sequence[str],
+) -> tuple[tuple[Path, Mapping[str, object]], ...]:
+    root = Path(cases_root) / "application"
+    paths = tuple(sorted(root.glob("*.json")))
+    selected: list[tuple[Path, Mapping[str, object]]] = []
+    for path in paths:
+        document = _load_application_document(path)
+        if case_ids and document.get("case_id") not in case_ids:
+            continue
+        selected.append((path, document))
+    if not selected:
+        raise SystemExit("no application validation cases matched the requested filters")
+    return tuple(selected)
+
+
+def _evaluate_application_execution(
+    execution: ApplicationExecution,
+) -> dict[str, object]:
+    """Evaluate generic application invariants without answer-value fixtures."""
+
+    outcome = execution.outcome
+    errors: dict[str, list[str]] = {
+        "application": [],
+        "output": [],
+        "lineage": [],
+        "context_replay": [],
+        "answer_audit": [],
+        "report": [],
+    }
+    case = execution.case
+    expected_questions = case.get("questions")
+    expected_count = len(expected_questions) if isinstance(expected_questions, list) else 0
+    if getattr(outcome, "status", None) != "completed":
+        errors["application"].append(
+            f"application status is {getattr(outcome, 'status', None)!r}"
+        )
+    if getattr(outcome, "completed_questions", None) != expected_count:
+        errors["application"].append("application did not complete every scripted question")
+    if getattr(outcome, "total_questions", None) != expected_count:
+        errors["application"].append("application question count does not match the case")
+
+    result_payload: Mapping[str, object] = {}
+    try:
+        result_model = getattr(outcome, "result")
+        dumped = result_model.model_dump(mode="json")
+        if not isinstance(dumped, Mapping):
+            raise ValueError("application result is not an object")
+        result_payload = dumped
+        if set(result_payload) != {"schema", "core", "domains"}:
+            errors["output"].append("generic result does not contain exactly schema/core/domains")
+        if result_payload.get("schema") != "capability-agent-output/1.0":
+            errors["output"].append("generic result schema is invalid")
+        core = result_payload.get("core")
+        domains = result_payload.get("domains")
+        if not isinstance(core, Mapping) or not isinstance(domains, Mapping):
+            errors["output"].append("generic result core/domains sections are invalid")
+        else:
+            if core.get("application_id") != case.get("application_id"):
+                errors["output"].append("core application identity is invalid")
+            if core.get("status") != "completed":
+                errors["output"].append("core status is not completed")
+            domain = domains.get("grid")
+            if not isinstance(domain, Mapping):
+                errors["output"].append("domains.grid output is missing")
+            else:
+                if domain.get("status") != "completed":
+                    errors["output"].append("domains.grid status is not completed")
+                payload = domain.get("payload")
+                if not isinstance(payload, Mapping):
+                    errors["output"].append("domains.grid payload is invalid")
+                elif set(payload) != {
+                    "mode",
+                    "instruction_count",
+                    "completed_count",
+                    "failed_count",
+                    "report_artifact_ref",
+                }:
+                    errors["output"].append("domains.grid payload violates its domain contract")
+    except Exception as exc:
+        errors["output"].append(f"application result validation failed: {type(exc).__name__}: {exc}")
+
+    rendered = getattr(outcome, "rendered", None)
+    if not isinstance(rendered, str):
+        errors["output"].append("generic output renderer did not return JSON text")
+    else:
+        try:
+            rendered_payload = json.loads(rendered)
+            if rendered_payload != result_payload:
+                errors["output"].append("rendered output differs from validated result")
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            errors["output"].append(f"rendered output is not JSON: {exc}")
+
+    report_path = getattr(outcome, "report_path", None)
+    report_ref = (
+        result_payload.get("core", {}).get("report_ref")
+        if isinstance(result_payload.get("core"), Mapping)
+        else None
+    )
+    if not isinstance(report_path, Path) or not report_path.is_file():
+        errors["report"].append("application report was not created")
+    elif not isinstance(report_ref, str):
+        errors["report"].append("application report reference is missing")
+    else:
+        expected_report_ref = "artifact:sha256:" + hashlib.sha256(
+            report_path.read_bytes()
+        ).hexdigest()
+        if report_ref != expected_report_ref:
+            errors["report"].append("application report digest does not match its reference")
+        produced_refs = execution.store.snapshot.core.produced_refs
+        if report_ref not in produced_refs:
+            errors["report"].append("application report reference was not admitted to core")
+
+    finalizations = execution.controller.finalized_turns
+    if len(finalizations) != expected_count:
+        errors["answer_audit"].append("not every scripted turn reached answer audit")
+    for finalized in finalizations:
+        if getattr(finalized, "status", None) != "success":
+            errors["answer_audit"].append("a scripted answer was not committed successfully")
+        for diagnostic in getattr(finalized, "audit_diagnostics", ()):
+            severity = (
+                diagnostic.get("severity")
+                if isinstance(diagnostic, Mapping)
+                else getattr(diagnostic, "severity", None)
+            )
+            if severity == "error":
+                errors["answer_audit"].append("answer audit returned an error diagnostic")
+        answer_path = getattr(finalized, "answer_path", None)
+        if not isinstance(answer_path, Path) or not answer_path.is_file():
+            errors["answer_audit"].append("committed answer artifact is missing")
+
+    try:
+        replayed = ApplicationContextStore.replay(execution.workspace)
+        if replayed != execution.store.snapshot:
+            errors["context_replay"].append("context ledger replay differs from materialized state")
+        execution.store.verify_materialized_snapshot()
+    except Exception as exc:
+        errors["context_replay"].append(
+            f"context replay verification failed: {type(exc).__name__}: {exc}"
+        )
+
+    try:
+        domain_root = execution.workspace.domain_roots["grid"]
+        runtime = execution.prepared.bindings["grid"].runtime
+        authority = runtime.authority
+        from pandapower_domain.authority import ContentReferenceVerifier
+
+        verifier = ContentReferenceVerifier(domain_root)
+        result_refs = tuple(execution.transport.all_result_refs)
+        evidence_refs = tuple(execution.transport.all_evidence_refs)
+        context_refs = _digest_refs(
+            tuple(
+                call.get("result", {})
+                for call in execution.transport.calls
+                if isinstance(call, Mapping)
+            ),
+            "context:sha256:",
+        )
+        context_refs = _ordered_unique(context_refs)
+        if len(context_refs) != 1:
+            errors["lineage"].append("scripted turns did not reuse one simulator context")
+        for reference in context_refs:
+            artifact = verifier.verify_context(reference)
+            artifact.path.relative_to(domain_root)
+        for reference in result_refs:
+            artifact = authority.verify_result(reference)
+            artifact.path.relative_to(domain_root)
+        for reference in evidence_refs:
+            artifact = verifier.verify_evidence(reference)
+            artifact.path.relative_to(domain_root)
+        context_dump = execution.store.snapshot.model_dump(mode="json")
+        observed_result_refs = set(_digest_refs(context_dump, "result:sha256:"))
+        observed_evidence_refs = set(_digest_refs(context_dump, "evidence:sha256:"))
+        if not set(result_refs).issubset(observed_result_refs):
+            errors["lineage"].append("a simulator result was not persisted in current-run context")
+        if not set(evidence_refs).issubset(observed_evidence_refs):
+            errors["lineage"].append("simulator evidence was not persisted in current-run context")
+        if not execution.transport.calls:
+            errors["lineage"].append("scripted model did not execute a semantic capability")
+        if any(
+            event.get("type") == "tool_result"
+            and event.get("ok") is not True
+            for event in execution.transport.semantic_events
+            if isinstance(event, Mapping)
+        ):
+            errors["lineage"].append("scripted semantic transport returned a failed tool event")
+    except Exception as exc:
+        errors["lineage"].append(
+            f"current-run result/evidence admission failed: {type(exc).__name__}: {exc}"
+        )
+
+    checks = {name: not values for name, values in errors.items()}
+    passed = all(checks.values())
+    return {
+        "type": "case",
+        "case_id": case.get("case_id"),
+        "passed": passed,
+        "checks": checks,
+        "errors": errors,
+        "scores": {
+            "application_instantiation": 1.0 if passed else 0.0,
+            "context_reuse": 1.0 if checks["lineage"] else 0.0,
+            "answer_audit": 1.0 if checks["answer_audit"] else 0.0,
+            "report_admission": 1.0 if checks["report"] else 0.0,
+        },
+        "trace": {
+            "capabilities": [call.get("capability") for call in execution.transport.calls],
+            "tool_calls": len(execution.transport.calls),
+        },
+        "result_refs": list(execution.transport.all_result_refs),
+        "evidence_refs": list(execution.transport.all_evidence_refs),
+        "returncode": 0 if getattr(outcome, "status", None) == "completed" else 1,
+        "metadata": {
+            "run_path": str(execution.workspace.root),
+            "application_id": case.get("application_id"),
+            "application_output_schema": result_payload.get("schema"),
+        },
+    }
 
 
 def _run_mode_case(

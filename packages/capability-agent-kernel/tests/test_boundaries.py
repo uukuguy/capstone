@@ -35,13 +35,19 @@ def test_kernel_source_has_no_application_or_simulator_imports() -> None:
 
 def test_kernel_source_has_no_grid_owned_semantic_literals() -> None:
     root = Path(__file__).resolve().parents[1] / "src" / "capability_agent"
-    forbidden_literals = (
+    forbidden_substrings = (
+        "grid_agent",
+        "grid_simulator",
+        "grid_",
         "pandapower",
         "gridctl",
+        "power flow",
         "flow direction",
         "power-flow direction",
+        "n-1",
         "不表示实时功率方向",
     )
+    forbidden_words = ("voltage", "bus", "branch")
 
     offenders: list[str] = []
     for path in sorted(root.rglob("*.py")):
@@ -54,7 +60,13 @@ def test_kernel_source_has_no_grid_owned_semantic_literals() -> None:
             if (
                 isinstance(node, ast.Constant)
                 and isinstance(node.value, str)
-                and any(token in node.value.lower() for token in forbidden_literals)
+                and (
+                    any(token in node.value.lower() for token in forbidden_substrings)
+                    or any(
+                        re.search(rf"\b{re.escape(token)}\b", node.value, re.IGNORECASE)
+                        for token in forbidden_words
+                    )
+                )
             ):
                 offenders.append(f"{relative}: {node.value!r}")
 

@@ -6,22 +6,23 @@
 - Theme-level focus: general domain-agent framework upgrade by seam and package extraction
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
-- Active work package: none. Workstream C read-only inventory reference domain is complete on `main` with a 100/100 deterministic release closure.
+- Active work package: Workstream C.1 application-instantiation closure. Task 10's provider-free first-domain acceptance and package/documentation gates are implemented; C.1 remains in progress until Task 11 reproduces both canonical v1.0.1 business task files through the generic path.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.
 - Deferred work packages: Workstreams D-E remain future work for enterprise action governance and multi-domain discovery/composition.
 
 ## Current Architecture
 
-- CLI: `grid-agent` writes exactly one JSON answer envelope to stdout, including validation failures for unsafe externally supplied question IDs; progress, validation detail, and diagnostics stay on stderr without a raw traceback.
+- CLI contracts: explicit v1.0.1 compatibility commands (`run`, `analysis`, `report`) write exactly one two-field JSON answer envelope to stdout, including validation failures for unsafe externally supplied question IDs; `analysis-generic` writes the validated composite `core` + `domains.<binding_id>` result. Progress, validation detail, and diagnostics stay on stderr without a raw traceback.
 - Package assembly: the repository has six Python distributions and two Pi npm packages. Four assemble `grid-agent`; `inventory-reference-service` and `inventory-domain-pack` form the independently installable cross-domain conformance proof.
 - Domain runtime profile seam: CLI selects `pandapower_domain.build_pandapower_profile()`, then `capability_agent.prepare_domain_runtime(...)` materializes contracts, `environment.describe`, the tool catalog, guide index, current-run authority, executor, and projector registry.
+- Generic application seam: `ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack`; the Kernel owns the framework `core` output section and each Domain Pack owns `domains.<binding_id>`. `analysis-generic` emits `capability-agent-output/1.0`; explicit `run`/`analysis`/`report` compatibility adapters retain the exact v1.0.1 `question_id`/`answer_output` stdout.
 - Agent Kernel: `capability-agent-kernel` owns neutral domain interfaces, runtime composition, tool catalog/guide materialization, trajectory primitives, artifacts, replay, and compatibility exports consumed by `grid-agent`.
 - Pandapower Domain Pack: `pandapower-domain-pack` owns the pandapower compatibility `DomainRuntimeProfile`, manifest metadata, contract resources, system policy, guides, `GridctlClient` executor adapter, `ContentReferenceVerifier` authority adapter, and existing projector registry adapter.
 - Inventory reference authority: `inventory-reference-service` owns `inventoryctl`, a registered read-only catalog, strict `inventory-capability/1.0`, deterministic asset/stock queries, and content-addressed inventory revision/context/result/evidence artifacts.
 - Inventory Domain Pack: `inventory-domain-pack` uses only the public Kernel SPI and reference service to supply its profile, packaged contracts/policy/guides, executor, projectors, and no-follow current-run artifact authority.
 - Simulator: `grid-simulator` owns `gridctl`, registered network access, deterministic pandapower 3.4.0 calculations, model revisions, result datasets, and evidence.
 - Pi packages: `@capability-agent/pi-tools` owns generic descriptor-driven capability transport and model-request capture; `@grid-static-analysis/pi-grid-tools` preserves the current grid extension wrapper and `grid_*` tool compatibility. Source setup uses the committed frozen local-file locks and installs exact `pi-ai@0.80.6`; published tarballs retain their exact installable dependency.
-- Cross-domain proof: unchanged generic Pi registers and executes exact `inventory_*` tools from an inventory runtime descriptor. The protected Kernel, generic Pi, and Workbench trees match their recorded baselines.
+- Cross-domain proof: unchanged generic Pi registers and executes exact `inventory_*` tools from an inventory runtime descriptor. Inventory remains fixture/conformance infrastructure, not a second production CLI or selected business domain. The protected Kernel, generic Pi, and Workbench trees match their recorded baselines.
 - Agent runtime: managed Pi exposes only project grid tools, guides, and bounded context/decision tools; the LLM boundary owns provider-specific formats, while `grid-agent` commits ordinary model final text with controller-bound current-turn result/evidence lineage.
 - Runtime descriptor: the fixed eight-field transport API is preserved while the production descriptor authoritatively binds catalog, guide, workspace, turn, context, trajectory, acknowledgement, and Pi runtime identity; descriptor mode does not supplement legacy runtime paths.
 - Guide authority: the descriptor binds the guide root and index digest; startup and execution use no-follow same-fd read/fstat/digest/named binding and validate protocol, version, root, and resource mapping before any resource read.
@@ -34,10 +35,10 @@
 - Analysis context: bounded model-facing views retain active model, sourced constraints, reusable calculations, scenarios, facts, lineage, and explicit omission metadata.
 - Reporting: per-question reports render answer first, restore simulation environment context, summarize the observable agent trajectory with compact simulator results, and link persisted detailed trace/current-run evidence artifacts.
 - Workbench: the loopback read-only trajectory API and Business/Agent/Context/Evidence workbench consume deterministic projections without mutating runs.
-- Verification: unit, package-boundary, protected-path, six-wheel install-mode artifact, E2E, offline/scripted validation, and optional provider-backed continuous Analysis cover the stdout contract, capability boundary, trajectory replay, evidence, and reports.
+- Verification: unit, package-boundary, protected-path, six-wheel install-mode artifact, E2E, offline/scripted validation, provider-free `application-instantiation` acceptance, and optional provider-backed continuous Analysis cover the stdout contracts, capability boundary, trajectory replay, evidence, and reports. `make validate-application` runs both scripted pandapower cases through real semantic `gridctl` calls and checks current-run lineage, context reuse, answer audit, report hash/admission, replay equality, and `core` plus `domains.grid`.
 - Release evidence: the final B-H005 run `runs/climb/20260828T111922Z-b-h005` scored 100/100 with no blockers. Under policy digest `efe8fc8e...`, its live closure reran the fixed kernel/domain/Pi/app/dist/doctor/test/test-e2e/product command allowlist at source revision `e41783558afb57eb04ad04562c7d9b0fe6e6bf0b` and tree digest `9ff57149...`; all nine outputs are `closure-passed` and linked by closure digest `5049c057...`. Same-user HMAC receipts remain integrity snapshots, not the release trust root.
 - Mainline integration: `main` was fast-forwarded to `448c407`, then reverified with package boundaries and installed-artifact smoke, 688 grid-agent tests, 165 simulator tests, 43 grid Pi tests, 17 E2E tests, and the 24/24 validation matrix. The temporary Workstream B worktree and feature branch were removed.
-- Workstream C evidence: final run `runs/climb/20260829T161349Z-c-h005` scored 100/100 with no blockers. It reran all nine gates at release-source revision `d4f3c50a3826444dfb2a957742513abaa13540a8`, policy digest `8da68ace...`, source-tree digest `9f1eb815...`, and closure digest `90191ca4...`. The closure passed 11 reference-service tests, 14 Domain Pack tests, unchanged generic Pi transport, six authority red-team tests, six-wheel/two-tarball clean-install smoke, doctor, 688 agent tests, 165 simulator tests, 43 Pi tests, 17 E2E tests, protected-path validation, and 24/24 capability coverage. The earlier path-error closure and falsified C-H004 cycle remain preserved for audit and were not carried forward.
+- Workstream C fixture evidence: final run `runs/climb/20260829T161349Z-c-h005` scored 100/100 with no blockers. It reran all nine gates at release-source revision `d4f3c50a3826444dfb2a957742513abaa13540a8`, policy digest `8da68ace...`, source-tree digest `9f1eb815...`, and closure digest `90191ca4...`. The closure passed 11 reference-service tests, 14 Domain Pack tests, unchanged generic Pi transport, six authority red-team tests, six-wheel/two-tarball clean-install smoke, doctor, 688 agent tests, 165 simulator tests, 43 Pi tests, 17 E2E tests, protected-path validation, and 24/24 capability coverage. This is historical fixture/conformance evidence and does not close C.1. The earlier path-error closure and falsified C-H004 cycle remain preserved for audit and were not carried forward.
 
 ## Open Problems (theme-level)
 
@@ -45,7 +46,8 @@
 - The pinned Pi dependency tree still contains 2 High and 2 Moderate accepted findings. `configs/runtime/pi-security-risk-exception-v1.json` documents the bounded exception and expires on 2026-09-30; the deterministic gate rejects expiry, pin/lock/installed-graph drift, or a worsened declared baseline. It does not discover a future advisory against unchanged versions.
 - Pandapower/pandas emit upstream deprecation warnings in state-estimation and legacy network construction paths; these do not change current results.
 - Provider latency remains externally variable; future changes must preserve non-blocking trajectory observation.
-- Runtime domain selection, plugin discovery, multi-domain routing, and write-side approval/idempotency/compensation are not implemented; Workstream C proves bounded read-only single-domain instantiation only.
+- Task 11 still must run `validation/questions/task.md.txt` and `validation/questions/test.md.txt` through `analysis-generic` with explicitly authorized provider evidence, inspect the two current-run traces, and verify the explicit v1.0.1 compatibility projection. Until then C.1 is not business-acceptance complete.
+- Runtime domain selection, plugin discovery, multi-domain routing, and write-side approval/idempotency/compensation are not implemented; inventory remains fixture-only and the current generic application gate is bounded to the first, pandapower, read-only domain.
 
 ## Key Files
 
@@ -72,6 +74,8 @@
 - `packages/grid-agent/src/grid_agent/domain/` — compatibility imports for neutral kernel interfaces
 - `packages/grid-agent/src/grid_agent/domains/pandapower.py` — compatibility import for the pandapower Profile
 - `packages/grid-agent/src/grid_agent/application/composition.py` — compatibility import for shared Profile-driven runtime materialization
+- `validation/application/` — provider-free scripted complete-application acceptance cases for the pandapower binding
+- `validation/run.py` — offline, scripted, provider, and generic application validation harness
 - `packages/grid-agent/src/grid_agent/analysis/runner.py` — continuous Analysis orchestration
 - `packages/grid-agent/src/grid_agent/trajectory/capture.py` — native Pi event/request observation
 - `packages/grid-agent/src/grid_agent/analysis/projector.py` — simulator result projection into continuous context
