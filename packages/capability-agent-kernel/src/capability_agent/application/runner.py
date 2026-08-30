@@ -224,7 +224,7 @@ class AgentApplication:
                 active_turn = handle
                 turn_started = time.monotonic()
                 try:
-                    answer = _call_prompt(
+                    answer, projections = _call_prompt(
                         transport,
                         question,
                         projector=projector,
@@ -235,6 +235,27 @@ class AgentApplication:
                         "submit",
                         handle,
                         answer_output=answer,
+                        referenced_bindings=tuple(
+                            dict.fromkeys(
+                                outcome.binding_id
+                                for outcome in projections
+                                if outcome.result_refs or outcome.evidence_refs
+                            )
+                        ),
+                        result_refs=tuple(
+                            dict.fromkeys(
+                                reference
+                                for outcome in projections
+                                for reference in outcome.result_refs
+                            )
+                        ),
+                        evidence_refs=tuple(
+                            dict.fromkeys(
+                                reference
+                                for outcome in projections
+                                for reference in outcome.evidence_refs
+                            )
+                        ),
                         duration_seconds=max(0.0, time.monotonic() - turn_started),
                     )
                 except Exception as exc:
@@ -1075,7 +1096,7 @@ def _safe_failure(error: BaseException) -> str:
 
 def _domain_output_schema(
     binding: object | None, identity: BindingIdentity
-) -> str:
+) -> tuple[str, tuple[Any, ...]]:
     profile = getattr(binding, "profile", None) if binding is not None else None
     profile = profile or getattr(getattr(binding, "binding", None), "profile", None)
     contract = getattr(profile, "output_contract", None)
@@ -1211,6 +1232,7 @@ def _call_prompt(
     if not callable(method):
         raise ApplicationConfigurationError("provider transport cannot process a question")
     kwargs: dict[str, object] = {}
+    projections: list[Any] = []
     if projector is not None:
         callback = getattr(projector, "observe", None)
         if callable(callback):
@@ -1220,19 +1242,21 @@ def _call_prompt(
                 **event_kwargs: object,
             ) -> None:
                 if turn_id is not None:
-                    callback(
+                    outcome = callback(
                         event,
                         turn_id=turn_id,
                         trace_sequence=sequence,
                         **event_kwargs,
                     )
+                    if outcome is not None:
+                        projections.append(outcome)
             kwargs["on_semantic_event"] = on_event
     if turn_id is not None:
         kwargs["correlation_id"] = turn_id
     answer = _call_factory(method, question, **kwargs)
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")
-    return answer
+    return answer, tuple(projections)
 
 
 @dataclass(frozen=True, slots=True)

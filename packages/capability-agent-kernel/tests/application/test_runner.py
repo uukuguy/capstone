@@ -44,6 +44,7 @@ class FakeController:
     events: list[str]
     answers: list[object] = field(default_factory=list)
     failed: list[tuple[object, dict[str, object]]] = field(default_factory=list)
+    submissions: list[dict[str, object]] = field(default_factory=list)
 
     def start(self, ordinal: int, instruction: str) -> object:
         self.events.append(f"turn.start:{ordinal}")
@@ -51,6 +52,7 @@ class FakeController:
 
     def submit(self, handle: object, **kwargs: object) -> object:
         self.events.append(f"turn.submit:{handle.turn_id}")
+        self.submissions.append(kwargs)
         answer = SimpleNamespace(
             answer_ref=f"answer:{handle.turn_id}",
             answer_output=kwargs["answer_output"],
@@ -95,6 +97,60 @@ def test_runner_preserves_explicit_projector() -> None:
     )
 
     assert application._ensure_projector(None, None, {}) is explicit
+
+
+def test_runner_binds_current_prompt_projection_references_to_answer(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    result_ref = "result:sha256:" + "a" * 64
+    evidence_ref = "evidence:sha256:" + "b" * 64
+
+    class ProjectingTransport(FakeTransport):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            callback = kwargs["on_semantic_event"]
+            callback({"type": "tool_result"}, 1)
+            return "grounded answer"
+
+    class Projector:
+        def observe(self, *_args: object, **_kwargs: object) -> object:
+            return SimpleNamespace(
+                binding_id="alpha",
+                result_refs=(result_ref,),
+                evidence_refs=(evidence_ref,),
+            )
+
+    transport = ProjectingTransport(events, answers=[])
+    controller = FakeController(events)
+    binding = SimpleNamespace(binding_id="alpha")
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider=transport,
+        workspace_root=tmp_path,
+        turn_controller=controller,
+        projector=Projector(),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(
+                binding_id="alpha", domain_id="alpha", domain_version="1.0"
+            ),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert controller.submissions[0]["referenced_bindings"] == ("alpha",)
+    assert controller.submissions[0]["result_refs"] == (result_ref,)
+    assert controller.submissions[0]["evidence_refs"] == (evidence_ref,)
 
 
 def test_runner_processes_questions_in_order_and_preserves_two_output_layers(
