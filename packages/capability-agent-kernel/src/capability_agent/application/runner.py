@@ -173,7 +173,7 @@ class AgentApplication:
         self.lifecycle_hooks = dict(lifecycle_hooks or {})
         self.application_preparer = application_preparer
         self.cli_options = cli_options or CliLLMOptions()
-        self.environment = dict(environment or {})
+        self.environment = None if environment is None else dict(environment)
         self.runtime_paths = runtime_paths
         self._prepared_for_run = False
 
@@ -204,6 +204,8 @@ class AgentApplication:
                 prepared=prepared,
                 bindings=bindings,
                 catalog=catalog,
+                workspace=workspace,
+                controller=controller,
             )
             if transport is None:
                 raise ApplicationConfigurationError("provider transport is not configured")
@@ -477,6 +479,8 @@ class AgentApplication:
         prepared: object,
         bindings: Mapping[str, object],
         catalog: object | None,
+        workspace: ApplicationWorkspace | None,
+        controller: object,
     ) -> object | None:
         if self.provider is not None:
             return self.provider
@@ -498,15 +502,36 @@ class AgentApplication:
             provider_catalog = source
         else:
             provider_catalog = self.provider_catalog
+        resolution_environment = (
+            os.environ if self.environment is None else self.environment
+        )
         resolved = resolve_llm(
             catalog=provider_catalog,
             cli=self.cli_options,
-            environ=self.environment,
+            environ=resolution_environment,
         )
-        return self._default_pi_transport(resolved, prepared, bindings)
+        if workspace is None:
+            raise ApplicationConfigurationError(
+                "default Pi transport requires a workspace"
+            )
+        return self._default_pi_transport(
+            resolved,
+            prepared,
+            bindings,
+            request=request,
+            workspace=workspace,
+            controller=controller,
+        )
 
     def _default_pi_transport(
-        self, resolved: ResolvedLLM, prepared: object, bindings: Mapping[str, object]
+        self,
+        resolved: ResolvedLLM,
+        prepared: object,
+        bindings: Mapping[str, object],
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace,
+        controller: object,
     ) -> PiRpcClient:
         if self.runtime_paths is None:
             if len(bindings) != 1:
@@ -515,9 +540,6 @@ class AgentApplication:
             binding = bindings[binding_id]
             endpoint = getattr(binding, "endpoint", None)
             runtime = getattr(binding, "runtime", None)
-            workspace = self.workspace
-            if workspace is None:
-                raise ApplicationConfigurationError("default Pi transport requires a workspace")
             runtime_dir = workspace.domain_runtime_path(binding_id)
             descriptor_path = runtime_dir / "runtime-descriptor.json"
             descriptor = descriptor_from_endpoint(
@@ -531,6 +553,30 @@ class AgentApplication:
                 and getattr(getattr(binding.binding, "profile", None), "manifest", None).protocol_version
                 or "",
                 authority_id=getattr(getattr(runtime, "authority", None), "authority_id", ""),
+                application_id=request.application_id,
+                run_id=workspace.run_id,
+                active_turn_path=_runtime_channel_path(
+                    controller,
+                    "active_turn_path",
+                    default=workspace.turns_path / "active-turn.json",
+                ),
+                context_view_path=_runtime_channel_path(
+                    controller,
+                    "context_view_path",
+                    default=workspace.context_snapshot_path,
+                ),
+                trajectory_requests_path=_runtime_channel_path(
+                    controller, "trajectory_requests_path"
+                ),
+                trajectory_capture_state_path=_runtime_channel_path(
+                    controller, "trajectory_capture_state_path"
+                ),
+                trajectory_allowed_refs_path=_runtime_channel_path(
+                    controller, "trajectory_allowed_refs_path"
+                ),
+                trajectory_acks_path=_runtime_channel_path(
+                    controller, "trajectory_acks_path"
+                ),
             )
             write_runtime_descriptor(descriptor_path, descriptor)
             command = PiRuntimeLocator(runtime_dir / "pi").resolve()
@@ -543,7 +589,13 @@ class AgentApplication:
                 runtime_descriptor_path=descriptor_path,
                 binding_id=binding_id,
             )
-        launch = build_pi_launch(resolved, self.runtime_paths, base_environment=self.environment)
+        launch = build_pi_launch(
+            resolved,
+            self.runtime_paths,
+            base_environment=(
+                os.environ if self.environment is None else self.environment
+            ),
+        )
         trace_path = self.runtime_paths.workspace / "core" / "events.jsonl"
         trace = JsonlTraceWriter(trace_path, secret_values={resolved.secret.value} if resolved.secret else set())
         return PiRpcClient(
@@ -781,6 +833,7 @@ class AgentApplication:
 
     def _cleanup(self, prepared: object | None) -> None:
         bindings = _prepared_bindings(prepared)
+        control_failure: BaseException | None = None
         for binding_id in reversed(tuple(bindings)):
             endpoint = getattr(bindings[binding_id], "endpoint", None)
             if endpoint is None:
@@ -789,6 +842,11 @@ class AgentApplication:
                 _call_method(endpoint, "close")
             except Exception:
                 continue
+            except BaseException as exc:
+                if control_failure is None:
+                    control_failure = exc
+        if control_failure is not None:
+            raise control_failure
 
     def _fail_active_turn(
         self,
@@ -864,6 +922,19 @@ def _binding_profile(binding: object | None) -> object | None:
     return getattr(binding, "profile", None) or getattr(
         getattr(binding, "binding", None), "profile", None
     )
+
+
+def _runtime_channel_path(
+    controller: object, name: str, *, default: Path | None = None
+) -> Path | None:
+    value = getattr(controller, name, None)
+    if value is None:
+        return default
+    if not isinstance(value, Path):
+        raise ApplicationConfigurationError(
+            f"runtime channel {name!r} must be a path"
+        )
+    return value
 
 
 def _safe_failure(error: BaseException) -> str:

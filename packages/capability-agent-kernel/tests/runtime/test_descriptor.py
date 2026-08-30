@@ -159,3 +159,22 @@ def test_descriptor_rejects_paths_and_absolute_arguments_outside_workspace(
             executable="domainctl",
             tool_catalog_path=tmp_path / "catalog.json",
         )
+
+
+def test_descriptor_rejects_absolute_argument_through_workspace_symlink(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "run"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = workspace / "link"
+    link.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeDescriptorError, match="symlink"):
+        RuntimeDescriptor(
+            binding_id="alpha",
+            workspace_path=workspace,
+            executable="domainctl",
+            executable_args=(str(link / "escaped"),),
+        )

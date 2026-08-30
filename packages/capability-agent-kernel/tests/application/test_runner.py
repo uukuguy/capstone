@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import capability_agent.application.runner as runner_module
 
 from capability_agent.application.output import (
     BindingIdentity,
@@ -14,6 +15,7 @@ from capability_agent.application.output import (
 )
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.runtime.catalog import ProviderCatalog
 
 
 @dataclass
@@ -545,3 +547,162 @@ def test_runner_report_publication_replaces_leaf_atomically_without_following_sy
     assert outcome.status == "failed"
     assert report_path.is_symlink()
     assert outside.read_text(encoding="utf-8") == "outside-original"
+
+
+def test_default_provider_uses_resolved_workspace_and_process_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ALPHA_KEY", "process-secret")
+    catalog = ProviderCatalog.from_mapping(
+        {
+            "schema_version": 1,
+            "descriptor_version": "fixture-1",
+            "default_provider": "alpha",
+            "providers": {
+                "alpha": {
+                    "default_model": "alpha-model",
+                    "base_url": "https://provider.example/v1",
+                    "base_url_policy": "fixed",
+                    "auth": {"kind": "api_key_env", "default_env": "ALPHA_KEY"},
+                    "pi_provider": "alpha",
+                    "compatibility_profile": "generic",
+                    "supports_tools": True,
+                }
+            },
+        }
+    )
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="real-run", binding_ids=("alpha",)
+    )
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0")
+    )
+    application = AgentApplication(profile=profile, provider_catalog=catalog)
+    captured: dict[str, object] = {}
+
+    def fake_default(
+        resolved: object,
+        prepared: object,
+        bindings: object,
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace,
+        controller: object,
+    ) -> object:
+        captured.update(
+            resolved=resolved,
+            prepared=prepared,
+            bindings=bindings,
+            request=request,
+            workspace=workspace,
+            controller=controller,
+        )
+        return "transport"
+
+    monkeypatch.setattr(application, "_default_pi_transport", fake_default)
+    request = ApplicationRequest(
+        application_id="fixture-app", questions=("q",), run_id="real-run"
+    )
+    controller = object()
+    prepared = SimpleNamespace(bindings={"alpha": object()})
+
+    result = application._ensure_provider(
+        request=request,
+        prepared=prepared,
+        bindings=prepared.bindings,
+        catalog=object(),
+        workspace=workspace,
+        controller=controller,
+    )
+
+    assert result == "transport"
+    assert captured["workspace"] is workspace
+    assert captured["request"] is request
+    assert captured["controller"] is controller
+    assert captured["resolved"].secret.value == "process-secret"
+
+
+def test_cleanup_continues_reverse_order_after_baseexception() -> None:
+    events: list[str] = []
+
+    class Endpoint:
+        def __init__(self, name: str, *, interrupt: bool = False) -> None:
+            self.name = name
+            self.interrupt = interrupt
+
+        def close(self) -> None:
+            events.append(self.name)
+            if self.interrupt:
+                raise KeyboardInterrupt("primary cleanup interrupt")
+
+    prepared = SimpleNamespace(
+        bindings={
+            "first": SimpleNamespace(endpoint=Endpoint("first")),
+            "second": SimpleNamespace(endpoint=Endpoint("second", interrupt=True)),
+        }
+    )
+    application = AgentApplication(profile=SimpleNamespace())
+
+    with pytest.raises(KeyboardInterrupt, match="primary cleanup interrupt"):
+        application._cleanup(prepared)
+
+    assert events == ["second", "first"]
+
+
+def test_default_runtime_descriptor_uses_controller_owned_run_channels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="real-run", binding_ids=("alpha",)
+    )
+    channels = SimpleNamespace(
+        active_turn_path=workspace.turns_path / "active-turn.json",
+        context_view_path=workspace.context_snapshot_path,
+        trajectory_requests_path=workspace.core_path / "requests.jsonl",
+        trajectory_capture_state_path=workspace.core_path / "capture.json",
+        trajectory_allowed_refs_path=workspace.core_path / "allowed.json",
+        trajectory_acks_path=workspace.core_path / "acks",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_descriptor(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return SimpleNamespace(search_path=())
+
+    monkeypatch.setattr(runner_module, "descriptor_from_endpoint", fake_descriptor)
+    monkeypatch.setattr(runner_module, "write_runtime_descriptor", lambda *_: None)
+    monkeypatch.setattr(
+        runner_module,
+        "PiRuntimeLocator",
+        lambda *_: SimpleNamespace(resolve=lambda: SimpleNamespace()),
+    )
+    monkeypatch.setattr(runner_module, "build_pi_launch", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "PiRpcClient", lambda *_args, **_kwargs: "client")
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0")
+    )
+    application = AgentApplication(profile=profile, environment={})
+    request = ApplicationRequest(
+        application_id="fixture-app", questions=("q",), run_id="real-run"
+    )
+    binding = SimpleNamespace(endpoint=SimpleNamespace(metadata={"executable": "domainctl"}))
+
+    result = application._default_pi_transport(
+        SimpleNamespace(secret=None),
+        SimpleNamespace(bindings={"alpha": binding}),
+        {"alpha": binding},
+        request=request,
+        workspace=workspace,
+        controller=channels,
+    )
+
+    assert result == "client"
+    assert captured["application_id"] == "fixture-app"
+    assert captured["run_id"] == "real-run"
+    assert captured["active_turn_path"] == channels.active_turn_path
+    assert captured["context_view_path"] == channels.context_view_path
+    assert captured["trajectory_requests_path"] == channels.trajectory_requests_path
+    assert captured["trajectory_capture_state_path"] == channels.trajectory_capture_state_path
+    assert captured["trajectory_allowed_refs_path"] == channels.trajectory_allowed_refs_path
+    assert captured["trajectory_acks_path"] == channels.trajectory_acks_path

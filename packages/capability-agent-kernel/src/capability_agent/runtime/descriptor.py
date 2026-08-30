@@ -118,6 +118,8 @@ class RuntimeDescriptor:
                 raise RuntimeDescriptorError(
                     "executable_args path is outside workspace_path"
                 )
+            if Path(argument).is_absolute():
+                _reject_existing_symlink(Path(argument), "executable_args path")
         for name, value in (
             ("protocol", self.protocol),
             ("protocol_version", self.protocol_version),
