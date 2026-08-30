@@ -72,7 +72,7 @@ class PiRpcClient:
         *,
         environment: dict[str, str] | None = None,
         secret_values: Iterable[str] | None = None,
-        capture_error_type: type[Exception] = PiCaptureIntegrityError,
+        capture_error_type: type[RuntimeError] = PiCaptureIntegrityError,
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
     ) -> None:

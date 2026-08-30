@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,11 @@ import pytest
 from capability_agent.runtime.rpc import PiProtocolError, PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.runtime.environment import PiLaunch
+
+
+@dataclass(frozen=True)
+class _Workspace:
+    root_path: Path
 
 
 def test_rpc_framing_returns_only_assembled_answer(tmp_path: Path) -> None:
@@ -26,7 +32,7 @@ def test_rpc_framing_returns_only_assembled_answer(tmp_path: Path) -> None:
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
     )
 
@@ -53,7 +59,7 @@ def test_rpc_timeout_fails_closed_and_does_not_wait_for_provider(
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
         timeout_seconds=0.05,
     )
@@ -80,7 +86,7 @@ def test_rpc_rejects_mismatched_explicit_correlation_id(tmp_path: Path) -> None:
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
         correlation_id="turn-001",
     )
@@ -118,7 +124,7 @@ def test_rpc_accepts_missing_event_correlation_and_uses_local_id(
     semantic: list[dict[str, object]] = []
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
         correlation_id="turn-001",
     )
@@ -155,7 +161,7 @@ def test_rpc_rejects_invalid_utf8_stdout_without_decode_details(tmp_path: Path) 
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
     )
 
@@ -182,7 +188,7 @@ def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path) -> None:
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
         secret_values={"topsecret"},
     )
@@ -211,7 +217,7 @@ def test_rpc_sanitizes_capture_fatal_stderr(tmp_path: Path) -> None:
     trace = JsonlTraceWriter(workspace / "events.jsonl")
     client = PiRpcClient(
         PiLaunch(argv=(sys.executable, str(script)), environment={}),
-        type("Workspace", (), {"root_path": workspace})(),
+        _Workspace(workspace),
         trace,
         secret_values={"topsecret"},
     )
