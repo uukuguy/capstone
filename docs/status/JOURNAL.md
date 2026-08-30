@@ -619,3 +619,4 @@ _Recovered pre-merge mainline entries._
 ## 2026-08-31
 
 - 01:20 固化 C.1 最终 handoff，确保下一会话从 C.2 领域选择恢复 [4334a39]
+- 01:24 修正 handoff 的 closure checkpoint 措辞，避免将历史基线误读为当前 HEAD

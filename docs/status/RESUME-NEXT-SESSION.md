@@ -20,7 +20,7 @@
   - E2E：25 tests
   - capability validation：24/24
   - 六个 Python 包及两个 npm 包安装态 smoke 通过
-- 当前提交：`8ee346f docs: record C1 closure checkpoint`
+- C.1 closure checkpoint：`8ee346f docs: record C1 closure checkpoint`
 - `main` 与 `origin/main`：0 ahead / 0 behind。
 - 工作树：clean；单 worktree；无临时分支遗留。
 
