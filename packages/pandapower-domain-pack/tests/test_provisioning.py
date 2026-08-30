@@ -130,6 +130,9 @@ def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child
                 "CUSTOM_BUSINESS_FLAG",
                 "GRID_AGENT_GRIDCTL_EXECUTABLE",
                 "PYTHONPATH",
+                "LC_SECRET",
+                "LC_BUSINESS_FLAG",
+                "LC_UNKNOWN",
             )
         )
     }
@@ -139,7 +142,12 @@ def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child
         "LANG": "C.UTF-8",
         "LANGUAGE": "en_US",
         "LC_ALL": "C.UTF-8",
+        "LC_COLLATE": "C",
         "LC_CTYPE": "C.UTF-8",
+        "LC_MESSAGES": "C",
+        "LC_MONETARY": "C",
+        "LC_NUMERIC": "C",
+        "LC_TIME": "C",
         "TZ": "UTC",
         "TMPDIR": str(tmp_path),
         "TEMP": str(tmp_path),

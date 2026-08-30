@@ -90,6 +90,12 @@ def test_sanitize_environment_allows_only_runtime_names() -> None:
         "LANG": "C.UTF-8",
         "LANGUAGE": "en_US",
         "LC_ALL": "C.UTF-8",
+        "LC_COLLATE": "C",
+        "LC_CTYPE": "C.UTF-8",
+        "LC_MESSAGES": "C",
+        "LC_MONETARY": "C",
+        "LC_NUMERIC": "C",
+        "LC_TIME": "C",
         "TZ": "UTC",
         "TMPDIR": "/tmp",
         "TEMP": "/tmp",
@@ -115,6 +121,9 @@ def test_sanitize_environment_allows_only_runtime_names() -> None:
         "PYTHONPATH": "/tmp/provider-code",
         "HOME": "/Users/operator",
         "HTTP_PROXY": "http://proxy.example",
+        "LC_SECRET": "locale-secret",
+        "LC_BUSINESS_FLAG": "business-value",
+        "LC_UNKNOWN": "unknown-locale-value",
     }
 
     assert sanitize_environment({**runtime_environment, **ambient_environment}) == runtime_environment

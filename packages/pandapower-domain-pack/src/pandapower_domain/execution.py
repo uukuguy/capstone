@@ -32,16 +32,27 @@ _RUNTIME_ENVIRONMENT_NAMES = frozenset(
         "WINDIR",
     }
 )
-_LOCALE_ENVIRONMENT_PREFIX = "LC_"
+# These are the POSIX locale categories consumed by the C/Python runtime.  Do
+# not use an ``LC_`` prefix wildcard: an unknown variable must not become an
+# ambient channel just because it resembles a locale setting.
+_LOCALE_ENVIRONMENT_NAMES = frozenset(
+    {
+        "LC_ALL",
+        "LC_COLLATE",
+        "LC_CTYPE",
+        "LC_MESSAGES",
+        "LC_MONETARY",
+        "LC_NUMERIC",
+        "LC_TIME",
+    }
+)
 
 
 def _is_runtime_environment_name(name: str) -> bool:
     """Return whether an environment name is needed by the simulator runtime."""
 
     normalized = name.upper()
-    return normalized in _RUNTIME_ENVIRONMENT_NAMES or normalized.startswith(
-        _LOCALE_ENVIRONMENT_PREFIX
-    )
+    return normalized in _RUNTIME_ENVIRONMENT_NAMES or normalized in _LOCALE_ENVIRONMENT_NAMES
 
 
 def sanitize_environment(
