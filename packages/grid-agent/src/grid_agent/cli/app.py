@@ -234,6 +234,16 @@ class _ProgressReporter:
             self._write(f"模型重试失败: {_summary(str(event.get('finalError', 'unknown error')))}")
         elif event_type == "agent_end":
             self._write("模型执行结束，正在整理结果")
+        elif event_type == "application_turn_completed":
+            self._write(
+                f"第 {event.get('ordinal', '?')}/{event.get('total_questions', '?')} 题已完成，"
+                f"输出摘要: {_summary(str(event.get('answer_output', '')))}"
+            )
+        elif event_type == "application_report_checkpoint":
+            self._write(
+                f"报告已刷新（{event.get('completed_questions', '?')}/"
+                f"{event.get('total_questions', '?')} 题）：{event.get('report_path', '')}"
+            )
 
     def heartbeat(self) -> None:
         self._write("仍在等待模型或工具响应")
@@ -633,6 +643,7 @@ def analysis_generic(
     try:
         questions = tuple(load_questions(instructions))
         project_paths = ProjectPaths.from_root(Path.cwd())
+        progress = _ProgressReporter("\n".join(questions))
         typer.echo(
             f"analysis-generic application={application} instructions={instructions}",
             err=True,
@@ -650,6 +661,7 @@ def analysis_generic(
             ),
             workspace_root=project_paths.runs_dir,
             environment=runtime_environment,
+            semantic_event_observer=progress.on_event,
         )
         if outcome.status != "completed" or not isinstance(outcome.rendered, str):
             message = getattr(outcome, "error", None) or "generic application failed"

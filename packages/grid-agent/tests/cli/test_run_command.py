@@ -179,9 +179,18 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
     instructions.write_text("question one\nquestion two\n", encoding="utf-8")
     profile = build_pandapower_application_profile()
     binding = profile.domains[0]
+    def prompt_and_wait(_question: str, **kwargs: object) -> str:
+        observer = kwargs.get("on_semantic_event")
+        assert callable(observer)
+        observer(
+            {"type": "tool_execution_start", "toolName": "grid_run", "args": {}},
+            1,
+        )
+        return "validated answer"
+
     provider = SimpleNamespace(
         start=lambda: None,
-        prompt_and_wait=lambda _question, **_kwargs: "validated answer",
+        prompt_and_wait=prompt_and_wait,
         stop=lambda: None,
     )
 
@@ -208,6 +217,7 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
             provider=provider,
             workspace=workspace,
             catalog=object(),
+            semantic_event_observer=kwargs.get("semantic_event_observer"),
         )
 
     monkeypatch.chdir(tmp_path)
@@ -246,3 +256,4 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
     assert report_path.is_file()
     assert "question_id" not in result.stdout
     assert "generic application failed" not in result.stderr
+    assert "工具开始: grid_run" in result.stderr

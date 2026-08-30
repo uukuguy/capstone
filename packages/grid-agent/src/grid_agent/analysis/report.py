@@ -779,9 +779,18 @@ def _native_turns_by_call(path: Path) -> dict[str, str]:
             continue
         scope = event.get("scope") if isinstance(event, Mapping) else None
         if not isinstance(scope, Mapping):
-            continue
-        call_id = scope.get("tool_call_id")
-        turn_id = scope.get("turn_id")
+            payload = event.get("payload") if isinstance(event, Mapping) else None
+            if not (
+                isinstance(event, Mapping)
+                and event.get("event") == "pi_event"
+                and isinstance(payload, Mapping)
+            ):
+                continue
+            call_id = payload.get("tool_call_id")
+            turn_id = payload.get("correlation_id")
+        else:
+            call_id = scope.get("tool_call_id")
+            turn_id = scope.get("turn_id")
         if isinstance(call_id, str) and isinstance(turn_id, str):
             turns[call_id] = turn_id
     return turns
@@ -1364,8 +1373,18 @@ def _read_context_events(path: Path) -> _LedgerRead:
         if not line.strip():
             continue
         try:
-            events.append(AnalysisContextEvent.model_validate_json(line))
-        except (ValueError, ValidationError):
+            document = json.loads(line)
+        except json.JSONDecodeError:
+            diagnostics.append(f"事件账本第 {line_number} 行格式错误；该报告不推断回合修订范围")
+            continue
+        if (
+            isinstance(document, Mapping)
+            and document.get("schema_version") == "application-context-event/1.0"
+        ):
+            continue
+        try:
+            events.append(AnalysisContextEvent.model_validate(document))
+        except ValidationError:
             diagnostics.append(f"事件账本第 {line_number} 行格式错误；该报告不推断回合修订范围")
     return _LedgerRead(tuple(events), tuple(diagnostics))
 

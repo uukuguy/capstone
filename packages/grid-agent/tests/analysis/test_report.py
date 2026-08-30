@@ -9,6 +9,8 @@ import pytest
 from grid_agent.analysis.models import AnalysisContext, AnalysisContextEvent, ContextEventDraft
 from grid_agent.analysis.reducer import initial_context, reduce_context
 from grid_agent.analysis.report import (
+    _native_turns_by_call,
+    _read_context_events,
     _read_trace_decisions,
     render_analysis_report,
     write_analysis_report_checkpoint,
@@ -21,6 +23,47 @@ EVIDENCE_REF = "evidence:sha256:" + "2" * 64
 BASELINE_REF = "context:sha256:" + "3" * 64
 REVISION_REF = "revision:sha256:" + "4" * 64
 OBSERVATION_REF = "observation:sha256:" + "5" * 64
+
+
+def test_report_reader_accepts_generic_application_turn_correlation(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    events_path.write_text(
+        json.dumps(
+            {
+                "event": "pi_event",
+                "payload": {
+                    "type": "tool_execution_start",
+                    "tool_call_id": "call-1",
+                    "correlation_id": "run-1-t001",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert _native_turns_by_call(events_path) == {"call-1": "run-1-t001"}
+
+
+def test_report_reader_ignores_generic_context_events_without_diagnostics(
+    tmp_path: Path,
+) -> None:
+    context_path = tmp_path / "context-events.jsonl"
+    context_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "application-context-event/1.0",
+                "event_type": "turn.completed",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    ledger = _read_context_events(context_path)
+
+    assert ledger.events == ()
+    assert ledger.diagnostics == ()
 
 
 @dataclass(frozen=True, slots=True)

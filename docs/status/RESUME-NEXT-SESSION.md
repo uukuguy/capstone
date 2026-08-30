@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-08-31 05:00 CST. Session remains active.
+> Updated: 2026-08-31 06:10 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- Workstream C.1 已完成；本会话另新增正式生产入口 `make application`，并完成一轮真实 DeepSeek 9/9 业务运行。
-- 发现并修复 generic runtime 对 `GRID_AGENT_LLM_*` 到 `CAPABILITY_AGENT_LLM_*` 的配置适配缺口，避免未显式参数时错误回退到 OpenAI。
-- 文档漂移已收敛到 `docs/PANDAPOWER-APPLICATION.md` 作为第一领域唯一详细操作参考；最终提交与工作树复核仍待完成。
+- Workstream C.1 已完成；本会话新增 `make application`，并正补齐其相对 v1.0.1 的实时进度与丰富报告回归。
+- Kernel 已在每个已完成回合后原子刷新工作报告；最终不可变报告仍只在正常完成时登记。
+- pandapower 正式应用通过显式兼容层复用 v1.0.1 报告渲染器；不得让 application 层直接依赖 `grid_agent.analysis.*`。
 
 ## Where things stand
 
@@ -14,13 +14,7 @@
 - Generic `test.md.txt`：`run-20260830t113619z-b162f4d5`，7/7。
 - 新正式入口真实运行：`run-20260830t204939z-90172af2`，DeepSeek `deepseek-v4-flash`，9/9，9 份答案与 21 个证据工件。
 - v1.0.1 compatibility：`analysis-20260830T113916Z`，7/7；stdout 严格只有 `question_id` 和 `answer_output`。
-- 最终门禁：
-  - grid-agent：724 tests
-  - grid-simulator：165 tests
-  - grid Pi：43 tests
-  - E2E：25 tests
-  - capability validation：24/24
-  - 六个 Python 包及两个 npm 包安装态 smoke 通过
+- 本轮已通过：`make doctor`、`make validate-application`、`make test`、`make test-e2e`、`make validate`（7/7、10/10、8/8）及 `make test-packages`。
 - C.1 closure checkpoint：`8ee346f docs: record C1 closure checkpoint`
 - `main` 与 `origin/main`：0 ahead / 0 behind。
 - 工作树：clean；单 worktree；无临时分支遗留。
@@ -34,13 +28,13 @@
 - 建立 provider-free `make validate-application` 验收以及当前运行证据、报告摘要、上下文 replay 校验。
 - 完成 C.1 保护策略、包边界、安装态验证和全仓门禁。
 - 增加 `make application`，固定 pandapower 默认应用并保留 `APPLICATION`、`INSTRUCTIONS`、`PROVIDER`、`MODEL` 覆盖。
-- 将泛型框架 LLM 命名空间适配到产品的 `GRID_AGENT_LLM_*` 配置；回归测试覆盖该映射。
-- 修正 README、RUNBOOK、手动验证、架构与设计状态的 C.1 漂移，并将生产操作细节集中到 `docs/PANDAPOWER-APPLICATION.md`。
+- 新增 generic stderr 事件观察与逐题报告 checkpoint；stdout 仍是最终单一组合 JSON。
+- 新增 v1.0.1 报告渲染适配及操作文档；包边界修复通过显式 `compat/v1_0_1_report.py` shim。
 
 ## Next steps
 
-1. 完成本会话变更的提交与最终 `git status`/文档检查；不得丢失已有用户改动。
-2. 若继续产品推进，定义 Workstream C.2 的真实第二领域选择标准和候选清单。
+1. 等待并检查已授权 DeepSeek 多题正式运行的 stderr、逐题 `output/report.md` 和最终报告引用。
+2. 完成本会话变更的提交与最终 `git status`/文档检查；不得丢失已有用户改动。
 3. 对候选领域先形成四项设计：
    - 真实业务任务与可量化验收标准
    - 权威业务接口或执行服务 API

@@ -17,9 +17,10 @@ from capability_agent.application.profile import (
     DataSharingPolicy,
     DomainBinding,
 )
-from capability_agent.application.reporting import GenericReportShell
 from capability_agent.application.output import JsonOutputRenderer
 from pandapower_domain import build_pandapower_profile
+
+from grid_agent.compat.v1_0_1_report import PandapowerApplicationReportShell
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +98,7 @@ def build_pandapower_application_profile() -> ApplicationProfile:
         ),
         output_renderer=JsonOutputRenderer(),
         application_policy=ReadOnlyApplicationPolicy(),
-        report_shell=GenericReportShell(),
+        report_shell=PandapowerApplicationReportShell(),
         acceptance_profile=acceptance,
     )
 

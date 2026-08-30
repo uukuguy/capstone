@@ -52,6 +52,24 @@ and network claims must come from current-run `gridctl` results admitted through
 the pandapower authority. The run directory retains turns, context, tool
 results, result/evidence artifacts, answer audits, replay state, and the report.
 
+During a multi-question run, stderr shows model/tool activity, each finalized
+turn, and each report checkpoint. `runs/<run_id>/output/report.md` is atomically
+refreshed after every finalized answer, using the v1.0.1 pandapower report
+structure (runtime, per-question answer, simulation context, trajectory, and
+evidence). It is an operator-visible mutable checkpoint until normal completion;
+only then is the final report admitted as the immutable report artifact.
+
+If a run is interrupted, inspect the latest completed work without treating it
+as final output:
+
+```sh
+sed -n '1,240p' runs/<run_id>/output/report.md
+find runs/<run_id>/turns -name answer.json -print
+```
+
+The absence of a final `report_ref` or a non-completed outcome means the run was
+not successfully finalized, even when the checkpoint contains prior answers.
+
 Provider and model arguments never carry credentials. Credentials continue to
 come from environment variables or project-owned ignored authentication state.
 

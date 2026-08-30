@@ -79,6 +79,7 @@ GRID_AGENT_COMPATIBILITY_SHIMS = frozenset(
         "trajectory/reader.py",
         "trajectory/recorder.py",
         "trajectory/replay.py",
+        "compat/v1_0_1_report.py",
     }
 )
 EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {

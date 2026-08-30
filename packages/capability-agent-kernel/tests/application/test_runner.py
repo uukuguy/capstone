@@ -153,6 +153,54 @@ def test_runner_binds_current_prompt_projection_references_to_answer(
     assert controller.submissions[0]["evidence_refs"] == (evidence_ref,)
 
 
+def test_runner_checkpoints_mutable_report_after_each_finalized_answer(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    rendered: list[dict[str, object]] = []
+
+    def render(**kwargs: object) -> str:
+        rendered.append(dict(kwargs))
+        return f"report-{len(rendered)}"
+
+    transport = FakeTransport(events)
+    controller = FakeController(events)
+    binding = SimpleNamespace(binding_id="alpha")
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(render=render),
+    )
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="checkpoint-run", binding_ids=("alpha",)
+    )
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider=transport,
+        workspace=workspace,
+        turn_controller=controller,
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("first", "second")))
+
+    assert outcome.status == "completed"
+    assert [call["answers"] for call in rendered] == [
+        ("one",),
+        ("one", "two"),
+        ("one", "two"),
+    ]
+    assert [call["core"]["report_ref"] for call in rendered] == [None, None, None]
+    assert workspace.output_path.joinpath("report.md").read_text(encoding="utf-8") == "report-3"
+
+
 def test_runner_processes_questions_in_order_and_preserves_two_output_layers(
     tmp_path: Path,
 ) -> None:

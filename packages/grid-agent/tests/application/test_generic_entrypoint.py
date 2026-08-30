@@ -98,6 +98,14 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
         "report_artifact_ref": outcome.result.core.report_ref,
     }
     assert workspace.output_path.joinpath("report.md").is_file()
+    report = workspace.output_path.joinpath("report.md").read_text(encoding="utf-8")
+    assert report.startswith("# 系统仿真分析报告")
+    assert "## 本批次运行环境" in report
+    assert "## 1. question one" in report
+    assert "### 回答" in report
+    assert "### 仿真环境上下文" in report
+    assert "### 智能体分析轨迹" in report
+    assert "### 执行状态与证据" in report
     report_digest = sha256(
         workspace.output_path.joinpath("report.md").read_bytes()
     ).hexdigest()

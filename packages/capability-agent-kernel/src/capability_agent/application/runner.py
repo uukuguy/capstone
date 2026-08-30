@@ -152,6 +152,7 @@ class AgentApplication:
         environment: Mapping[str, str] | None = None,
         runtime_host: RuntimeHost | None = None,
         runtime_paths: RuntimePaths | None = None,
+        semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
     ) -> None:
         self.profile = profile
         self.prepared_application = prepared_application
@@ -181,6 +182,7 @@ class AgentApplication:
         self.environment = None if environment is None else dict(environment)
         self.runtime_host = runtime_host
         self.runtime_paths = runtime_paths
+        self.semantic_event_observer = semantic_event_observer
         self._prepared_for_run = False
 
     def run(self, request: ApplicationRequest) -> ApplicationOutcome:
@@ -229,6 +231,7 @@ class AgentApplication:
                         question,
                         projector=projector,
                         turn_id=getattr(handle, "turn_id", None),
+                        semantic_event_observer=self.semantic_event_observer,
                     )
                     finalized = _call_method(
                         controller,
@@ -289,6 +292,21 @@ class AgentApplication:
                 active_turn = None
                 if getattr(finalized, "status", "success") != "success":
                     raise ApplicationConfigurationError("question did not produce an accepted answer")
+                self._write_report_checkpoint(
+                    request=request,
+                    workspace=workspace,
+                    store=store,
+                    completed_answers=tuple(completed_answers),
+                    prepared=prepared,
+                )
+                self._observe_semantic_event(
+                    {
+                        "type": "application_turn_completed",
+                        "ordinal": ordinal,
+                        "total_questions": len(request.questions),
+                        "answer_output": str(getattr(finalized, "answer_output", "")),
+                    }
+                )
             preliminary_core = self._build_core_result(
                 request=request,
                 workspace=workspace,
@@ -859,6 +877,76 @@ class AgentApplication:
     ) -> tuple[Path | None, str | None]:
         if workspace is None:
             return None, None
+        report = self._render_report(
+            request=request,
+            workspace=workspace,
+            store=store,
+            core=core,
+            completed_answers=completed_answers,
+            prepared=prepared,
+        )
+        path = workspace.output_path / "report.md"
+        _write_report_atomically(path, report)
+        try:
+            pointer = ImmutableArtifactRegistry(
+                workspace.root,
+                path_policy=_ReportArtifactPathPolicy(),
+            ).register_existing("report", "report", path)
+        except (ArtifactIntegrityError, OSError, ValueError):
+            raise PresentationError("report artifact admission failed") from None
+        return path, pointer.ref
+
+    def _write_report_checkpoint(
+        self,
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace | None,
+        store: ApplicationContextStore | None,
+        completed_answers: tuple[object, ...],
+        prepared: object | None = None,
+    ) -> None:
+        """Refresh the mutable operator report without admitting an artifact."""
+        if workspace is None:
+            return
+        core = self._build_core_result(
+            request=request,
+            workspace=workspace,
+            completed_answers=completed_answers,
+            report_ref=None,
+        )
+        report = self._render_report(
+            request=request,
+            workspace=workspace,
+            store=store,
+            core=core,
+            completed_answers=completed_answers,
+            prepared=prepared,
+        )
+        _write_report_atomically(workspace.output_path / "report.md", report)
+        self._observe_semantic_event(
+            {
+                "type": "application_report_checkpoint",
+                "completed_questions": len(completed_answers),
+                "total_questions": len(request.questions),
+                "report_path": str(workspace.output_path / "report.md"),
+            }
+        )
+
+    def _observe_semantic_event(self, event: Mapping[str, object]) -> None:
+        observer = self.semantic_event_observer
+        if observer is not None:
+            observer(event)
+
+    def _render_report(
+        self,
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace,
+        store: ApplicationContextStore | None,
+        core: CoreRunResult,
+        completed_answers: tuple[object, ...],
+        prepared: object | None = None,
+    ) -> str:
         presentation = None
         bindings = _prepared_bindings(
             self.prepared_application if prepared is None else prepared
@@ -888,19 +976,15 @@ class AgentApplication:
             presentation=presentation,
             core=core.model_dump(mode="json"),
             domains={},
+            workspace=workspace,
+            runtime={
+                "provider": self.cli_options.provider,
+                "model": self.cli_options.model,
+            },
         )
         if not isinstance(report, str):
             raise PresentationError("report shell must return text")
-        path = workspace.output_path / "report.md"
-        _write_report_atomically(path, report)
-        try:
-            pointer = ImmutableArtifactRegistry(
-                workspace.root,
-                path_policy=_ReportArtifactPathPolicy(),
-            ).register_existing("report", "report", path)
-        except (ArtifactIntegrityError, OSError, ValueError):
-            raise PresentationError("report artifact admission failed") from None
-        return path, pointer.ref
+        return report
 
     def _record_report_reference(
         self, store: ApplicationContextStore | None, report_ref: str | None
@@ -1225,6 +1309,7 @@ def _call_prompt(
     *,
     projector: object | None,
     turn_id: str | None,
+    semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
 ) -> str:
     method = getattr(transport, "prompt_and_wait", None)
     if not callable(method):
@@ -1233,15 +1318,14 @@ def _call_prompt(
         raise ApplicationConfigurationError("provider transport cannot process a question")
     kwargs: dict[str, object] = {}
     projections: list[Any] = []
-    if projector is not None:
-        callback = getattr(projector, "observe", None)
-        if callable(callback):
+    callback = getattr(projector, "observe", None) if projector is not None else None
+    if callable(callback) or semantic_event_observer is not None:
             def on_event(
                 event: Mapping[str, object],
                 sequence: int | None = None,
                 **event_kwargs: object,
             ) -> None:
-                if turn_id is not None:
+                if callable(callback) and turn_id is not None:
                     outcome = callback(
                         event,
                         turn_id=turn_id,
@@ -1250,6 +1334,8 @@ def _call_prompt(
                     )
                     if outcome is not None:
                         projections.append(outcome)
+                if semantic_event_observer is not None:
+                    semantic_event_observer(event)
             kwargs["on_semantic_event"] = on_event
     if turn_id is not None:
         kwargs["correlation_id"] = turn_id

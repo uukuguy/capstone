@@ -19,7 +19,7 @@
 | 主产品/评测路径 | `make run-llm QUESTION="..."` | Pi/LLM 解释自然语言并组合 domain tools；stdout 是单个答案 JSON，stderr 有 Pi 工具轨迹。 |
 | 连续系统仿真分析 | `make analysis [INSTRUCTIONS=...]` | 缺省运行 TASK 指令集；stdout 是单个最终报告 envelope，stderr 有进度与检查点，所有工件位于一个 `runs/<analysis_id>/` 目录。 |
 | 兼容报告入口 | `make report [INSTRUCTIONS=...]` | `make analysis` 的兼容别名；不再启动每题一个子进程。 |
-| 正式第一领域应用 | `make application [INSTRUCTIONS=...]` | stdout 是 `capability-agent-output/1.0` 组合对象；当前运行工件按 `core` 与 `domains.grid` 分层。 |
+| 正式第一领域应用 | `make application [INSTRUCTIONS=...]` | stdout 是 `capability-agent-output/1.0` 组合对象；stderr 实时显示模型/工具/逐题完成/报告刷新；当前运行工件按 `core` 与 `domains.grid` 分层。 |
 | 第一领域无 Provider 验收 | `make validate-application` | 两个 scripted application case 的实例化、lineage、context replay、answer audit、report 和组合输出检查全部通过。 |
 | 本地轨迹工作台检查 | `make trajectory PORT=8765` | 先构建打包 SPA，再在 `127.0.0.1` 提供 workbench 与固定 GET API；服务日志仅写 stderr。 |
 | 离线冒烟 | `make run QUESTION="..."` | 只验证确定性离线知识/诊断路由；不代替智能体能力验证。 |
@@ -105,6 +105,13 @@ stdout 必须只有一个最终 `AnswerEnvelope`，`question_id` 形如 `analysi
 ## 第一领域应用复现（C.1）
 
 C.1 已完成。正式生产入口是 `make application`；Provider-backed canonical 业务任务、组合输出契约、v1.0.1 compatibility 对照、当前运行证据审计和无 Provider 门禁统一见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。本手册保留其余共享 CLI、离线验证和轨迹检查步骤。
+
+正式应用执行多个问题时，另开一个终端可观察当前 run 的
+`output/report.md`：每一个已接受答案都会原子刷新该文件，报告沿用
+v1.0.1 的运行环境、回答、仿真上下文、智能体轨迹和证据结构。stderr 还会
+打印模型/工具事件、题目完成和报告刷新位置；stdout 始终只有最后的组合 JSON。
+如果执行被中断，可查看该检查点和 `turns/*/answer.json` 了解已完成部分，但
+没有完成状态和最终 `report_ref` 时不得把它当作成功的最终报告。
 
 ## 3. 离线知识与确定性诊断
 
