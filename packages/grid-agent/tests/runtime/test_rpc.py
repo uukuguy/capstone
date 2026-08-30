@@ -384,6 +384,9 @@ def test_rpc_persists_canonical_tool_result_from_extension_tool_end_event(tmp_pa
         "'result':{'details':{"
         "'event':'tool_result',"
         "'capability':'topology.branch.endpoints.get',"
+        "'capability_key':{'binding_id':'grid','capability_id':'topology.branch.endpoints.get'},"
+        "'projector_id':'topology-observation-v1',"
+        "'result_kind':None,"
         "'ok':True,"
         "'result':{'branch':{'identifier':'11'},'evidence_ref':'" + evidence_ref + "'},"
         "'evidence_refs':['" + evidence_ref + "']"
@@ -417,6 +420,13 @@ def test_rpc_persists_canonical_tool_result_from_extension_tool_end_event(tmp_pa
         and payload.get("result") == {"branch": {"identifier": "11"}, "evidence_ref": evidence_ref}
         and payload.get("evidence_refs") == [evidence_ref]
         and payload.get("tool_name") == "grid_topology_branch_endpoints"
+        and payload.get("capability_key")
+        == {
+            "binding_id": "grid",
+            "capability_id": "topology.branch.endpoints.get",
+        }
+        and payload.get("projector_id") == "topology-observation-v1"
+        and payload.get("result_kind") is None
         for payload in traced_payloads
     )
     assert any(
