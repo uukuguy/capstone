@@ -11,6 +11,7 @@ from pandapower_domain.execution import (
     GridctlExecutor,
     SimulatorCapabilityError,
     SimulatorOperationError,
+    sanitize_environment,
 )
 
 
@@ -80,6 +81,49 @@ def test_executor_filters_secret_environment_values(tmp_path: Path) -> None:
 
     child_environment = json.loads(environment_path.read_text(encoding="utf-8"))
     assert "GRID_AGENT_SECRET" not in child_environment
+
+
+@pytest.mark.parametrize(
+    "credential_name",
+    (
+        "APIKEY",
+        "SERVICE_APIKEY",
+        "SECRETKEY",
+        "SERVICE_SECRETKEY",
+        "PASSPHRASE",
+        "SSH_PASSPHRASE",
+        "API_KEY",
+        "SERVICE_TOKEN",
+        "SECRET",
+        "AUTHORIZATION",
+        "CREDENTIAL",
+        "PASSWORD",
+        "PRIVATE_KEY",
+    ),
+)
+def test_sanitize_environment_rejects_credential_shaped_names(
+    credential_name: str,
+) -> None:
+    value = f"secret-value-for-{credential_name}"
+
+    sanitized = sanitize_environment(
+        {
+            credential_name: value,
+            "PATH": "/usr/bin",
+            "LANG": "C.UTF-8",
+            "APP_SECRETARY": "ordinary-value",
+            "TOKENIZER_MODE": "ordinary-value",
+            "API_VERSION": "ordinary-value",
+        }
+    )
+
+    assert credential_name not in sanitized
+    assert value not in sanitized.values()
+    assert sanitized["PATH"] == "/usr/bin"
+    assert sanitized["LANG"] == "C.UTF-8"
+    assert sanitized["APP_SECRETARY"] == "ordinary-value"
+    assert sanitized["TOKENIZER_MODE"] == "ordinary-value"
+    assert sanitized["API_VERSION"] == "ordinary-value"
 
 
 def test_executor_preserves_typed_capability_error(tmp_path: Path) -> None:

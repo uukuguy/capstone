@@ -3,6 +3,7 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,7 +60,7 @@ def _binding() -> DomainBinding:
     )
 
 
-def test_provisioner_resolves_gridctl_with_fixed_arguments_and_scrubbed_environment(
+def test_provisioner_resolves_gridctl_with_fixed_arguments_and_sanitized_environment(
     tmp_path: Path,
 ) -> None:
     executable = tmp_path / "source-gridctl"
@@ -88,10 +89,74 @@ def test_provisioner_resolves_gridctl_with_fixed_arguments_and_scrubbed_environm
     assert endpoint.metadata["search_path"] == (str(workspace / "bin"),)
     assert endpoint.metadata["max_output_bytes"] == 2 * 1024 * 1024
     environment = cast(Mapping[str, object], endpoint.metadata["environment"])
-    assert environment["GRID_AGENT_SECRET"] == "<scrubbed>"
+    assert "GRID_AGENT_SECRET" not in environment
     assert environment["PATH"]
     assert executor.executable == workspace / "bin" / "gridctl"
     assert executor.executable.is_file()
+
+
+def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child(
+    tmp_path: Path,
+) -> None:
+    environment_path = tmp_path / "child-environment.json"
+    executable = tmp_path / "source-gridctl"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys\n"
+        f"pathlib.Path({str(environment_path)!r}).write_text(json.dumps(dict(os.environ)), encoding='utf-8')\n"
+        "request=json.loads(sys.stdin.read())\n"
+        "print(json.dumps({'protocol':'grid-capability','protocol_version':'1.0',"
+        "'request_id':request['request_id'],'ok':True,'result':{}},separators=(',',':')))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    credential_values = {
+        name: f"secret-value-{index}"
+        for index, name in enumerate(
+            (
+                "APIKEY",
+                "SERVICE_SECRETKEY",
+                "PASSPHRASE",
+                "OPENAI_API_KEY",
+                "SERVICE_TOKEN",
+                "SECRET",
+                "AUTHORIZATION",
+                "CREDENTIAL",
+                "PASSWORD",
+                "PRIVATE_KEY",
+            )
+        )
+    }
+    source_environment = {
+        **credential_values,
+        "PATH": os.environ["PATH"],
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "APP_MODE": "validation",
+    }
+
+    endpoint = PandapowerRuntimeProvisioner(
+        executable=executable,
+        environ=source_environment,
+    ).prepare(binding=_binding(), workspace=tmp_path / "run", credentials=_Lease())
+
+    metadata_environment = cast(
+        Mapping[str, str], endpoint.metadata["environment"]
+    )
+    executor = cast(GridctlExecutor, endpoint.executor)
+    executor.invoke("model.list", {})
+    child_environment = json.loads(environment_path.read_text(encoding="utf-8"))
+
+    for name, value in credential_values.items():
+        assert name not in metadata_environment
+        assert name not in child_environment
+        assert value not in metadata_environment.values()
+        assert value not in child_environment.values()
+    for environment in (metadata_environment, child_environment):
+        assert environment["PATH"] == source_environment["PATH"]
+        assert environment["LANG"] == "C.UTF-8"
+        assert environment["LC_ALL"] == "C.UTF-8"
+        assert environment["APP_MODE"] == "validation"
 
 
 def test_prepared_endpoint_materializes_a_serializable_runtime_descriptor(

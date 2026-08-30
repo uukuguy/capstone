@@ -18,8 +18,16 @@ _CANONICAL_SECRET_NAMES = frozenset(
         "GRID_AGENT_SECRET_ENV_NAMES",
     }
 )
+# Match complete credential tokens, not arbitrary substrings: this catches
+# ``SERVICE_APIKEY`` and ``API_KEY_PATH`` while retaining ``SECRETARY`` and
+# ``TOKENIZER_MODE``.  The explicit ``KEY`` forms cover both common spellings
+# without treating every environment variable containing the word ``KEY`` as
+# sensitive.
 _CREDENTIAL_NAME_PATTERN = re.compile(
-    r"(?:API_KEY|TOKEN|SECRET|AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY)$",
+    r"(?<![A-Z0-9])"
+    r"(?:API_KEY|APIKEY|TOKEN|SECRETKEY|SECRET|PASSPHRASE|"
+    r"AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY)"
+    r"(?![A-Z0-9])",
     re.IGNORECASE,
 )
 
@@ -27,7 +35,7 @@ _CREDENTIAL_NAME_PATTERN = re.compile(
 def sanitize_environment(
     environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Remove credentials before starting the simulator subprocess."""
+    """Remove credential-shaped names before starting the simulator process."""
 
     source = dict(os.environ if environment is None else environment)
     selected_names = {

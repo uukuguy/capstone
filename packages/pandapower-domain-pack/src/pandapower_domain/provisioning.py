@@ -92,10 +92,6 @@ class PandapowerRuntimeProvisioner:
         self._install_binding_executable(executable, target)
 
         safe_environment = sanitize_environment(self.environ)
-        metadata_environment = dict(safe_environment)
-        for name in self.environ:
-            if name not in safe_environment:
-                metadata_environment[name] = "<scrubbed>"
         metadata = {
             "binding_id": binding.binding_id,
             # The descriptor exposes only the validated basename.  The
@@ -109,7 +105,7 @@ class PandapowerRuntimeProvisioner:
             "search_path": (str(bin_path),),
             "timeout_seconds": self.timeout_seconds,
             "max_output_bytes": self.max_output_bytes,
-            "environment": metadata_environment,
+            "environment": dict(safe_environment),
         }
         executor = GridctlExecutor(
             executable=target,
