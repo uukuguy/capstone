@@ -47,6 +47,10 @@ from capability_agent.application.output import (
     OutputRenderer,
     ValidatedDomainOutput,
 )
+from capability_agent.application.projector import (
+    ApplicationInvocationProjector,
+    ProjectionOutcome,
+)
 from capability_agent.application.profile import (
     AcceptanceProfile,
     ApplicationPolicy,
@@ -58,6 +62,13 @@ from capability_agent.application.profile import (
 )
 from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace, WorkspaceError
+from capability_agent.application.turns import (
+    ActiveTurnHandle,
+    ActiveTurnInProgressError,
+    FinalizedTurn,
+    StaleAnswerDraftError,
+    TurnController,
+)
 
 __all__ = [
     "AcceptanceProfile",
@@ -67,11 +78,14 @@ __all__ = [
     "ApplicationConfigurationError",
     "ApplicationContext",
     "ApplicationContextStore",
+    "ApplicationInvocationProjector",
     "ApplicationManifest",
     "ApplicationPolicy",
     "ApplicationProfile",
     "ApplicationResult",
     "ApplicationWorkspace",
+    "ActiveTurnHandle",
+    "ActiveTurnInProgressError",
     "AuthorityIntegrityError",
     "BindingIdentity",
     "BoundDomainOutput",
@@ -100,8 +114,12 @@ __all__ = [
     "PreparedApplication",
     "PreparedBinding",
     "PreparedDomainRuntime",
+    "ProjectionOutcome",
     "PresentationError",
     "ReportShell",
+    "FinalizedTurn",
+    "StaleAnswerDraftError",
+    "TurnController",
     "ValidatedDomainOutput",
     "WorkspaceError",
     "canonical_state_hash",

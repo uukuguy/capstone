@@ -283,3 +283,76 @@ def test_persistence_failure_is_sanitized_and_store_fails_closed(
                 payload={"message": "later"},
             )
         )
+
+
+def test_append_many_empty_or_invalid_drafts_do_not_touch_durable_state(
+    workspace: ApplicationWorkspace,
+) -> None:
+    store = ApplicationContextStore.initialize(
+        workspace,
+        domains={
+            "grid": "pandapower-analysis-state/1.0",
+            "inventory": "inventory-state/1.0",
+        },
+    )
+    before_snapshot = store.snapshot
+    before_ledger = workspace.context_events_path.read_bytes()
+    before_materialized = workspace.context_snapshot_path.read_bytes()
+
+    assert store.append_many(()) == ()
+    with pytest.raises(ContextStoreError, match="drafts"):
+        store.append_many((object(),))  # type: ignore[arg-type]
+
+    assert store.snapshot == before_snapshot
+    assert workspace.context_events_path.read_bytes() == before_ledger
+    assert workspace.context_snapshot_path.read_bytes() == before_materialized
+    assert not (workspace.core_path / ".context-transaction.json").exists()
+
+
+@pytest.mark.parametrize("after_snapshot", [False, True])
+def test_append_many_recovers_a_pending_transaction_after_interruption(
+    workspace: ApplicationWorkspace,
+    monkeypatch: pytest.MonkeyPatch,
+    after_snapshot: bool,
+) -> None:
+    store = ApplicationContextStore.initialize(
+        workspace,
+        domains={
+            "grid": "pandapower-analysis-state/1.0",
+            "inventory": "inventory-state/1.0",
+        },
+    )
+    before = store.snapshot
+    draft = ContextEventDraft(
+        event_type="diagnostic.recorded", payload={"message": "recover me"}
+    )
+    real_replace_snapshot = context_store_module._replace_snapshot
+
+    def interrupt_snapshot(source: Path, destination: Path) -> None:
+        if after_snapshot:
+            real_replace_snapshot(source, destination)
+        raise KeyboardInterrupt("simulated process interruption")
+
+    def interrupt_rollback(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise KeyboardInterrupt("simulated process interruption")
+
+    monkeypatch.setattr(
+        context_store_module, "_replace_snapshot", interrupt_snapshot
+    )
+    monkeypatch.setattr(
+        context_store_module, "_rollback_transaction", interrupt_rollback
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        store.append_many((draft,))
+
+    marker = workspace.core_path / ".context-transaction.json"
+    assert marker.is_file()
+
+    recovered = ApplicationContextStore(workspace, before)
+    assert recovered.snapshot.revision == before.revision + 1
+    assert ApplicationContextStore.replay(workspace.context_events_path) == recovered.snapshot
+    assert recovered.verify_materialized_snapshot() == recovered.snapshot
+    assert not marker.exists()
+    assert not list(workspace.core_path.glob(".*.tmp"))

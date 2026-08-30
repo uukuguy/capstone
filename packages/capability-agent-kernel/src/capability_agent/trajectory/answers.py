@@ -29,6 +29,11 @@ class AnswerSubmission(StrictFrozenModel):
     result_refs: tuple[str, ...]
     claim_evidence_refs: tuple[str, ...]
     claims: tuple[AnswerClaim, ...] = Field(max_length=50)
+    # Binding identity is part of the generic submission contract.  The
+    # application controller supplies one binding-specific submission to each
+    # domain policy, so a domain policy never has to infer ownership from an
+    # opaque reference string.
+    referenced_bindings: tuple[str, ...] = Field(default=(), max_length=50)
 
 
 class AnswerReferencePolicy(Protocol):
