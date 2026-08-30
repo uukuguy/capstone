@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -45,7 +46,11 @@ def test_runtime_descriptor_is_binding_aware_and_versioned(tmp_path: Path) -> No
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["schema"] == "capability-agent-runtime/1.0"
-    assert payload["application"] == {"applicationId": "fixture-app", "runId": "run-1"}
+    assert payload["application"] == {
+        "applicationId": "fixture-app",
+        "runId": "run-1",
+        "workspacePath": str(tmp_path),
+    }
     assert payload["core"] == {
         "decisionToolName": "agent_record_decision",
         "contextToolName": "agent_context_get",
@@ -186,9 +191,15 @@ def test_runtime_descriptor_separates_binding_workspace_from_application_channel
 
     payload = descriptor.as_json()
 
-    assert payload["domains"][0]["workspacePath"] == str(domain_root)
-    assert payload["domains"][0]["toolCatalogPath"] == str(catalog)
-    assert payload["core"]["analysisContextViewPath"] == str(context_path)
+    application_payload = cast(dict[str, object], payload["application"])
+    core_payload = cast(dict[str, object], payload["core"])
+    domain_payload = cast(
+        dict[str, object], cast(list[object], payload["domains"])[0]
+    )
+    assert application_payload["workspacePath"] == str(application_root)
+    assert domain_payload["workspacePath"] == str(domain_root)
+    assert domain_payload["toolCatalogPath"] == str(catalog)
+    assert core_payload["analysisContextViewPath"] == str(context_path)
 
 
 def test_descriptor_endpoint_rejects_explicit_empty_optional_tool_name(

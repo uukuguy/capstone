@@ -301,6 +301,7 @@ class RuntimeDescriptor:
             "application": {
                 "applicationId": self.application_id,
                 "runId": self.run_id,
+                "workspacePath": str(self.application_workspace_path),
                 **(
                     {"piRuntime": dict(self.pi_runtime)}
                     if self.pi_runtime is not None

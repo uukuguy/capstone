@@ -182,6 +182,72 @@ test("runtime v1 confines every optional core path to the binding workspace", ()
   }
 });
 
+test("runtime v1 separates application core paths from the domain workspace", () => {
+  const split = {
+    ...runtimeV1,
+    application: {
+      ...runtimeV1.application,
+      workspacePath: "/tmp/run",
+    },
+    core: {
+      ...runtimeV1.core,
+      analysisContextViewPath: "/tmp/run/core/context.json",
+    },
+  };
+
+  assert.doesNotThrow(() => validateRuntimeDescriptor(split));
+  assert.throws(
+    () =>
+      validateRuntimeDescriptor({
+        ...split,
+        core: {
+          ...split.core,
+          analysisContextViewPath: "/tmp/outside/context.json",
+        },
+      }),
+    /analysisContextViewPath.*outside.*workspacePath/,
+  );
+  assert.throws(
+    () =>
+      validateRuntimeDescriptor({
+        ...split,
+        domains: [
+          {
+            ...split.domains[0],
+            toolCatalogPath: "/tmp/run/core/tool-catalog.json",
+          },
+        ],
+      }),
+    /toolCatalogPath.*outside.*workspacePath/,
+  );
+});
+
+test("generic extension accepts a split application and domain workspace", async () => {
+  const fixture = await runtimeV1Fixture();
+  const applicationWorkspace = join(fixture.root, "run");
+  const corePath = join(applicationWorkspace, "core", "context.json");
+  await mkdir(dirname(corePath), { recursive: true });
+  await writeFile(corePath, "{}", "utf8");
+  const descriptor = {
+    ...fixture.descriptor,
+    application: {
+      ...fixture.descriptor.application,
+      workspacePath: applicationWorkspace,
+    },
+    core: {
+      ...fixture.descriptor.core,
+      analysisContextViewPath: corePath,
+    },
+  };
+  const registered = [];
+
+  createDomainToolsExtension(descriptor)({
+    registerTool: (tool) => registered.push(tool.name),
+  });
+
+  assert.deepEqual(registered, ["inventory_guide_open", "agent_context_get"]);
+});
+
 test("routes a capability only through the controller-selected binding", async () => {
   const payloads = [];
   const tool = createCapabilityTool(

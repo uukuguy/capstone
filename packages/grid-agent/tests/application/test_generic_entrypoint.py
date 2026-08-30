@@ -200,12 +200,10 @@ def test_generic_composition_injects_product_owned_runtime_host(
         def resolve(self) -> Path:
             return tmp_path / "trusted-extension.mjs"
 
-    monkeypatch.setattr(composition_module, "PiRuntimeLock", FakeLock, raising=False)
     monkeypatch.setattr(
-        composition_module, "PiRuntimeLocator", FakeRuntimeLocator, raising=False
-    )
-    monkeypatch.setattr(
-        composition_module, "PiExtensionLocator", FakeExtensionLocator, raising=False
+        composition_module,
+        "_runtime_host_dependencies",
+        lambda: (FakeExtensionLocator, FakeLock, FakeRuntimeLocator),
     )
 
     application = build_generic_application(

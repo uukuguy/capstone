@@ -41,7 +41,7 @@ const LEGACY_DESCRIPTOR_KEYS = new Set([
   "piRuntime",
 ]);
 const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
-const APPLICATION_KEYS = new Set(["applicationId", "runId", "piRuntime"]);
+const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "piRuntime"]);
 const CORE_KEYS = new Set([
   "decisionToolName",
   "contextToolName",
@@ -282,6 +282,12 @@ function validateRuntimeV1(value, options = {}) {
   if (value.application.piRuntime !== undefined) {
     application.piRuntime = cloneRuntime(value.application.piRuntime);
   }
+  if (value.application.workspacePath !== undefined) {
+    application.workspacePath = requireAbsolutePath(
+      value.application.workspacePath,
+      "application workspacePath",
+    );
+  }
 
   requireExactKeys(value.core, CORE_KEYS, "runtime descriptor core", {
     required: ["decisionToolName", "contextToolName"],
@@ -325,6 +331,7 @@ function validateRuntimeV1(value, options = {}) {
     throw new TypeError("runtime descriptor requires exactly one domain binding");
   }
   const domain = validateRuntimeDomain(value.domains[0], options);
+  const applicationWorkspacePath = application.workspacePath ?? domain.workspacePath;
   const routingToolNames = [
     core.decisionToolName,
     core.contextToolName,
@@ -339,7 +346,7 @@ function validateRuntimeV1(value, options = {}) {
     }
     for (const [key, candidate] of Object.entries(core)) {
       if (key.endsWith("Path")) {
-        requireInside(candidate, domain.workspacePath, key);
+        requireInside(candidate, applicationWorkspacePath, key, "application");
       }
     }
   }
@@ -915,7 +922,7 @@ function validateGuideIndex(value, descriptor, expectedRoot) {
   if (
     typeof value.root !== "string" ||
     !isAbsolute(value.root) ||
-    resolve(value.root) !== expectedRoot
+    !sameRealPath(value.root, expectedRoot)
   ) {
     throw new Error("guide index root does not match the runtime descriptor");
   }
@@ -925,18 +932,24 @@ function validateGuideIndex(value, descriptor, expectedRoot) {
   const resources = {};
   for (const [resourceId, resourcePath] of Object.entries(value.resources)) {
     const candidate = typeof resourcePath === "string" ? resolve(resourcePath) : "";
+    const resourceRoot = resolve(value.root);
+    const relativeResource = candidate === "" ? "" : relative(resourceRoot, candidate);
+    const realCandidate =
+      relativeResource === "" || relativeResource.startsWith("..") || isAbsolute(relativeResource)
+        ? ""
+        : resolve(expectedRoot, relativeResource);
     if (
       !RESOURCE_ID_PATTERN.test(resourceId) ||
       ENCODED_SEPARATOR_PATTERN.test(resourceId) ||
       typeof resourcePath !== "string" ||
       !isAbsolute(resourcePath) ||
       candidate !== resourcePath ||
-      candidate === expectedRoot ||
-      !isInside(candidate, expectedRoot)
+      realCandidate === expectedRoot ||
+      !isInside(realCandidate, expectedRoot)
     ) {
       throw new Error("guide index resource mapping is invalid");
     }
-    resources[resourceId] = resourcePath;
+    resources[resourceId] = realCandidate;
   }
   return Object.freeze({
     protocol: value.protocol,
@@ -1179,15 +1192,19 @@ function createRecordDecisionTool(toolName, allowedRefsPath, activeTurnPath) {
 function runtimePaths(descriptor) {
   const legacy = LEGACY_SELECTED_BINDING_RUNTIMES.has(descriptor);
   const workspacePath = requiredExistingRealPath(descriptor.workspacePath, "workspacePath");
+  const applicationWorkspacePath = requiredExistingRealPath(
+    descriptor.applicationWorkspacePath ?? workspacePath,
+    "applicationWorkspacePath",
+  );
   const toolCatalogPath = requiredExistingRealPath(descriptor.toolCatalogPath, "toolCatalogPath");
-  const guideWorkspacePath = legacy ? resolve(descriptor.workspacePath) : workspacePath;
+  const guideWorkspacePath = workspacePath;
   const guideIndexPath = legacy
-    ? resolve(descriptor.guideIndexPath)
+    ? requiredExistingRealPath(descriptor.guideIndexPath, "guideIndexPath")
     : requiredExistingRealPath(descriptor.guideIndexPath, "guideIndexPath");
   const guideRootPath = descriptor.guideRootPath === undefined
     ? undefined
     : legacy
-      ? resolve(descriptor.guideRootPath)
+      ? requiredExistingRealPath(descriptor.guideRootPath, "guideRootPath")
       : requiredExistingRealPath(descriptor.guideRootPath, "guideRootPath");
   const activeTurnPath = optionalWritableRealPath(descriptor.activeTurnPath, "activeTurnPath");
   const analysisContextViewPath = optionalExistingRealPath(
@@ -1220,8 +1237,19 @@ function runtimePaths(descriptor) {
   if (trajectoryConfigured && activeTurnPath === undefined) {
     throw new Error("trajectory capture requires activeTurnPath");
   }
-  const corePathBindings = [
+  const domainPathBindings = [
     ["toolCatalogPath", toolCatalogPath],
+    ["guideIndexPath", guideIndexPath],
+  ];
+  if (!legacy) {
+    domainPathBindings.push(["guideRootPath", guideRootPath]);
+  }
+  for (const [name, candidate] of domainPathBindings) {
+    if (candidate !== undefined && !isInside(candidate, workspacePath)) {
+      throw new Error(`${name} resolved path ${candidate} is outside workspacePath`);
+    }
+  }
+  const corePathBindings = [
     ["activeTurnPath", activeTurnPath],
     ["analysisContextViewPath", analysisContextViewPath],
     ["trajectoryRequestsPath", trajectoryRequestsPath],
@@ -1229,14 +1257,13 @@ function runtimePaths(descriptor) {
     ["trajectoryAllowedRefsPath", trajectoryAllowedRefsPath],
   ];
   if (!legacy) {
-    corePathBindings.push(
-      ["trajectoryAcksPath", trajectoryAcksPath],
-      ["guideRootPath", guideRootPath],
-    );
+    corePathBindings.push(["trajectoryAcksPath", trajectoryAcksPath]);
   }
   for (const [name, candidate] of corePathBindings) {
-    if (candidate !== undefined && !isInside(candidate, workspacePath)) {
-      throw new Error(`${name} resolved path ${candidate} is outside workspacePath`);
+    if (candidate !== undefined && !isInside(candidate, applicationWorkspacePath)) {
+      throw new Error(
+        `${name} resolved path ${candidate} is outside application workspacePath`,
+      );
     }
   }
   if (!isInside(guideIndexPath, guideWorkspacePath)) {
@@ -1244,6 +1271,7 @@ function runtimePaths(descriptor) {
   }
   return {
     workspacePath,
+    applicationWorkspacePath,
     toolCatalogPath,
     guideIndexPath,
     guideWorkspacePath,
@@ -1292,6 +1320,7 @@ function selectedBindingRuntime(value) {
   const domain = runtime.domains[0];
   const selected = Object.freeze({
     ...domain,
+    applicationWorkspacePath: runtime.application.workspacePath ?? domain.workspacePath,
     toolNamePrefix: toolPrefixFromGuideName(domain.guideToolName),
     contextToolName: runtime.core.contextToolName,
     decisionToolName: runtime.core.decisionToolName,
@@ -1342,11 +1371,19 @@ function toolPrefixFromGuideName(value) {
   return requirePattern(prefix, "domain toolNamePrefix", TOOL_PREFIX_PATTERN);
 }
 
-function requireInside(candidate, root, name) {
+function requireInside(candidate, root, name, scope = "domain") {
   if (!isInside(candidate, root)) {
-    throw new TypeError(`runtime descriptor domain ${name} is outside workspacePath`);
+    throw new TypeError(`runtime descriptor ${scope} ${name} is outside workspacePath`);
   }
   return candidate;
+}
+
+function sameRealPath(candidate, expected) {
+  try {
+    return realpathSync(candidate) === realpathSync(expected);
+  } catch {
+    return false;
+  }
 }
 
 function compactObject(value) {
