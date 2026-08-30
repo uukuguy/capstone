@@ -160,7 +160,7 @@ def test_projection_pages_carry_application_and_binding_identity(tmp_path: Path)
         domain_id="inventory-readonly",
         domain_version="1.0.0",
         authority_id="inventory-api",
-        schema="inventory-output/1.0",
+        schema_id="inventory-output/1.0",
         presentation={"business_title": "Inventory review"},
     )
     application = ApplicationProjectionMetadata(
@@ -204,13 +204,59 @@ def test_projection_pages_carry_application_and_binding_identity(tmp_path: Path)
     assert evidence.json()["items"][0]["authority_id"] == "inventory-api"
 
 
+def test_empty_business_page_keeps_projected_application_bindings_and_identity(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    primary = BindingProjectionMetadata(
+        binding_id="grid-static",
+        domain_id="pandapower",
+        domain_version="3.4.0",
+        authority_id="grid-simulator",
+        schema_id="grid-capability/1.0",
+    )
+    secondary = BindingProjectionMetadata(
+        binding_id="asset-register",
+        domain_id="asset-registry",
+        domain_version="1.2.0",
+        authority_id="asset-api",
+        schema_id="asset-capability/1.0",
+    )
+    application = ApplicationProjectionMetadata(
+        application_id="multi-domain-review",
+        application_version="1.0.1",
+        bindings={"grid-static": primary, "asset-register": secondary},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "application": application,
+            "business": catalog.projected.business.model_copy(
+                update={"problems": (), "application": application, "binding": primary}
+            ),
+        }
+    )
+
+    response = TestClient(app).get("/api/runs/analysis-test/business")
+
+    assert response.status_code == 200
+    page = response.json()
+    assert page["items"] == []
+    assert page["application_id"] == "multi-domain-review"
+    assert page["application_version"] == "1.0.1"
+    assert [binding["binding_id"] for binding in page["bindings"]] == [
+        "grid-static", "asset-register"
+    ]
+    assert page["binding_id"] == "grid-static"
+    assert page["domain_id"] == "pandapower"
+    assert page["authority_id"] == "grid-simulator"
+    assert page["schema"] == "grid-capability/1.0"
+
+
 def test_business_page_keeps_unknown_domain_payload_opaque(tmp_path: Path) -> None:
     app, catalog, _ = create_test_app(tmp_path)
     payload = DomainPayloadView(
         binding_id="inventory",
         domain_id="inventory-readonly",
         authority_id="inventory-api",
-        schema="inventory-output/1.0",
+        schema_id="inventory-output/1.0",
         payload={"items": [{"sku": "A-1", "available": 4}]},
     )
     catalog.projected = catalog.projected.model_copy(

@@ -248,7 +248,7 @@ def project_domain_payload(
         binding_id=binding_id,
         domain_id=domain_id,
         authority_id=authority_id,
-        schema=schema,
+        schema_id=schema,
         payload=dict(payload),
         presentation={} if presentation is None else dict(presentation),
     )
@@ -264,7 +264,7 @@ def business_causal_rows(trajectory: BusinessTrajectory) -> tuple[BusinessCausal
             "binding_id": binding.binding_id,
             "domain_id": binding.domain_id,
             "authority_id": binding.authority_id,
-            "schema": binding.schema,
+            "schema": binding.schema_id,
         }
         if binding is not None
         else {}
@@ -349,7 +349,7 @@ def business_causal_rows(trajectory: BusinessTrajectory) -> tuple[BusinessCausal
             "binding_id": payload.binding_id,
             "domain_id": payload.domain_id,
             "authority_id": payload.authority_id,
-            "schema": payload.schema,
+            "schema": payload.schema_id,
         }
         payload_nodes = tuple(
             node.model_copy(update=payload_binding_fields)
@@ -378,7 +378,7 @@ def business_causal_rows(trajectory: BusinessTrajectory) -> tuple[BusinessCausal
                         "binding_id": payload.binding_id,
                         "domain_id": payload.domain_id,
                         "authority_id": payload.authority_id,
-                        "schema": payload.schema,
+                        "schema": payload.schema_id,
                     }
                 ),
                 **application_fields,

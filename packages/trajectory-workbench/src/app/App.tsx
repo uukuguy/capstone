@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { TrajectoryApiClient } from '../api/client';
 import type {
-  AgentEventRow, AgentPageRequest, AgentTurn, BusinessCausalRow, ContextFrame,
-  ContextFrameSummary, ContextPageRequest, EvidenceIndex,
+  AgentEventRow, AgentPageRequest, AgentTurn, BindingMetadata, BusinessCausalRow, ContextFrame,
+  ContextFrameSummary, ContextPageRequest, CoreTimelineItem, DomainPayloadView, EvidenceIndex,
   EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunSummary,
 } from '../api/types';
 import { prependBusinessRows, problemsFromBusinessRows } from '../api/business';
@@ -38,6 +38,28 @@ type AppClient = Pick<TrajectoryApiClient, 'listRuns' | 'getBusinessPage'> & {
   ) => Promise<ProjectionPage<EvidenceRecord>>;
 } & Partial<Pick<TrajectoryApiClient, 'getContextFrame' | 'getExecutionSlice' | 'getEvidenceIndex' | 'artifactUrl'>>;
 
+interface BusinessProjectionMetadata {
+  applicationId: string | null;
+  applicationVersion: string | null;
+  bindings: BindingMetadata[];
+  coreTimeline: CoreTimelineItem[];
+  domainPayload: DomainPayloadView | null;
+}
+
+function emptyBusinessProjectionMetadata(): BusinessProjectionMetadata {
+  return {
+    applicationId: null,
+    applicationVersion: null,
+    bindings: [],
+    coreTimeline: [],
+    domainPayload: null,
+  };
+}
+
+function pageDomainPayload(page: ProjectionPage<BusinessCausalRow>): DomainPayloadView | null {
+  return page.domain_payload ?? page.items.find((item) => item.domain_payload)?.domain_payload ?? null;
+}
+
 export function App({ client = api }: { client?: AppClient }) {
   const [state, dispatch] = useReducer(workbenchReducer, initialWorkbenchState);
   const [themePreference, setThemePreference] = useState<ResolvedTheme | null>(readThemePreference);
@@ -49,6 +71,8 @@ export function App({ client = api }: { client?: AppClient }) {
   const [pageAttempts, setPageAttempts] = useState<Record<WorkbenchView, number>>({ business: 0, agent: 0, context: 0, evidence: 0 });
   const [pageErrors, setPageErrors] = useState<Partial<Record<WorkbenchView, unknown>>>({});
   const [businessRows, setBusinessRows] = useState<BusinessCausalRow[]>([]);
+  const [businessMetadata, setBusinessMetadata] = useState<BusinessProjectionMetadata>(emptyBusinessProjectionMetadata);
+  const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null);
   const problems = useMemo(() => problemsFromBusinessRows(businessRows), [businessRows]);
   const [agentPageState, setAgentPageState] = useState<OperationalPageState<AgentEventRow | AgentTurn>>({
     items: [], page: null, olderState: 'idle', olderError: null, failedCursor: null, requestKey: '',
@@ -192,6 +216,8 @@ export function App({ client = api }: { client?: AppClient }) {
     olderRequestRef.current = null;
     loadingOlder.current = false;
     setBusinessRows([]);
+    setBusinessMetadata(emptyBusinessProjectionMetadata());
+    setSelectedBindingId(null);
     setPageErrors((errors) => ({ ...errors, business: null }));
     dispatch({ type: 'page/requested', view: 'business' });
     void client.getBusinessPage(requestedRunId, undefined, controller.signal).then((page) => {
@@ -205,6 +231,18 @@ export function App({ client = api }: { client?: AppClient }) {
       setOlderError(null);
       businessPageRef.current = page;
       setBusinessPage(page);
+      setBusinessMetadata((current) => ({
+        applicationId: page.application_id ?? current.applicationId,
+        applicationVersion: page.application_version ?? current.applicationVersion,
+        bindings: page.bindings ?? current.bindings,
+        coreTimeline: page.core_timeline ?? current.coreTimeline,
+        domainPayload: pageDomainPayload(page) ?? current.domainPayload,
+      }));
+      if (page.bindings && page.bindings.length > 0) {
+        setSelectedBindingId((current) => current && page.bindings!.some((binding) => binding.binding_id === current)
+          ? current
+          : page.bindings![0].binding_id);
+      }
       dispatch({ type: 'page/loaded', view: 'business', page: pageMetadata(page) });
     }).catch((error: unknown) => {
       if (controller.signal.aborted || selectedRunIdRef.current !== requestedRunId) return;
@@ -214,6 +252,8 @@ export function App({ client = api }: { client?: AppClient }) {
       setOlderError(null);
       businessPageRef.current = { older_cursor: null, has_older: false };
       setBusinessPage({ older_cursor: null, has_older: false });
+      setBusinessMetadata(emptyBusinessProjectionMetadata());
+      setSelectedBindingId(null);
       setPageErrors((errors) => ({ ...errors, business: error }));
       dispatch({ type: 'page/failed', view: 'business', message: pageErrorMessage(error, 'Unable to load business trajectory.') });
     });
@@ -273,6 +313,9 @@ export function App({ client = api }: { client?: AppClient }) {
   }) : null;
   const hasAuditSelection = Boolean(auditSelection);
   const auditArtifactKey = auditSelection?.artifactRefs.join('\0') ?? '';
+  const selectedDomainBinding = businessMetadata.bindings.find((binding) => binding.binding_id === selectedBindingId)
+    ?? businessMetadata.bindings[0]
+    ?? null;
 
   useEffect(() => {
     if (!state.selectedRunId || !client.getEvidencePage || auditArtifactKey.length === 0) {
@@ -665,6 +708,18 @@ export function App({ client = api }: { client?: AppClient }) {
       setOlderError(null);
       businessPageRef.current = page;
       setBusinessPage(page);
+      setBusinessMetadata((current) => ({
+        applicationId: page.application_id ?? current.applicationId,
+        applicationVersion: page.application_version ?? current.applicationVersion,
+        bindings: page.bindings ?? current.bindings,
+        coreTimeline: page.core_timeline ?? current.coreTimeline,
+        domainPayload: pageDomainPayload(page) ?? current.domainPayload,
+      }));
+      if (page.bindings && page.bindings.length > 0) {
+        setSelectedBindingId((current) => current && page.bindings!.some((binding) => binding.binding_id === current)
+          ? current
+          : page.bindings![0].binding_id);
+      }
       dispatch({ type: 'page/prepended', view: 'business', page: pageMetadata(page) });
     }).catch((error: unknown) => {
       if (
@@ -736,6 +791,11 @@ export function App({ client = api }: { client?: AppClient }) {
       state={state}
       dispatch={dispatch}
       hasOlder={businessPage.has_older}
+      coreTimeline={businessMetadata.coreTimeline}
+      bindings={businessMetadata.bindings}
+      selectedBindingId={selectedBindingId}
+      onBindingChange={setSelectedBindingId}
+      domainPayload={businessMetadata.domainPayload}
       onRequestOlder={requestOlder}
       olderState={olderState}
       olderError={olderError}
@@ -778,6 +838,8 @@ export function App({ client = api }: { client?: AppClient }) {
             if (contextPageState.failedCursor) loadOlderOperational('context', contextPageState.failedCursor);
           }}
           selectedSequence={contextSequence}
+          coreTimeline={businessMetadata.coreTimeline}
+          binding={selectedDomainBinding}
           frame={contextFrame}
           detailState={contextDetailState}
           detailError={contextDetailError}

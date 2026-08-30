@@ -3,22 +3,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal
-import warnings
+from typing import Any, Literal, NoReturn
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 
 from capability_agent.trajectory.events import StrictFrozenModel
 
 
-# ``schema`` is part of the public projection contract, but Pydantic also
-# exposes a ``schema`` helper on BaseModel.  Silence only that known naming
-# warning; do not hide validation warnings from other projection fields.
-warnings.filterwarnings(
-    "ignore",
-    message=r'Field name "schema" in .* shadows an attribute in parent',
-    category=UserWarning,
-)
+class _ProjectionModel(StrictFrozenModel):
+    """Projection base with explicit aliases for the public ``schema`` key.
+
+    Pydantic's ``BaseModel.schema`` helper is a method, so a field with that
+    Python name shadows the method and produces an invalid type surface.  The
+    internal name stays ``schema_id`` while both legacy input and public JSON
+    continue to use ``schema``.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        serialize_by_alias=True,
+    )
 
 
 class _FrozenDict(dict[str, Any]):
@@ -43,7 +47,7 @@ class _FrozenDict(dict[str, Any]):
 class _FrozenList(list[Any]):
     """A JSON-compatible list that keeps ordinary list equality semantics."""
 
-    def _immutable(self, *args: object, **kwargs: object) -> None:
+    def _immutable(self, *args: object, **kwargs: object) -> NoReturn:
         raise TypeError("sequence is immutable")
 
     __setitem__ = _immutable
@@ -57,7 +61,7 @@ class _FrozenList(list[Any]):
     pop = _immutable
     remove = _immutable
     reverse = _immutable
-    sort = _immutable
+    sort = _immutable  # type: ignore[reportAssignmentType]
 
 
 def _deep_freeze(value: Any) -> Any:
@@ -80,7 +84,7 @@ def _deep_freeze_json(value: Any) -> Any:
     return value
 
 
-class BindingProjectionMetadata(StrictFrozenModel):
+class BindingProjectionMetadata(_ProjectionModel):
     """Controller-recorded identity for one application-local domain binding.
 
     Projection code treats these values as labels only.  They are copied from
@@ -93,7 +97,11 @@ class BindingProjectionMetadata(StrictFrozenModel):
     domain_id: str = Field(min_length=1)
     domain_version: str = Field(min_length=1)
     authority_id: str = Field(min_length=1)
-    schema: str = Field(min_length=1)
+    schema_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+    )
     presentation: Mapping[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -102,7 +110,7 @@ class BindingProjectionMetadata(StrictFrozenModel):
         return self
 
 
-class ApplicationProjectionMetadata(StrictFrozenModel):
+class ApplicationProjectionMetadata(_ProjectionModel):
     """Application and binding identity persisted with a generic run."""
 
     application_id: str = Field(min_length=1)
@@ -117,13 +125,17 @@ class ApplicationProjectionMetadata(StrictFrozenModel):
         return self
 
 
-class DomainPayloadView(StrictFrozenModel):
+class DomainPayloadView(_ProjectionModel):
     """Opaque, already-validated domain output exposed for inspection only."""
 
     binding_id: str = Field(min_length=1)
     domain_id: str = Field(min_length=1)
     authority_id: str = Field(min_length=1)
-    schema: str = Field(min_length=1)
+    schema_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+    )
     payload: Mapping[str, Any] = Field(default_factory=dict)
     interpretation: Literal["opaque"] = "opaque"
     presentation: Mapping[str, Any] = Field(default_factory=dict)
@@ -141,7 +153,7 @@ LifecycleStatus = Literal[
 ]
 
 
-class ProjectionNode(StrictFrozenModel):
+class ProjectionNode(_ProjectionModel):
     """The provenance fields shared by every projected node."""
 
     id: str = Field(min_length=1)
@@ -156,7 +168,13 @@ class ProjectionNode(StrictFrozenModel):
     binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
-    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema_id: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def require_source_sequences(self) -> "ProjectionNode":
@@ -230,7 +248,7 @@ class AgentTurn(ProjectionNode):
     steps: tuple[AgentStep, ...] = ()
 
 
-class AgentTrajectory(StrictFrozenModel):
+class AgentTrajectory(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     turns: tuple[AgentTurn, ...] = ()
     binding: BindingProjectionMetadata | None = Field(
@@ -238,7 +256,7 @@ class AgentTrajectory(StrictFrozenModel):
     )
 
 
-class AgentEventRow(StrictFrozenModel):
+class AgentEventRow(_ProjectionModel):
     """One bounded public row from the nested agent trajectory."""
 
     id: str = Field(min_length=1)
@@ -258,7 +276,13 @@ class AgentEventRow(StrictFrozenModel):
     binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
-    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema_id: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def require_exact_tool_lifecycle_relation(self) -> "AgentEventRow":
@@ -276,7 +300,7 @@ class AgentEventRow(StrictFrozenModel):
         return self
 
 
-class ExecutionLineage(StrictFrozenModel):
+class ExecutionLineage(_ProjectionModel):
     """Exact bounded identities that justify an execution slice."""
 
     business_node_ids: tuple[str, ...] = ()
@@ -289,7 +313,7 @@ class ExecutionLineage(StrictFrozenModel):
     result_ids: tuple[str, ...] = ()
 
 
-class ExecutionSlice(StrictFrozenModel):
+class ExecutionSlice(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     source_sequence: int = Field(ge=1)
     turn: AgentTurn | None = None
@@ -339,7 +363,7 @@ class BusinessProblem(ProjectionNode):
     nodes: tuple[BusinessNode, ...] = ()
 
 
-class BusinessProblemSummary(StrictFrozenModel):
+class BusinessProblemSummary(_ProjectionModel):
     """Bounded metadata repeated on causal rows for stable page reconstruction."""
 
     id: str = Field(min_length=1)
@@ -364,7 +388,7 @@ class BusinessProblemSummary(StrictFrozenModel):
         return self
 
 
-class BusinessCausalRow(StrictFrozenModel):
+class BusinessCausalRow(_ProjectionModel):
     """One cursor-addressable source sequence within a business problem."""
 
     id: str = Field(min_length=1)
@@ -374,7 +398,13 @@ class BusinessCausalRow(StrictFrozenModel):
     binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
-    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema_id: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+        exclude_if=lambda value: value is None,
+    )
     domain_payload: DomainPayloadView | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -395,7 +425,7 @@ class BusinessCausalRow(StrictFrozenModel):
         return self
 
 
-class BusinessTrajectory(StrictFrozenModel):
+class BusinessTrajectory(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     problems: tuple[BusinessProblem, ...] = ()
     application: ApplicationProjectionMetadata | None = Field(
@@ -440,7 +470,7 @@ class ContextFrame(ProjectionNode):
         return self
 
 
-class ContextCheckpoint(StrictFrozenModel):
+class ContextCheckpoint(_ProjectionModel):
     source_sequence: int = Field(ge=1)
     context_revision: int = Field(ge=0)
     state_hash: str = Field(min_length=1)
@@ -452,7 +482,7 @@ class ContextCheckpoint(StrictFrozenModel):
         return self
 
 
-class ContextTimeline(StrictFrozenModel):
+class ContextTimeline(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     frames: tuple[ContextFrame, ...] = ()
     checkpoints: tuple[ContextCheckpoint, ...] = ()
@@ -467,7 +497,7 @@ class ContextTimeline(StrictFrozenModel):
         raise KeyError(f"no context frame for sequence {sequence}")
 
 
-class ContextFrameSummary(StrictFrozenModel):
+class ContextFrameSummary(_ProjectionModel):
     """Public context metadata that never embeds recorded state documents."""
 
     id: str = Field(min_length=1)
@@ -481,7 +511,13 @@ class ContextFrameSummary(StrictFrozenModel):
     binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
     authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
-    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema_id: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias=AliasChoices("schema", "schema_id"),
+        serialization_alias="schema",
+        exclude_if=lambda value: value is None,
+    )
 
     @model_validator(mode="after")
     def require_request_input_availability_reason(self) -> "ContextFrameSummary":
@@ -511,7 +547,7 @@ class ArtifactIndexRecord(ProjectionNode):
     claim_id: str | None = None
 
 
-class ArtifactIndex(StrictFrozenModel):
+class ArtifactIndex(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     records: Mapping[str, ArtifactIndexRecord] = Field(default_factory=dict)
     binding: BindingProjectionMetadata | None = Field(
@@ -532,7 +568,7 @@ class ProjectionDiagnostic(ProjectionNode):
     message: str = Field(min_length=1)
 
 
-class ProjectedRun(StrictFrozenModel):
+class ProjectedRun(_ProjectionModel):
     analysis_id: str = Field(min_length=1)
     source_fingerprint: str = Field(min_length=1)
     application: ApplicationProjectionMetadata | None = Field(

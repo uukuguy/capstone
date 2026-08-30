@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import PurePosixPath
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from fastapi.exceptions import RequestValidationError
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -91,7 +91,17 @@ _UNREGISTERED_REQUEST_INPUT_REASON = (
 _UNVERIFIED_REQUEST_INPUT_REASON = "model request input artifact is not verified"
 
 
-class ProjectionPageResponse(StrictFrozenModel):
+class _ProjectionApiModel(StrictFrozenModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        strict=True,
+        populate_by_name=True,
+        serialize_by_alias=True,
+    )
+
+
+class ProjectionPageResponse(_ProjectionApiModel):
     """The stable, byte- and record-bounded projection page envelope."""
 
     analysis_id: str = Field(min_length=1)
@@ -123,8 +133,12 @@ class ProjectionPageResponse(StrictFrozenModel):
     authority_id: str | None = Field(
         default=None, min_length=1, exclude_if=lambda value: value is None
     )
-    schema: str | None = Field(
-        default=None, min_length=1, exclude_if=lambda value: value is None
+    schema_id: str | None = Field(
+        default=None,
+        min_length=1,
+        validation_alias="schema",
+        serialization_alias="schema",
+        exclude_if=lambda value: value is None,
     )
 
     @model_validator(mode="after")
@@ -146,9 +160,10 @@ class ProjectionPageResponse(StrictFrozenModel):
             if getattr(self, field) is None and isinstance(first.get(field), str)
         }
         updates.update({
-            field: first.get(field)
-            for field in ("binding_id", "domain_id", "authority_id", "schema")
-            if getattr(self, field) is None and isinstance(first.get(field), str)
+            field: first.get("schema" if field == "schema_id" else field)
+            for field in ("binding_id", "domain_id", "authority_id", "schema_id")
+            if getattr(self, field) is None
+            and isinstance(first.get("schema" if field == "schema_id" else field), str)
         })
         if updates:
             for field, value in updates.items():
@@ -300,7 +315,17 @@ def projection_page(
     )
 
 
-def _page_identity(projected: ProjectedRun) -> dict[str, object]:
+class _PageIdentity(TypedDict):
+    application_id: str | None
+    application_version: str | None
+    bindings: tuple[BindingProjectionMetadata, ...]
+    binding_id: str | None
+    domain_id: str | None
+    authority_id: str | None
+    schema_id: str | None
+
+
+def _page_identity(projected: ProjectedRun) -> _PageIdentity:
     application: ApplicationProjectionMetadata | None = projected.application
     binding = projected.binding_metadata()
     return {
@@ -310,7 +335,7 @@ def _page_identity(projected: ProjectedRun) -> dict[str, object]:
         "binding_id": binding.binding_id if binding else None,
         "domain_id": binding.domain_id if binding else None,
         "authority_id": binding.authority_id if binding else None,
-        "schema": binding.schema if binding else None,
+        "schema_id": binding.schema_id if binding else None,
     }
 
 
@@ -441,7 +466,7 @@ def _with_binding(
             "binding_id": binding.binding_id,
             "domain_id": binding.domain_id,
             "authority_id": binding.authority_id,
-            "schema": binding.schema,
+            "schema": binding.schema_id,
         }
     )
 
@@ -792,7 +817,7 @@ def _flat_binding(
         "binding_id": binding.binding_id,
         "domain_id": binding.domain_id,
         "authority_id": binding.authority_id,
-        "schema": binding.schema,
+        "schema": binding.schema_id,
     }
 
 

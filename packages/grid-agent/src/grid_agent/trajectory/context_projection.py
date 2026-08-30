@@ -205,7 +205,7 @@ def project_context_payload(
         binding_id=binding_id,
         domain_id=domain_id,
         authority_id=authority_id,
-        schema=schema,
+        schema_id=schema,
         payload=dict(payload),
         presentation={} if presentation is None else dict(presentation),
     )

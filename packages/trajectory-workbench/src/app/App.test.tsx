@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type TrajectoryApiClient } from '../api/client';
-import type { AgentEventRow, AgentPageRequest, AgentTurn, BusinessCausalRow, BusinessNode, BusinessProblem, ContextFrame, ContextFrameSummary, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunListResponse } from '../api/types';
+import type { AgentEventRow, AgentPageRequest, AgentTurn, BindingMetadata, BusinessCausalRow, BusinessNode, BusinessProblem, ContextFrame, ContextFrameSummary, CoreTimelineItem, DomainPayloadView, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunListResponse } from '../api/types';
 import { App } from './App';
 
 const run: RunListResponse = {
@@ -60,6 +60,11 @@ function businessProjectionPage(
     hasOlder?: boolean;
     firstSequence?: number | null;
     lastSequence?: number | null;
+    applicationId?: string;
+    applicationVersion?: string;
+    bindings?: BindingMetadata[];
+    coreTimeline?: CoreTimelineItem[];
+    domainPayload?: DomainPayloadView;
   } = {},
 ): ProjectionPage<BusinessCausalRow> {
   const items = groupedProblems.flatMap((problem) => problem.nodes.map((node) => ({
@@ -88,6 +93,11 @@ function businessProjectionPage(
     last_sequence: options.lastSequence ?? items.at(-1)?.source_sequence ?? null,
     has_older: options.hasOlder ?? false,
     encoded_bytes: 100,
+    ...(options.applicationId ? { application_id: options.applicationId } : {}),
+    ...(options.applicationVersion ? { application_version: options.applicationVersion } : {}),
+    ...(options.bindings ? { bindings: options.bindings } : {}),
+    ...(options.coreTimeline ? { core_timeline: options.coreTimeline } : {}),
+    ...(options.domainPayload ? { domain_payload: options.domainPayload } : {}),
   };
 }
 
@@ -258,6 +268,43 @@ describe('App shell', () => {
     }} />);
 
     expect(await screen.findByTestId('state-unsupported')).toHaveTextContent('Business projection requires a newer workbench.');
+  });
+
+  it('loads an empty business page with multiple bindings and keeps the selected binding controllable', async () => {
+    const bindings: BindingMetadata[] = [
+      {
+        binding_id: 'grid-static', domain_id: 'pandapower', domain_version: '3.4.0',
+        authority_id: 'grid-simulator', schema: 'grid-capability/1.0',
+        presentation: { business_title: 'Grid static analysis' },
+      },
+      {
+        binding_id: 'asset-register', domain_id: 'asset-registry', domain_version: '1.2.0',
+        authority_id: 'asset-api', schema: 'asset-capability/1.0',
+        presentation: { business_title: 'Asset register' },
+      },
+    ];
+    const domainPayload: DomainPayloadView = {
+      binding_id: 'grid-static', domain_id: 'pandapower', authority_id: 'grid-simulator',
+      schema: 'grid-capability/1.0', interpretation: 'opaque', payload: { status: 'no-results' },
+    };
+    render(<App client={{
+      listRuns: async () => run,
+      getBusinessPage: async () => businessProjectionPage([], {
+        applicationId: 'trajectory-workbench', applicationVersion: '1.0.1', bindings,
+        coreTimeline: [{ id: 'run-complete', label: 'Run complete', status: 'completed' }], domainPayload,
+      }),
+    }} />);
+
+    expect(await screen.findByRole('region', { name: 'Kernel core timeline' })).toHaveTextContent('Run complete');
+    const selector = screen.getByLabelText('Domain binding');
+    expect(selector).toHaveValue('grid-static');
+    expect(screen.getByText('pandapower')).toBeVisible();
+
+    fireEvent.change(selector, { target: { value: 'asset-register' } });
+
+    expect(selector).toHaveValue('asset-register');
+    expect(screen.getByText('asset-registry')).toBeVisible();
+    expect(screen.getByText('Asset register')).toBeVisible();
   });
 
   it('selecting Q7 synchronizes timeline, content, and inspector', async () => {

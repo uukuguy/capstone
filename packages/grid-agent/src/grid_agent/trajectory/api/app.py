@@ -21,6 +21,7 @@ from grid_agent.trajectory.api.models import ApiError, RunListResponse, RunSumma
 from grid_agent.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
 from grid_agent.trajectory.api.projection_pages import (
     ProjectionPageResponse,
+    _page_identity,
     projection_page,
     public_context_frame,
 )
@@ -454,6 +455,7 @@ def _business_page(
         last_sequence=page.last_sequence,
         has_older=page.has_older,
         encoded_bytes=page.encoded_bytes,
+        **_page_identity(projected),
     )
 
 

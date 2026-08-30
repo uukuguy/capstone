@@ -67,7 +67,7 @@ def test_projected_run_keeps_application_and_binding_identity_for_read_models() 
         domain_id="inventory-readonly",
         domain_version="1.0.0",
         authority_id="inventory-api",
-        schema="inventory-output/1.0",
+        schema_id="inventory-output/1.0",
     )
     metadata = ApplicationProjectionMetadata(
         application_id="inventory-review",
@@ -85,6 +85,7 @@ def test_projected_run_keeps_application_and_binding_identity_for_read_models() 
         artifacts=ArtifactIndex(analysis_id="run-inventory"),
     )
 
+    assert projected.application is not None
     assert projected.application.application_id == "inventory-review"
     assert projected.application.bindings["inventory"].authority_id == "inventory-api"
 
@@ -106,6 +107,7 @@ def test_projection_service_reads_generic_runtime_descriptor_metadata(tmp_path) 
     service = ProjectionService(tmp_path / "cache")
     metadata = service.read_application_metadata(run)
 
+    assert metadata is not None
     assert metadata.application_id == "inventory-review"
     assert metadata.bindings["inventory"].authority_id == "inventory-api"
 

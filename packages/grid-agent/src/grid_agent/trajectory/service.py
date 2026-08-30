@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 from collections.abc import Mapping, Sequence
-from typing import cast
+from typing import Any, cast
 
 from grid_agent.trajectory.agent_projection import project_agent
 from grid_agent.trajectory.artifact_projection import project_artifacts
@@ -182,11 +182,9 @@ class ProjectionService:
                     domain_id=str(values.get("domain_id") or binding_id),
                     domain_version=str(values.get("domain_version") or "unknown"),
                     authority_id=str(values.get("authority_id") or "unknown"),
-                    schema=str(values.get("schema") or "unknown"),
-                    presentation=(
-                        values.get("presentation")
-                        if isinstance(values.get("presentation"), Mapping)
-                        else {}
+                    schema_id=str(values.get("schema") or "unknown"),
+                    presentation=cast(
+                        Mapping[str, Any], _safe_mapping(values.get("presentation"))
                     ),
                 )
                 for binding_id, values in sorted(merged.items())

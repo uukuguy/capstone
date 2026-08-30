@@ -58,6 +58,8 @@ export interface ProjectionPage<T> {
   application_id?: string;
   application_version?: string;
   bindings?: BindingMetadata[];
+  core_timeline?: CoreTimelineItem[];
+  domain_payload?: DomainPayloadView;
   binding_id?: string;
   domain_id?: string;
   authority_id?: string;
