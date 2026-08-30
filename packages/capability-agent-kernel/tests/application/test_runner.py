@@ -9,7 +9,6 @@ import capability_agent.application.runner as runner_module
 
 from capability_agent.application.output import (
     BindingIdentity,
-    CoreRunResult,
     FrameworkOutputComposer,
     ValidatedDomainOutput,
 )
@@ -706,3 +705,117 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
     assert captured["trajectory_capture_state_path"] == channels.trajectory_capture_state_path
     assert captured["trajectory_allowed_refs_path"] == channels.trajectory_allowed_refs_path
     assert captured["trajectory_acks_path"] == channels.trajectory_acks_path
+
+
+def test_default_runtime_descriptor_materializes_prepared_domain_resources(
+    complete_profile: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise prepare -> default descriptor -> as_json/write without a provider."""
+
+    from dataclasses import replace
+    from hashlib import sha256
+    import json
+
+    from capability_agent.application import (
+        ApplicationWorkspace,
+        DomainRegistry,
+        prepare_application,
+    )
+
+    text = "# Fixture guide\n\nA binding-owned guide snapshot.\n"
+    digest = sha256(text.encode("utf-8")).hexdigest()
+
+    class GuideProvider:
+        def load(self) -> tuple[dict[str, str], ...]:
+            return (
+                {"resource_id": "overview", "title": "Fixture guide", "sha256": digest},
+            )
+
+        def open(self, resource_id: str) -> dict[str, str]:
+            if resource_id != "overview":
+                raise KeyError(resource_id)
+            return {
+                "resource_id": resource_id,
+                "title": "Fixture guide",
+                "sha256": digest,
+                "text": text,
+            }
+
+    profile = complete_profile
+    binding = profile.domains[0]  # type: ignore[attr-defined]
+    domain_profile = replace(binding.profile, guide_provider=GuideProvider())
+    profile = replace(profile, domains=(replace(binding, profile=domain_profile),))
+    provisioner = domain_profile.provisioner
+    assert provisioner is not None
+    provisioner.endpoint.metadata = {"executable": "domainctl"}
+
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="descriptor-run", binding_ids=("fixture",)
+    )
+    registry = DomainRegistry()
+    registry.register(
+        domain_profile.manifest.domain_id,
+        domain_profile.manifest.version,
+        lambda: domain_profile,
+    )
+    prepared = prepare_application(
+        profile,
+        registry=registry,
+        workspace=workspace.root,
+        credentials=SimpleNamespace(issue=lambda **_: SimpleNamespace(scope_id="isolated", credentials={})),
+    )
+
+    monkeypatch.setattr(
+        runner_module,
+        "PiRuntimeLocator",
+        lambda *_: SimpleNamespace(resolve=lambda: SimpleNamespace()),
+    )
+    monkeypatch.setattr(runner_module, "build_pi_launch", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "PiRpcClient", lambda *_args, **_kwargs: "client")
+
+    application = AgentApplication(
+        profile=prepared.profile,
+        prepared_application=prepared,
+        workspace=workspace,
+        environment={},
+    )
+    channels = SimpleNamespace(
+        active_turn_path=workspace.turns_path / "active-turn.json",
+        context_view_path=workspace.context_snapshot_path,
+        trajectory_requests_path=workspace.core_path / "requests.jsonl",
+        trajectory_capture_state_path=workspace.core_path / "capture.json",
+        trajectory_allowed_refs_path=workspace.core_path / "allowed.json",
+        trajectory_acks_path=workspace.core_path / "acks",
+    )
+    client = application._default_pi_transport(
+        SimpleNamespace(secret=None),
+        prepared,
+        prepared.bindings,
+        request=ApplicationRequest(
+            application_id="fixture-agent", questions=("question",), run_id="descriptor-run"
+        ),
+        workspace=workspace,
+        controller=channels,
+    )
+
+    assert client == "client"
+    runtime = prepared.bindings["fixture"].runtime
+    assert runtime.guide_root_path.is_dir()
+    guide_payload = json.loads(runtime.guide_index_path.read_text(encoding="utf-8"))
+    assert guide_payload["root"] == str(runtime.guide_root_path)
+    assert guide_payload["resources"] == {
+        "overview": str(runtime.guide_root_path / "SKILL.md")
+    }
+    descriptor_path = workspace.domain_runtime_path("fixture") / "runtime-descriptor.json"
+    descriptor_payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    descriptor_domain = descriptor_payload["domains"][0]
+    assert descriptor_domain["toolCatalogPath"] == str(runtime.tool_catalog_path)
+    assert descriptor_domain["guideIndexPath"] == str(runtime.guide_index_path)
+    assert descriptor_domain["guideRootPath"] == str(runtime.guide_root_path)
+    assert descriptor_domain["guideIndexSha256"] == sha256(
+        runtime.guide_index_path.read_bytes()
+    ).hexdigest()
+    assert client is not None

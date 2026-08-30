@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import Mapping
 
 
 RUNTIME_DESCRIPTOR_SCHEMA = "capability-agent-runtime/1.0"
@@ -32,6 +32,8 @@ _DESCRIPTOR_FIELDS = frozenset(
         "guide_tool_name",
         "context_tool_name",
         "decision_tool_name",
+        "tool_name_prefix",
+        "guide_index_sha256",
     }
 )
 _SENSITIVE_NAME_PARTS = frozenset(
@@ -251,8 +253,11 @@ class RuntimeDescriptor:
                 "tool catalog, guide index, and guide root paths are required"
             )
         guide_digest = self.guide_index_sha256
+        actual_guide_digest = _file_sha256(self.guide_index_path)
         if guide_digest is None:
-            guide_digest = _file_sha256(self.guide_index_path)
+            guide_digest = actual_guide_digest
+        elif guide_digest != actual_guide_digest:
+            raise RuntimeDescriptorError("guide_index_sha256 does not match guide index")
         if _SHA256_PATTERN.fullmatch(guide_digest) is None:
             raise RuntimeDescriptorError("guide_index_sha256 is invalid")
         core: dict[str, object] = {
@@ -350,6 +355,8 @@ def descriptor_from_endpoint(
     tool_catalog_path: Path | None = None,
     guide_index_path: Path | None = None,
     guide_root_path: Path | None = None,
+    tool_name_prefix: str | None = None,
+    guide_index_sha256: str | None = None,
     application_id: str = "capability-agent",
     run_id: str = "run",
     pi_runtime: Mapping[str, str] | None = None,
@@ -399,11 +406,15 @@ def descriptor_from_endpoint(
         decision_tool_name=_optional_nullable_text(
             metadata.get("decision_tool_name"), "decision_tool_name"
         ),
-        tool_name_prefix=_optional_nullable_text(
-            metadata.get("tool_name_prefix"), "tool_name_prefix"
+        tool_name_prefix=(
+            tool_name_prefix
+            if tool_name_prefix is not None
+            else _optional_nullable_text(metadata.get("tool_name_prefix"), "tool_name_prefix")
         ),
-        guide_index_sha256=_optional_nullable_text(
-            metadata.get("guide_index_sha256"), "guide_index_sha256"
+        guide_index_sha256=(
+            guide_index_sha256
+            if guide_index_sha256 is not None
+            else _optional_nullable_text(metadata.get("guide_index_sha256"), "guide_index_sha256")
         ),
         application_id=application_id,
         run_id=run_id,
@@ -509,6 +520,30 @@ def _optional_metadata_path(value: object, field_name: str) -> Path | None:
 
 def _optional_path(value: Path | None) -> str | None:
     return str(value) if value is not None else None
+
+
+def _file_sha256(path: Path | None) -> str:
+    if path is None:
+        raise RuntimeDescriptorError("guide index path is required")
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeDescriptorError("guide index must be a regular file")
+        digest = sha256()
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except RuntimeDescriptorError:
+        raise
+    except OSError as exc:
+        raise RuntimeDescriptorError("guide index could not be read") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def _reject_symlink_ancestors(path: Path) -> None:

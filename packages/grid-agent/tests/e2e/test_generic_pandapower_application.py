@@ -115,6 +115,24 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     endpoint_metadata = execution.prepared.bindings["grid"].endpoint.metadata
     assert endpoint_metadata["timeout_seconds"] == pytest.approx(17.0)
 
+    # The generic runtime must expose a binding-owned guide snapshot.  The
+    # Domain Pack source resource directory is never placed in the descriptor
+    # or guide index consumed by the model runtime.
+    runtime = execution.prepared.bindings["grid"].runtime
+    binding_root = execution.workspace.domain_path("grid")
+    assert runtime.guide_root_path.is_relative_to(binding_root)
+    guide_payload = json.loads(
+        runtime.guide_index_path.read_text(encoding="utf-8")
+    )
+    assert guide_payload["root"] == str(runtime.guide_root_path)
+    assert all(
+        Path(resource).is_relative_to(runtime.guide_root_path)
+        for resource in guide_payload["resources"].values()
+    )
+    assert str(execution.prepared.bindings["grid"].binding.profile.manifest.guide_root) not in (
+        runtime.guide_index_path.read_text(encoding="utf-8")
+    )
+
     # Domain state is opaque to the Kernel but must be populated by the
     # Domain Pack projector and retain the simulator references from this run.
     domain_state = execution.store.snapshot.domains["grid"].state

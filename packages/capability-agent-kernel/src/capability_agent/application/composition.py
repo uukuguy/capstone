@@ -24,7 +24,7 @@ from capability_agent.domain.execution import CapabilityExecutor
 from capability_agent.domain.profile import DomainRuntimeProfile
 from capability_agent.domain.provisioning import CredentialLease, PreparedDomainEndpoint
 from capability_agent.tools.catalog import ToolCatalog
-from capability_agent.tools.guide import GuideIndex
+from capability_agent.tools.guide import GuideIndex, materialize_guide_provider
 
 
 _KERNEL_POLICY = "deny: arbitrary-subprocess, generic-file-access, generic-tools"
@@ -149,6 +149,7 @@ class PreparedDomainRuntime:
     capability_documents: tuple[dict[str, object], ...]
     tool_catalog_path: Path
     guide_index_path: Path
+    guide_root_path: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +172,7 @@ def prepare_domain_runtime(
     workspace: Path,
     tool_catalog_path: Path,
     guide_index_path: Path,
+    guide_root_path: Path | None = None,
     timeout_seconds: float = 60.0,
 ) -> PreparedDomainRuntime:
     """Materialize the selected domain profile for one workspace."""
@@ -183,6 +185,7 @@ def prepare_domain_runtime(
         workspace=workspace,
         tool_catalog_path=tool_catalog_path,
         guide_index_path=guide_index_path,
+        guide_root_path=guide_root_path,
     )
 
 
@@ -226,6 +229,8 @@ def prepare_application(
                 workspace=binding_workspace,
                 tool_catalog_path=binding_workspace / "tool-catalog.json",
                 guide_index_path=binding_workspace / "guide-index.json",
+                guide_root_path=binding_workspace / "guides",
+                guide_provider=binding.profile.guide_provider,
                 credential_lease=lease,
             )
             prepared[binding.binding_id] = PreparedBinding(
@@ -254,6 +259,8 @@ def _materialize_domain_runtime(
     workspace: Path,
     tool_catalog_path: Path,
     guide_index_path: Path,
+    guide_root_path: Path | None = None,
+    guide_provider: object | None = None,
     credential_lease: CredentialLease | None = None,
 ) -> PreparedDomainRuntime:
     runtime_executor: CapabilityExecutor = executor
@@ -273,10 +280,25 @@ def _materialize_domain_runtime(
         ),
         description_builder=profile.tool_description_builder,
     ).materialize(tool_catalog_path)
-    GuideIndex.load(
-        profile.manifest.guide_root,
-        protocol=_schema_id_from_protocol(profile.manifest.protocol, "guide-index"),
-    ).materialize(guide_index_path)
+    selected_guide_root = (
+        Path(guide_root_path)
+        if guide_root_path is not None
+        else Path(profile.manifest.guide_root).resolve()
+    )
+    guide_protocol = _schema_id_from_protocol(profile.manifest.protocol, "guide-index")
+    if guide_provider is not None:
+        materialize_guide_provider(
+            guide_provider,
+            workspace=workspace,
+            guide_root_path=selected_guide_root,
+            guide_index_path=guide_index_path,
+            protocol=guide_protocol,
+        )
+    else:
+        GuideIndex.load(
+            profile.manifest.guide_root,
+            protocol=guide_protocol,
+        ).materialize(guide_index_path)
     authority = profile.create_authority(workspace)
     return PreparedDomainRuntime(
         profile=profile,
@@ -286,6 +308,7 @@ def _materialize_domain_runtime(
         capability_documents=capability_documents,
         tool_catalog_path=tool_catalog_path,
         guide_index_path=guide_index_path,
+        guide_root_path=selected_guide_root,
     )
 
 

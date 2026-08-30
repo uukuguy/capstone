@@ -9,5 +9,7 @@ from typing import Protocol
 class GuideProvider(Protocol):
     def load(self) -> tuple[Mapping[str, object], ...]: ...
 
+    def open(self, resource_id: str) -> Mapping[str, object]: ...
+
 
 __all__ = ["GuideProvider"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -77,6 +78,35 @@ class StaticPolicy:
 
     def load(self) -> str:
         return self.fragment
+
+
+@dataclass(frozen=True)
+class StaticGuideProvider:
+    text: str
+    title: str = "Inventory guide"
+
+    @property
+    def digest(self) -> str:
+        return sha256(self.text.encode("utf-8")).hexdigest()
+
+    def load(self) -> tuple[Mapping[str, object], ...]:
+        return (
+            {
+                "resource_id": "overview",
+                "title": self.title,
+                "sha256": self.digest,
+            },
+        )
+
+    def open(self, resource_id: str) -> Mapping[str, object]:
+        if resource_id != "overview":
+            raise KeyError(resource_id)
+        return {
+            "resource_id": resource_id,
+            "title": self.title,
+            "sha256": self.digest,
+            "text": self.text,
+        }
 
 
 class RecordingAuthority(ArtifactAuthority):
@@ -217,7 +247,7 @@ def complete_profile(inventory_profile) -> ApplicationProfile:
         state_adapter=component,
         answer_policy=component,
         policy_provider=StaticPolicy("deny: domain-write"),
-        guide_provider=component,
+        guide_provider=StaticGuideProvider("# Inventory guide\n"),
         presentation_provider=component,
         output_contract=component,
         acceptance_profile=component,

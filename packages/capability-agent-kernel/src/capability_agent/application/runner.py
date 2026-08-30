@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import os
 import stat
@@ -553,7 +554,14 @@ class AgentApplication:
             endpoint = getattr(binding, "endpoint", None)
             runtime = getattr(binding, "runtime", None)
             binding_profile = getattr(getattr(binding, "binding", None), "profile", None)
-            manifest = getattr(binding_profile, "manifest", None)
+            runtime_profile = getattr(runtime, "profile", None)
+            manifest = getattr(runtime_profile, "manifest", None) or getattr(
+                binding_profile, "manifest", None
+            )
+            tool_catalog_path = _runtime_path(runtime, "tool_catalog_path")
+            guide_index_path = _runtime_path(runtime, "guide_index_path")
+            guide_root_path = _runtime_path(runtime, "guide_root_path")
+            guide_index_sha256 = _runtime_file_digest(guide_index_path)
             runtime_dir = workspace.domain_runtime_path(binding_id)
             descriptor_path = runtime_dir / "runtime-descriptor.json"
             descriptor = descriptor_from_endpoint(
@@ -563,6 +571,11 @@ class AgentApplication:
                 protocol=getattr(manifest, "protocol", ""),
                 protocol_version=getattr(manifest, "protocol_version", ""),
                 authority_id=getattr(getattr(runtime, "authority", None), "authority_id", ""),
+                tool_catalog_path=tool_catalog_path,
+                guide_index_path=guide_index_path,
+                guide_root_path=guide_root_path,
+                tool_name_prefix=getattr(manifest, "tool_name_prefix", None),
+                guide_index_sha256=guide_index_sha256,
                 application_id=request.application_id,
                 run_id=workspace.run_id,
                 active_turn_path=_runtime_channel_path(
@@ -596,6 +609,8 @@ class AgentApplication:
                 session_dir=runtime_dir / "session",
                 workspace=workspace.root,
                 domain_search_paths=tuple(Path(path) for path in descriptor.search_path),
+                tool_catalog_path=tool_catalog_path,
+                guide_index_path=guide_index_path,
                 runtime_descriptor_path=descriptor_path,
                 binding_id=binding_id,
             )
@@ -981,6 +996,28 @@ def _domain_version(binding: object) -> str:
 
 def _optional_text(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _runtime_path(runtime: object | None, name: str) -> Path | None:
+    value = getattr(runtime, name, None) if runtime is not None else None
+    if value is None:
+        return None
+    if isinstance(value, Path):
+        return value
+    if isinstance(value, str) and value:
+        return Path(value)
+    raise ApplicationConfigurationError(f"prepared runtime {name!r} must be a path")
+
+
+def _runtime_file_digest(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ApplicationConfigurationError(
+            "prepared runtime guide index could not be read"
+        ) from exc
 
 
 def _binding_profile(binding: object | None) -> object | None:

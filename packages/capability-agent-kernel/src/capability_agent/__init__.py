@@ -89,7 +89,13 @@ from capability_agent.domain import (
     VerifiedInvocation,
     VerifiedReferenceSet,
 )
-from capability_agent.tools import GuideIndex, ToolCatalog, describe_tool_document
+from capability_agent.tools import (
+    GuideIndex,
+    GuideMaterializationError,
+    ToolCatalog,
+    describe_tool_document,
+    materialize_guide_provider,
+)
 from capability_agent.runtime import (
     CliLLMOptions,
     ConfigurationError,
@@ -163,6 +169,7 @@ __all__ = [
     "FrameworkOutputComposer",
     "GenericReportShell",
     "GuideIndex",
+    "GuideMaterializationError",
     "GuideProvider",
     "JsonOutputRenderer",
     "OutputRenderer",
@@ -184,6 +191,7 @@ __all__ = [
     "WorkspaceError",
     "canonical_state_hash",
     "describe_tool_document",
+    "materialize_guide_provider",
     "VerifiedArtifact",
     "VerifiedInvocation",
     "VerifiedReferenceSet",

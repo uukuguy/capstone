@@ -127,6 +127,33 @@ def test_descriptor_endpoint_import_ignores_untrusted_metadata_fields(tmp_path: 
     assert "should-not-be-copied" not in json.dumps(payload)
 
 
+def test_runtime_descriptor_rejects_a_stale_guide_index_digest(
+    tmp_path: Path,
+) -> None:
+    catalog = tmp_path / "tool-catalog.json"
+    catalog.write_text("{}\n", encoding="utf-8")
+    guide_index = tmp_path / "guide-index.json"
+    guide_index.write_text("{}\n", encoding="utf-8")
+    guide_root = tmp_path / "guides"
+    guide_root.mkdir()
+    descriptor = RuntimeDescriptor(
+        binding_id="alpha",
+        workspace_path=tmp_path,
+        executable="domainctl",
+        protocol="alpha-capability",
+        protocol_version="1.0",
+        authority_id="alpha-authority",
+        tool_name_prefix="alpha_",
+        tool_catalog_path=catalog,
+        guide_index_path=guide_index,
+        guide_root_path=guide_root,
+        guide_index_sha256="0" * 64,
+    )
+
+    with pytest.raises(RuntimeDescriptorError, match="does not match"):
+        descriptor.as_json()
+
+
 def test_descriptor_endpoint_rejects_explicit_empty_optional_tool_name(
     tmp_path: Path,
 ) -> None:
