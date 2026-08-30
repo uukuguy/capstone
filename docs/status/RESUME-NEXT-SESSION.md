@@ -1,44 +1,45 @@
 # Live Session Checkpoint
 
-> Updated: 2026-08-30 01:06 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-08-30 20:02 CST. **Workstream C.1 is complete on `main`.**
 
 ## TL;DR
 
-- Workstream C remains a completed inventory capability/domain fixture proof; it is not a completed second business-agent application.
-- The approved corrective design introduces Workstream C.1 to close the full Application Profile and first-domain instantiation gap.
-- The written specification is committed at `0b45243` and is awaiting user review before implementation planning.
+- Workstream C fixture/conformance infrastructure is complete; inventory is not a selected real second business domain.
+- Workstream C.1 is complete with one real pandapower application and two provider-backed business acceptance runs.
+- Workstream C.2 is not started; select a genuinely useful second domain before implementation.
+- Workstream E is not started; multiple bindings remain intentionally feature-gated.
 
-## Where things stand
+## Acceptance evidence
 
-- Canonical corrective specification: `docs/superpowers/specs/2026-08-30-domain-application-instantiation-closure-design.md`.
-- The new default architecture uses `ApplicationProfile`, `DomainBinding`, a domain-neutral application engine, and complete Domain Pack contracts.
-- Pandapower is the first complete domain instance and must pass both existing business task files through the new generic path.
-- Version 1.0.1 is a behavioral and safety reference; its naming and layouts are supported through an explicit compatibility adapter rather than used as framework defaults.
-- Inventory remains installed and tested as a conformance fixture; no inventory implementation expansion is authorized.
-- Work remains on `main`; no temporary worktree or feature branch exists. `main` is one design commit ahead of `origin/main`.
+- Provider/model: `deepseek` / `deepseek-v4-flash`; credentials remained in ignored environment/authentication state.
+- Generic `task.md.txt`: `run-20260830t112940z-69af42e9`, 9/9 completed.
+- Generic `test.md.txt`: `run-20260830t113619z-b162f4d5`, 7/7 completed.
+- Both generic runs passed answer/report digest checks, current-run pandapower authority audits, and context ledger replay equality.
+- Explicit v1.0.1 compatibility: `analysis-20260830T113916Z`, 7/7 completed; stdout had exactly `question_id` and `answer_output`; internal state retained 7 results, 7 evidence records, 108 revisions, and the report.
 
-## In-flight work
+## Commands and gates
 
-- Brainstorming design is complete and committed.
-- No implementation has started.
-- The user must review the written specification before the workflow transitions to `writing-plans`.
-
-## Boundaries
-
-- Do not claim a complete domain application from package, transport, authority, or fixture conformance alone.
-- Do not begin Workstream D, Workstream E, dynamic plugin discovery, or a real second domain before C.1.
-- Generic Application/Kernel paths must not import or recognize pandapower/grid-specific behavior.
-- Generic results contain a Kernel-owned `core` section plus one Domain Pack-owned output per binding; Application Profiles select only the renderer.
-- Only the `grid-agent` compatibility entry projects that composite result to `question_id`/`answer_output`.
-- Provider-backed validation requires explicit credential and billing authorization at execution time.
-- Do not leave a temporary worktree or feature branch; integrate approved work on `main`.
-
-## Immediate next action
-
-Ask the user to review:
-
-```text
-docs/superpowers/specs/2026-08-30-domain-application-instantiation-closure-design.md
+```sh
+make analysis-generic APPLICATION=pandapower-static-analysis INSTRUCTIONS=validation/questions/task.md.txt PROVIDER=deepseek MODEL=deepseek-v4-flash
+make analysis-generic APPLICATION=pandapower-static-analysis INSTRUCTIONS=validation/questions/test.md.txt PROVIDER=deepseek MODEL=deepseek-v4-flash
+make analysis INSTRUCTIONS=validation/questions/test.md.txt PROVIDER=deepseek MODEL=deepseek-v4-flash
+make doctor
+make test
+make test-e2e
+make validate
+make test-packages
 ```
 
-After explicit written-spec approval, invoke the `writing-plans` skill and create the Workstream C.1 implementation plan. Do not start implementation before that approval.
+All passed. Final counts: grid-agent 724, grid-simulator 165, grid Pi 43, E2E 25, capability coverage 24/24, and clean-install package smoke for six Python distributions plus two npm packages.
+
+## Boundaries for the next session
+
+- Keep C.1 closed unless a regression invalidates the recorded runs or gates.
+- Do not describe inventory as a second production domain.
+- Do not enable multiple bindings before Workstream E.
+- Preserve the generic `core` plus Domain Pack-owned `domains.<binding_id>` output contract and explicit v1.0.1 compatibility adapter.
+- Remain on `main`; one worktree only.
+
+## Next decision
+
+Define Workstream C.2 by selecting a real, useful second business domain and first documenting its authority API, Domain Pack contract, acceptance tasks, and what must remain domain-neutral. Do not deepen the inventory fixture by default.
