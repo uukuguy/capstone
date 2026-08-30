@@ -94,6 +94,54 @@ def test_rpc_rejects_mismatched_explicit_correlation_id(tmp_path: Path) -> None:
         trace.close()
 
 
+@pytest.mark.parametrize("ack_type", ["prompt_ack", "response"])
+def test_rpc_accepts_missing_event_correlation_and_uses_local_id(
+    tmp_path: Path, ack_type: str
+) -> None:
+    script = tmp_path / "local-correlation-provider.py"
+    ack = (
+        {"type": "prompt_ack", "ok": True}
+        if ack_type == "prompt_ack"
+        else {"type": "response", "command": "prompt", "success": True}
+    )
+    script.write_text(
+        "import json\n"
+        "json.loads(input())\n"
+        f"print(json.dumps({ack!r}), flush=True)\n"
+        "print(json.dumps({'type':'text_delta','text':'done'}), flush=True)\n"
+        "print(json.dumps({'type':'agent_end','messages':[]}), flush=True)\n",
+        encoding="utf-8",
+    )
+    workspace = tmp_path / "run"
+    workspace.mkdir()
+    trace = JsonlTraceWriter(workspace / "events.jsonl")
+    semantic: list[dict[str, object]] = []
+    client = PiRpcClient(
+        PiLaunch(argv=(sys.executable, str(script)), environment={}),
+        type("Workspace", (), {"root_path": workspace})(),
+        trace,
+        correlation_id="turn-001",
+    )
+
+    client.start()
+    try:
+        assert client.prompt_and_wait(
+            "question",
+            on_semantic_event=lambda payload, _sequence: semantic.append(payload),
+        ) == "done"
+    finally:
+        client.stop()
+        trace.close()
+
+    assert semantic
+    assert all(payload["correlation_id"] == "turn-001" for payload in semantic)
+    persisted = [
+        json.loads(line)["payload"]
+        for line in (workspace / "events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert all(payload["correlation_id"] == "turn-001" for payload in persisted)
+
+
 def test_rpc_rejects_invalid_utf8_stdout_without_decode_details(tmp_path: Path) -> None:
     script = tmp_path / "invalid-utf8-provider.py"
     script.write_text(

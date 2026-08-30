@@ -227,12 +227,6 @@ class PiRpcClient:
                 and event_correlation != expected_correlation
             ):
                 raise PiProtocolError("Pi RPC correlation mismatch")
-            if (
-                expected_correlation is not None
-                and event.get("type") in {"prompt_ack", "response", "agent_end"}
-                and event_correlation is None
-            ):
-                raise PiProtocolError("Pi RPC correlation mismatch")
             if capture is not None:
                 capture.drain_model_requests()
                 capture.on_raw_event(event)
@@ -245,8 +239,9 @@ class PiRpcClient:
                 if isinstance(assistant_event, dict) and assistant_event.get("type") == "text_delta":
                     text.append(str(assistant_event.get("delta", "")))
             for payload in _semantic_trace_payloads(event, "".join(text), pending_tool_calls):
-                if event_correlation is not None:
-                    payload = {**payload, "correlation_id": event_correlation}
+                trace_correlation = event_correlation or expected_correlation
+                if trace_correlation is not None:
+                    payload = {**payload, "correlation_id": trace_correlation}
                 sequence = self.trace.append("pi_event", payload)
                 if capture is not None:
                     capture.on_semantic_event(payload, sequence)
