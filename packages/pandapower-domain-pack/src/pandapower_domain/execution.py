@@ -2,52 +2,58 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 from uuid import uuid4
 
 
-_CANONICAL_SECRET_NAMES = frozenset(
+# Keep this allowlist deliberately small.  These names are runtime inputs for
+# executable lookup, locale/time handling, temporary files, Python stream
+# encoding/buffering, or Windows process startup; provider, domain, and
+# business variables are never ambient inputs to the simulator.
+_RUNTIME_ENVIRONMENT_NAMES = frozenset(
     {
-        "OPENAI_API_KEY",
-        "OPENROUTER_API_KEY",
-        "DEEPSEEK_API_KEY",
-        "MINIMAX_API_KEY",
-        "GRID_AGENT_SECRET_ENV_NAMES",
+        "COMSPEC",
+        "__CF_USER_TEXT_ENCODING",
+        "LANG",
+        "LANGUAGE",
+        "PATH",
+        "PATHEXT",
+        "PYTHONHASHSEED",
+        "PYTHONIOENCODING",
+        "PYTHONUNBUFFERED",
+        "PYTHONUTF8",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "TZ",
+        "WINDIR",
     }
 )
-# Match complete credential tokens, not arbitrary substrings: this catches
-# ``SERVICE_APIKEY`` and ``API_KEY_PATH`` while retaining ``SECRETARY`` and
-# ``TOKENIZER_MODE``.  The explicit ``KEY`` forms cover both common spellings
-# without treating every environment variable containing the word ``KEY`` as
-# sensitive.
-_CREDENTIAL_NAME_PATTERN = re.compile(
-    r"(?<![A-Z0-9])"
-    r"(?:API_KEY|APIKEY|TOKEN|SECRETKEY|SECRET|PASSPHRASE|"
-    r"AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY)"
-    r"(?![A-Z0-9])",
-    re.IGNORECASE,
-)
+_LOCALE_ENVIRONMENT_PREFIX = "LC_"
+
+
+def _is_runtime_environment_name(name: str) -> bool:
+    """Return whether an environment name is needed by the simulator runtime."""
+
+    normalized = name.upper()
+    return normalized in _RUNTIME_ENVIRONMENT_NAMES or normalized.startswith(
+        _LOCALE_ENVIRONMENT_PREFIX
+    )
 
 
 def sanitize_environment(
     environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Remove credential-shaped names before starting the simulator process."""
+    """Allow only portable runtime inputs before starting the simulator process."""
 
     source = dict(os.environ if environment is None else environment)
-    selected_names = {
-        name.strip()
-        for name in source.get("GRID_AGENT_SECRET_ENV_NAMES", "").split(",")
-        if name.strip()
-    }
-    blocked = _CANONICAL_SECRET_NAMES | selected_names
     return {
         name: value
         for name, value in source.items()
-        if name not in blocked and not _CREDENTIAL_NAME_PATTERN.search(name)
+        if _is_runtime_environment_name(name)
     }
 
 
@@ -85,7 +91,7 @@ class GridctlExecutor:
         self.executable = Path(executable)
         self.workspace = Path(workspace)
         self.timeout_seconds = timeout_seconds
-        self._environment = dict(
+        self._environment = sanitize_environment(
             os.environ if base_environment is None else base_environment
         )
         self.last_diagnostics = ""
@@ -108,7 +114,7 @@ class GridctlExecutor:
                 timeout=self.timeout_seconds,
                 shell=False,
                 check=False,
-                env=sanitize_environment(self._environment),
+                env=self._environment,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise GridctlClientError(

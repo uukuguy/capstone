@@ -110,29 +110,50 @@ def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child
         encoding="utf-8",
     )
     executable.chmod(0o755)
-    credential_values = {
+    ambient_values = {
         name: f"secret-value-{index}"
         for index, name in enumerate(
             (
+                "AWS_ACCESS_KEY_ID",
+                "ALIYUN_ACCESS_KEY_ID",
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "OPENAI_API_KEY",
                 "APIKEY",
                 "SERVICE_SECRETKEY",
                 "PASSPHRASE",
-                "OPENAI_API_KEY",
                 "SERVICE_TOKEN",
                 "SECRET",
                 "AUTHORIZATION",
                 "CREDENTIAL",
                 "PASSWORD",
                 "PRIVATE_KEY",
+                "CUSTOM_BUSINESS_FLAG",
+                "GRID_AGENT_GRIDCTL_EXECUTABLE",
+                "PYTHONPATH",
             )
         )
     }
     source_environment = {
-        **credential_values,
+        **ambient_values,
         "PATH": os.environ["PATH"],
         "LANG": "C.UTF-8",
+        "LANGUAGE": "en_US",
         "LC_ALL": "C.UTF-8",
-        "APP_MODE": "validation",
+        "LC_CTYPE": "C.UTF-8",
+        "TZ": "UTC",
+        "TMPDIR": str(tmp_path),
+        "TEMP": str(tmp_path),
+        "TMP": str(tmp_path),
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONHASHSEED": "123",
+        "SYSTEMROOT": "C:\\Windows",
+        "WINDIR": "C:\\Windows",
+        "PATHEXT": ".COM;.EXE",
+        "__CF_USER_TEXT_ENCODING": os.environ.get(
+            "__CF_USER_TEXT_ENCODING", "0x1F5:0x19:0x34"
+        ),
     }
 
     endpoint = PandapowerRuntimeProvisioner(
@@ -147,16 +168,18 @@ def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child
     executor.invoke("model.list", {})
     child_environment = json.loads(environment_path.read_text(encoding="utf-8"))
 
-    for name, value in credential_values.items():
+    expected_runtime_environment = {
+        name: value
+        for name, value in source_environment.items()
+        if name not in ambient_values
+    }
+    assert metadata_environment == expected_runtime_environment
+    assert child_environment == expected_runtime_environment
+    for name, value in ambient_values.items():
         assert name not in metadata_environment
         assert name not in child_environment
         assert value not in metadata_environment.values()
         assert value not in child_environment.values()
-    for environment in (metadata_environment, child_environment):
-        assert environment["PATH"] == source_environment["PATH"]
-        assert environment["LANG"] == "C.UTF-8"
-        assert environment["LC_ALL"] == "C.UTF-8"
-        assert environment["APP_MODE"] == "validation"
 
 
 def test_prepared_endpoint_materializes_a_serializable_runtime_descriptor(

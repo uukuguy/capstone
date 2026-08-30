@@ -83,47 +83,41 @@ def test_executor_filters_secret_environment_values(tmp_path: Path) -> None:
     assert "GRID_AGENT_SECRET" not in child_environment
 
 
-@pytest.mark.parametrize(
-    "credential_name",
-    (
-        "APIKEY",
-        "SERVICE_APIKEY",
-        "SECRETKEY",
-        "SERVICE_SECRETKEY",
-        "PASSPHRASE",
-        "SSH_PASSPHRASE",
-        "API_KEY",
-        "SERVICE_TOKEN",
-        "SECRET",
-        "AUTHORIZATION",
-        "CREDENTIAL",
-        "PASSWORD",
-        "PRIVATE_KEY",
-    ),
-)
-def test_sanitize_environment_rejects_credential_shaped_names(
-    credential_name: str,
-) -> None:
-    value = f"secret-value-for-{credential_name}"
+def test_sanitize_environment_allows_only_runtime_names() -> None:
+    runtime_environment = {
+        "__CF_USER_TEXT_ENCODING": "0x1F5:0x19:0x34",
+        "PATH": "/usr/bin",
+        "LANG": "C.UTF-8",
+        "LANGUAGE": "en_US",
+        "LC_ALL": "C.UTF-8",
+        "TZ": "UTC",
+        "TMPDIR": "/tmp",
+        "TEMP": "/tmp",
+        "TMP": "/tmp",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONHASHSEED": "123",
+        "SYSTEMROOT": "C:\\Windows",
+        "WINDIR": "C:\\Windows",
+        "PATHEXT": ".COM;.EXE",
+    }
+    ambient_environment = {
+        "AWS_ACCESS_KEY_ID": "aws-secret",
+        "ALIYUN_ACCESS_KEY_ID": "aliyun-secret",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/tmp/google.json",
+        "OPENAI_API_KEY": "openai-secret",
+        "APIKEY": "api-secret",
+        "SERVICE_SECRETKEY": "secret-key",
+        "PASSPHRASE": "passphrase",
+        "CUSTOM_BUSINESS_FLAG": "business-value",
+        "APP_MODE": "validation",
+        "PYTHONPATH": "/tmp/provider-code",
+        "HOME": "/Users/operator",
+        "HTTP_PROXY": "http://proxy.example",
+    }
 
-    sanitized = sanitize_environment(
-        {
-            credential_name: value,
-            "PATH": "/usr/bin",
-            "LANG": "C.UTF-8",
-            "APP_SECRETARY": "ordinary-value",
-            "TOKENIZER_MODE": "ordinary-value",
-            "API_VERSION": "ordinary-value",
-        }
-    )
-
-    assert credential_name not in sanitized
-    assert value not in sanitized.values()
-    assert sanitized["PATH"] == "/usr/bin"
-    assert sanitized["LANG"] == "C.UTF-8"
-    assert sanitized["APP_SECRETARY"] == "ordinary-value"
-    assert sanitized["TOKENIZER_MODE"] == "ordinary-value"
-    assert sanitized["API_VERSION"] == "ordinary-value"
+    assert sanitize_environment({**runtime_environment, **ambient_environment}) == runtime_environment
 
 
 def test_executor_preserves_typed_capability_error(tmp_path: Path) -> None:
