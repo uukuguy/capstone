@@ -248,6 +248,66 @@ test("generic extension accepts a split application and domain workspace", async
   assert.deepEqual(registered, ["inventory_guide_open", "agent_context_get"]);
 });
 
+test("default extension factory reads only the controller runtime descriptor", async () => {
+  const fixture = await runtimeV1Fixture();
+  const descriptorPath = join(fixture.root, "runtime-descriptor.json");
+  await writeFile(descriptorPath, JSON.stringify(fixture.descriptor), "utf8");
+  const previousDescriptor = process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  const previousLegacyCatalog = process.env.GRID_AGENT_TOOL_CATALOG;
+  process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+  process.env.GRID_AGENT_TOOL_CATALOG = join(fixture.root, "missing-catalog.json");
+
+  try {
+    const extensionModule = await import("../src/domain-tools.mjs");
+    assert.equal(typeof extensionModule.default, "function");
+    const registered = [];
+    extensionModule.default({ registerTool: (tool) => registered.push(tool.name) });
+    assert.deepEqual(registered, ["inventory_guide_open"]);
+  } finally {
+    if (previousDescriptor === undefined) {
+      delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+    } else {
+      process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = previousDescriptor;
+    }
+    if (previousLegacyCatalog === undefined) {
+      delete process.env.GRID_AGENT_TOOL_CATALOG;
+    } else {
+      process.env.GRID_AGENT_TOOL_CATALOG = previousLegacyCatalog;
+    }
+  }
+});
+
+test("default extension factory rejects descriptor symlinks and oversized files", async () => {
+  const fixture = await runtimeV1Fixture();
+  const descriptorPath = join(fixture.root, "runtime-descriptor.json");
+  const symlinkPath = join(fixture.root, "runtime-descriptor-link.json");
+  const oversizedPath = join(fixture.root, "runtime-descriptor-large.json");
+  await writeFile(descriptorPath, JSON.stringify(fixture.descriptor), "utf8");
+  await symlink(descriptorPath, symlinkPath);
+  await writeFile(oversizedPath, "{" + "x".repeat(1_048_576) + "}", "utf8");
+  const extensionModule = await import("../src/domain-tools.mjs");
+  const previousDescriptor = process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+
+  try {
+    process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = symlinkPath;
+    assert.throws(
+      () => extensionModule.default({ registerTool: () => undefined }),
+      /CAPABILITY_AGENT_RUNTIME_DESCRIPTOR/,
+    );
+    process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = oversizedPath;
+    assert.throws(
+      () => extensionModule.default({ registerTool: () => undefined }),
+      /CAPABILITY_AGENT_RUNTIME_DESCRIPTOR/,
+    );
+  } finally {
+    if (previousDescriptor === undefined) {
+      delete process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+    } else {
+      process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = previousDescriptor;
+    }
+  }
+});
+
 test("routes a capability only through the controller-selected binding", async () => {
   const payloads = [];
   const tool = createCapabilityTool(

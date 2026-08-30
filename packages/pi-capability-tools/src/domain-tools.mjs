@@ -17,6 +17,8 @@ import { lstat, open, readFile } from "node:fs/promises";
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
+const RUNTIME_DESCRIPTOR_ENV = "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR";
+const MAX_RUNTIME_DESCRIPTOR_BYTES = 1_048_576;
 
 const LEGACY_DESCRIPTOR_KEYS = new Set([
   "protocol",
@@ -589,6 +591,68 @@ export function createDomainToolsExtension(descriptor, options = {}) {
   };
 }
 
+/**
+ * Load the controller-owned v1 descriptor and materialize the generic Pi extension.
+ *
+ * The descriptor path is the only environment input used here.  Its parent is
+ * canonicalized before a no-follow read of the descriptor leaf, so a swapped
+ * or symlinked descriptor cannot silently redirect startup.
+ */
+export default function domainToolsExtension(pi) {
+  const configuredPath = process.env[RUNTIME_DESCRIPTOR_ENV];
+  if (typeof configuredPath !== "string" || configuredPath.length === 0) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must name a descriptor file`);
+  }
+  if (!isAbsolute(configuredPath)) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must be an absolute path`);
+  }
+
+  const descriptor = readRuntimeDescriptor(configuredPath);
+  return createDomainToolsExtension(descriptor)(pi);
+}
+
+function readRuntimeDescriptor(configuredPath) {
+  let parentPath;
+  try {
+    parentPath = realpathSync(dirname(configuredPath));
+  } catch (error) {
+    throw new Error(
+      `${RUNTIME_DESCRIPTOR_ENV} parent must resolve to an existing path: ${error.message}`,
+    );
+  }
+  const descriptorPath = resolve(parentPath, basename(configuredPath));
+
+  let startupRead;
+  try {
+    startupRead = readBoundFileSync(
+      parentPath,
+      descriptorPath,
+      MAX_RUNTIME_DESCRIPTOR_BYTES,
+    );
+  } catch (error) {
+    throw new Error(
+      `${RUNTIME_DESCRIPTOR_ENV} could not be read safely: ${error.message}`,
+    );
+  }
+
+  let raw;
+  try {
+    raw = JSON.parse(startupRead.text);
+  } catch (error) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must contain valid JSON: ${error.message}`);
+  }
+  if (!isPlainObject(raw) || raw.schema !== "capability-agent-runtime/1.0") {
+    throw new Error(
+      `${RUNTIME_DESCRIPTOR_ENV} must contain a capability-agent-runtime/1.0 descriptor`,
+    );
+  }
+  try {
+    return validateRuntimeDescriptor(raw);
+  } catch (error) {
+    throw new Error(`${RUNTIME_DESCRIPTOR_ENV} is invalid: ${error.message}`);
+  }
+}
+
 function preflightContracts(contracts, runtime) {
   const names = new Set([
     runtime.guideToolName,
@@ -959,7 +1023,7 @@ function validateGuideIndex(value, descriptor, expectedRoot) {
   });
 }
 
-function readBoundFileSync(rootPath, filePath) {
+function readBoundFileSync(rootPath, filePath, maxBytes) {
   const root = resolve(rootPath);
   const candidate = resolve(filePath);
   const segments = safeRelativeSegments(root, candidate, "guide index");
@@ -986,7 +1050,13 @@ function readBoundFileSync(rootPath, filePath) {
     if (!before.isFile()) {
       throw new Error("guide index is not a regular file");
     }
+    if (maxBytes !== undefined && before.size > BigInt(maxBytes)) {
+      throw new Error(`bound file exceeds ${maxBytes} byte limit`);
+    }
     const content = readFileSync(descriptor);
+    if (maxBytes !== undefined && content.byteLength > maxBytes) {
+      throw new Error(`bound file exceeds ${maxBytes} byte limit`);
+    }
     const after = fstatSync(descriptor, { bigint: true });
     verifySyncBindings(bindings);
     if (statIdentity(before) !== statIdentity(after)) {
