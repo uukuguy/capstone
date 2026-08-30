@@ -62,6 +62,13 @@ from capability_agent.application.profile import (
 )
 from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace, WorkspaceError
+from capability_agent.application.reporting import GenericReportShell
+from capability_agent.application.runner import (
+    AgentApplication,
+    ApplicationOutcome,
+    ApplicationRequest,
+    ProviderSession,
+)
 from capability_agent.application.turns import (
     ActiveTurnHandle,
     ActiveTurnInProgressError,
@@ -108,12 +115,17 @@ __all__ = [
     "DomainRegistry",
     "DomainStateEnvelope",
     "FrameworkOutputComposer",
+    "GenericReportShell",
     "JsonOutputRenderer",
     "OutputRenderer",
     "PolicyConflictError",
     "PreparedApplication",
     "PreparedBinding",
     "PreparedDomainRuntime",
+    "AgentApplication",
+    "ApplicationOutcome",
+    "ApplicationRequest",
+    "ProviderSession",
     "ProjectionOutcome",
     "PresentationError",
     "ReportShell",
