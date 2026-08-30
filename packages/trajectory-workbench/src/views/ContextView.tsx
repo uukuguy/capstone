@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
+  BindingMetadata,
   ContextFrame,
   ContextFrameSummary,
   ContextPageFilters,
+  CoreTimelineItem,
   JsonValue,
 } from '../api/types';
 import { compareContextStates, type ContextComparison } from '../context/compare';
@@ -25,6 +27,9 @@ interface ContextViewProps {
   onSelectSequence: (sequence: number) => void;
   artifactUrl: (ref: string) => string;
   comparisonIdentity?: string;
+  /** Framework lifecycle remains distinct from the selected domain context. */
+  coreTimeline?: CoreTimelineItem[];
+  binding?: BindingMetadata | null;
 }
 
 const labels = ['Before', 'Delta', 'After'] as const;
@@ -106,6 +111,23 @@ function optionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function presentationText(binding: BindingMetadata | null | undefined, key: string): string | null {
+  const value = binding?.presentation?.[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function inferredBinding(summaries: ContextFrameSummary[]): BindingMetadata | null {
+  const summary = summaries.find((item) => item.binding_id);
+  if (!summary?.binding_id || !summary.domain_id || !summary.authority_id || !summary.schema) return null;
+  return {
+    binding_id: summary.binding_id,
+    domain_id: summary.domain_id,
+    domain_version: 'unknown',
+    authority_id: summary.authority_id,
+    schema: summary.schema,
+  };
+}
+
 export function ContextView({
   summaries = [],
   filters = {},
@@ -123,6 +145,8 @@ export function ContextView({
   onSelectSequence,
   artifactUrl,
   comparisonIdentity = 'legacy-detail',
+  coreTimeline = [],
+  binding = null,
 }: ContextViewProps) {
   const [active, setActive] = useState<StateLabel>('Before');
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
@@ -162,7 +186,19 @@ export function ContextView({
   };
   const stateValue = frame ? { Before: frame.before_state, Delta: frame.delta, After: frame.after_state }[active] : null;
 
+  const selectedBinding = binding ?? inferredBinding(summaries);
+  const contextTitle = presentationText(selectedBinding, 'context_title');
   return <section className="context-view" aria-label="Context time travel">
+    {coreTimeline.length > 0 ? <section className="kernel-core-timeline" aria-label="Kernel core timeline">
+      <h2>Kernel lifecycle</h2>
+      <ol>{coreTimeline.map((item) => <li key={item.id}><strong>{item.label}</strong><small>{item.status}</small>{item.detail ? <span>{item.detail}</span> : null}</li>)}</ol>
+    </section> : null}
+    {selectedBinding ? <section className="domain-binding" aria-label="Selected domain binding">
+      <h2>{contextTitle ?? 'Domain context'}</h2>
+      <p>
+        <span>{selectedBinding.domain_id}</span> · <span>{selectedBinding.domain_version}</span> · <span>{selectedBinding.authority_id}</span> · <span>{selectedBinding.schema}</span>
+      </p>
+    </section> : null}
     <header className="context-view-header">
       <div><h1>Context replay</h1><p>Browse bounded frame summaries, then fetch an exact recorded state for inspection.</p></div>
       <div className="context-controls">

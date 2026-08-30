@@ -1,4 +1,20 @@
-import type { BusinessCausalRow, BusinessNode, BusinessProblem } from './types';
+import type {
+  BusinessCausalRow,
+  BusinessNode,
+  BusinessProblem,
+  DomainPayloadView,
+} from './types';
+
+/**
+ * Preserve a validated domain result as an opaque read-only view.
+ *
+ * The workbench deliberately does not parse, recalculate, or promote this
+ * value to evidence.  Presentation metadata is applied by the selected view;
+ * the payload remains the Domain Pack's boundary-owned JSON.
+ */
+export function domainPayloadView(payload: DomainPayloadView): DomainPayloadView {
+  return payload;
+}
 
 /** Rebuild loaded problem groups from bounded causal rows and fixed metadata. */
 export function problemsFromBusinessRows(rows: BusinessCausalRow[]): BusinessProblem[] {
@@ -22,6 +38,11 @@ export function problemsFromBusinessRows(rows: BusinessCausalRow[]): BusinessPro
           title: row.problem.title,
           node_count: row.problem.node_count,
           nodes: [],
+          ...(row.domain_payload ? { domain_payload: row.domain_payload } : {}),
+          ...(row.binding_id ? { binding_id: row.binding_id } : {}),
+          ...(row.domain_id ? { domain_id: row.domain_id } : {}),
+          ...(row.authority_id ? { authority_id: row.authority_id } : {}),
+          ...(row.schema ? { schema: row.schema } : {}),
         },
         nodeIds: new Set<string>(),
       };

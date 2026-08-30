@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from grid_agent.trajectory.business_projection import (
+    project_domain_payload,
     ProjectionIntegrityError,
     project_business,
 )
@@ -201,3 +202,21 @@ def test_business_projection_filters_non_simulator_tool_from_verified_results() 
     nodes = project_business(events, Artifacts()).problems[0].nodes
 
     assert [node.kind for node in nodes] == ["tool-action"]
+
+
+def test_unknown_domain_payload_is_preserved_as_generic_read_only_projection() -> None:
+    payload = {"items": [{"sku": "A-1", "available": 4}], "page": 1}
+
+    projected = project_domain_payload(
+        analysis_id="analysis-inventory",
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        authority_id="inventory-api",
+        schema="inventory-output/1.0",
+        payload=payload,
+    )
+
+    assert projected.binding_id == "inventory"
+    assert projected.authority_id == "inventory-api"
+    assert projected.payload == payload
+    assert projected.interpretation == "opaque"

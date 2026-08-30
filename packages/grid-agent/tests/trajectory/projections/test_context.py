@@ -5,7 +5,11 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from grid_agent.trajectory.context_projection import UNAVAILABLE_NATIVE_CONTEXT, project_context
+from grid_agent.trajectory.context_projection import (
+    UNAVAILABLE_NATIVE_CONTEXT,
+    project_context,
+    project_context_payload,
+)
 from grid_agent.trajectory.artifacts import ArtifactPointer
 from grid_agent.trajectory.events import Causation, ContextBoundary, EventRefs, EventSource, RunScope
 from grid_agent.trajectory.replay import ReplayEventLike
@@ -112,3 +116,19 @@ def test_native_context_injection_uses_verified_context_view_artifact(tmp_path: 
 
     assert artifacts.references == [pointer.ref]
     assert frame.model_dump(mode="json")["after_state"] == document
+
+
+def test_unknown_domain_context_payload_is_not_interpreted_as_grid_state() -> None:
+    payload = {"stock": {"A-1": {"available": 4}}}
+
+    projected = project_context_payload(
+        analysis_id="analysis-inventory",
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        authority_id="inventory-api",
+        schema="inventory-context/1.0",
+        payload=payload,
+    )
+
+    assert projected.payload == payload
+    assert projected.interpretation == "opaque"

@@ -4,10 +4,21 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any, Literal
+import warnings
 
 from pydantic import Field, model_validator
 
 from capability_agent.trajectory.events import StrictFrozenModel
+
+
+# ``schema`` is part of the public projection contract, but Pydantic also
+# exposes a ``schema`` helper on BaseModel.  Silence only that known naming
+# warning; do not hide validation warnings from other projection fields.
+warnings.filterwarnings(
+    "ignore",
+    message=r'Field name "schema" in .* shadows an attribute in parent',
+    category=UserWarning,
+)
 
 
 class _FrozenDict(dict[str, Any]):
@@ -29,12 +40,99 @@ class _FrozenDict(dict[str, Any]):
     update = _immutable  # type: ignore[reportAssignmentType]
 
 
+class _FrozenList(list[Any]):
+    """A JSON-compatible list that keeps ordinary list equality semantics."""
+
+    def _immutable(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("sequence is immutable")
+
+    __setitem__ = _immutable
+    __delitem__ = _immutable
+    __iadd__ = _immutable
+    __imul__ = _immutable
+    append = _immutable
+    clear = _immutable
+    extend = _immutable
+    insert = _immutable
+    pop = _immutable
+    remove = _immutable
+    reverse = _immutable
+    sort = _immutable
+
+
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
         return _FrozenDict({str(key): _deep_freeze(item) for key, item in value.items()})
     if isinstance(value, list | tuple):
         return tuple(_deep_freeze(item) for item in value)
     return value
+
+
+def _deep_freeze_json(value: Any) -> Any:
+    """Freeze arbitrary JSON while preserving list-shaped equality/encoding."""
+
+    if isinstance(value, Mapping):
+        return _FrozenDict(
+            {str(key): _deep_freeze_json(item) for key, item in value.items()}
+        )
+    if isinstance(value, list | tuple):
+        return _FrozenList(_deep_freeze_json(item) for item in value)
+    return value
+
+
+class BindingProjectionMetadata(StrictFrozenModel):
+    """Controller-recorded identity for one application-local domain binding.
+
+    Projection code treats these values as labels only.  They are copied from
+    the run descriptor/manifest and never used to establish simulator truth.
+    Keeping the binding identity beside every public projection prevents a
+    workbench consumer from inferring an authority from a capability name.
+    """
+
+    binding_id: str = Field(min_length=1)
+    domain_id: str = Field(min_length=1)
+    domain_version: str = Field(min_length=1)
+    authority_id: str = Field(min_length=1)
+    schema: str = Field(min_length=1)
+    presentation: Mapping[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def freeze_presentation(self) -> "BindingProjectionMetadata":
+        object.__setattr__(self, "presentation", _deep_freeze(self.presentation))
+        return self
+
+
+class ApplicationProjectionMetadata(StrictFrozenModel):
+    """Application and binding identity persisted with a generic run."""
+
+    application_id: str = Field(min_length=1)
+    application_version: str = Field(min_length=1)
+    bindings: Mapping[str, BindingProjectionMetadata] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_and_freeze_bindings(self) -> "ApplicationProjectionMetadata":
+        if any(key != value.binding_id for key, value in self.bindings.items()):
+            raise ValueError("application binding metadata keys must match binding_id")
+        object.__setattr__(self, "bindings", _deep_freeze(self.bindings))
+        return self
+
+
+class DomainPayloadView(StrictFrozenModel):
+    """Opaque, already-validated domain output exposed for inspection only."""
+
+    binding_id: str = Field(min_length=1)
+    domain_id: str = Field(min_length=1)
+    authority_id: str = Field(min_length=1)
+    schema: str = Field(min_length=1)
+    payload: Mapping[str, Any] = Field(default_factory=dict)
+    interpretation: Literal["opaque"] = "opaque"
+    presentation: Mapping[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def freeze_payload(self) -> "DomainPayloadView":
+        object.__setattr__(self, "payload", _deep_freeze_json(self.payload))
+        object.__setattr__(self, "presentation", _deep_freeze_json(self.presentation))
+        return self
 
 
 NodeSource = Literal["observed", "agent-declared", "derived"]
@@ -52,6 +150,13 @@ class ProjectionNode(StrictFrozenModel):
     rule_id: str | None = Field(default=None, min_length=1)
     status: LifecycleStatus
     unavailable_reason: str | None = None
+    # Optional because v0.2/native grid runs predate application identity.
+    # ``exclude_if`` keeps their public JSON byte-compatible while allowing
+    # generic application runs to carry explicit routing metadata.
+    binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def require_source_sequences(self) -> "ProjectionNode":
@@ -128,6 +233,9 @@ class AgentTurn(ProjectionNode):
 class AgentTrajectory(StrictFrozenModel):
     analysis_id: str = Field(min_length=1)
     turns: tuple[AgentTurn, ...] = ()
+    binding: BindingProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class AgentEventRow(StrictFrozenModel):
@@ -147,6 +255,10 @@ class AgentEventRow(StrictFrozenModel):
     unavailable_reason: str | None = None
     title: str = Field(min_length=1, max_length=500)
     detail: str | None = Field(default=None, max_length=1_000)
+    binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def require_exact_tool_lifecycle_relation(self) -> "AgentEventRow":
@@ -202,6 +314,9 @@ class BusinessNode(ProjectionNode):
     title: str = Field(min_length=1)
     detail: str | None = None
     refs: tuple[str, ...] = ()
+    payload: Mapping[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -210,6 +325,12 @@ class BusinessNode(ProjectionNode):
             if not value.get("source_sequences") or not value.get("rule_id"):
                 raise ValueError("derived node requires source_sequences and rule_id")
         return value
+
+    @model_validator(mode="after")
+    def freeze_payload(self) -> "BusinessNode":
+        if self.payload is not None:
+            object.__setattr__(self, "payload", _deep_freeze_json(self.payload))
+        return self
 
 
 class BusinessProblem(ProjectionNode):
@@ -250,6 +371,22 @@ class BusinessCausalRow(StrictFrozenModel):
     source_sequence: int = Field(ge=1)
     problem: BusinessProblemSummary
     nodes: tuple[BusinessNode, ...] = Field(min_length=1)
+    binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    domain_payload: DomainPayloadView | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    application_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    application_version: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    bindings: tuple[BindingProjectionMetadata, ...] = Field(
+        default_factory=tuple, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def require_nodes_from_exact_sequence(self) -> "BusinessCausalRow":
@@ -261,6 +398,15 @@ class BusinessCausalRow(StrictFrozenModel):
 class BusinessTrajectory(StrictFrozenModel):
     analysis_id: str = Field(min_length=1)
     problems: tuple[BusinessProblem, ...] = ()
+    application: ApplicationProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    binding: BindingProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    domain_payload: DomainPayloadView | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class ContextFrame(ProjectionNode):
@@ -310,6 +456,9 @@ class ContextTimeline(StrictFrozenModel):
     analysis_id: str = Field(min_length=1)
     frames: tuple[ContextFrame, ...] = ()
     checkpoints: tuple[ContextCheckpoint, ...] = ()
+    binding: BindingProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     def at_sequence(self, sequence: int) -> ContextFrame:
         for frame in self.frames:
@@ -329,6 +478,10 @@ class ContextFrameSummary(StrictFrozenModel):
     request_input_available: bool
     request_input_unavailable_reason: str | None = None
     event_kind: str = Field(min_length=1, max_length=100)
+    binding_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    domain_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    authority_id: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
+    schema: str | None = Field(default=None, min_length=1, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def require_request_input_availability_reason(self) -> "ContextFrameSummary":
@@ -361,6 +514,9 @@ class ArtifactIndexRecord(ProjectionNode):
 class ArtifactIndex(StrictFrozenModel):
     analysis_id: str = Field(min_length=1)
     records: Mapping[str, ArtifactIndexRecord] = Field(default_factory=dict)
+    binding: BindingProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def freeze_records(self) -> "ArtifactIndex":
@@ -379,14 +535,40 @@ class ProjectionDiagnostic(ProjectionNode):
 class ProjectedRun(StrictFrozenModel):
     analysis_id: str = Field(min_length=1)
     source_fingerprint: str = Field(min_length=1)
+    application: ApplicationProjectionMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     agent: AgentTrajectory
     business: BusinessTrajectory
     context: ContextTimeline
     artifacts: ArtifactIndex
     diagnostics: tuple[ProjectionDiagnostic, ...] = ()
 
+    @property
+    def application_metadata(self) -> ApplicationProjectionMetadata | None:
+        """Compatibility spelling for consumers that call it metadata."""
+
+        return self.application
+
+    def binding_metadata(self, binding_id: str | None = None) -> BindingProjectionMetadata | None:
+        """Return one explicit binding identity without guessing an authority."""
+
+        if self.application is not None:
+            if binding_id is not None:
+                return self.application.bindings.get(binding_id)
+            if len(self.application.bindings) == 1:
+                return next(iter(self.application.bindings.values()))
+        for trajectory in (self.agent, self.business, self.context, self.artifacts):
+            binding = getattr(trajectory, "binding", None)
+            if binding_id is None and binding is not None:
+                return binding
+            if binding is not None and binding.binding_id == binding_id:
+                return binding
+        return None
+
 
 __all__ = [
+    "ApplicationProjectionMetadata",
     "AgentEventRow",
     "AgentRetry",
     "AgentStep",
@@ -400,10 +582,12 @@ __all__ = [
     "BusinessProblem",
     "BusinessProblemSummary",
     "BusinessTrajectory",
+    "BindingProjectionMetadata",
     "ContextCheckpoint",
     "ContextFrame",
     "ContextFrameSummary",
     "ContextTimeline",
+    "DomainPayloadView",
     "ExecutionLineage",
     "ExecutionSlice",
     "LifecycleStatus",

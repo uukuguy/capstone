@@ -10,7 +10,13 @@ from typing import Any
 
 from capability_agent.trajectory.artifacts import ArtifactPointer
 from capability_agent.trajectory.canonical import canonical_json_bytes
-from grid_agent.trajectory.projection_models import ContextCheckpoint, ContextFrame, ContextTimeline
+from grid_agent.trajectory.projection_models import (
+    BindingProjectionMetadata,
+    ContextCheckpoint,
+    ContextFrame,
+    ContextTimeline,
+    DomainPayloadView,
+)
 from capability_agent.trajectory.replay import ReplayEventLike
 
 
@@ -121,13 +127,17 @@ def _request_refs(events: Sequence[ReplayEventLike]) -> dict[int, str | None]:
 
 
 def project_context(
-    events: Sequence[ReplayEventLike], artifacts: object, *, checkpoint_interval: int = 100
+    events: Sequence[ReplayEventLike],
+    artifacts: object,
+    *,
+    checkpoint_interval: int = 100,
+    binding: BindingProjectionMetadata | None = None,
 ) -> ContextTimeline:
     """Return immutable frames using only snapshots or verified context views."""
     if checkpoint_interval < 1:
         raise ValueError("checkpoint_interval must be positive")
     if not events:
-        return ContextTimeline(analysis_id="unknown")
+        return ContextTimeline(analysis_id="unknown", binding=binding)
 
     state: dict[str, Any] = {}
     frames: list[ContextFrame] = []
@@ -168,7 +178,37 @@ def project_context(
         state, revision = after, after_revision
         if event.sequence % checkpoint_interval == 0 or event.event_type in {"turn.completed", "analysis.completed"}:
             checkpoints.append(ContextCheckpoint(source_sequence=event.sequence, context_revision=revision, state_hash=frame.after_state_hash, state=state))
-    return ContextTimeline(analysis_id=events[0].analysis_id, frames=tuple(frames), checkpoints=tuple(checkpoints))
+    return ContextTimeline(
+        analysis_id=events[0].analysis_id,
+        frames=tuple(frames),
+        checkpoints=tuple(checkpoints),
+        binding=binding,
+    )
+
+
+def project_context_payload(
+    *,
+    analysis_id: str,
+    binding_id: str,
+    domain_id: str,
+    authority_id: str,
+    schema: str,
+    payload: Mapping[str, Any],
+    presentation: Mapping[str, Any] | None = None,
+) -> DomainPayloadView:
+    """Expose unknown domain context as opaque, read-only structured data."""
+
+    del analysis_id
+    if not isinstance(payload, Mapping):
+        raise TypeError("domain context payload must be a mapping")
+    return DomainPayloadView(
+        binding_id=binding_id,
+        domain_id=domain_id,
+        authority_id=authority_id,
+        schema=schema,
+        payload=dict(payload),
+        presentation={} if presentation is None else dict(presentation),
+    )
 
 
 __all__ = [
@@ -177,4 +217,5 @@ __all__ = [
     "UNAVAILABLE_CONTEXT_ARTIFACT",
     "UNAVAILABLE_NATIVE_CONTEXT",
     "project_context",
+    "project_context_payload",
 ]

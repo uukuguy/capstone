@@ -1,5 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
-import type { ContextFrame, ContextState } from './types';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { ApplicationMetadata, BindingMetadata, ContextFrame, ContextState, DomainPayloadView } from './types';
 
 describe('ContextFrame API contract', () => {
   it('models recursive JSON state and the legacy missing-request invariant', () => {
@@ -33,5 +33,32 @@ describe('ContextFrame API contract', () => {
 
     expectTypeOf(native.before_state).toEqualTypeOf<ContextState>();
     expectTypeOf(legacy.unavailable_reason).toEqualTypeOf<string>();
+  });
+
+  it('models application-local bindings without assuming a grid authority', () => {
+    const binding: BindingMetadata = {
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      domain_version: '1.0.0',
+      authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0',
+      presentation: { business_title: 'Inventory review' },
+    };
+    const application: ApplicationMetadata = {
+      application_id: 'inventory-review',
+      application_version: '2.0.0',
+      bindings: { inventory: binding },
+    };
+    const payload: DomainPayloadView = {
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0',
+      payload: { items: [{ sku: 'A-1', available: 4 }] },
+      interpretation: 'opaque',
+    };
+
+    expect(application.bindings.inventory.authority_id).toBe('inventory-api');
+    expect(payload.payload.items).toBeDefined();
   });
 });

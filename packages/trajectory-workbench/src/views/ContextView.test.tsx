@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ContextFrame, ContextFrameSummary } from '../api/types';
+import type { BindingMetadata, ContextFrame, ContextFrameSummary } from '../api/types';
 import { ContextView } from './ContextView';
 
 const summaries: ContextFrameSummary[] = [
@@ -122,5 +122,26 @@ describe('ContextView', () => {
 
     fireEvent.click(screen.getByText('Raw recorded JSON'));
     expect(screen.getByText(/"nested":/)).toBeVisible();
+  });
+
+  it('labels the Kernel core timeline and selected binding using presentation metadata', () => {
+    const binding: BindingMetadata = {
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      domain_version: '1.0.0',
+      authority_id: 'inventory-api',
+      schema: 'inventory-context/1.0',
+      presentation: { context_title: 'Inventory context' },
+    };
+    render(<ContextView
+      {...baseProps}
+      frame={null}
+      binding={binding}
+      coreTimeline={[{ id: 'core-1', label: 'Answer committed', status: 'completed' }]}
+    />);
+
+    expect(screen.getByRole('region', { name: 'Kernel core timeline' })).toBeVisible();
+    expect(screen.getByText('Inventory context')).toBeVisible();
+    expect(screen.getByText('inventory-api')).toBeVisible();
   });
 });

@@ -12,6 +12,40 @@ export interface JsonObject { [key: string]: JsonValue; }
 export type ContextState = JsonObject;
 export type ContextDelta = JsonObject;
 
+/** Controller-owned identity carried with every domain projection. */
+export interface BindingMetadata {
+  binding_id: string;
+  domain_id: string;
+  domain_version: string;
+  authority_id: string;
+  schema: string;
+  presentation?: JsonObject;
+}
+
+export interface ApplicationMetadata {
+  application_id: string;
+  application_version: string;
+  bindings: Record<string, BindingMetadata>;
+}
+
+/** A validated domain result kept opaque to the framework/workbench. */
+export interface DomainPayloadView {
+  binding_id: string;
+  domain_id: string;
+  authority_id: string;
+  schema: string;
+  payload: JsonObject;
+  interpretation: 'opaque';
+  presentation?: JsonObject;
+}
+
+export interface CoreTimelineItem {
+  id: string;
+  label: string;
+  status: LifecycleStatus;
+  detail?: string | null;
+}
+
 export interface ProjectionPage<T> {
   analysis_id: string;
   items: T[];
@@ -21,6 +55,13 @@ export interface ProjectionPage<T> {
   last_sequence: number | null;
   has_older: boolean;
   encoded_bytes: number;
+  application_id?: string;
+  application_version?: string;
+  bindings?: BindingMetadata[];
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 export interface ProjectionNode {
@@ -30,6 +71,10 @@ export interface ProjectionNode {
   rule_id: string | null;
   status: LifecycleStatus;
   unavailable_reason: string | null;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 export interface AgentRetry extends ProjectionNode {
@@ -96,6 +141,10 @@ export interface AgentEventRow {
   unavailable_reason: string | null;
   title: string;
   detail: string | null;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 export type ExecutionAgentTurn = Omit<AgentTurn, 'source_sequence'> & {
@@ -129,6 +178,7 @@ export interface BusinessNode extends ProjectionNode {
   detail: string | null;
   refs: string[];
   contextRevision?: number | null;
+  payload?: JsonObject;
 }
 
 export interface BusinessProblem extends ProjectionNode {
@@ -137,6 +187,11 @@ export interface BusinessProblem extends ProjectionNode {
   title: string;
   nodes: BusinessNode[];
   node_count?: number;
+  domain_payload?: DomainPayloadView;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 export interface BusinessProblemSummary {
@@ -157,6 +212,14 @@ export interface BusinessCausalRow {
   source_sequence: number;
   problem: BusinessProblemSummary;
   nodes: Array<Omit<BusinessNode, 'source_sequence'>>;
+  application_id?: string;
+  application_version?: string;
+  bindings?: BindingMetadata[];
+  domain_payload?: DomainPayloadView;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 interface ContextFrameBase extends ProjectionNode {
@@ -196,6 +259,10 @@ export interface ContextFrameSummary {
   request_input_available: boolean;
   request_input_unavailable_reason: string | null;
   event_kind: string;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 /** Exact immutable artifact projection returned by the read-only evidence endpoint. */
@@ -220,6 +287,10 @@ export interface EvidenceRecord {
   result_id: string | null;
   evidence_id: string | null;
   claim_id: string | null;
+  binding_id?: string;
+  domain_id?: string;
+  authority_id?: string;
+  schema?: string;
 }
 
 export interface EvidenceIndex {
@@ -267,6 +338,9 @@ export interface RunSummary {
   last_sequence: number | null;
   replay_trusted_through: number | null;
   diagnostic: string | null;
+  application_id?: string;
+  application_version?: string;
+  bindings?: BindingMetadata[];
 }
 
 export interface RunListResponse { items: RunSummary[]; }

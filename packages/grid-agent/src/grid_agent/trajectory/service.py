@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import cast
 
 from grid_agent.trajectory.agent_projection import project_agent
@@ -17,7 +19,12 @@ from pandapower_domain.authority import ContentReferenceVerifier
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.materialize import ProjectionMaterializer
-from grid_agent.trajectory.projection_models import ProjectedRun, ProjectionDiagnostic
+from grid_agent.trajectory.projection_models import (
+    ApplicationProjectionMetadata,
+    BindingProjectionMetadata,
+    ProjectedRun,
+    ProjectionDiagnostic,
+)
 from capability_agent.trajectory.reader import RunEventReader
 from capability_agent.trajectory.replay import ReplayEventLike
 
@@ -137,6 +144,55 @@ class ProjectionService:
     def __init__(self, cache_root: Path) -> None:
         self.cache_root = Path(cache_root)
 
+    def read_application_metadata(
+        self, run_root: Path
+    ) -> ApplicationProjectionMetadata | None:
+        """Read controller-recorded application/binding labels for a run.
+
+        New application runs persist identity in a manifest or runtime
+        descriptor.  Older grid runs have neither and deliberately remain
+        metadata-free rather than receiving an inferred ``gridctl`` label.
+        Only fixed files within ``run_root`` are considered; arbitrary paths
+        from a manifest are never opened.
+        """
+
+        root = Path(run_root)
+        manifest = _read_json_file(root, "manifest.json")
+        context = _read_json_file(root, "core/context.json")
+        descriptors = tuple(
+            value
+            for path in _descriptor_paths(root)
+            if (value := _read_json_path(root, path)) is not None
+        )
+
+        app_id, app_version = _application_identity(manifest, context, descriptors)
+        merged: dict[str, dict[str, object]] = {}
+        for descriptor in descriptors:
+            _merge_binding_records(merged, _binding_records(descriptor))
+        _merge_binding_records(merged, _binding_records(manifest))
+        _merge_binding_records(merged, _context_binding_records(context))
+        if app_id is None and not merged:
+            return None
+        return ApplicationProjectionMetadata(
+            application_id=app_id or "unknown-application",
+            application_version=app_version or "unknown",
+            bindings={
+                binding_id: BindingProjectionMetadata(
+                    binding_id=binding_id,
+                    domain_id=str(values.get("domain_id") or binding_id),
+                    domain_version=str(values.get("domain_version") or "unknown"),
+                    authority_id=str(values.get("authority_id") or "unknown"),
+                    schema=str(values.get("schema") or "unknown"),
+                    presentation=(
+                        values.get("presentation")
+                        if isinstance(values.get("presentation"), Mapping)
+                        else {}
+                    ),
+                )
+                for binding_id, values in sorted(merged.items())
+            },
+        )
+
     def open_run(self, run_root: Path) -> ProjectedRun:
         run_root = Path(run_root)
         native_path = run_root / "events/run-events.jsonl"
@@ -152,9 +208,204 @@ class ProjectionService:
             extra = tuple(ProjectionDiagnostic(id=f"legacy:{item.code}", source_sequences=(1,), rule_id="legacy-import/v1", severity="warning", code=item.code, message=item.message) for item in imported.diagnostics)
             artifacts = _HistoricalArtifacts(run_root)
         replay_events = cast(Sequence[ReplayEventLike], events)
-        projected = ProjectedRun(analysis_id=events[0].analysis_id if events else run_root.name, source_fingerprint=source_fingerprint, agent=project_agent(replay_events), business=project_business(replay_events, artifacts), context=project_context(replay_events, artifacts), artifacts=project_artifacts(replay_events, artifacts), diagnostics=extra)
+        metadata = self.read_application_metadata(run_root)
+        binding = (
+            next(iter(metadata.bindings.values()))
+            if metadata is not None and len(metadata.bindings) == 1
+            else None
+        )
+        agent = project_agent(replay_events).model_copy(update={"binding": binding})
+        business = project_business(
+            replay_events,
+            artifacts,
+            application=metadata,
+            binding=binding,
+        )
+        context = project_context(replay_events, artifacts, binding=binding)
+        artifact_index = project_artifacts(replay_events, artifacts).model_copy(
+            update={"binding": binding}
+        )
+        projected = ProjectedRun(
+            analysis_id=events[0].analysis_id if events else run_root.name,
+            source_fingerprint=source_fingerprint,
+            application=metadata,
+            agent=agent,
+            business=business,
+            context=context,
+            artifacts=artifact_index,
+            diagnostics=extra,
+        )
         ProjectionMaterializer(self.cache_root).write(projected, source_fingerprint)
         return projected
+
+
+def _descriptor_paths(root: Path) -> tuple[Path, ...]:
+    paths = [Path("runtime/runtime-descriptor.json"), Path("core/runtime-descriptor.json")]
+    domains = root / "domains"
+    try:
+        children = sorted(domains.iterdir()) if domains.is_dir() and not domains.is_symlink() else ()
+    except OSError:
+        children = ()
+    paths.extend(
+        child.relative_to(root) / "runtime/runtime-descriptor.json"
+        for child in children
+        if child.is_dir() and not child.is_symlink()
+    )
+    return tuple(paths)
+
+
+def _read_json_file(root: Path, relative_path: str) -> Mapping[str, object] | None:
+    return _read_json_path(root, Path(relative_path))
+
+
+def _read_json_path(root: Path, relative_path: Path) -> Mapping[str, object] | None:
+    path = root / relative_path
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(root.resolve(strict=True)):
+            return None
+        value = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return value if isinstance(value, Mapping) else None
+
+
+def _application_identity(
+    manifest: Mapping[str, object] | None,
+    context: Mapping[str, object] | None,
+    descriptors: Sequence[Mapping[str, object]],
+) -> tuple[str | None, str | None]:
+    app_id: str | None = None
+    app_version: str | None = None
+    for value in (*descriptors, manifest or {}, context or {}):
+        app = value.get("application")
+        if isinstance(app, Mapping):
+            app_id = app_id or _text(app, "application_id", "applicationId", "id")
+            app_version = app_version or _text(
+                app, "application_version", "applicationVersion", "version"
+            )
+        app_id = app_id or _text(value, "application_id", "applicationId")
+        app_version = app_version or _text(
+            value, "application_version", "applicationVersion", "version"
+        )
+        core = value.get("core")
+        if isinstance(core, Mapping):
+            core_input = core.get("input")
+            if isinstance(core_input, Mapping):
+                app_id = app_id or _text(core_input, "application_id", "applicationId")
+                app_version = app_version or _text(
+                    core_input, "application_version", "applicationVersion", "version"
+                )
+    return app_id, app_version
+
+
+def _binding_records(value: Mapping[str, object] | None) -> tuple[tuple[str, Mapping[str, object]], ...]:
+    if value is None:
+        return ()
+    records = value.get("bindings", value.get("domains"))
+    if isinstance(records, Mapping):
+        return tuple(
+            (str(binding_id), record if isinstance(record, Mapping) else {})
+            for binding_id, record in records.items()
+            if isinstance(binding_id, str) and binding_id
+        )
+    if isinstance(records, (list, tuple)):
+        return tuple(
+            (binding_id, record)
+            for record in records
+            if isinstance(record, Mapping)
+            if (binding_id := _text(record, "binding_id", "bindingId", "id")) is not None
+        )
+    direct_binding_id = _text(value, "binding_id", "bindingId")
+    if direct_binding_id is not None:
+        return ((direct_binding_id, value),)
+    return ()
+
+
+def _context_binding_records(
+    value: Mapping[str, object] | None,
+) -> tuple[tuple[str, Mapping[str, object]], ...]:
+    if value is None:
+        return ()
+    domains = value.get("domains")
+    if not isinstance(domains, Mapping):
+        return ()
+    records: list[tuple[str, Mapping[str, object]]] = []
+    for binding_id, envelope in domains.items():
+        if not isinstance(binding_id, str) or not binding_id:
+            continue
+        if isinstance(envelope, Mapping):
+            records.append((binding_id, envelope))
+        else:
+            records.append((binding_id, {}))
+    return tuple(records)
+
+
+def _merge_binding_records(
+    target: dict[str, dict[str, object]],
+    records: Sequence[tuple[str, Mapping[str, object]]],
+) -> None:
+    for binding_id, record in records:
+        current = target.setdefault(binding_id, {})
+        current.update(
+            {
+                "domain_id": _text(record, "domain_id", "domainId") or current.get("domain_id"),
+                "domain_version": _text(record, "domain_version", "domainVersion", "version") or current.get("domain_version"),
+                "authority_id": _text(record, "authority_id", "authorityId") or current.get("authority_id"),
+                "schema": _text(
+                    record,
+                    "schema",
+                    "schema_id",
+                    "schemaId",
+                    "output_schema",
+                    "outputSchema",
+                    "domain_schema",
+                    "domainSchema",
+                    "result_schema",
+                    "resultSchema",
+                ) or current.get("schema"),
+                "presentation": _safe_mapping(record.get("presentation", record.get("presentation_metadata")))
+                or current.get("presentation", {}),
+            }
+        )
+
+
+def _text(value: Mapping[str, object], *keys: str) -> str | None:
+    for key in keys:
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return None
+
+
+def _safe_mapping(value: object) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): _safe_value(item)
+        for key, item in value.items()
+        if isinstance(key, str)
+    }
+
+
+def _safe_value(value: object, *, depth: int = 0) -> object:
+    if depth > 8:
+        return None
+    if value is None or type(value) in {str, bool, int}:
+        return value
+    if type(value) is float:
+        return value if math.isfinite(value) else None
+    if isinstance(value, Mapping):
+        return {
+            key: _safe_value(item, depth=depth + 1)
+            for key, item in value.items()
+            if isinstance(key, str)
+        }
+    if isinstance(value, (list, tuple)):
+        return [_safe_value(item, depth=depth + 1) for item in value]
+    return None
 
 
 __all__ = ["ProjectionService"]

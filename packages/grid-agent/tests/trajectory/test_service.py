@@ -7,12 +7,18 @@ from pydantic import ValidationError
 
 from grid_agent.trajectory.events import EventSource, RunScope
 from grid_agent.trajectory.projection_models import (
+    ApplicationProjectionMetadata,
+    AgentTrajectory,
     ArtifactIndex,
     ArtifactIndexRecord,
+    BindingProjectionMetadata,
     BusinessNode,
+    BusinessTrajectory,
     ContextCheckpoint,
     ContextFrame,
     ProjectionDiagnostic,
+    ProjectedRun,
+    ContextTimeline,
 )
 from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
@@ -53,6 +59,55 @@ def test_projection_service_opens_legacy_run_without_writing_source(tmp_path) ->
     projected = ProjectionService(tmp_path / ".grid-agent/trajectory-cache").open_run(run)
     assert projected.analysis_id == "analysis-old"
     assert _digests(run) == before
+
+
+def test_projected_run_keeps_application_and_binding_identity_for_read_models() -> None:
+    binding = BindingProjectionMetadata(
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        domain_version="1.0.0",
+        authority_id="inventory-api",
+        schema="inventory-output/1.0",
+    )
+    metadata = ApplicationProjectionMetadata(
+        application_id="inventory-review",
+        application_version="2.0.0",
+        bindings={"inventory": binding},
+    )
+
+    projected = ProjectedRun(
+        analysis_id="run-inventory",
+        source_fingerprint="source",
+        application=metadata,
+        agent=AgentTrajectory(analysis_id="run-inventory"),
+        business=BusinessTrajectory(analysis_id="run-inventory"),
+        context=ContextTimeline(analysis_id="run-inventory"),
+        artifacts=ArtifactIndex(analysis_id="run-inventory"),
+    )
+
+    assert projected.application.application_id == "inventory-review"
+    assert projected.application.bindings["inventory"].authority_id == "inventory-api"
+
+
+def test_projection_service_reads_generic_runtime_descriptor_metadata(tmp_path) -> None:
+    run = tmp_path / "runs/run-inventory"
+    descriptor = run / "domains/inventory/runtime/runtime-descriptor.json"
+    descriptor.parent.mkdir(parents=True)
+    descriptor.write_text(
+        '{"schema":"capability-agent-runtime/1.0","application":{"applicationId":"inventory-review","applicationVersion":"2.0.0"},"domains":[{"bindingId":"inventory","domainId":"inventory-readonly","domainVersion":"1.0.0","authorityId":"inventory-api","schema":"inventory-output/1.0"}]}',
+        encoding="utf-8",
+    )
+    (run / "manifest.json").write_text(
+        '{"schema_version":"grid-agent-analysis-manifest/1.0","analysis_id":"run-inventory","status":"completed","events_path":"events/run-events.jsonl"}',
+        encoding="utf-8",
+    )
+    # The projection itself is supplied by the catalog in this focused test;
+    # metadata extraction must not require a grid-specific authority.
+    service = ProjectionService(tmp_path / "cache")
+    metadata = service.read_application_metadata(run)
+
+    assert metadata.application_id == "inventory-review"
+    assert metadata.bindings["inventory"].authority_id == "inventory-api"
 
 
 def test_native_artifact_verifier_accepts_replayed_artifact_pointer(tmp_path) -> None:

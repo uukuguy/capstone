@@ -7,11 +7,14 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from grid_agent.trajectory.projection_models import (
+    ApplicationProjectionMetadata,
     AgentStep,
     AgentTrajectory,
     AgentTurn,
     ArtifactIndex,
     ArtifactIndexRecord,
+    BindingProjectionMetadata,
+    DomainPayloadView,
     ContextFrame,
     ContextTimeline,
     ModelRequest,
@@ -148,6 +151,86 @@ def test_agent_page_flattens_one_large_turn_and_binds_filters(tmp_path: Path) ->
     )
     assert stale.status_code == 409
     assert stale.json()["code"] == "stale_cursor"
+
+
+def test_projection_pages_carry_application_and_binding_identity(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    binding = BindingProjectionMetadata(
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        domain_version="1.0.0",
+        authority_id="inventory-api",
+        schema="inventory-output/1.0",
+        presentation={"business_title": "Inventory review"},
+    )
+    application = ApplicationProjectionMetadata(
+        application_id="inventory-review",
+        application_version="2.0.0",
+        bindings={"inventory": binding},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "application": application,
+            "agent": catalog.projected.agent.model_copy(update={"binding": binding}),
+            "business": catalog.projected.business.model_copy(
+                update={"application": application, "binding": binding}
+            ),
+            "context": catalog.projected.context.model_copy(update={"binding": binding}),
+            "artifacts": catalog.projected.artifacts.model_copy(update={"binding": binding}),
+        }
+    )
+    client = TestClient(app)
+
+    business = client.get("/api/runs/analysis-test/business")
+    agent = client.get("/api/runs/analysis-test/agent")
+    context = client.get("/api/runs/analysis-test/context")
+    evidence = client.get("/api/runs/analysis-test/evidence")
+
+    for response in (business, agent, context, evidence):
+        assert response.status_code == 200
+        page = response.json()
+        assert page["application_id"] == "inventory-review"
+        assert page["application_version"] == "2.0.0"
+        assert page["binding_id"] == "inventory"
+        assert page["domain_id"] == "inventory-readonly"
+        assert page["authority_id"] == "inventory-api"
+        assert page["schema"] == "inventory-output/1.0"
+        assert page["bindings"][0]["binding_id"] == "inventory"
+
+    assert business.json()["items"][0]["authority_id"] == "inventory-api"
+    assert business.json()["items"][0]["nodes"][0]["authority_id"] == "inventory-api"
+    assert agent.json()["items"][0]["authority_id"] == "inventory-api"
+    assert context.json()["items"][0]["authority_id"] == "inventory-api"
+    assert evidence.json()["items"][0]["authority_id"] == "inventory-api"
+
+
+def test_business_page_keeps_unknown_domain_payload_opaque(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    payload = DomainPayloadView(
+        binding_id="inventory",
+        domain_id="inventory-readonly",
+        authority_id="inventory-api",
+        schema="inventory-output/1.0",
+        payload={"items": [{"sku": "A-1", "available": 4}]},
+    )
+    catalog.projected = catalog.projected.model_copy(
+        update={
+            "business": catalog.projected.business.model_copy(
+                update={"problems": (), "domain_payload": payload}
+            )
+        }
+    )
+
+    response = TestClient(app).get("/api/runs/analysis-test/business")
+
+    assert response.status_code == 200
+    row = response.json()["items"][0]
+    assert row["domain_payload"]["interpretation"] == "opaque"
+    assert row["domain_payload"]["payload"] == {
+        "items": [{"sku": "A-1", "available": 4}]
+    }
+    assert row["nodes"][0]["kind"] == "domain-payload"
+    assert row["nodes"][0]["payload"] == row["domain_payload"]["payload"]
 
 
 def test_agent_page_applies_turn_status_capability_and_text_filters(

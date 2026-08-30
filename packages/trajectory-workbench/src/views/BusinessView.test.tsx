@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BusinessProblem } from '../api/types';
+import type { BindingMetadata, BusinessProblem, DomainPayloadView } from '../api/types';
 import { initialWorkbenchState } from '../state/workbench';
 import { BusinessView } from './BusinessView';
 
@@ -140,5 +140,48 @@ describe('BusinessView', () => {
     const focusedHeading = await screen.findByRole('heading', { name: 'Problem 60' });
     expect(focusedHeading).toHaveFocus();
     expect(screen.queryByRole('button', { name: /Agent-declared.*Contingency conclusion/i })).not.toBeInTheDocument();
+  });
+
+  it('separates the Kernel timeline and selects a binding-owned domain projection', async () => {
+    const dispatch = vi.fn();
+    const onBindingChange = vi.fn();
+    const binding: BindingMetadata = {
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      domain_version: '1.0.0',
+      authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0',
+      presentation: { business_title: 'Inventory review' },
+    };
+    render(<BusinessView
+      problems={[]}
+      state={initialWorkbenchState}
+      dispatch={dispatch}
+      bindings={[binding]}
+      selectedBindingId="inventory"
+      onBindingChange={onBindingChange}
+      coreTimeline={[{ id: 'core-1', label: 'Answer committed', status: 'completed' }]}
+    />);
+
+    expect(screen.getByRole('region', { name: 'Kernel core timeline' })).toBeVisible();
+    expect(screen.getByText('inventory-readonly')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Domain binding'), { target: { value: 'inventory' } });
+    expect(onBindingChange).toHaveBeenCalledWith('inventory');
+  });
+
+  it('renders unknown domain payload as read-only structured data', async () => {
+    const payload: DomainPayloadView = {
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0',
+      payload: { items: [{ sku: 'A-1', available: 4 }] },
+      interpretation: 'opaque',
+    };
+    render(<BusinessView problems={[]} state={initialWorkbenchState} dispatch={vi.fn()} domainPayload={payload} />);
+
+    expect(screen.getByRole('region', { name: 'Domain payload' })).toBeVisible();
+    expect(screen.getByText('A-1')).toBeVisible();
+    expect(screen.queryByText(/grid/i)).not.toBeInTheDocument();
   });
 });

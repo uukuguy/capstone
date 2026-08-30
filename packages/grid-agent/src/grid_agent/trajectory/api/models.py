@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from grid_agent.trajectory.projection_models import BindingProjectionMetadata
+
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -58,6 +60,18 @@ class RunSummary(_StrictModel):
     last_sequence: int | None = Field(default=None, ge=0)
     replay_trusted_through: int | None = Field(default=None, ge=0)
     diagnostic: str | None = None
+    # Generic application identity is optional for legacy v0.2/native runs.
+    # ``exclude_if`` keeps the compatibility response byte-compatible while
+    # allowing the catalogue to advertise binding-qualified runs.
+    application_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    application_version: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    bindings: tuple[BindingProjectionMetadata, ...] = Field(
+        default_factory=tuple, exclude_if=lambda value: not value
+    )
 
 
 class RunListResponse(_StrictModel):

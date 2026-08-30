@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessCausalRow, BusinessProblemSummary } from './types';
-import { prependBusinessRows, problemsFromBusinessRows } from './business';
+import { domainPayloadView, prependBusinessRows, problemsFromBusinessRows } from './business';
 
 const problem: BusinessProblemSummary = {
   id: 'business:analysis-test:turn-7',
@@ -56,5 +56,20 @@ describe('bounded business page adapter', () => {
     expect(prependBusinessRows(older, current).map((item) => item.source_sequence)).toEqual([
       99_997, 99_998, 99_999, 100_000,
     ]);
+  });
+
+  it('keeps an unknown domain payload inspectable without grid-shaped reconstruction', () => {
+    const payload = domainPayloadView({
+      binding_id: 'inventory',
+      domain_id: 'inventory-readonly',
+      authority_id: 'inventory-api',
+      schema: 'inventory-output/1.0',
+      payload: { items: [{ sku: 'A-1', available: 4 }] },
+      interpretation: 'opaque',
+    });
+
+    expect(payload.binding_id).toBe('inventory');
+    expect(payload.payload).toEqual({ items: [{ sku: 'A-1', available: 4 }] });
+    expect(problemsFromBusinessRows([])).toEqual([]);
   });
 });

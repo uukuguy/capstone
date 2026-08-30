@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
 
@@ -121,6 +122,7 @@ class TrajectoryRunCatalog:
         status = manifest.status or "unavailable"
         last_sequence: int | None = None
         replay_trusted_through: int | None = None
+        projected: ProjectedRun | None = None
         if source_kind == "native":
             prefix = RunEventReader(run_root / "events/run-events.jsonl").read_prefix()
             last_sequence = prefix.events[-1].sequence if prefix.events else 0
@@ -137,6 +139,11 @@ class TrajectoryRunCatalog:
             turn_count = manifest.total_turns or 0
             status = "corrupt"
             diagnostic = diagnostic or "trajectory projection is unavailable"
+        application = getattr(projected, "application", None)
+        raw_bindings = getattr(application, "bindings", {})
+        bindings = (
+            tuple(raw_bindings.values()) if isinstance(raw_bindings, Mapping) else ()
+        )
         return RunSummary(
             analysis_id=manifest.analysis_id,
             status=status,
@@ -146,6 +153,17 @@ class TrajectoryRunCatalog:
             last_sequence=last_sequence,
             replay_trusted_through=replay_trusted_through,
             diagnostic=diagnostic,
+            application_id=(
+                getattr(application, "application_id", None)
+                if projected is not None
+                else None
+            ),
+            application_version=(
+                getattr(application, "application_version", None)
+                if projected is not None
+                else None
+            ),
+            bindings=bindings,
         )
 
 

@@ -20,6 +20,7 @@ from grid_agent.trajectory.api.paging import ProjectionPager
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import StrictFrozenModel
 from grid_agent.trajectory.projection_models import (
+    ApplicationProjectionMetadata,
     AgentEventRow,
     AgentRetry,
     AgentStep,
@@ -33,6 +34,7 @@ from grid_agent.trajectory.projection_models import (
     NodeSource,
     ProjectedRun,
     ToolCall,
+    BindingProjectionMetadata,
 )
 
 
@@ -100,6 +102,68 @@ class ProjectionPageResponse(StrictFrozenModel):
     last_sequence: int | None = Field(default=None, ge=1)
     has_older: bool
     encoded_bytes: int = Field(ge=0)
+    # Optional identity is populated for generic application runs.  Keeping
+    # these fields out of legacy pages avoids changing the v1.0.1 response
+    # envelope while giving consumers an explicit routing boundary.
+    application_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    application_version: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    bindings: tuple[BindingProjectionMetadata, ...] = Field(
+        default_factory=tuple, exclude_if=lambda value: not value
+    )
+    binding_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    domain_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    authority_id: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    schema: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def derive_identity_from_rows(self) -> "ProjectionPageResponse":
+        """Recover binding labels from compatibility business rows.
+
+        The legacy business route constructs this envelope itself and cannot
+        pass the projected run object.  Its row-level labels are authoritative
+        enough to repeat on the page envelope; no authority is inferred when
+        rows carry no labels.
+        """
+
+        if not self.items:
+            return self
+        first = self.items[0]
+        updates = {
+            field: first.get(field)
+            for field in ("application_id", "application_version")
+            if getattr(self, field) is None and isinstance(first.get(field), str)
+        }
+        updates.update({
+            field: first.get(field)
+            for field in ("binding_id", "domain_id", "authority_id", "schema")
+            if getattr(self, field) is None and isinstance(first.get(field), str)
+        })
+        if updates:
+            for field, value in updates.items():
+                object.__setattr__(self, field, value)
+        if not self.bindings and isinstance(first.get("bindings"), (list, tuple)):
+            object.__setattr__(
+                self,
+                "bindings",
+                tuple(
+                    BindingProjectionMetadata.model_validate(binding)
+                    for binding in first["bindings"]
+                    if isinstance(binding, Mapping)
+                ),
+            )
+        return self
 
 
 class _FilterModel(StrictFrozenModel):
@@ -232,7 +296,22 @@ def projection_page(
         last_sequence=last_sequence,
         has_older=page.has_older,
         encoded_bytes=page.encoded_bytes,
+        **_page_identity(projected),
     )
+
+
+def _page_identity(projected: ProjectedRun) -> dict[str, object]:
+    application: ApplicationProjectionMetadata | None = projected.application
+    binding = projected.binding_metadata()
+    return {
+        "application_id": application.application_id if application else None,
+        "application_version": application.application_version if application else None,
+        "bindings": tuple(application.bindings.values()) if application else (),
+        "binding_id": binding.binding_id if binding else None,
+        "domain_id": binding.domain_id if binding else None,
+        "authority_id": binding.authority_id if binding else None,
+        "schema": binding.schema if binding else None,
+    }
 
 
 def _normalize_filters(
@@ -309,23 +388,28 @@ def _agent_records(
 
 def _agent_candidates(projected: ProjectedRun) -> tuple[_AgentCandidate, ...]:
     candidates: list[_AgentCandidate] = []
+    binding = projected.binding_metadata()
     for turn in projected.agent.turns:
-        candidates.append(_AgentCandidate(_turn_row(turn)))
+        candidates.append(_AgentCandidate(_with_binding(_turn_row(turn), binding)))
         for step in turn.steps:
-            candidates.append(_AgentCandidate(_step_row(turn, step)))
+            candidates.append(
+                _AgentCandidate(_with_binding(_step_row(turn, step), binding))
+            )
             request = step.request
             if request is None:
                 continue
             candidates.append(
-                _AgentCandidate(_request_row(projected, turn, step, request))
+                _AgentCandidate(
+                    _with_binding(_request_row(projected, turn, step, request), binding)
+                )
             )
             candidates.extend(
-                _AgentCandidate(_retry_row(turn, request, retry))
+                _AgentCandidate(_with_binding(_retry_row(turn, request, retry), binding))
                 for retry in request.retries
             )
             candidates.extend(
                 _AgentCandidate(
-                    _tool_row(projected, turn, request, tool),
+                    _with_binding(_tool_row(projected, turn, request, tool), binding),
                     capability=tool.capability,
                 )
                 for tool in request.tools
@@ -333,7 +417,10 @@ def _agent_candidates(projected: ProjectedRun) -> tuple[_AgentCandidate, ...]:
             if request.response is not None:
                 candidates.append(
                     _AgentCandidate(
-                        _response_row(projected, turn, request, request.response)
+                        _with_binding(
+                            _response_row(projected, turn, request, request.response),
+                            binding,
+                        )
                     )
                 )
     return tuple(
@@ -341,6 +428,21 @@ def _agent_candidates(projected: ProjectedRun) -> tuple[_AgentCandidate, ...]:
             candidates,
             key=lambda candidate: (candidate.row.source_sequence, candidate.row.id),
         )
+    )
+
+
+def _with_binding(
+    row: AgentEventRow, binding: BindingProjectionMetadata | None
+) -> AgentEventRow:
+    if binding is None:
+        return row
+    return row.model_copy(
+        update={
+            "binding_id": binding.binding_id,
+            "domain_id": binding.domain_id,
+            "authority_id": binding.authority_id,
+            "schema": binding.schema,
+        }
     )
 
 
@@ -539,6 +641,7 @@ def _context_records(
     projected: ProjectedRun,
     filters: Mapping[str, str | int | bool],
 ) -> tuple[_ProjectionRecord, ...]:
+    binding = projected.binding_metadata()
     public_frames = tuple(
         public_context_frame(projected, frame) for frame in projected.context.frames
     )
@@ -558,6 +661,7 @@ def _context_records(
                     else frame.unavailable_reason
                 ),
                 event_kind="context-frame",
+                **_flat_binding(binding),
             )
             for frame in public_frames
         )
@@ -603,28 +707,34 @@ def public_context_frame(
 ) -> ContextFrame:
     """Expose a request input ref only when its artifact record is verified."""
     reference = frame.request_artifact_ref
+    binding = projected.binding_metadata()
+    binding_update = _flat_binding(binding)
     if reference is None:
         if frame.unavailable_reason:
-            return frame
+            return frame.model_copy(update=binding_update)
         return frame.model_copy(
-            update={"unavailable_reason": _UNREGISTERED_REQUEST_INPUT_REASON}
+            update={
+                "unavailable_reason": _UNREGISTERED_REQUEST_INPUT_REASON,
+                **binding_update,
+            }
         )
 
     record = projected.artifacts.records.get(reference)
     if record is None or record.reference != reference:
         reason = _UNREGISTERED_REQUEST_INPUT_REASON
     else:
-        public_record = _public_evidence_record(record)
+        public_record = _public_evidence_record(record, binding=binding)
         if (
             public_record.verification_status == "verified"
             and public_record.status != "unavailable"
         ):
-            return frame
+            return frame.model_copy(update=binding_update)
         reason = public_record.unavailable_reason or _UNVERIFIED_REQUEST_INPUT_REASON
     return frame.model_copy(
         update={
             "request_artifact_ref": None,
             "unavailable_reason": reason,
+            **binding_update,
         }
     )
 
@@ -634,7 +744,7 @@ def _evidence_records(
     filters: Mapping[str, str | int | bool],
 ) -> tuple[_ProjectionRecord, ...]:
     public_records = tuple(
-        _public_evidence_record(record)
+        _public_evidence_record(record, binding=projected.binding_metadata())
         for record in projected.artifacts.records.values()
     )
     selected = tuple(
@@ -653,9 +763,14 @@ def _evidence_records(
     )
 
 
-def _public_evidence_record(record: ArtifactIndexRecord) -> ArtifactIndexRecord:
+def _public_evidence_record(
+    record: ArtifactIndexRecord,
+    *,
+    binding: BindingProjectionMetadata | None = None,
+) -> ArtifactIndexRecord:
+    binding_update = _flat_binding(binding)
     if _is_safe_public_artifact_path(record):
-        return record
+        return record.model_copy(update=binding_update) if binding_update else record
     return record.model_copy(
         update={
             "status": "unavailable",
@@ -663,8 +778,22 @@ def _public_evidence_record(record: ArtifactIndexRecord) -> ArtifactIndexRecord:
             "relative_path": _UNAVAILABLE_ARTIFACT_PATH,
             "sha256": "unavailable",
             "verification_status": "unavailable",
+            **binding_update,
         }
     )
+
+
+def _flat_binding(
+    binding: BindingProjectionMetadata | None,
+) -> dict[str, str]:
+    if binding is None:
+        return {}
+    return {
+        "binding_id": binding.binding_id,
+        "domain_id": binding.domain_id,
+        "authority_id": binding.authority_id,
+        "schema": binding.schema,
+    }
 
 
 def _is_safe_public_artifact_path(record: ArtifactIndexRecord) -> bool:
