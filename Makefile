@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic report trajectory test test-agent test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -10,6 +10,7 @@ help:
 	@echo "  make run-llm QUESTION='...'  Primary natural-language agent path via Pi/LLM"
 	@echo "  make analysis [INSTRUCTIONS=...]  Compatibility analysis report; default TASK instruction set"
 	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
+	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
 	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
@@ -90,6 +91,10 @@ analysis-generic:
 	@test -f "$(INSTRUCTIONS)" || (echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2)
 	@uv run --project packages/grid-agent grid-agent analysis-generic --application "$(APPLICATION)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
 
+application: APPLICATION = pandapower-static-analysis
+application: INSTRUCTIONS = $(ANALYSIS_DEFAULT_INSTRUCTIONS)
+application: analysis-generic
+
 report: analysis
 
 PORT ?= 8765
@@ -97,7 +102,10 @@ PORT ?= 8765
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools
+test: test-agent test-simulator test-tools test-makefile-application
+
+test-makefile-application:
+	bash tools/test_makefile_application.sh
 
 test-agent:
 	uv run --project packages/grid-agent pytest packages/grid-agent/tests -q
