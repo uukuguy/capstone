@@ -13,6 +13,7 @@ from capability_agent.runtime.models import (
     ResolvedLLMConfig,
     SecretValue,
 )
+from capability_agent.runtime.environment import RuntimeHost
 
 __all__ = [
     "CliLLMOptions",
@@ -21,6 +22,7 @@ __all__ = [
     "ProviderCatalog",
     "ProviderCatalogSource",
     "ProviderDescriptor",
+    "RuntimeHost",
     "ResolvedLLM",
     "ResolvedLLMConfig",
     "SecretValue",

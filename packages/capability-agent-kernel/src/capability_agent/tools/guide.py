@@ -17,6 +17,11 @@ _ENCODED_SEPARATOR_PATTERN = re.compile(r"%(?:2f|5c)", re.IGNORECASE)
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 _SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 _DEFAULT_SCHEMA_ID = "capability-guide-index"
+# Keep model-facing guide snapshots bounded before any bytes are published.
+_MAX_GUIDE_RESOURCES = 64
+_MAX_GUIDE_DOCUMENT_BYTES = 256 * 1024
+_MAX_GUIDE_TOTAL_BYTES = 1024 * 1024
+_MAX_GUIDE_TITLE_CHARS = 256
 
 
 class GuideNotFound(KeyError):
@@ -202,9 +207,12 @@ def _load_provider_documents(
         raise GuideMaterializationError("guide provider index could not be loaded") from None
     if not isinstance(raw_index, (tuple, list)):
         raise GuideMaterializationError("guide provider index must be a sequence")
+    if len(raw_index) > _MAX_GUIDE_RESOURCES:
+        raise GuideMaterializationError("guide provider resource count exceeds limit")
 
     documents: list[tuple[str, str, str, str]] = []
     seen: set[str] = set()
+    total_bytes = 0
     for item in raw_index:
         if not isinstance(item, Mapping):
             raise GuideMaterializationError("guide provider index contains an invalid document")
@@ -218,6 +226,8 @@ def _load_provider_documents(
             raise GuideMaterializationError("guide provider index contains duplicate resource IDs")
         if type(title) is not str or not title:
             raise GuideMaterializationError("guide provider title must be non-empty text")
+        if len(title) > _MAX_GUIDE_TITLE_CHARS:
+            raise GuideMaterializationError("guide provider title exceeds limit")
         if type(digest) is not str or _SHA256_PATTERN.fullmatch(digest) is None:
             raise GuideMaterializationError("guide provider digest is invalid")
         seen.add(resource_id)
@@ -241,7 +251,16 @@ def _load_provider_documents(
             or type(text) is not str
         ):
             raise GuideMaterializationError("guide provider document does not match its index")
-        if sha256(text.encode("utf-8")).hexdigest() != digest:
+        if len(opened_title) > _MAX_GUIDE_TITLE_CHARS:
+            raise GuideMaterializationError("guide provider title exceeds limit")
+        encoded_text = text.encode("utf-8")
+        document_bytes = len(encoded_text)
+        if document_bytes > _MAX_GUIDE_DOCUMENT_BYTES:
+            raise GuideMaterializationError("guide provider document size exceeds limit")
+        total_bytes += document_bytes
+        if total_bytes > _MAX_GUIDE_TOTAL_BYTES:
+            raise GuideMaterializationError("guide provider total size exceeds limit")
+        if sha256(encoded_text).hexdigest() != digest:
             raise GuideMaterializationError("guide provider document digest does not match its index")
         documents.append((resource_id, title, digest, text))
     return tuple(documents)

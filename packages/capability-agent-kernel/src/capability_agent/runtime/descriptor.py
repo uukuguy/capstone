@@ -19,6 +19,7 @@ _DESCRIPTOR_FIELDS = frozenset(
         "schema",
         "binding_id",
         "workspace_path",
+        "application_workspace_path",
         "executable",
         "executable_args",
         "search_path",
@@ -65,6 +66,7 @@ class RuntimeDescriptor:
     binding_id: str
     workspace_path: Path
     executable: str
+    application_workspace_path: Path | None = None
     executable_args: tuple[str, ...] = ()
     search_path: tuple[str, ...] = ()
     protocol: str = ""
@@ -102,6 +104,12 @@ class RuntimeDescriptor:
         workspace = _absolute_directory(self.workspace_path, "workspace_path")
         object.__setattr__(self, "workspace_path", workspace)
         _reject_existing_symlink(workspace, "workspace_path")
+        application_workspace = _absolute_directory(
+            self.application_workspace_path or workspace,
+            "application_workspace_path",
+        )
+        object.__setattr__(self, "application_workspace_path", application_workspace)
+        _reject_existing_symlink(application_workspace, "application_workspace_path")
         if (
             not isinstance(self.executable, str)
             or not self.executable
@@ -182,7 +190,7 @@ class RuntimeDescriptor:
             if value is not None:
                 _absolute_directory_or_file(value, name)
                 path = Path(value)
-                if not _is_inside(path, workspace):
+                if not _is_inside(path, application_workspace):
                     raise RuntimeDescriptorError(f"{name} is outside workspace_path")
                 _reject_existing_symlink(path, name)
                 object.__setattr__(self, name, path)
@@ -348,6 +356,7 @@ def descriptor_from_endpoint(
     *,
     binding_id: str,
     workspace: Path,
+    application_workspace_path: Path | None = None,
     endpoint: object,
     protocol: str = "",
     protocol_version: str = "",
@@ -383,6 +392,7 @@ def descriptor_from_endpoint(
     return RuntimeDescriptor(
         binding_id=binding_id,
         workspace_path=workspace,
+        application_workspace_path=application_workspace_path,
         executable=executable,
         executable_args=tuple(_text_sequence(raw_args, "executable_args")),
         search_path=tuple(_text_sequence(raw_search, "search_path")),

@@ -154,6 +154,43 @@ def test_runtime_descriptor_rejects_a_stale_guide_index_digest(
         descriptor.as_json()
 
 
+def test_runtime_descriptor_separates_binding_workspace_from_application_channels(
+    tmp_path: Path,
+) -> None:
+    application_root = tmp_path / "run"
+    domain_root = application_root / "domains" / "alpha"
+    domain_root.mkdir(parents=True)
+    catalog = domain_root / "tool-catalog.json"
+    catalog.write_text("{}\n", encoding="utf-8")
+    guide_index = domain_root / "guide-index.json"
+    guide_index.write_text("{}\n", encoding="utf-8")
+    guide_root = domain_root / "guides"
+    guide_root.mkdir()
+    context_path = application_root / "core" / "context.json"
+    context_path.parent.mkdir()
+
+    descriptor = RuntimeDescriptor(
+        binding_id="alpha",
+        workspace_path=domain_root,
+        application_workspace_path=application_root,
+        executable="domainctl",
+        executable_args=("--workspace", str(domain_root)),
+        protocol="alpha-capability",
+        protocol_version="1.0",
+        authority_id="alpha-authority",
+        tool_catalog_path=catalog,
+        guide_index_path=guide_index,
+        guide_root_path=guide_root,
+        context_view_path=context_path,
+    )
+
+    payload = descriptor.as_json()
+
+    assert payload["domains"][0]["workspacePath"] == str(domain_root)
+    assert payload["domains"][0]["toolCatalogPath"] == str(catalog)
+    assert payload["core"]["analysisContextViewPath"] == str(context_path)
+
+
 def test_descriptor_endpoint_rejects_explicit_empty_optional_tool_name(
     tmp_path: Path,
 ) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,12 +24,14 @@ from capability_agent.application.profile import CredentialScope
 from capability_agent.domain.provisioning import CredentialLease
 from capability_agent.application.registry import DomainRegistry
 from capability_agent.runtime.catalog import ProviderCatalog
+from capability_agent.runtime.environment import RuntimeHost
 from capability_agent.runtime.models import CliLLMOptions
 
 from grid_agent.application.registry import (
     ApplicationRegistry,
     build_trusted_application_registry,
 )
+from grid_agent.application.paths import ProjectPaths
 
 
 class _EmptyCredentialBroker:
@@ -60,6 +63,7 @@ def build_generic_application(
     provider_catalog: ProviderCatalog | object | None = None,
     cli_options: CliLLMOptions | None = None,
     environment: Mapping[str, str] | None = None,
+    runtime_host: RuntimeHost | None = None,
     **application_options: Any,
 ) -> AgentApplication:
     """Build a generic Kernel application from the trusted registry.
@@ -113,6 +117,18 @@ def build_generic_application(
                 credentials if credentials is not None else _EmptyCredentialBroker(),
             ),
         )
+
+    if (
+        runtime_host is None
+        and provider is None
+        and provider_factory is None
+        and provider_catalog is not None
+        and application_options.get("runtime_paths") is None
+    ):
+        runtime_host = _build_runtime_host(
+            profile,
+            environment,
+        )
     return AgentApplication(
         profile=profile,
         prepared_application=prepared,
@@ -122,6 +138,7 @@ def build_generic_application(
         workspace=selected_workspace,
         cli_options=cli_options,
         environment=environment,
+        runtime_host=runtime_host,
         **application_options,
     )
 
@@ -183,6 +200,45 @@ class _RunnableApplication(Protocol):
     profile: object
 
     def run(self, request: ApplicationRequest) -> ApplicationOutcome: ...
+
+
+def _build_runtime_host(
+    profile: ApplicationProfile | None,
+    environment: Mapping[str, str] | None,
+) -> RuntimeHost:
+    """Resolve product-owned Pi assets before constructing the generic runner."""
+
+    if profile is None:
+        raise ApplicationConfigurationError("generic runtime profile is unavailable")
+    if not profile.domains:
+        raise ApplicationConfigurationError("generic runtime profile has no domain binding")
+    project_paths = ProjectPaths.from_root(Path.cwd())
+    runtime_environment = dict(os.environ if environment is None else environment)
+    PiExtensionLocator, PiRuntimeLock, PiRuntimeLocator = _runtime_host_dependencies()
+    runtime_lock = PiRuntimeLock.load(project_paths.runtime_lock)
+    command = PiRuntimeLocator(
+        project_paths.pi_runtime_dir,
+        runtime_environment,
+        runtime_lock=runtime_lock,
+    ).resolve()
+    extension_path = PiExtensionLocator(project_paths.root).resolve()
+    manifest = profile.domains[0].profile.manifest
+    return RuntimeHost(
+        command=command,
+        project_pi_dir=project_paths.pi_agent_dir,
+        extension_path=extension_path,
+        system_policy_path=manifest.system_policy_path,
+    )
+
+
+def _runtime_host_dependencies() -> tuple[type, type, type]:
+    """Load grid runtime adapters lazily to keep package initialization acyclic."""
+
+    from grid_agent.runtime.extension import PiExtensionLocator
+    from grid_agent.runtime.lock import PiRuntimeLock
+    from grid_agent.runtime.locator import PiRuntimeLocator
+
+    return PiExtensionLocator, PiRuntimeLock, PiRuntimeLocator
 
 
 def _domain_registry(profile: ApplicationProfile) -> DomainRegistry:

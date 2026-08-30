@@ -39,6 +39,32 @@ class _Provider:
         }
 
 
+class _IndexedProvider:
+    def __init__(self, documents: tuple[tuple[str, str, str], ...]) -> None:
+        self.documents = documents
+
+    def load(self) -> tuple[Mapping[str, object], ...]:
+        return tuple(
+            {
+                "resource_id": resource_id,
+                "title": title,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            }
+            for resource_id, title, text in self.documents
+        )
+
+    def open(self, resource_id: str) -> Mapping[str, object]:
+        for current_id, title, text in self.documents:
+            if current_id == resource_id:
+                return {
+                    "resource_id": current_id,
+                    "title": title,
+                    "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    "text": text,
+                }
+        raise KeyError(resource_id)
+
+
 def test_materialize_guide_provider_publishes_binding_owned_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -140,3 +166,60 @@ def test_materialize_guide_provider_never_replaces_existing_snapshot_or_symlink(
             guide_index_path=tmp_path / "linked-index.json",
         )
     assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_materialize_guide_provider_rejects_too_many_resources(
+    tmp_path: Path,
+) -> None:
+    documents = tuple(
+        ("overview" if index == 0 else f"guide-{index}", "Guide", "# Guide\n")
+        for index in range(65)
+    )
+
+    with pytest.raises(GuideMaterializationError, match="resource count"):
+        materialize_guide_provider(
+            _IndexedProvider(documents),
+            workspace=tmp_path / "binding",
+            guide_root_path=tmp_path / "binding" / "guides",
+            guide_index_path=tmp_path / "binding" / "guide-index.json",
+        )
+
+
+def test_materialize_guide_provider_rejects_oversized_document_and_title(
+    tmp_path: Path,
+) -> None:
+    oversized = "# Guide\n" + "x" * (256 * 1024)
+    with pytest.raises(GuideMaterializationError, match="document size"):
+        materialize_guide_provider(
+            _IndexedProvider((("overview", "Guide", oversized),)),
+            workspace=tmp_path / "large-document",
+            guide_root_path=tmp_path / "large-document" / "guides",
+            guide_index_path=tmp_path / "large-document" / "guide-index.json",
+        )
+
+    long_title = "T" * 257
+    with pytest.raises(GuideMaterializationError, match="title"):
+        materialize_guide_provider(
+            _IndexedProvider((("overview", long_title, "# Guide\n"),)),
+            workspace=tmp_path / "large-title",
+            guide_root_path=tmp_path / "large-title" / "guides",
+            guide_index_path=tmp_path / "large-title" / "guide-index.json",
+        )
+
+
+def test_materialize_guide_provider_rejects_oversized_total(
+    tmp_path: Path,
+) -> None:
+    text = "# Guide\n" + "x" * (200 * 1024)
+    documents = tuple(
+        ("overview" if index == 0 else f"guide-{index}", "Guide", text)
+        for index in range(6)
+    )
+
+    with pytest.raises(GuideMaterializationError, match="total"):
+        materialize_guide_provider(
+            _IndexedProvider(documents),
+            workspace=tmp_path / "binding",
+            guide_root_path=tmp_path / "binding" / "guides",
+            guide_index_path=tmp_path / "binding" / "guide-index.json",
+        )

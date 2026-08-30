@@ -13,11 +13,14 @@ from capability_agent.application.output import (
     JsonOutputRenderer,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 
+import grid_agent.application.composition as composition_module
 from grid_agent.application.composition import (
     build_generic_application,
     run_generic_application,
 )
+from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.profile import build_pandapower_application_profile
 
 
@@ -141,3 +144,86 @@ def test_generic_entrypoint_rejects_request_for_a_different_application(
 
     with pytest.raises(ApplicationConfigurationError, match="identity"):
         run_generic_application("other-application", (), application=application)
+
+
+def test_generic_composition_injects_product_owned_runtime_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The grid composition root supplies trusted Pi assets to the generic Kernel."""
+
+    from capability_agent.runtime.environment import RuntimeHost
+
+    monkeypatch.chdir(tmp_path)
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="host-run", binding_ids=("grid",)
+    )
+    command = PiCommand(
+        argv=("node", "/product-owned/pi.js"),
+        identity=PiRuntimeIdentity(
+            path=Path("/product-owned/pi.js"),
+            source="fixture",
+            package_version="1.0.0",
+            lock_sha256="fixture-lock",
+        ),
+    )
+    lock_calls: dict[str, Path] = {}
+    locator_calls: dict[str, object] = {}
+
+    class FakeLock:
+        @classmethod
+        def load(cls, path: Path) -> object:
+            lock_calls["path"] = path
+            return cls()
+
+    class FakeRuntimeLocator:
+        def __init__(
+            self,
+            runtime_dir: Path,
+            environ: object,
+            *,
+            runtime_lock: object,
+        ) -> None:
+            locator_calls.update(
+                runtime_dir=runtime_dir,
+                environ=environ,
+                runtime_lock=runtime_lock,
+            )
+
+        def resolve(self) -> PiCommand:
+            return command
+
+    class FakeExtensionLocator:
+        def __init__(self, project_root: Path) -> None:
+            locator_calls["extension_root"] = project_root
+
+        def resolve(self) -> Path:
+            return tmp_path / "trusted-extension.mjs"
+
+    monkeypatch.setattr(composition_module, "PiRuntimeLock", FakeLock, raising=False)
+    monkeypatch.setattr(
+        composition_module, "PiRuntimeLocator", FakeRuntimeLocator, raising=False
+    )
+    monkeypatch.setattr(
+        composition_module, "PiExtensionLocator", FakeExtensionLocator, raising=False
+    )
+
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider_catalog=object(),
+        workspace=workspace,
+        environment={"PATH": "/usr/bin"},
+        catalog=object(),
+    )
+
+    assert isinstance(application.runtime_host, RuntimeHost)
+    assert application.runtime_host.command == command
+    assert application.runtime_host.project_pi_dir == ProjectPaths.from_root(
+        tmp_path
+    ).pi_agent_dir
+    assert application.runtime_host.extension_path == tmp_path / "trusted-extension.mjs"
+    assert application.runtime_host.system_policy_path == profile.domains[0].profile.manifest.system_policy_path
+    assert locator_calls["runtime_dir"] == ProjectPaths.from_root(tmp_path).pi_runtime_dir
+    assert lock_calls["path"] == ProjectPaths.from_root(tmp_path).runtime_lock
+    assert locator_calls["extension_root"] == tmp_path

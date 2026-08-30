@@ -41,8 +41,7 @@ from capability_agent.application.turns import TurnController
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.catalog import ProviderCatalog, ProviderCatalogSource
 from capability_agent.runtime.descriptor import descriptor_from_endpoint, write_runtime_descriptor
-from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
-from capability_agent.runtime.locator import PiRuntimeLocator
+from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, build_pi_launch
 from capability_agent.runtime.models import CliLLMOptions, ResolvedLLM
 from capability_agent.runtime.resolver import resolve_llm
 from capability_agent.runtime.rpc import PiRpcClient
@@ -151,6 +150,7 @@ class AgentApplication:
         application_preparer: Callable[..., object] | None = None,
         cli_options: CliLLMOptions | None = None,
         environment: Mapping[str, str] | None = None,
+        runtime_host: RuntimeHost | None = None,
         runtime_paths: RuntimePaths | None = None,
     ) -> None:
         self.profile = profile
@@ -179,6 +179,7 @@ class AgentApplication:
         self.application_preparer = application_preparer
         self.cli_options = cli_options or CliLLMOptions()
         self.environment = None if environment is None else dict(environment)
+        self.runtime_host = runtime_host
         self.runtime_paths = runtime_paths
         self._prepared_for_run = False
 
@@ -547,6 +548,10 @@ class AgentApplication:
         controller: object,
     ) -> PiRpcClient:
         if self.runtime_paths is None:
+            if self.runtime_host is None:
+                raise ApplicationConfigurationError(
+                    "default Pi transport requires an injected runtime host"
+                )
             if len(bindings) != 1:
                 raise ApplicationConfigurationError("default Pi transport requires one prepared binding")
             binding_id = next(iter(bindings))
@@ -566,7 +571,8 @@ class AgentApplication:
             descriptor_path = runtime_dir / "runtime-descriptor.json"
             descriptor = descriptor_from_endpoint(
                 binding_id=binding_id,
-                workspace=workspace.root,
+                workspace=workspace.domain_path(binding_id),
+                application_workspace_path=workspace.root,
                 endpoint=endpoint,
                 protocol=getattr(manifest, "protocol", ""),
                 protocol_version=getattr(manifest, "protocol_version", ""),
@@ -602,15 +608,17 @@ class AgentApplication:
                 ),
             )
             write_runtime_descriptor(descriptor_path, descriptor)
-            command = PiRuntimeLocator(runtime_dir / "pi").resolve()
+            host = self.runtime_host
             self.runtime_paths = RuntimePaths(
-                command=command,
-                project_pi_dir=runtime_dir / "pi",
+                command=host.command,
+                project_pi_dir=host.project_pi_dir,
                 session_dir=runtime_dir / "session",
                 workspace=workspace.root,
                 domain_search_paths=tuple(Path(path) for path in descriptor.search_path),
+                extension_path=host.extension_path,
                 tool_catalog_path=tool_catalog_path,
                 guide_index_path=guide_index_path,
+                system_policy_path=host.system_policy_path,
                 runtime_descriptor_path=descriptor_path,
                 binding_id=binding_id,
             )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -651,6 +652,9 @@ def test_cleanup_continues_reverse_order_after_baseexception() -> None:
 def test_default_runtime_descriptor_uses_controller_owned_run_channels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from capability_agent.runtime.environment import RuntimeHost
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+
     workspace = ApplicationWorkspace.create(
         tmp_path / "runs", run_id="real-run", binding_ids=("alpha",)
     )
@@ -670,10 +674,18 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
 
     monkeypatch.setattr(runner_module, "descriptor_from_endpoint", fake_descriptor)
     monkeypatch.setattr(runner_module, "write_runtime_descriptor", lambda *_: None)
-    monkeypatch.setattr(
-        runner_module,
-        "PiRuntimeLocator",
-        lambda *_: SimpleNamespace(resolve=lambda: SimpleNamespace()),
+    host = RuntimeHost(
+        command=PiCommand(
+            argv=("node", "/product-owned/pi.js"),
+            identity=PiRuntimeIdentity(
+                path=Path("/product-owned/pi.js"),
+                source="fixture",
+                package_version="1.0.0",
+                lock_sha256="fixture-lock",
+            ),
+        ),
+        project_pi_dir=tmp_path / "product-pi",
+        extension_path=tmp_path / "trusted-extension.mjs",
     )
     monkeypatch.setattr(runner_module, "build_pi_launch", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
@@ -681,7 +693,7 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0")
     )
-    application = AgentApplication(profile=profile, environment={})
+    application = AgentApplication(profile=profile, runtime_host=host, environment={})
     request = ApplicationRequest(
         application_id="fixture-app", questions=("q",), run_id="real-run"
     )
@@ -767,10 +779,21 @@ def test_default_runtime_descriptor_materializes_prepared_domain_resources(
         credentials=SimpleNamespace(issue=lambda **_: SimpleNamespace(scope_id="isolated", credentials={})),
     )
 
-    monkeypatch.setattr(
-        runner_module,
-        "PiRuntimeLocator",
-        lambda *_: SimpleNamespace(resolve=lambda: SimpleNamespace()),
+    from capability_agent.runtime.environment import RuntimeHost
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+
+    host = RuntimeHost(
+        command=PiCommand(
+            argv=("node", "/product-owned/pi.js"),
+            identity=PiRuntimeIdentity(
+                path=Path("/product-owned/pi.js"),
+                source="fixture",
+                package_version="1.0.0",
+                lock_sha256="fixture-lock",
+            ),
+        ),
+        project_pi_dir=tmp_path / "product-pi",
+        extension_path=tmp_path / "trusted-extension.mjs",
     )
     monkeypatch.setattr(runner_module, "build_pi_launch", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
@@ -780,6 +803,7 @@ def test_default_runtime_descriptor_materializes_prepared_domain_resources(
         profile=prepared.profile,
         prepared_application=prepared,
         workspace=workspace,
+        runtime_host=host,
         environment={},
     )
     channels = SimpleNamespace(
@@ -818,4 +842,121 @@ def test_default_runtime_descriptor_materializes_prepared_domain_resources(
     assert descriptor_domain["guideIndexSha256"] == sha256(
         runtime.guide_index_path.read_bytes()
     ).hexdigest()
+
+
+def test_default_transport_uses_injected_product_runtime_and_split_workspaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The generic runner must never discover Pi from a binding run directory."""
+
+    from capability_agent.runtime.environment import RuntimeHost
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="runtime-host-run", binding_ids=("alpha",)
+    )
+    domain_root = workspace.domain_path("alpha")
+    catalog_path = domain_root / "tool-catalog.json"
+    catalog_path.write_text("{}\n", encoding="utf-8")
+    guide_index_path = domain_root / "guide-index.json"
+    guide_index_path.write_text("{}\n", encoding="utf-8")
+    guide_root_path = domain_root / "guides"
+    guide_root_path.mkdir()
+    manifest = SimpleNamespace(
+        application_id="fixture-app",
+        version="1.0.0",
+        protocol="alpha-capability",
+        protocol_version="1.0",
+        tool_name_prefix="alpha_",
+    )
+    profile = SimpleNamespace(manifest=manifest)
+    runtime = SimpleNamespace(
+        profile=SimpleNamespace(manifest=manifest),
+        authority=SimpleNamespace(authority_id="alpha-authority"),
+        tool_catalog_path=catalog_path,
+        guide_index_path=guide_index_path,
+        guide_root_path=guide_root_path,
+    )
+    endpoint = SimpleNamespace(
+        metadata={
+            "executable": "domainctl",
+            "arguments": ("--workspace", str(domain_root)),
+        }
+    )
+    binding = SimpleNamespace(
+        endpoint=endpoint,
+        runtime=runtime,
+        binding=SimpleNamespace(profile=SimpleNamespace(manifest=manifest)),
+    )
+    command = PiCommand(
+        argv=("node", "/product-owned/pi.js"),
+        identity=PiRuntimeIdentity(
+            path=Path("/product-owned/pi.js"),
+            source="fixture",
+            package_version="1.0.0",
+            lock_sha256="fixture-lock",
+        ),
+    )
+    host = RuntimeHost(
+        command=command,
+        project_pi_dir=tmp_path / "product-pi",
+        extension_path=tmp_path / "trusted-extension.mjs",
+        system_policy_path=tmp_path / "system-policy.md",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_launch(_resolved: object, paths: object, **_kwargs: object) -> object:
+        captured["paths"] = paths
+        return object()
+
+    monkeypatch.setattr(
+        runner_module,
+        "PiRuntimeLocator",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("per-run Pi locator must not be called")
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(runner_module, "build_pi_launch", fake_launch)
+    monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "PiRpcClient", lambda *_args, **_kwargs: "client")
+
+    application = AgentApplication(
+        profile=profile,
+        runtime_host=host,
+        environment={},
+    )
+    channels = SimpleNamespace(
+        active_turn_path=workspace.turns_path / "active-turn.json",
+        context_view_path=workspace.context_snapshot_path,
+        trajectory_requests_path=workspace.core_path / "requests.jsonl",
+        trajectory_capture_state_path=workspace.core_path / "capture.json",
+        trajectory_allowed_refs_path=workspace.core_path / "allowed.json",
+        trajectory_acks_path=workspace.core_path / "acks",
+    )
+    client = application._default_pi_transport(
+        SimpleNamespace(secret=None),
+        SimpleNamespace(bindings={"alpha": binding}),
+        {"alpha": binding},
+        request=ApplicationRequest(
+            application_id="fixture-app",
+            questions=("question",),
+            run_id="runtime-host-run",
+        ),
+        workspace=workspace,
+        controller=channels,
+    )
+
+    assert client == "client"
+    paths = captured["paths"]
+    assert paths.command == command
+    assert paths.project_pi_dir == host.project_pi_dir
+    assert paths.extension_path == host.extension_path
+    assert paths.system_policy_path == host.system_policy_path
+    descriptor_path = workspace.domain_runtime_path("alpha") / "runtime-descriptor.json"
+    descriptor_payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    assert descriptor_payload["domains"][0]["workspacePath"] == str(domain_root)
+    assert descriptor_payload["core"]["analysisContextViewPath"] == str(
+        workspace.context_snapshot_path
+    )
     assert client is not None

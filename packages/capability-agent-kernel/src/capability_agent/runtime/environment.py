@@ -6,7 +6,7 @@ import ipaddress
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping
 from urllib.parse import urlparse
 
 from capability_agent.runtime.lock import PiCommand
@@ -33,6 +33,39 @@ _RUNTIME_ENVIRONMENT_NAMES = _PASSTHROUGH_ENVIRONMENT | frozenset(
         "PI_OFFLINE",
     }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeHost:
+    """Trusted, product-owned model runtime inputs.
+
+    The Kernel consumes this immutable host description but does not discover
+    an executable from a per-run workspace.  Product composition roots are
+    responsible for locating and verifying the command and its Pi assets.
+    """
+
+    command: PiCommand
+    project_pi_dir: Path
+    extension_path: Path
+    system_policy_path: Path | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.command, PiCommand):
+            raise TypeError("runtime host command must be a PiCommand")
+        project_pi_dir = Path(self.project_pi_dir)
+        if not project_pi_dir.is_absolute():
+            raise ValueError("runtime host project_pi_dir must be absolute")
+        object.__setattr__(self, "project_pi_dir", project_pi_dir)
+        if self.extension_path is None:
+            raise ValueError("runtime host extension_path is required")
+        for name in ("extension_path", "system_policy_path"):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            path = Path(value)
+            if not path.is_absolute():
+                raise ValueError(f"runtime host {name} must be absolute")
+            object.__setattr__(self, name, path)
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +264,7 @@ def _prepare_owner_only_directory(path: Path | None) -> None:
 
 __all__ = [
     "PiLaunch",
+    "RuntimeHost",
     "RuntimePaths",
     "build_pi_environment",
     "build_pi_launch",
