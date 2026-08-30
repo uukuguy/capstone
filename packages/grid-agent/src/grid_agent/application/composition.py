@@ -25,6 +25,7 @@ from capability_agent.domain.provisioning import CredentialLease
 from capability_agent.application.registry import DomainRegistry
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.runtime.environment import RuntimeHost
+from capability_agent.runtime.extension import ExtensionSpec
 from capability_agent.runtime.models import CliLLMOptions
 
 from grid_agent.application.registry import (
@@ -221,7 +222,14 @@ def _build_runtime_host(
         runtime_environment,
         runtime_lock=runtime_lock,
     ).resolve()
-    extension_path = PiExtensionLocator(project_paths.root).resolve()
+    extension_path = PiExtensionLocator(
+        project_paths.root,
+        spec=ExtensionSpec(
+            package_name="@capability-agent/pi-tools",
+            package_version="0.1.0",
+            candidates=(Path("packages/pi-capability-tools"),),
+        ),
+    ).resolve()
     manifest = profile.domains[0].profile.manifest
     return RuntimeHost(
         command=command,
@@ -232,9 +240,9 @@ def _build_runtime_host(
 
 
 def _runtime_host_dependencies() -> tuple[type, type, type]:
-    """Load grid runtime adapters lazily to keep package initialization acyclic."""
+    """Load generic extension and product runtime adapters lazily."""
 
-    from grid_agent.runtime.extension import PiExtensionLocator
+    from capability_agent.runtime.extension import PiExtensionLocator
     from grid_agent.runtime.lock import PiRuntimeLock
     from grid_agent.runtime.locator import PiRuntimeLocator
 

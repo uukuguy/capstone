@@ -152,6 +152,7 @@ def test_generic_composition_injects_product_owned_runtime_host(
     """The grid composition root supplies trusted Pi assets to the generic Kernel."""
 
     from capability_agent.runtime.environment import RuntimeHost
+    from capability_agent.runtime.extension import ExtensionSpec
 
     monkeypatch.chdir(tmp_path)
     profile = build_pandapower_application_profile()
@@ -194,8 +195,9 @@ def test_generic_composition_injects_product_owned_runtime_host(
             return command
 
     class FakeExtensionLocator:
-        def __init__(self, project_root: Path) -> None:
+        def __init__(self, project_root: Path, *, spec: ExtensionSpec) -> None:
             locator_calls["extension_root"] = project_root
+            locator_calls["extension_spec"] = spec
 
         def resolve(self) -> Path:
             return tmp_path / "trusted-extension.mjs"
@@ -225,3 +227,30 @@ def test_generic_composition_injects_product_owned_runtime_host(
     assert locator_calls["runtime_dir"] == ProjectPaths.from_root(tmp_path).pi_runtime_dir
     assert lock_calls["path"] == ProjectPaths.from_root(tmp_path).runtime_lock
     assert locator_calls["extension_root"] == tmp_path
+    extension_spec = locator_calls["extension_spec"]
+    assert isinstance(extension_spec, ExtensionSpec)
+    assert extension_spec.package_name == "@capability-agent/pi-tools"
+    assert extension_spec.package_version == "0.1.0"
+    assert extension_spec.candidates == (Path("packages/pi-capability-tools"),)
+
+
+def test_generic_host_resolves_domain_neutral_pi_extension() -> None:
+    """Generic composition must bind the v1 runtime to generic Pi tools."""
+
+    from capability_agent.runtime.extension import ExtensionSpec
+
+    project_root = Path(__file__).resolve().parents[4]
+    extension_locator, _lock, _runtime = composition_module._runtime_host_dependencies()
+
+    assert extension_locator.__module__ == "capability_agent.runtime.extension"
+    extension = extension_locator(
+        project_root,
+        spec=ExtensionSpec(
+            package_name="@capability-agent/pi-tools",
+            package_version="0.1.0",
+            candidates=(Path("packages/pi-capability-tools"),),
+        ),
+    ).resolve()
+
+    assert extension == project_root / "packages/pi-capability-tools/src/domain-tools.mjs"
+    assert "pi-grid-tools" not in extension.parts
