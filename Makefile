@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis report trajectory test test-agent test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic report trajectory test test-agent test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -8,7 +8,8 @@ help:
 	@echo "  make doctor                Inspect local runtime readiness"
 	@echo "  make run QUESTION='...'    Run a local deterministic smoke/offline check"
 	@echo "  make run-llm QUESTION='...'  Primary natural-language agent path via Pi/LLM"
-	@echo "  make analysis [INSTRUCTIONS=...]  Continuous analysis report; default TASK instruction set"
+	@echo "  make analysis [INSTRUCTIONS=...]  Compatibility analysis report; default TASK instruction set"
+	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
 	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
@@ -77,11 +78,16 @@ run-llm:
 	@test -n "$(QUESTION)" || (echo "Usage: make run-llm QUESTION='...' [PROVIDER=openai]" >&2; exit 2)
 	uv run --project packages/grid-agent grid-agent run $(if $(PROVIDER),--provider "$(PROVIDER)") "$(QUESTION)"
 
-INSTRUCTIONS ?= validation/questions/task.md.txt
+ANALYSIS_DEFAULT_INSTRUCTIONS ?= validation/questions/task.md.txt
 
 analysis:
+	@instruction_file="$(if $(INSTRUCTIONS),$(INSTRUCTIONS),$(ANALYSIS_DEFAULT_INSTRUCTIONS))"; test -f "$$instruction_file" || (echo "Instruction file not found: $$instruction_file" >&2; exit 2); uv run --project packages/grid-agent grid-agent analysis --instructions "$$instruction_file" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
+
+analysis-generic:
+	@test -n "$(APPLICATION)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
+	@test -n "$(INSTRUCTIONS)" || (echo "Usage: make analysis-generic APPLICATION=... INSTRUCTIONS=... [PROVIDER=...] [MODEL=...]" >&2; exit 2)
 	@test -f "$(INSTRUCTIONS)" || (echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2)
-	uv run --project packages/grid-agent grid-agent analysis --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
+	uv run --project packages/grid-agent grid-agent analysis-generic --application "$(APPLICATION)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)")
 
 report: analysis
 

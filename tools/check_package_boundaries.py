@@ -33,7 +33,6 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "pandapower",
     ),
     "packages/grid-agent/src/grid_agent/cli": (
-        "grid_agent.application.composition",
         "grid_agent.domain",
         "grid_agent.domains",
     ),
@@ -42,7 +41,6 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "grid_agent.analysis.domain_projection",
         "grid_agent.analysis.integrity",
         "grid_agent.analysis.models",
-        "grid_agent.application.composition",
         "grid_agent.domain",
         "grid_agent.domains",
         "grid_agent.tools.catalog",
@@ -62,7 +60,6 @@ GRID_AGENT_COMPATIBILITY_SHIMS = frozenset(
         "analysis/domain_projection.py",
         "analysis/integrity.py",
         "analysis/models.py",
-        "application/composition.py",
         "domain/__init__.py",
         "domain/authority.py",
         "domain/contracts.py",

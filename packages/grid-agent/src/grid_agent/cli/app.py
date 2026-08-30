@@ -23,7 +23,9 @@ from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.analysis.turns import AuditCallback, TurnController
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.application.paths import ProjectPaths
+from grid_agent.application.composition import run_generic_application
 from grid_agent.application.workspace import RunWorkspace
+from grid_agent.compat.v1_0_1 import build_grid_v1_0_1_compatibility_adapter
 from grid_agent.contracts import AnswerEnvelope, RunRequest
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
 from grid_agent.simulator.locator import GridctlLocator
@@ -31,7 +33,8 @@ from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.locator import PiRuntimeLocator
 from grid_agent.runtime.extension import PiExtensionLocator
 from grid_agent.runtime.rpc import PiRpcClient
-from grid_agent.config.catalog import ProviderCatalog
+from capability_agent.runtime.catalog import ProviderCatalog as GenericProviderCatalog
+from grid_agent.config.catalog import ProviderCatalog as LegacyProviderCatalog
 from grid_agent.config.models import CliLLMOptions
 from grid_agent.config.resolver import resolve_llm
 from grid_agent.runtime.environment import RuntimePaths, build_pi_launch
@@ -345,7 +348,13 @@ def _analysis_report_envelope(outcome: AnalysisOutcome, project_root: Path) -> A
 
 def _emit_analysis_outcome(outcome: AnalysisOutcome, project_root: Path) -> None:
     envelope = _analysis_report_envelope(outcome, project_root)
-    typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
+    typer.echo(
+        build_grid_v1_0_1_compatibility_adapter().render(
+            question_id=envelope.question_id,
+            answer_output=envelope.answer_output,
+        ),
+        nl=False,
+    )
     if outcome.status != "completed":
         raise typer.Exit(1)
 
@@ -366,7 +375,7 @@ def _execute_analysis(
     runtime_env = _runtime_environment(project_paths.root)
     auth_store = ProjectAuthStore.from_pi_agent_dir(project_paths.pi_agent_dir)
     resolved = resolve_llm(
-        catalog=ProviderCatalog.load(),
+        catalog=LegacyProviderCatalog.load(),
         cli=CliLLMOptions(provider=provider, model=model),
         environ=runtime_env,
         env_file=project_paths.root / ".env",
@@ -487,7 +496,7 @@ def _execute_analysis(
                 ),
                 recorder=recorder,
             ),
-            pi_client=PiRpcClient(launch, workspace, trace),
+            pi_client=cast(Any, PiRpcClient(launch, workspace, trace)),
             projector=AnalysisContextProjector(
                 store,
                 domain_runtime.authority,
@@ -551,7 +560,13 @@ def analysis(
             question_id="analysis-error",
             answer_output=f"执行限制 / execution limitation: {type(exc).__name__}",
         )
-        typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
+        typer.echo(
+            build_grid_v1_0_1_compatibility_adapter().render(
+                question_id=envelope.question_id,
+                answer_output=envelope.answer_output,
+            ),
+            nl=False,
+        )
         raise typer.Exit(1)
     _emit_analysis_outcome(outcome, project_root)
 
@@ -577,9 +592,54 @@ def report(
             question_id="analysis-error",
             answer_output=f"执行限制 / execution limitation: {type(exc).__name__}",
         )
-        typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
+        typer.echo(
+            build_grid_v1_0_1_compatibility_adapter().render(
+                question_id=envelope.question_id,
+                answer_output=envelope.answer_output,
+            ),
+            nl=False,
+        )
         raise typer.Exit(1)
     _emit_analysis_outcome(outcome, project_root)
+
+
+@app.command("analysis-generic")
+def analysis_generic(
+    application: str = typer.Option(..., "--application"),
+    instructions: Path = typer.Option(..., "--instructions", exists=True, readable=True),
+    provider: str | None = typer.Option(None, "--provider"),
+    model: str | None = typer.Option(None, "--model"),
+) -> None:
+    """Run an explicitly registered application using the composite output contract."""
+
+    try:
+        questions = tuple(load_questions(instructions))
+        project_paths = ProjectPaths.from_root(Path.cwd())
+        typer.echo(
+            f"analysis-generic application={application} instructions={instructions}",
+            err=True,
+        )
+        outcome = run_generic_application(
+            application,
+            questions,
+            provider=provider,
+            model=model,
+            provider_catalog=GenericProviderCatalog.load(
+                project_paths.root / "configs/llm-providers.json"
+            ),
+            workspace_root=project_paths.runs_dir,
+            environment=_runtime_environment(project_paths.root),
+        )
+        if outcome.status != "completed" or not isinstance(outcome.rendered, str):
+            message = getattr(outcome, "error", None) or "generic application failed"
+            typer.echo(f"generic application failed: {message}", err=True)
+            raise typer.Exit(1)
+        typer.echo(outcome.rendered, nl=False)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        typer.echo(f"generic application error: {type(exc).__name__}", err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -610,7 +670,7 @@ def run(
             project_pi_dir = project_paths.pi_agent_dir
             auth_store = ProjectAuthStore.from_pi_agent_dir(project_pi_dir)
             resolved = resolve_llm(
-                catalog=ProviderCatalog.load(),
+                catalog=LegacyProviderCatalog.load(),
                 cli=CliLLMOptions(
                     provider=provider,
                     model=model,
@@ -681,7 +741,13 @@ def run(
                 rpc.stop()
             progress.completed(answer)
             envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
-            typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
+            typer.echo(
+                build_grid_v1_0_1_compatibility_adapter().render(
+                    question_id=envelope.question_id,
+                    answer_output=envelope.answer_output,
+                ),
+                nl=False,
+            )
             return
         answer = answer_information(request.question)
         if answer is None:
@@ -696,24 +762,32 @@ def run(
                 )
                 answer = answer_diagnostic(request.question, executor)
         envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
-        typer.echo(json.dumps(envelope.model_dump(), ensure_ascii=False))
+        typer.echo(
+            build_grid_v1_0_1_compatibility_adapter().render(
+                question_id=envelope.question_id,
+                answer_output=envelope.answer_output,
+            ),
+            nl=False,
+        )
     except Exception as exc:
         typer.echo(f"grid-agent error: {exc}", err=True)
+        error_envelope = AnswerEnvelope(
+            question_id=(
+                request.question_id
+                if request is not None
+                else question_id or "request-error"
+            ),
+            answer_output=(
+                "执行限制 / execution limitation: "
+                f"{type(exc).__name__}"
+            ),
+        )
         typer.echo(
-            json.dumps(
-                AnswerEnvelope(
-                    question_id=(
-                        request.question_id
-                        if request is not None
-                        else question_id or "request-error"
-                    ),
-                    answer_output=(
-                        "执行限制 / execution limitation: "
-                        f"{type(exc).__name__}"
-                    ),
-                ).model_dump(),
-                ensure_ascii=False,
-            )
+            build_grid_v1_0_1_compatibility_adapter().render(
+                question_id=error_envelope.question_id,
+                answer_output=error_envelope.answer_output,
+            ),
+            nl=False,
         )
         raise typer.Exit(1)
     finally:
