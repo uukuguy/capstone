@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from pandapower_domain.models import ActiveModelState, DomainStateDelta
+from pandapower_domain.models import ActiveModelState, DomainStateDelta, ScenarioState
 from pandapower_domain.state import PandapowerStateAdapter
 
 
@@ -58,6 +58,37 @@ def test_state_adapter_accepts_kernel_domain_delta_protocol() -> None:
     model = merged["model"]
     assert isinstance(model, Mapping)
     assert model["model_id"] == "case9"
+
+
+def test_state_adapter_reuses_identical_content_addressed_scenario_across_turns() -> None:
+    scenario = ScenarioState(
+        scenario_ref="result:sha256:" + "c" * 64,
+        context_ref="context:sha256:" + "a" * 64,
+        revision_ref="revision:sha256:" + "b" * 64,
+        kind="single_branch_outage",
+        status="succeeded",
+        changes={"outage_branch_ref": "asset:line:sha256:" + "d" * 64},
+        result_refs=["result:sha256:" + "c" * 64],
+        producer_capability="analysis.contingency.n_minus_one.run",
+        producer_turn_id="turn-1",
+    )
+    adapter = PandapowerStateAdapter()
+    first = adapter.merge(
+        binding_id="grid",
+        state={},
+        delta=DomainStateDelta(projector="contingency-n1-v1", scenarios=[scenario]),
+    )
+    replayed = adapter.merge(
+        binding_id="grid",
+        state=first,
+        delta=DomainStateDelta(
+            projector="contingency-n1-v1",
+            scenarios=[scenario.model_copy(update={"producer_turn_id": "turn-2"})],
+        ),
+    )
+
+    persisted = replayed["scenarios"][scenario.scenario_ref]
+    assert persisted["producer_turn_id"] == "turn-1"
 
 
 @pytest.mark.parametrize(

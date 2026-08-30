@@ -628,6 +628,12 @@ class PandapowerStateAdapter:
                 key = _record_key(field, item)
                 existing = records.get(key)
                 dumped = item.model_dump(mode="python")
+                if (
+                    field == "scenarios"
+                    and isinstance(existing, Mapping)
+                    and _same_scenario_content(existing, dumped)
+                ):
+                    continue
                 if existing is not None and existing != dumped:
                     raise ValueError(f"pandapower state record collision: {key}")
                 records[key] = dumped
@@ -716,6 +722,16 @@ def _record_key(field: str, item: object) -> str:
     if field == "capabilities":
         return str(getattr(item, "id"))
     raise ValueError(f"unsupported pandapower state field: {field}")
+
+
+def _same_scenario_content(
+    existing: Mapping[str, object], candidate: Mapping[str, object]
+) -> bool:
+    existing_content = dict(existing)
+    candidate_content = dict(candidate)
+    existing_content.pop("producer_turn_id", None)
+    candidate_content.pop("producer_turn_id", None)
+    return existing_content == candidate_content
 
 
 def _detach_json(value: object) -> object:
