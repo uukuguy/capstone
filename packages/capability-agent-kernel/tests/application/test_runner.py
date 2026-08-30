@@ -13,9 +13,12 @@ from capability_agent.application.output import (
     FrameworkOutputComposer,
     ValidatedDomainOutput,
 )
+from capability_agent.application.context_store import ApplicationContextStore
+from capability_agent.application.projector import ApplicationInvocationProjector
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.catalog import ProviderCatalog
+from capability_agent.tools.catalog import CompositeToolCatalog
 
 
 @dataclass
@@ -64,6 +67,34 @@ class FakeController:
         self.events.append(f"turn.fail:{handle.turn_id}")
         self.failed.append((handle, kwargs))
         return SimpleNamespace(status="failed", error=kwargs.get("error"))
+
+
+def test_runner_builds_default_invocation_projector_for_real_run_state(
+    tmp_path: Path,
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="projector-run", binding_ids=()
+    )
+    store = ApplicationContextStore.initialize(workspace)
+    catalog = CompositeToolCatalog(core_tools=(), domain_tools=())
+    application = AgentApplication(
+        profile=SimpleNamespace(manifest=SimpleNamespace(application_id="fixture-app"))
+    )
+
+    projector = application._ensure_projector(store, catalog, {})
+
+    assert isinstance(projector, ApplicationInvocationProjector)
+    assert projector.store is store
+
+
+def test_runner_preserves_explicit_projector() -> None:
+    explicit = object()
+    application = AgentApplication(
+        profile=SimpleNamespace(manifest=SimpleNamespace(application_id="fixture-app")),
+        projector=explicit,
+    )
+
+    assert application._ensure_projector(None, None, {}) is explicit
 
 
 def test_runner_processes_questions_in_order_and_preserves_two_output_layers(

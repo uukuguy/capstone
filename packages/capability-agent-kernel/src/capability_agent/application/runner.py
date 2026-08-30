@@ -194,6 +194,7 @@ class AgentApplication:
         workspace = self.workspace
         store = self.store
         controller: object | None = self.turn_controller
+        projector: object | None = self.projector
         active_turn: object | None = None
         try:
             self._hook("registration")
@@ -205,6 +206,7 @@ class AgentApplication:
             controller = self._ensure_controller(store, workspace, bindings)
             catalog = self._validate_before_provider(prepared, bindings)
             self._hook("catalog_validation")
+            projector = self._ensure_projector(store, catalog, bindings)
             transport = self._ensure_provider(
                 request=request,
                 prepared=prepared,
@@ -225,7 +227,7 @@ class AgentApplication:
                     answer = _call_prompt(
                         transport,
                         question,
-                        projector=self.projector,
+                        projector=projector,
                         turn_id=getattr(handle, "turn_id", None),
                     )
                     finalized = _call_method(
@@ -440,6 +442,22 @@ class AgentApplication:
             workspace=workspace,
             bindings=bindings,
         )
+
+    def _ensure_projector(
+        self,
+        store: ApplicationContextStore | None,
+        catalog: object | None,
+        bindings: Mapping[str, object],
+    ) -> object | None:
+        """Create the normal invocation projector after run state exists."""
+
+        if self.projector is not None:
+            return self.projector
+        if not isinstance(store, ApplicationContextStore) or not isinstance(
+            catalog, CompositeToolCatalog
+        ):
+            return None
+        return ApplicationInvocationProjector(store, catalog, bindings)
 
     def _validate_before_provider(
         self, prepared: object, bindings: Mapping[str, object]
