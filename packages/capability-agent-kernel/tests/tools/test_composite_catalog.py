@@ -137,6 +137,24 @@ def test_composite_catalog_keeps_core_tools_out_of_domain_catalog() -> None:
     assert bound.protocol_version == "1.0"
 
 
+def test_composite_catalog_identifies_registered_auxiliary_tools() -> None:
+    catalog = CompositeToolCatalog.build(
+        core=CoreToolCatalog.default(namespace="agent_"),
+        domains=(
+            _domain(
+                "grid",
+                "grid_",
+                guide_tool_name="grid_guide_open",
+                context_tool_name="grid_analysis_context_get",
+            ),
+        ),
+    )
+
+    assert catalog.is_auxiliary("grid_guide_open")
+    assert catalog.is_auxiliary("grid_analysis_context_get")
+    assert not catalog.is_auxiliary("grid_context_open")
+
+
 def test_bound_domain_catalog_uses_prepared_binding_controller_metadata() -> None:
     manifest = SimpleNamespace(
         authority_id="inventory-api",
@@ -169,6 +187,7 @@ def test_bound_domain_catalog_uses_prepared_binding_controller_metadata() -> Non
     assert catalog.tools[0].key == CapabilityKey("inventory", "asset.list")
     assert catalog.tools[0].authority_id == "inventory-api"
     assert catalog.tools[0].protocol == "inventory-capability"
+    assert catalog.guide_tool_name == "inventory_guide_open"
 
 
 @pytest.mark.parametrize(

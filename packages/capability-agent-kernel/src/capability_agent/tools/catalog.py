@@ -241,6 +241,8 @@ class BoundDomainCatalog:
         binding = prepared.binding
         runtime = prepared.runtime
         manifest = binding.profile.manifest
+        if guide_tool_name is None:
+            guide_tool_name = f"{binding.tool_namespace}guide_open"
         if (
             runtime.authority.authority_id != manifest.authority_id
             or runtime.environment_description.get("protocol") != manifest.protocol
@@ -323,9 +325,11 @@ class CompositeToolCatalog:
         *,
         core_tools: tuple[ToolDocument, ...],
         domain_tools: tuple[BoundToolDocument, ...],
+        auxiliary_tool_names: tuple[str, ...] = (),
     ) -> None:
         self.core_tools = core_tools
         self.domain_tools = domain_tools
+        self.auxiliary_tool_names = frozenset(auxiliary_tool_names)
         self._by_name = {
             tool.name: tool for tool in (*self.core_tools, *self.domain_tools)
         }
@@ -370,7 +374,16 @@ class CompositeToolCatalog:
         return cls(
             core_tools=tuple(sorted(core.tools, key=lambda tool: tool.name)),
             domain_tools=tuple(sorted(domain_tools, key=lambda tool: tool.name)),
+            auxiliary_tool_names=tuple(
+                name
+                for domain in domains
+                for name in (domain.guide_tool_name, domain.context_tool_name)
+                if name is not None
+            ),
         )
+
+    def is_auxiliary(self, name: str) -> bool:
+        return name in self.auxiliary_tool_names
 
     def require(self, name: str) -> ToolDocument | BoundToolDocument:
         try:

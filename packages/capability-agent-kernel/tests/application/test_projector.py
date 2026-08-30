@@ -134,6 +134,7 @@ def _catalog() -> CompositeToolCatalog:
     return CompositeToolCatalog(
         core_tools=core.tools,
         domain_tools=(domain_tool,),
+        auxiliary_tool_names=("grid_guide_open",),
     )
 
 
@@ -306,6 +307,38 @@ def test_projector_keeps_context_core_tool_opaque_when_domain_call_is_in_flight(
     assert current.inventory_authority.admit_calls == []
     assert current.store.snapshot.domains["grid"].revision == 0
     assert current.store.snapshot.domains["inventory"].revision == 0
+
+
+def test_projector_keeps_registered_guide_tool_opaque(tmp_path: Path) -> None:
+    current = _harness(tmp_path)
+    projector = ApplicationInvocationProjector(
+        store=current.store,
+        catalog=_catalog(),
+        bindings=current.bindings,
+    )
+
+    projector.observe(
+        {
+            "type": "tool_execution_start",
+            "tool_call_id": "guide-call",
+            "tool_name": "grid_guide_open",
+        }
+    )
+    assert (
+        projector.observe(
+            {
+                "type": "tool_result",
+                "tool_call_id": "guide-call",
+                "tool_name": "grid_guide_open",
+                "ok": True,
+                "result": {"resource_id": "grid"},
+            },
+            turn_id="run-1-t001",
+        )
+        is None
+    )
+
+    assert current.grid_authority.admit_calls == []
 
 
 def test_projector_integrity_failure_adds_no_result_evidence_or_state(

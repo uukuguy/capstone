@@ -251,6 +251,8 @@ class ApplicationInvocationProjector:
             try:
                 looked_up = self._catalog.require(tool_name)
             except KeyError:
+                if self._catalog.is_auxiliary(tool_name):
+                    return None
                 raise CapabilityRoutingError("capability tool is not registered") from None
             if not isinstance(looked_up, BoundToolDocument):
                 # Core tools are intentionally outside domain projection. A
