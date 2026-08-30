@@ -613,3 +613,4 @@ _Recovered pre-merge mainline entries._
 - 19:55 安装态 smoke 移除领域决策别名，匹配核心工具分层 [6a34fbd]
 - 19:58 刷新 Domain Pack 锁文件，纳入 Kernel 新运行依赖 [f70ea62]
 - 20:02 两个 DeepSeek 通用业务运行、兼容运行及全仓门禁通过；C.1 验收完成
+- 20:04 固化 C.1 完成状态与下一阶段边界，确保跨会话恢复准确 [c481bbf]
