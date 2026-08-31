@@ -19,6 +19,22 @@ guides, executor, projectors, and current-run authority; an application owns
 its selected binding and any public compatibility projection. Read
 `docs/architecture/capstone-framework.md` before changing these boundaries.
 
+## Four-Layer Dependency Direction
+
+```text
+Application -> Domain Pack -> Kernel -> registered Authority
+```
+
+Dependencies flow only to the right. Result and evidence references return
+through explicit contracts; no layer may import or expose another layer's raw
+implementation. A new domain must add a separately installable Domain Pack
+through the public Kernel SPI, register its authority, and select that binding
+from an application. It must not add domain semantics to the Kernel, couple to
+another Domain Pack's state, or turn a compatibility projection into a
+framework-wide output requirement.
+
+## First Application Contract: Grid Static Analysis
+
 - The default CLI contract writes exactly one JSON object to stdout with
   `question_id` and `answer_output`.
 - Progress, diagnostics, tool events, and warnings go to stderr.
