@@ -8,7 +8,47 @@ applications over authoritative business-domain systems.
 It separates a domain-neutral Kernel, independently installable Domain Packs,
 and application-owned compatibility products. Models compose only bounded
 semantic capabilities; a registered authority remains the source of domain
-facts and current-run evidence. See [Capstone Agent Framework](docs/architecture/capstone-framework.md).
+facts and current-run evidence. The [Capstone framework guide](docs/architecture/capstone-framework.md)
+is the primary architecture reference.
+
+## Framework Architecture
+
+Capstone keeps four ownership layers distinct:
+
+```text
+Application -> Domain Pack -> Kernel -> registered Authority
+```
+
+Dependencies flow only to the right. Results and evidence references return
+through explicit contracts, rather than reverse imports or raw-object access.
+The Application owns its public CLI or UI and any compatibility projection; the
+Domain Pack owns domain contracts, policy, guides, execution, projections, and
+current-run domain state; the Kernel owns neutral composition and lifecycle;
+and the registered Authority owns source-backed or deterministic domain facts,
+results, revisions, and evidence.
+
+## Adding an Application
+
+To integrate a new application, define its authoritative system boundary and
+versioned semantic protocol; implement a Domain Pack through the public Kernel
+SPI; bind that pack from an `ApplicationProfile` with scoped credentials and a
+public renderer; then prove provider-free acceptance using real authority calls
+and current-run evidence lineage. Dynamic discovery, runtime domain selection,
+and multi-domain routing are not currently provided.
+
+## Framework Guarantees
+
+- The model receives only published, executable semantic tools with exact
+  schemas, bounded context, policy, and guides.
+- The authority, not the model, Kernel, or application, produces domain facts
+  and admits their current-run evidence.
+- Generic results preserve Kernel-owned `core` and Domain-Pack-owned namespaced
+  payloads; an application owns any versioned public compatibility projection.
+- Reader-facing factual claims use only authority-admitted result and evidence
+  references from the current run.
+
+The full ownership, runtime, composite-output, and current-run evidence
+protocols are defined in the [Capstone framework guide](docs/architecture/capstone-framework.md).
 
 ## First application: Grid Static Analysis
 
@@ -41,7 +81,7 @@ the model capability boundary. See the
 and the
 [executable coverage matrix](configs/capabilities/pandapower-3.4.0-static-analysis.json).
 
-## Architecture
+## Grid Application Architecture
 
 ```text
 Natural-language request

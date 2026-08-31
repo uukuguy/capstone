@@ -6,6 +6,29 @@ Capstone 是一个能力优先的框架，用于在权威业务领域系统之�
 
 它将领域无关的 Kernel、可独立安装的 Domain Pack 和应用自有的兼容产品分离。模型只能组合受限的语义能力；已登记的权威服务始终拥有领域事实与当前运行证据。详见 [Capstone Agent Framework](docs/architecture/capstone-framework.md)。
 
+## 框架架构
+
+Capstone 将四个所有权层保持为相互独立：
+
+```text
+Application -> Domain Pack -> Kernel -> registered Authority
+```
+
+依赖只能向右流动。结果和证据引用通过显式契约返回，而不是反向导入或暴露原始对象。Application 拥有公共 CLI 或 UI 以及任何兼容投影；Domain Pack 拥有领域契约、策略、指南、执行、投影和当前运行领域状态；Kernel 拥有领域无关的组合与生命周期；已登记的 Authority 拥有基于来源或确定性产生的领域事实、结果、修订和证据。
+
+## 添加应用
+
+集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。Capstone 当前不提供动态发现、运行时领域选择或多领域路由。
+
+## 框架保证
+
+- 模型只能获得已发布、可执行、具有精确 schema 的语义工具，以及受限上下文、策略和指南。
+- 领域事实和当前运行证据由 Authority 接纳和产生，而非模型、Kernel 或 Application。
+- 通用结果保留 Kernel 所有的 `core` 以及 Domain Pack 所有的命名空间载荷；任何版本化公共兼容投影由 Application 拥有。
+- 面向读者的事实性结论只能使用当前运行中已由 Authority 接纳的结果和证据引用。
+
+完整的所有权、运行时、组合输出和当前运行证据协议以 [Capstone 框架架构](docs/architecture/capstone-framework.md) 为准。
+
 ## 首个应用：电网静态分析
 
 本仓库中的首个 Capstone 应用是 `grid-static-analysis`：`grid-agent`
@@ -25,7 +48,7 @@ Capstone 是一个能力优先的框架，用于在权威业务领域系统之�
 
 项目覆盖的是声明的 pandapower 静态分析产品范围，而不是 pandapower 的全部公开 API。时序/控制工作流、绘图、任意文件或数据库转换，以及未固定的外部求解器运行时不属于模型能力边界。详见[能力架构](docs/architecture/pandapower-capability-composition.md)和[可执行覆盖矩阵](configs/capabilities/pandapower-3.4.0-static-analysis.json)。
 
-## 系统架构
+## 电网应用架构
 
 ```text
 自然语言请求
