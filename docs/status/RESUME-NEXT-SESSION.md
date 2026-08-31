@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-08-31 06:10 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-08-31 06:28 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- Workstream C.1 已完成；本会话新增 `make application`，并正补齐其相对 v1.0.1 的实时进度与丰富报告回归。
-- Kernel 已在每个已完成回合后原子刷新工作报告；最终不可变报告仍只在正常完成时登记。
-- pandapower 正式应用通过显式兼容层复用 v1.0.1 报告渲染器；不得让 application 层直接依赖 `grid_agent.analysis.*`。
+- Workstream C.1 已完成；正式应用的实时进度与 v1.0.1 丰富报告回归已提交为 `8c45bc2`。
+- Kernel 在每个已完成回合后原子刷新工作报告；最终不可变报告仍只在正常完成时登记。
+- pandapower 通过显式兼容层复用 v1.0.1 报告渲染器；generic 事件可恢复回合轨迹，不得让 application 层直接依赖 `grid_agent.analysis.*`。
 
 ## Where things stand
 
@@ -33,8 +33,8 @@
 
 ## Next steps
 
-1. 等待并检查已授权 DeepSeek 多题正式运行的 stderr、逐题 `output/report.md` 和最终报告引用。
-2. 完成本会话变更的提交与最终 `git status`/文档检查；不得丢失已有用户改动。
+1. 如需继续 C.1，使用 `make application` 观察 stderr 与 `runs/<run-id>/output/report.md`；新运行会直接具有完整轨迹。
+2. 否则进入真实第二领域的选择与 C.2 契约定义；不得把 inventory fixture 当成第二领域。
 3. 对候选领域先形成四项设计：
    - 真实业务任务与可量化验收标准
    - 权威业务接口或执行服务 API
