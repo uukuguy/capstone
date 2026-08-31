@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 
-- Project: grid-static-analysis
-- Theme-level focus: general domain-agent framework upgrade by seam and package extraction
+- Project: Capstone Agent Framework
+- Theme-level focus: capability-first framework for authoritative business-domain applications
 - Project route: direct
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
 - Completed work package: Workstream C.1 application-instantiation closure. The first real pandapower application passed both canonical business task files through the generic path and the explicit v1.0.1 compatibility projection.

@@ -1,5 +1,9 @@
 # 运行操作指南
 
+Capstone's current shipped application is `grid-static-analysis` for
+pandapower static analysis. This runbook documents that application and its
+established grid compatibility and evidence contracts.
+
 ## 前置条件
 
 - Python 3.12 或更高版本与 `uv`

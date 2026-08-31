@@ -7,6 +7,11 @@ application. It defines how to run the complete pandapower static-analysis
 application, how its output differs from the v1.0.1 compatibility path, and how
 to verify current-run evidence.
 
+This is Capstone's first formal application. It assembles the pandapower
+Domain Pack through the existing `grid-agent` compatibility product; all
+commands, output envelopes, and current-run evidence rules below remain the
+versioned grid contract.
+
 ## Formal application entry
 
 The primary Makefile entry is:

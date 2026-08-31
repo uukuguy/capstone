@@ -4,6 +4,14 @@
 - **状态：** 当前实现说明
 - **适用范围：** `grid-agent`、Pi/LLM 工具层、`gridctl` 与 pandapower 3.4.0 静态分析
 
+## Product position
+
+This document describes the first Capstone application:
+`grid-static-analysis` for pandapower static analysis. Capstone reuses the
+Domain Pack and application-composition seams for future authoritative
+business domains; this does not change the existing grid compatibility
+contract or select a second production domain.
+
 ## 1. 文档目的
 
 本文回答以下三个问题：
