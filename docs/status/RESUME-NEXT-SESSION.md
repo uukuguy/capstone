@@ -36,8 +36,10 @@
 
 ## Immediate next action
 
-1. The repository owner may rename the GitHub project independently; do not
-   change the local directory or configured remote in this workspace.
+1. The GitHub repository is now `uukuguy/capstone`; its About describes
+   Capstone as the evidence-backed business-domain framework and includes the
+   `agent-framework`, `capability-based`, and `evidence-backed` topics. Keep
+   the local directory unchanged.
 2. Start C.2 discovery by selecting a real second business domain, then define
    its authoritative interface, read/write scope, evidence/permission
    boundaries, and two independent acceptance task sets.

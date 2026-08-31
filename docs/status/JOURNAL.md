@@ -641,3 +641,4 @@ _Recovered pre-merge mainline entries._
 - 16:05 定位 Capstone 为框架，同时保留首个 pandapower 应用兼容身份 [d66a937]
 - 16:08 对齐 Capstone 框架与 pandapower 首应用文档，保留所有 grid 兼容契约 [12ca1dc]
 - 16:23 提交 Capstone 定位迁移实施计划，保留可审计执行步骤 [83f3580]
+- 16:34 GitHub 仓库更名为 capstone，并更新 About 描述与框架主题
