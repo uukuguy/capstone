@@ -635,3 +635,9 @@ _Recovered pre-merge mainline entries._
 - 12:30 说明 JSONL 检查点与报告最终性边界 [703b5b0]
 - 12:30 令检查点 I/O 故障不影响已接受报告 [46b14f1]
 - 12:30 记录隔离 worktree 标准初始化步骤 [a2ff52c]
+- 12:31 提交本次 answers.jsonl 交付日志以支持恢复 [ee07458]
+- 15:06 经确认固化最终交接：answers.jsonl 已交付并完成 C.2 真实第二领域选择的恢复边界
+- 15:53 固化 Capstone 品牌定位与兼容迁移边界，供后续文档实施 [c1a4efb]
+- 16:05 定位 Capstone 为框架，同时保留首个 pandapower 应用兼容身份 [d66a937]
+- 16:08 对齐 Capstone 框架与 pandapower 首应用文档，保留所有 grid 兼容契约 [12ca1dc]
+- 16:23 提交 Capstone 定位迁移实施计划，保留可审计执行步骤 [83f3580]
