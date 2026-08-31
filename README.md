@@ -1,11 +1,17 @@
-# Grid Static Analysis
+# Capstone Agent Framework
 
 English | [简体中文](README.zh-CN.md)
 
-`grid-agent` is a capability-first command-line agent for evidence-backed static
-analysis of registered power-system networks. An LLM interprets the request and
-composes project-defined tools; `gridctl` and the pinned pandapower simulator
-perform every deterministic network calculation.
+Capstone is a capability-first framework for assembling evidence-backed
+applications over authoritative business-domain systems.
+
+## First application: Grid Static Analysis
+
+This repository's first Capstone application is `grid-static-analysis`:
+`grid-agent` performs evidence-backed static analysis of registered
+power-system networks. An LLM interprets the request and composes
+project-defined tools; `gridctl` and the pinned pandapower simulator perform
+every deterministic network calculation.
 
 `v1.0.1` is the stable release of the declared static-analysis product scope.
 The executable capability matrix remains the authority for current coverage.
@@ -54,6 +60,12 @@ access. Numerical and network-specific claims must come back through the
 simulator boundary.
 
 ## Package Assembly
+
+Capstone's reusable seams assemble domain packages through the Kernel,
+capability transport, current-run authority, and application composition.
+The pandapower packages below form the first formal application;
+`inventory-domain-pack` remains conformance infrastructure, not a selected
+second production domain.
 
 The repository now contains six independently buildable Python distributions
 and two Pi npm packages. Four distributions assemble the grid product; two form

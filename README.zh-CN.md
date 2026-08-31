@@ -1,8 +1,13 @@
-# 电网静态分析
+# Capstone Agent Framework
 
 [English](README.md) | 简体中文
 
-`grid-agent` 是一个能力优先、证据闭环的命令行代理，用于对已登记的电力系统网络执行静态分析。LLM 负责理解请求并组合项目定义的工具；`gridctl` 与固定版本的 pandapower 模拟器负责全部确定性网络计算。
+Capstone 是一个能力优先的框架，用于在权威业务领域系统之上组装具备证据闭环的应用。
+
+## 首个应用：电网静态分析
+
+本仓库中的首个 Capstone 应用是 `grid-static-analysis`：`grid-agent`
+用于对已登记电力系统网络执行具备证据闭环的静态分析。LLM 负责理解请求并组合项目定义的工具；`gridctl` 与固定版本的 pandapower 模拟器负责全部确定性网络计算。
 
 `v1.0.1` 是声明的静态分析产品范围内的稳定版本。当前覆盖情况始终以可执行能力矩阵为准。
 
@@ -39,6 +44,8 @@ runs/<question_id>/       操作者可见的当前运行证据
 LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、原始 pandapower 对象、DataFrame 或通用文件系统访问权。所有数值和网络特定结论都必须跨越模拟器边界返回。
 
 ## 包组装
+
+Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些可复用接缝来组装领域包。下方的 pandapower 包构成首个正式应用；`inventory-domain-pack` 仍是 conformance 基础设施，而非已选定的第二个生产领域。
 
 仓库现在包含六个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，另外两个构成只读 inventory 参考域，用于证明公共 Domain Pack SPI：
 

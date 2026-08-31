@@ -1,7 +1,7 @@
 [project]
 name = "grid-static-analysis"
 version = "1.0.1"
-description = "Capability-first grid static-analysis agent"
+description = "Capstone Agent Framework's first pandapower static-analysis application"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
