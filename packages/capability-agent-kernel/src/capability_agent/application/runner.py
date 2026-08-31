@@ -204,6 +204,7 @@ class AgentApplication:
             self._hook("provisioning")
             bindings = _prepared_bindings(prepared)
             workspace = self._ensure_workspace(request, bindings)
+            self._prepare_application_output(request=request, workspace=workspace)
             store = self._ensure_store(request, workspace, bindings)
             controller = self._ensure_controller(store, workspace, bindings)
             catalog = self._validate_before_provider(prepared, bindings)
@@ -437,6 +438,18 @@ class AgentApplication:
             run_id=request.run_id,
             binding_ids=binding_ids,
         )
+
+    def _prepare_application_output(
+        self,
+        *,
+        request: ApplicationRequest,
+        workspace: ApplicationWorkspace | None,
+    ) -> None:
+        if workspace is None:
+            return
+        method = getattr(self.report_shell, "prepare", None)
+        if callable(method):
+            _call_factory(method, questions=request.questions, workspace=workspace)
 
     def _ensure_store(
         self,

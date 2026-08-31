@@ -4,17 +4,24 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from hashlib import sha256
-from pathlib import Path
-from typing import Any
 
 from capability_agent.application.workspace import ApplicationWorkspace
 from grid_agent.analysis.models import AnalysisContext, DomainState, InputRecord, RuntimeRecord, TurnRecord
 from grid_agent.analysis.report import render_analysis_report
 from grid_agent.analysis.workspace import AnalysisWorkspace
+from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
 
 
 class PandapowerApplicationReportShell:
     """Reuse the v1.0.1 reader report for generic application run records."""
+
+    def prepare(
+        self,
+        *,
+        questions: Iterable[str],
+        workspace: ApplicationWorkspace,
+    ) -> None:
+        write_submission_checkpoint(workspace=workspace, questions=questions, answers=())
 
     def render(
         self,
@@ -31,6 +38,11 @@ class PandapowerApplicationReportShell:
         answer_values = tuple(_text_values(answers, "answers"))
         if workspace is None:
             raise RuntimeError("pandapower application report requires a workspace")
+        write_submission_checkpoint(
+            workspace=workspace,
+            questions=question_values,
+            answers=answer_values,
+        )
         report_workspace = _analysis_workspace(workspace)
         report_context = _analysis_context(
             questions=question_values,

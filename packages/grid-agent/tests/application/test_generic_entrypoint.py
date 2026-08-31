@@ -137,6 +137,94 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
     ]["report_artifact_ref"]
 
 
+def test_generic_pandapower_application_checkpoints_standard_submission_answers(
+    tmp_path: Path,
+) -> None:
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        ("question one", "question two"),
+        application=application,
+    )
+
+    assert outcome.status == "completed"
+    assert [
+        json.loads(line)
+        for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
+    ] == [
+        {"question_id": "run-1-t001", "answer_output": "first"},
+        {"question_id": "run-1-t002", "answer_output": "second"},
+    ]
+
+
+def test_generic_pandapower_application_retains_checkpoint_after_later_failure(
+    tmp_path: Path,
+) -> None:
+    class FailingProvider(_Provider):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            if self.index == 1:
+                raise RuntimeError("second question failed")
+            return super().prompt_and_wait(question, **kwargs)
+
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=FailingProvider(),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        ("first", "second"),
+        application=application,
+    )
+
+    assert outcome.status == "failed"
+    assert [
+        json.loads(line)
+        for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
+    ] == [{"question_id": "run-1-t001", "answer_output": "first"}]
+
+
+def test_generic_pandapower_application_prepares_empty_submission_checkpoint(
+    tmp_path: Path,
+) -> None:
+    class FirstQuestionFails(_Provider):
+        def prompt_and_wait(self, _question: str, **_kwargs: object) -> str:
+            raise RuntimeError("first question failed")
+
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=FirstQuestionFails(),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        ("first",),
+        application=application,
+    )
+
+    assert outcome.status == "failed"
+    assert (workspace.output_path / "answers.jsonl").read_text(encoding="utf-8") == ""
+
+
 def test_generic_entrypoint_rejects_request_for_a_different_application(
     tmp_path: Path,
 ) -> None:
