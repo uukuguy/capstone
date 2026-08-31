@@ -59,6 +59,15 @@ structure (runtime, per-question answer, simulation context, trajectory, and
 evidence). It is an operator-visible mutable checkpoint until normal completion;
 only then is the final report admitted as the immutable report artifact.
 
+`runs/<run-id>/output/answers.jsonl` is the standard submission checkpoint.
+Each line contains only `question_id` and `answer_output`, in input order, and
+is atomically refreshed after every accepted answer. It can be a valid prefix
+after interruption or failure; completed status plus the admitted final
+`output/report.md`/`report_ref` determines whole-run success. JSONL contains no
+evidence, diagnostics, or report-artifact admission data. An ongoing or partial
+JSONL prefix therefore records accepted submissions only; it is not evidence
+and does not prove that the whole run succeeded.
+
 If a run is interrupted, inspect the latest completed work without treating it
 as final output:
 
