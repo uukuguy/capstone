@@ -15,13 +15,21 @@ from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
 class PandapowerApplicationReportShell:
     """Reuse the v1.0.1 reader report for generic application run records."""
 
+    def __init__(self) -> None:
+        self._submission_checkpoint_unavailable = False
+
     def prepare(
         self,
         *,
         questions: Iterable[str],
         workspace: ApplicationWorkspace,
     ) -> None:
-        write_submission_checkpoint(workspace=workspace, questions=questions, answers=())
+        self._submission_checkpoint_unavailable = False
+        self._refresh_submission_checkpoint(
+            workspace=workspace,
+            questions=questions,
+            answers=(),
+        )
 
     def render(
         self,
@@ -38,7 +46,7 @@ class PandapowerApplicationReportShell:
         answer_values = tuple(_text_values(answers, "answers"))
         if workspace is None:
             raise RuntimeError("pandapower application report requires a workspace")
-        write_submission_checkpoint(
+        self._refresh_submission_checkpoint(
             workspace=workspace,
             questions=question_values,
             answers=answer_values,
@@ -51,11 +59,31 @@ class PandapowerApplicationReportShell:
             core=core,
             workspace=report_workspace,
         )
-        return render_analysis_report(
+        report = render_analysis_report(
             context=report_context,
             workspace=report_workspace,
             environment=_environment(context, runtime),
         )
+        if self._submission_checkpoint_unavailable:
+            report += "\n## Submission checkpoint diagnostic\n\n- Submission checkpoint unavailable; report processing continued.\n"
+        return report
+
+    def _refresh_submission_checkpoint(
+        self,
+        *,
+        workspace: ApplicationWorkspace,
+        questions: Iterable[str],
+        answers: Iterable[str],
+    ) -> None:
+        """Project the optional submission view without affecting the run."""
+        try:
+            write_submission_checkpoint(
+                workspace=workspace,
+                questions=questions,
+                answers=answers,
+            )
+        except OSError:
+            self._submission_checkpoint_unavailable = True
 
 
 def _analysis_context(

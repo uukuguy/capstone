@@ -225,6 +225,91 @@ def test_generic_pandapower_application_prepares_empty_submission_checkpoint(
     assert (workspace.output_path / "answers.jsonl").read_text(encoding="utf-8") == ""
 
 
+def test_generic_pandapower_application_continues_after_initial_submission_checkpoint_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(answers=("accepted",)),
+        workspace=workspace,
+        catalog=object(),
+    )
+    calls = 0
+
+    def fail_initial_checkpoint(**kwargs: object) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("credential=secret-path")
+        from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+
+        return write_submission_checkpoint(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        "grid_agent.compat.v1_0_1_report.write_submission_checkpoint",
+        fail_initial_checkpoint,
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis", ("question",), application=application
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert workspace.output_path.joinpath("report.md").is_file()
+    assert "Submission checkpoint unavailable" in workspace.output_path.joinpath(
+        "report.md"
+    ).read_text(encoding="utf-8")
+    assert "secret-path" not in workspace.output_path.joinpath("report.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_generic_pandapower_application_preserves_prior_submission_checkpoint_after_refresh_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="run-1", binding_ids=("grid",))
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(),
+        workspace=workspace,
+        catalog=object(),
+    )
+    from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
+
+    calls = 0
+
+    def fail_refresh_after_first_answer(**kwargs: object) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls >= 3:
+            raise OSError("credential=secret-path")
+        return write_submission_checkpoint(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        "grid_agent.compat.v1_0_1_report.write_submission_checkpoint",
+        fail_refresh_after_first_answer,
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis", ("first", "second"), application=application
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert [
+        json.loads(line)
+        for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
+    ] == [{"question_id": "run-1-t001", "answer_output": "first"}]
+    report = workspace.output_path.joinpath("report.md").read_text(encoding="utf-8")
+    assert "## 2. second" in report
+    assert "Submission checkpoint unavailable" in report
+    assert "secret-path" not in report
+
+
 def test_generic_entrypoint_rejects_request_for_a_different_application(
     tmp_path: Path,
 ) -> None:
