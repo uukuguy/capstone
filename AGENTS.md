@@ -90,6 +90,24 @@ Do not duplicate frequently changing facts in this file. Read the owning source:
 - Keep stable rules here and route volatile details to the authoritative
   references above.
 
+### Isolated worktree setup
+
+A new Git worktree does not include ignored local runtime state. Before running
+tests that exercise Pi, `gridctl`, or the JavaScript tools in an isolated
+worktree, run these commands from that worktree:
+
+```sh
+make setup
+make install-pi
+make doctor
+```
+
+`make setup` creates the simulator virtual environment and installs locked Node
+dependencies; `make install-pi` creates the ignored, pinned
+`.grid-agent/runtime/pi` runtime. A missing managed `gridctl` or Pi CLI is an
+environment-setup failure, not evidence of a product regression. Do not copy
+ignored runtime/authentication state from another worktree.
+
 ## Verification
 
 For behavior changes, run the smallest focused test first and then the supported
