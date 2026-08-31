@@ -4,6 +4,8 @@
 
 Capstone 是一个能力优先的框架，用于在权威业务领域系统之上组装具备证据闭环的应用。
 
+它将领域无关的 Kernel、可独立安装的 Domain Pack 和应用自有的兼容产品分离。模型只能组合受限的语义能力；已登记的权威服务始终拥有领域事实与当前运行证据。详见 [Capstone Agent Framework](docs/architecture/capstone-framework.md)。
+
 ## 首个应用：电网静态分析
 
 本仓库中的首个 Capstone 应用是 `grid-static-analysis`：`grid-agent`
@@ -197,6 +199,7 @@ make test-packages
 
 ## 文档索引
 
+- [Capstone 框架架构](docs/architecture/capstone-framework.md) — 已实现的 Kernel、Domain Pack、应用、权威服务和证据边界。
 - [运行操作指南](docs/RUNBOOK.md) — 初始化、认证、执行、证据与故障排查。
 - [人工验证手册](docs/MANUAL-VALIDATION.md) — 可复现的人工验收流程。
 - [能力注册与组合推理](docs/architecture/pandapower-capability-composition.md) — 能力范围和 LLM 工具编排边界。
@@ -207,4 +210,4 @@ make test-packages
 
 ## 安全与贡献边界
 
-凭据只能存放在环境变量或 Git 忽略的项目认证状态中，不能进入命令参数、提交文件、日志、模拟器环境或证据。新增模型能力必须可复用、由契约定义、经过白名单，并由模拟器执行；禁止逐题捷径和任意执行面。
+凭据只能存放在环境变量或 Git 忽略的项目认证状态中，不能进入命令参数、提交文件、日志、模拟器环境或证据。新增模型能力必须可复用、由契约定义、经过白名单，并由已登记的权威服务执行；禁止逐题捷径和任意执行面。

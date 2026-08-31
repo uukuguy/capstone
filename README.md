@@ -5,6 +5,11 @@ English | [简体中文](README.zh-CN.md)
 Capstone is a capability-first framework for assembling evidence-backed
 applications over authoritative business-domain systems.
 
+It separates a domain-neutral Kernel, independently installable Domain Packs,
+and application-owned compatibility products. Models compose only bounded
+semantic capabilities; a registered authority remains the source of domain
+facts and current-run evidence. See [Capstone Agent Framework](docs/architecture/capstone-framework.md).
+
 ## First application: Grid Static Analysis
 
 This repository's first Capstone application is `grid-static-analysis`:
@@ -268,6 +273,7 @@ explicit credentials, and may incur provider charges.
 
 ## Documentation
 
+- [Capstone framework architecture](docs/architecture/capstone-framework.md) — implemented Kernel, Domain Pack, application, authority, and evidence boundaries.
 - [Runbook](docs/RUNBOOK.md) — setup, authentication, execution, evidence, and troubleshooting.
 - [Manual validation guide](docs/MANUAL-VALIDATION.md) — reproducible human acceptance procedure.
 - [Capability registration and composition](docs/architecture/pandapower-capability-composition.md) — scope and LLM tool orchestration boundaries.
@@ -281,5 +287,5 @@ explicit credentials, and may incur provider charges.
 Keep credentials in environment variables or ignored project-owned auth state.
 Do not place secrets in command arguments, committed files, logs, simulator
 environments, or evidence. New model capabilities must remain reusable,
-contract-defined, allowlisted, and simulator-backed—never question-specific
-shortcuts or arbitrary execution surfaces.
+contract-defined, allowlisted, and executed by their registered authority—never
+question-specific shortcuts or arbitrary execution surfaces.

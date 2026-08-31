@@ -6,8 +6,18 @@ symbolic link to this file so the two tools read identical instructions.
 
 ## Product Contract
 
-This repository builds `grid-agent`, a capability-first command-line agent for
-static analysis of registered power-system networks.
+This repository builds **Capstone Agent Framework**, a capability-first
+framework for evidence-backed applications over authoritative business-domain
+systems. `grid-static-analysis` is its first formal pandapower application;
+`grid-agent` remains that application's stable compatibility CLI.
+
+Capstone separates a neutral Kernel, Domain Packs, application assembly, and
+registered domain authorities. New work must preserve that direction: the
+Kernel owns reusable composition, bounded context, trajectory/artifact/replay
+primitives, and framework `core`; a Domain Pack owns domain contracts, policy,
+guides, executor, projectors, and current-run authority; an application owns
+its selected binding and any public compatibility projection. Read
+`docs/architecture/capstone-framework.md` before changing these boundaries.
 
 - The default CLI contract writes exactly one JSON object to stdout with
   `question_id` and `answer_output`.
@@ -45,7 +55,8 @@ Do not expose or add model capabilities for:
 - question-, fixture-, network-, or expected-answer-specific shortcuts.
 
 New capabilities must be semantic, reusable across questions, contract-defined,
-allowlisted, and executed through `gridctl`.
+allowlisted, and executed through the selected Domain Pack's registered
+authority. For the grid application that authority is `gridctl`.
 
 ## Evidence and Runtime State
 
@@ -73,6 +84,7 @@ Do not duplicate frequently changing facts in this file. Read the owning source:
 | Simulator package and version pin | `packages/grid-simulator/pyproject.toml` |
 | Runtime setup, authentication, commands, and evidence inspection | `docs/RUNBOOK.md` |
 | Capability registration and LLM composition architecture | `docs/architecture/pandapower-capability-composition.md` |
+| Capstone framework, application, and Domain Pack boundaries | `docs/architecture/capstone-framework.md` |
 | Model-facing execution policy | `packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md` |
 | Model-facing pandapower guides | `packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/` |
 | Structural project state | `docs/status/CURRENT-STATE.md` |

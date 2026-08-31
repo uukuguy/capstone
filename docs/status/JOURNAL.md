@@ -643,3 +643,4 @@ _Recovered pre-merge mainline entries._
 - 16:23 提交 Capstone 定位迁移实施计划，保留可审计执行步骤 [83f3580]
 - 16:34 GitHub 仓库更名为 capstone，并更新 About 描述与框架主题
 - 16:40 C.2 知识层提出 GitHub Repository Intelligence 只读领域假设，待设计验证
+- 16:48 编写 Capstone 架构总览并重构 README/AGENTS 框架定位
