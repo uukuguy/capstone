@@ -244,7 +244,12 @@ make test-inventory
 make test-packages
 ```
 
-`make test` 运行 agent、pandapower simulator 和 Node 扩展测试；`make test-e2e` 运行离线命令行样例及脚本化 Pi → gridctl 路径。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport 测试。`make test-packages` 构建并安装干净发行工件，验证六个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。
+`make test` 是完整离线单元入口：分别运行六个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-packages` 构建并安装干净发行工件，验证六个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
+
+`make check-types` 使用锁定的 pyright 1.1.408，standard 模式、Python 3.12 最低版本，覆盖六个生产 `src` 树，并运行 workbench check。Kernel `output.py` 保留 3 个局部 Pydantic schema-attribute override，以维持现有公开 wire 属性；这不是整包忽略。`make check-fast` 为边界、类型和单元层，`make check-integration` 为 E2E 与两项 provider-free validation，`make check-release` 再加入 package 与 source-setup 检查。所有这些 gate 不调用 provider 或使用付费凭据。
+
+仓库已配置 GitHub Actions：Linux/macOS × Python 3.12/3.14，Node 22.19.0，依次执行 setup、install-pi、doctor 和 `check-release`。这是配置说明，尚不代表远端 CI 已验证通过。
+
 `make validate` 运行三层 deterministic validation：offline `task-required`、scripted-Pi `static-analysis-core`，以及绑定 `docs/test_script/测试题目答案.jsonl` 的 `static-analysis-full` 语义验收。报告分别写入 ignored `runs/validation-offline.json`、`runs/validation-scripted.json` 与 `runs/validation-static-analysis-full.json`；能力矩阵不足 100% 也会失败。语义验收比较真实工具结果事件和标准答案，不比较润色后的答案文字。
 `make validate-application` 是独立的 provider-free generic application gate，报告写入 `runs/validation-application-instantiation.json`；它验证第一领域 pandapower 的完整 Profile/Binding/Domain Pack 实例化，不选择或宣称第二个生产领域。
 

@@ -137,13 +137,29 @@ importing from source paths:
 make test-packages
 ```
 
-The inventory reference domain reuses the unchanged generic Pi transport and
-kernel composition path while protected framework paths remain byte-identical.
-This proves that a separately packaged, read-only business authority can
-instantiate the single-domain framework without copying `grid-agent` or
-modifying the kernel. The shipped `grid-agent` CLI still explicitly selects the
-pandapower profile; dynamic discovery, runtime domain selection, multi-domain
-routing, and governed write actions remain future work.
+`make test` is the provider-free unit gate: it runs the six Python packages,
+both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
+integration-only `make test-e2e` target. `make check-types` runs locked
+pyright 1.1.408 in standard mode (Python 3.12 minimum) across all production
+`src` trees plus the workbench check; three localized Pydantic schema-attribute
+overrides in Kernel output models are intentional public-wire compatibility
+exceptions. `make check-fast` combines boundaries, types, and units;
+`make check-integration` runs E2E and provider-free validation; and
+`make check-release` adds clean package and source-setup checks. None invokes
+a paid provider.
+
+The configured GitHub Actions workflow runs those release checks on Linux and
+macOS with Python 3.12 and 3.14 and Node 22.19.0. This describes configured
+CI coverage, not a claim that a remote workflow has already passed.
+
+At its recorded conformance baseline, the inventory reference domain reused the
+generic Pi transport and Kernel composition path to prove that a separately
+packaged, read-only business authority can instantiate the single-domain
+framework without copying `grid-agent`. Ongoing Kernel and simulator
+optimizations are separately reviewed and protected by their current records;
+this historical proof does not claim those paths remain unchanged. The shipped
+`grid-agent` CLI still explicitly selects the pandapower profile; inventory
+remains conformance infrastructure, not a second production domain.
 
 The external grid compatibility CLI, Pi tool names, `grid-capability/1.0`
 protocol, v1.0.1 two-field stdout envelope, stderr diagnostics, `runs/` evidence

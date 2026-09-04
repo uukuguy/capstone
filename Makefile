@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -47,9 +47,11 @@ setup-workbench:
 build-workbench:
 	npm run build --prefix packages/trajectory-workbench
 
-test-workbench:
-	npm run check --prefix packages/trajectory-workbench
+test-workbench: check-workbench
 	npm test --prefix packages/trajectory-workbench
+
+check-workbench:
+	npm run check --prefix packages/trajectory-workbench
 
 install-pi:
 	uv run --project packages/grid-agent grid-agent install-pi
@@ -105,28 +107,37 @@ PORT ?= 8765
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-makefile-application
+test: test-agent test-simulator test-tools test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-workbench
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
 
+test-verification-targets:
+	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py -q
+
 test-agent:
-	uv run --project packages/grid-agent pytest packages/grid-agent/tests -q
+	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e -q
 
 test-inventory-service:
 	uv run --project packages/inventory-reference-service pytest packages/inventory-reference-service/tests -q
 
 test-inventory-domain:
-	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests -q
+	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests --ignore=packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-inventory-pi:
 	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-inventory: test-inventory-service test-inventory-domain test-inventory-pi
 
-test-domain-package:
+test-domain-package: check-package-boundaries
 	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
-	python3 tools/check_package_boundaries.py
+
+test-kernel:
+	uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests -q
+
+test-generic-tools:
+	npm run check --prefix packages/pi-capability-tools
+	npm test --prefix packages/pi-capability-tools
 
 test-simulator:
 	uv run --project packages/grid-simulator pytest packages/grid-simulator/tests -q
@@ -134,6 +145,15 @@ test-simulator:
 test-tools: check-runtime-risk
 	npm run check --prefix packages/pi-grid-tools
 	npm test --prefix packages/pi-grid-tools
+
+check-types: check-workbench
+	uv run --project packages/grid-agent pyright
+
+check-fast: check-package-boundaries check-types test
+
+check-integration: test-e2e validate validate-application
+
+check-release: check-fast check-integration test-packages test-source-setup
 
 check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py

@@ -91,7 +91,11 @@ Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些�
 make test-packages
 ```
 
-inventory 参考域复用未修改的通用 Pi transport 和内核组合路径，同时 protected framework paths 保持字节级一致。这证明了独立打包的只读业务权威可以在不复制 `grid-agent`、不修改内核的前提下实例化单领域框架。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；动态发现、运行时领域选择、多领域路由和受治理的写操作仍属于后续工作。
+`make test` 是不使用 Provider 的单元门禁：分别运行六个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E 与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
+
+已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。
+
+在其记录的 conformance 基线中，inventory 参考域复用通用 Pi transport 和 Kernel 组合路径，证明独立打包的只读业务权威可在不复制 `grid-agent` 的前提下实例化单领域框架。后续 Kernel 与 simulator 优化均由各自当前记录独立复审和保护；这项历史证明不宣称这些路径至今未变。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；inventory 仍是 conformance 基础设施，而不是第二个生产领域。
 
 外部 grid 兼容 CLI、Pi 工具名、`grid-capability/1.0` 协议、v1.0.1 双字段 stdout 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。显式的 `analysis-generic` 命令使用下文的组合输出契约。
 

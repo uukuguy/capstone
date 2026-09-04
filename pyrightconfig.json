@@ -1,0 +1,39 @@
+{
+  "include": [
+    "packages/capability-agent-kernel/src",
+    "packages/pandapower-domain-pack/src",
+    "packages/inventory-domain-pack/src",
+    "packages/grid-agent/src",
+    "packages/grid-simulator/src",
+    "packages/inventory-reference-service/src"
+  ],
+  "extraPaths": [
+    "packages/capability-agent-kernel/src",
+    "packages/pandapower-domain-pack/src",
+    "packages/inventory-domain-pack/src",
+    "packages/grid-agent/src",
+    "packages/grid-simulator/src",
+    "packages/inventory-reference-service/src"
+  ],
+  "typeCheckingMode": "standard",
+  "pythonVersion": "3.12",
+  "venvPath": "packages/grid-agent",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "packages/grid-simulator",
+      "extraPaths": [
+        "packages/capability-agent-kernel/src",
+        "packages/pandapower-domain-pack/src",
+        "packages/inventory-domain-pack/src",
+        "packages/grid-agent/src",
+        "packages/grid-simulator/src",
+        "packages/inventory-reference-service/src",
+        "packages/grid-simulator/.venv/lib/python*/site-packages"
+      ]
+    },
+    {
+      "root": "."
+    }
+  ]
+}
