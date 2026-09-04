@@ -16,6 +16,7 @@ from pandapower_domain.answer_policy import (
     PandapowerAnswerEvidencePolicy,
     PandapowerPolicyProvider,
 )
+from pandapower_domain.answer_admission import PandapowerAnswerAdmissionPolicyFactory
 from pandapower_domain.guide import PandapowerGuideProvider
 from pandapower_domain.output import PandapowerOutputContract
 from pandapower_domain.presentation import PandapowerPresentationProvider
@@ -62,6 +63,9 @@ def build_pandapower_profile() -> DomainRuntimeProfile:
         ),
         projector_registry=PandapowerProjectorRegistry(),
         authority_factory=PandapowerArtifactAuthority,
+        answer_admission_policy_factory=PandapowerAnswerAdmissionPolicyFactory(
+            resources.guide_root
+        ),
         tool_description_builder=build_pandapower_tool_description,
         provisioner=PandapowerRuntimeProvisioner(
             repository_root=_repository_root(),

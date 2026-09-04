@@ -10,6 +10,8 @@ from typing import cast
 import pytest
 
 from capability_agent.domain import (
+    AnswerAdmissionDecision,
+    AnswerAdmissionInput,
     ArtifactAuthority,
     CapabilityContractSource,
     DomainManifest,
@@ -134,6 +136,16 @@ class RecordingAuthority(ArtifactAuthority):
         return ()
 
 
+class StaticAnswerAdmission:
+    def admit(self, request: AnswerAdmissionInput) -> AnswerAdmissionDecision:
+        return AnswerAdmissionDecision(
+            mode="authority_backed" if request.result_refs else "limited",
+            assurance="lineage_verified" if request.result_refs else "limited",
+            answer_output=request.answer_output,
+            diagnostic_codes=(),
+        )
+
+
 class StubProjectorRegistry(DomainProjectorRegistry):
     def require(self, projector_id: str) -> DomainProjector:
         return cast(DomainProjector, object())
@@ -246,6 +258,7 @@ def complete_profile(inventory_profile) -> ApplicationProfile:
         provisioner=provisioner,
         state_adapter=component,
         answer_policy=component,
+        answer_admission_policy_factory=lambda authority: StaticAnswerAdmission(),
         policy_provider=StaticPolicy("deny: domain-write"),
         guide_provider=StaticGuideProvider("# Inventory guide\n"),
         presentation_provider=component,

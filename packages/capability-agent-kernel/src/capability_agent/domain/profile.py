@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from capability_agent.domain.authority import ArtifactAuthority
+from capability_agent.domain.answer_admission import AnswerAdmissionPolicy
 from capability_agent.domain.acceptance import DomainAcceptanceProfile
 from capability_agent.domain.contracts import CapabilityContractSource
 from capability_agent.domain.execution import CapabilityExecutor
@@ -20,6 +21,7 @@ from capability_agent.domain.state import DomainStateAdapter
 
 ExecutorFactory = Callable[[Path, Path, float], CapabilityExecutor]
 AuthorityFactory = Callable[[Path], ArtifactAuthority]
+AnswerAdmissionPolicyFactory = Callable[[ArtifactAuthority], AnswerAdmissionPolicy]
 ToolDescriptionBuilder = Callable[[dict[str, object]], str]
 
 
@@ -30,6 +32,7 @@ class DomainRuntimeProfile:
     executor_factory: ExecutorFactory
     projector_registry: DomainProjectorRegistry
     authority_factory: AuthorityFactory
+    answer_admission_policy_factory: AnswerAdmissionPolicyFactory | None = None
     tool_description_builder: ToolDescriptionBuilder | None = None
     provisioner: DomainRuntimeProvisioner | None = None
     state_adapter: DomainStateAdapter | None = None
@@ -45,6 +48,7 @@ class DomainRuntimeProfile:
             "provisioner",
             "state_adapter",
             "answer_policy",
+            "answer_admission_policy_factory",
             "policy_provider",
             "guide_provider",
             "presentation_provider",
@@ -60,3 +64,14 @@ class DomainRuntimeProfile:
 
     def create_authority(self, workspace: Path) -> ArtifactAuthority:
         return self.authority_factory(workspace)
+
+    def create_answer_admission_policy(
+        self, authority: ArtifactAuthority
+    ) -> AnswerAdmissionPolicy:
+        factory = self.answer_admission_policy_factory
+        if factory is None:
+            raise RuntimeError("domain answer admission policy is unavailable")
+        policy = factory(authority)
+        if not callable(getattr(policy, "admit", None)):
+            raise TypeError("domain answer admission policy is invalid")
+        return policy

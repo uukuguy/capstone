@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from capability_agent import DomainRuntimeProfile
+from capability_agent.domain.answer_admission import AnswerAdmissionInput
 from pandapower_domain import PandapowerResourceSet, build_pandapower_profile
 from pandapower_domain.capabilities import KNOWN_CONTEXT_PROJECTORS
 from pandapower_domain.execution import GridctlExecutor
@@ -77,6 +78,7 @@ def test_pandapower_profile_is_application_complete() -> None:
         profile.provisioner,
         profile.state_adapter,
         profile.answer_policy,
+        profile.answer_admission_policy_factory,
         profile.policy_provider,
         profile.guide_provider,
         profile.presentation_provider,
@@ -85,3 +87,33 @@ def test_pandapower_profile_is_application_complete() -> None:
     ):
         assert component is not None
         assert component.__class__.__module__.startswith("pandapower_domain.")
+
+
+def test_profile_offline_admission_renders_an_explicit_packaged_guide(tmp_path: Path) -> None:
+    profile = build_pandapower_profile()
+    policy = profile.create_answer_admission_policy(profile.create_authority(tmp_path))
+
+    decision = policy.admit(
+        AnswerAdmissionInput(
+            question="guide:ac-powerflow",
+            answer_output="model supplied prose is ignored",
+            result_refs=(),
+            evidence_refs=(),
+        )
+    )
+
+    assert decision.mode == "offline_information"
+    assert decision.assurance == "deterministic_information"
+    assert decision.answer_output != "model supplied prose is ignored"
+    assert "AC" in decision.answer_output
+
+    concept = policy.admit(
+        AnswerAdmissionInput(
+            question="What is AC power flow",
+            answer_output="model supplied prose is ignored",
+            result_refs=(),
+            evidence_refs=(),
+        )
+    )
+    assert concept.mode == "offline_information"
+    assert concept.answer_output == decision.answer_output

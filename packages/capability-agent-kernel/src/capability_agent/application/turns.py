@@ -26,6 +26,7 @@ from capability_agent.application.errors import (
     CapabilityAgentError,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.domain.answer_admission import AnswerAdmissionDecision, AnswerAdmissionInput
 from capability_agent.trajectory.answers import (
     AnswerClaim,
     AnswerReferencePolicy,
@@ -75,6 +76,7 @@ class FinalizedTurn:
     evidence_refs: tuple[str, ...]
     submission: AnswerSubmission | None
     audit_diagnostics: tuple[object, ...]
+    admission: AnswerAdmissionDecision | None
     error: str | None
 
 
@@ -281,6 +283,12 @@ class TurnController:
         except Exception:
             raise AnswerCommitError("answer claims are invalid") from None
 
+        admission = self._admit_answer(
+            handle=handle, answer_output=answer_output, selected=selected,
+            results=results, evidence=evidence, owners=owners,
+        )
+        answer_output = admission.answer_output
+
         validated_by_binding: list[AnswerSubmission] = []
         audit_diagnostics: list[object] = []
         for binding_id in selected:
@@ -377,12 +385,24 @@ class TurnController:
         }
         answer_bytes = canonical_json_bytes(answer_payload)
         answer_ref = "answer:sha256:" + sha256(answer_bytes).hexdigest()
+        admission_path = turn_path / "answer-admission.json"
+        admission_bytes = canonical_json_bytes({
+            "schema": "capability-agent-answer-admission/1.0",
+            "run_id": self._workspace.run_id,
+            "turn_id": handle.turn_id,
+            "answer_ref": answer_ref,
+            "mode": admission.mode,
+            "assurance": admission.assurance,
+            "diagnostic_codes": list(admission.diagnostic_codes),
+        })
+        admission_ref = "admission:sha256:" + sha256(admission_bytes).hexdigest()
         artifact_states = tuple(
             (path, _read_file_state(path))
             for path in (
                 self._active_answer_draft_path,
                 archived_draft_path,
                 answer_path,
+                admission_path,
             )
         )
 
@@ -399,6 +419,8 @@ class TurnController:
                 "answer_draft_path": str(
                     archived_draft_path.relative_to(self._workspace.root)
                 ),
+                "admission_ref": admission_ref,
+                "admission_path": str(admission_path.relative_to(self._workspace.root)),
                 "referenced_bindings": list(selected),
                 "result_refs": list(results),
                 "claim_evidence_refs": list(evidence),
@@ -408,7 +430,7 @@ class TurnController:
             event_type="turn.completed",
             turn_id=handle.turn_id,
             payload={
-                "status": "success",
+                "status": "success" if admission.mode != "limited" else "limited",
                 "answer_ref": answer_ref,
                 "answer_path": str(answer_path.relative_to(self._workspace.root)),
                 "answer_sha256": sha256(answer_bytes).hexdigest(),
@@ -416,6 +438,7 @@ class TurnController:
                 "referenced_bindings": list(selected),
                 "result_refs": list(results),
                 "evidence_refs": list(evidence),
+                "admission_ref": admission_ref,
             },
         )
         self._preflight_context_events((answer_event, completed_event))
@@ -423,6 +446,7 @@ class TurnController:
             _write_bytes_atomic(self._active_answer_draft_path, raw_draft)
             _write_bytes_atomic(archived_draft_path, raw_draft)
             _write_bytes_atomic(answer_path, answer_bytes)
+            _write_bytes_atomic(admission_path, admission_bytes)
             context_events = self._store.append_many((answer_event, completed_event))
             if len(context_events) != 2:
                 raise RuntimeError("context store returned an invalid transaction")
@@ -451,7 +475,7 @@ class TurnController:
         _remove_if_present(self._active_turn_path)
         return FinalizedTurn(
             turn_id=handle.turn_id,
-            status="success",
+            status="success" if admission.mode != "limited" else "limited",
             answer_output=answer_output,
             answer_path=answer_path,
             answer_ref=answer_ref,
@@ -460,6 +484,7 @@ class TurnController:
             evidence_refs=evidence,
             submission=composite_submission,
             audit_diagnostics=tuple(audit_diagnostics),
+            admission=admission,
             error=None,
         )
 
@@ -533,6 +558,7 @@ class TurnController:
             evidence_refs=(),
             submission=None,
             audit_diagnostics=(),
+            admission=None,
             error=message,
         )
 
@@ -554,6 +580,30 @@ class TurnController:
             binding = getattr(prepared, "binding", prepared)
             if getattr(binding, "binding_id", None) != key:
                 raise AnswerCommitError("controller binding identity is inconsistent")
+
+    def _admit_answer(self, *, handle: ActiveTurnHandle, answer_output: str,
+        selected: tuple[str, ...], results: tuple[str, ...], evidence: tuple[str, ...],
+        owners: Mapping[str, str]) -> AnswerAdmissionDecision:
+        binding_ids = selected or tuple(self._bindings)
+        decisions: list[AnswerAdmissionDecision] = []
+        for binding_id in binding_ids:
+            prepared = self._bindings[binding_id]
+            authority = _binding_authority(prepared)
+            policy = _binding_answer_admission_policy(prepared, authority)
+            request = AnswerAdmissionInput(
+                question=handle.instruction, answer_output=answer_output,
+                result_refs=tuple(ref for ref in results if owners.get(ref, binding_id) == binding_id),
+                evidence_refs=tuple(ref for ref in evidence if owners.get(ref, binding_id) == binding_id),
+            )
+            try:
+                decision = policy.admit(request)
+            except Exception:
+                raise AnswerCommitError("domain answer admission failed") from None
+            _validate_admission_decision(decision, request)
+            decisions.append(decision)
+        if len(decisions) != 1:
+            raise AnswerCommitError("answer admission requires exactly one binding")
+        return decisions[0]
 
     def _validate_authority_identity(
         self, binding_id: str, prepared: object, authority: object
@@ -793,6 +843,47 @@ def _binding_answer_policy(prepared: object) -> object:
     if policy is None:
         raise AnswerCommitError("prepared binding has no answer policy")
     return policy
+
+
+def _binding_answer_admission_policy(prepared: object, authority: object) -> object:
+    binding = getattr(prepared, "binding", prepared)
+    profile = getattr(binding, "profile", None)
+    factory = getattr(profile, "create_answer_admission_policy", None)
+    if not callable(factory):
+        raise AnswerCommitError("prepared binding has no answer admission policy")
+    try:
+        policy = factory(authority)
+    except Exception:
+        raise AnswerCommitError("prepared binding answer admission is invalid") from None
+    if not callable(getattr(policy, "admit", None)):
+        raise AnswerCommitError("prepared binding answer admission is invalid")
+    return policy
+
+
+def _validate_admission_decision(
+    decision: object, request: AnswerAdmissionInput
+) -> None:
+    if not isinstance(decision, AnswerAdmissionDecision):
+        raise AnswerCommitError("domain answer admission returned an invalid decision")
+    if not isinstance(decision.answer_output, str) or not decision.answer_output.strip():
+        raise AnswerCommitError("domain answer admission returned an empty answer")
+    if not all(isinstance(code, str) and code for code in decision.diagnostic_codes):
+        raise AnswerCommitError("domain answer admission diagnostics are invalid")
+    if decision.mode == "authority_backed":
+        if decision.assurance != "lineage_verified" or not (
+            request.result_refs or request.evidence_refs
+        ):
+            raise AnswerCommitError("authority-backed answer admission is invalid")
+        return
+    if decision.mode == "offline_information":
+        if decision.assurance != "deterministic_information" or (
+            request.result_refs or request.evidence_refs
+        ):
+            raise AnswerCommitError("offline answer admission is invalid")
+        return
+    if decision.mode == "limited" and decision.assurance == "limited":
+        return
+    raise AnswerCommitError("domain answer admission assurance is invalid")
 
 
 def _normalize_allowed_refs(

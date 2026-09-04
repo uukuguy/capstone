@@ -5,6 +5,12 @@ from capability_agent.domain.authority import (
     VerifiedArtifact,
     VerifiedReferenceSet,
 )
+from capability_agent.domain.answer_admission import (
+    AnswerAdmissionDecision,
+    AnswerAdmissionInput,
+    AnswerAdmissionPolicy,
+    read_answer_admission_metadata,
+)
 from capability_agent.domain.acceptance import DomainAcceptanceProfile
 from capability_agent.domain.contracts import CapabilityContractSource
 from capability_agent.domain.execution import CapabilityExecutor
@@ -29,6 +35,10 @@ from capability_agent.domain.state import DomainContextView, DomainStateAdapter
 
 __all__ = [
     "AnswerEvidencePolicy",
+    "AnswerAdmissionDecision",
+    "AnswerAdmissionInput",
+    "AnswerAdmissionPolicy",
+    "read_answer_admission_metadata",
     "ArtifactAuthority",
     "CapabilityContractSource",
     "CapabilityExecutor",

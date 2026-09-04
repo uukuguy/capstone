@@ -64,6 +64,10 @@ from capability_agent.application import (
     reduce_context,
 )
 from capability_agent.domain import (
+    AnswerAdmissionDecision,
+    AnswerAdmissionInput,
+    AnswerAdmissionPolicy,
+    read_answer_admission_metadata,
     AnswerEvidencePolicy,
     ArtifactAuthority,
     CapabilityContractSource,
@@ -114,6 +118,10 @@ __all__ = [
     "APPLICATION_CONTEXT_EVENT_SCHEMA",
     "APPLICATION_CONTEXT_SCHEMA",
     "AnswerCommitError",
+    "AnswerAdmissionDecision",
+    "AnswerAdmissionInput",
+    "AnswerAdmissionPolicy",
+    "read_answer_admission_metadata",
     "AnswerEvidencePolicy",
     "ApplicationConfigurationError",
     "AgentApplication",
