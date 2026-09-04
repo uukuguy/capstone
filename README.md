@@ -169,6 +169,13 @@ contract, for example:
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
+Generic completion reflects accepted answers and required context commits;
+report or progress failures do not revoke them. The pandapower domain schema
+is `pandapower-static-analysis-output/1.1`: an unavailable report has a null
+reference, while non-null references still require current-run admission.
+Inspect `core.diagnostic_refs` and `core/diagnostics/<code>/diagnostic.json` for
+presentation failures. Diagnostic storage failures fall back to sanitized stderr.
+
 Run the formal built-in pandapower application:
 
 ```sh

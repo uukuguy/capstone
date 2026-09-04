@@ -63,12 +63,6 @@ def test_output_contract_requires_an_admitted_current_run_report_reference() -> 
 
     assert payload["report_artifact_ref"] == report_ref
     with pytest.raises(ValueError, match="report reference"):
-        contract.build(
-            binding_id="grid",
-            context={"input": {"instruction_count": 2}},
-            committed_answers=answers,
-        )
-    with pytest.raises(ValueError, match="report reference"):
         contract.validate({
             **payload,
             "report_artifact_ref": "artifact:sha256:" + "c" * 64,
@@ -76,6 +70,52 @@ def test_output_contract_requires_an_admitted_current_run_report_reference() -> 
 
     with pytest.raises(ValueError, match="admission"):
         PandapowerOutputContract().validate(payload)
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        {"input": {"instruction_count": 1}},
+        {
+            "input": {"instruction_count": 1},
+            "report_artifact_ref": None,
+            "state": {"report_artifact_ref": "artifact:sha256:" + "c" * 64},
+        },
+    ],
+)
+def test_output_contract_allows_an_absent_or_explicitly_null_report_reference(
+    context: dict[str, object],
+) -> None:
+    contract = PandapowerOutputContract()
+    payload = contract.build(
+        binding_id="grid",
+        context=context,
+        committed_answers=({"status": "success"},),
+    )
+
+    contract.validate(payload)
+    assert payload["report_artifact_ref"] is None
+
+
+@pytest.mark.parametrize(
+    "report_ref",
+    [7, "not-an-artifact-reference", "artifact:sha256:" + "c" * 64],
+)
+def test_output_contract_rejects_malformed_or_unadmitted_context_report_references(
+    report_ref: object,
+) -> None:
+    admitted_ref = "artifact:sha256:" + "b" * 64
+    contract = PandapowerOutputContract(allowed_references=(admitted_ref,))
+
+    with pytest.raises(ValueError, match="report reference"):
+        contract.build(
+            binding_id="grid",
+            context={
+                "input": {"instruction_count": 1},
+                "report_artifact_ref": report_ref,
+            },
+            committed_answers=({"status": "success"},),
+        )
 
 
 def test_output_contract_rejects_a_foreign_context_binding() -> None:

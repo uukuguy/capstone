@@ -67,8 +67,10 @@ only then is the final report admitted as the immutable report artifact.
 `runs/<run-id>/output/answers.jsonl` is the standard submission checkpoint.
 Each line contains only `question_id` and `answer_output`, in input order, and
 is atomically refreshed after every accepted answer. It can be a valid prefix
-after interruption or failure; completed status plus the admitted final
-`output/report.md`/`report_ref` determines whole-run success. JSONL contains no
+after interruption or failure; completed status confirms that the required
+answer and context transactions finished. Report publication is optional:
+`core.report_ref` and the pandapower `1.1` payload's `report_artifact_ref` are
+null when no report was successfully admitted. JSONL contains no
 evidence, diagnostics, or report-artifact admission data. An ongoing or partial
 JSONL prefix therefore records accepted submissions only; it is not evidence
 and does not prove that the whole run succeeded.
@@ -81,8 +83,13 @@ sed -n '1,240p' runs/<run_id>/output/report.md
 find runs/<run_id>/turns -name answer.json -print
 ```
 
-The absence of a final `report_ref` or a non-completed outcome means the run was
-not successfully finalized, even when the checkpoint contains prior answers.
+A non-completed outcome means the run was not successfully finalized, even
+when the checkpoint contains prior answers. A completed outcome with a null
+`report_ref` instead means accepted answers survived a presentation failure;
+inspect `core.diagnostic_refs` and `core/diagnostics/<code>/diagnostic.json`.
+If diagnostic storage also fails, a fixed sanitized diagnostic is attempted on
+stderr. A report checkpoint without an admitted reference is not a final
+trusted report, regardless of whether the primary answers completed.
 
 Provider and model arguments never carry credentials. Credentials continue to
 come from environment variables or project-owned ignored authentication state.

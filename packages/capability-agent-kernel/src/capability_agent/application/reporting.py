@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from capability_agent.application.errors import PresentationError
+
+
+@dataclass(frozen=True, slots=True)
+class ReportPublication:
+    status: Literal["published", "unavailable"]
+    report_ref: str | None
+    diagnostic_codes: tuple[str, ...] = ()
 
 
 class GenericReportShell:
@@ -85,4 +93,4 @@ def _json_text(value: Mapping[str, object]) -> str:
         raise PresentationError("framework report record is not serializable") from None
 
 
-__all__ = ["GenericReportShell"]
+__all__ = ["GenericReportShell", "ReportPublication"]

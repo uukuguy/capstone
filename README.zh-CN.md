@@ -109,6 +109,11 @@ ApplicationProfile -> AgentApplication -> DomainBinding -> Domain Pack
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
+通用运行的完成状态反映已接受答案和必要上下文事务；报告或进度故障不会撤销它们。
+pandapower 领域 schema 为 `pandapower-static-analysis-output/1.1`：报告不可用时引用为 null，
+非空引用仍必须由当前运行接纳。展示故障可查看 `core.diagnostic_refs` 和
+`core/diagnostics/<code>/diagnostic.json`；诊断存储失败时回退为安全 stderr 诊断。
+
 运行正式内建的 pandapower 应用：
 
 ```sh

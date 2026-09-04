@@ -116,8 +116,11 @@ v1.0.1 的运行环境、回答、仿真上下文、智能体轨迹和证据结�
 `runs/<run-id>/output/answers.jsonl` 是标准提交检查点。每行仅包含
 `question_id` 和 `answer_output`，按输入顺序排列；每个答案被接受后文件都会
 原子刷新。运行被中断或失败时，该文件可以是有效的已接受答案前缀；只有运行
-状态为 completed，且最终 `output/report.md` 已被接纳并绑定最终 `report_ref`，
-才能判定整次运行成功。JSONL 不包含证据、诊断或报告工件接纳信息，因此正在
+状态为 completed 才表示必要答案及上下文事务完成。报告发布独立判定：
+`report_ref` 非空时必须绑定已接纳的最终 `output/report.md`；报告不可用时
+可以为 null，已接受答案不因此撤销。查看 `core.diagnostic_refs` 及
+`core/diagnostics/<code>/diagnostic.json`，诊断存储失败时检查 stderr 的固定诊断。
+JSONL 不包含证据、诊断或报告工件接纳信息，因此正在
 进行中的检查点或部分前缀既不是证据，也不能证明整次运行成功。
 
 ## 3. 离线知识与确定性诊断

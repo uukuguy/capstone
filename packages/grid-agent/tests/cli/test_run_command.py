@@ -244,7 +244,7 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
     assert rendered["schema"] == "capability-agent-output/1.0"
     assert rendered["core"]["run_id"] == "cli-near-real"
     domain = rendered["domains"]["grid"]
-    assert domain["schema"] == "pandapower-static-analysis-output/1.0"
+    assert domain["schema"] == "pandapower-static-analysis-output/1.1"
     assert domain["payload"] == {
         "mode": "continuous-static-analysis",
         "instruction_count": 2,

@@ -8,7 +8,7 @@
 | `JOURNAL.md` | Append-only durable event log. |
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |
-| `DECISIONS.md` | Active architectural decision ledger. |
+| `DECISIONS.md` | Active architectural decisions, including domain-only report optionality/versioning. |
 | `climb/research-tree.md` | Generated Workstream C inventory reference-domain scoring summary; resume-load. |
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
 | `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |

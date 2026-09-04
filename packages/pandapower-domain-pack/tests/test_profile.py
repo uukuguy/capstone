@@ -77,7 +77,7 @@ def test_pandapower_profile_is_application_complete() -> None:
     assert profile.missing_application_components() == ()
     assert profile.output_contract is not None
     assert profile.output_contract.schema_id == (
-        "pandapower-static-analysis-output/1.0"
+        "pandapower-static-analysis-output/1.1"
     )
     for component in (
         profile.provisioner,

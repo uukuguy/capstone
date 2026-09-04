@@ -958,7 +958,9 @@ def test_runner_report_publication_replaces_leaf_atomically_without_following_sy
         ),
     ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
 
-    assert outcome.status == "failed"
+    assert outcome.status == "completed"
+    assert outcome.result.core.report_ref is None
+    assert len(outcome.result.core.answer_refs) == 1
     assert report_path.is_symlink()
     assert outside.read_text(encoding="utf-8") == "outside-original"
 
@@ -1458,3 +1460,40 @@ def test_call_prompt_forwards_transport_heartbeat_to_semantic_observer() -> None
 
     assert answer == "answer"
     assert observed == [{"type": "application_waiting"}]
+
+
+def test_call_prompt_isolates_ordinary_semantic_observer_failures() -> None:
+    from capability_agent.application.runner import _call_prompt
+
+    class Transport:
+        def prompt_and_wait(self, _question: str, *, on_semantic_event, on_heartbeat, **_kwargs):
+            on_semantic_event({"type": "application_provider_resolved"})
+            on_heartbeat()
+            return "answer"
+
+    answer, projections = _call_prompt(
+        Transport(),
+        "question",
+        projector=None,
+        turn_id="turn-1",
+        semantic_event_observer=lambda _event: (_ for _ in ()).throw(RuntimeError("observer")),
+    )
+
+    assert answer == "answer"
+    assert projections == ()
+
+
+def test_call_prompt_keeps_projector_failure_fail_closed() -> None:
+    from capability_agent.application.runner import _call_prompt
+
+    class Projector:
+        def observe(self, _event, **_kwargs):
+            raise RuntimeError("admission")
+
+    class Transport:
+        def prompt_and_wait(self, _question: str, *, on_semantic_event, **_kwargs):
+            on_semantic_event({"type": "tool_result"})
+            return "answer"
+
+    with pytest.raises(RuntimeError, match="admission"):
+        _call_prompt(Transport(), "question", projector=Projector(), turn_id="turn-1")

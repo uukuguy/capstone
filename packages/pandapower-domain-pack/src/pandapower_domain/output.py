@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping, Sequence
 
 
-PANDAPOWER_OUTPUT_SCHEMA = "pandapower-static-analysis-output/1.0"
+PANDAPOWER_OUTPUT_SCHEMA = "pandapower-static-analysis-output/1.1"
 _REFERENCE = re.compile(r"^artifact:sha256:[0-9a-f]{64}$")
 _PAYLOAD_KEYS = frozenset(
     {
@@ -53,7 +53,8 @@ class PandapowerOutputContract:
         )
         failed_count = instruction_count - completed_count
         report_ref = _report_reference(context)
-        self._require_admitted_report_reference(report_ref, context)
+        if report_ref is not None:
+            self._require_admitted_report_reference(report_ref, context)
         payload = {
             "mode": "continuous-static-analysis",
             "instruction_count": instruction_count,
@@ -97,18 +98,19 @@ class PandapowerOutputContract:
                 "pandapower output counts are inconsistent"
             )
         report_ref = payload["report_artifact_ref"]
-        if not isinstance(report_ref, str) or not _REFERENCE.fullmatch(report_ref):
-            raise PandapowerOutputValidationError(
-                "pandapower report reference is invalid"
-            )
-        if allowed_references is None:
-            raise PandapowerOutputValidationError(
-                "pandapower report reference admission is unavailable"
-            )
-        if report_ref not in allowed_references:
-            raise PandapowerOutputValidationError(
-                "pandapower report reference is not admitted for this run"
-            )
+        if report_ref is not None:
+            if not isinstance(report_ref, str) or not _REFERENCE.fullmatch(report_ref):
+                raise PandapowerOutputValidationError(
+                    "pandapower report reference is invalid"
+                )
+            if allowed_references is None:
+                raise PandapowerOutputValidationError(
+                    "pandapower report reference admission is unavailable"
+                )
+            if report_ref not in allowed_references:
+                raise PandapowerOutputValidationError(
+                    "pandapower report reference is not admitted for this run"
+                )
         if any(
             isinstance(value, Mapping) and ("core" in value or "domains" in value)
             for value in payload.values()
@@ -178,9 +180,15 @@ def _report_reference(context: object) -> str | None:
     raw = _context_mapping(context)
     for source in (raw, raw.get("state")):
         if isinstance(source, Mapping):
-            value = source.get("report_artifact_ref")
-            if value is not None:
-                return value if isinstance(value, str) else None
+            if "report_artifact_ref" in source:
+                value = source["report_artifact_ref"]
+                if value is None:
+                    return None
+                if not isinstance(value, str):
+                    raise PandapowerOutputValidationError(
+                        "pandapower report reference is invalid"
+                    )
+                return value
     return None
 
 

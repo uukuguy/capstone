@@ -234,7 +234,7 @@ ApplicationProfile
   "core": {"run_id": "...", "status": "completed", "turns": []},
   "domains": {
     "grid": {
-      "schema": "pandapower-static-analysis-output/1.0",
+      "schema": "pandapower-static-analysis-output/1.1",
       "status": "completed",
       "payload": {"mode": "continuous-static-analysis"}
     }
@@ -243,6 +243,8 @@ ApplicationProfile
 ```
 
 `core` 由 Kernel 负责，`domains.grid` 由 pandapower Domain Pack 负责；后续领域只能增加自己的 `domains.<binding_id>`，不能改变通用核心或把领域载荷冒充框架答案。报告、结果和证据引用仍必须由当前运行的 authority 接纳，数值事实始终通过 `grid-capability/1.0` 的 `gridctl` 返回。
+
+pandapower 输出 `1.1` 保留原有五个载荷字段，但允许报告不可用时 `report_artifact_ref` 为 `null`；非空引用仍必须格式正确并由当前运行接纳。该变化显式修订领域 schema，不改 Kernel 的 `capability-agent-output/1.0`，也不改变兼容 CLI 的双字段 stdout。通用运行的 completed 表示必要答案与上下文事务完成，不以报告发布成功为前提；报告/进度故障以固定诊断记录在 `core/diagnostics/<code>/diagnostic.json`，对应摘要引用返回于 `core.diagnostic_refs`。诊断存储本身失败时仅尝试安全 stderr；证据准入、答案写入和必要完成事务失败仍阻断。
 
 `run`、`analysis` 和 `report` 是显式的 v1.0.1 compatibility adapter 路径。它们在内部先运行并验证丰富的通用结果，再有意投影为历史 stdout 的精确两个字段：`question_id` 与 `answer_output`。这两个字段是旧入口的兼容交付契约，不是所有领域的通用输出契约。
 

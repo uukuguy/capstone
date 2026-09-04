@@ -1,8 +1,16 @@
 # Architectural Decisions
 
+## 2026-09-05 — Version report optionality in the owning domain contract
+
+- **Decision:** OP-03 keeps `capability-agent-output/1.0` and the exact grid compatibility stdout unchanged, while revising the pandapower payload schema to `pandapower-static-analysis-output/1.1`.
+- **Reason:** the existing domain `1.0` validator requires an admitted report reference. Silently permitting null under that identity would violate strict readers' legitimate expectations and keep presentation coupled to primary completion.
+- **Contract:** retain the five payload fields and count/mode checks; an absent or explicit-null context report yields a null payload reference. A non-null report must still have the artifact reference format and current-run admission. No placeholder artifact, weakened authority check or rewritten historical output is permitted.
+- **Failure semantics:** ordinary report/observer faults produce fixed run-scoped diagnostic artifacts and refs, or sanitized stderr if diagnostic storage also fails. Required answer/context transactions and BaseException cancellation remain fail closed/propagating. Safe report publication pins parent descriptors and verifies stage identity before and after publication.
+- **Control:** exact file scope, tests, review and closure remain in the OP-03 section of the canonical optimization plan. Historical C.1 specs and synthetic compatibility `1.0` inputs remain historical evidence.
+
 ## 2026-09-05 — Close framework assurance and verification before C.2
 
-- **Status:** optimization direction accepted; implementation not started.
+- **Status:** optimization direction accepted; current implementation status belongs to the canonical plan.
 - **Decision:** execute OP-01–OP-14 from `docs/superpowers/plans/2026-09-05-capstone-optimization.md`; retain direct project routing and use that document as the sole optimization execution ledger.
 - **Rationale:** review found zero-reference answer admission and legacy run submission gaps, report failures blocking accepted answers, incomplete default gates, and scaling costs; these undermine the guarantees a second production domain would inherit.
 - **Assurance boundary:** current-run lineage is not proof of freeform prose semantics. Domain-owned admission must distinguish deterministic information, authority-backed lineage and limitations; no grid keyword heuristics in Kernel and no model-owned answer submission.

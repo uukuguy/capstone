@@ -117,6 +117,14 @@ make application
 {"schema":"capability-agent-output/1.0","core":{...},"domains":{"grid":{...}}}
 ```
 
+通用运行的答案完成与报告发布分开判定。报告/进度派生故障不会撤销已接受答案；
+最终报告不可用时 `core.report_ref` 与领域 `report_artifact_ref` 为 null。
+领域 schema 显式升级为 `pandapower-static-analysis-output/1.1`，core schema 不变；
+非空报告引用仍须通过当前运行接纳。查看 `core.diagnostic_refs` 及
+`runs/<run_id>/core/diagnostics/<code>/diagnostic.json`，若诊断工件也无法保存则检查
+stderr 固定诊断。不要把没有接纳引用的报告检查点当作可信最终报告；必要答案、
+证据和上下文完成事务失败仍会使运行失败。
+
 运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`make application` 是需要 Provider 的正式产品入口；不要把 Provider 凭据写进参数以外的提交文件、日志或工件。完整参数、输出契约、兼容边界和当前运行证据检查见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
 
 Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同一份已准备 pandapower endpoint，再由真实语义 `gridctl` 执行工具调用。它覆盖 `validation/application/` 中的两个脚本案例，并检查当前运行引用、上下文复用、答案审计、报告摘要/接纳、replay equality 和 `core` + `domains.grid` 输出：

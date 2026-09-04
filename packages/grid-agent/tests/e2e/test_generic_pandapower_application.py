@@ -73,6 +73,9 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     assert set(rendered["domains"]) == {"grid"}
     assert rendered["core"]["status"] == "completed"
     assert rendered["domains"]["grid"]["status"] == "completed"
+    assert rendered["domains"]["grid"]["schema"] == (
+        "pandapower-static-analysis-output/1.1"
+    )
     assert set(rendered["domains"]["grid"]["payload"]) == {
         "mode",
         "instruction_count",

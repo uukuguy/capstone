@@ -178,6 +178,122 @@ def test_generic_pandapower_application_checkpoints_standard_submission_answers(
     ]
 
 
+def test_generic_pandapower_renderer_failure_keeps_accepted_answers_and_submission_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The real pandapower report shell is derived output, not answer state."""
+
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="run-1", binding_ids=("grid",)
+    )
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    def fail_renderer(**_kwargs: object) -> str:
+        raise RuntimeError("renderer credential=secret-path")
+
+    monkeypatch.setattr(
+        "grid_agent.compat.v1_0_1_report.render_analysis_report", fail_renderer
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        (OFFLINE_QUESTION, OFFLINE_QUESTION),
+        application=application,
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert outcome.result.core.report_ref is None
+    assert len(outcome.result.core.answer_refs) == 2
+    assert [
+        json.loads(line)
+        for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
+    ] == [
+        {"question_id": "run-1-t001", "answer_output": _offline_answer(profile)},
+        {"question_id": "run-1-t002", "answer_output": _offline_answer(profile)},
+    ]
+    assert "renderer credential" not in "\n".join(outcome.result.core.diagnostic_refs)
+
+
+def test_generic_pandapower_report_symlink_rejection_keeps_accepted_answers(
+    tmp_path: Path,
+) -> None:
+    """A rejected report leaf never follows its symlink or revokes answers."""
+
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="run-1", binding_ids=("grid",)
+    )
+    outside = tmp_path / "outside-report.md"
+    outside.write_text("outside bytes", encoding="utf-8")
+    (workspace.output_path / "report.md").symlink_to(outside)
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        (OFFLINE_QUESTION, OFFLINE_QUESTION),
+        application=application,
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert outcome.result.core.report_ref is None
+    assert len(outcome.result.core.answer_refs) == 2
+    assert outside.read_text(encoding="utf-8") == "outside bytes"
+    assert (workspace.output_path / "report.md").is_symlink()
+    assert [
+        json.loads(line)
+        for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
+    ] == [
+        {"question_id": "run-1-t001", "answer_output": _offline_answer(profile)},
+        {"question_id": "run-1-t002", "answer_output": _offline_answer(profile)},
+    ]
+
+
+def test_generic_pandapower_answer_submission_failure_remains_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Required controller persistence is not presentation and must fail closed."""
+
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="run-1", binding_ids=("grid",)
+    )
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=_Provider(answers=("accepted",)),
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    def fail_submit(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("authority persistence failed")
+
+    monkeypatch.setattr(
+        "capability_agent.application.runner.TurnController.submit", fail_submit
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis", (OFFLINE_QUESTION,), application=application
+    )
+
+    assert outcome.status == "failed"
+    assert outcome.result.core.answer_refs == ()
+    assert (workspace.output_path / "answers.jsonl").read_text(encoding="utf-8") == ""
+
+
 def test_generic_pandapower_application_retains_checkpoint_after_later_failure(
     tmp_path: Path,
 ) -> None:

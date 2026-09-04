@@ -176,7 +176,11 @@ assert isinstance(payload["answer_output"], str)
 
 **Files**：Modify `packages/capability-agent-kernel/src/capability_agent/application/runner.py`、`application/reporting.py`、`application/output.py`、`packages/grid-agent/src/grid_agent/compat/v1_0_1_report.py`；Test `packages/capability-agent-kernel/tests/application/test_runner.py`、`test_reporting.py`。
 
-**接口**：新增报告发布结果，主结果继续使用已有可空 report_ref 和 diagnostic_refs；输出 schema 无需因展示失败而强制升级。
+**接口**：新增报告发布结果，主结果继续使用已有可空 report_ref 和 diagnostic_refs；Kernel输出schema保持 `capability-agent-output/1.0`。
+
+实际领域契约澄清（2026-09-05）：真实app红灯发现pandapower输出1.0强制要求已接纳报告。独立评审后显式使用 `pandapower-static-analysis-output/1.1`，保留五字段和mode/count检查，允许无报告时null；非null仍严格格式/当前run准入，不伪造占位工件。额外Modify `packages/pandapower-domain-pack/src/pandapower_domain/output.py`；Test其 `tests/test_output.py`、`test_profile.py`，以及grid的 `tests/cli/test_run_command.py`、`tests/e2e/test_generic_pandapower_application.py` schema断言。历史C.1规格和兼容测试的合成1.0输入保留。同步双语README、RUNBOOK、PANDAPOWER-APPLICATION、MANUAL-VALIDATION及capability-composition架构说明；决定记录在DECISIONS。
+
+安全写入澄清（2026-09-05）：现有报告writer的祖先检查与路径写入之间可被替换成symlink，已通过outside内容被覆盖的RED复现。新增Kernel `application/_report_files.py`，逐级dirfd绑定、私有临时写入、stage身份校验及同父发布；仅替换报告writer，不扩展通用存储SPI。新增 `tests/application/test_report_files.py`、`test_diagnostics.py`、`test_failure_isolation.py` 验证竞态、固定诊断和主/派生故障矩阵。
 
 实施边界补充（2026-09-05）：包括可选report-shell prepare，不仅是提交后的render；包括OP-02新增provider/waiting观察事件。`_call_prompt`只隔离observer，先执行的projector.observe仍属必要准入/持久化。report引用登记失败若store仍健康可返回unavailable；若真实I/O已破坏store，必要application.completed事务仍须失败，不能用宽泛mock或catch假报完成。应用侧验收增加 `packages/grid-agent/tests/application/test_generic_entrypoint.py`，验证真实pandapower报告壳失败不撤销已提交答案和可用answers.jsonl。
 

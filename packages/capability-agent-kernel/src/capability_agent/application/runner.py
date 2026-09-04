@@ -7,9 +7,7 @@ import hashlib
 import inspect
 import json
 import os
-import stat
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -21,7 +19,9 @@ from capability_agent.application.composition import (
     PreparedApplication,
     prepare_application,
 )
+from capability_agent.application._report_files import write_report_atomically
 from capability_agent.application.context_store import ApplicationContextStore
+from capability_agent.application.context_models import PORTABLE_ID_PATTERN
 from capability_agent.application.errors import (
     ApplicationConfigurationError,
     CapabilityAgentError,
@@ -37,7 +37,7 @@ from capability_agent.application.output import (
 )
 from capability_agent.application.profile import ApplicationProfile
 from capability_agent.application.projector import ApplicationInvocationProjector
-from capability_agent.application.reporting import GenericReportShell
+from capability_agent.application.reporting import GenericReportShell, ReportPublication
 from capability_agent.application.turns import TurnController
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.domain.answer_admission import read_answer_admission_metadata
@@ -54,8 +54,10 @@ from capability_agent.tools.catalog import (
     CoreToolCatalog,
 )
 from capability_agent.trajectory.artifacts import (
+    ArtifactLayout,
     ArtifactIntegrityError,
     ImmutableArtifactRegistry,
+    NeutralArtifactPathPolicy,
 )
 
 
@@ -186,9 +188,17 @@ class AgentApplication:
         self.runtime_paths = runtime_paths
         self.semantic_event_observer = semantic_event_observer
         self._prepared_for_run = False
+        self._diagnostic_workspace: ApplicationWorkspace | None = None
+        self._diagnostic_run_id = "run"
+        self._diagnostic_refs: list[str] = []
+        self._diagnostic_codes: set[str] = set()
 
     def run(self, request: ApplicationRequest) -> ApplicationOutcome:
         self._validate_request(request)
+        self._diagnostic_workspace = None
+        self._diagnostic_run_id = "run"
+        self._diagnostic_refs = []
+        self._diagnostic_codes = set()
         prepared: object | None = None
         transport: object | None = self.provider
         completed_answers: list[object] = []
@@ -206,7 +216,12 @@ class AgentApplication:
             self._hook("provisioning")
             bindings = _prepared_bindings(prepared)
             workspace = self._ensure_workspace(request, bindings)
-            self._prepare_application_output(request=request, workspace=workspace)
+            self._diagnostic_workspace = workspace
+            self._diagnostic_run_id = getattr(workspace, "run_id", request.run_id) or "run"
+            self._run_presentation(
+                lambda: self._prepare_application_output(request=request, workspace=workspace),
+                code="report_prepare_unavailable",
+            )
             store = self._ensure_store(request, workspace, bindings)
             controller = self._ensure_controller(store, workspace, bindings)
             catalog = self._validate_before_provider(prepared, bindings)
@@ -234,7 +249,10 @@ class AgentApplication:
                         question,
                         projector=projector,
                         turn_id=getattr(handle, "turn_id", None),
-                        semantic_event_observer=self.semantic_event_observer,
+                        semantic_event_observer=(
+                            self._observe_semantic_event
+                            if self.semantic_event_observer is not None else None
+                        ),
                     )
                     finalized = _call_method(
                         controller,
@@ -295,12 +313,15 @@ class AgentApplication:
                 active_turn = None
                 if getattr(finalized, "status", "success") != "success":
                     raise ApplicationConfigurationError("question did not produce an accepted answer")
-                self._write_report_checkpoint(
-                    request=request,
-                    workspace=workspace,
-                    store=store,
-                    completed_answers=tuple(completed_answers),
-                    prepared=prepared,
+                self._run_presentation(
+                    lambda: self._write_report_checkpoint(
+                        request=request,
+                        workspace=workspace,
+                        store=store,
+                        completed_answers=tuple(completed_answers),
+                        prepared=prepared,
+                    ),
+                    code="report_checkpoint_unavailable",
                 )
                 self._observe_semantic_event(
                     {
@@ -316,15 +337,12 @@ class AgentApplication:
                 completed_answers=tuple(completed_answers),
                 report_ref=None,
             )
-            report_path, report_ref = self._write_report(
-                request=request,
-                workspace=workspace,
-                store=store,
-                core=preliminary_core,
-                completed_answers=tuple(completed_answers),
-                prepared=prepared,
+            publication = self._publish_report(
+                request=request, workspace=workspace, store=store,
+                core=preliminary_core, completed_answers=tuple(completed_answers), prepared=prepared,
             )
-            self._record_report_reference(store, report_ref)
+            report_path = publication[0]
+            report_ref = publication[1].report_ref
             result = self._build_result(
                 request=request,
                 workspace=workspace,
@@ -800,7 +818,7 @@ class AgentApplication:
             status="completed",
             answer_refs=answer_refs,
             report_ref=report_ref,
-            diagnostic_refs=(),
+            diagnostic_refs=tuple(self._diagnostic_refs),
         )
 
     def _build_domain_output(
@@ -892,7 +910,7 @@ class AgentApplication:
                 if ref
             ),
             report_ref=None,
-            diagnostic_refs=(),
+            diagnostic_refs=tuple(self._diagnostic_refs),
         )
         return self.output_composer.compose(
             core=core,
@@ -938,6 +956,58 @@ class AgentApplication:
             raise PresentationError("report artifact admission failed") from None
         return path, pointer.ref
 
+    def _publish_report(
+        self, *, request: ApplicationRequest, workspace: ApplicationWorkspace | None,
+        store: ApplicationContextStore | None, core: CoreRunResult,
+        completed_answers: tuple[object, ...], prepared: object | None,
+    ) -> tuple[Path | None, ReportPublication]:
+        try:
+            path, report_ref = self._write_report(
+                request=request, workspace=workspace, store=store, core=core,
+                completed_answers=completed_answers, prepared=prepared,
+            )
+            self._record_report_reference(store, report_ref)
+            return path, ReportPublication("published", report_ref)
+        except Exception:
+            self._record_diagnostic("report_unavailable")
+            return None, ReportPublication("unavailable", None, ("report_unavailable",))
+
+    def _run_presentation(self, action: Callable[[], object], *, code: str) -> None:
+        try:
+            action()
+        except Exception:
+            self._record_diagnostic(code)
+
+    def _record_diagnostic(self, code: str) -> None:
+        """Record only fixed diagnostic fields; never re-enter a failing observer."""
+        if code in self._diagnostic_codes:
+            return
+        self._diagnostic_codes.add(code)
+        workspace = self._diagnostic_workspace
+        run_id = self._diagnostic_run_id
+        if not isinstance(run_id, str) or not PORTABLE_ID_PATTERN.fullmatch(run_id):
+            run_id = "run"
+        if workspace is not None:
+            try:
+                registry = ImmutableArtifactRegistry(
+                    workspace.root,
+                    path_policy=NeutralArtifactPathPolicy(layouts={
+                        "diagnostic": ArtifactLayout(
+                            "core/diagnostics/{identity}", "diagnostic.json"
+                        ),
+                    }),
+                )
+                pointer = registry.write_json("diagnostic", code, {
+                    "schema": "application-diagnostic/1.0",
+                    "run_id": run_id,
+                    "code": code,
+                })
+                self._diagnostic_refs.append(pointer.ref)
+                return
+            except Exception:
+                pass
+        _diagnostic_stderr(code, run_id)
+
     def _write_report_checkpoint(
         self,
         *,
@@ -977,7 +1047,10 @@ class AgentApplication:
     def _observe_semantic_event(self, event: Mapping[str, object]) -> None:
         observer = self.semantic_event_observer
         if observer is not None:
-            observer(event)
+            try:
+                observer(event)
+            except Exception:
+                self._record_diagnostic("progress_observer_unavailable")
 
     def _render_report(
         self,
@@ -1379,18 +1452,35 @@ def _call_prompt(
                     if outcome is not None:
                         projections.append(outcome)
                 if semantic_event_observer is not None:
-                    semantic_event_observer(event)
+                    _observe_nonblocking(semantic_event_observer, event)
             kwargs["on_semantic_event"] = on_event
     if turn_id is not None:
         kwargs["correlation_id"] = turn_id
     if semantic_event_observer is not None:
-        kwargs["on_heartbeat"] = lambda: semantic_event_observer(
+        kwargs["on_heartbeat"] = lambda: _observe_nonblocking(
+            semantic_event_observer,
             {"type": "application_waiting"}
         )
     answer = _call_factory(method, question, **kwargs)
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")
     return answer, tuple(projections)
+
+
+def _observe_nonblocking(
+    observer: Callable[[Mapping[str, object]], None], event: Mapping[str, object]
+) -> None:
+    try:
+        observer(event)
+    except Exception:
+        _diagnostic_stderr("progress_observer_unavailable", "run")
+
+
+def _diagnostic_stderr(code: str, run_id: str) -> None:
+    try:
+        print(f"application diagnostic: {code} run={run_id}", file=sys.stderr)
+    except Exception:
+        pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -1498,77 +1588,7 @@ def _persisted_answer_assurance(
 
 
 def _write_report_atomically(path: Path, report: str) -> None:
-    """Publish a report without following a leaf or parent symlink."""
-
-    target = Path(path)
-    parent = target.parent
-    _reject_report_symlink_ancestors(parent)
-    try:
-        if target.is_symlink():
-            raise PresentationError("report path must not be a symlink")
-        parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        _reject_report_symlink_ancestors(parent)
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{target.name}.", dir=parent
-        )
-        temporary = Path(temporary_name)
-        try:
-            os.fchmod(descriptor, stat.S_IRUSR | stat.S_IWUSR)
-            with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
-                descriptor = -1
-                stream.write(report)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, target)
-            directory_fd = os.open(
-                parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-            )
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        finally:
-            if descriptor >= 0:
-                os.close(descriptor)
-            try:
-                temporary.unlink()
-            except FileNotFoundError:
-                pass
-    except PresentationError:
-        raise
-    except OSError as exc:
-        raise PresentationError("report could not be persisted") from exc
-
-
-def _reject_report_symlink_ancestors(path: Path) -> None:
-    current = Path(path)
-    while True:
-        try:
-            metadata = current.lstat()
-        except FileNotFoundError:
-            parent = current.parent
-            if parent == current:
-                return
-            current = parent
-            continue
-        except OSError as exc:
-            raise PresentationError("report directory cannot be inspected") from exc
-        if stat.S_ISLNK(metadata.st_mode):
-            raise PresentationError("report directory must not contain symlinks")
-        if not stat.S_ISDIR(metadata.st_mode):
-            raise PresentationError("report directory is not a directory")
-        break
-    while True:
-        try:
-            metadata = current.lstat()
-        except OSError as exc:
-            raise PresentationError("report directory cannot be inspected") from exc
-        if stat.S_ISLNK(metadata.st_mode):
-            raise PresentationError("report directory must not contain symlinks")
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
+    write_report_atomically(path, report)
 
 
 __all__ = [
