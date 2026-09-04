@@ -1,62 +1,43 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 04:55 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 05:09 CST. **Session remains active — not a final handoff.**
 
-## TL;DR
+## Current execution
 
-- 用户已授权持续实施完整优化计划；当前 OP-01 由 Terra 实施，Astra 协调设计与集成，Luna 做机械检查。
-- OP-04 已关闭：9d13ea4，focused2、30/30重复、runtime72通过，kernel_review 独立规范/质量双PASS。
-- OP-01首版884e07d+678d8d6：Sol独立复审中；make test已结束6失败730通过，Terra调查修复generic入口/CLI契约。不能关闭或启动OP-02实现。
-- Sol初审发现生产reader未消费侧车、缺durable摘要仍信任侧车、mode声明过严与preflight负例缺失；Terra正在修复。六失败已定位为旧fake provider无引用文本被新准入限制，需保持原报告/CLI测试目的并迁移显式有效知识路径，不放宽生产准入。
-- `op01_finish_tests`（新Terra）已完成factory启动前负例、真实E2E对抗矩阵、侧车写失败回滚及focused验证；`op01_implementation`与其均保持只读，root管理复验。
-- 修复已提交f70d0de，固定HEAD完整doctor/test/e2e/validate、Kernel400/domain73、validate-application、test-packages通过。session4638/46839/91956均已exit0。Sol仍发现durable事件关联、缺profile/authority、静态allowed_refs跨轮与未声明mode四项缺口；`op01_finish_tests`已恢复写入修复，原Terra只读。
-- 完整Sol初审发现保存在 `runs/optimization/OP-01/review-findings-678d8d6.md`；OP02/03/05/06只读实现映射分别在对应 `runs/optimization/OP-xx/map.md`。
-- inventory已知基线失败在pre-OP01的323dd7d导出源码复现，OP05计划已纳入测试/过期uv.lock及保护摘要的独立复审修复；诊断自动修改的lock已还原。OP06只读版本研究 `runs/optimization/OP-06/version-research.md` 已完成，不等于版本选择/风险关闭。
-- 唯一优化工作清单：[OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)。下一包 OP-01：领域答案准入与保证范围。
-- 项目 route 保持 direct；优化闭合前不直接开始 C.2 正式领域实现。
-
-## Recovery context
-
-- 代码基线 `5a38c5b`；计划基线已提交 `f16db79`。实施分支 `feat/capstone-optimization`，工作目录 `.worktrees/capstone-optimization`。
-- [评估记录](2026-09-05-capstone-design-code-review.md) 包含 R01–R13、测试证据及限制。
-- Kernel 393、pandapower Domain Pack 66、workbench 128、generic Pi 34、simulator 165、grid Pi 43 测试通过；doctor、边界与保护路径检查通过。
-- 默认 make test 的 agent 段 733 passed/1 failed，RPC fake 子进程退出竞态；单独重跑通过，不可宣称整套全绿。后续 simulator/Pi/Makefile 目标已补跑通过。
-- 新 worktree 已完成 make setup/install-pi/doctor；Kernel393/domain66 基线通过。OP-01 和无依赖 OP-04 正在实施，其余包未启动，未执行付费 provider。
-- 状态提交 f100c01 已落盘；工作台在 scoped Node22 下128测试通过。系统 node@22 路径实际为Node23，使用 npm exec --yes --package=node@22 -- npm test --prefix packages/trajectory-workbench。
-- 优化文档校验通过：14 包覆盖13项发现；本地链接、CLAUDE 相对 symlink、日志原文保留、git diff --check 和 make doctor 正常。
+- 用户授权持续实施完整优化方案；唯一工作清单是 [OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)，route direct。
+- 实施目录：`.worktrees/capstone-optimization`，分支 `feat/capstone-optimization`；代码 HEAD `33ba380`。
+- OP-04 DONE：`9d13ea4`，focused2、30/30重复、runtime72及独立规范/质量审查通过。
+- OP-01 RUNNING：Terra `op01_finish_tests` 正在修复最后一项已知 Important；旧 `op01_implementation` 保持只读。root 管理状态和门禁，Sol `op01_admission_review` 独立审查。
+- OP-02及后续生产实现尚未启动；不得跳过依赖。OP-13须基准触发，C.2仍延后。
 
 ## Immediate next action
 
-1. 等待Sol最终四项汇总及Terra下一修复提交；该提交focused、固定HEAD完整门禁和独立复审后再逐条关闭OP01。不要轮询已结束的4638/46839/91956；其输出已保存runs/optimization/OP-01/gate-*-f70d0de.json。
-2. 按依赖顺序推进；每包记录测试、复审、提交及下一包。14 包状态只在优化计划维护。
-3. 如进入新 worktree，先运行 make setup、make install-pi、make doctor；不得复制另一 worktree 的认证状态。
+1. 接收 Terra 单次安全账本读取修复：新增 replay_events 返回同次读取、验证的 typed events，replay 委托；报告不再第二次 read_bytes。加强 no-follow/身份检查并补替换竞态回归。
+2. Terra 完成 focused 测试和提交后，生成从 `323dd7d` 到新 HEAD 的完整 OP-01 review package，先交 Sol 复审，再跑固定源码完整门禁。已知只剩这一项，勿重复调查已结清四项。
+3. 复审和门禁均结清才关闭 OP-01，再按 OP-02 task-brief/map/compat-design 实施。每包独立测试、复审、提交、记账。
 
-## Working-tree ownership
+## Verification evidence
 
-- 本轮新增：优化计划、评估记录；更新：INDEX、CURRENT-STATE、DECISIONS、JOURNAL、此恢复 checkpoint。
-- 原有 JOURNAL 的 2026-08-31 17:52 条目保留；原有 RESUME 已被本次明确的新方向替代，历史定位事实保留于本页及日志。
-- 未跟踪的 `docs/superpowers/plans/2026-08-31-capstone-framework-guide.md` 是既有完整计划；未修改，不要混入优化提交。
-- 优化文档基线已提交 f16db79；本 worktree 的 JOURNAL/计划/checkpoint 更新由 root 管理，OP-01 代码由 op01_implementation 管理。无 push。
-- 本包 brief/report 位于 runs/optimization/OP-01/；恢复时先核对 agent 实际状态、git log 和文件，不重复派发已提交任务。
-- runs/optimization 报告保持忽略；OP-04 曾误 force-add，现已取消跟踪而保留本地文件，版本化提交与测试摘要移至主计划。
+- `f70d0de` 全门禁 exit0，但四项审查缺口随后由 `33ba380` 修复；不能用旧绿灯代表新源码关闭。
+- `33ba380` lane84764 exit0：Kernel407、Domain74、validate-application、test-packages 六wheel/两npm安装通过。
+- `33ba380` lane87109终止：doctor、agent741、sim165、Pi/Makefile、E2E31、offline/scripted及24/24覆盖输出通过；最后一次工具响应未返回 exit_code，随后 Unknown process id。保存实际响应，不伪称观测到退出码。
+- 所有上述进程已结束，不再轮询87109、84764、4638、46839、91956。原始输出在 `runs/optimization/OP-01/gate-*.json`。
+- Sol33ba380最终：Spec FAIL/quality NEEDS FIXES，仅1 Important（二次读取）。profile/authority预检、当前轮引用、声明模式、空答案/拓扑测试均结清。
+- 未执行付费 provider 验证。
 
-## Durable boundaries
+## Prepared next work
 
-- LLM 返回读者文本；控制器提交答案；领域策略判断离线信息、权威谱系或限制，Kernel 不加入 grid 特例。
-- 证据/答案必要写入失败继续阻断；报告与观察故障不撤销有效答案。
-- grid-agent/gridctl/grid-capability/1.0/grid_*、两字段 envelope、既有证据与兼容路径保留。
-- inventory 是 conformance；GitHub 仍是候选；多域路由和写治理不在本轮范围。
-- 分段存储先做基准；Pi 风险例外 2026-09-30 到期，不得通过改计数或自动延期绕过。
+- 各包任务简报在 `runs/optimization/OP-xx/task-brief.md`，属于忽略的可再生工作资料，不 force-add。
+- OP-02兼容方案在 `runs/optimization/OP-02/compat-design.md`：canonical core/domains 隔离不变；应用层发布旧 events/tool-results/evidence 实体快照，不能 symlink/hardlink 或扩权。纯离线知识在 workspace 创建前确定性返回、不建run。尚未实施。
+- OP-03/05/06/07只读映射在对应 map.md；OP-06官方版本研究完成，0.84.4仅首个本地候选，不等于升级选择或关闭风险例外。
+- inventory旧目录断言在pre-OP01 `323dd7d` 导出源码独立复现；OP-05已受控纳入测试、过期uv.lock、保护摘要修复和独立审查。自动产生的lock改动已撤销，不得归为OP-01回归或提前改保护基线。
 
-## Ready-to-paste baseline commands
+## Ownership and constraints
 
-```sh
-git status --short
-make doctor
-uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/application/test_turns.py -q
-uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests/test_answer_policy.py -q
-make validate-application
-git diff --check
-```
-
-`check-fast`、`check-integration`、`check-release` 是 OP-05 的计划新增目标；目前不可当作已有命令。在线验证需另外适用的授权。
+- root拥有计划、状态文件；Terra拥有当前OP-01代码/测试。保留所有他人修改。
+- main的RESUME指向此实施目录；main未跟踪 `docs/superpowers/plans/2026-08-31-capstone-framework-guide.md` 属于既有用户文件，勿提交。
+- 无push，未集成main。忽略的runs、认证/runtime和用户var不得迁移/删除。
+- Kernel中立，Domain Pack策略，authority事实；兼容stdout严格两字段，stderr诊断；当前轮谱系不等于自由文本数值语义验证。
+- 必要证据/答案事务失败阻断；报告派生故障不撤销有效答案。
+- `make doctor && make test && make test-e2e && make validate` 为主门禁；公共SPI还跑Kernel/Domain测试、validate-application、test-packages。
+- check-fast/check-integration/check-release 尚未实现，属于OP-05。Pi风险例外2026-09-30到期，不自动延期。
