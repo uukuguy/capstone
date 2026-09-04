@@ -1,23 +1,24 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 05:13 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 05:28 CST. **Session remains active — not a final handoff.**
 
 ## Current execution
 
 - 用户授权持续实施完整优化方案；唯一工作清单是 [OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)，route direct。
-- 实施目录：`.worktrees/capstone-optimization`，分支 `feat/capstone-optimization`；代码提交 `1200963`，HEAD `bcae9db` 仅追加状态文档。
+- 实施目录：`.worktrees/capstone-optimization`，分支 `feat/capstone-optimization`；固定代码HEAD `cbc6d97`。
 - OP-04 DONE：`9d13ea4`，focused2、30/30重复、runtime72及独立规范/质量审查通过。
-- OP-01 RUNNING：连续两次明确修复未完整落实，Sol `op01_admission_review` 已升级接管最后一项高风险reader修复；两个Terra均只读。root 管理状态并负责独立验收Sol修复。
-- OP-02及后续生产实现尚未启动；不得跳过依赖。OP-13须基准触发，C.2仍延后。
+- OP-01 DONE：Sol完成最后高风险reader修复；root独立代码/测试审查及固定源码全部门禁通过。
+- OP-02 RUNNING：开始单问run统一提交实施；后续包不得跳过依赖。OP-13须基准触发，C.2仍延后。
 
 ## Immediate next action
 
-1. Terra已提交1200963及acaef08，focused分别41/61通过，但root发现answer_pair未逐级打开父目录、相对路径walker丢首项、named完整identity和指定新测试未落实。Sol正在接管此有界修复；完整包 `runs/optimization/OP-01/review-acaef08.diff`。
-2. 修复要求：component-wise dirfd no-follow读取ledger，sidecar/answer共用固定turn父dirfd，完整named identity；补core/turn父symlink、leaf/in-place变动、报告同源事件消费四类测试。不扩展全库重构。先静态复审通过，再跑固定源码完整门禁。已结清四项不重复调查。
-3. 复审和门禁均结清才关闭 OP-01，再按 OP-02 task-brief/map/compat-design 实施。每包独立测试、复审、提交、记账。
+1. 按 OP-02 task-brief/map/compat-design 实施应用single_run适配器；只读设计已获纳入主计划，生产实现交新Terra worker，root协调、Sol独立复审。核对实际agent身份后继续，勿重复派发。
+2. OP-01 session33258/20868均exit0，禁止再轮询。完整原始输出保存为runs/optimization/OP-01/gate-main-cbc6d97.json及gate-packages-cbc6d97.json。
+3. OP-02保持stdout两字段、provider参数、旧根证据路径与离线知识不建run；所有在线/模拟器单问经controller提交，不投影Pi原始文本。每包独立测试、复审、提交、记账。
 
 ## Verification evidence
 
+- 最终cbc6d97：root独立审查及focused66，Kernel413、Domain74、doctor、agent741、sim165、Pi/Makefile、E2E31、offline/scripted、24/24覆盖、应用验收、六wheel两npm安装均通过；两条完整门禁exit0。OP-01已在主计划逐条勾选关闭。
 - `f70d0de` 全门禁 exit0，但四项审查缺口随后由 `33ba380` 修复；不能用旧绿灯代表新源码关闭。
 - `33ba380` lane84764 exit0：Kernel407、Domain74、validate-application、test-packages 六wheel/两npm安装通过。
 - `33ba380` lane87109终止：doctor、agent741、sim165、Pi/Makefile、E2E31、offline/scripted及24/24覆盖输出通过；最后一次工具响应未返回 exit_code，随后 Unknown process id。保存实际响应，不伪称观测到退出码。

@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-01。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-02。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -39,8 +39,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 
 | 包 | 所属阶段 | 范围 / 发现 | 依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 33ba380：Kernel407/domain74/应用/包安装通过，agent741/sim165/E2E31及24/24通过；Sol仅余账本二次读取竞态，继续修复 |
-| OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | PLANNED | 未执行 |
+| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | DONE | cbc6d97；独立复审、定向66及固定源码完整门禁通过，详见任务验收记录 |
+| OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | RUNNING | OP-01依赖已关闭；按兼容矩阵与应用层实体快照设计实施 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | PLANNED | 未执行 |
@@ -124,12 +124,12 @@ class AnswerAdmissionPolicy(Protocol):
 
 实施澄清（2026-09-05）：离线生产路径采用领域通用概念目录、已发布知识来源和明确的信息请求语法；自然语言概念解释必须可达，`guide:<id>` 只可作为补充入口。不得枚举测试问题、网络或预期答案；混合业务请求不能被宽泛关键词误判。仅确定性来源文本可以获得 `deterministic_information`，模型生成文字不参与该判定。侧车除绑定 `answer_ref` 外，其自身摘要须由已提交事件记录并在读取时核对；“历史答案从未声明侧车”与“已提交侧车丢失/损坏”必须区别处理。单独改写侧车、模式/保证配对不合法及路径替换都不得提升保证等级。
 
-- [ ] 新增参数化红灯用例：无工具数值断言、无工具拓扑断言、错误单位/错误场景的有效引用、跨轮未消费引用、空答案、正常真实结果、普通离线知识、无法判定的问题。前四类不能获得“事实已验证”状态。
-- [ ] 固定策略：默认业务问题为 authority_backed；无当前轮有效结果时 limited。offline_information 只由领域确定性知识路径识别并生成回答，不由模型自报模式，也不通过数字/网络名正则猜分类。其余模糊问题返回 limitation 或继续获取证据。
-- [ ] 准入返回的 reader text 由 controller 提交；limited 采用现有受限答案语义，不伪装 success。为普通知识问答保留领域知识来源且不制造运行证据。
-- [ ] 对有有效引用的自由文本只声明 lineage_verified。新增对抗验收，将真实结果保持不变而替换文本数值/单位/排序，确保 audit 不把它标为“数值验证通过”。需要精确事实展示时由 Domain Pack 根据已验证结果渲染事实表，标注模型解释的保证范围；不解析自由文本后据此创造事实。
-- [ ] 将准入模式/保证范围保存在版本化应用答案旁路元数据并关联 answer_ref；旧答案读者缺少该字段时显示 unknown，不猜测。不要直接给严格旧 schema 塞字段。
-- [ ] 执行下列命令，预期新增测试先失败、实现后全部通过；复审策略不会封死正常离线信息，也不会由模型 bypass。
+- [x] 新增参数化红灯用例：无工具数值断言、无工具拓扑断言、错误单位/错误场景的有效引用、跨轮未消费引用、空答案、正常真实结果、普通离线知识、无法判定的问题。前四类不能获得“事实已验证”状态。
+- [x] 固定策略：默认业务问题为 authority_backed；无当前轮有效结果时 limited。offline_information 只由领域确定性知识路径识别并生成回答，不由模型自报模式，也不通过数字/网络名正则猜分类。其余模糊问题返回 limitation 或继续获取证据。
+- [x] 准入返回的 reader text 由 controller 提交；limited 采用现有受限答案语义，不伪装 success。为普通知识问答保留领域知识来源且不制造运行证据。
+- [x] 对有有效引用的自由文本只声明 lineage_verified。新增对抗验收，将真实结果保持不变而替换文本数值/单位/排序，确保 audit 不把它标为“数值验证通过”。需要精确事实展示时由 Domain Pack 根据已验证结果渲染事实表，标注模型解释的保证范围；不解析自由文本后据此创造事实。
+- [x] 将准入模式/保证范围保存在版本化应用答案旁路元数据并关联 answer_ref；旧答案读者缺少该字段时显示 unknown，不猜测。不要直接给严格旧 schema 塞字段。
+- [x] 执行下列命令，预期新增测试先失败、实现后全部通过；复审策略不会封死正常离线信息，也不会由模型 bypass。
 
 ```sh
 uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/application/test_turns.py -q
@@ -139,6 +139,8 @@ make validate-application
 ```
 
 **关闭条件**：零投影也有明确领域准入；可追踪模式；文本语义保证没有被夸大；权威事实仍来自 gridctl。提交主题：`fix: enforce domain answer admission before commit`。
+
+验收记录（2026-09-05）：最终生产提交 `cbc6d97`（OP-01范围自 `323dd7d` 后），前序功能提交 `884e07d`、`678d8d6`、`f70d0de`、`33ba380`，读取修复 `1200963`、`acaef08`、`cbc6d97`。Sol逐项复审前序实现；最后读取修复由Sol实施、root独立代码与测试审查通过。固定源码门禁均exit0：doctor、agent741、simulator165、Pi/Makefile、E2E31、offline/scripted、24/24覆盖；另Kernel413、Domain74、应用验收、六wheel/两npm干净安装通过。root独立定向66通过；真实grid报告含Guarantee scope和lineage_verified。证据：`runs/optimization/OP-01/gate-{main,packages}-cbc6d97.json`、`final-review-cbc6d97.md`。所有已知Important结清；该结论不代表自由文本数值语义已验证、不关闭OP-06风险例外。
 
 ### OP-02：让单问 run 使用同一提交器
 

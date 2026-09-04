@@ -680,3 +680,8 @@ _Recovered pre-merge mainline entries._
 - 05:10 单次验证事件读取修复已提交，focused41通过，交独立复审 [1200963]。
 - 05:14 Sol确认二读闭合；父目录替换仍需保护，ledger与答案siblings合并一次修复，未扩大存储范围。
 - 05:15 acaef08定向61通过但清单仍未落实；高风险reader修复升级Sol接管，Terra只读，避免重复不完整修补。
+- 05:17 固化单问兼容设计与Sol接管边界，保障后续执行不弱化隔离 [d13517d]。
+- 05:21 Sol完整路径读取修复提交；root独立diff及66测试通过，固定源码启动全门禁 [cbc6d97]。
+- 05:20 逐级绑定ledger与answer sidecar读取，阻断祖先链接及替换竞态 [cbc6d97]。
+- 05:22 cbc6d97的Kernel413/domain74、应用验收及六wheel两npm安装通过；主门禁仍运行。
+- 05:27 cbc6d97完整门禁exit0，agent741/sim165/E2E31与24/24通过；OP-01关闭，按依赖启动OP-02。
