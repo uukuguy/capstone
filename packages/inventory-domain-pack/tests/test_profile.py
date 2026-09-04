@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from capability_agent.application import prepare_domain_runtime
+from capability_agent.tools.catalog import CoreToolCatalog
 
 from inventory_domain.profile import build_inventory_profile
 
@@ -41,8 +42,11 @@ def test_installed_inventory_profile_materializes_public_spi_runtime(tmp_path) -
         "inventory_asset_get",
         "inventory_asset_list",
         "inventory_catalog_open",
-        "inventory_record_decision",
         "inventory_stock_summary",
+    ]
+    assert [tool.name for tool in CoreToolCatalog.default().tools] == [
+        "agent_record_decision",
+        "agent_context_get",
     ]
     assert prepared.authority.authority_id == "inventoryctl"
     assert prepared.authority.workspace_root == workspace
