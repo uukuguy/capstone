@@ -250,7 +250,7 @@ def test_admission_reader_rejects_sidecar_replaced_while_reading(
     def replace_on_sidecar_open(descriptor: int):
         nonlocal fstat_calls
         fstat_calls += 1
-        if fstat_calls == 1:
+        if fstat_calls == 3:
             replacement.replace(sidecar)
         return real_fstat(descriptor)
 

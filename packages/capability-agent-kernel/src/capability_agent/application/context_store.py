@@ -668,10 +668,18 @@ def _rollback_transaction(
 
 def _read_regular_bytes(path: Path, *, label: str) -> bytes:
     descriptor: int | None = None
+    parents: list[int] = []
     try:
+        anchor = os.open(path.anchor or ".", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        parents.append(anchor)
+        parent = anchor
+        for part in path.parts[1:-1]:
+            parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            parents.append(parent)
         descriptor = os.open(
-            path,
+            path.name,
             os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=parent,
         )
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
@@ -680,7 +688,7 @@ def _read_regular_bytes(path: Path, *, label: str) -> bytes:
         while chunk := os.read(descriptor, 64 * 1024):
             chunks.append(chunk)
         after = os.fstat(descriptor)
-        named = os.stat(path, follow_symlinks=False)
+        named = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
         if (
             (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
             != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
@@ -696,6 +704,8 @@ def _read_regular_bytes(path: Path, *, label: str) -> bytes:
     finally:
         if descriptor is not None:
             os.close(descriptor)
+        for parent in reversed(parents):
+            os.close(parent)
 
 
 def _sha256_bytes(value: bytes) -> str:

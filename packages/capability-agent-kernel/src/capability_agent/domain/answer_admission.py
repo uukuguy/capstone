@@ -40,9 +40,8 @@ def read_answer_admission_metadata(
     adjacent immutable answer record.  Callers display ``unknown`` for None;
     corrupt or mismatched metadata is never silently trusted.
     """
-    sidecar = answer_path.with_name("answer-admission.json")
     try:
-        sidecar_bytes = _read_bound_regular_file(sidecar)
+        answer_bytes, sidecar_bytes = _read_answer_pair(answer_path)
     except FileNotFoundError:
         if expected_admission_ref is not None:
             raise ValueError("committed answer admission metadata is missing")
@@ -52,7 +51,7 @@ def read_answer_admission_metadata(
     if expected_admission_ref is None:
         raise ValueError("answer admission metadata has no durable commit binding")
     try:
-        answer = json.loads(_read_bound_regular_file(answer_path))
+        answer = json.loads(answer_bytes)
         payload = json.loads(sidecar_bytes)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("answer admission metadata is unreadable") from exc
@@ -95,10 +94,18 @@ def read_answer_admission_metadata(
     return AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
 
 
-def _read_bound_regular_file(path: Path) -> bytes:
+def _read_answer_pair(path: Path) -> tuple[bytes, bytes]:
+    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        return (_read_bound_regular_file(path.name, parent), _read_bound_regular_file("answer-admission.json", parent))
+    finally:
+        os.close(parent)
+
+
+def _read_bound_regular_file(name: str, parent: int) -> bytes:
     """Read a leaf without links and reject replacement during the read."""
     descriptor = os.open(
-        path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), dir_fd=parent
     )
     try:
         before = os.fstat(descriptor)
@@ -108,7 +115,7 @@ def _read_bound_regular_file(path: Path) -> bytes:
         while chunk := os.read(descriptor, 64 * 1024):
             chunks.append(chunk)
         after = os.fstat(descriptor)
-        named = os.stat(path, follow_symlinks=False)
+        named = os.stat(name, dir_fd=parent, follow_symlinks=False)
         identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
         if (
             identity != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
