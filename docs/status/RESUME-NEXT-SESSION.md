@@ -1,11 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 04:26 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 04:32 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
 - 用户已授权持续实施完整优化计划；当前 OP-01 由 Terra 实施，Astra 协调设计与集成，Luna 做机械检查。
-- OP-04 已提交 9d13ea4，focused2、30/30重复、runtime72通过，kernel_review 独立复审中；尚未关闭。
+- OP-04 已关闭：9d13ea4，focused2、30/30重复、runtime72通过，kernel_review 独立规范/质量双PASS。
+- OP-01首版884e07d+678d8d6：Sol独立复审中；make test已结束6失败730通过，Terra调查修复generic入口/CLI契约。不能关闭或启动OP-02实现。
 - 唯一优化工作清单：[OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)。下一包 OP-01：领域答案准入与保证范围。
 - 项目 route 保持 direct；优化闭合前不直接开始 C.2 正式领域实现。
 
@@ -21,7 +22,7 @@
 
 ## Immediate next action
 
-1. 获取 OP-04 独立复审结论并关闭或修复；继续 OP-01 的领域准入、普通离线知识、侧车绑定与事务测试。Luna 仅做 OP-02 只读映射，不启动依赖包实现。
+1. 获取 OP-01 Sol复审与Terra修复结果；固定源码重跑make test/test-e2e/validate/test-packages。Luna已完成OP-02/05只读映射于对应runs目录，不启动依赖包实现。
 2. 按依赖顺序推进；每包记录测试、复审、提交及下一包。14 包状态只在优化计划维护。
 3. 如进入新 worktree，先运行 make setup、make install-pi、make doctor；不得复制另一 worktree 的认证状态。
 

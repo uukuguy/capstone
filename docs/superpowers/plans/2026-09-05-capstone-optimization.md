@@ -39,10 +39,10 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 
 | 包 | 所属阶段 | 范围 / 发现 | 依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 设计核对、隔离环境准备 |
+| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 884e07d+678d8d6；make test发现6失败，Terra修复与Sol复审中 |
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | PLANNED | 未执行 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
-| OP-04 | 2 | RPC 测试竞态 R11 | 无 | VERIFYING | 9d13ea4；focused 2 / 30次重复 / runtime72 通过，独立复审中 |
+| OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | PLANNED | 未执行 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | PLANNED | 未执行 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
@@ -122,6 +122,8 @@ class AnswerAdmissionPolicy(Protocol):
 领域 factory 负责注入当前 run authority，input 不提供调用方任意指定的文件路径。
 这些是新增 SPI；增加明确的 profile 版本/能力声明，在 provider 启动前拒绝缺失必需组件，不使用隐式 permissive fallback。
 
+实施澄清（2026-09-05）：离线生产路径采用领域通用概念目录、已发布知识来源和明确的信息请求语法；自然语言概念解释必须可达，`guide:<id>` 只可作为补充入口。不得枚举测试问题、网络或预期答案；混合业务请求不能被宽泛关键词误判。仅确定性来源文本可以获得 `deterministic_information`，模型生成文字不参与该判定。侧车除绑定 `answer_ref` 外，其自身摘要须由已提交事件记录并在读取时核对；“历史答案从未声明侧车”与“已提交侧车丢失/损坏”必须区别处理。单独改写侧车、模式/保证配对不合法及路径替换都不得提升保证等级。
+
 - [ ] 新增参数化红灯用例：无工具数值断言、无工具拓扑断言、错误单位/错误场景的有效引用、跨轮未消费引用、空答案、正常真实结果、普通离线知识、无法判定的问题。前四类不能获得“事实已验证”状态。
 - [ ] 固定策略：默认业务问题为 authority_backed；无当前轮有效结果时 limited。offline_information 只由领域确定性知识路径识别并生成回答，不由模型自报模式，也不通过数字/网络名正则猜分类。其余模糊问题返回 limitation 或继续获取证据。
 - [ ] 准入返回的 reader text 由 controller 提交；limited 采用现有受限答案语义，不伪装 success。为普通知识问答保留领域知识来源且不制造运行证据。
@@ -199,7 +201,7 @@ assert outside_file.read_bytes() == outside_before
 
 **Files**：Modify/Test `packages/grid-agent/tests/runtime/test_rpc.py`；检查 `packages/capability-agent-kernel/tests/runtime/test_rpc.py` 是否存在同一夹具。
 
-- [ ] 在 fake Pi 中先读取完整 prompt，再输出故意缺少 ack 的 agent_end，使该测试只测协议顺序。
+- [x] 在 fake Pi 中先读取完整 prompt，再输出故意缺少 ack 的 agent_end，使该测试只测协议顺序。
 
 ```python
 fake.write_text(
@@ -210,8 +212,8 @@ fake.write_text(
 )
 ```
 
-- [ ] 用 try/finally 保证 client.stop；另设提前退出用例验证发送失败路径，不能扩大原 regex 接受两种错误。
-- [ ] 连续运行 30 次，再跑 runtime 测试集；一次失败就保留日志，不能 retry-until-green。
+- [x] 用 try/finally 保证 client.stop；另设提前退出用例验证发送失败路径，不能扩大原 regex 接受两种错误。
+- [x] 连续运行 30 次，再跑 runtime 测试集；一次失败就保留日志，不能 retry-until-green。
 
 ```sh
 for attempt in $(seq 1 30); do
@@ -497,5 +499,12 @@ Next: 唯一下一工作包
 - Verification: 两个 focused 测试通过；协议用例连续 30/30 通过；runtime 测试集 72 passed。首次单次旧夹具通过，未声称确定性复现旧竞态。
 - Commands: `uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime/test_rpc.py::test_rpc_requires_ack_before_agent_end packages/grid-agent/tests/runtime/test_rpc.py::test_rpc_reports_prompt_send_failure_when_provider_exits_early -q`；按本包命令循环 30 次；`uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime -q`。
 - Evidence: `runs/optimization/OP-04/task-report.md`；`runs/optimization/OP-04/review.diff`。报告误列的旧 SHA `2c2b639` 已更正；误强制跟踪的报告取消跟踪但保留本地文件，版本化摘要保存在此。
-- Review: 独立审查中；Decision: VERIFYING，尚不标 DONE。
+- Review: kernel_review 规范与质量双PASS；复核 Kernel 对应夹具无需修改，focused2、重复30/30、无遗留 fake 进程。root 在当前工作树另跑 runtime：72 passed / 0.76s。Decision: DONE。
 - Next: OP-01 继续，OP-02 仅只读映射，依赖未闭合前不实施。
+
+### OP-01 首版与门禁诊断（2026-09-05）
+
+- Source commits: `884e07d`（准入与侧车）、`678d8d6`（版本化 profile preflight）。实施者报告Kernel395、Domain72、focused及`make validate-application`通过；尚未独立验收。
+- `make test` 首次全套诊断：6 failed / 730 passed / 1 Starlette-httpx deprecation warning，96.06s，test-agent退出1使make退出2；后续simulator/Pi目标未执行。运行期间HEAD从884e07d变为678d8d6，此结果只作失败诊断，不能拼接为关闭证据。
+- 失败集中于 `packages/grid-agent/tests/application/test_generic_entrypoint.py` 五个报告/提交用例和 `packages/grid-agent/tests/cli/test_run_command.py::test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract`。Terra负责追踪替身契约与生产路径，不降低准入保证；修复后在固定源码重跑完整门禁。
+- Sol审查包：`runs/optimization/OP-01/review-678d8d6.diff`；实施报告：`runs/optimization/OP-01/task-report.md`。Decision: RUNNING，未关闭。

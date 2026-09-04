@@ -658,3 +658,7 @@ _Recovered pre-merge mainline entries._
 - 04:21 使用临时 Node22 运行工作台基线，19文件128测试通过；未修改项目 Node 依赖。
 - 04:26 OP-04 提交9d13ea4，focused2、重复30/30、runtime72通过；独立复审中，纠正报告旧SHA并保留忽略证据约定。
 - 04:26 OP-01 明确普通离线知识需领域概念/来源路径，不能仅支持guide指令；模型文本不得决定离线准入。
+- 04:27 固化OP-04验证与OP-01恢复状态，取消误跟踪报告并保留本地；links/symlink/doctor/diff通过 [323dd7d]。
+- 04:30 OP-04独立规范/质量复审双PASS，runtime复跑72通过，关闭该包；OP-02/05只读映射已保存。
+- 04:30 OP-01首版提交884e07d，Kernel395/domain72及应用验收通过；Sol复审与完整门禁进行中，未关闭。
+- 04:32 OP-01版本preflight补充678d8d6；make test诊断6失败730通过，移交Terra调查generic入口/CLI回归，未推进依赖包。
