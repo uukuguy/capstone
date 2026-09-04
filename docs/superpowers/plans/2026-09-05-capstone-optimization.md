@@ -42,7 +42,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 设计核对、隔离环境准备 |
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | PLANNED | 未执行 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
-| OP-04 | 2 | RPC 测试竞态 R11 | 无 | PLANNED | 未执行 |
+| OP-04 | 2 | RPC 测试竞态 R11 | 无 | VERIFYING | 9d13ea4；focused 2 / 30次重复 / runtime72 通过，独立复审中 |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | PLANNED | 未执行 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | PLANNED | 未执行 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
@@ -57,6 +57,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
 OP-06 以 2026-09-30 例外期限为硬约束；若接近期限，可在独立分支提前做版本调查，但合入仍需 OP-05 门禁。
 并行只能用于不共享文件的独立工作；01/02/03/10 共享 runner 或提交契约，默认串行。
+
+2026-09-05 执行调度：OP-04 无依赖且仅修改 runtime 测试，与 OP-01 的 application/domain 文件不重叠，提前交 Luna 实施；两包独立复审，生产功能仍按依赖顺序集成。
 
 ## 4. 每个包必须执行的控制流程
 
@@ -487,4 +489,13 @@ Decision: DONE / BLOCKED / NOT_NEEDED 与理由
 Next: 唯一下一工作包
 ```
 
-2026-09-05：方案已编制；所有实现与优化验收尚未启动。下一执行入口为 OP-01。
+2026-09-05 初始记录：方案编制时尚未启动实现。随后用户授权持续实施，当前状态以上表为准。
+
+### OP-04 验证记录（2026-09-05）
+
+- Source commit: `9d13ea4`，仅测试夹具改动，无生产 RPC 修改。
+- Verification: 两个 focused 测试通过；协议用例连续 30/30 通过；runtime 测试集 72 passed。首次单次旧夹具通过，未声称确定性复现旧竞态。
+- Commands: `uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime/test_rpc.py::test_rpc_requires_ack_before_agent_end packages/grid-agent/tests/runtime/test_rpc.py::test_rpc_reports_prompt_send_failure_when_provider_exits_early -q`；按本包命令循环 30 次；`uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime -q`。
+- Evidence: `runs/optimization/OP-04/task-report.md`；`runs/optimization/OP-04/review.diff`。报告误列的旧 SHA `2c2b639` 已更正；误强制跟踪的报告取消跟踪但保留本地文件，版本化摘要保存在此。
+- Review: 独立审查中；Decision: VERIFYING，尚不标 DONE。
+- Next: OP-01 继续，OP-02 仅只读映射，依赖未闭合前不实施。
