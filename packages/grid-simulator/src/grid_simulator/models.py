@@ -125,7 +125,13 @@ class ContextStore:
         context_ref = f"context:sha256:{fingerprint(canonical_json(document))}"
         write_network(self._workspace.model_artifact(revision_ref), serialized)
         write_json(self._workspace.context_document(context_ref), document)
-        return OpenedContext(context_ref=context_ref, **document)
+        return OpenedContext(
+            context_ref=context_ref,
+            model_id=model.model_id,
+            revision_ref=revision_ref,
+            engine=model.engine,
+            engine_version=model.engine_version,
+        )
 
     def require(self, context_ref: str) -> OpenedContext:
         expected_digest = _parse_context_ref(context_ref)

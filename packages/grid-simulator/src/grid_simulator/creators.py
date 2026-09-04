@@ -4,7 +4,7 @@ import hashlib
 import inspect
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 import pandapower.create as pp_create
 from pandapower.protection.protection_devices.fuse import Fuse
@@ -56,7 +56,9 @@ def _create_protection_fuse(
         net,
         switch_index=switch_index,
         fuse_type=fuse_type,
-        rated_i_a=rated_i_a,
+        # pandapower's runtime accepts fractional ampere ratings; its stub is
+        # narrower than that API, so retain the public float contract here.
+        rated_i_a=cast(int, rated_i_a),
         characteristic_index=characteristic_index,
         in_service=in_service,
         curve_select=curve_select,

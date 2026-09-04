@@ -4,7 +4,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeGuard
 
 import pandas as pd
 
@@ -309,7 +309,7 @@ def _capture_datasets(net: Any, revision_ref: str) -> dict[str, Any]:
             index = _json_value(raw_index)
             row = {"index": index}
             if element_kind is not None and raw_index in net[element_kind].index:
-                row["asset_ref"] = asset_ref(revision_ref, element_kind, int(raw_index))
+                row["asset_ref"] = asset_ref(revision_ref, element_kind, int(str(raw_index)))
             row.update({str(field): _json_value(value) for field, value in series.items()})
             rows.append(row)
         fields = _field_descriptions(str(source_table), table, rows, element_kind is not None)
@@ -448,7 +448,7 @@ def _sort_key(value: Any) -> tuple[bool, str, Any]:
     return (value is None, type(value).__name__, value)
 
 
-def _is_number(value: Any) -> bool:
+def _is_number(value: Any) -> TypeGuard[int | float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 
 

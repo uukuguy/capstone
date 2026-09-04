@@ -55,7 +55,9 @@ def run(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOutcome:
                 "details_json": json.dumps(details, default=_json_default, sort_keys=True, separators=(",", ":")),
             }
         )
-    net["res_diagnostic"] = pd.DataFrame(rows, columns=["check", "finding_count", "details_json"])
+    net["res_diagnostic"] = pd.DataFrame(rows).reindex(
+        columns=("check", "finding_count", "details_json")
+    )
     return AnalysisOutcome(
         "diagnostic.run",
         "succeeded",

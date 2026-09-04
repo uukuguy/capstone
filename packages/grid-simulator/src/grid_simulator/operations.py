@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import networkx as nx
 from jsonschema import Draft202012Validator
@@ -697,7 +697,7 @@ def _model_dataset_query(
     dataset = str(arguments["dataset"])
     select = [str(field) for field in arguments["select"]]
     where = dict(arguments.get("where", {}))
-    filters = list(arguments.get("filters", []))
+    filters = [_mapping(item) for item in arguments.get("filters", [])]
     sort = arguments.get("sort")
     limit = int(arguments.get("limit", 100))
     offset = int(arguments.get("offset", 0))
@@ -913,7 +913,7 @@ def _result_compare(workspace: SimulatorWorkspace, arguments: dict[str, Any]) ->
         _raise_result_store_failure(exc)
 
 
-def _raise_result_store_failure(exc: Exception) -> None:
+def _raise_result_store_failure(exc: Exception) -> NoReturn:
     if isinstance(exc, UnknownStoredResultError):
         raise _failure(
             "unknown_result",
@@ -1014,7 +1014,7 @@ def _validate_dataset_query(
     dataset: str,
     select: list[str],
     where: dict[str, Any],
-    filters: list[object],
+    filters: list[dict[str, Any]],
     sort: object,
 ) -> None:
     allowed_fields = allowed_field_names(dataset, net)
@@ -1037,9 +1037,9 @@ def _validate_dataset_query(
             details={"fields": invalid_where, "allowed_where_fields": list(allowed_fields)},
         )
     invalid_filters = [
-        str(dict(item).get("field", ""))
+        str(item.get("field", ""))
         for item in filters
-        if str(dict(item).get("field", "")) not in allowed_fields
+        if str(item.get("field", "")) not in allowed_fields
     ]
     if invalid_filters:
         raise _failure(
@@ -1051,7 +1051,7 @@ def _validate_dataset_query(
         )
     if sort is None:
         return
-    sort_field = str(dict(sort)["field"])
+    sort_field = str(_mapping(sort)["field"])
     if sort_field not in allowed_fields:
         raise _failure(
             "field_unavailable",
@@ -1070,13 +1070,13 @@ def _validate_dataset_query(
 
 
 def _filter_rows(
-    rows: list[dict[str, Any]], where: dict[str, Any], filters: list[object]
+    rows: list[dict[str, Any]], where: dict[str, Any], filters: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     return [
         row
         for row in rows
         if all(row[field] == value for field, value in where.items())
-        and all(_predicate_matches(row, dict(predicate)) for predicate in filters)
+        and all(_predicate_matches(row, predicate) for predicate in filters)
     ]
 
 
@@ -1106,10 +1106,17 @@ def _predicate_matches(row: dict[str, Any], predicate: dict[str, Any]) -> bool:
 def _sort_rows(rows: list[dict[str, Any]], sort: object) -> list[dict[str, Any]]:
     if sort is None:
         return rows
-    sort_dict = dict(sort)
+    sort_dict = _mapping(sort)
     reverse = sort_dict["direction"] == "descending"
     field = str(sort_dict["field"])
     return sorted(rows, key=lambda row: (row[field] is None, row[field]), reverse=reverse)
+
+
+def _mapping(value: object) -> dict[str, Any]:
+    """Runtime schemas guarantee object-shaped filter and sort arguments."""
+    if not isinstance(value, dict):
+        raise ValueError("expected an object")
+    return {str(key): item for key, item in value.items()}
 
 
 def _resolve_branch_argument(net: Any, revision_ref: str, arguments: dict[str, Any]) -> BranchRecord | None:

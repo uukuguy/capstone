@@ -97,9 +97,8 @@ def run_unsupplied(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOu
     graph = _graph(net, options)
     buses = sorted(int(bus) for bus in unsupplied_buses(net, mg=graph))
     net["res_unsupplied_bus"] = pd.DataFrame(
-        [{"bus_index": bus, "bus_ref": _bus_ref(net, bus)} for bus in buses],
-        columns=["bus_index", "bus_ref"],
-    )
+        [{"bus_index": bus, "bus_ref": _bus_ref(net, bus)} for bus in buses]
+    ).reindex(columns=("bus_index", "bus_ref"))
     return AnalysisOutcome(
         "topology.unsupplied",
         "succeeded",

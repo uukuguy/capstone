@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
+import numpy as np
 import pandas as pd
 
 
@@ -21,7 +22,7 @@ class FieldMetadata:
     provenance: str
     nullable: bool = False
 
-    def as_dict(self) -> dict[str, str | None]:
+    def as_dict(self) -> dict[str, str | bool | None]:
         return {
             "name": self.name,
             "type": self.type,
@@ -168,9 +169,9 @@ def dataset_names(net: Any) -> tuple[str, ...]:
 
 def records_for_dataset(net: Any, revision_ref: str, dataset: str) -> list[BusRecord | BranchRecord | DynamicRecord]:
     if dataset == "network.buses":
-        return list_bus_records(net, revision_ref)
+        return cast(list[BusRecord | BranchRecord | DynamicRecord], list_bus_records(net, revision_ref))
     if dataset == "network.branches":
-        return list_branch_records(net, revision_ref)
+        return cast(list[BusRecord | BranchRecord | DynamicRecord], list_branch_records(net, revision_ref))
     table_name = _table_name(dataset)
     if table_name is not None and dataset in dataset_names(net):
         table = net[table_name]
@@ -462,18 +463,29 @@ def _matches(row: dict[str, Any], namespace: str, identifier: str) -> bool:
 
 
 def _name(value: object, fallback_index: int) -> str:
-    if value is None or pd.isna(value):
+    if value is None:
+        return str(fallback_index)
+    missing = pd.isna(value)
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return str(fallback_index)
     return str(value)
 
 
 def _optional_float(value: object) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None:
         return None
+    missing = pd.isna(value)
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
+        return None
+    if not isinstance(value, (str, int, float)):
+        raise TypeError("numeric table value is not scalar")
     return float(value)
 
 
 def _bool_value(value: object) -> bool:
-    if value is None or pd.isna(value):
+    if value is None:
+        return True
+    missing = pd.isna(value)
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return True
     return bool(value)

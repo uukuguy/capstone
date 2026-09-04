@@ -66,9 +66,8 @@ def evaluate_result_violations(
                 )
             )
     (evaluated if branch_evaluated else unavailable).append("branch.loading_percent")
-    net["res_violation"] = pd.DataFrame(
-        rows,
-        columns=[
+    net["res_violation"] = pd.DataFrame(rows).reindex(
+        columns=(
             "kind",
             "severity",
             "asset_ref",
@@ -78,7 +77,7 @@ def evaluate_result_violations(
             "relative_deviation",
             "unit",
             "constraint_ref",
-        ],
+        ),
     )
     summary = {
         "source_result_ref": source_result_ref,

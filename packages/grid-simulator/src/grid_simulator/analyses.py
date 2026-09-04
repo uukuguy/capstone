@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
+import numpy as np
 import pandapower as pp
 from pandapower.auxiliary import LoadflowNotConverged
 
@@ -749,7 +750,10 @@ def _provenance(engine: Any) -> dict[str, Any]:
 
 
 def _json_value(value: object) -> Any:
-    if value is None or pd.isna(value):
+    if value is None:
+        return None
+    missing = pd.isna(value)
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return None
     if isinstance(value, bool):
         return value
@@ -757,4 +761,6 @@ def _json_value(value: object) -> Any:
         return int(value)
     if isinstance(value, float):
         return float(value)
-    return value.item() if hasattr(value, "item") else value
+    if isinstance(value, np.generic):
+        return _json_value(value.item())
+    return value
