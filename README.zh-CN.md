@@ -177,7 +177,9 @@ make run-llm QUESTION="对 IEEE-39 节点系统运行交流潮流，并报告有
 
 ## 结果、证据与工作台
 
-模拟器支持的运行将操作者可见工件写入 `runs/<question_id>/`。最终结论只能引用当前运行已经接纳的结果和证据。纯信息类离线回答不会创建仿真证据。
+模拟器支持的单题运行将 canonical 工件写入 `runs/<question_id>/core/` 和
+`runs/<question_id>/domains/grid/`；应用发布字节保持的根 `events.jsonl`、
+`tool-results/` 与 `evidence/` 兼容快照以保留旧路径。最终结论只能引用当前运行已经接纳的结果和证据。纯信息类离线回答不会创建仿真证据。
 
 内部认证、托管 Pi 运行时、缓存和会话状态位于 Git 忽略的 `.grid-agent/` 目录；版本化运行配置位于 `configs/runtime/`。
 

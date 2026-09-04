@@ -618,7 +618,7 @@ class AgentApplication:
             raise ApplicationConfigurationError(
                 "default Pi transport requires a workspace"
             )
-        return self._default_pi_transport(
+        transport = self._default_pi_transport(
             resolved,
             prepared,
             bindings,
@@ -626,6 +626,15 @@ class AgentApplication:
             workspace=workspace,
             controller=controller,
         )
+        self._observe_semantic_event({
+            "type": "application_provider_resolved",
+            "run_id": request.run_id or getattr(workspace, "run_id", ""),
+            "provider": resolved.config.provider,
+            "model": resolved.config.model,
+            "timeout_seconds": resolved.config.timeout_seconds,
+            "max_retries": resolved.config.max_retries,
+        })
+        return transport
 
     def _default_pi_transport(
         self,
@@ -1374,6 +1383,10 @@ def _call_prompt(
             kwargs["on_semantic_event"] = on_event
     if turn_id is not None:
         kwargs["correlation_id"] = turn_id
+    if semantic_event_observer is not None:
+        kwargs["on_heartbeat"] = lambda: semantic_event_observer(
+            {"type": "application_waiting"}
+        )
     answer = _call_factory(method, question, **kwargs)
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")

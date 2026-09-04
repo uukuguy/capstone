@@ -208,14 +208,16 @@ def test_scripted_pi_traverses_real_gridctl(tmp_path: Path) -> None:
     gridctl = ROOT / "packages/grid-simulator/.venv/bin/gridctl"
     pi = tmp_path / "scripted-pi"
     pi.write_text(
-        "#!/usr/bin/env python3\nimport json,subprocess,sys,os\n"
+        ("#!/usr/bin/env python3\nimport json,subprocess,sys,os\n"
         "request=json.loads(sys.stdin.readline())\n"
         "runtime=json.load(open(os.environ['CAPABILITY_AGENT_RUNTIME_DESCRIPTOR'],encoding='utf-8'))\n"
-        f"gridctl={str(gridctl)!r}\n"
-        "def call(capability,args):\n r=subprocess.run([gridctl,'request','--workspace',runtime['workspace_path']],input=json.dumps({'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args})+'\\n',text=True,capture_output=True,check=True); return json.loads(r.stdout)['result']\n"
-        "opened=call('context.open',{'model_id':'ieee39'})\nresult=call('topology.branch.endpoints.get',{'context_ref':opened['context_ref'],'kind':'line','namespace':'pandapower_index','identifier':'11'})\n"
+            + "domain=runtime['domains'][0]\n"
+        + f"gridctl={str(gridctl)!r}\n"
+            "catalog=json.load(open(domain['toolCatalogPath'],encoding='utf-8')); by_cap={tool['capability']:tool for tool in catalog['tools']}\n"
+            "def call(capability,args):\n tool=by_cap[capability]; name=tool['name']; key={'binding_id':'grid','capability_id':capability}; print(json.dumps({'type':'tool_execution_start','toolCallId':capability,'toolName':name,'capability_key':key,'capability':capability,'args':args}),flush=True); r=subprocess.run([gridctl,'request','--workspace',domain['workspacePath']],input=json.dumps({'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args})+'\\n',text=True,capture_output=True,check=True); result=json.loads(r.stdout)['result']; refs=([result['evidence_ref']] if isinstance(result.get('evidence_ref'),str) else [])+list(result.get('evidence_refs') or []); print(json.dumps({'type':'tool_result','toolCallId':capability,'toolName':name,'capability_key':key,'capability':capability,'projector_id':tool.get('projector_id'),'ok':True,'result':result,'evidence_refs':refs}),flush=True); return result\n"
+        "print(json.dumps({'type':'response','command':'prompt','success':True}),flush=True)\nopened=call('context.open',{'model_id':'ieee39'})\nresult=call('topology.branch.endpoints.get',{'context_ref':opened['context_ref'],'kind':'line','namespace':'pandapower_index','identifier':'11'})\n"
         "answer=result['from_bus']['name']+'-'+result['to_bus']['name']+' '+result['evidence_ref']\n"
-        "print(json.dumps({'type':'response','command':'prompt','success':True}),flush=True)\nprint(json.dumps({'type':'text_delta','text':answer}),flush=True)\nprint(json.dumps({'type':'agent_end'}),flush=True)\n",
+        "print(json.dumps({'type':'text_delta','text':answer}),flush=True)\nprint(json.dumps({'type':'message_end','message':{'role':'assistant','content':[{'type':'text','text':answer}],'stopReason':'stop'}}),flush=True)\nprint(json.dumps({'type':'agent_end'}),flush=True)\n"),
         encoding="utf-8",
     )
     pi.chmod(0o755)
@@ -242,12 +244,24 @@ def run_scripted_pi(tmp_path: Path, *, final_text: str | None) -> subprocess.Com
     pi = tmp_path / "scripted-pi"
     lines = [
         "#!/usr/bin/env python3",
-        "import json",
+        "import json,subprocess,os",
         "json.loads(input())",
+        "runtime=json.load(open(os.environ['CAPABILITY_AGENT_RUNTIME_DESCRIPTOR'],encoding='utf-8'))",
+        "domain=runtime['domains'][0]",
+        "catalog=json.load(open(domain['toolCatalogPath'],encoding='utf-8')); by_cap={tool['capability']:tool for tool in catalog['tools']}",
         "print(json.dumps({'type':'response','command':'prompt','success':True}),flush=True)",
+        "def grid(capability,args):",
+        " tool=by_cap[capability]; name=tool['name']; key={'binding_id':'grid','capability_id':capability}; print(json.dumps({'type':'tool_execution_start','toolCallId':capability,'toolName':name,'capability_key':key,'capability':capability,'args':args}),flush=True)",
+        " req={'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args}",
+        " response=json.loads(subprocess.run(['gridctl','request','--workspace',domain['workspacePath']],input=json.dumps(req)+'\\n',text=True,capture_output=True,check=True).stdout)",
+        " result=response['result']; refs=([result['evidence_ref']] if isinstance(result.get('evidence_ref'),str) else [])+list(result.get('evidence_refs') or [])",
+        " print(json.dumps({'type':'tool_result','toolCallId':capability,'toolName':name,'capability_key':key,'capability':capability,'projector_id':tool.get('projector_id'),'ok':True,'result':result,'evidence_refs':refs}),flush=True); return result",
+        "opened=grid('context.open',{'model_id':'ieee39'})",
+        "grid('topology.branch.endpoints.get',{'context_ref':opened['context_ref'],'kind':'line','namespace':'pandapower_index','identifier':'11'})",
     ]
     if final_text is not None:
         lines.append(f"print(json.dumps({{'type':'text_delta','text':{final_text!r}}}),flush=True)")
+        lines.append(f"print(json.dumps({{'type':'message_end','message':{{'role':'assistant','content':[{{'type':'text','text':{final_text!r}}}],'stopReason':'stop'}}}}),flush=True)")
     lines.append("print(json.dumps({'type':'agent_end'}),flush=True)")
     pi.write_text(
         "\n".join(lines) + "\n",
@@ -278,4 +292,8 @@ def test_online_path_uses_model_final_text_without_answer_tool(tmp_path: Path) -
 def test_online_path_rejects_empty_model_final_text(tmp_path: Path) -> None:
     completed = run_scripted_pi(tmp_path, final_text=None)
     assert completed.returncode == 1
-    assert "Pi agent ended without answer text" in completed.stderr
+    envelope = json.loads(completed.stdout)
+    assert set(envelope) == {"question_id", "answer_output"}
+    assert "PiProtocolError" in completed.stderr
+    events = (ROOT / "runs" / envelope["question_id"] / "core" / "context-events.jsonl").read_text(encoding="utf-8")
+    assert '"event_type":"answer.submitted"' not in events

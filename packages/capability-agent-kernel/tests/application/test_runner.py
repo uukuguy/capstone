@@ -1036,6 +1036,73 @@ def test_default_provider_uses_resolved_workspace_and_process_environment(
     assert captured["resolved"].secret.value == "process-secret"
 
 
+def test_default_provider_emits_safe_resolution_before_transport_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ALPHA_KEY", "test-secret-must-not-observe")
+    catalog = ProviderCatalog.from_mapping(
+        {
+            "schema_version": 1,
+            "descriptor_version": "fixture-1",
+            "default_provider": "alpha",
+            "providers": {
+                "alpha": {
+                    "default_model": "alpha-model",
+                    "base_url": "https://provider.example/v1",
+                    "base_url_policy": "fixed",
+                    "auth": {"kind": "api_key_env", "default_env": "ALPHA_KEY"},
+                    "pi_provider": "alpha",
+                    "compatibility_profile": "generic",
+                    "supports_tools": True,
+                }
+            },
+        }
+    )
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="resolved-run", binding_ids=("alpha",)
+    )
+    observed: list[dict[str, object]] = []
+    application = AgentApplication(
+        profile=SimpleNamespace(
+            manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0")
+        ),
+        provider_catalog=catalog,
+        semantic_event_observer=lambda event: observed.append(dict(event)),
+    )
+    started: list[bool] = []
+
+    class Transport:
+        def start(self) -> None:
+            assert observed
+            started.append(True)
+
+    monkeypatch.setattr(application, "_default_pi_transport", lambda *_args, **_kwargs: Transport())
+    transport = application._ensure_provider(
+        request=ApplicationRequest(
+            application_id="fixture-app", questions=("q",), run_id="resolved-run"
+        ),
+        prepared=SimpleNamespace(),
+        bindings={"alpha": object()},
+        catalog=object(),
+        workspace=workspace,
+        controller=object(),
+    )
+    transport.start()
+
+    assert started == [True]
+    assert observed == [
+        {
+            "type": "application_provider_resolved",
+            "run_id": "resolved-run",
+            "provider": "alpha",
+            "model": "alpha-model",
+            "timeout_seconds": 180.0,
+            "max_retries": 2,
+        }
+    ]
+    assert "test-secret-must-not-observe" not in repr(observed)
+
+
 def test_cleanup_continues_reverse_order_after_baseexception() -> None:
     events: list[str] = []
 
@@ -1374,3 +1441,20 @@ def test_default_transport_uses_injected_product_runtime_and_split_workspaces(
         workspace.context_snapshot_path
     )
     assert client is not None
+def test_call_prompt_forwards_transport_heartbeat_to_semantic_observer() -> None:
+    from capability_agent.application.runner import _call_prompt
+
+    observed: list[dict[str, object]] = []
+
+    class Transport:
+        def prompt_and_wait(self, _question: str, *, on_heartbeat, **_kwargs):
+            on_heartbeat()
+            return "answer"
+
+    answer, _projections = _call_prompt(
+        Transport(), "question", projector=None, turn_id="turn-1",
+        semantic_event_observer=lambda event: observed.append(dict(event)),
+    )
+
+    assert answer == "answer"
+    assert observed == [{"type": "application_waiting"}]

@@ -260,8 +260,10 @@ report.
 
 ## Results, Evidence, and Workbench
 
-Simulator-backed runs store operator-visible artifacts under
-`runs/<question_id>/`. Final claims can cite only result and evidence references
+Simulator-backed single-question runs store canonical artifacts under `runs/<question_id>/core/`
+and `runs/<question_id>/domains/grid/`; application-owned, byte-preserving root
+`events.jsonl`, `tool-results/`, and `evidence/` compatibility snapshots retain
+the legacy paths. Final claims can cite only result and evidence references
 admitted for the current run. Pure informational offline answers do not create
 simulation evidence.
 

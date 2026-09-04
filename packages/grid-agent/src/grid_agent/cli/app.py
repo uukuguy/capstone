@@ -9,7 +9,6 @@ from pathlib import Path
 
 import typer
 from capability_agent.application import prepare_domain_runtime
-from capability_agent.domain import ArtifactAuthority
 from capability_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from capability_agent.trajectory.events import RunEvent
 from capability_agent.trajectory.recorder import RunEventRecorder
@@ -26,6 +25,7 @@ from grid_agent.application.paths import ProjectPaths
 from grid_agent.application.composition import run_generic_application
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.compat.v1_0_1 import build_grid_v1_0_1_compatibility_adapter
+from grid_agent.compat.single_run import SingleRunAdapter
 from grid_agent.contracts import AnswerEnvelope, RunRequest
 from grid_agent.knowledge.offline import answer_diagnostic, answer_information, plan_diagnostic
 from grid_agent.simulator.locator import GridctlLocator
@@ -57,7 +57,6 @@ from grid_agent.reporting import load_questions
 app = typer.Typer(add_completion=False)
 trajectory_app = typer.Typer(help="Inspect read-only agent and business trajectories.")
 app.add_typer(trajectory_app, name="trajectory")
-_NON_SIMULATOR_CAPABILITIES = {"grid_guide_open"}
 
 
 @trajectory_app.command("serve")
@@ -196,7 +195,17 @@ class _ProgressReporter:
 
     def on_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type", "unknown"))
-        if event_type == "prompt_ack":
+        if event_type == "application_provider_resolved":
+            self.started(
+                str(event["provider"]),
+                str(event["model"]),
+                str(event["run_id"]),
+                timeout_seconds=float(event["timeout_seconds"]),
+                max_retries=int(event["max_retries"]),
+            )
+        elif event_type == "application_waiting":
+            self.heartbeat()
+        elif event_type == "prompt_ack":
             self._write("模型请求已接收")
         elif event_type == "response" and event.get("command") == "prompt":
             if event.get("success") is True:
@@ -280,50 +289,6 @@ def _message_text(message: Mapping[str, Any]) -> str:
         for block in content
         if isinstance(block, Mapping) and block.get("type") == "text"
     )
-
-
-def _admit_successful_tool_references(
-    authority: ArtifactAuthority, event: Mapping[str, Any]
-) -> None:
-    details = _tool_result_details(event)
-    if not isinstance(details, Mapping):
-        return
-    capability = details.get("capability")
-    if not isinstance(capability, str) or capability in _NON_SIMULATOR_CAPABILITIES:
-        return
-    ok = details.get("ok")
-    if ok is not True and ok is not False:
-        ok = event.get("isError") is not True
-    if ok is not True:
-        return
-    result = details.get("result", {})
-    if not isinstance(result, Mapping):
-        result = {}
-    evidence_refs = details.get("evidence_refs", [])
-    if not isinstance(evidence_refs, list):
-        evidence_refs = []
-    authority.admit(
-        capability,
-        result,
-        tuple(reference for reference in evidence_refs if isinstance(reference, str)),
-    )
-
-
-def _tool_result_details(event: Mapping[str, Any]) -> object:
-    if event.get("type") == "tool_result":
-        return event
-    if event.get("type") != "tool_execution_end":
-        return None
-    result = event.get("result")
-    if isinstance(result, Mapping):
-        details = result.get("details")
-        if isinstance(details, Mapping):
-            return details
-        return result
-    details = event.get("details")
-    if isinstance(details, Mapping):
-        return details
-    return None
 
 
 def _resolve_artifact_root(project_root: Path, artifact_root: Path | None) -> Path:
@@ -695,83 +660,19 @@ def run(
             else RunRequest.from_text(question)
         )
         progress = _ProgressReporter(request.question)
-        profile = build_pandapower_profile()
         if not offline:
-            workspace = RunWorkspace.create(project_paths.runs_dir, run_id=request.question_id)
-            trace = JsonlTraceWriter(workspace.events_path)
-            runtime_environment = _runtime_environment(project_paths.root)
-            project_pi_dir = project_paths.pi_agent_dir
-            auth_store = ProjectAuthStore.from_pi_agent_dir(project_pi_dir)
-            resolved = resolve_llm(
-                catalog=LegacyProviderCatalog.load(),
-                cli=CliLLMOptions(
-                    provider=provider,
-                    model=model,
-                    base_url=base_url,
-                    api_key_env=api_key_env,
+            answer = SingleRunAdapter(
+                project_paths=project_paths,
+                request=request,
+                provider=provider,
+                model=model,
+                base_url=base_url,
+                api_key_env=api_key_env,
+                environment=_generic_runtime_environment(
+                    _runtime_environment(project_paths.root)
                 ),
-                environ=os.environ,
-                oauth_configured=lambda profile: auth_store.status(profile).configured,
-            )
-            progress.started(
-                resolved.config.provider,
-                resolved.config.model,
-                request.question_id,
-                timeout_seconds=resolved.config.timeout_seconds,
-                max_retries=resolved.config.max_retries,
-            )
-            runtime_lock = PiRuntimeLock.load(project_paths.runtime_lock)
-            command = PiRuntimeLocator(project_paths.pi_runtime_dir, runtime_environment, runtime_lock=runtime_lock).resolve()
-            _install_gridctl(workspace)
-            domain_runtime = prepare_domain_runtime(
-                profile,
-                executable=workspace.bin_path / profile.manifest.executable_name,
-                workspace=workspace.root_path,
-                tool_catalog_path=workspace.root_path / "tool-catalog.json",
-                guide_index_path=workspace.root_path / "guide-index.json",
-            )
-            pi_config = PiConfigMaterializer(project_pi_dir)
-            pi_config.materialize(resolved)
-            domain_runtime_descriptor_path = pi_config.materialize_domain_runtime(
-                profile.manifest,
-                workspace=workspace.root_path,
-                tool_catalog_path=domain_runtime.tool_catalog_path,
-                guide_index_path=domain_runtime.guide_index_path,
-                pi_runtime=_descriptor_runtime_identity(command),
-            )
-            launch = build_pi_launch(
-                resolved,
-                RuntimePaths(
-                    command=command,
-                    project_pi_dir=project_pi_dir,
-                    session_dir=workspace.pi_path,
-                    workspace=workspace.root_path,
-                    gridctl_dir=workspace.bin_path,
-                    extension_path=PiExtensionLocator(project_paths.root).resolve(),
-                    tool_catalog_path=domain_runtime.tool_catalog_path,
-                    guide_index_path=domain_runtime.guide_index_path,
-                    system_policy_path=profile.manifest.system_policy_path,
-                    domain_runtime_descriptor_path=domain_runtime_descriptor_path,
-                ),
-                base_environment=runtime_environment,
-            )
-            rpc = PiRpcClient(launch, workspace, trace)
-            rpc.start()
-            try:
-                def on_pi_event(event: dict[str, Any]) -> None:
-                    _admit_successful_tool_references(
-                        domain_runtime.authority, event
-                    )
-                    progress.on_event(event)
-
-                answer = rpc.prompt_and_wait(
-                    request.question,
-                    on_event=on_pi_event,
-                    on_heartbeat=progress.heartbeat,
-                    require_answer_text=True,
-                )
-            finally:
-                rpc.stop()
+                semantic_event_observer=progress.on_event,
+            ).run()
             progress.completed(answer)
             envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
             typer.echo(
@@ -788,12 +689,19 @@ def run(
             if isinstance(diagnostic_plan, str):
                 answer = diagnostic_plan
             else:
-                executable = GridctlLocator(_repo_root()).resolve()
-                workspace = RunWorkspace.create(project_paths.runs_dir, run_id=request.question_id)
-                executor = profile.create_executor(
-                    executable, workspace.root_path, 60
-                )
-                answer = answer_diagnostic(request.question, executor)
+                answer = SingleRunAdapter(
+                    project_paths=project_paths,
+                    request=request,
+                    provider=None,
+                    model=None,
+                    base_url=None,
+                    api_key_env=None,
+                    environment=_generic_runtime_environment(
+                        _runtime_environment(project_paths.root)
+                    ),
+                    semantic_event_observer=progress.on_event,
+                    deterministic_offline=True,
+                ).run()
         envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
         typer.echo(
             build_grid_v1_0_1_compatibility_adapter().render(
