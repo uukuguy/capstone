@@ -1434,18 +1434,16 @@ def _persisted_answer_assurances(
 ) -> tuple[str, ...]:
     """Use the verified ledger once, then bind every display to its event."""
     try:
-        ApplicationContextStore.replay(workspace)
-        raw_events = workspace.context_events_path.read_bytes().splitlines()
+        _state, events = ApplicationContextStore.replay_events(workspace)
     except Exception:
         return tuple("corrupt" for _ in answers)
     declared: dict[tuple[str, str, str, str], int] = {}
     try:
-        for raw_event in raw_events:
-            event = json.loads(raw_event)
-            if not isinstance(event, dict) or event.get("event_type") != "answer.submitted":
+        for event in events:
+            if event.event_type != "answer.submitted":
                 continue
-            payload = event.get("payload")
-            turn_id = event.get("turn_id")
+            payload = event.payload
+            turn_id = event.turn_id
             if not isinstance(payload, dict) or not isinstance(turn_id, str):
                 continue
             answer_ref = payload.get("answer_ref")

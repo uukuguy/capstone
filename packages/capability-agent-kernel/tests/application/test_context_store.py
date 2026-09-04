@@ -166,6 +166,27 @@ def test_replay_rejects_missing_or_empty_ledger(tmp_path: Path) -> None:
         ApplicationContextStore.replay(path)
 
 
+def test_replay_events_rejects_ledger_replaced_during_read(
+    workspace: ApplicationWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ApplicationContextStore.initialize(workspace)
+    replacement = workspace.context_events_path.with_name("replacement.jsonl")
+    replacement.write_bytes(workspace.context_events_path.read_bytes())
+    real_fstat = context_store_module.os.fstat
+    calls = 0
+
+    def replace_after_open(descriptor: int):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            replacement.replace(workspace.context_events_path)
+        return real_fstat(descriptor)
+
+    monkeypatch.setattr(context_store_module.os, "fstat", replace_after_open)
+    with pytest.raises(ContextStoreError, match="cannot be read"):
+        ApplicationContextStore.replay_events(workspace)
+
+
 @pytest.mark.parametrize("target", ["ledger", "snapshot"])
 @pytest.mark.parametrize("replacement", [False, True])
 def test_append_fails_closed_when_persisted_destination_is_removed_or_replaced(

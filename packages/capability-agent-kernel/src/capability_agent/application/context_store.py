@@ -304,16 +304,23 @@ class ApplicationContextStore:
     ) -> ApplicationContext:
         """Replay a self-contained ledger and verify every hash boundary."""
 
+        return cls.replay_events(ledger_path)[0]
+
+    @classmethod
+    def replay_events(
+        cls, ledger_path: Path | ApplicationWorkspace
+    ) -> tuple[ApplicationContext, tuple[ContextEvent, ...]]:
+        """Return one safely-read, fully hash-verified ledger and its events."""
+
         path = (
             ledger_path.context_events_path
             if isinstance(ledger_path, ApplicationWorkspace)
             else Path(ledger_path)
         )
-        _require_regular_file(path, label="context ledger")
         try:
-            raw_bytes = path.read_bytes()
-        except OSError:
-            raise ContextStoreError("context ledger cannot be read") from None
+            raw_bytes = _read_regular_bytes(path, label="context ledger")
+        except ContextStoreError:
+            raise
         if not raw_bytes:
             raise ContextStoreError("context ledger is empty")
         if not raw_bytes.endswith(b"\n"):
@@ -321,6 +328,7 @@ class ApplicationContextStore:
         raw_lines = raw_bytes.splitlines()
 
         state: ApplicationContext | None = None
+        events: list[ContextEvent] = []
         expected_sequence = 1
         for line_number, raw_line in enumerate(raw_lines, start=1):
             if not raw_line.strip():
@@ -359,11 +367,12 @@ class ApplicationContextStore:
             if event.next_state_hash != next_state.state_hash:
                 raise ContextStoreError("context ledger next state hash mismatch")
             state = next_state
+            events.append(event)
             expected_sequence += 1
 
         if state is None:
             raise ContextStoreError("context ledger is empty")
-        return state
+        return state, tuple(events)
 
     def verify_materialized_snapshot(self) -> ApplicationContext:
         """Verify the on-disk snapshot against memory and a complete replay."""
@@ -658,11 +667,35 @@ def _rollback_transaction(
 
 
 def _read_regular_bytes(path: Path, *, label: str) -> bytes:
-    _require_regular_file(path, label=label)
+    descriptor: int | None = None
     try:
-        return path.read_bytes()
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+        )
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError("not regular")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 64 * 1024):
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        named = os.stat(path, follow_symlinks=False)
+        if (
+            (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            or not stat.S_ISREG(named.st_mode)
+            or (named.st_dev, named.st_ino) != (after.st_dev, after.st_ino)
+        ):
+            raise OSError("changed")
+        return b"".join(chunks)
+    except FileNotFoundError:
+        raise ContextStoreError(f"{label} does not exist") from None
     except OSError:
         raise ContextStoreError(f"{label} cannot be read") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def _sha256_bytes(value: bytes) -> str:
