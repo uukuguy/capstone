@@ -662,3 +662,12 @@ _Recovered pre-merge mainline entries._
 - 04:30 OP-04独立规范/质量复审双PASS，runtime复跑72通过，关闭该包；OP-02/05只读映射已保存。
 - 04:30 OP-01首版提交884e07d，Kernel395/domain72及应用验收通过；Sol复审与完整门禁进行中，未关闭。
 - 04:32 OP-01版本preflight补充678d8d6；make test诊断6失败730通过，移交Terra调查generic入口/CLI回归，未推进依赖包。
+- 04:33 固化OP-04关闭与OP-01失败诊断，防止跨会话误报完成 [c4569d7]。
+- 04:34 Sol发现准入reader未接生产、无提交摘要仍信任侧车等缺口；Terra确认六失败源于无引用旧替身，继续修复。
+- 04:39 OP-01报告接入实际pandapower适配器；新Terra接手剩余负例/E2E/回滚测试，提交后固定HEAD复验。
+- 04:42 包依赖/保护路径检查通过；Sol确认既有报告事实标签对应gridctl事实，不额外扩大OP-01措辞改造。
+- 04:45 inventory目录测试旧断言失败，在323dd7d导出源码同样复现；纳入OP-05受控测试/摘要修复，非OP-01回归。
+- 04:50 f70d0de固定源码Kernel400/domain73、应用验收与干净包安装通过；主测试agent741通过，完整链仍运行。
+- 04:50 OP-06官方版本调查完成，补齐active pin/capture/安装检查触点；未升级依赖或关闭风险例外。
+- 04:55 f70d0de完整门禁exit0；Sol四项公共契约缺口未闭合，Terra开始下一修复波，OP-01保持RUNNING。
+- 04:46 固化OP-01准入预检、侧车完整性与真实边界测试 [f70d0de]

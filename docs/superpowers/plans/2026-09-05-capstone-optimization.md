@@ -39,7 +39,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 
 | 包 | 所属阶段 | 范围 / 发现 | 依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 884e07d+678d8d6；make test发现6失败，Terra修复与Sol复审中 |
+| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | f70d0de完整门禁通过，Sol仍发现durable关联/缺失装配/跨轮引用/未声明mode缺口，继续修复 |
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | PLANNED | 未执行 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
@@ -228,7 +228,11 @@ uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime -q
 
 **Files**：Modify `Makefile`、`packages/grid-agent/pyproject.toml`、其 `uv.lock`、`README.md`、`README.zh-CN.md`、`docs/RUNBOOK.md`；Create `pyrightconfig.json`、`.github/workflows/verify.yml`；Test `tools/tests/test_verification_targets.py`（新增）。
 
+补充已复现基线修复：`packages/inventory-domain-pack/tests/test_profile.py` 仍期待领域目录内的旧 `inventory_record_decision`；在 OP-01 前 `323dd7d` 导出源码上同样失败。OP-05 需将该测试对齐已存在的 domain/core 分离契约，并保留独立 neutral core 工具断言，不恢复旧别名、不仅删除断言。范围仅该 conformance 测试及 `configs/runtime/application-instantiation-protected-paths.json` 的对应受保护摘要；先校验旧摘要、独立复审测试改动并提交，再以该提交tree摘要独立更新基线，运行完整门禁。此项不提前实现 OP-11 的应用组件；证据 `runs/optimization/OP-05/inventory-baseline-failure.md`。
+
 **接口**：保留已有目标，新增三个稳定聚合入口。Python 包分别执行，避免同名模块合并收集。pyright 作为 dev dependency 锁定；禁止全局 ignore 降低门槛。
+
+上述 inventory 基线修复同时纳入其 `uv.lock`：诊断发现它缺少 Kernel 已有 filelock/python-dotenv 依赖元数据，普通 `uv run` 会自动刷新。OP-05 要显式锁定并验证 frozen 执行，纳入同一受保护范围复审；本轮诊断产生的自动锁改写已经还原，未暗中更新保护基线。
 
 ```make
 test-kernel:
@@ -256,6 +260,8 @@ check-release: check-fast check-integration test-packages test-source-setup
 ### OP-06：Pi 升级与到期风险处置
 
 **Files**：Modify `configs/runtime/pi-runtime.lock.json`、`configs/runtime/pi-security-risk-exception-v1.json`、`packages/pi-capability-tools/package.json`、`packages/pi-capability-tools/package-lock.json`、`packages/pi-grid-tools/package-lock.json`；检查 `configs/runtime/patches/pi-0.80.6-before-model-request.patch` 的版本兼容性；Test `tools/tests/test_runtime_risk_exception.py`、两套 Pi capture tests。
+
+补充实际升级触点（只读调查）：还须同步 `packages/capability-agent-kernel/src/capability_agent/runtime/lock.py` 的active pin校验、`packages/pi-capability-tools/src/model-request-capture.mjs` 的capture身份、`packages/pi-grid-tools/package.json`、`tools/check_runtime_risk_exception.py`、`tools/test_source_setup.sh`，以及相关installer/locator/capture/package测试和第三方声明/当前运行文档。不要机械替换历史记录或仅用于通用身份传播的旧版本测试值。候选研究与官方来源见 `runs/optimization/OP-06/version-research.md`；0.84.4仅为优先本地验证候选，尚未选择或关闭风险。原hook在候选中仍未上游提供，必须按实际SDK控制流重写并验证patch。
 
 - [ ] 用 `rg --files configs/runtime` 和 runtime locator 确认 `pi-runtime.lock.json` 及其中 package/source/patches 摘要；旧版本专用 patch 不能原样套在新版本，按实际 hook API 更新版本化 patch 和摘要。
 - [ ] 检查当前官方 Pi release/API 与依赖审计，按现有例外的 >=0.84.3 下限挑选首个能满足全部 hook/extension 契约的版本；将选定版本、审计日期和理由写入执行记录。
@@ -508,3 +514,6 @@ Next: 唯一下一工作包
 - `make test` 首次全套诊断：6 failed / 730 passed / 1 Starlette-httpx deprecation warning，96.06s，test-agent退出1使make退出2；后续simulator/Pi目标未执行。运行期间HEAD从884e07d变为678d8d6，此结果只作失败诊断，不能拼接为关闭证据。
 - 失败集中于 `packages/grid-agent/tests/application/test_generic_entrypoint.py` 五个报告/提交用例和 `packages/grid-agent/tests/cli/test_run_command.py::test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract`。Terra负责追踪替身契约与生产路径，不降低准入保证；修复后在固定源码重跑完整门禁。
 - Sol审查包：`runs/optimization/OP-01/review-678d8d6.diff`；实施报告：`runs/optimization/OP-01/task-report.md`。Decision: RUNNING，未关闭。
+- 补充基线：inventory domain目录测试13pass/1fail，已在323dd7d导出源码独立复现，非OP-01回归，纳入OP-05受控测试修复；不宣称inventory门禁全绿。
+- 修复提交 `f70d0de` 固定源码：doctor、make test（agent741/simulator165/grid Pi43/Makefile）、test-e2e31、validate（离线/脚本core/full及24/24 coverage）、Kernel400、Domain73、validate-application、test-packages全部exit0。保留Starlette/httpx和pandapower依赖警告，不声称零警告；原始工具输出节选在 `runs/optimization/OP-01/gate-{4638,46839,91956}-f70d0de.json`。
+- f70d0de复审仍未关闭：报告期待值须来自durable事件而非FinalizedTurn内存；缺profile/authority须provider前拒绝；静态allowed_refs不能替代当前轮产生/消费；策略输出mode须在profile真实声明集合内。Terra已确认并开始修复，完成后重新固定源码验证；绿门禁不能代替这些明确契约。

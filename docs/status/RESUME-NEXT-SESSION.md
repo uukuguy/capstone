@@ -1,12 +1,17 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 04:32 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 04:55 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
 - 用户已授权持续实施完整优化计划；当前 OP-01 由 Terra 实施，Astra 协调设计与集成，Luna 做机械检查。
 - OP-04 已关闭：9d13ea4，focused2、30/30重复、runtime72通过，kernel_review 独立规范/质量双PASS。
 - OP-01首版884e07d+678d8d6：Sol独立复审中；make test已结束6失败730通过，Terra调查修复generic入口/CLI契约。不能关闭或启动OP-02实现。
+- Sol初审发现生产reader未消费侧车、缺durable摘要仍信任侧车、mode声明过严与preflight负例缺失；Terra正在修复。六失败已定位为旧fake provider无引用文本被新准入限制，需保持原报告/CLI测试目的并迁移显式有效知识路径，不放宽生产准入。
+- `op01_finish_tests`（新Terra）已完成factory启动前负例、真实E2E对抗矩阵、侧车写失败回滚及focused验证；`op01_implementation`与其均保持只读，root管理复验。
+- 修复已提交f70d0de，固定HEAD完整doctor/test/e2e/validate、Kernel400/domain73、validate-application、test-packages通过。session4638/46839/91956均已exit0。Sol仍发现durable事件关联、缺profile/authority、静态allowed_refs跨轮与未声明mode四项缺口；`op01_finish_tests`已恢复写入修复，原Terra只读。
+- 完整Sol初审发现保存在 `runs/optimization/OP-01/review-findings-678d8d6.md`；OP02/03/05/06只读实现映射分别在对应 `runs/optimization/OP-xx/map.md`。
+- inventory已知基线失败在pre-OP01的323dd7d导出源码复现，OP05计划已纳入测试/过期uv.lock及保护摘要的独立复审修复；诊断自动修改的lock已还原。OP06只读版本研究 `runs/optimization/OP-06/version-research.md` 已完成，不等于版本选择/风险关闭。
 - 唯一优化工作清单：[OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)。下一包 OP-01：领域答案准入与保证范围。
 - 项目 route 保持 direct；优化闭合前不直接开始 C.2 正式领域实现。
 
@@ -22,7 +27,7 @@
 
 ## Immediate next action
 
-1. 获取 OP-01 Sol复审与Terra修复结果；固定源码重跑make test/test-e2e/validate/test-packages。Luna已完成OP-02/05只读映射于对应runs目录，不启动依赖包实现。
+1. 等待Sol最终四项汇总及Terra下一修复提交；该提交focused、固定HEAD完整门禁和独立复审后再逐条关闭OP01。不要轮询已结束的4638/46839/91956；其输出已保存runs/optimization/OP-01/gate-*-f70d0de.json。
 2. 按依赖顺序推进；每包记录测试、复审、提交及下一包。14 包状态只在优化计划维护。
 3. 如进入新 worktree，先运行 make setup、make install-pi、make doctor；不得复制另一 worktree 的认证状态。
 
