@@ -27,7 +27,16 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         "prompt=json.loads(input())\n"
         "prompt_text=prompt.get('message', prompt) if isinstance(prompt,dict) else prompt\n"
         "runtime=json.load(open(os.environ['CAPABILITY_AGENT_RUNTIME_DESCRIPTOR'],encoding='utf-8'))\n"
-        "requests_path=runtime.get('trajectory_requests_path')\n"
+        "if runtime.get('schema') == 'capability-agent-runtime/1.0':\n"
+        " application=runtime['application']; core=runtime['core']; domain=runtime['domains'][0]\n"
+        " if any(name in core for name in ('trajectoryRequestsPath','trajectoryCaptureStatePath','trajectoryAllowedRefsPath','trajectoryAcksPath')): raise RuntimeError('generic single-run descriptor unexpectedly publishes capture channels')\n"
+        " capture_enabled=False\n"
+        "elif 'schema' not in runtime and runtime['protocol'] == 'grid-capability':\n"
+        " application={'workspacePath':runtime['workspace_path'],'piRuntime':runtime['pi_runtime']}\n"
+        " core={'activeTurnPath':runtime['active_turn_path'],'trajectoryRequestsPath':runtime['trajectory_requests_path'],'trajectoryCaptureStatePath':runtime['trajectory_capture_state_path'],'trajectoryAllowedRefsPath':runtime['trajectory_allowed_refs_path'],'trajectoryAcksPath':runtime['trajectory_acks_path']}\n"
+        " domain={'toolCatalogPath':runtime['tool_catalog_path'],'guideIndexPath':runtime['guide_index_path'],'workspacePath':runtime['workspace_path']}\n"
+        " capture_enabled=True\n"
+        "else: raise RuntimeError('unknown runtime descriptor contract')\n"
         "def sort_json(value):\n"
         " if isinstance(value,list): return [sort_json(item) for item in value]\n"
         " if isinstance(value,dict): return {key:sort_json(value[key]) for key in sorted(value)}\n"
@@ -53,10 +62,9 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         " tools.append({'name':'grid_guide_open','description':'Open a packaged grid analysis guide.','parameters':{'type':'object','additionalProperties':False,'properties':{'resource_id':{'type':'string','minLength':1}},'required':['resource_id']}})\n"
         " return tools\n"
         "def runtime_identity():\n"
-        " return runtime['pi_runtime']\n"
+        " return application['piRuntime']\n"
         "def wait_for_ack(request_id, expected_digest):\n"
-        " ack_dir=runtime.get('trajectory_acks_path')\n"
-        " if not ack_dir: return\n"
+        " ack_dir=core['trajectoryAcksPath']\n"
         " path=Path(ack_dir)/f'{request_id}.committed.json'\n"
         " deadline=time.monotonic()+10\n"
         " while time.monotonic()<deadline:\n"
@@ -68,14 +76,14 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         "  time.sleep(0.025)\n"
         " raise RuntimeError('timed out waiting for trajectory request ack')\n"
         "def mark(name):\n"
-        " order_path=Path(runtime['workspace_path'])/'scripted-canonical-order.jsonl'\n"
+        " order_path=Path(application['workspacePath'])/'scripted-canonical-order.jsonl'\n"
         " with order_path.open('a',encoding='utf-8') as f: f.write(json.dumps({'marker':name})+'\\n')\n"
-        "catalog=json.load(open(runtime['tool_catalog_path'],encoding='utf-8'))\n"
-        "if requests_path:\n"
-        " turn=json.load(open(runtime['active_turn_path'],encoding='utf-8'))\n"
-        " state=json.load(open(runtime['trajectory_capture_state_path'],encoding='utf-8'))\n"
+        "catalog=json.load(open(domain['toolCatalogPath'],encoding='utf-8'))\n"
+        "if capture_enabled:\n"
+        " turn=json.load(open(core['activeTurnPath'],encoding='utf-8'))\n"
+        " state=json.load(open(core['trajectoryCaptureStatePath'],encoding='utf-8'))\n"
         " request_id=turn['turn_id']+'-r001'\n"
-        " request_path=Path(requests_path)/request_id/'input.json'\n"
+        " request_path=Path(core['trajectoryRequestsPath'])/request_id/'input.json'\n"
         " request_path.parent.mkdir(parents=True,exist_ok=True)\n"
         " semantic={'model':{'provider':argv_value('--provider','scripted'),'api':'openai-responses','id':argv_value('--model','scripted-model')},'context':{'system_prompt':system_prompt(),'messages':[{'role':'user','content':[{'type':'text','text':str(prompt_text)}]}],'tools':semantic_tools(catalog)},'options':{'transport':'sse','temperature':0}}\n"
         " semantic_digest=digest(semantic)\n"
@@ -85,23 +93,23 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         " wait_for_ack(request_id, semantic_digest)\n"
         "else:\n"
         " mark('before_model_request')\n"
-        "by_cap={tool['capability']:tool['name'] for tool in catalog['tools']}\n"
+        "by_cap={tool['capability']:tool for tool in catalog['tools']}\n"
         "mark('provider_enter')\n"
         "def emit(payload): print(json.dumps(payload), flush=True)\n"
         "def grid(capability,args):\n"
-        " name=by_cap[capability]\n"
-        " emit({'type':'tool_execution_start','toolCallId':capability,'toolName':name,'args':args})\n"
+        " tool=by_cap[capability]; name=tool['name']; key={'binding_id':'grid','capability_id':capability}\n"
+        " emit({'type':'tool_execution_start','toolCallId':capability,'toolName':name,'capability_key':key,'args':args})\n"
         " req={'protocol':'grid-capability','protocol_version':'1.0','request_id':capability,'capability':capability,'arguments':args}\n"
-        " r=subprocess.run(['gridctl','request','--workspace',runtime['workspace_path']],input=json.dumps(req)+'\\n',text=True,capture_output=True,check=True)\n"
+        " r=subprocess.run(['gridctl','request','--workspace',domain['workspacePath']],input=json.dumps(req)+'\\n',text=True,capture_output=True,check=True)\n"
         " response=json.loads(r.stdout)\n"
         " result=response.get('result') or {}\n"
         " refs=[]\n"
         " if isinstance(result.get('evidence_ref'),str): refs.append(result['evidence_ref'])\n"
         " refs.extend(result.get('evidence_refs') or [])\n"
-        " emit({'type':'tool_result','toolCallId':capability,'toolName':name,'capability':capability,'ok':response.get('ok') is True,'result':result,'evidence_refs':refs})\n"
+        " emit({'type':'tool_result','toolCallId':capability,'toolName':name,'capability_key':key,'capability':capability,'projector_id':tool.get('projector_id'),'ok':response.get('ok') is True,'result':result,'evidence_refs':refs})\n"
         " return result\n"
         "def guide(resource_id):\n"
-        " index=json.load(open(runtime['guide_index_path'],encoding='utf-8'))\n"
+        " index=json.load(open(domain['guideIndexPath'],encoding='utf-8'))\n"
         " emit({'type':'tool_execution_start','toolCallId':'guide-1','toolName':'grid_guide_open','args':{'resource_id':resource_id}})\n"
         " text=open(index['resources'][resource_id],encoding='utf-8').read()\n"
         " emit({'type':'tool_execution_end','toolCallId':'guide-1','toolName':'grid_guide_open','isError':False,'result':{'resource_id':resource_id}})\n"
@@ -175,47 +183,9 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         assert (runs_path / "evidence/network-facts" / f"network-fact-{digest}.json").is_file()
         order_path = runs_path / "scripted-canonical-order.jsonl"
         order = [json.loads(line)["marker"] for line in order_path.read_text(encoding="utf-8").splitlines()]
-        request_paths = tuple((runs_path / "requests").glob("*/input.json"))
-        if request_paths:
-            assert order[:3] == ["before_model_request", "model_request_committed", "provider_enter"]
-            request = json.loads(request_paths[0].read_text(encoding="utf-8"))
-            assert request["schema_version"] == "grid-model-request-input/2.0"
-            assert request["semantic_request"]["model"] == {
-                "provider": "openai",
-                "api": "openai-responses",
-                "id": "gpt-5.5",
-            }
-            assert request["semantic_request"]["context"]["messages"] == [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "IEEE-39节点系统中线路11连接哪两个母线?",
-                        }
-                    ],
-                }
-            ]
-            assert request["semantic_request"]["context"]["tools"]
-            assert not any(tool["name"] == "grid_submit_answer" for tool in request["semantic_request"]["context"]["tools"])
-            assert request["semantic_request"]["options"]["transport"] == "sse"
-            assert set(request["runtime"]) == {
-                "pi_coding_agent_version",
-                "pi_ai_version",
-                "pi_source_commit",
-                "pi_patch_set_sha256",
-            }
-            assert "provider_payload" not in request
-            assert "test-only-secret" not in json.dumps(request, ensure_ascii=False)
-            ack = json.loads(
-                next((ROOT / ".grid-agent/trajectory-acks" / question_id).glob("*.committed.json")).read_text(
-                    encoding="utf-8"
-                )
-            )
-            assert ack["semantic_request_sha256"] == request["semantic_request_sha256"]
-            assert ack["status"] == "committed"
-        else:
-            assert order[:2] == ["before_model_request", "provider_enter"]
+        request_paths = tuple((runs_path / "core/requests").glob("*/input.json"))
+        assert request_paths == ()
+        assert order[:2] == ["before_model_request", "provider_enter"]
 
         questions = tmp_path / "questions.txt"
         questions.write_text("IEEE-39节点系统中线路11连接哪两个母线?\n", encoding="utf-8")
@@ -258,6 +228,46 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         jsonl_records = [json.loads(line) for line in (report_root / "output/answers.jsonl").read_text(encoding="utf-8").splitlines()]
         assert len(jsonl_records) == 1
         assert jsonl_records[0]["answer_output"] == "线路11连接母线6与11。"
+        report_request_paths = tuple((report_root / "requests").glob("*/input.json"))
+        assert len(report_request_paths) == 1
+        report_order = [
+            json.loads(line)["marker"]
+            for line in (report_root / "scripted-canonical-order.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        assert report_order[:3] == ["before_model_request", "model_request_committed", "provider_enter"]
+        report_request = json.loads(report_request_paths[0].read_text(encoding="utf-8"))
+        assert report_request["schema_version"] == "grid-model-request-input/2.0"
+        assert report_request["semantic_request"]["model"] == {
+            "provider": "openai",
+            "api": "openai-responses",
+            "id": "gpt-5.5",
+        }
+        report_messages = report_request["semantic_request"]["context"]["messages"]
+        assert len(report_messages) == 1
+        assert report_messages[0]["role"] == "user"
+        assert report_messages[0]["content"][0]["type"] == "text"
+        assert "<instruction>\nIEEE-39节点系统中线路11连接哪两个母线?\n</instruction>" in report_messages[0]["content"][0]["text"]
+        assert report_request["semantic_request"]["context"]["tools"]
+        assert not any(
+            tool["name"] == "grid_submit_answer"
+            for tool in report_request["semantic_request"]["context"]["tools"]
+        )
+        assert report_request["semantic_request"]["options"]["transport"] == "sse"
+        assert set(report_request["runtime"]) == {
+            "pi_coding_agent_version",
+            "pi_ai_version",
+            "pi_source_commit",
+            "pi_patch_set_sha256",
+        }
+        assert "provider_payload" not in report_request
+        assert "test-only-secret" not in json.dumps(report_request, ensure_ascii=False)
+        report_ack = json.loads(
+            next((ROOT / ".grid-agent/trajectory-acks" / report_envelope.question_id).glob("*.committed.json")).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert report_ack["semantic_request_sha256"] == report_request["semantic_request_sha256"]
+        assert report_ack["status"] == "committed"
         shutil.rmtree(report_root, ignore_errors=True)
     finally:
         managed_cli.write_bytes(original_cli)

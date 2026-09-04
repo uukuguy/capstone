@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -10,9 +11,36 @@ ROOT = Path(__file__).resolve().parents[4]
 RUNNER = ROOT / "validation/run.py"
 
 
-def _run_topology_case(tmp_path: Path, event: dict[str, object], answer_output: str) -> subprocess.CompletedProcess[str]:
+def _load_trace(tmp_path: Path, events: list[dict[str, object]]):
     trace_path = tmp_path / "events.jsonl"
-    trace_path.write_text(json.dumps(event, ensure_ascii=False) + "\n", encoding="utf-8")
+    trace_path.write_text(
+        "\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n",
+        encoding="utf-8",
+    )
+    spec = importlib.util.spec_from_file_location("validation_run", RUNNER)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    errors: list[str] = []
+    trace = module._load_trace(trace_path, errors)
+    assert errors == []
+    assert trace is not None
+    return trace
+
+
+def _run_topology_case(
+    tmp_path: Path,
+    event: dict[str, object] | list[dict[str, object]],
+    answer_output: str,
+) -> subprocess.CompletedProcess[str]:
+    trace_path = tmp_path / "events.jsonl"
+    events = event if isinstance(event, list) else [event]
+    trace_path.write_text(
+        "\n".join(json.dumps(item, ensure_ascii=False) for item in events) + "\n",
+        encoding="utf-8",
+    )
     cli = tmp_path / "fake_agent.py"
     cli.write_text(
         "import json, sys\n"
@@ -53,6 +81,59 @@ def _topology_event(*, to_bus: str = "11", evidence_refs: list[str] | None = Non
         },
         "evidence_refs": evidence_refs if evidence_refs is not None else ["evidence:sha256:" + "a" * 64],
     }
+
+
+def _typed_topology_events(*, call_id: str) -> list[dict[str, object]]:
+    return [
+        {
+            "type": "tool_execution_start",
+            "toolCallId": call_id,
+            "toolName": "grid_topology_branch_endpoints",
+            "args": {"kind": "line", "identifier": "11"},
+        },
+        {
+            **_topology_event(),
+            "toolCallId": call_id,
+            "toolName": "grid_topology_branch_endpoints",
+        },
+    ]
+
+
+def test_run_harness_counts_typed_start_and_result_as_one_tool_call(tmp_path: Path) -> None:
+    events = [
+        {
+            "type": "tool_execution_start",
+            "toolCallId": "guide-1",
+            "toolName": "grid_guide_open",
+            "args": {"resource_id": "topology-analysis"},
+        },
+        *_typed_topology_events(call_id="endpoint-1"),
+        *_typed_topology_events(call_id="endpoint-2"),
+    ]
+
+    trace = _load_trace(tmp_path, events)
+
+    assert trace.tool_calls == 3
+    assert trace.tool_calls <= 4
+
+
+def test_run_harness_counts_same_typed_capability_with_distinct_call_ids_twice(tmp_path: Path) -> None:
+    trace = _load_trace(
+        tmp_path,
+        [*_typed_topology_events(call_id="endpoint-1"), *_typed_topology_events(call_id="endpoint-2")],
+    )
+
+    assert trace.tool_calls == 2
+
+
+def test_run_harness_keeps_legacy_result_only_events_as_individual_tool_calls(tmp_path: Path) -> None:
+    trace = _load_trace(
+        tmp_path,
+        [_topology_event(), _topology_event()],
+    )
+
+    assert trace.tool_calls == 2
+    assert trace.tool_calls <= 4
 
 
 def test_run_harness_executes_command_template_and_reports_summary(tmp_path: Path) -> None:
@@ -376,11 +457,18 @@ def test_validation_runner_supports_scripted_pi_mode_with_wrapped_trace(tmp_path
     }
     assert case["trace"]["capabilities"] == [
         "grid_guide_open",
+        "grid_context_open",
         "context.open",
+        "grid_topology_branch_endpoints",
         "topology.branch.endpoints.get",
     ]
     assert "grid_submit_answer" not in case["trace"]["capabilities"]
     assert case["trace"]["tool_calls"] == 3
+    assert case["efficiency"] == {
+        "tool_calls": 3,
+        "advisory_max_tool_calls": 4,
+        "within_advisory_budget": True,
+    }
     assert case["evidence_refs"]
 
 

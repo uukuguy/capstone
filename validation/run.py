@@ -2014,6 +2014,7 @@ def _load_trace(path: Path, errors: list[str]) -> TraceSummary | None:
     capabilities: list[str] = []
     result_events: list[ToolResultEvent] = []
     tool_calls = 0
+    observed_tool_call_ids: set[str] = set()
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
@@ -2029,14 +2030,27 @@ def _load_trace(path: Path, errors: list[str]) -> TraceSummary | None:
         capability = _event_capability(payload)
         if capability is not None:
             capabilities.append(capability)
-            tool_calls += 1
-        elif _is_tool_event(payload):
-            tool_calls += 1
+        if capability is not None or _is_tool_event(payload):
+            tool_call_id = _tool_call_id(payload)
+            if tool_call_id is None or tool_call_id not in observed_tool_call_ids:
+                tool_calls += 1
+                if tool_call_id is not None:
+                    observed_tool_call_ids.add(tool_call_id)
     return TraceSummary(
         capabilities=tuple(capabilities),
         tool_calls=tool_calls,
         result_events=tuple(result_events),
     )
+
+
+def _tool_call_id(value: object) -> str | None:
+    if not isinstance(value, Mapping):
+        return None
+    for key in ("toolCallId", "tool_call_id"):
+        item = value.get(key)
+        if isinstance(item, str) and item:
+            return item
+    return None
 
 
 def _tool_result_event(value: object, line_number: int, errors: list[str]) -> ToolResultEvent | None:
@@ -2180,11 +2194,17 @@ import subprocess
 
 json.loads(input())
 runtime = json.load(open(os.environ["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR"], encoding="utf-8"))
+domain = runtime["domains"][0]
+catalog = json.load(open(domain["toolCatalogPath"], encoding="utf-8"))
+by_capability = {tool["capability"]: tool for tool in catalog["tools"]}
 
 def emit(payload):
     print(json.dumps(payload, ensure_ascii=False), flush=True)
 
 def grid(capability, args):
+    tool = by_capability[capability]
+    key = {"binding_id": domain["bindingId"], "capability_id": capability}
+    emit({"type": "tool_execution_start", "toolCallId": capability, "toolName": tool["name"], "capability_key": key, "capability": capability, "args": args})
     request = {
         "protocol": "grid-capability",
         "protocol_version": "1.0",
@@ -2193,7 +2213,7 @@ def grid(capability, args):
         "arguments": args,
     }
     completed = subprocess.run(
-        ["gridctl", "request", "--workspace", runtime["workspace_path"]],
+        ["gridctl", "request", "--workspace", domain["workspacePath"]],
         input=json.dumps(request, ensure_ascii=False) + "\\n",
         text=True,
         capture_output=True,
@@ -2205,13 +2225,14 @@ def grid(capability, args):
     if isinstance(result.get("evidence_ref"), str):
         refs.append(result["evidence_ref"])
     refs.extend(result.get("evidence_refs") or [])
-    emit({"type": "tool_result", "capability": capability, "ok": response.get("ok") is True, "result": result, "error": response.get("error"), "evidence_refs": refs})
+    emit({"type": "tool_result", "toolCallId": capability, "toolName": tool["name"], "capability_key": key, "capability": capability, "projector_id": tool.get("projector_id"), "ok": response.get("ok") is True, "result": result, "error": response.get("error"), "evidence_refs": refs})
     return result
 
 def guide(resource_id):
-    index = json.load(open(runtime["guide_index_path"], encoding="utf-8"))
+    index = json.load(open(domain["guideIndexPath"], encoding="utf-8"))
     text = open(index["resources"][resource_id], encoding="utf-8").read()
-    emit({"type": "tool_result", "capability": "grid_guide_open", "ok": True, "result": {"resource_id": resource_id, "text": text}, "evidence_refs": []})
+    emit({"type": "tool_execution_start", "toolCallId": "guide-1", "toolName": "grid_guide_open", "args": {"resource_id": resource_id}})
+    emit({"type": "tool_execution_end", "toolCallId": "guide-1", "toolName": "grid_guide_open", "isError": False, "result": {"resource_id": resource_id}})
 
 emit({"type": "response", "command": "prompt", "success": True})
 guide("topology-analysis")
@@ -2220,6 +2241,7 @@ result = grid("topology.branch.endpoints.get", {"context_ref": opened["context_r
 ref = result["evidence_ref"]
 answer = f"线路11连接母线{result['from_bus']['name']}与{result['to_bus']['name']}。"
 emit({"type": "text_delta", "text": answer})
+emit({"type": "message_end", "message": {"role": "assistant", "content": [{"type": "text", "text": answer}], "stopReason": "stop"}})
 emit({"type": "agent_end"})
 """
 
