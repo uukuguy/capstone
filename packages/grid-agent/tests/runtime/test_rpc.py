@@ -167,14 +167,52 @@ def run_prompt_with_timeout(
 
 def test_rpc_requires_ack_before_agent_end(tmp_path: Path) -> None:
     fake = tmp_path / "fake_pi.py"
-    fake.write_text("import json; print(json.dumps({'type':'agent_end'}), flush=True)", encoding="utf-8")
+    fake.write_text(
+        "import json, sys\n"
+        "sys.stdin.readline()\n"
+        "print(json.dumps({'type': 'agent_end'}), flush=True)\n",
+        encoding="utf-8",
+    )
     command = PiCommand(argv=(sys.executable, str(fake)), identity=PiRuntimeIdentity(path=fake, source="explicit_override", package_version="0.80.6", lock_sha256="lock"))
     workspace = RunWorkspace.create(tmp_path / "runs")
     client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
     client.start()
-    with pytest.raises(PiProtocolError, match="before prompt acknowledgement"):
-        client.prompt_and_wait("question")
-    client.stop()
+    try:
+        with pytest.raises(PiProtocolError, match="before prompt acknowledgement"):
+            client.prompt_and_wait("question")
+    finally:
+        client.stop()
+
+
+def test_rpc_reports_prompt_send_failure_when_provider_exits_early(tmp_path: Path) -> None:
+    fake = tmp_path / "early_exit_pi.py"
+    fake.write_text("raise SystemExit(17)\n", encoding="utf-8")
+    command = PiCommand(
+        argv=(sys.executable, str(fake)),
+        identity=PiRuntimeIdentity(
+            path=fake,
+            source="explicit_override",
+            package_version="0.80.6",
+            lock_sha256="lock",
+        ),
+    )
+    workspace = RunWorkspace.create(tmp_path / "runs")
+    client = PiRpcClient(command, workspace, JsonlTraceWriter(workspace.events_path))
+    client.start()
+    try:
+        assert client.process is not None
+        client.process.wait(timeout=1)
+        with pytest.raises(PiProtocolError, match="Pi RPC prompt could not be sent"):
+            client.prompt_and_wait("question")
+    finally:
+        if client.process is not None and client.process.stdin is not None:
+            stdin = client.process.stdin
+            client.process.stdin = None
+            try:
+                stdin.close()
+            except BrokenPipeError:
+                pass
+        client.stop()
 
 
 def test_rpc_starts_full_launch_with_its_restricted_environment(tmp_path: Path) -> None:
