@@ -22,6 +22,7 @@ class GenericReportShell:
         *,
         questions: Iterable[str] = (),
         answers: Iterable[str] = (),
+        assurances: Iterable[str] = (),
         trajectories: Iterable[str] = (),
         references: Iterable[str] = (),
         context: object | None = None,
@@ -31,6 +32,7 @@ class GenericReportShell:
     ) -> str:
         question_values = tuple(_text_values(questions, "questions"))
         answer_values = tuple(_text_values(answers, "answers"))
+        assurance_values = tuple(_text_values(assurances, "assurances"))
         trajectory_values = tuple(_text_values(trajectories, "trajectories"))
         reference_values = tuple(_text_values(references, "references"))
         lines = ["# Application report", ""]
@@ -38,6 +40,8 @@ class GenericReportShell:
             lines.extend((f"## Question {index}", "", question, ""))
             if index <= len(answer_values):
                 lines.extend(("### Answer", "", answer_values[index - 1], ""))
+                assurance = assurance_values[index - 1] if index <= len(assurance_values) else "unknown"
+                lines.extend((f"Guarantee scope: {assurance}", ""))
         if trajectory_values:
             lines.extend(("## Trajectory", "", *_bullets(trajectory_values), ""))
         if reference_values:

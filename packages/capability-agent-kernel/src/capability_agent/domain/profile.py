@@ -84,7 +84,7 @@ class DomainRuntimeProfile:
         if self.answer_admission_policy_version != "answer-admission/1.0":
             raise ValueError("domain answer admission policy version is invalid")
         capabilities = self.answer_admission_capabilities
-        if capabilities is None or capabilities != frozenset(
-            {"authority_backed", "offline_information", "limited"}
-        ):
+        required = frozenset({"authority_backed", "limited"})
+        allowed = required | {"offline_information"}
+        if capabilities is None or not required.issubset(capabilities) or not capabilities.issubset(allowed):
             raise ValueError("domain answer admission capabilities are invalid")

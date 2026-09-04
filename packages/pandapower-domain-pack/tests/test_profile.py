@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,15 @@ def test_pandapower_profile_is_application_complete() -> None:
     ):
         assert component is not None
         assert component.__class__.__module__.startswith("pandapower_domain.")
+
+
+def test_profile_accepts_truthful_foundational_admission_capability_subset() -> None:
+    profile = replace(
+        build_pandapower_profile(),
+        answer_admission_capabilities=frozenset({"authority_backed", "limited"}),
+    )
+
+    profile.validate_answer_admission_declaration()
 
 
 def test_profile_offline_admission_renders_an_explicit_packaged_guide(tmp_path: Path) -> None:

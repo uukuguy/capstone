@@ -41,18 +41,20 @@ def read_answer_admission_metadata(
     corrupt or mismatched metadata is never silently trusted.
     """
     sidecar = answer_path.with_name("answer-admission.json")
-    if sidecar.is_symlink() or answer_path.is_symlink():
-        raise ValueError("answer admission metadata must not be a symlink")
-    if not sidecar.exists():
+    try:
+        sidecar_bytes = _read_bound_regular_file(sidecar)
+    except FileNotFoundError:
         if expected_admission_ref is not None:
             raise ValueError("committed answer admission metadata is missing")
         return None
+    except OSError as exc:
+        raise ValueError("answer admission metadata is unreadable") from exc
+    if expected_admission_ref is None:
+        raise ValueError("answer admission metadata has no durable commit binding")
     try:
-        if not stat.S_ISREG(os.stat(sidecar).st_mode) or not stat.S_ISREG(os.stat(answer_path).st_mode):
-            raise ValueError("answer admission metadata must be regular files")
-        answer = json.loads(answer_path.read_text(encoding="utf-8"))
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        answer = json.loads(_read_bound_regular_file(answer_path))
+        payload = json.loads(sidecar_bytes)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("answer admission metadata is unreadable") from exc
     from capability_agent.trajectory.canonical import canonical_json_bytes
 
@@ -91,6 +93,32 @@ def read_answer_admission_metadata(
     ):
         raise ValueError("answer record is invalid")
     return AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
+
+
+def _read_bound_regular_file(path: Path) -> bytes:
+    """Read a leaf without links and reject replacement during the read."""
+    descriptor = os.open(
+        path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError("answer admission metadata must be regular files")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 64 * 1024):
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+        named = os.stat(path, follow_symlinks=False)
+        identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+        if (
+            identity != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            or not stat.S_ISREG(named.st_mode)
+            or (named.st_dev, named.st_ino) != (after.st_dev, after.st_ino)
+        ):
+            raise OSError("answer admission metadata changed while read")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
 
 
 __all__ = [

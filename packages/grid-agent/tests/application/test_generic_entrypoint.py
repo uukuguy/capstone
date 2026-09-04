@@ -13,6 +13,7 @@ from capability_agent.application.output import (
     JsonOutputRenderer,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.domain.answer_admission import AnswerAdmissionInput
 from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
 
 import grid_agent.application.composition as composition_module
@@ -48,6 +49,17 @@ class _Renderer:
         return JsonOutputRenderer().render(result)  # type: ignore[arg-type]
 
 
+OFFLINE_QUESTION = "What is AC power flow"
+
+
+def _offline_answer(profile: object) -> str:
+    binding = profile.domains[0]  # type: ignore[attr-defined]
+    policy = binding.profile.create_answer_admission_policy(object())
+    return policy.admit(
+        AnswerAdmissionInput(OFFLINE_QUESTION, "ignored", (), ())
+    ).answer_output
+
+
 def _prepared(profile: object) -> SimpleNamespace:
     binding = profile.domains[0]  # type: ignore[attr-defined]
     endpoint = SimpleNamespace(close=lambda: None)
@@ -78,7 +90,7 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
 
     outcome = run_generic_application(
         "pandapower-static-analysis",
-        ("question one", "question two"),
+        (OFFLINE_QUESTION, OFFLINE_QUESTION),
         application=application,
     )
 
@@ -101,7 +113,7 @@ def test_generic_entrypoint_renders_validated_core_and_domain_sections(
     report = workspace.output_path.joinpath("report.md").read_text(encoding="utf-8")
     assert report.startswith("# 系统仿真分析报告")
     assert "## 本批次运行环境" in report
-    assert "## 1. question one" in report
+    assert f"## 1. {OFFLINE_QUESTION}" in report
     assert "### 回答" in report
     assert "### 仿真环境上下文" in report
     assert "### 智能体分析轨迹" in report
@@ -152,7 +164,7 @@ def test_generic_pandapower_application_checkpoints_standard_submission_answers(
 
     outcome = run_generic_application(
         "pandapower-static-analysis",
-        ("question one", "question two"),
+        (OFFLINE_QUESTION, OFFLINE_QUESTION),
         application=application,
     )
 
@@ -161,8 +173,8 @@ def test_generic_pandapower_application_checkpoints_standard_submission_answers(
         json.loads(line)
         for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
     ] == [
-        {"question_id": "run-1-t001", "answer_output": "first"},
-        {"question_id": "run-1-t002", "answer_output": "second"},
+        {"question_id": "run-1-t001", "answer_output": _offline_answer(profile)},
+        {"question_id": "run-1-t002", "answer_output": _offline_answer(profile)},
     ]
 
 
@@ -187,7 +199,7 @@ def test_generic_pandapower_application_retains_checkpoint_after_later_failure(
 
     outcome = run_generic_application(
         "pandapower-static-analysis",
-        ("first", "second"),
+        (OFFLINE_QUESTION, OFFLINE_QUESTION),
         application=application,
     )
 
@@ -195,7 +207,7 @@ def test_generic_pandapower_application_retains_checkpoint_after_later_failure(
     assert [
         json.loads(line)
         for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
-    ] == [{"question_id": "run-1-t001", "answer_output": "first"}]
+    ] == [{"question_id": "run-1-t001", "answer_output": _offline_answer(profile)}]
 
 
 def test_generic_pandapower_application_prepares_empty_submission_checkpoint(
@@ -254,7 +266,7 @@ def test_generic_pandapower_application_continues_after_initial_submission_check
     )
 
     outcome = run_generic_application(
-        "pandapower-static-analysis", ("question",), application=application
+        "pandapower-static-analysis", (OFFLINE_QUESTION,), application=application
     )
 
     assert outcome.status == "completed", outcome.error
@@ -296,16 +308,16 @@ def test_generic_pandapower_application_preserves_prior_submission_checkpoint_af
     )
 
     outcome = run_generic_application(
-        "pandapower-static-analysis", ("first", "second"), application=application
+        "pandapower-static-analysis", (OFFLINE_QUESTION, OFFLINE_QUESTION), application=application
     )
 
     assert outcome.status == "completed", outcome.error
     assert [
         json.loads(line)
         for line in (workspace.output_path / "answers.jsonl").read_text().splitlines()
-    ] == [{"question_id": "run-1-t001", "answer_output": "first"}]
+    ] == [{"question_id": "run-1-t001", "answer_output": _offline_answer(profile)}]
     report = workspace.output_path.joinpath("report.md").read_text(encoding="utf-8")
-    assert "## 2. second" in report
+    assert f"## 2. {OFFLINE_QUESTION}" in report
     assert "Submission checkpoint unavailable" in report
     assert "secret-path" not in report
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from hashlib import sha256
 import stat
 
 from capability_agent.domain.answer_admission import (
@@ -83,7 +82,7 @@ _CONCEPTS = {
 
 
 def _concept_resource_id(question: str) -> str:
-    normalized = " ".join(question.strip().casefold().split())
+    normalized = " ".join(question.strip().casefold().rstrip("?.!。？！").split())
     for prefix in ("what is ", "explain ", "什么是", "解释"):
         if normalized.startswith(prefix):
             return _CONCEPTS.get(normalized.removeprefix(prefix).strip(), "")
@@ -102,7 +101,7 @@ def _trusted_guides(guide_root: Path) -> dict[str, str]:
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             continue
         text = document.text.strip()
-        if text and sha256(text.encode("utf-8")).hexdigest():
+        if text:
             trusted[resource_id] = text
     return trusted
 

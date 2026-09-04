@@ -159,8 +159,8 @@ class ScriptedApplicationTransport:
         self._current_result_refs = ()
         self._current_evidence_refs = ()
         steps = scripted.get("steps")
-        if not isinstance(steps, list) or not steps:
-            raise RuntimeError("scripted application question has no semantic steps")
+        if not isinstance(steps, list):
+            raise RuntimeError("scripted application question has invalid semantic steps")
         for step in steps:
             if not isinstance(step, Mapping):
                 raise RuntimeError("scripted application step is invalid")
@@ -323,21 +323,23 @@ class AuditingTurnController(TurnController):
         result_refs = self.transport.current_result_refs
         evidence_refs = self.transport.current_evidence_refs
         references = (*result_refs, *evidence_refs)
-        if not references:
-            raise AnswerCommitError("scripted semantic answer has no simulator lineage")
-        category = "evidence" if evidence_refs else "numerical_result"
-        claims = (
-            {
-                "statement": answer_output,
-                "category": category,
-                "result_refs": result_refs,
-                "evidence_refs": evidence_refs,
-            },
-        )
+        selected_bindings: tuple[str, ...] = ()
+        claims: tuple[dict[str, object], ...] = ()
+        if references:
+            category = "evidence" if evidence_refs else "numerical_result"
+            claims = (
+                {
+                    "statement": answer_output,
+                    "category": category,
+                    "result_refs": result_refs,
+                    "evidence_refs": evidence_refs,
+                },
+            )
+            selected_bindings = ("grid",)
         finalized = super().submit(
             handle,
             answer_output=answer_output,
-            referenced_bindings=("grid",),
+            referenced_bindings=selected_bindings,
             result_refs=result_refs,
             evidence_refs=evidence_refs,
             claims=claims,
@@ -611,7 +613,7 @@ def _load_application_document(case: Path | Mapping[str, object]) -> Mapping[str
         if not isinstance(question.get("text"), str) or not question["text"].strip():
             raise ValueError("application case question text is invalid")
         steps = question.get("steps")
-        if not isinstance(steps, list) or not steps:
+        if not isinstance(steps, list):
             raise ValueError("application case question steps are invalid")
         for step in steps:
             if not isinstance(step, Mapping) or not isinstance(step.get("capability"), str):

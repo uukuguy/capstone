@@ -71,6 +71,7 @@ class FinalizedTurn:
     answer_output: str
     answer_path: Path | None
     answer_ref: str | None
+    admission_ref: str | None
     referenced_bindings: tuple[str, ...]
     result_refs: tuple[str, ...]
     evidence_refs: tuple[str, ...]
@@ -479,6 +480,7 @@ class TurnController:
             answer_output=answer_output,
             answer_path=answer_path,
             answer_ref=answer_ref,
+            admission_ref=admission_ref,
             referenced_bindings=selected,
             result_refs=results,
             evidence_refs=evidence,
@@ -553,6 +555,7 @@ class TurnController:
             answer_output=f"execution limitation: {message}",
             answer_path=answer_path,
             answer_ref=None,
+            admission_ref=None,
             referenced_bindings=(),
             result_refs=(),
             evidence_refs=(),

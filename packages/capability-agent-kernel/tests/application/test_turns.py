@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 import capability_agent.application.context_store as context_store_module
+import capability_agent.domain.answer_admission as answer_admission_module
 from capability_agent.application.context_models import ContextEventDraft
 from capability_agent.application.context_store import ApplicationContextStore
 from capability_agent.application.errors import AnswerCommitError
@@ -192,10 +193,19 @@ def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_tu
     assert read_answer_admission_metadata(
         committed.answer_path, expected_admission_ref=admission_ref
     ) == committed.admission
+    with pytest.raises(ValueError, match="durable commit"):
+        read_answer_admission_metadata(committed.answer_path)
     legacy = workspace.turns_path / "legacy" / "answer.json"
     legacy.parent.mkdir()
     legacy.write_text('{"answer_output":"old"}', encoding="utf-8")
     assert read_answer_admission_metadata(legacy) is None
+    legacy.with_name("answer-admission.json").write_text(
+        json.dumps({"schema": "capability-agent-answer-admission/1.0"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="durable commit"):
+        read_answer_admission_metadata(legacy)
+    legacy.with_name("answer-admission.json").unlink()
     with pytest.raises(ValueError, match="missing"):
         read_answer_admission_metadata(legacy, expected_admission_ref=admission_ref)
 
@@ -206,6 +216,38 @@ def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_tu
     with pytest.raises(ValueError, match="digest"):
         read_answer_admission_metadata(
             committed.answer_path, expected_admission_ref=admission_ref
+        )
+
+
+def test_admission_reader_rejects_sidecar_replaced_while_reading(
+    active_turn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _store, workspace, current = active_turn
+    controller = TurnController(
+        store=current.store, workspace=workspace, bindings={"grid": current.prepared}
+    )
+    committed = controller.submit(
+        current.handle, answer_output="answer", duration_seconds=1.0
+    )
+    assert committed.answer_path is not None
+    sidecar = committed.answer_path.with_name("answer-admission.json")
+    replacement = sidecar.with_name("replacement-admission.json")
+    replacement.write_bytes(sidecar.read_bytes())
+    real_fstat = answer_admission_module.os.fstat
+    fstat_calls = 0
+
+    def replace_on_sidecar_open(descriptor: int):
+        nonlocal fstat_calls
+        fstat_calls += 1
+        if fstat_calls == 1:
+            replacement.replace(sidecar)
+        return real_fstat(descriptor)
+
+    monkeypatch.setattr(answer_admission_module.os, "fstat", replace_on_sidecar_open)
+
+    with pytest.raises(ValueError, match="unreadable"):
+        read_answer_admission_metadata(
+            committed.answer_path, expected_admission_ref=committed.admission_ref
         )
 
 
@@ -475,6 +517,41 @@ def test_submit_rolls_back_answer_and_context_when_store_fails_mid_commit(
     assert not (
         workspace.turns_path / current.handle.turn_id / "answer-draft.json"
     ).exists()
+    assert current.store.snapshot.core.active_turn is not None
+
+
+def test_submit_rolls_back_sidecar_answer_drafts_and_context_when_sidecar_write_fails(
+    active_turn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _store, workspace, current = active_turn
+    controller = TurnController(
+        store=current.store,
+        workspace=workspace,
+        bindings={"grid": current.prepared},
+    )
+    before = current.store.snapshot
+    before_lines = workspace.context_events_path.read_bytes()
+    import capability_agent.application.turns as turns_module
+
+    real_write = turns_module._write_bytes_atomic
+
+    def fail_sidecar(path: Path, content: bytes) -> None:
+        if path.name == "answer-admission.json":
+            raise OSError("sidecar write failed")
+        real_write(path, content)
+
+    monkeypatch.setattr(turns_module, "_write_bytes_atomic", fail_sidecar)
+
+    with pytest.raises(AnswerCommitError, match="persistence"):
+        controller.submit(current.handle, answer_output="answer", duration_seconds=1.0)
+
+    turn_path = workspace.turns_path / current.handle.turn_id
+    assert current.store.snapshot == before
+    assert workspace.context_events_path.read_bytes() == before_lines
+    assert not (turn_path / "answer.json").exists()
+    assert not (turn_path / "answer-draft.json").exists()
+    assert not (turn_path / "answer-admission.json").exists()
+    assert not (workspace.turns_path / "active-answer-draft.json").exists()
     assert current.store.snapshot.core.active_turn is not None
 
 

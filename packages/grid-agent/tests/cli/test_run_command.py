@@ -176,7 +176,7 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
     monkeypatch,
 ) -> None:
     instructions = tmp_path / "instructions.txt"
-    instructions.write_text("question one\nquestion two\n", encoding="utf-8")
+    instructions.write_text("What is AC power flow\nWhat is AC power flow\n", encoding="utf-8")
     profile = build_pandapower_application_profile()
     binding = profile.domains[0]
     def prompt_and_wait(_question: str, **kwargs: object) -> str:
@@ -207,7 +207,7 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
                 "grid": SimpleNamespace(
                     binding=binding,
                     endpoint=SimpleNamespace(close=lambda: None),
-                    runtime=SimpleNamespace(),
+                    runtime=SimpleNamespace(authority=SimpleNamespace(authority_id="gridctl")),
                 )
             }
         )

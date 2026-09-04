@@ -275,8 +275,12 @@ def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Pat
             load=lambda: events.append("domain.guides") or ({"name": "guide"},)
         ),
         validate_answer_admission_declaration=lambda: events.append("domain.admission"),
+        create_answer_admission_policy=lambda authority: SimpleNamespace(admit=lambda request: request),
     )
-    binding = SimpleNamespace(binding_id="alpha", profile=binding_profile)
+    binding = SimpleNamespace(
+        binding_id="alpha", profile=binding_profile,
+        runtime=SimpleNamespace(authority=object()),
+    )
     profile = SimpleNamespace(
         manifest=SimpleNamespace(
             application_id="fixture-app", version="1.0.0", result_schema="capability-agent-output/1.0"
@@ -322,6 +326,49 @@ def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Pat
     assert events.index("provider.start") > events.index("policy.composed")
     assert events.index("provider.start") > events.index("guides.validated")
     assert events.index("provider.start") > events.index("catalog.validated")
+
+
+@pytest.mark.parametrize(
+    "factory",
+    (
+        None,
+        lambda _authority: object(),
+        lambda _authority: (_ for _ in ()).throw(RuntimeError("factory exploded")),
+    ),
+)
+def test_runner_rejects_invalid_answer_admission_factory_before_provider_creation(
+    tmp_path: Path, factory: object
+) -> None:
+    """A prepared binding must have a usable policy before any provider exists."""
+    events: list[str] = []
+    provider_calls: list[str] = []
+    binding = SimpleNamespace(
+        binding_id="alpha",
+        profile=SimpleNamespace(
+            policy_provider=SimpleNamespace(load=lambda: events.append("domain.policy")),
+            guide_provider=SimpleNamespace(load=lambda: ()),
+            validate_answer_admission_declaration=lambda: None,
+            create_answer_admission_policy=factory,
+        ),
+        runtime=SimpleNamespace(authority=object()),
+    )
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: events.append("application.policy")),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        provider_factory=lambda **_: provider_calls.append("factory"),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert outcome.error is not None
+    assert provider_calls == []
+    assert "provider.start" not in events
 
 
 def test_runner_does_not_start_provider_when_preflight_fails_and_closes_reverse_order(

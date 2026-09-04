@@ -39,6 +39,7 @@ from capability_agent.application.projector import ApplicationInvocationProjecto
 from capability_agent.application.reporting import GenericReportShell
 from capability_agent.application.turns import TurnController
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.domain.answer_admission import read_answer_admission_metadata
 from capability_agent.runtime.catalog import ProviderCatalog, ProviderCatalogSource
 from capability_agent.runtime.descriptor import descriptor_from_endpoint, write_runtime_descriptor
 from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, build_pi_launch
@@ -522,6 +523,13 @@ class AgentApplication:
                 _call_method(getattr(profile, "policy_provider", None), "load")
                 try:
                     _call_method(profile, "validate_answer_admission_declaration")
+                    runtime = getattr(binding, "runtime", None)
+                    authority = getattr(runtime, "authority", None)
+                    policy = _call_method(
+                        profile, "create_answer_admission_policy", authority
+                    )
+                    if not callable(getattr(policy, "admit", None)):
+                        raise TypeError("answer admission policy is invalid")
                 except Exception as exc:
                     raise ApplicationConfigurationError(
                         f"binding {binding_id!r} answer admission declaration is invalid"
@@ -977,6 +985,9 @@ class AgentApplication:
             )
             presentation = getattr(profile, "presentation_provider", None)
         answers = tuple(str(getattr(answer, "answer_output", "")) for answer in completed_answers)
+        assurances = tuple(
+            _persisted_answer_assurance(answer) for answer in completed_answers
+        )
         references = tuple(
             ref
             for answer in completed_answers
@@ -989,6 +1000,7 @@ class AgentApplication:
             report_method,
             questions=request.questions,
             answers=answers,
+            assurances=assurances,
             trajectories=(),
             references=references,
             context=store.snapshot if store is not None else None,
@@ -1411,6 +1423,20 @@ def _with_report_reference(
     context: object | None, report_ref: str
 ) -> _ReportAwareDomainContext:
     return _ReportAwareDomainContext(context, report_ref)
+
+
+def _persisted_answer_assurance(answer: object) -> str:
+    path = getattr(answer, "answer_path", None)
+    admission_ref = getattr(answer, "admission_ref", None)
+    if not isinstance(path, Path) or not isinstance(admission_ref, str):
+        return "unknown"
+    try:
+        decision = read_answer_admission_metadata(
+            path, expected_admission_ref=admission_ref
+        )
+    except ValueError:
+        return "corrupt"
+    return decision.assurance if decision is not None else "unknown"
 
 
 def _write_report_atomically(path: Path, report: str) -> None:

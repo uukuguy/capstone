@@ -40,6 +40,7 @@ class PandapowerApplicationReportShell:
         core: Mapping[str, object] | None = None,
         workspace: ApplicationWorkspace | None = None,
         runtime: Mapping[str, object] | None = None,
+        assurances: Iterable[str] = (),
         **_: object,
     ) -> str:
         question_values = tuple(_text_values(questions, "questions"))
@@ -66,6 +67,11 @@ class PandapowerApplicationReportShell:
         )
         if self._submission_checkpoint_unavailable:
             report += "\n## Submission checkpoint diagnostic\n\n- Submission checkpoint unavailable; report processing continued.\n"
+        assurance_values = tuple(_text_values(assurances, "assurances"))
+        if assurance_values:
+            report += "\n## Guarantee scope\n\n" + "\n".join(
+                f"- {value}" for value in assurance_values
+            ) + "\n"
         return report
 
     def _refresh_submission_checkpoint(
