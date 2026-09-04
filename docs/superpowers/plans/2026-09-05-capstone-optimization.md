@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-05。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-06。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -43,8 +43,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | DONE | c81c83a；独立复审、focused91+3/17、固定源码完整门禁通过，详见验收记录 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | DONE | 6ad5df4；独立复审与固定源码完整主/包门禁exit0，详见验收记录 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
-| OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | RUNNING | 依赖已关闭；从受控inventory基线修复开始 |
-| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | PLANNED | 未执行 |
+| OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
+| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | RUNNING | 从0.84.4候选的补丁/安装/审计验证开始，例外尚未关闭 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
@@ -246,6 +246,8 @@ uv run --project packages/grid-agent pytest packages/grid-agent/tests/runtime -q
 
 **Files**：Modify `Makefile`、`packages/grid-agent/pyproject.toml`、其 `uv.lock`、`README.md`、`README.zh-CN.md`、`docs/RUNBOOK.md`；Create `pyrightconfig.json`、`.github/workflows/verify.yml`；Test `tools/tests/test_verification_targets.py`（新增）。
 
+类型基线范围澄清（2026-09-05）：固定pyright1.1.408、standard、最低Python3.12覆盖六包217生产文件，初始123错误。允许逐点修正Kernel application/composition/output/runner/turns、domain/provisioning、runtime/catalog/lock、tools/catalog；grid-agent cli/app、compat/single_run/v1_0_1_report、config/catalog、knowledge/offline、reporting、validation/oracles；simulator analyses、bindings/diagnostic/topology、creators、derived_results、models、operations、queries、results；inventory resources缓存返回注解。协议只澄清已有只读属性与实际factory返回类型，不提前替代OP-10执行接口设计。只保留Kernel output.py三处精确reportIncompatibleMethodOverride例外以保持既有公开schema属性/线协议；无整包exclude或全局ignore。受保护simulator与inventory的类型修复均独立审查、代码提交，再单独变更摘要。已完成测试/锁基线52e58da→摘要a49c73e，以及simulator类型d4315a0→摘要f6cfd01；旧新tree在runs/optimization/OP-05/*-digest-change.md留证，尚不代表本包完整验收。
+
 补充已复现基线修复：`packages/inventory-domain-pack/tests/test_profile.py` 仍期待领域目录内的旧 `inventory_record_decision`；在 OP-01 前 `323dd7d` 导出源码上同样失败。OP-05 需将该测试对齐已存在的 domain/core 分离契约，并保留独立 neutral core 工具断言，不恢复旧别名、不仅删除断言。范围仅该 conformance 测试及 `configs/runtime/application-instantiation-protected-paths.json` 的对应受保护摘要；先校验旧摘要、独立复审测试改动并提交，再以该提交tree摘要独立更新基线，运行完整门禁。此项不提前实现 OP-11 的应用组件；证据 `runs/optimization/OP-05/inventory-baseline-failure.md`。
 
 **接口**：保留已有目标，新增三个稳定聚合入口。Python 包分别执行，避免同名模块合并收集。pyright 作为 dev dependency 锁定；禁止全局 ignore 降低门槛。
@@ -266,14 +268,16 @@ check-integration: test-e2e validate validate-application
 check-release: check-fast check-integration test-packages test-source-setup
 ```
 
-- [ ] 新测试读取 Make dry-run，验证六个 Python 包、两个 Pi 包和工作台都有入口，且目标不存在递归环。
-- [ ] 将 `make test` 扩展为完整离线单元入口，显式依赖 test-agent、test-simulator、test-tools、test-makefile-application、test-kernel、test-domain-package、test-generic-tools、test-inventory、test-workbench；保留独立 test-e2e/validate 的集成含义，清除同一调用图的重复执行。test-agent 是否已包含 e2e 在 dry-run 与 pytest collection 中核对，聚合命令不得遗漏或无意重复。
-- [ ] pyright 配置覆盖 Kernel、两个 Domain Pack、两个 authority、grid-agent 的 src；测试替身后续逐步类型化，生产代码不以排除整包通过。修复基线类型问题分独立提交，记录每个豁免路径与理由。
-- [ ] CI 运行 checkout → Python/Node 版本准备 → make setup → make install-pi → make doctor → 三层检查。固定 Python 3.12 和当前实际 3.14 验证线，Node 满足 >=22.19.0；macOS/Linux 分开记录，视觉金图按平台管理。
-- [ ] CI 不使用 provider secrets，不发在线推理；Node/Python 下载是安装步骤。流水线配置先在本地做等价验证；未实际运行远端 CI 时不声称远端通过。
-- [ ] 运行 `make -n check-release`、`make check-fast`、`make check-integration`；聚合命令任一子目标失败即非零。
+- [x] 新测试读取 Make dry-run，验证六个 Python 包、两个 Pi 包和工作台都有入口，且目标不存在递归环。
+- [x] 将 `make test` 扩展为完整离线单元入口，显式依赖 test-agent、test-simulator、test-tools、test-makefile-application、test-kernel、test-domain-package、test-generic-tools、test-inventory、test-workbench；保留独立 test-e2e/validate 的集成含义，清除同一调用图的重复执行。test-agent 是否已包含 e2e 在 dry-run 与 pytest collection 中核对，聚合命令不得遗漏或无意重复。
+- [x] pyright 配置覆盖 Kernel、两个 Domain Pack、两个 authority、grid-agent 的 src；测试替身后续逐步类型化，生产代码不以排除整包通过。修复基线类型问题分独立提交，记录每个豁免路径与理由。
+- [x] CI 运行 checkout → Python/Node 版本准备 → make setup → make install-pi → make doctor → 三层检查。固定 Python 3.12 和当前实际 3.14 验证线，Node 满足 >=22.19.0；macOS/Linux 分开记录，视觉金图按平台管理。
+- [x] CI 不使用 provider secrets，不发在线推理；Node/Python 下载是安装步骤。流水线配置先在本地做等价验证；未实际运行远端 CI 时不声称远端通过。
+- [x] 运行 `make -n check-release`、`make check-fast`、`make check-integration`；聚合命令任一子目标失败即非零。
 
 **关闭条件**：全部生产包被门禁覆盖，文档准确，整套结果稳定；不把历史 Climb 的 100 分当作本次 release 证据。提交主题：`build: gate all framework and application packages`。
+
+验收记录（2026-09-05）：固定门禁提交 `2ce5152`，前序类型与受控保护摘要提交见本包记录及 `2e5ece6`→`2a81535`。独立Spec/Quality审查全部PASS；`make doctor && make check-release` exit0：pyright217文件零错误，Agent747、sim165、Kernel437、pandapower79、inventory service11/domain13/transport1、Pi43/34、workbench128、自检6、E2E31、offline/scripted及24/24、完整应用、六wheel/两npm干净安装、frozen源码npm安装全部通过。根证据 `runs/optimization/OP-05/gate-release-2ce5152.json`，审查 `gates-review.md`、`kernel-grid-types-review.md`、`simulator-types-review.md`。本地Darwin arm64/Python3.14.3/Node23.11.0；CI Linux/macOS×Python3.12/3.14/Node22.19.0仅配置，未声称远端或完整矩阵已经执行。未调用付费provider，Pi例外仍待OP06。
 
 ### OP-06：Pi 升级与到期风险处置
 

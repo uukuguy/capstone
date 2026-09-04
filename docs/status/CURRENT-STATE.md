@@ -6,7 +6,7 @@
 - Theme-level focus: Capstone answer assurance, failure isolation, verification coverage, and scalable domain composition
 - Project route: direct
 - Canonical optimization worklist: `docs/superpowers/plans/2026-09-05-capstone-optimization.md`
-- Active optimization work package: OP-05; execution is isolated on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. The canonical plan owns task status. Optimization closure precedes C.2 domain selection.
+- Active optimization work package: OP-06; execution is isolated on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. The canonical plan owns task status. Optimization closure precedes C.2 domain selection.
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
 - Completed work package: Workstream C.1 application-instantiation closure. The first real pandapower application passed both canonical business task files through the generic path and the explicit v1.0.1 compatibility projection.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.
@@ -48,7 +48,7 @@
 
 - Declared static-analysis capability coverage remains the established baseline; framework assurance gaps are tracked separately in `docs/status/2026-09-05-capstone-design-code-review.md`.
 - Domain-owned answer admission applies even without references; versioned sidecars bind assurance to committed current-run events through no-follow verified reads, including compatibility single-run submission. Report prepare/checkpoint/publication and ordinary observer failures are isolated; fixed-code diagnostics are best-effort. Necessary answer/context writes and validation still fail closed. Pandapower domain output 1.1 permits a null report while non-null references remain current-run admitted. Lineage assurance does not prove freeform prose semantics.
-- Default verification does not cover all independently owned packages; trajectory reads and context ledger writes have scaling costs, and inventory has not exercised complete application-level conformance.
+- Verification now covers six Python production packages, two Pi packages and workbench, with locked standard pyright across production sources. Shared fast/integration/release gates separate E2E and deduplicate checks; the OS/Python CI matrix is configured, not yet remotely verified. Trajectory reads and context ledger writes retain scaling costs, and inventory has not exercised complete application-level conformance.
 - The pinned Pi dependency tree still contains 2 High and 2 Moderate accepted findings. `configs/runtime/pi-security-risk-exception-v1.json` documents the bounded exception and expires on 2026-09-30; the deterministic gate rejects expiry, pin/lock/installed-graph drift, or a worsened declared baseline. It does not discover a future advisory against unchanged versions.
 - Pandapower/pandas emit upstream deprecation warnings in state-estimation and legacy network construction paths; these do not change current results.
 - Provider latency remains externally variable; future changes must preserve non-blocking trajectory observation.
