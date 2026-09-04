@@ -1,6 +1,6 @@
 # Capstone Optimization Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` for task-by-task implementation when delegation is useful; otherwise execute inline with the same test/review gates. Steps use checkbox syntax. 本文件是唯一优化执行顺序与状态账本；本次只保存方案，尚未实施。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` for task-by-task implementation when delegation is useful; otherwise execute inline with the same test/review gates. Steps use checkbox syntax. 本文件是唯一优化执行顺序与状态账本。
 
 **Goal:** 闭合 Capstone 的答案与证据准入、非阻断报告、完整工程门禁、规模性能和领域扩展验证，保留首个 pandapower 应用兼容性。
 
@@ -11,10 +11,10 @@
 ## 1. 状态、依据与授权边界
 
 - 方案版本：1，2026-09-05；代码审查基线：`5a38c5b`。
-- 用户已同意优化方向，并要求保存完整方案指导后续实现；本轮交付为文档。
+- 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 下一执行包：OP-01。全方案状态：PLANNED；没有任何工作包被视为已经完成。
+- 当前执行包：OP-01。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -39,7 +39,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 
 | 包 | 所属阶段 | 范围 / 发现 | 依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | PLANNED | 未执行 |
+| OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | RUNNING | 设计核对、隔离环境准备 |
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | PLANNED | 未执行 |
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | PLANNED | 未执行 |
