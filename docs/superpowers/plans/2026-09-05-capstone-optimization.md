@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-02。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-03。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -40,8 +40,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | 包 | 所属阶段 | 范围 / 发现 | 依赖 | 状态 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
 | OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | DONE | cbc6d97；独立复审、定向66及固定源码完整门禁通过，详见任务验收记录 |
-| OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | RUNNING | OP-01依赖已关闭；按兼容矩阵与应用层实体快照设计实施 |
-| OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | PLANNED | 未执行 |
+| OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | DONE | c81c83a；独立复审、focused91+3/17、固定源码完整门禁通过，详见验收记录 |
+| OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | RUNNING | 依赖已关闭；按窄展示/观察边界设计开始TDD实施 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | PLANNED | 未执行 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | PLANNED | 未执行 |
@@ -148,12 +148,16 @@ make validate-application
 
 **接口**：适配器接受现有 RunRequest 和解析后的运行配置，组装只有一个 question 的 ApplicationRequest，调用 AgentApplication；从已提交答案进行两字段投影，不能返回未经提交的 Pi 文本。
 
+夹具迁移补充（2026-09-05）：额外Modify/Test `validation/run.py`、`packages/grid-agent/tests/validation/test_run_harness.py`、`packages/grid-agent/tests/e2e/test_semantic_pi_path.py` 与 `test_offline_walking_skeleton.py`，适配实际descriptor和typed语义事件。原单问未配置请求捕获通道，legacy report仍必须验证完整请求/ACK，不把捕获新功能混入本包。验证器以稳定调用ID合并start/result计数，保留全部能力观察和旧无ID轨迹；三个真实调用不得因五条事件被误计为五次调用、造成预算假超限。
+
+进度兼容补充（2026-09-05）：统一执行器时不得丢失已发布的provider/model/timeout/retry启动摘要及等待心跳。增加最小中立Kernel运行时事件 `application_provider_resolved`（仅允许安全配置标量）与 `application_waiting`，应用既有ProgressReporter消费；唯一resolve/start路径不变，不重新在适配器解析配置。额外Modify/Test限定 `packages/capability-agent-kernel/src/capability_agent/application/runner.py` 与其 `tests/application/test_runner.py`。事件不提供模型能力、不引入grid语义；observer失败隔离仍由OP-03闭合。
+
 实施设计补充（2026-09-05，只读调查，未启动实现）：保留 canonical `core/domains/turns/output` 布局；由应用适配器将 `core/events.jsonl`、`domains/grid/tool-results/`、`domains/grid/evidence/` 发布为旧根路径的字节保持实体快照。副本不成为 authority 输入，不使用 symlink/hardlink，不将 domain authority 扩大到 run 根。完整成功交付须保留旧路径；发布失败不得删除已提交 canonical 答案。普通离线知识/确定性无执行限制在创建 workspace 前返回，无 provider、无 authority、无 run evidence；在线及 simulator-backed 请求统一 controller 提交。应用投影从同次验证的提交事件和摘要绑定答案读取，不信任 outcome 的展示文本。同步 RUNBOOK 和双语 README 解释 canonical 与兼容副本。备选 eager mirror 增加工具路径事务耦合，暂不采用；通用 domain export SPI 超出单应用兼容需求，暂不新增。
 
-- [ ] 记录现有 question_id、退出码、stdout、stderr、provider/model/base_url/api_key_env、offline 的兼容矩阵；写无引用/伪引用、provider 中断、重复 ID、非法 ID 回归测试。
-- [ ] 提取单问适配器；配置解析复用原产品规则；run_id 对齐 question_id，既有 evidence 路径如需桥接由应用投影完成。不能静默改变调用方依赖的 paths。
-- [ ] 让在线 run 经过 OP-01 准入和 controller 提交；普通 offline 知识走确定性路径；offline simulator smoke 继续真实 authority 调用并保存引用。
-- [ ] 使用实际 CLI runner 捕获 stdout，执行以下断言；对错误也检查 envelope 和非零退出码。
+- [x] 记录现有 question_id、退出码、stdout、stderr、provider/model/base_url/api_key_env、offline 的兼容矩阵；写无引用/伪引用、provider 中断、重复 ID、非法 ID 回归测试。
+- [x] 提取单问适配器；配置解析复用原产品规则；run_id 对齐 question_id，既有 evidence 路径如需桥接由应用投影完成。不能静默改变调用方依赖的 paths。
+- [x] 让在线 run 经过 OP-01 准入和 controller 提交；普通 offline 知识走确定性路径；offline simulator smoke 继续真实 authority 调用并保存引用。
+- [x] 使用实际 CLI runner 捕获 stdout，执行以下断言；对错误也检查 envelope 和非零退出码。
 
 ```python
 payload = json.loads(result.stdout)
@@ -162,15 +166,19 @@ assert payload["question_id"] == requested_question_id
 assert isinstance(payload["answer_output"], str)
 ```
 
-- [ ] 运行 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/cli -q` 和 `make test-e2e`；旧命令、离线知识与真实 gridctl 夹具全部通过后，删除这一路重复的启动/提交代码。
+- [x] 运行 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/cli -q` 和 `make test-e2e`；旧命令、离线知识与真实 gridctl 夹具全部通过后，删除这一路重复的启动/提交代码。
 
 **关闭条件**：成功答案可追溯到提交记录；公众 envelope 不变；不能以“至少调用过一个工具”代替问题相关证据。提交主题：`refactor: route single runs through application answer commits`。
+
+验收记录（2026-09-05）：提交 `8e880ed`（安全实体快照）、`30e9270`（统一提交/进度）、`c81c83a`（scripted夹具/验证调用计数）；完整范围自 `f70ed3d` 后。独立Spec/Quality PASS，root聚焦91+3及最终17通过。固定c81c83a主/包两链exit0：doctor、agent775、sim165、Pi/Makefile、E2E31、offline/scripted、24/24；Kernel415、Domain74、应用验收、六wheel/两npm干净安装通过。证据 `runs/optimization/OP-02/gate-{main,packages}-c81c83a.json` 和 `final-review-c81c83a.md`。先前30e9270主链770通过2失败记录保留，不改写。普通离线知识无run；单问原有请求捕获缺省不被误报为新实现；legacy report完整capture/ACK仍验证。未调用付费provider，未关闭Pi风险例外。
 
 ### OP-03：将报告发布与主答案状态分离
 
 **Files**：Modify `packages/capability-agent-kernel/src/capability_agent/application/runner.py`、`application/reporting.py`、`application/output.py`、`packages/grid-agent/src/grid_agent/compat/v1_0_1_report.py`；Test `packages/capability-agent-kernel/tests/application/test_runner.py`、`test_reporting.py`。
 
 **接口**：新增报告发布结果，主结果继续使用已有可空 report_ref 和 diagnostic_refs；输出 schema 无需因展示失败而强制升级。
+
+实施边界补充（2026-09-05）：包括可选report-shell prepare，不仅是提交后的render；包括OP-02新增provider/waiting观察事件。`_call_prompt`只隔离observer，先执行的projector.observe仍属必要准入/持久化。report引用登记失败若store仍健康可返回unavailable；若真实I/O已破坏store，必要application.completed事务仍须失败，不能用宽泛mock或catch假报完成。应用侧验收增加 `packages/grid-agent/tests/application/test_generic_entrypoint.py`，验证真实pandapower报告壳失败不撤销已提交答案和可用answers.jsonl。
 
 ```python
 from dataclasses import dataclass

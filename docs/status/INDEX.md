@@ -12,13 +12,13 @@
 | `climb/research-tree.md` | Generated Workstream C inventory reference-domain scoring summary; resume-load. |
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
 | `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |
-| `2026-09-05-capstone-design-code-review.md` | Active optimization evidence baseline R01–R13; findings are not yet fixed. |
+| `2026-09-05-capstone-design-code-review.md` | Optimization evidence baseline R01–R13; current remediation status belongs to the canonical plan. |
 
 ## External execution anchors
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist OP-01–OP-14, dependencies, acceptance and rollback; active implementation package OP-02. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist OP-01–OP-14, dependencies, acceptance and rollback; active implementation package OP-03. |
 
 ## Climb storage and configuration
 
