@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ import capability_agent.application.runner as runner_module
 
 from capability_agent.application.output import (
     BindingIdentity,
+    CoreRunResult,
     FrameworkOutputComposer,
     ValidatedDomainOutput,
 )
@@ -17,6 +19,7 @@ from capability_agent.application.context_store import ApplicationContextStore
 from capability_agent.application.projector import ApplicationInvocationProjector
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.application.turns import TurnController
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.tools.catalog import CompositeToolCatalog
 
@@ -71,6 +74,22 @@ class FakeController:
         return SimpleNamespace(status="failed", error=kwargs.get("error"))
 
 
+def _valid_binding(*, endpoint: object | None = None) -> object:
+    values = {
+        "binding_id": "alpha",
+        "profile": SimpleNamespace(
+            policy_provider=SimpleNamespace(load=lambda: None),
+            guide_provider=SimpleNamespace(load=lambda: ()),
+            validate_answer_admission_declaration=lambda: None,
+            create_answer_admission_policy=lambda _authority: SimpleNamespace(admit=lambda _request: None),
+        ),
+        "runtime": SimpleNamespace(authority=object()),
+    }
+    if endpoint is not None:
+        values["endpoint"] = endpoint
+    return SimpleNamespace(**values)
+
+
 def test_runner_builds_default_invocation_projector_for_real_run_state(
     tmp_path: Path,
 ) -> None:
@@ -122,7 +141,16 @@ def test_runner_binds_current_prompt_projection_references_to_answer(
 
     transport = ProjectingTransport(events, answers=[])
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = SimpleNamespace(
+        binding_id="alpha",
+        profile=SimpleNamespace(
+            policy_provider=SimpleNamespace(load=lambda: None),
+            guide_provider=SimpleNamespace(load=lambda: ()),
+            validate_answer_admission_declaration=lambda: None,
+            create_answer_admission_policy=lambda _authority: SimpleNamespace(admit=lambda _request: None),
+        ),
+        runtime=SimpleNamespace(authority=object()),
+    )
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -165,7 +193,16 @@ def test_runner_checkpoints_mutable_report_after_each_finalized_answer(
 
     transport = FakeTransport(events)
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = SimpleNamespace(
+        binding_id="alpha",
+        profile=SimpleNamespace(
+            policy_provider=SimpleNamespace(load=lambda: None),
+            guide_provider=SimpleNamespace(load=lambda: ()),
+            validate_answer_admission_declaration=lambda: None,
+            create_answer_admission_policy=lambda _authority: SimpleNamespace(admit=lambda _request: None),
+        ),
+        runtime=SimpleNamespace(authority=object()),
+    )
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -201,13 +238,81 @@ def test_runner_checkpoints_mutable_report_after_each_finalized_answer(
     assert workspace.output_path.joinpath("report.md").read_text(encoding="utf-8") == "report-3"
 
 
+def test_report_marks_fabricated_answer_sidecar_unknown_without_durable_submission_event(
+    tmp_path: Path,
+) -> None:
+    source_workspace = ApplicationWorkspace.create(
+        tmp_path / "source", run_id="source-run", binding_ids=("grid",)
+    )
+    source_store = ApplicationContextStore.initialize(
+        source_workspace, domains={"grid": "grid-state/1.0"}
+    )
+    authority = SimpleNamespace(
+        authority_id="grid", workspace_root=source_workspace.domain_roots["grid"],
+        verify_result=lambda _ref: object(), verify_evidence=lambda _ref: object(),
+    )
+    admission = SimpleNamespace(admit=lambda request: __import__(
+        "capability_agent.domain.answer_admission", fromlist=["AnswerAdmissionDecision"]
+    ).AnswerAdmissionDecision("limited", "limited", request.answer_output, ()))
+    binding = SimpleNamespace(
+        binding_id="grid",
+        profile=SimpleNamespace(
+            manifest=SimpleNamespace(authority_id="grid"), answer_policy=SimpleNamespace(
+                validate_submission=lambda _submission: None
+            ),
+            create_answer_admission_policy=lambda _authority: admission,
+            answer_admission_capabilities=frozenset({"authority_backed", "limited"}),
+        ),
+    )
+    prepared = SimpleNamespace(binding=binding, runtime=SimpleNamespace(authority=authority))
+    source_controller = TurnController(
+        store=source_store, workspace=source_workspace, bindings={"grid": prepared}
+    )
+    committed = source_controller.submit(
+        source_controller.start(1, "question"), answer_output="answer", duration_seconds=0.1
+    )
+    target_workspace = ApplicationWorkspace.create(
+        tmp_path / "target", run_id="target-run", binding_ids=("grid",)
+    )
+    target_store = ApplicationContextStore.initialize(
+        target_workspace, domains={"grid": "grid-state/1.0"}
+    )
+    target_turn = target_workspace.turns_path / committed.turn_id
+    target_turn.mkdir()
+    assert committed.answer_path is not None
+    shutil.copy2(committed.answer_path, target_turn / "answer.json")
+    shutil.copy2(
+        committed.answer_path.with_name("answer-admission.json"),
+        target_turn / "answer-admission.json",
+    )
+    rendered: list[dict[str, object]] = []
+    application = AgentApplication(
+        profile=SimpleNamespace(manifest=SimpleNamespace(application_id="fixture", version="1")),
+        prepared_application=SimpleNamespace(bindings={"grid": prepared}),
+        report_shell=SimpleNamespace(render=lambda **kwargs: rendered.append(kwargs) or "report"),
+    )
+    fake_answer = SimpleNamespace(
+        turn_id=committed.turn_id, answer_output="answer", answer_ref=committed.answer_ref,
+        admission_ref=committed.admission_ref, answer_path=target_turn / "answer.json", result_refs=(),
+    )
+
+    application._render_report(
+        request=ApplicationRequest(application_id="fixture", questions=("question",)),
+        workspace=target_workspace, store=target_store,
+        core=CoreRunResult(application_id="fixture", application_version="1", run_id="target-run", status="completed", answer_refs=(), report_ref=None, diagnostic_refs=()),
+        completed_answers=(fake_answer,),
+    )
+
+    assert rendered[-1]["assurances"] == ("unknown",)
+
+
 def test_runner_processes_questions_in_order_and_preserves_two_output_layers(
     tmp_path: Path,
 ) -> None:
     events: list[str] = []
     transport = FakeTransport(events)
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = _valid_binding()
     profile = SimpleNamespace(
         manifest=SimpleNamespace(
             application_id="fixture-app",
@@ -371,6 +476,47 @@ def test_runner_rejects_invalid_answer_admission_factory_before_provider_creatio
     assert "provider.start" not in events
 
 
+@pytest.mark.parametrize("binding", (SimpleNamespace(binding_id="alpha"), SimpleNamespace(
+    binding_id="alpha", profile=SimpleNamespace(
+        policy_provider=SimpleNamespace(load=lambda: None),
+        guide_provider=SimpleNamespace(load=lambda: ()),
+        validate_answer_admission_declaration=lambda: None,
+        create_answer_admission_policy=lambda _authority: SimpleNamespace(admit=lambda _request: None),
+    ),
+    runtime=SimpleNamespace(),
+)))
+def test_runner_rejects_missing_profile_or_current_run_authority_before_provider_creation(
+    tmp_path: Path, binding: object
+) -> None:
+    events: list[str] = []
+    provider_calls: list[str] = []
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        workspace_root=tmp_path,
+        catalog=object(),
+        provider_factory=lambda **_: provider_calls.append("factory") or FakeTransport(events),
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert provider_calls == []
+    assert "provider.start" not in events
+
+
 def test_runner_does_not_start_provider_when_preflight_fails_and_closes_reverse_order(
     tmp_path: Path,
 ) -> None:
@@ -429,7 +575,7 @@ def test_runner_propagates_baseexception_and_still_stops_started_transport(
             raise KeyboardInterrupt("secret-provider-detail")
 
     transport = BaseExceptionTransport(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = _valid_binding()
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -472,7 +618,7 @@ def test_runner_closes_failed_turn_before_returning_sanitized_failure(
 
     transport = FailingTransport(events)
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = _valid_binding()
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -516,7 +662,7 @@ def test_runner_attempts_cleanup_after_stop_baseexception(tmp_path: Path) -> Non
             events.append("endpoint.close")
 
     transport = StopInterruptTransport(events)
-    binding = SimpleNamespace(binding_id="alpha", endpoint=InterruptEndpoint())
+    binding = _valid_binding(endpoint=InterruptEndpoint())
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -566,7 +712,7 @@ def test_runner_propagates_cleanup_baseexception(tmp_path: Path) -> None:
             raise RuntimeError("provider detail")
 
     transport = CleanTransport(events)
-    binding = SimpleNamespace(binding_id="alpha", endpoint=InterruptEndpoint())
+    binding = _valid_binding(endpoint=InterruptEndpoint())
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -614,7 +760,7 @@ def test_runner_preserves_prompt_baseexception_when_cleanup_also_interrupts(
 
     transport = InterruptingTransport(events)
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha", endpoint=InterruptEndpoint())
+    binding = _valid_binding(endpoint=InterruptEndpoint())
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -658,7 +804,7 @@ def test_runner_does_not_claim_completed_when_completion_event_persistence_fails
 
     transport = FakeTransport(events, answers=["answer"])
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = _valid_binding()
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),
@@ -702,7 +848,7 @@ def test_runner_report_publication_replaces_leaf_atomically_without_following_sy
     report_path.symlink_to(outside)
     transport = FakeTransport(events, answers=["answer"])
     controller = FakeController(events)
-    binding = SimpleNamespace(binding_id="alpha")
+    binding = _valid_binding()
     profile = SimpleNamespace(
         manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
         application_policy=SimpleNamespace(load=lambda: None),

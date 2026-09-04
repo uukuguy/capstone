@@ -91,6 +91,9 @@ def _prepared_binding(workspace: ApplicationWorkspace, policy: RecordingPolicy) 
     profile = SimpleNamespace(
         answer_policy=policy,
         create_answer_admission_policy=lambda current_authority: admission,
+        answer_admission_capabilities=frozenset(
+            {"authority_backed", "offline_information", "limited"}
+        ),
         manifest=SimpleNamespace(authority_id=authority.authority_id),
     )
     return SimpleNamespace(
@@ -98,6 +101,13 @@ def _prepared_binding(workspace: ApplicationWorkspace, policy: RecordingPolicy) 
         runtime=SimpleNamespace(authority=authority),
         admission=admission,
     )
+
+
+def _record_current_refs(current: object, *refs: str) -> None:
+    current.store.append(ContextEventDraft(
+        event_type="tool.observation.recorded", turn_id=current.handle.turn_id,
+        payload={"binding_id": "grid", "turn_id": current.handle.turn_id, "result_refs": list(refs)},
+    ))
 
 
 @pytest.fixture
@@ -134,6 +144,7 @@ def test_submit_uses_selected_binding_answer_policy(active_turn) -> None:
         bindings={"grid": current.prepared},
         allowed_refs={RESULT_REF, EVIDENCE_REF},
     )
+    _record_current_refs(current, RESULT_REF, EVIDENCE_REF)
 
     committed = controller.submit(
         current.handle,
@@ -311,6 +322,7 @@ def test_submit_rejects_missing_required_evidence_from_domain_policy(active_turn
         bindings={"grid": current.prepared},
         allowed_refs={RESULT_REF, EVIDENCE_REF},
     )
+    _record_current_refs(current, RESULT_REF, EVIDENCE_REF)
 
     with pytest.raises(AnswerCommitError, match="evidence"):
         controller.submit(
@@ -364,6 +376,85 @@ def test_submit_uses_only_current_turn_admissions(tmp_path: Path) -> None:
     assert committed.answer_output == "answer"
 
 
+def test_submit_rejects_prior_turn_reference_even_when_static_allowlist_contains_it(
+    tmp_path: Path,
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="run-previous-ref", binding_ids=("grid",)
+    )
+    store = ApplicationContextStore.initialize(
+        workspace, domains={"grid": "grid-state/1.0"}
+    )
+    prepared = _prepared_binding(workspace, RecordingPolicy())
+    controller = TurnController(
+        store=store,
+        workspace=workspace,
+        bindings={"grid": prepared},
+        allowed_refs={RESULT_REF},
+    )
+    first = controller.start(1, "first")
+    store.append(ContextEventDraft(
+        event_type="tool.observation.recorded", turn_id=first.turn_id,
+        payload={"binding_id": "grid", "turn_id": first.turn_id, "result_refs": [RESULT_REF]},
+    ))
+    controller.submit(first, answer_output="first", referenced_bindings=("grid",), result_refs=(RESULT_REF,), duration_seconds=0.1)
+    second = controller.start(2, "second")
+
+    with pytest.raises(AnswerCommitError, match="current turn"):
+        controller.submit(second, answer_output="second", referenced_bindings=("grid",), result_refs=(RESULT_REF,), duration_seconds=0.1)
+
+
+def test_submit_accepts_current_turn_reference_when_static_allowlist_also_allows_it(
+    tmp_path: Path,
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="run-current-ref", binding_ids=("grid",)
+    )
+    store = ApplicationContextStore.initialize(
+        workspace, domains={"grid": "grid-state/1.0"}
+    )
+    prepared = _prepared_binding(workspace, RecordingPolicy())
+    controller = TurnController(store=store, workspace=workspace, bindings={"grid": prepared}, allowed_refs={RESULT_REF})
+    handle = controller.start(1, "current")
+    store.append(ContextEventDraft(
+        event_type="tool.observation.recorded", turn_id=handle.turn_id,
+        payload={"binding_id": "grid", "turn_id": handle.turn_id, "result_refs": [RESULT_REF]},
+    ))
+
+    committed = controller.submit(handle, answer_output="current", referenced_bindings=("grid",), result_refs=(RESULT_REF,), duration_seconds=0.1)
+
+    assert committed.admission.assurance == "lineage_verified"
+
+
+def test_submit_rejects_admission_mode_not_declared_by_selected_profile(active_turn) -> None:
+    _store, _workspace, current = active_turn
+    current.prepared.binding.profile.answer_admission_capabilities = frozenset(
+        {"authority_backed", "limited"}
+    )
+    current.prepared.admission.admit = lambda request: AnswerAdmissionDecision(
+        mode="offline_information",
+        assurance="deterministic_information",
+        answer_output="guide",
+        diagnostic_codes=(),
+    )
+    controller = TurnController(
+        store=current.store, workspace=current.workspace, bindings={"grid": current.prepared}
+    )
+
+    with pytest.raises(AnswerCommitError, match="declared"):
+        controller.submit(current.handle, answer_output="model", duration_seconds=0.1)
+
+
+def test_submit_rejects_empty_admitted_answer(active_turn) -> None:
+    _store, _workspace, current = active_turn
+    controller = TurnController(
+        store=current.store, workspace=current.workspace, bindings={"grid": current.prepared}
+    )
+
+    with pytest.raises(AnswerCommitError, match="must not be empty"):
+        controller.submit(current.handle, answer_output="", duration_seconds=0.1)
+
+
 def test_submit_rejects_foreign_run_reference_without_mutating_turn(active_turn) -> None:
     _store, _workspace, current = active_turn
     current.prepared.runtime.authority.foreign_artifact = True
@@ -373,6 +464,7 @@ def test_submit_rejects_foreign_run_reference_without_mutating_turn(active_turn)
         bindings={"grid": current.prepared},
         allowed_refs={RESULT_REF},
     )
+    _record_current_refs(current, RESULT_REF)
 
     with pytest.raises(AnswerCommitError, match="evidence validation"):
         controller.submit(
@@ -396,6 +488,7 @@ def test_submit_rejects_wrong_binding_authority(active_turn) -> None:
         bindings={"grid": current.prepared},
         allowed_refs={RESULT_REF},
     )
+    _record_current_refs(current, RESULT_REF)
 
     with pytest.raises(AnswerCommitError, match="authority"):
         controller.submit(
@@ -471,6 +564,7 @@ def test_submit_does_not_swallow_base_exception_from_authority(active_turn) -> N
         bindings={"grid": current.prepared},
         allowed_refs={RESULT_REF},
     )
+    _record_current_refs(current, RESULT_REF)
 
     with pytest.raises(KeyboardInterrupt):
         controller.submit(

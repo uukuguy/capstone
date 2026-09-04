@@ -603,6 +603,13 @@ class TurnController:
             except Exception:
                 raise AnswerCommitError("domain answer admission failed") from None
             _validate_admission_decision(decision, request)
+            capabilities = getattr(
+                getattr(getattr(prepared, "binding", prepared), "profile", None),
+                "answer_admission_capabilities",
+                None,
+            )
+            if not isinstance(capabilities, frozenset) or decision.mode not in capabilities:
+                raise AnswerCommitError("domain answer admission mode is not declared")
             decisions.append(decision)
         if len(decisions) != 1:
             raise AnswerCommitError("answer admission requires exactly one binding")
@@ -662,11 +669,6 @@ class TurnController:
                             "reference has conflicting binding ownership"
                         )
                     owners[reference] = binding_id
-        for reference, binding_id in self._allowed_ref_owners.items():
-            existing = owners.get(reference)
-            if existing is not None and existing != binding_id:
-                raise AnswerCommitError("reference has conflicting binding ownership")
-            owners[reference] = binding_id
         return owners
 
     def _assert_current_turn_references(
@@ -677,10 +679,15 @@ class TurnController:
     ) -> None:
         for reference in references:
             owner = owners.get(reference)
-            if reference not in self._allowed_refs and owner is None:
+            if owner is None:
                 raise AnswerCommitError(
                     "answer reference was not admitted for the current turn"
                 )
+            if self._allowed_refs and reference not in self._allowed_refs:
+                raise AnswerCommitError("answer reference is not permitted by the allowlist")
+            allowed_owner = self._allowed_ref_owners.get(reference)
+            if allowed_owner is not None and owner != allowed_owner:
+                raise AnswerCommitError("answer reference conflicts with its allowlist binding")
             if owner is not None and owner not in selected:
                 raise AnswerCommitError("answer reference belongs to another binding")
             if owner is None and len(selected) > 1:

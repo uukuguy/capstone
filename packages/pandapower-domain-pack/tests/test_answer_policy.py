@@ -79,6 +79,7 @@ def test_answer_policy_rejects_foreign_binding_submission() -> None:
         ("which line is most loaded?", "Line 7 is first at 91 MW."),
         ("run the N-1 case", "The outage is secure."),
         ("what does this result mean?", "The result is 10 MW."),
+        ("which buses are connected by this line?", "The line connects buses 1 and 2."),
     ],
 )
 def test_admission_without_current_run_results_is_limited(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import inspect
+import json
 import os
 import stat
 import sys
@@ -519,21 +520,26 @@ class AgentApplication:
         for binding_id in sorted(bindings):
             binding = bindings[binding_id]
             profile = _binding_profile(binding)
-            if profile is not None:
-                _call_method(getattr(profile, "policy_provider", None), "load")
-                try:
-                    _call_method(profile, "validate_answer_admission_declaration")
-                    runtime = getattr(binding, "runtime", None)
-                    authority = getattr(runtime, "authority", None)
-                    policy = _call_method(
-                        profile, "create_answer_admission_policy", authority
-                    )
-                    if not callable(getattr(policy, "admit", None)):
-                        raise TypeError("answer admission policy is invalid")
-                except Exception as exc:
-                    raise ApplicationConfigurationError(
-                        f"binding {binding_id!r} answer admission declaration is invalid"
-                    ) from exc
+            if profile is None:
+                raise ApplicationConfigurationError(
+                    f"binding {binding_id!r} profile is unavailable"
+                )
+            _call_method(getattr(profile, "policy_provider", None), "load")
+            try:
+                _call_method(profile, "validate_answer_admission_declaration")
+                runtime = getattr(binding, "runtime", None)
+                authority = getattr(runtime, "authority", None)
+                if authority is None:
+                    raise RuntimeError("current-run authority is unavailable")
+                policy = _call_method(
+                    profile, "create_answer_admission_policy", authority
+                )
+                if not callable(getattr(policy, "admit", None)):
+                    raise TypeError("answer admission policy is invalid")
+            except Exception as exc:
+                raise ApplicationConfigurationError(
+                    f"binding {binding_id!r} answer admission declaration is invalid"
+                ) from exc
         self._hook("policy_composition")
         for binding_id in sorted(bindings):
             profile = _binding_profile(bindings[binding_id])
@@ -985,9 +991,7 @@ class AgentApplication:
             )
             presentation = getattr(profile, "presentation_provider", None)
         answers = tuple(str(getattr(answer, "answer_output", "")) for answer in completed_answers)
-        assurances = tuple(
-            _persisted_answer_assurance(answer) for answer in completed_answers
-        )
+        assurances = _persisted_answer_assurances(completed_answers, workspace)
         references = tuple(
             ref
             for answer in completed_answers
@@ -1425,10 +1429,53 @@ def _with_report_reference(
     return _ReportAwareDomainContext(context, report_ref)
 
 
-def _persisted_answer_assurance(answer: object) -> str:
+def _persisted_answer_assurances(
+    answers: tuple[object, ...], workspace: ApplicationWorkspace
+) -> tuple[str, ...]:
+    """Use the verified ledger once, then bind every display to its event."""
+    try:
+        ApplicationContextStore.replay(workspace)
+        raw_events = workspace.context_events_path.read_bytes().splitlines()
+    except Exception:
+        return tuple("corrupt" for _ in answers)
+    declared: dict[tuple[str, str, str, str], int] = {}
+    try:
+        for raw_event in raw_events:
+            event = json.loads(raw_event)
+            if not isinstance(event, dict) or event.get("event_type") != "answer.submitted":
+                continue
+            payload = event.get("payload")
+            turn_id = event.get("turn_id")
+            if not isinstance(payload, dict) or not isinstance(turn_id, str):
+                continue
+            answer_ref = payload.get("answer_ref")
+            answer_path = payload.get("answer_path")
+            admission_ref = payload.get("admission_ref")
+            if not all(isinstance(value, str) and value for value in (answer_ref, answer_path, admission_ref)):
+                continue
+            key = (turn_id, answer_ref, answer_path, admission_ref)
+            declared[key] = declared.get(key, 0) + 1
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return tuple("corrupt" for _ in answers)
+    return tuple(_persisted_answer_assurance(answer, workspace, declared) for answer in answers)
+
+
+def _persisted_answer_assurance(
+    answer: object,
+    workspace: ApplicationWorkspace,
+    declared: Mapping[tuple[str, str, str, str], int],
+) -> str:
     path = getattr(answer, "answer_path", None)
+    answer_ref = getattr(answer, "answer_ref", None)
     admission_ref = getattr(answer, "admission_ref", None)
-    if not isinstance(path, Path) or not isinstance(admission_ref, str):
+    turn_id = getattr(answer, "turn_id", None)
+    if not all(isinstance(value, str) and value for value in (answer_ref, admission_ref, turn_id)) or not isinstance(path, Path):
+        return "unknown"
+    try:
+        relative_path = str(path.relative_to(workspace.root))
+    except ValueError:
+        return "unknown"
+    if declared.get((turn_id, answer_ref, relative_path, admission_ref)) != 1:
         return "unknown"
     try:
         decision = read_answer_admission_metadata(
