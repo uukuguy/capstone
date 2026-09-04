@@ -23,8 +23,11 @@ class ProviderCatalog(_ProviderCatalog):
     """Read the v1 provider descriptor through the generic catalog parser."""
 
     @classmethod
-    def load(cls, path: Path | None = None) -> "ProviderCatalog":
-        return cls.from_mapping(_load_json(path))
+    def load(
+        cls, path: Path | None = None, *,
+        required_providers: frozenset[str] | set[str] | None = None,
+    ) -> "ProviderCatalog":
+        return cls.from_mapping(_load_json(path), required_providers=required_providers)
 
     @classmethod
     def from_mapping(

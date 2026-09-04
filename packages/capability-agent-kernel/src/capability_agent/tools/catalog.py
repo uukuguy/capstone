@@ -6,7 +6,10 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from capability_agent.application.composition import PreparedBinding
 
 
 _CAPABILITY_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]+$")
@@ -241,7 +244,7 @@ class BoundDomainCatalog:
     @classmethod
     def from_prepared(
         cls,
-        prepared: object,
+        prepared: PreparedBinding,
         *,
         guide_tool_name: str | None = None,
         context_tool_name: str | None = None,

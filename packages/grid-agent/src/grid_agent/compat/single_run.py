@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
+
+from capability_agent.domain.execution import CapabilityExecutor
 
 from capability_agent.application import ApplicationContextStore, ApplicationRequest
 from capability_agent.domain import read_answer_admission_metadata
@@ -167,13 +169,13 @@ def _deterministic_transport_factory(*, bindings: Mapping[str, object], catalog:
     executor = getattr(getattr(binding, "runtime", None), "executor", None)
     if not callable(getattr(executor, "invoke", None)):
         raise SingleRunCompatibilityError("prepared grid executor is unavailable")
-    return _DeterministicDiagnosticTransport(executor, catalog)
+    return _DeterministicDiagnosticTransport(cast(CapabilityExecutor, executor), catalog)
 
 
 class _DeterministicDiagnosticTransport:
     """Provider-shaped transport that emits every real executor call semantically."""
 
-    def __init__(self, executor: object, catalog: object | None = None) -> None:
+    def __init__(self, executor: CapabilityExecutor, catalog: object | None = None) -> None:
         self._executor = executor
         self._catalog = catalog
         self._sequence = 0

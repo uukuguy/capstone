@@ -106,7 +106,7 @@ def _analysis_context(
     runtime_payload = getattr(generic_core, "runtime", {})
     run_id = str(getattr(context, "run_id", (core or {}).get("run_id", "run")))
     status = str(getattr(context, "status", "running"))
-    if status not in {"initializing", "running", "completed", "failed"}:
+    if status != "initializing" and status != "running" and status != "completed" and status != "failed":
         status = "running"
     report_turns = [
         _turn_record(index, question, answers, turns, run_id)

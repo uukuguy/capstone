@@ -17,6 +17,7 @@ from typing import Any, Literal, cast
 
 from capability_agent.application.composition import (
     PreparedApplication,
+    PreparedBinding,
     prepare_application,
 )
 from capability_agent.application._report_files import write_report_atomically
@@ -580,7 +581,7 @@ class AgentApplication:
             return self.catalog
         try:
             domains = tuple(
-                BoundDomainCatalog.from_prepared(bindings[binding_id])
+                BoundDomainCatalog.from_prepared(cast(PreparedBinding, bindings[binding_id]))
                 for binding_id in sorted(bindings)
             )
             manifest = getattr(self.profile, "manifest", None)
@@ -1297,7 +1298,7 @@ def _safe_failure(error: BaseException) -> str:
 
 def _domain_output_schema(
     binding: object | None, identity: BindingIdentity
-) -> tuple[str, tuple[Any, ...]]:
+) -> str:
     profile = getattr(binding, "profile", None) if binding is not None else None
     profile = profile or getattr(getattr(binding, "binding", None), "profile", None)
     contract = getattr(profile, "output_contract", None)
@@ -1427,7 +1428,7 @@ def _call_prompt(
     projector: object | None,
     turn_id: str | None,
     semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
-) -> str:
+) -> tuple[str, tuple[Any, ...]]:
     method = getattr(transport, "prompt_and_wait", None)
     if not callable(method):
         method = getattr(transport, "prompt", None)
@@ -1552,7 +1553,11 @@ def _persisted_answer_assurances(
             answer_ref = payload.get("answer_ref")
             answer_path = payload.get("answer_path")
             admission_ref = payload.get("admission_ref")
-            if not all(isinstance(value, str) and value for value in (answer_ref, answer_path, admission_ref)):
+            if not (
+                isinstance(answer_ref, str) and answer_ref
+                and isinstance(answer_path, str) and answer_path
+                and isinstance(admission_ref, str) and admission_ref
+            ):
                 continue
             key = (turn_id, answer_ref, answer_path, admission_ref)
             declared[key] = declared.get(key, 0) + 1
@@ -1570,7 +1575,12 @@ def _persisted_answer_assurance(
     answer_ref = getattr(answer, "answer_ref", None)
     admission_ref = getattr(answer, "admission_ref", None)
     turn_id = getattr(answer, "turn_id", None)
-    if not all(isinstance(value, str) and value for value in (answer_ref, admission_ref, turn_id)) or not isinstance(path, Path):
+    if not (
+        isinstance(answer_ref, str) and answer_ref
+        and isinstance(admission_ref, str) and admission_ref
+        and isinstance(turn_id, str) and turn_id
+        and isinstance(path, Path)
+    ):
         return "unknown"
     try:
         relative_path = str(path.relative_to(workspace.root))

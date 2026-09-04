@@ -7,7 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 
 EXPECTED_SCHEMA_VERSION = 2
@@ -79,7 +79,7 @@ class PiRuntimeLock:
     sha256: str
 
     @classmethod
-    def load(cls, path: Path | None = None) -> "PiRuntimeLock":
+    def load(cls, path: Path | None = None) -> Self:
         lock_path = (path or default_lock_path()).resolve()
         try:
             raw = lock_path.read_bytes()

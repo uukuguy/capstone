@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -94,7 +95,7 @@ def answer_diagnostic(question: str, client: CapabilityClient) -> str:
                 "identifier": line_id,
             },
         )
-        branch_ref = str(dict(element["element"])["asset_ref"])
+        branch_ref = str(_mapping(element.get("element"), "element")["asset_ref"])
         result = client.invoke(
             "analysis.contingency.n_minus_one.run",
             {"context_ref": context_ref, "branch_refs": [branch_ref]},
@@ -113,7 +114,7 @@ def answer_diagnostic(question: str, client: CapabilityClient) -> str:
                 "element_kind": "line",
             },
         )
-        branch_refs = [str(branch["branch_ref"]) for branch in ranking["branches"]]
+        branch_refs = [str(_mapping(branch, "branch")["branch_ref"]) for branch in _items(ranking.get("branches"), "branches")]
         result = client.invoke(
             "analysis.contingency.n_minus_one.run",
             {"context_ref": context_ref, "branch_refs": branch_refs},
@@ -239,27 +240,27 @@ def _answer_line_endpoints(client: CapabilityClient, context_ref: str, line_id: 
         {"context_ref": context_ref, "kind": "line", "namespace": "pandapower_index", "identifier": line_id},
     )
     return (
-        f"线路 {line['branch']['alias']} 连接母线 {line['from_bus']['name']} 与 {line['to_bus']['name']}；"
+        f"线路 {_mapping(line.get('branch'), 'branch')['alias']} 连接母线 {_mapping(line.get('from_bus'), 'from_bus')['name']} 与 {_mapping(line.get('to_bus'), 'to_bus')['name']}；"
         f"证据 {line['evidence_ref']}。"
     )
 
 
 def _answer_powerflow(powerflow: dict[str, object]) -> str:
-    loss = dict(powerflow["total_active_loss"])
-    evidence = ", ".join(str(ref) for ref in powerflow["evidence_refs"])
+    loss = _mapping(powerflow.get("total_active_loss"), "total_active_loss")
+    evidence = ", ".join(str(ref) for ref in _items(powerflow.get("evidence_refs"), "evidence_refs"))
     return (
-        f"IEEE-39 交流潮流已收敛；总有功网损为 {float(loss['value']):.14f} {loss['unit']}，"
+        f"IEEE-39 交流潮流已收敛；总有功网损为 {_number(loss.get('value'), 'loss value'):.14f} {loss['unit']}，"
         f"结果 {powerflow['result_ref']}，证据 {evidence}。"
     )
 
 
 def _answer_ranking(ranking: dict[str, object], powerflow: dict[str, object]) -> str:
-    branches = list(ranking["branches"])
+    branches = [_mapping(branch, "branch") for branch in _items(ranking.get("branches"), "branches")]
     parts = [
-        f"线路 {branch['pandapower_index']} {float(branch['metric_value']):.2f}%"
+        f"线路 {branch['pandapower_index']} {_number(branch.get('metric_value'), 'metric value'):.2f}%"
         for branch in branches
     ]
-    evidence = ", ".join(str(ref) for ref in powerflow["evidence_refs"])
+    evidence = ", ".join(str(ref) for ref in _items(powerflow.get("evidence_refs"), "evidence_refs"))
     return (
         f"IEEE-39 负载率最高的 {len(branches)} 条线路为：{'; '.join(parts)}。"
         f"排序基于结果 {ranking['result_ref']}，证据 {evidence}。"
@@ -267,32 +268,50 @@ def _answer_ranking(ranking: dict[str, object], powerflow: dict[str, object]) ->
 
 
 def _answer_n_minus_one(result: dict[str, object], line_id: str) -> str:
-    scenarios = list(result["scenarios"])
-    scenario = dict(scenarios[0])
-    violations = list(scenario["violations"])
+    scenarios = _items(result.get("scenarios"), "scenarios")
+    scenario = _mapping(scenarios[0], "scenario")
+    violations = _items(scenario.get("violations"), "violations")
     if violations:
         summary = f"发现 {len(violations)} 项越限"
     else:
         summary = "未发现所检查类型的越限"
     return (
         f"线路 {line_id} 的 N-1 静态安全校核状态为 {scenario['status']}，{summary}；"
-        f"最大线路负载率 {float(scenario.get('max_loading_percent', 0.0)):.2f}%。"
+        f"最大线路负载率 {_number(scenario.get('max_loading_percent', 0.0), 'max loading'):.2f}%。"
         f"结果 {result['result_ref']}，证据 {scenario['evidence_ref']}。"
     )
 
 
 def _answer_fault_ranking(result: dict[str, object]) -> str:
     scenarios = sorted(
-        list(result["scenarios"]),
-        key=lambda item: (len(item["violations"]), float(item.get("max_loading_percent", 0.0))),
+        [_mapping(item, "scenario") for item in _items(result.get("scenarios"), "scenarios")],
+        key=lambda item: (len(_items(item.get("violations"), "violations")), _number(item.get("max_loading_percent", 0.0), "max loading")),
         reverse=True,
     )
     parts = [
         (
-            f"线路 {scenario['pandapower_index']} 越限 {len(scenario['violations'])} 项，"
-            f"最大负载率 {float(scenario.get('max_loading_percent', 0.0)):.2f}%"
+            f"线路 {scenario['pandapower_index']} 越限 {len(_items(scenario.get('violations'), 'violations'))} 项，"
+            f"最大负载率 {_number(scenario.get('max_loading_percent', 0.0), 'max loading'):.2f}%"
         )
         for scenario in scenarios
     ]
-    evidence = ", ".join(str(ref) for ref in result["evidence_refs"])
+    evidence = ", ".join(str(ref) for ref in _items(result.get("evidence_refs"), "evidence_refs"))
     return f"关键线路故障分析排序：{'; '.join(parts)}。结果 {result['result_ref']}，证据 {evidence}。"
+
+
+def _mapping(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{label} must be an object")
+    return value
+
+
+def _items(value: object, label: str) -> Sequence[object]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise ValueError(f"{label} must be an array")
+    return value
+
+
+def _number(value: object, label: str) -> float:
+    if not isinstance(value, int | float):
+        raise ValueError(f"{label} must be numeric")
+    return float(value)

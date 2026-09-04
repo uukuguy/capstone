@@ -117,7 +117,8 @@ with warnings.catch_warnings():
     )
 
     class ValidatedDomainOutput(_StrictFrozenModel):
-        schema: str
+        # Public wire/attribute contract predates Pydantic's deprecated schema method.
+        schema: str  # pyright: ignore[reportIncompatibleMethodOverride]
         status: str
         payload: Mapping[str, object]
 
@@ -135,7 +136,8 @@ with warnings.catch_warnings():
     class BoundDomainOutput(_StrictFrozenModel):
         domain_id: str
         domain_version: str
-        schema: str
+        # Preserve the public schema attribute and wire key, not BaseModel.schema().
+        schema: str  # pyright: ignore[reportIncompatibleMethodOverride]
         status: str
         payload: Mapping[str, object]
 
@@ -146,7 +148,8 @@ with warnings.catch_warnings():
 
 
     class ApplicationResult(_StrictFrozenModel):
-        schema: str
+        # Preserve the public schema attribute and wire key, not BaseModel.schema().
+        schema: str  # pyright: ignore[reportIncompatibleMethodOverride]
         core: CoreRunResult
         domains: Mapping[str, BoundDomainOutput]
 

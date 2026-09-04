@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, Mapping, Protocol, runtime_checkable
+from typing import Any, Literal, Mapping, Protocol, Self, runtime_checkable
 
 from capability_agent.runtime.models import ConfigurationError
 
@@ -81,7 +81,7 @@ class ProviderCatalog:
         path: Path | None = None,
         *,
         required_providers: frozenset[str] | set[str] | None = None,
-    ) -> "ProviderCatalog":
+    ) -> Self:
         catalog_path = path or _default_catalog_path()
         try:
             raw = json.loads(catalog_path.read_text(encoding="utf-8"))
@@ -95,7 +95,7 @@ class ProviderCatalog:
         raw: Mapping[str, Any],
         *,
         required_providers: frozenset[str] | set[str] | None = None,
-    ) -> "ProviderCatalog":
+    ) -> Self:
         if not isinstance(raw, Mapping):
             raise ConfigurationError("provider catalog must be an object")
         unknown = set(raw).difference(_CATALOG_FIELDS)

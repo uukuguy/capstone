@@ -29,7 +29,7 @@ def truthful_limitation(answer: str, arguments: Mapping[str, object]) -> bool:
     return any(term in lowered for term in ("不存在", "未找到", "不支持", "limitation", "not found"))
 
 
-def declared_fields_match(actual: JsonValue, expected: JsonValue) -> bool:
+def declared_fields_match(actual: object, expected: object) -> bool:
     if isinstance(expected, dict):
         return isinstance(actual, dict) and all(
             key in actual and declared_fields_match(actual[key], value) for key, value in expected.items()
@@ -68,9 +68,18 @@ def result_satisfies(event: ToolResultEvent, arguments: Mapping[str, JsonValue])
     try:
         if any(not _path_value(event.result, str(path)) for path in nonempty_paths):
             return False
-        return all(float(_path_value(event.result, str(path))) >= float(value) for path, value in minimums.items())
+        return all(
+            _numeric(_path_value(event.result, str(path))) >= _numeric(value)
+            for path, value in minimums.items()
+        )
     except (KeyError, IndexError, TypeError, ValueError):
         return False
+
+
+def _numeric(value: object) -> float:
+    if not isinstance(value, int | float | str):
+        raise TypeError("value is not numeric")
+    return float(value)
 
 
 def topology_branch_endpoints(event: ToolResultEvent, arguments: Mapping[str, JsonValue]) -> bool:

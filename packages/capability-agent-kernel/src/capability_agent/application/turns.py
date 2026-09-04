@@ -16,7 +16,7 @@ from collections.abc import Iterable, Mapping, Sequence, Set
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from capability_agent.application.context_models import ContextEventDraft
 from capability_agent.application.context_store import ApplicationContextStore
@@ -26,7 +26,8 @@ from capability_agent.application.errors import (
     CapabilityAgentError,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
-from capability_agent.domain.answer_admission import AnswerAdmissionDecision, AnswerAdmissionInput
+from capability_agent.domain.answer_admission import AnswerAdmissionDecision, AnswerAdmissionInput, AnswerAdmissionPolicy
+from capability_agent.domain.policy import AnswerEvidencePolicy
 from capability_agent.trajectory.answers import (
     AnswerClaim,
     AnswerReferencePolicy,
@@ -528,8 +529,8 @@ class TurnController:
                     ),
                 )
             )
-        except BaseException as error:
-            if not isinstance(error, Exception):
+        except BaseException as persistence_error:
+            if not isinstance(persistence_error, Exception):
                 raise
             raise AnswerCommitError("turn failure persistence failed") from None
         if publish_answer:
@@ -846,16 +847,16 @@ def _binding_authority(prepared: object) -> object:
     return authority
 
 
-def _binding_answer_policy(prepared: object) -> object:
+def _binding_answer_policy(prepared: object) -> AnswerEvidencePolicy:
     binding = getattr(prepared, "binding", prepared)
     profile = getattr(binding, "profile", None)
     policy = getattr(profile, "answer_policy", None)
     if policy is None:
         raise AnswerCommitError("prepared binding has no answer policy")
-    return policy
+    return cast(AnswerEvidencePolicy, policy)
 
 
-def _binding_answer_admission_policy(prepared: object, authority: object) -> object:
+def _binding_answer_admission_policy(prepared: object, authority: object) -> AnswerAdmissionPolicy:
     binding = getattr(prepared, "binding", prepared)
     profile = getattr(binding, "profile", None)
     factory = getattr(profile, "create_answer_admission_policy", None)
@@ -867,7 +868,7 @@ def _binding_answer_admission_policy(prepared: object, authority: object) -> obj
         raise AnswerCommitError("prepared binding answer admission is invalid") from None
     if not callable(getattr(policy, "admit", None)):
         raise AnswerCommitError("prepared binding answer admission is invalid")
-    return policy
+    return cast(AnswerAdmissionPolicy, policy)
 
 
 def _validate_admission_decision(
@@ -967,7 +968,9 @@ def _audit_binding_references(
     if diagnostics is None:
         return ()
     try:
-        diagnostics_tuple = tuple(diagnostics)
+        # The dynamic authority hook is validated by tuple conversion below;
+        # preserve support for iterables implemented through __getitem__ too.
+        diagnostics_tuple = tuple(cast(Iterable[object], diagnostics))
     except TypeError:
         raise AuthorityIntegrityError("binding answer audit returned invalid diagnostics") from None
     for diagnostic in diagnostics_tuple:

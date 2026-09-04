@@ -76,6 +76,7 @@ class _CredentialScreeningExecutor:
     def invoke(
         self, capability: str, arguments: dict[str, object]
     ) -> dict[str, object]:
+        result: dict[str, object] = {}
         invocation_failed = False
         try:
             result = self._executor.invoke(capability, arguments)
@@ -438,6 +439,7 @@ def _policy_directives(fragment: str) -> tuple[set[str], set[str]]:
 def _issue_credential_lease(
     broker: CredentialBroker, binding: DomainBinding
 ) -> _CredentialSnapshot:
+    lease: CredentialLease | None = None
     lease_failed = False
     try:
         lease = broker.issue(
@@ -446,10 +448,12 @@ def _issue_credential_lease(
         )
     except Exception:
         lease_failed = True
-    if lease_failed:
+    if lease_failed or lease is None:
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} credential lease failed"
         )
+    scope_id = ""
+    credential_values: dict[str, str] = {}
     snapshot_failed = False
     try:
         scope_id = lease.scope_id
@@ -482,6 +486,7 @@ def _prepare_endpoint(
 ) -> PreparedDomainEndpoint:
     provisioner = binding.profile.provisioner
     assert provisioner is not None
+    endpoint: PreparedDomainEndpoint | None = None
     provisioning_failed = False
     try:
         endpoint = provisioner.prepare(
@@ -491,7 +496,7 @@ def _prepare_endpoint(
         )
     except Exception:
         provisioning_failed = True
-    if provisioning_failed:
+    if provisioning_failed or endpoint is None:
         raise DomainProvisioningError(
             f"binding {binding.binding_id!r} provisioning failed"
         )
@@ -521,6 +526,7 @@ def _prepare_endpoint_metadata(
     endpoint: PreparedDomainEndpoint,
     lease: CredentialLease,
 ) -> Mapping[str, object]:
+    metadata: Mapping[str, object] = {}
     metadata_failed = False
     try:
         metadata = _snapshot_endpoint_metadata(endpoint.metadata)

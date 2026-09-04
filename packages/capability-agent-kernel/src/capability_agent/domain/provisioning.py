@@ -13,13 +13,19 @@ if TYPE_CHECKING:
 
 
 class CredentialLease(Protocol):
-    scope_id: str
-    credentials: Mapping[str, str]
+    @property
+    def scope_id(self) -> str: ...
+
+    @property
+    def credentials(self) -> Mapping[str, str]: ...
 
 
 class PreparedDomainEndpoint(Protocol):
-    executor: CapabilityExecutor
-    metadata: Mapping[str, object]
+    @property
+    def executor(self) -> CapabilityExecutor: ...
+
+    @property
+    def metadata(self) -> Mapping[str, object]: ...
 
     def close(self) -> None: ...
 

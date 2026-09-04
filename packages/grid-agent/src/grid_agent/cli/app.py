@@ -193,15 +193,15 @@ class _ProgressReporter:
         )
         self._write(f"调用输入: {self.question}")
 
-    def on_event(self, event: dict[str, Any]) -> None:
+    def on_event(self, event: Mapping[str, object]) -> None:
         event_type = str(event.get("type", "unknown"))
         if event_type == "application_provider_resolved":
             self.started(
                 str(event["provider"]),
                 str(event["model"]),
                 str(event["run_id"]),
-                timeout_seconds=float(event["timeout_seconds"]),
-                max_retries=int(event["max_retries"]),
+                timeout_seconds=_event_number(event.get("timeout_seconds"), 0.0),
+                max_retries=int(_event_number(event.get("max_retries"), 0)),
             )
         elif event_type == "application_waiting":
             self.heartbeat()
@@ -235,7 +235,7 @@ class _ProgressReporter:
             self._write(f"工具{status}: {event.get('toolName', 'unknown')} 输出: {_summary(json.dumps(result, ensure_ascii=False))}")
         elif event_type == "auto_retry_start":
             self._write(
-                f"模型请求失败，{event.get('delayMs', 0) / 1000:g}s 后第 "
+                f"模型请求失败，{_event_number(event.get('delayMs'), 0) / 1000:g}s 后第 "
                 f"{event.get('attempt', '?')}/{event.get('maxAttempts', '?')} 次重试: "
                 f"{_summary(str(event.get('errorMessage', 'unknown error')))}"
             )
@@ -262,6 +262,10 @@ class _ProgressReporter:
 
     def _write(self, message: str) -> None:
         typer.echo(f"[{time.monotonic() - self.started_at:6.1f}s] {message}", err=True)
+
+
+def _event_number(value: object, default: int | float) -> int | float:
+    return value if isinstance(value, int | float) else default
 
 
 def _summary(value: str, limit: int = 200) -> str:

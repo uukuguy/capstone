@@ -292,7 +292,9 @@ def read_run_observations(run_path: Path) -> RunObservation:
             continue
         capability = str(payload["capability"])
         start = starts.get(capability, []).pop(0) if starts.get(capability) else ""
-        result = payload.get("result") if isinstance(payload.get("result"), Mapping) else {}
+        result: Mapping[str, Any] = (
+            payload_result if isinstance(payload_result := payload.get("result"), Mapping) else {}
+        )
         ok = payload.get("ok") is True
         steps.append(AnalysisStep(capability, _seconds_between(start, str(event.get("timestamp", ""))), _step_summary(capability, result), ok))
         if capability == "context.open" and ok:
@@ -390,7 +392,8 @@ def _describe_evidence(run_path: Path, reference: str) -> EvidenceSource:
 
 def _evidence_description(document: Mapping[str, Any]) -> str:
     evidence_type = document.get("evidence_type")
-    facts = document.get("facts") if isinstance(document.get("facts"), Mapping) else {}
+    raw_facts = document.get("facts")
+    facts: Mapping[str, Any] = raw_facts if isinstance(raw_facts, Mapping) else {}
     if evidence_type == "network_fact":
         return "网络拓扑事实：已持久化该支路两端母线的来源记录"
     if evidence_type == "analysis_result":

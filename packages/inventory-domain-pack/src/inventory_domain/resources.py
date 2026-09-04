@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from importlib.resources import as_file, files
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import ClassVar, Self
+from typing import ClassVar
 
 
 class InventoryResourceError(RuntimeError):
@@ -57,7 +57,7 @@ class InventoryResourceSet:
     _cached: ClassVar["InventoryResourceSet | None"] = None
 
     @classmethod
-    def load(cls) -> Self:
+    def load(cls) -> InventoryResourceSet:
         cached = cls._cached
         if cached is not None and not cached._owner.closed:
             return cached
