@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-03。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-05。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -41,9 +41,9 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | --- | --- | --- | --- | --- | --- |
 | OP-01 | 1 | 答案模式、领域准入、事实保证范围 R01 | 无 | DONE | cbc6d97；独立复审、定向66及固定源码完整门禁通过，详见任务验收记录 |
 | OP-02 | 1 | 单问 run 统一提交 R02 | OP-01 | DONE | c81c83a；独立复审、focused91+3/17、固定源码完整门禁通过，详见验收记录 |
-| OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | RUNNING | 依赖已关闭；按窄展示/观察边界设计开始TDD实施 |
+| OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | DONE | 6ad5df4；独立复审与固定源码完整主/包门禁exit0，详见验收记录 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
-| OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | PLANNED | 未执行 |
+| OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | RUNNING | 依赖已关闭；从受控inventory基线修复开始 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | PLANNED | 未执行 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
@@ -195,11 +195,11 @@ class ReportPublication:
     diagnostic_codes: tuple[str, ...]
 ```
 
-- [ ] 将现有报告 symlink 测试拆成两个断言：拒绝越界写入、已接受答案仍可返回。新增 renderer 异常、checkpoint I/O 异常、final admission 异常、observer 异常及答案主记录 I/O 异常。
-- [ ] 在明确的展示边界捕获普通异常，返回 unavailable、report_ref=None；保留安全拒绝，不跟随 symlink，不改变外部文件。
-- [ ] 诊断采用固定 code 与运行关联；如诊断工件写入也失败，仅尝试安全 stderr。KeyboardInterrupt/SystemExit 正常传播，cleanup 不覆盖主异常。
-- [ ] 逐题报告失败后继续下一题。只在答案与必要状态提交成功后标 completed；不能捕获整个业务流程并无条件返回成功。
-- [ ] 执行参数化用例中的核心断言：
+- [x] 将现有报告 symlink 测试拆成两个断言：拒绝越界写入、已接受答案仍可返回。新增 renderer 异常、checkpoint I/O 异常、final admission 异常、observer 异常及答案主记录 I/O 异常。
+- [x] 在明确的展示边界捕获普通异常，返回 unavailable、report_ref=None；保留安全拒绝，不跟随 symlink，不改变外部文件。
+- [x] 诊断采用固定 code 与运行关联；如诊断工件写入也失败，仅尝试安全 stderr。KeyboardInterrupt/SystemExit 正常传播，cleanup 不覆盖主异常。
+- [x] 逐题报告失败后继续下一题。只在答案与必要状态提交成功后标 completed；不能捕获整个业务流程并无条件返回成功。
+- [x] 执行参数化用例中的核心断言：
 
 ```python
 assert outcome.status == "completed"
@@ -209,9 +209,11 @@ assert len(outcome.result.core.answer_refs) == 2
 assert outside_file.read_bytes() == outside_before
 ```
 
-- [ ] 运行 `uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/application/test_runner.py packages/capability-agent-kernel/tests/application/test_reporting.py -q`，再执行 `make validate-application`；验证应用 answers.jsonl 不被展示失败撤销。
+- [x] 运行 `uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/application/test_runner.py packages/capability-agent-kernel/tests/application/test_reporting.py -q`，再执行 `make validate-application`；验证应用 answers.jsonl 不被展示失败撤销。
 
 **关闭条件**：展示失败可诊断且不阻断有效答案；必要证据失败仍阻断。提交主题：`fix: isolate report publication from accepted answers`。
+
+验收记录（2026-09-05）：生产提交 `6ad5df4`，范围自 `68c5282` 后。独立生产/安全/文档复审PASS；固定源码完整主链exit0：doctor、agent778、sim165、Pi43/Makefile、E2E31、offline/scripted、24/24；包链exit0：Kernel437、Domain79、应用验收及六wheel/两npm干净安装。定向应用25及独立50通过。证据 `runs/optimization/OP-03/gate-{main,packages}-6ad5df4.json`、`final-review-6ad5df4.md`。展示故障不撤销有效答案，必要提交仍阻断；domain schema1.1显式允许null报告，core1.0及公众两字段不变。未运行付费provider；Pi风险例外仍待OP-06。
 
 ### OP-04：修复 RPC ack 测试夹具竞态
 
