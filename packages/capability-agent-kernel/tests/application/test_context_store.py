@@ -187,6 +187,55 @@ def test_replay_events_rejects_ledger_replaced_during_read(
         ApplicationContextStore.replay_events(workspace)
 
 
+def test_replay_events_reads_a_relative_ledger_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "relative" / "runs", run_id="relative-run"
+    )
+    store = ApplicationContextStore.initialize(workspace)
+    monkeypatch.chdir(tmp_path)
+    relative_ledger = workspace.context_events_path.relative_to(tmp_path)
+
+    replayed, events = ApplicationContextStore.replay_events(relative_ledger)
+
+    assert replayed == store.snapshot
+    assert tuple(event.event_type for event in events) == ("analysis.started",)
+
+
+def test_replay_events_rejects_a_symlinked_parent_directory(
+    workspace: ApplicationWorkspace,
+) -> None:
+    ApplicationContextStore.initialize(workspace)
+    original_core = workspace.root / "original-core"
+    workspace.core_path.rename(original_core)
+    workspace.core_path.symlink_to(original_core, target_is_directory=True)
+
+    with pytest.raises(ContextStoreError, match="cannot be read"):
+        ApplicationContextStore.replay_events(workspace)
+
+
+def test_replay_events_rejects_named_ledger_metadata_changed_after_read(
+    workspace: ApplicationWorkspace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ApplicationContextStore.initialize(workspace)
+    real_stat = context_store_module.os.stat
+    mutated = False
+
+    def mutate_before_named_identity(*args: object, **kwargs: object):
+        nonlocal mutated
+        if not mutated:
+            mutated = True
+            with workspace.context_events_path.open("ab") as stream:
+                stream.write(b"tampered-after-read")
+        return real_stat(*args, **kwargs)
+
+    monkeypatch.setattr(context_store_module.os, "stat", mutate_before_named_identity)
+
+    with pytest.raises(ContextStoreError, match="cannot be read"):
+        ApplicationContextStore.replay_events(workspace)
+
+
 @pytest.mark.parametrize("target", ["ledger", "snapshot"])
 @pytest.mark.parametrize("replacement", [False, True])
 def test_append_fails_closed_when_persisted_destination_is_removed_or_replaced(

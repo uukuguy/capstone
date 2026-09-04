@@ -20,6 +20,7 @@ from capability_agent.application.projector import ApplicationInvocationProjecto
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.application.turns import TurnController
+from capability_agent.domain.answer_admission import AnswerAdmissionDecision
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.tools.catalog import CompositeToolCatalog
 
@@ -304,6 +305,90 @@ def test_report_marks_fabricated_answer_sidecar_unknown_without_durable_submissi
     )
 
     assert rendered[-1]["assurances"] == ("unknown",)
+
+
+def test_report_consumes_only_events_returned_by_its_verified_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="verified-report", binding_ids=("grid",)
+    )
+    store = ApplicationContextStore.initialize(
+        workspace, domains={"grid": "grid-state/1.0"}
+    )
+    authority = SimpleNamespace(
+        authority_id="grid",
+        workspace_root=workspace.domain_roots["grid"],
+        verify_result=lambda _ref: object(),
+        verify_evidence=lambda _ref: object(),
+    )
+    admission = SimpleNamespace(
+        admit=lambda request: AnswerAdmissionDecision(
+            "limited", "limited", request.answer_output, ()
+        )
+    )
+    binding = SimpleNamespace(
+        binding_id="grid",
+        profile=SimpleNamespace(
+            manifest=SimpleNamespace(authority_id="grid"),
+            answer_policy=SimpleNamespace(validate_submission=lambda _submission: None),
+            create_answer_admission_policy=lambda _authority: admission,
+            answer_admission_capabilities=frozenset({"authority_backed", "limited"}),
+        ),
+    )
+    prepared = SimpleNamespace(
+        binding=binding, runtime=SimpleNamespace(authority=authority)
+    )
+    controller = TurnController(
+        store=store, workspace=workspace, bindings={"grid": prepared}
+    )
+    committed = controller.submit(
+        controller.start(1, "question"),
+        answer_output="answer",
+        duration_seconds=0.1,
+    )
+    rendered: list[dict[str, object]] = []
+    application = AgentApplication(
+        profile=SimpleNamespace(
+            manifest=SimpleNamespace(application_id="fixture", version="1")
+        ),
+        prepared_application=SimpleNamespace(bindings={"grid": prepared}),
+        report_shell=SimpleNamespace(
+            render=lambda **kwargs: rendered.append(kwargs) or "report"
+        ),
+    )
+    real_replay_events = ApplicationContextStore.replay_events
+
+    def replay_then_remove(ledger: object):
+        replayed = real_replay_events(ledger)  # type: ignore[arg-type]
+        workspace.context_events_path.unlink()
+        return replayed
+
+    monkeypatch.setattr(
+        runner_module.ApplicationContextStore,
+        "replay_events",
+        staticmethod(replay_then_remove),
+    )
+
+    application._render_report(
+        request=ApplicationRequest(
+            application_id="fixture", questions=("question",)
+        ),
+        workspace=workspace,
+        store=store,
+        core=CoreRunResult(
+            application_id="fixture",
+            application_version="1",
+            run_id="verified-report",
+            status="completed",
+            answer_refs=(str(committed.answer_ref),),
+            report_ref=None,
+            diagnostic_refs=(),
+        ),
+        completed_answers=(committed,),
+    )
+
+    assert rendered[-1]["assurances"] == ("limited",)
 
 
 def test_runner_processes_questions_in_order_and_preserves_two_output_layers(

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+import capability_agent._safe_files as safe_files_module
 import capability_agent.application.context_store as context_store_module
-import capability_agent.domain.answer_admission as answer_admission_module
 from capability_agent.application.context_models import ContextEventDraft
 from capability_agent.application.context_store import ApplicationContextStore
 from capability_agent.application.errors import AnswerCommitError
@@ -244,17 +244,38 @@ def test_admission_reader_rejects_sidecar_replaced_while_reading(
     sidecar = committed.answer_path.with_name("answer-admission.json")
     replacement = sidecar.with_name("replacement-admission.json")
     replacement.write_bytes(sidecar.read_bytes())
-    real_fstat = answer_admission_module.os.fstat
-    fstat_calls = 0
+    real_stat = safe_files_module.os.stat
+    replaced = False
 
-    def replace_on_sidecar_open(descriptor: int):
-        nonlocal fstat_calls
-        fstat_calls += 1
-        if fstat_calls == 3:
+    def replace_before_named_identity(*args: object, **kwargs: object):
+        nonlocal replaced
+        if not replaced and args and args[0] == "answer-admission.json":
+            replaced = True
             replacement.replace(sidecar)
-        return real_fstat(descriptor)
+        return real_stat(*args, **kwargs)
 
-    monkeypatch.setattr(answer_admission_module.os, "fstat", replace_on_sidecar_open)
+    monkeypatch.setattr(
+        safe_files_module.os, "stat", replace_before_named_identity
+    )
+
+    with pytest.raises(ValueError, match="unreadable"):
+        read_answer_admission_metadata(
+            committed.answer_path, expected_admission_ref=committed.admission_ref
+        )
+
+
+def test_admission_reader_rejects_a_symlinked_turns_ancestor(active_turn) -> None:
+    _store, workspace, current = active_turn
+    controller = TurnController(
+        store=current.store, workspace=workspace, bindings={"grid": current.prepared}
+    )
+    committed = controller.submit(
+        current.handle, answer_output="answer", duration_seconds=1.0
+    )
+    assert committed.answer_path is not None
+    original_turns = workspace.root / "original-turns"
+    workspace.turns_path.rename(original_turns)
+    workspace.turns_path.symlink_to(original_turns, target_is_directory=True)
 
     with pytest.raises(ValueError, match="unreadable"):
         read_answer_admission_metadata(

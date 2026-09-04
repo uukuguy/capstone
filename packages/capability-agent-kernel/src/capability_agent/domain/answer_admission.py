@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
-import os
 from pathlib import Path
-import stat
 from typing import Literal, Protocol
+
+from capability_agent._safe_files import open_bound_parent, read_bound_regular_file
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,15 +41,19 @@ def read_answer_admission_metadata(
     corrupt or mismatched metadata is never silently trusted.
     """
     try:
-        answer_bytes, sidecar_bytes = _read_answer_pair(answer_path)
+        with open_bound_parent(answer_path) as (parent, answer_name):
+            sidecar_bytes = read_bound_regular_file(parent, "answer-admission.json")
+            if expected_admission_ref is None:
+                raise ValueError(
+                    "answer admission metadata has no durable commit binding"
+                )
+            answer_bytes = read_bound_regular_file(parent, answer_name)
     except FileNotFoundError:
         if expected_admission_ref is not None:
             raise ValueError("committed answer admission metadata is missing")
         return None
     except OSError as exc:
         raise ValueError("answer admission metadata is unreadable") from exc
-    if expected_admission_ref is None:
-        raise ValueError("answer admission metadata has no durable commit binding")
     try:
         answer = json.loads(answer_bytes)
         payload = json.loads(sidecar_bytes)
@@ -92,41 +96,6 @@ def read_answer_admission_metadata(
     ):
         raise ValueError("answer record is invalid")
     return AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
-
-
-def _read_answer_pair(path: Path) -> tuple[bytes, bytes]:
-    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    try:
-        return (_read_bound_regular_file(path.name, parent), _read_bound_regular_file("answer-admission.json", parent))
-    finally:
-        os.close(parent)
-
-
-def _read_bound_regular_file(name: str, parent: int) -> bytes:
-    """Read a leaf without links and reject replacement during the read."""
-    descriptor = os.open(
-        name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), dir_fd=parent
-    )
-    try:
-        before = os.fstat(descriptor)
-        if not stat.S_ISREG(before.st_mode):
-            raise OSError("answer admission metadata must be regular files")
-        chunks: list[bytes] = []
-        while chunk := os.read(descriptor, 64 * 1024):
-            chunks.append(chunk)
-        after = os.fstat(descriptor)
-        named = os.stat(name, dir_fd=parent, follow_symlinks=False)
-        identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-        if (
-            identity != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-            or not stat.S_ISREG(named.st_mode)
-            or (named.st_dev, named.st_ino) != (after.st_dev, after.st_ino)
-        ):
-            raise OSError("answer admission metadata changed while read")
-        return b"".join(chunks)
-    finally:
-        os.close(descriptor)
-
 
 __all__ = [
     "AnswerAdmissionDecision",
