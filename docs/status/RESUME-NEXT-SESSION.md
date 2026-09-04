@@ -1,19 +1,19 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 05:09 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 05:13 CST. **Session remains active — not a final handoff.**
 
 ## Current execution
 
 - 用户授权持续实施完整优化方案；唯一工作清单是 [OP-01–OP-14](../superpowers/plans/2026-09-05-capstone-optimization.md)，route direct。
-- 实施目录：`.worktrees/capstone-optimization`，分支 `feat/capstone-optimization`；代码 HEAD `33ba380`。
+- 实施目录：`.worktrees/capstone-optimization`，分支 `feat/capstone-optimization`；代码提交 `1200963`，HEAD `bcae9db` 仅追加状态文档。
 - OP-04 DONE：`9d13ea4`，focused2、30/30重复、runtime72及独立规范/质量审查通过。
-- OP-01 RUNNING：Terra `op01_finish_tests` 正在修复最后一项已知 Important；旧 `op01_implementation` 保持只读。root 管理状态和门禁，Sol `op01_admission_review` 独立审查。
+- OP-01 RUNNING：连续两次明确修复未完整落实，Sol `op01_admission_review` 已升级接管最后一项高风险reader修复；两个Terra均只读。root 管理状态并负责独立验收Sol修复。
 - OP-02及后续生产实现尚未启动；不得跳过依赖。OP-13须基准触发，C.2仍延后。
 
 ## Immediate next action
 
-1. 接收 Terra 单次安全账本读取修复：新增 replay_events 返回同次读取、验证的 typed events，replay 委托；报告不再第二次 read_bytes。加强 no-follow/身份检查并补替换竞态回归。
-2. Terra 完成 focused 测试和提交后，生成从 `323dd7d` 到新 HEAD 的完整 OP-01 review package，先交 Sol 复审，再跑固定源码完整门禁。已知只剩这一项，勿重复调查已结清四项。
+1. Terra已提交1200963及acaef08，focused分别41/61通过，但root发现answer_pair未逐级打开父目录、相对路径walker丢首项、named完整identity和指定新测试未落实。Sol正在接管此有界修复；完整包 `runs/optimization/OP-01/review-acaef08.diff`。
+2. 修复要求：component-wise dirfd no-follow读取ledger，sidecar/answer共用固定turn父dirfd，完整named identity；补core/turn父symlink、leaf/in-place变动、报告同源事件消费四类测试。不扩展全库重构。先静态复审通过，再跑固定源码完整门禁。已结清四项不重复调查。
 3. 复审和门禁均结清才关闭 OP-01，再按 OP-02 task-brief/map/compat-design 实施。每包独立测试、复审、提交、记账。
 
 ## Verification evidence

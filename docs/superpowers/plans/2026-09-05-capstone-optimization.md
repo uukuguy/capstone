@@ -146,6 +146,8 @@ make validate-application
 
 **接口**：适配器接受现有 RunRequest 和解析后的运行配置，组装只有一个 question 的 ApplicationRequest，调用 AgentApplication；从已提交答案进行两字段投影，不能返回未经提交的 Pi 文本。
 
+实施设计补充（2026-09-05，只读调查，未启动实现）：保留 canonical `core/domains/turns/output` 布局；由应用适配器将 `core/events.jsonl`、`domains/grid/tool-results/`、`domains/grid/evidence/` 发布为旧根路径的字节保持实体快照。副本不成为 authority 输入，不使用 symlink/hardlink，不将 domain authority 扩大到 run 根。完整成功交付须保留旧路径；发布失败不得删除已提交 canonical 答案。普通离线知识/确定性无执行限制在创建 workspace 前返回，无 provider、无 authority、无 run evidence；在线及 simulator-backed 请求统一 controller 提交。应用投影从同次验证的提交事件和摘要绑定答案读取，不信任 outcome 的展示文本。同步 RUNBOOK 和双语 README 解释 canonical 与兼容副本。备选 eager mirror 增加工具路径事务耦合，暂不采用；通用 domain export SPI 超出单应用兼容需求，暂不新增。
+
 - [ ] 记录现有 question_id、退出码、stdout、stderr、provider/model/base_url/api_key_env、offline 的兼容矩阵；写无引用/伪引用、provider 中断、重复 ID、非法 ID 回归测试。
 - [ ] 提取单问适配器；配置解析复用原产品规则；run_id 对齐 question_id，既有 evidence 路径如需桥接由应用投影完成。不能静默改变调用方依赖的 paths。
 - [ ] 让在线 run 经过 OP-01 准入和 controller 提交；普通 offline 知识走确定性路径；offline simulator smoke 继续真实 authority 调用并保存引用。
