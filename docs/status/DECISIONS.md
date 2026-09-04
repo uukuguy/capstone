@@ -1,5 +1,16 @@
 # Architectural Decisions
 
+## 2026-09-05 — Close framework assurance and verification before C.2
+
+- **Status:** optimization direction accepted; implementation not started.
+- **Decision:** execute OP-01–OP-14 from `docs/superpowers/plans/2026-09-05-capstone-optimization.md`; retain direct project routing and use that document as the sole optimization execution ledger.
+- **Rationale:** review found zero-reference answer admission and legacy run submission gaps, report failures blocking accepted answers, incomplete default gates, and scaling costs; these undermine the guarantees a second production domain would inherit.
+- **Assurance boundary:** current-run lineage is not proof of freeform prose semantics. Domain-owned admission must distinguish deterministic information, authority-backed lineage and limitations; no grid keyword heuristics in Kernel and no model-owned answer submission.
+- **Failure boundary:** mandatory evidence/answer persistence fails closed; report, preview, cache and progress failures are diagnostic and cannot revoke an accepted primary answer.
+- **Scope:** preserve public grid compatibility, single binding, existing runs and C.1 historical evidence. Inventory remains conformance infrastructure. Segmented storage is conditional on measured OP-12 budgets; Pi risk expiry remains a release gate.
+- **Precedence:** replaces the prior immediate next action of C.2 selection; does not select GitHub as the second domain or authorize online provider runs.
+- **Evidence:** `docs/status/2026-09-05-capstone-design-code-review.md`.
+
 ## 2026-08-29 — A read-only inventory authority is the cross-domain conformance proof
 
 - **Decision:** instantiate a second, independently packaged domain with `inventory-reference-service` and `inventory-domain-pack`, using only the public Kernel Domain Pack SPI and unchanged generic Pi transport.

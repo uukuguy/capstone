@@ -644,3 +644,10 @@ _Recovered pre-merge mainline entries._
 - 16:34 GitHub 仓库更名为 capstone，并更新 About 描述与框架主题
 - 16:40 C.2 知识层提出 GitHub Repository Intelligence 只读领域假设，待设计验证
 - 16:48 编写 Capstone 架构总览并重构 README/AGENTS 框架定位
+- 17:52 扩展 Capstone 框架指南，明确层级、协议、证据与延期边界 [6024b65]
+
+## 2026-09-05
+
+- 03:37 记录全面评估：答案准入、报告隔离、默认门禁与规模性能存在缺口；RPC 整套一次失败、单测重跑通过。
+- 03:37 用户同意优化方向；保存 OP-01–OP-14 执行方案，优先闭合框架保证，再进入 C.2 选择。
+- 03:48 优化方案文档校验通过：14 包覆盖13项发现，本地链接、相对 symlink、日志追加完整性、diff 与 doctor 正常。
