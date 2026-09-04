@@ -26,6 +26,10 @@ def test_pandapower_profile_owns_installed_runtime_resources() -> None:
     assert profile.manifest.protocol_version == "1.0"
     assert profile.manifest.executable_name == "gridctl"
     assert profile.manifest.authority_id == "gridctl"
+    assert profile.answer_admission_policy_version == "answer-admission/1.0"
+    assert profile.answer_admission_capabilities == frozenset(
+        {"authority_backed", "offline_information", "limited"}
+    )
     profile.manifest.assert_resources_present()
 
 

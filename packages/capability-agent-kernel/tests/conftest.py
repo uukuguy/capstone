@@ -259,6 +259,10 @@ def complete_profile(inventory_profile) -> ApplicationProfile:
         state_adapter=component,
         answer_policy=component,
         answer_admission_policy_factory=lambda authority: StaticAnswerAdmission(),
+        answer_admission_policy_version="answer-admission/1.0",
+        answer_admission_capabilities=frozenset(
+            {"authority_backed", "offline_information", "limited"}
+        ),
         policy_provider=StaticPolicy("deny: domain-write"),
         guide_provider=StaticGuideProvider("# Inventory guide\n"),
         presentation_provider=component,

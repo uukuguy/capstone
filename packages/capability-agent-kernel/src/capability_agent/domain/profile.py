@@ -33,6 +33,8 @@ class DomainRuntimeProfile:
     projector_registry: DomainProjectorRegistry
     authority_factory: AuthorityFactory
     answer_admission_policy_factory: AnswerAdmissionPolicyFactory | None = None
+    answer_admission_policy_version: str | None = None
+    answer_admission_capabilities: frozenset[str] | None = None
     tool_description_builder: ToolDescriptionBuilder | None = None
     provisioner: DomainRuntimeProvisioner | None = None
     state_adapter: DomainStateAdapter | None = None
@@ -49,6 +51,8 @@ class DomainRuntimeProfile:
             "state_adapter",
             "answer_policy",
             "answer_admission_policy_factory",
+            "answer_admission_policy_version",
+            "answer_admission_capabilities",
             "policy_provider",
             "guide_provider",
             "presentation_provider",
@@ -75,3 +79,12 @@ class DomainRuntimeProfile:
         if not callable(getattr(policy, "admit", None)):
             raise TypeError("domain answer admission policy is invalid")
         return policy
+
+    def validate_answer_admission_declaration(self) -> None:
+        if self.answer_admission_policy_version != "answer-admission/1.0":
+            raise ValueError("domain answer admission policy version is invalid")
+        capabilities = self.answer_admission_capabilities
+        if capabilities is None or capabilities != frozenset(
+            {"authority_backed", "offline_information", "limited"}
+        ):
+            raise ValueError("domain answer admission capabilities are invalid")

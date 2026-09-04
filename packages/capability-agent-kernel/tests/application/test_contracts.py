@@ -56,6 +56,10 @@ def _complete_domain_profile(inventory_profile):
         state_adapter=component,
         answer_policy=component,
         answer_admission_policy_factory=lambda authority: component,
+        answer_admission_policy_version="answer-admission/1.0",
+        answer_admission_capabilities=frozenset(
+            {"authority_backed", "offline_information", "limited"}
+        ),
         policy_provider=component,
         guide_provider=component,
         presentation_provider=component,
@@ -110,6 +114,8 @@ def test_domain_runtime_profile_reports_missing_components(inventory_profile) ->
         "state_adapter",
         "answer_policy",
         "answer_admission_policy_factory",
+        "answer_admission_policy_version",
+        "answer_admission_capabilities",
         "policy_provider",
         "guide_provider",
         "presentation_provider",

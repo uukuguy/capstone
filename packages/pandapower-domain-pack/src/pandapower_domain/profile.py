@@ -66,6 +66,10 @@ def build_pandapower_profile() -> DomainRuntimeProfile:
         answer_admission_policy_factory=PandapowerAnswerAdmissionPolicyFactory(
             resources.guide_root
         ),
+        answer_admission_policy_version="answer-admission/1.0",
+        answer_admission_capabilities=frozenset(
+            {"authority_backed", "offline_information", "limited"}
+        ),
         tool_description_builder=build_pandapower_tool_description,
         provisioner=PandapowerRuntimeProvisioner(
             repository_root=_repository_root(),

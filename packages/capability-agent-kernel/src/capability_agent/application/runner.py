@@ -520,6 +520,12 @@ class AgentApplication:
             profile = _binding_profile(binding)
             if profile is not None:
                 _call_method(getattr(profile, "policy_provider", None), "load")
+                try:
+                    _call_method(profile, "validate_answer_admission_declaration")
+                except Exception as exc:
+                    raise ApplicationConfigurationError(
+                        f"binding {binding_id!r} answer admission declaration is invalid"
+                    ) from exc
         self._hook("policy_composition")
         for binding_id in sorted(bindings):
             profile = _binding_profile(bindings[binding_id])

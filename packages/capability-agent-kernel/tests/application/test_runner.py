@@ -274,6 +274,7 @@ def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Pat
         guide_provider=SimpleNamespace(
             load=lambda: events.append("domain.guides") or ({"name": "guide"},)
         ),
+        validate_answer_admission_declaration=lambda: events.append("domain.admission"),
     )
     binding = SimpleNamespace(binding_id="alpha", profile=binding_profile)
     profile = SimpleNamespace(
