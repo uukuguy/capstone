@@ -3,7 +3,7 @@
 ## Project Snapshot
 
 - Project: Capstone Agent Framework
-- Theme-level focus: Capstone answer assurance, failure isolation, verification coverage, and scalable domain composition
+- Theme-level focus: Unified agent framework interfaces, business capability-pack integration, and cross-domain AI application validation; not enterprise service performance
 - Project route: direct
 - Canonical optimization worklist: `docs/superpowers/plans/2026-09-05-capstone-optimization.md`
 - Active optimization work package: OP-08; its additional cross-layer scope is approved. OP-13 B remains subject to independent review. Execution is isolated on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. The canonical plan owns task status. Optimization closure precedes C.2 domain selection.

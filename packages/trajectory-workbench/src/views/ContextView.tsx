@@ -34,6 +34,18 @@ interface ContextViewProps {
 
 const labels = ['Before', 'Delta', 'After'] as const;
 type StateLabel = typeof labels[number];
+type CompleteContextFrame = ContextFrame & {
+  state_omitted?: false;
+  before_state_hash: string;
+  after_state_hash: string;
+  before_state: JsonValue;
+  delta: JsonValue;
+  after_state: JsonValue;
+};
+
+function hasCompleteContextState(frame: ContextFrame): frame is CompleteContextFrame {
+  return frame.state_omitted !== true;
+}
 
 function displayPrimitive(value: JsonValue): string {
   if (typeof value === 'string') return value;
@@ -170,6 +182,7 @@ export function ContextView({
     ? baseVirtualRows
     : summaries.slice(0, 16).map((summary, index) => ({ index, key: summary.id, start: index * 48 }));
   const comparison = useMemo(() => pinnedA && pinnedB
+    && hasCompleteContextState(pinnedA) && hasCompleteContextState(pinnedB)
     ? compareContextStates(pinnedA.after_state, pinnedB.after_state)
     : null, [pinnedA, pinnedB]);
 
@@ -184,7 +197,15 @@ export function ContextView({
     else next[name] = value;
     onFiltersChange(next);
   };
-  const stateValue = frame ? { Before: frame.before_state, Delta: frame.delta, After: frame.after_state }[active] : null;
+  const frameHasCompleteState = frame !== null && hasCompleteContextState(frame);
+  const stateValue = frameHasCompleteState
+    ? { Before: frame.before_state, Delta: frame.delta, After: frame.after_state }[active]
+    : null;
+  const omittedStateBlocksComparison = Boolean(
+    (frame && !hasCompleteContextState(frame))
+    || (pinnedA && !hasCompleteContextState(pinnedA))
+    || (pinnedB && !hasCompleteContextState(pinnedB)),
+  );
 
   const selectedBinding = binding ?? inferredBinding(summaries);
   const contextTitle = presentationText(selectedBinding, 'context_title');
@@ -235,7 +256,7 @@ export function ContextView({
                   onClick={() => onSelectSequence(summary.source_sequence)}
                 >
                   <strong>Sequence {summary.source_sequence}</strong><span>{summary.event_kind}</span>
-                  <small>r{summary.before_revision} → r{summary.after_revision} · {summary.changed ? 'changed' : 'unchanged'} · request {summary.request_input_available ? 'available' : 'unavailable'}</small>
+                  <small>r{summary.before_revision} → r{summary.after_revision} · {summary.changed === null ? 'unknown' : summary.changed ? 'changed' : 'unchanged'} · request {summary.request_input_available ? 'available' : 'unavailable'}</small>
                   {!summary.request_input_available && summary.request_input_unavailable_reason
                     ? <small className="unavailable">{summary.request_input_unavailable_reason}</small>
                     : null}
@@ -255,24 +276,41 @@ export function ContextView({
           : effectiveDetailState === 'failed' ? <div className="context-detail-error"><p role="alert">{detailError}</p><button type="button" onClick={onRetryDetail}>Retry exact context frame</button></div>
             : !frame ? <p className="unavailable">Select a loaded frame to fetch its exact recorded detail.</p>
               : <>
-                <header><h2>Authoritative state at sequence {frame.source_sequence}</h2><p>Revisions {frame.before_revision} → {frame.after_revision}.</p></header>
+                <header><h2>{frameHasCompleteState ? 'Authoritative state' : 'Context state unavailable'} at sequence {frame.source_sequence}</h2><p>Revisions {frame.before_revision} → {frame.after_revision}.</p></header>
                 {summaries.length === 0 ? <label className="sequence-scrubber">Event sequence <input type="range" min={1} max={Math.max(1, frame.max_sequence)} value={frame.source_sequence} onChange={(event) => onSelectSequence(Number(event.target.value))} /><output>{frame.source_sequence}</output></label> : null}
                 <div className="context-pin-controls">
-                  <button type="button" onClick={() => setPinnedA(frame)}>Pin sequence {frame.source_sequence} as frame A</button>
-                  <button type="button" onClick={() => setPinnedB(frame)}>Pin sequence {frame.source_sequence} as frame B</button>
+                  <button type="button" disabled={!frameHasCompleteState} onClick={() => { if (hasCompleteContextState(frame)) setPinnedA(frame); }}>Pin sequence {frame.source_sequence} as frame A</button>
+                  <button type="button" disabled={!frameHasCompleteState} onClick={() => { if (hasCompleteContextState(frame)) setPinnedB(frame); }}>Pin sequence {frame.source_sequence} as frame B</button>
                 </div>
-                <div role="tablist" aria-label="Context state">{labels.map((label) => <button key={label} type="button" role="tab" aria-selected={active === label} onClick={() => setActive(label)}>{label}</button>)}</div>
-                <section role="tabpanel" aria-label={`${active} context state`} className="context-panel">
-                  {stateValue === null ? null : <StructuredState key={`${frame.id}:${active}`} label={active} value={stateValue} />}
+                {frameHasCompleteState ? <>
+                  <div role="tablist" aria-label="Context state">{labels.map((label) => <button key={label} type="button" role="tab" aria-selected={active === label} onClick={() => setActive(label)}>{label}</button>)}</div>
+                  <section role="tabpanel" aria-label={`${active} context state`} className="context-panel">
+                    {stateValue === null ? null : <StructuredState key={`${frame.id}:${active}`} label={active} value={stateValue} />}
+                  </section>
+                </> : <section className="context-state-omitted" aria-label="Omitted context state">
+                  <p className="unavailable">{frame.state_unavailable_reason || 'Context state unavailable; no comparison can be inferred.'}</p>
+                  <p className="unavailable">{frame.omitted_fields.join(', ')}</p>
+                  {frame.admitted_artifact_refs?.length ? <section aria-label="Admitted context artifacts">
+                    <h3>Admitted context artifacts</h3>
+                    <ul>{frame.admitted_artifact_refs.map((reference) => <li key={reference}><a href={artifactUrl(reference)} download aria-label={`Digest-verified context artifact; context metadata not inspected: ${reference}`}>{reference}</a></li>)}</ul>
+                  </section> : null}
+                </section>}
+                <section className="request-input" aria-label="Model-visible request input">
+                  <h2>Model-visible request input</h2>
+                  {frame.request_input_omitted ? <p className="unavailable">Request input preview omitted because it exceeds 128 KiB. Download the recorded artifact to inspect it.</p> : null}
+                  {frame.request_input_available && frame.request_artifact_ref
+                    ? <a href={artifactUrl(frame.request_artifact_ref)} download>{frame.request_artifact_ref}</a>
+                    : <p className="unavailable">{frame.request_input_unavailable_reason || frame.unavailable_reason || 'No following model request'}</p>}
                 </section>
-                <section className="request-input" aria-label="Model-visible request input"><h2>Model-visible request input</h2>{frame.request_input_available && frame.request_artifact_ref ? <a href={artifactUrl(frame.request_artifact_ref)} download>{frame.request_artifact_ref}</a> : <p className="unavailable">{frame.request_input_unavailable_reason || frame.unavailable_reason || 'No following model request'}</p>}</section>
               </>}
       </section>
     </div>
 
     <section className="context-comparison" aria-label="Pinned frame comparison">
       <header><h2>Authoritative frame comparison</h2><p>{pinnedA ? `A · sequence ${pinnedA.source_sequence}` : 'Pin frame A'} · {pinnedB ? `B · sequence ${pinnedB.source_sequence}` : 'Pin frame B'}</p></header>
-      {comparison ? <ComparisonList comparison={comparison} /> : <p className="unavailable">Pin two fetched frames to compare their recorded after states.</p>}
+      {comparison ? <ComparisonList comparison={comparison} /> : omittedStateBlocksComparison
+        ? <p className="unavailable">Frames with omitted state cannot be compared.</p>
+        : <p className="unavailable">Pin two fetched frames to compare their recorded after states.</p>}
     </section>
   </section>;
 }

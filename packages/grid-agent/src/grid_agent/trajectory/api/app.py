@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from collections.abc import Awaitable, Callable
@@ -415,43 +414,44 @@ def _context_detail(
     value = frame.model_dump(mode="json")
     value["request_input_available"] = frame.request_artifact_ref is not None
     value["request_input_unavailable_reason"] = (
-        None if frame.request_artifact_ref is not None else frame.unavailable_reason
+        None if frame.request_artifact_ref is not None else frame.request_input_unavailable_reason
     )
     value["max_sequence"] = max(
         (item.source_sequence for item in projected.context.frames), default=0
     )
-    value["request_input"] = _canonical_request_preview(
+    preview, omitted = _canonical_request_preview(
         projected, run_root, frame.request_artifact_ref
     )
+    value["request_input"] = preview
+    value["request_input_omitted"] = omitted
+    value["omitted_fields"] = [*frame.omitted_fields, *(["request_input"] if omitted else [])]
     return value
 
 
 def _canonical_request_preview(
     projected: ProjectedRun, run_root: Path, reference: str | None
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, bool]:
     if reference is None:
-        return None
+        return None, False
     record = projected.artifacts.records.get(reference)
     if record is None or record.verification_status != "verified":
-        return None
-    path = run_root / record.relative_path
+        return None, False
     try:
-        path.resolve(strict=True).relative_to(run_root.resolve(strict=True))
-        content = path.read_bytes()
-    except (OSError, ValueError):
-        return None
-    if record.sha256 != hashlib.sha256(content).hexdigest():
-        return None
+        opened = ArtifactGateway(run_root, projected.artifacts).open(reference, max_bytes=131072)
+    except (ArtifactAccessError, OSError, ValueError):
+        return None, False
+    if opened.size_bytes > len(opened.content):
+        return None, True
     try:
-        document = json.loads(content)
+        document = json.loads(opened.content)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return None
+        return None, False
     if not isinstance(document, dict):
-        return None
+        return None, False
     try:
-        return canonical_request_preview(document)
+        return canonical_request_preview(document), False
     except CanonicalRequestValidationError:
-        return None
+        return None, False
 
 
 def _packaged_static_root() -> Path:

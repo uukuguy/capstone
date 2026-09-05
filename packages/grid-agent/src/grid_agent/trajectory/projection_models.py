@@ -456,15 +456,29 @@ class ContextFrame(ProjectionNode):
     source_sequence: int = Field(ge=1)
     before_revision: int = Field(ge=0)
     after_revision: int = Field(ge=0)
-    before_state_hash: str = Field(min_length=1)
-    after_state_hash: str = Field(min_length=1)
-    before_state: Mapping[str, Any]
-    delta: Mapping[str, Any]
-    after_state: Mapping[str, Any]
+    before_state_hash: str | None = Field(min_length=1)
+    after_state_hash: str | None = Field(min_length=1)
+    before_state: Mapping[str, Any] | None
+    delta: Mapping[str, Any] | None
+    after_state: Mapping[str, Any] | None
+    state_omitted: bool = False
+    omitted_fields: tuple[str, ...] = ()
+    admitted_artifact_refs: tuple[str, ...] = ()
+    state_unavailable_reason: str | None = None
+    request_input_unavailable_reason: str | None = None
     request_artifact_ref: str | None = None
 
     @model_validator(mode="after")
     def require_consistent_frame(self) -> "ContextFrame":
+        missing = tuple(name for name in ("before_state", "delta", "after_state") if getattr(self, name) is None)
+        if self.state_omitted != bool(missing) or set(self.omitted_fields) != set(missing):
+            raise ValueError("omitted state fields must be explicitly identified")
+        if (self.before_state is None) != (self.before_state_hash is None) or (
+            (self.after_state is None) != (self.after_state_hash is None)
+        ):
+            raise ValueError("unknown state must have an unknown hash")
+        if missing and (self.delta is not None or not self.state_unavailable_reason):
+            raise ValueError("unavailable state requires a reason and cannot have a delta")
         if self.before_revision > self.after_revision:
             raise ValueError("before_revision must not exceed after_revision")
         if self.source_sequences and self.source_sequence not in self.source_sequences:
@@ -484,11 +498,14 @@ class ContextFrame(ProjectionNode):
 class ContextCheckpoint(_ProjectionModel):
     source_sequence: int = Field(ge=1)
     context_revision: int = Field(ge=0)
-    state_hash: str = Field(min_length=1)
-    state: Mapping[str, Any]
+    state_hash: str | None = Field(min_length=1)
+    state: Mapping[str, Any] | None
+    state_omitted: bool = False
 
     @model_validator(mode="after")
     def freeze_state(self) -> "ContextCheckpoint":
+        if self.state_omitted != (self.state is None) or (self.state is None) != (self.state_hash is None):
+            raise ValueError("omitted checkpoint cannot claim a state or hash")
         object.__setattr__(self, "state", _deep_freeze(self.state))
         return self
 
@@ -515,7 +532,7 @@ class ContextFrameSummary(_ProjectionModel):
     source_sequence: int = Field(ge=1)
     before_revision: int = Field(ge=0)
     after_revision: int = Field(ge=0)
-    changed: bool
+    changed: bool | None
     request_input_available: bool
     request_input_unavailable_reason: str | None = None
     event_kind: str = Field(min_length=1, max_length=100)

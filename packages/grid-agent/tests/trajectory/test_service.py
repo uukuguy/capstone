@@ -274,7 +274,7 @@ def test_projection_service_reads_generic_runtime_descriptor_metadata(tmp_path) 
     assert metadata.bindings["inventory"].authority_id == "inventory-api"
 
 
-def test_native_artifact_verifier_accepts_replayed_artifact_pointer(tmp_path) -> None:
+def test_native_artifact_verifier_accepts_replayed_artifact_pointer(tmp_path, monkeypatch) -> None:
     run_root = tmp_path / "runs/analysis-native"
     registry = ImmutableArtifactRegistry(
         run_root,
@@ -289,6 +289,10 @@ def test_native_artifact_verifier_accepts_replayed_artifact_pointer(tmp_path) ->
 
     replayed_pointer = verifier.verify_reference(pointer.ref)
 
+    def forbid_whole_read(_):
+        pytest.fail("native verification must reuse bounded registry reads")
+
+    monkeypatch.setattr(type(run_root), "read_bytes", forbid_whole_read)
     assert verifier.verify(replayed_pointer) == run_root / pointer.relative_path
 
 

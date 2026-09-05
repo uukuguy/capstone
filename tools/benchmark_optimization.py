@@ -300,8 +300,8 @@ def run_sample(size, batch_size):
             if not metric["equal"] or any(metric["calls"].values()):
                 raise ValueError("hot projection rebuilt or differed")
             _record("projection_hot", metric)
-        preview, metric = _measure("request_preview", lambda: _canonical_request_preview(hot, run, pointer.ref), operations)
-        metric["valid"] = preview is not None and preview["semantic_request_sha256"] == _request_document()["semantic_request_sha256"]
+        (preview, omitted), metric = _measure("request_preview", lambda: _canonical_request_preview(hot, run, pointer.ref), operations)
+        metric["valid"] = not omitted and preview is not None and preview["semantic_request_sha256"] == _request_document()["semantic_request_sha256"]
         if not metric["valid"]:
             raise ValueError("real request preview failed")
         _record("request_preview", metric)

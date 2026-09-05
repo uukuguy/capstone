@@ -193,20 +193,42 @@ function EvidenceCard({ record, artifactUrl, onSelectSequence }: { record: Evide
   </article>;
 }
 
+function hasCompleteContextState(frame: ContextFrame): frame is ContextFrame & {
+  state_omitted?: false;
+  before_state_hash: string;
+  after_state_hash: string;
+  before_state: JsonValue;
+  delta: JsonValue;
+  after_state: JsonValue;
+} {
+  return frame.state_omitted !== true;
+}
+
 function ContextPanel({ model, artifactUrl, onSelectSequence }: { model: AuditInspectorModel; artifactUrl: (ref: string) => string; onSelectSequence: (sequence: number) => void }) {
   const frame = model.context;
   if (!frame) return <p className="unavailable">{model.unavailable.context ?? 'Context projection is unavailable for this event.'}</p>;
+  const completeState = hasCompleteContextState(frame);
   return <div className="audit-panel-stack">
     <dl>
       <dt>Sequence</dt><dd><button type="button" className="sequence-link" onClick={() => onSelectSequence(frame.source_sequence)}>Go to sequence {frame.source_sequence}</button></dd>
       <dt>Revisions</dt><dd>{frame.before_revision} → {frame.after_revision}</dd>
-      <dt>State hashes</dt><dd>{frame.before_state_hash} → {frame.after_state_hash}</dd>
+      <dt>State hashes</dt><dd>{completeState ? `${frame.before_state_hash} → ${frame.after_state_hash}` : 'Omitted'}</dd>
     </dl>
-    <StateBlock title="Before" value={frame.before_state} />
-    <StateBlock title="Delta" value={frame.delta} />
-    <StateBlock title="After" value={frame.after_state} />
+    {completeState ? <>
+      <StateBlock title="Before" value={frame.before_state} />
+      <StateBlock title="Delta" value={frame.delta} />
+      <StateBlock title="After" value={frame.after_state} />
+    </> : <section className="context-state-omitted" aria-label="Omitted context state">
+      <p className="unavailable">{frame.state_unavailable_reason || 'Context state unavailable; no comparison can be inferred.'}</p>
+      <p className="unavailable">{frame.omitted_fields.join(', ')}</p>
+      {frame.admitted_artifact_refs?.length ? <section aria-label="Admitted context artifacts">
+        <h3>Admitted context artifacts</h3>
+        <ul>{frame.admitted_artifact_refs.map((reference) => <li key={reference}><a href={artifactUrl(reference)} download aria-label={`Digest-verified context artifact; context metadata not inspected: ${reference}`}>{reference}</a></li>)}</ul>
+      </section> : null}
+    </section>}
     <section className="request-input" aria-label="Model-visible request input">
       <h3>Model-visible request input</h3>
+      {frame.request_input_omitted ? <p className="unavailable">Request input preview omitted because it exceeds 128 KiB. Download the recorded artifact to inspect it.</p> : null}
       {frame.request_input_available && frame.request_artifact_ref
         ? <a href={artifactUrl(frame.request_artifact_ref)} download>{frame.request_artifact_ref}</a>
         : <p className="unavailable">{frame.request_input_unavailable_reason || frame.unavailable_reason || 'Request input is unavailable for this event.'}</p>}

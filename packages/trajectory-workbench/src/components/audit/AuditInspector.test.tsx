@@ -99,6 +99,62 @@ describe('AuditInspector', () => {
     expect(screen.queryByText(/raw sidecar/i)).not.toBeInTheDocument();
   });
 
+  it('labels an omitted request preview while retaining its admitted artifact link', () => {
+    const context = {
+      ...legacyContext,
+      unavailable_reason: null,
+      request_input_available: true,
+      request_input_unavailable_reason: null,
+      request_artifact_ref: 'artifact:request',
+      request_input_omitted: true,
+      omitted_fields: ['request_input'],
+    } as ContextFrame & { request_input_omitted: boolean; omitted_fields: string[] };
+    const model: AuditInspectorModel = {
+      selection,
+      evidence: [],
+      context,
+      execution: turn,
+      unavailable: {},
+    };
+
+    render(<AuditInspector model={model} artifactUrl={(ref) => `/artifact/${ref}`} onSelectSequence={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }));
+
+    expect(screen.getByText('Request input preview omitted because it exceeds 128 KiB. Download the recorded artifact to inspect it.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'artifact:request' })).toHaveAttribute('href', '/artifact/artifact:request');
+    expect(screen.getByText(/"selected": "before"/)).toBeVisible();
+  });
+
+  it('shows omitted context state and admitted artifacts without rendering null state', () => {
+    const context = {
+      ...legacyContext,
+      before_state_hash: null,
+      after_state_hash: null,
+      before_state: null,
+      delta: null,
+      after_state: null,
+      state_omitted: true,
+      state_unavailable_reason: 'Context state omitted because it exceeds 128 KiB; context metadata was not inspected.',
+      omitted_fields: ['before_state', 'delta', 'after_state'],
+      admitted_artifact_refs: ['artifact:context-input'],
+    } satisfies ContextFrame;
+    const model: AuditInspectorModel = {
+      selection,
+      evidence: [],
+      context,
+      execution: turn,
+      unavailable: {},
+    };
+
+    render(<AuditInspector model={model} artifactUrl={(ref) => `/artifact/${ref}`} onSelectSequence={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }));
+
+    expect(screen.getByText('Context state omitted because it exceeds 128 KiB; context metadata was not inspected.')).toBeVisible();
+    expect(screen.getByRole('link', { name: /digest-verified context artifact.*artifact:context-input/i })).toHaveAttribute('href', '/artifact/artifact:context-input');
+    expect(screen.queryByText('Before')).not.toBeInTheDocument();
+    expect(screen.queryByText(/"selected": "before"/)).not.toBeInTheDocument();
+  });
+
   it('keeps matched evidence visible beside a retryable partial batch diagnostic', () => {
     const retry = vi.fn();
     const model: AuditInspectorModel = {

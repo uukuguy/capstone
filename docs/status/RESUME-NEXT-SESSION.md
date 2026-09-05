@@ -1,8 +1,77 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 18:50 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 19:11 CST. **Session remains active — not a final handoff.**
+
+## Highest priority: user clarified the product, not merely the test budget
+
+Capstone is a unified agent framework for integrating business capability packs
+and validating AI support for existing business frameworks such as pandapower.
+It is NOT an enterprise-scale service. Canonical plan §2 now has the authoritative
+product-scope override. Do not resume universal bounded JSON parsing, total
+resource governance, or productionizing segmented storage from old checklists.
+Keep Domain semantic validation and normal JSON decoding; strict arbitrary-size
+equivalence is DEFERRED, not implemented. OP13 default legacy stays; dirty code
+is preserved, not accepted or automatically merged.
+
+Current checks are terminal: gate38874 failed at tools/tests/test_benchmark_optimization.py
+request_preview (helper tuple contract adaptation remains), so E2E/validate in
+that chain did not run. Agent815 and browser13 passed. Implementation review
+identified two remaining fixes: small context read parent-directory replacement
+and misleading unconditional 'Authoritative state' heading for omitted state.
+No live worker/gate. No new source edits made after the user's product correction.
+Next: assess and finish only the minimal useful existing context changes, then
+record OP08/OP13 scope disposition and proceed to integration-oriented OP14.
+Never mark the superseded enterprise-style requirements as implemented.
+
+## Current: context omission integration is frozen for final checks
+
+Newer than the development notes below: full context omission is implemented,
+not yet committed. Oversized context-view artifacts are raw-digest verified but
+not parsed; before/after/delta and hashes explicitly null when unknown. Unknown
+state propagates through later events; a complete snapshot re-anchors after,
+and only its following frame can compare full before/after. Missing/invalid
+context transitions also invalidate prior state rather than inventing unchanged
+state. State and request-input reasons are independent. Public links are filtered
+against verified context-view records. Workbench suppresses omitted-state trees,
+pins and comparisons, and nullable summary `changed` displays unknown.
+
+Materialized schema is now trajectory-projection/3.0 and context summary2.0;
+old derived cache is invalidated without modifying runs. Small context reads are
+bounded, nofollow/nonblocking regular-file reads with raw SHA checked before parse.
+Actual RED→GREEN covers large-state carry/recovery, native HTTP cold/repeated
+projection, request preview omission, and leaf symlink replacement.
+
+Current checks: trajectory320 before final leaf test, final context7,
+Workbench154, browser13, doctor/types/diff pass. Full make test/test-e2e/validate
+handle38874 is running; revalidate handle before waiting. Read-only implementation
+review is with context_omission_review. Two prior type errors and the request
+reason regression are fixed. No further feature edits intended before this
+integration is accepted. Domain result/evidence whole-JSON semantic verification
+remains unresolved; OP08 is not closed. OP13 untouched.
+
+## Current development checkpoint: request preview omission
+
+HEAD remains `ab247eb`. Task-owned uncommitted changes now remove the duplicate
+whole-file read in `_NativeArtifacts.verify`, reusing the existing bounded Kernel
+registry. Context detail request previews use ArtifactGateway's complete SHA
+verification with 128 KiB retained bytes: larger requests return `request_input:
+null`, `request_input_omitted: true`, `omitted_fields: ["request_input"]`. Both
+Workbench context surfaces show an omission notice while keeping admitted links.
+Small request previews and full downloads remain compatible; state comparison is
+unchanged because this does NOT omit before/delta/after context state.
+
+Verification: service whole-read test1RED→GREEN; native HTTP small/large request
+tests2RED→GREEN including complete downloadable bytes; trajectory318, Workbench150,
+types0, doctor/diff passed. These are development checks, NOT whole OP08 acceptance;
+full gates are not rerun for this intermediate change. No running test process.
+OP13 files/uv.lock remain unrelated and untouched. Next implement explicit
+context-state omission, without synthesizing empty states/hashes/comparisons;
+Domain semantic decode still needs a compatible bounded solution. No parser
+prototype activation or new dependency is authorized by this checkpoint.
 
 ## Active OP08 integration (newer than the notes below)
+
+HTTP integration committed `ab247eb`; this is the current HEAD. Its gates are terminal.
 
 Working tree now implements actual 206 prefix responses (128 KiB maximum),
 same-fd full SHA verification with bounded retained bytes, and verified temporary

@@ -14,7 +14,7 @@ from capability_agent.trajectory.canonical import canonical_json_bytes
 from grid_agent.trajectory.projection_models import ProjectedRun
 
 
-PROJECTION_SCHEMA = "trajectory-projection/2.0"
+PROJECTION_SCHEMA = "trajectory-projection/3.0"
 
 
 @dataclass(frozen=True, slots=True)

@@ -388,7 +388,10 @@ def _canonical_request_document() -> dict[str, Any]:
     }
 
 
-def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, dict[str, str]]:
+def write_native_run_with_simulator_artifacts(
+    runs_root: Path, *, request_document: dict[str, Any] | None = None,
+    context_padding: str = "",
+) -> tuple[Path, dict[str, str]]:
     run_root = runs_root / "analysis-native-artifacts"
     run_root.mkdir(parents=True)
     registry = ImmutableArtifactRegistry(
@@ -409,7 +412,7 @@ def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, di
     request = registry.write_json(
         "request-input",
         "analysis-native-artifacts-t001-r001",
-        _canonical_request_document(),
+        _canonical_request_document() if request_document is None else request_document,
     )
     response = registry.write_json(
         "model-response",
@@ -428,6 +431,7 @@ def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, di
             "analysis_id": "analysis-native-artifacts",
             "revision": 1,
             "state_hash": "sha256:" + "1" * 64,
+            **({"padding": context_padding} if context_padding else {}),
         },
     )
     tool = registry.write_json(
@@ -593,14 +597,64 @@ def write_native_run_with_simulator_artifacts(runs_root: Path) -> tuple[Path, di
     }
 
 
-def create_native_catalog_app(tmp_path: Path) -> tuple[FastAPI, dict[str, str]]:
+def create_native_catalog_app(
+    tmp_path: Path, *, request_document: dict[str, Any] | None = None,
+    context_padding: str = "",
+) -> tuple[FastAPI, dict[str, str]]:
     runs_root = tmp_path / "runs"
-    _run_root, refs = write_native_run_with_simulator_artifacts(runs_root)
+    _run_root, refs = write_native_run_with_simulator_artifacts(
+        runs_root, request_document=request_document, context_padding=context_padding
+    )
     cache_root = tmp_path / ".grid-agent/trajectory-cache"
     catalog = TrajectoryRunCatalog(runs_root, cache_root, ProjectionService(cache_root))
     from grid_agent.trajectory.api.app import create_trajectory_app
 
     return create_trajectory_app(catalog, CursorCodec.load_or_create(cache_root / "cursor.key"), static_root=write_static_fixture(tmp_path)), refs
+
+
+def test_native_context_omission_is_explicit_and_survives_cached_projection(tmp_path: Path) -> None:
+    app, refs = create_native_catalog_app(tmp_path, context_padding="x" * 131072)
+    client = TestClient(app)
+    page = client.get("/api/runs/analysis-native-artifacts/context").json()
+    unknown = [item for item in page["items"] if item["changed"] is None]
+    assert unknown
+    sequence = unknown[0]["source_sequence"]
+    for _ in range(2):
+        response = client.get(f"/api/runs/analysis-native-artifacts/context?at_sequence={sequence}")
+        frame = response.json()
+        assert frame["state_omitted"] is True
+        assert frame["after_state"] is None
+        assert frame["after_state_hash"] is None
+        assert frame["delta"] is None
+        assert "after_state" in frame["omitted_fields"]
+        assert refs["context_ref"] in frame["admitted_artifact_refs"]
+        assert len(response.content) < 131072
+    unchanged = client.get("/api/runs/analysis-native-artifacts/context?changed=false").json()
+    assert sequence not in [item["source_sequence"] for item in unchanged["items"]]
+
+
+@pytest.mark.parametrize("large", [False, True])
+def test_context_request_preview_explicitly_omits_large_documents(tmp_path: Path, large: bool) -> None:
+    document = _canonical_request_document()
+    if large:
+        document["semantic_request"]["context"]["system_prompt"] = "x" * 131072
+        document["semantic_request_sha256"] = _sha256_canonical_sorted(document["semantic_request"])
+    app, refs = create_native_catalog_app(tmp_path, request_document=document)
+    client = TestClient(app)
+    response = client.get("/api/runs/analysis-native-artifacts/context?at_sequence=1")
+    assert response.status_code == 200
+    frame = response.json()
+    assert frame["request_input_omitted"] is large
+    assert frame["omitted_fields"] == (["request_input"] if large else [])
+    assert frame["request_artifact_ref"] == refs["request_ref"]
+    if large:
+        assert frame["request_input"] is None
+        assert len(response.content) < 131072
+        download = client.get(f'/api/runs/analysis-native-artifacts/artifacts/{refs["request_ref"]}')
+        assert download.status_code == 200
+        assert download.json() == document
+    else:
+        assert frame["request_input"]["semantic_request"] == document["semantic_request"]
 
 
 def test_business_page_exposes_recorded_framework_core_timeline(tmp_path: Path) -> None:

@@ -233,28 +233,53 @@ interface ContextFrameBase extends ProjectionNode {
   source_sequence: number;
   before_revision: number;
   after_revision: number;
+  max_sequence: number;
+  request_input_available: boolean;
+  request_input_unavailable_reason: string | null;
+  /** The backend omitted only the inline request preview; state remains complete. */
+  request_input_omitted?: boolean;
+  /** Why full context state cannot safely be inspected or compared. */
+  state_unavailable_reason?: string | null;
+  omitted_fields?: string[];
+  /** References already admitted by the backend for this context view, not state attestations. */
+  admitted_artifact_refs?: string[];
+}
+
+/** Complete context state remains suitable for inspection and comparison. */
+interface ContextFrameWithState {
+  state_omitted?: false;
   before_state_hash: string;
   after_state_hash: string;
   before_state: ContextState;
   delta: ContextDelta;
   after_state: ContextState;
-  max_sequence: number;
-  request_input_available: boolean;
-  request_input_unavailable_reason: string | null;
+}
+
+/** Recovery may retain either side, but the UI must not interpret partial state. */
+interface ContextFrameWithOmittedState {
+  state_omitted: true;
+  before_state_hash: string | null;
+  after_state_hash: string | null;
+  before_state: ContextState | null;
+  delta: null;
+  after_state: ContextState | null;
+  omitted_fields: string[];
 }
 
 /** A native frame has the immutable request input captured by the backend. */
-export interface ContextFrameWithRequest extends ContextFrameBase {
+export interface ContextFrameWithRequest {
   request_artifact_ref: string;
 }
 
 /** Legacy frames must state why the exact model input cannot be shown. */
-export interface ContextFrameWithoutRequest extends ContextFrameBase {
+export interface ContextFrameWithoutRequest {
   request_artifact_ref: null;
   unavailable_reason: string;
 }
 
-export type ContextFrame = ContextFrameWithRequest | ContextFrameWithoutRequest;
+export type ContextFrame = ContextFrameBase
+  & (ContextFrameWithState | ContextFrameWithOmittedState)
+  & (ContextFrameWithRequest | ContextFrameWithoutRequest);
 
 /** Context page metadata intentionally excludes recorded state documents. */
 export interface ContextFrameSummary {
@@ -262,7 +287,8 @@ export interface ContextFrameSummary {
   source_sequence: number;
   before_revision: number;
   after_revision: number;
-  changed: boolean;
+  /** `null` means that at least one state hash was omitted, so change is unknown. */
+  changed: boolean | null;
   request_input_available: boolean;
   request_input_unavailable_reason: string | null;
   event_kind: string;

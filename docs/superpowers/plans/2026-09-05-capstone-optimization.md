@@ -2,23 +2,37 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` for task-by-task implementation when delegation is useful; otherwise execute inline with the same test/review gates. Steps use checkbox syntax. 本文件是唯一优化执行顺序与状态账本。
 
-**Goal:** 闭合 Capstone 的答案与证据准入、非阻断报告、完整工程门禁、规模性能和领域扩展验证，保留首个 pandapower 应用兼容性。
+**Goal:** 优化统一智能体框架本身：降低业务能力包接入成本，明确公共接口与领域隔离，验证模型对已有业务框架的统一调用与组合，保证结果和证据可追溯；保留首个pandapower应用兼容性。外围服务性能不是本轮目标。
 
-**Architecture:** 保留 Kernel / Domain Pack / Application / Authority 职责。答案规则由领域策略提供，控制器负责确定性提交；展示作为可失败的派生输出。先修复保证和测试，再优化缓存与存储，最后用完整独立领域验证公共 SPI。
+**Architecture:** 保留 Kernel / Domain Pack / Application / Authority 职责。答案规则由领域策略提供，控制器负责确定性提交；展示作为可失败的派生输出。以pandapower和独立inventory能力包验证公共SPI与通用运行时复用；缓存、预览与存储只承担必要辅助作用。
 
 **Tech Stack:** 现有 Python/Pydantic、Pi JavaScript、React/TypeScript、pytest、Node test、Vitest/Playwright、uv、Make。继续使用项目锁定版本；依赖升级仅限 OP-06 的显式范围。
 
 ## 1. 状态、依据与授权边界
 
-- 方案版本：1，2026-09-05；代码审查基线：`5a38c5b`。
+- 方案版本：2，2026-09-05；用户明确框架优先后收敛范围；代码审查基线：`5a38c5b`。
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行：OP09批量证据完整功能已验收；下一步回到OP08预览端到端接入缺口，生产B/C/D仍未完成，原型冻结、不自动迁入生产；OP13 B仍未验收。按下方整体精简清单执行，全方案未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行：OP08仅收尾已有上下文功能并验收，任意规模语义解析已暂缓；OP13复杂分段实现暂缓、默认legacy。随后按框架公共接口、能力包接入和跨领域复用验收OP14。全方案尚未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
 ## 2. Global Constraints
+
+### 用户明确的产品定位（2026-09-05 19:11；优先于全部旧优化门槛）
+
+Capstone的核心是：在统一智能体框架下接入不同业务能力包，验证对pandapower等既有业务能力框架的AI应用支持。它不是企业大型服务；本轮不建设多租户、高可用、通用资源治理或面向任意规模负载的基础设施。
+
+用户要求将既有超纲功能留待以后仔细清理：[清理候选记录](../../status/capstone-scope-cleanup-backlog.md)保存位置、状态、已知缺陷及未验证风险；当前只登记，不自动删除或回退。
+
+- 保留核心验收：Kernel/Domain Pack/应用/authority边界清楚；业务能力通过公共SPI接入；模型调用真实业务能力；结果和当前run证据可追溯；grid兼容CLI和基本展示可用；inventory用于验证跨领域接入，不发展成第二套服务平台。
+- OP08收口为实际预览/下载/上下文展示可用与基本资源限制。保留正常Domain JSON解码及既有语义校验，不再以“任意合法JSON的严格有界等价解析”阻塞本轮；该旧扩展记录为DEFERRED而非已实现。冻结的解析原型不迁入生产。
+- OP13默认legacy保持。复杂分段写入/恢复实现暂缓，不因压力基准触发而自动要求生产化；待真实能力包验证工作负载证明必要后再评估。既有未验收改动保留、隔离，不自动合入或删除。
+- 当前未提交的上下文改动只做必要收尾与简化评估；不得继续增加框架、状态分支或通用资源机制。已有缺陷必须如实记录，不把代码已写出当作必须保留的理由。
+- OP14按上述产品目的统一验收与文档对账，不再增加企业服务级规模、故障或资源证明。任何暂缓项以范围处置关闭，不能标作原实现要求已完成。
+
+本条是用户对产品目的的明确纠偏，不只是测试频率调整。后续恢复必须先读本条，不继续执行下方已被覆盖的严格资源/解析器/存储门槛。
 
 ### 整体精简与交付重排（用户指出两小时投入失衡后；优先于旧切片门槛）
 
@@ -64,13 +78,13 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
-| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | A已验收b7b49f6；B0私有隔离原型/验证已批准，生产B/C/D仍未完成 |
+| OP-08 | 3 | 基础工件预览与上下文展示 R06（v2范围） | OP-07 | DONE | 前缀/下载ab247eb；上下文省略、未知恢复与基本防护已验证；仅按用户修订后的基础展示范围验收，原任意JSON严格有界扩展DEFERRED，非已实现 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07（与OP08最终集成） | DONE | 批量API/前端/错误重试完整接通；doctor/types/test/E2E/validate通过，工作台138/浏览器13，详见OP09验收 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | DONE | de3a5c7九样本/实测复审/固定完整release PASS，100.339/100.490写入倍率触发OP13 |
-| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | BLOCKED | A已验收3bc24a2；B未验收，572全Kernel/类型、Linux126定向通过；整体独立复审服务中断，C/D未开始、默认仍legacy |
-| OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
+| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | DEFERRED | 用户明确框架优先后暂缓；A已验收3bc24a2；B脏改动未验收且保留隔离，C/D不启动；默认legacy，不宣称实现完成 |
+| OP-14 | 5 | 框架集成关闭与范围对账 | OP-01–12，OP-13 disposition 已记录 | RUNNING | 应用实例化2/2与inventory通用流程通过；待当前集成提交的最终证据/文档对账，不扩外围性能项目 |
 
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
 2026-09-05调度补充：OP08额外跨层范围待用户批准时，按已满足的依赖推进独立OP10；不把自动续行视为OP08批准，不启动依赖OP08的OP09。OP10既有范围保持不变。
@@ -359,6 +373,12 @@ assert materialize_spy.call_count == 1
 关闭验收：固定 `7638188365482966bf57888904b3d02dbfe3d189` 的 `make doctor && make check-release` exit0（08:55 CST），结束后HEAD未变化，仅状态文档dirty。agent785、sim165、Kernel438、pandapower79、inventory11/13/1、Pi34/43、UI128、门禁自检18、SDK四例、E2E31、offline/scripted/24-of-24、完整应用、六wheel/两npm干净安装和frozen源码安装全部通过。证据 `runs/optimization/OP-07/gate-release-7638188.json` 保存命令/HEAD/退出码与捕获输出；其中一段模拟器上游warnings被工具截断，测试总数和终态保留，不声称无截断控制台转录。未运行付费provider或远端CI矩阵。
 
 ### OP-08：服务端限制工件和上下文预览
+
+**v2范围验收，2026-09-05 19:21**：基础展示改动收尾；独立实现复审两项（父目录替换、未检查状态的误导标题）已结清。最终trajectory+benchmark345、工作台154、类型/doctor通过；浏览器13通过。原门禁38874在旧benchmark helper契约失败，已修复；从失败目标续跑50882最终exit0，涵盖verification targets、Kernel、Domain、generic tools、inventory、Workbench、CLI E2E31与validate7/10/8，另应用实例化2/2。未重复不受最后小改影响的已通过模拟器门禁。此验收覆盖用户修订后的基础预览/上下文展示，不证明任意JSON严格内存上界、不验收OP13脏改动；相关超纲代码保留在清理候选记录中。
+
+**2026-09-05 19:09上下文接入（覆盖下面的18:57开发状态）**：完整状态采用已知/未知/恢复语义；大context-view只声明原始字节摘要已核验、元数据未检查，未读出的状态/摘要/delta为null。缺失或损坏的新快照同样令后续状态未知；完整快照恢复后值，下一帧才恢复完整比较。`state_omitted`、`omitted_fields`、`state_unavailable_reason`和独立请求原因避免把空对象/缺请求当成真实状态；公开工件入口仅取当前verified context-view记录。Workbench禁用省略帧树/固定/比较；summary.changed可为null。缓存schema3.0和context page2.0明确失效旧派生结果，不迁移历史run。设计独立复审的三项条件均落实；源码冻结、完整门禁与实现复审运行中，尚未提交。Domain有界语义验证仍未完成，不据此关闭OP08。
+
+**2026-09-05 18:57开发接续（未提交、未整包验收）**：`_NativeArtifacts.verify`复用既有Kernel流式校验，删除投影层重复整文件读取；上下文详情的大模型请求仅附`request_input_omitted=true`和`omitted_fields=["request_input"]`，不解码整份请求用于展示，保留已准入工件链接。工作台两处上下文面板显示明确提示；小请求兼容，完整下载不变。这不省略before/delta/after状态、不改变比较逻辑，也不替代Domain语义验证。实际RED→GREEN后trajectory318、工作台150、类型/doctor通过；按用户开发验证尺度仅定向回归，整条上下文省略接通后统一验收。当前仍需完整上下文省略契约和Domain有界语义方案，不能以该中间改动关闭OP08。
 
 **2026-09-05当前接入进展（优先于下方历史原型清单）**：实际HTTP已接通128KiB前缀206与无Range完整下载；网关同fd分块校验完整SHA后返回前缀，下载先生成已验证临时快照再64KiB分块发送，正常/发送失败均关闭。单次下载快照上限256MiB，超限413/`artifact_too_large`，前缀预览仍可用；这不是总磁盘配额。前端严格检查206/Content-Range/长度，拒绝并取消忽略Range的200。实际Range7RED及下载上限1RED均转绿；API108（含原生运行七类工件前缀/下载一致）、工作台148、浏览器13、最终agent810和类型检查通过；独立网关/上限增量复审通过。doctor/test/E2E/validate链33137 exit0，CLI E2E31、offline7/7、scripted10/10、full8/8、能力24/24；下载上限收尾后另跑最终agent810及API108/types，未重复无关模拟器门禁。上游投影/Domain整份JSON解码及大上下文省略仍未完成，不能据此关闭08-B/C/D或OP08。原型继续冻结。
 
@@ -2009,6 +2029,8 @@ assert no_partially_committed_transaction()
 **关闭条件**：新格式恢复证明、旧格式兼容、资源目标全部达成。回退只影响新写入选择，保留已经产生的新格式 reader，禁止删除运行数据。提交主题：`perf: commit context transactions as immutable segments`。
 
 ### OP-14：综合关闭与第二正式领域选择入口
+
+**版本2验收重心（优先于下方旧清单）**：先核对公共SPI不要求为新领域修改Kernel、pandapower与inventory可独立装配、模型只使用已发布领域能力、结果/证据按当前run绑定、报告失败不破坏主答案。以现有`validate-application`、inventory实例化/通用传输和包边界检查提供证据。OP13以用户授权DEFERRED处置，不用NOT_NEEDED掩盖已有基准；OP08旧严格资源/任意JSON等价要求同样明确暂缓。C.2保留现有候选记录，不重新开展外部API调研或业务选型。整体关闭仍要求当前提交与验证一致，不把外围服务吞吐/规模证明作为目标。
 
 **Files**：Modify 本计划、`docs/status/CURRENT-STATE.md`、`docs/status/RESUME-NEXT-SESSION.md`、`docs/status/JOURNAL.md`、`docs/status/DECISIONS.md`、`docs/status/INDEX.md`；需要更新产品事实时同步 README 双语和 RUNBOOK。
 

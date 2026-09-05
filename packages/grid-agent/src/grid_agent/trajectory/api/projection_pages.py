@@ -46,7 +46,7 @@ EvidenceSort = Literal["producer_sequence", "verification_status"]
 
 _PROJECTION_VERSIONS: dict[ProjectionView, str] = {
     "agent": "agent-event-rows/1.0",
-    "context": "context-frame-summaries/1.0",
+    "context": "context-frame-summaries/2.0",
     "evidence": "evidence-records/1.0",
 }
 _PUBLIC_TOOL_CAPABILITIES = frozenset(
@@ -742,12 +742,13 @@ def _context_records(
                 source_sequence=frame.source_sequence,
                 before_revision=frame.before_revision,
                 after_revision=frame.after_revision,
-                changed=frame.before_state_hash != frame.after_state_hash,
+                changed=(frame.before_state_hash != frame.after_state_hash)
+                if frame.before_state_hash is not None and frame.after_state_hash is not None else None,
                 request_input_available=frame.request_artifact_ref is not None,
                 request_input_unavailable_reason=(
                     None
                     if frame.request_artifact_ref is not None
-                    else frame.unavailable_reason
+                    else frame.request_input_unavailable_reason
                 ),
                 event_kind="context-frame",
                 **_flat_binding(binding),
@@ -797,8 +798,21 @@ def public_context_frame(
     """Expose a request input ref only when its artifact record is verified."""
     reference = frame.request_artifact_ref
     binding = projected.binding_metadata()
-    binding_update = _flat_binding(binding)
+    binding_update: dict[str, Any] = {**_flat_binding(binding)}
+    binding_update["admitted_artifact_refs"] = tuple(
+        ref for ref in frame.admitted_artifact_refs
+        if (record := projected.artifacts.records.get(ref)) is not None
+        and record.reference == ref and record.kind == "context-view"
+        and record.verification_status == "verified" and record.status != "unavailable"
+        and _public_evidence_record(record, binding=binding).verification_status == "verified"
+    )
+    binding_update["request_input_unavailable_reason"] = None
     if reference is None:
+        binding_update["request_input_unavailable_reason"] = (
+            frame.request_input_unavailable_reason
+            or (frame.unavailable_reason if frame.state_unavailable_reason is None else None)
+            or _UNREGISTERED_REQUEST_INPUT_REASON
+        )
         if frame.unavailable_reason:
             return frame.model_copy(update=binding_update)
         return frame.model_copy(
@@ -821,9 +835,10 @@ def public_context_frame(
         reason = public_record.unavailable_reason or _UNVERIFIED_REQUEST_INPUT_REASON
     return frame.model_copy(
         update={
+            **binding_update,
             "request_artifact_ref": None,
             "unavailable_reason": reason,
-            **binding_update,
+            "request_input_unavailable_reason": reason,
         }
     )
 

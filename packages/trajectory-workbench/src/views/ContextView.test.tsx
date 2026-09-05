@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BindingMetadata, ContextFrame, ContextFrameSummary } from '../api/types';
+import type { BindingMetadata, ContextFrame, ContextFrameSummary, ContextState } from '../api/types';
 import { ContextView } from './ContextView';
 
 const summaries: ContextFrameSummary[] = [
@@ -8,7 +8,7 @@ const summaries: ContextFrameSummary[] = [
   { id: 'context:50', source_sequence: 50, before_revision: 11, after_revision: 12, changed: true, request_input_available: false, request_input_unavailable_reason: 'request input digest mismatch', event_kind: 'model-request' },
 ];
 
-function frame(sequence: number, before: ContextFrame['before_state'], after: ContextFrame['after_state']): ContextFrame {
+function frame(sequence: number, before: ContextState, after: ContextState): ContextFrame {
   return {
     id: `context:${sequence}`, source: 'observed', source_sequences: [sequence], rule_id: null,
     status: 'completed', unavailable_reason: null, source_sequence: sequence,
@@ -70,6 +70,55 @@ describe('ContextView', () => {
     expect(screen.getAllByText('request input digest mismatch').length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: 'artifact:request' })).not.toBeInTheDocument();
     expect(artifactUrl).not.toHaveBeenCalled();
+  });
+
+  it('labels an omitted request preview while retaining its admitted artifact link', () => {
+    const artifactUrl = vi.fn((ref: string) => `/artifact/${ref}`);
+    const omitted = {
+      ...frame(50, { before: 'recorded' }, { after: 'recorded' }),
+      request_input_omitted: true,
+      omitted_fields: ['request_input'],
+    } as ContextFrame & { request_input_omitted: boolean; omitted_fields: string[] };
+
+    render(<ContextView {...baseProps} selectedSequence={50} frame={omitted} detailState="ready" artifactUrl={artifactUrl} />);
+
+    expect(screen.getByText('Request input preview omitted because it exceeds 128 KiB. Download the recorded artifact to inspect it.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'artifact:request' })).toHaveAttribute('href', '/artifact/artifact:request');
+    expect(screen.getByRole('tree', { name: 'Before recorded context state' })).toBeVisible();
+  });
+
+  it('shows omitted context state and admitted artifacts without pinning or comparing null state', () => {
+    const omitted = {
+      ...frame(50, {}, {}),
+      before_state_hash: null,
+      after_state_hash: 'sha256:recovered-after',
+      before_state: null,
+      delta: null,
+      after_state: { recovered: true },
+      state_omitted: true,
+      state_unavailable_reason: 'Context state omitted because it exceeds 128 KiB; context metadata was not inspected.',
+      omitted_fields: ['before_state', 'delta', 'after_state'],
+      admitted_artifact_refs: ['artifact:context-input'],
+    } satisfies ContextFrame;
+
+    render(<ContextView {...baseProps} selectedSequence={50} frame={omitted} detailState="ready" />);
+
+    expect(screen.getByText('Context state omitted because it exceeds 128 KiB; context metadata was not inspected.')).toBeVisible();
+    expect(screen.getByText('before_state, delta, after_state')).toBeVisible();
+    expect(screen.getByRole('link', { name: /digest-verified context artifact.*artifact:context-input/i })).toHaveAttribute('href', '/artifact/artifact:context-input');
+    expect(screen.queryByRole('tree', { name: 'Before recorded context state' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Raw recorded JSON')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pin sequence 50 as frame A' })).toBeDisabled();
+    expect(screen.getByRole('region', { name: 'Pinned frame comparison' })).toHaveTextContent('cannot be compared');
+  });
+
+  it('labels unknown summary changed state without calling it unchanged', () => {
+    const unknown = { ...summaries[0], changed: null } as unknown as ContextFrameSummary;
+
+    render(<ContextView {...baseProps} summaries={[unknown]} frame={null} />);
+
+    expect(screen.getByRole('button', { name: /sequence 40.*tool-result/i })).toHaveTextContent('unknown');
+    expect(screen.getByRole('button', { name: /sequence 40.*tool-result/i })).not.toHaveTextContent('unchanged');
   });
 
   it('filters summaries and exposes exact older-page retry controls', () => {

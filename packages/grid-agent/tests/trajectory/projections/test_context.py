@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from hashlib import sha256
 import json
 from pathlib import Path
 from typing import Any, cast
+import pytest
 
 from grid_agent.trajectory.context_projection import (
     UNAVAILABLE_NATIVE_CONTEXT,
@@ -89,7 +91,8 @@ def test_native_context_unavailable_preserves_next_request_artifact_reference() 
     assert frame.status == "unavailable"
     assert frame.unavailable_reason == UNAVAILABLE_NATIVE_CONTEXT
     assert frame.request_artifact_ref == "artifact:request-8"
-    assert frame.model_dump(mode="json")["after_state"] == {}
+    assert frame.model_dump(mode="json")["after_state"] is None
+    assert frame.state_omitted
 
 
 def test_native_context_injection_uses_verified_context_view_artifact(tmp_path: Path) -> None:
@@ -102,7 +105,8 @@ def test_native_context_injection_uses_verified_context_view_artifact(tmp_path: 
     }
     path = tmp_path / "view.json"
     path.write_text(json.dumps(document), encoding="utf-8")
-    pointer = ArtifactPointer("artifact:sha256:" + "a" * 64, "context-view", "context/views/r7/view.json", "a" * 64, path.stat().st_size)
+    digest = sha256(path.read_bytes()).hexdigest()
+    pointer = ArtifactPointer("artifact:sha256:" + digest, "context-view", "context/views/r7/view.json", digest, path.stat().st_size)
     artifacts = VerifiedContextArtifacts(pointer, path)
     event = Event(
         7,
@@ -116,6 +120,76 @@ def test_native_context_injection_uses_verified_context_view_artifact(tmp_path: 
 
     assert artifacts.references == [pointer.ref]
     assert frame.model_dump(mode="json")["after_state"] == document
+
+
+def test_large_context_is_unknown_until_a_complete_snapshot_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "view.json"
+    path.write_text(json.dumps({"body": "x" * 131072}), encoding="utf-8")
+    pointer = ArtifactPointer("artifact:sha256:" + "a" * 64, "context-view",
+                              "context/views/r1/view.json", "a" * 64, path.stat().st_size)
+    artifacts = VerifiedContextArtifacts(pointer, path)
+
+    def forbidden(_: Path) -> bytes:
+        pytest.fail("large context must not be decoded for display")
+
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    events = _replay_events(
+        Event(1, "context.injected", {"artifact_ref": pointer.ref},
+              context=ContextBoundary(after_revision=1)),
+        Event(2, "model.request.started", {"artifact_ref": "artifact:request"}),
+        Event(3, "context.projected", {"after_state": {"value": 1}},
+              context=ContextBoundary(after_revision=2)),
+        Event(4, "analysis.completed"),
+    )
+    timeline = project_context(events, artifacts, checkpoint_interval=1)
+    first, inherited, restored, complete = timeline.frames
+    assert first.state_omitted
+    assert first.after_state is None and first.after_state_hash is None
+    assert first.delta is None
+    assert first.admitted_artifact_refs == (pointer.ref,)
+    assert inherited.before_state is None and inherited.after_state is None
+    assert inherited.before_state_hash is None and inherited.after_state_hash is None
+    assert restored.state_omitted and restored.before_state is None
+    assert restored.after_state == {"value": 1}
+    assert not complete.state_omitted
+    assert complete.before_state == complete.after_state == {"value": 1}
+    assert timeline.checkpoints[0].state is None
+    assert timeline.checkpoints[0].state_hash is None
+    assert timeline.checkpoints[0].state_omitted
+
+
+@pytest.mark.parametrize("parent_swap", [False, True])
+def test_context_rejects_symlink_replacement_after_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parent_swap: bool
+) -> None:
+    content = json.dumps({"analysis_id": "analysis-1", "revision": 1, "state_hash": "state-1"}).encode()
+    path = tmp_path / "context" / "view.json"
+    path.parent.mkdir()
+    outside = tmp_path / "replacement.json"
+    path.write_bytes(content)
+    outside.write_bytes(content)
+    digest = sha256(content).hexdigest()
+    pointer = ArtifactPointer("artifact:sha256:" + digest, "context-view",
+                              "context/views/r1/view.json", digest, len(content))
+    artifacts = VerifiedContextArtifacts(pointer, path)
+
+    def swapped(_: ArtifactPointer) -> Path:
+        if parent_swap:
+            path.parent.rename(tmp_path / "original-context")
+            path.parent.symlink_to(tmp_path / "original-context", target_is_directory=True)
+        else:
+            path.unlink()
+            path.symlink_to(outside)
+        return path
+
+    monkeypatch.setattr(artifacts, "verify", swapped)
+    frame = project_context(_replay_events(Event(1, "context.injected", {
+        "artifact_ref": pointer.ref, "revision": 1, "state_hash": "state-1"
+    })), artifacts).frames[0]
+    assert frame.after_state is None
+    assert frame.status == "unavailable"
 
 
 def test_unknown_domain_context_payload_is_not_interpreted_as_grid_state() -> None:

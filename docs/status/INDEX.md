@@ -13,12 +13,13 @@
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
 | `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |
 | `2026-09-05-capstone-design-code-review.md` | Optimization evidence baseline R01–R13; current remediation status belongs to the canonical plan. |
+| `capstone-scope-cleanup-backlog.md` | 超纲实现清理候选、实际位置与风险；用户要求后续评估，当前不执行删除。 |
 
 ## External execution anchors
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist OP-01–OP-14, dependencies, acceptance and rollback; active package OP-08 with approved scope; OP-13 B awaiting independent review. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist v2: framework integration focus; OP08 basic display accepted, strict JSON extension and OP13 deferred; OP14 final reconciliation active. |
 
 ## Climb storage and configuration
 

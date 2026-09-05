@@ -104,19 +104,10 @@ class _NativeArtifacts:
         if pointer.ref.startswith(("result:sha256:", "evidence:sha256:")):
             self.verify_reference(pointer.ref)
             return SimpleNamespace(authority="gridctl", integrity="verified")
-        if pointer.ref != f"artifact:sha256:{pointer.sha256}":
-            raise RuntimeError("native artifact pointer has an invalid reference")
-        path = self.run_root / pointer.relative_path
-        try:
-            path.resolve(strict=True).relative_to(self.run_root.resolve(strict=True))
-        except (OSError, ValueError) as exc:
-            raise RuntimeError("native artifact pointer escapes the run root") from exc
-        value = path.read_bytes()
-        if len(value) != pointer.size_bytes:
-            raise RuntimeError("native artifact size does not match its pointer")
-        if hashlib.sha256(value).hexdigest() != pointer.sha256:
-            raise RuntimeError("native artifact digest does not match its pointer")
-        return path
+        return ImmutableArtifactRegistry(
+            self.run_root,
+            path_policy=GridArtifactPathPolicy(),
+        ).verify(pointer)
 
     def _register_existing(
         self, kind: str, identity: str, path: Path
