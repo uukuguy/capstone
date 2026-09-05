@@ -66,6 +66,23 @@ def test_digest_collision_requires_exact_key_bytes(storage, monkeypatch) -> None
     assert [m.value_id for m in index.members(object_id)] == [3, 2]
 
 
+def test_populated_candidate_lookup_uses_digest_bucket_without_sort(storage) -> None:
+    connection, keys = storage
+    index = DiskObjectIndex(connection, keys)
+    object_id = index.new_object()
+    for value in range(32):
+        index.put(object_id, *append_key(keys, f'"key{value}"'.encode()), value + 1)
+    queries = []
+    connection.set_trace_callback(queries.append)
+    index.put(object_id, *append_key(keys, b'"key0"'), 100)
+    connection.set_trace_callback(None)
+    query = next(sql for sql in queries if "AND digest=" in sql)
+    plan = " ".join(row[3] for row in connection.execute("EXPLAIN QUERY PLAN " + query))
+    assert "member_bucket" in plan
+    assert "TEMP B-TREE" not in plan
+    assert next(index.members(object_id)).value_id == 100
+
+
 def test_member_after_is_keyset_read_without_retained_iterator(storage) -> None:
     connection, keys = storage
     index = DiskObjectIndex(connection, keys)

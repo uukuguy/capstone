@@ -182,7 +182,7 @@ class DiskObjectIndex:
             if parent is None:
                 raise ObjectIndexError("object is missing")
             with closing(self._connection.execute(
-                "SELECT position,key_offset,key_length,value_id FROM object_members "
+                "SELECT position,key_offset,key_length,value_id FROM object_members INDEXED BY member_bucket "
                 "WHERE object_id=? AND digest=? AND key_length=? ORDER BY position",
                 (object_id, digest, key_length),
             )) as candidates:

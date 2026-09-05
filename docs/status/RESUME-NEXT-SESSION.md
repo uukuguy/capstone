@@ -1,14 +1,33 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 17:56 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 18:08 CST. **Session remains active — not a final handoff.**
+
+## Priority override: stop over-expansion, deliver OP09 next
+
+User challenged the overall two-hour detour, not only disk quotas. Canonical plan
+§2 now contains the full retain/simplify/defer audit and delivery order. This
+section overrides older B0 next-action notes below. Freeze new JSON prototype
+work and extra resource proofs. The three unimplemented MEMORY policy tests were
+removed; SQLite policy never changed. Existing caps/cleanup remain. One real
+candidate-index scan regression was fixed (INDEXED BY existing member_bucket):
+index27PASS/types0, combined240dailyPASS/doctor/diff; no extra micro-review cycle.
+
+Immediate next: OP09 batch evidence endpoint and frontend consumption/error state,
+as one usable feature. Its implementation needs OP07's projection, not OP08's
+unfinished parser; canonical dependency explicitly corrected, final integration
+still checks OP08 compatibility. Then return to OP08 complete preview delivery,
+not more isolated primitive features. OP13 dirty persistence work remains frozen,
+unaccepted/default legacy; do not delete, stage or bypass its blocked review.
+No scope is relabeled complete merely because deferred. Existing prototype
+commits and old review artifacts remain recoverable, not production-adopted.
 
 ## Scope and workspace
 
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD f4a5712 (B0.5 isolated source binding).
-- OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 depends08.
+  branch feat/capstone-optimization; HEAD ebd472e (B0.6 isolated component limits).
+- OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 follows07 now.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
   Preserve main's modified RESUME and untracked framework guide.
@@ -73,13 +92,13 @@ independent SPEC/QUALITY PASS with4focusedPASS/types0. Source/file ownership,
 raw hash/size and read-time mutation checks run before semantic output. Additive
 ReadableSource protocol only, no production interface/import changes.
 Evidence OP08/b0-source-{root-verification,review}.md.
-B0.6 component limits implemented, accepted, pending commit:
+B0.6 component limits implemented, accepted and committed ebd472e:
 scratch.py positive integer caps(default256MiB each), LimitedFile checked writes,
 SQLite max_page_count before schema; source/cleanup lifetime unchanged. Three
 real quotaRED and four configRED fixed;239dailyPASS/types0/doctorPASS. Early
 artificial placeholder failure excluded from evidence. Independent SPEC/QUALITY
 PASS,25targetedPASS/types0; OP08/b0-scratch-{root-verification,review}.md.
-Next: commit B0.6, then address SQLite journal/temp allocation
+Next: address SQLite journal/temp allocation
 in the total-space strategy, native memory and full Domain feasibility. Component
 limits do not claim filesystem quota; avoid fault-permutation expansion.
 Source adapter assumes already safely admitted fd; it is not path admission or
