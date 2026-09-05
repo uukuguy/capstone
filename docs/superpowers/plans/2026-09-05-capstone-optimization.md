@@ -717,6 +717,34 @@ Neither intermediate code nor digest-only commit closes OP11 without full gates.
 
 **接口**：`python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/benchmarks/report.json`，报告包含环境、源码、规模、重复次数、p50/p95、读取/写入字节和峰值内存。命令通过 grid-agent 的 uv 环境运行。
 
+**实施计量契约（2026-09-05，独立设计复审通过）**：
+
+- 每个 N/重复使用独立子进程及临时目录；默认三次、append batch100。
+  Context 初始化事件不计入 N；追加 N 个合法 `domain.state.projected`，
+  固定256字节状态且 previous_revision 连续，真实 append/replay 等价。
+  此分布隔离账本重写成本，不代表业务负载或不断增长的诊断列表。
+- Trajectory 另用 N 个合法 hash-chain 生命周期/诊断事件和一个固定65536字节
+  request text 的真实注册工件；每样本一个 run（不是 N 个 run）。真实列表、
+  冷/热投影及 canonical-request preview helper；热投影等价且 projector/
+  materializer 调用为零。冷缓存不表示清空 OS cache；预览不代表浏览器、
+  HTTP 端到端或工件大小增长测试，也不改变 OP08 的待批准范围。
+- 包装真实 Python stream/descriptor I/O，精确测试 open/fdopen 委托不重复计数。
+  账本另在真实 `_stage_bytes` 统计成功 final+backup staging 字节，不使用最终
+  文件尺寸冒充累计写入，不混入 snapshot。计时含探针成本；RSS 是独立样本
+  进程的累计 high-water，而非可重置的单操作峰值。三样本 nearest-rank p95
+  等于最大值，不宣称生产尾延迟或物理磁盘流量。
+- 每样本默认300秒，CLI 参数有界且报告记录；保留所有规模/重复、失败阶段、
+  已完成操作、exit status、上限与可恢复 scratch 路径。坏进度输出不能阻止
+  最终失败报告。正常样本清理自己的临时目录，超时遗留不扩展删除范围。
+- 决策用所有重复均完成的 append 阶段累计字节中位数 W；精确十倍 N 的
+  每事件倍率为 `(W_large/N_large)/(W_small/N_small)`，即累计倍率/10。
+  达到任一触发条件即可 TRIGGERED；NOT_NEEDED 要求请求样本全部完成且
+  至少有有效十倍对照，否则 INCONCLUSIVE。后续阶段失败可以保留已完成
+  append 的触发证据，但不能伪称整组基准通过。
+- 保存 Python/Node（可用时）/平台、HEAD/dirty paths/基准源码摘要、原始
+  重复及各操作 p50/p95；长测仅显式 `make benchmark-optimization`，普通
+  `test-verification-targets` 纳入小规模自测，不隐式启动长测。
+
 - [ ] fixture 采用合法事件生成器，三个规模使用相同事件分布/工件大小；临时目录隔离，重复三次，禁止读取用户业务运行做默认基准。
 - [ ] 测量 context append_many、replay、列表、冷/热投影、预览；用计数器统计逻辑 I/O，时间与 RSS 作为辅助指标。
 - [ ] 验证 10 倍事件量下的写入倍率；若连续两个规模的累计账本写入倍率均 >30，或每新增事件平均账本写入增长 >3 倍，则触发 OP-13。阈值是本计划的工程预算，不是既有性能事实。

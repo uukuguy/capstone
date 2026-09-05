@@ -1,21 +1,21 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 11:44 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 12:04 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
 - Active unbounded goal: continue approved optimization implementation, not just a plan. Project route direct; one worklist: docs/superpowers/plans/2026-09-05-capstone-optimization.md.
-- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEAD218b672; OP11 source416a04d plus independent protected digest218b672.
-- OP01–07/10/11 DONE. OP12 RUNNING (read-only preflight only, no new benchmark source). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP13 conditional on12; OP14 waits the remaining packages.
+- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEADae2dac1; OP11 source416a04d plus independent protected digest218b672 and closure docsae2dac1.
+- OP01–07/10/11 DONE. OP12 RUNNING (benchmark implementation/review/selftests PASS, formal measurements pending). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP13 conditional on12; OP14 waits the remaining packages.
 - No active root terminal. Fixed218b672 make doctor && make check-release terminal89274 exited0 at11:42 CST; full raw capture saved. Do not poll ended terminals or repeat this gate for unchanged source.
 
 ## Immediate next action: OP12
 
-1. Finish committing the OP11 closure documentation (README bilingual/RUNBOOK/architecture/status/canonical plan); links44/symlink/diffcheck passed, rerun doctor for the final docs state. Record commit with actual clock timestamp.
-2. Read canonical OP12 and runs/optimization/OP-12/preflight.md. Implement tools/benchmark_optimization.py and tools/tests/test_benchmark_optimization.py, Makefile only. First clarify exact logical I/O counters, fixed batch/workload, repetitions/percentiles/RSS and actual preview path. Do not change context persistence or claim hypothetical performance.
-3. Use legal synthetic events and fixed artifact sizes in isolated temp roots at1000/10000/100000, repeat3. Measure real append_many/replay/list/cold-hot projection/preview. Preserve failed/resource-limited scales and distinguish logical counters from disk traffic; actual trigger budgets govern OP13, no extrapolated pass.
-4. Existing OP07 tools/benchmark_projection_cache.py provides valid trajectory fixtures/counters, but is one-repeat and lacks I/O/RSS. Kernel context ledger is a different format; read-only map explains real write/backup seams. No new benchmark code exists yet.
-5. Only after verified OP12 data make the OP13 branch decision. A storage-format implementation needs its explicit detailed recovery/commit-point review as required by the approved plan.
+1. Commit reviewed OP12 benchmark/tests/Makefile and canonical measurement refinement before formal measurements. No production persistence/API changes. HEAD remains ae2dac1 before this commit.
+2. Design and repaired-code independent reviews PASS in runs/optimization/OP-12/. Final benchmark23 selftests PASS; earlier20+verification6 PASS. make doctor/diffcheck PASS. Raw selftest-evidence.json retains available attempts; initial missing-source15RED, fdopen duplicate-write failure and malformed-progress/no-comparison3RED were corrected, not hidden.
+3. Run explicit three-scale command from canonical OP12, repeat3/default batch100/default300second per-sample timeout. Full raw output and report must retain incomplete scales. No formal benchmark numbers exist yet; no OP13 decision.
+4. Exact stream/descriptor I/O counts include chained open and fdopen buffering; ledger final+backup bytes counted separately. Independent child RSS cumulative, fixed256byte state and65536byte request text. Actual replay/list/cold-hot/preview validity, hot zero projector/materializer calls. Preview is helper-only, not HTTP/UI memory proof.
+5. Bad/truncated progress retains failed sample/scratch path and bounded diagnostics; lack of exact10x comparison is INCONCLUSIVE. OP13 only after measured trigger and separate reviewed commit-point/recovery contract; OP08 still pending approval.
 
 ## OP11 closed evidence
 
