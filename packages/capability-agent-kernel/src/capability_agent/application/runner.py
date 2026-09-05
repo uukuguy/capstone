@@ -903,21 +903,21 @@ class AgentApplication:
                     f"binding {binding_id!r} profile is unavailable"
                 )
             _call_method(getattr(profile, "policy_provider", None), "load")
+            runtime = getattr(binding, "runtime", None)
+            authority = getattr(runtime, "authority", None)
+            if authority is None:
+                raise ApplicationConfigurationError(
+                    f"binding {binding_id!r} current-run authority is unavailable"
+                )
             try:
                 _call_method(profile, "validate_answer_admission_declaration")
-                runtime = getattr(binding, "runtime", None)
-                authority = getattr(runtime, "authority", None)
-                if authority is None:
-                    raise RuntimeError("current-run authority is unavailable")
                 policy = _call_method(
                     profile, "create_answer_admission_policy", authority
                 )
                 if not callable(getattr(policy, "admit", None)):
                     raise TypeError("answer admission policy is invalid")
-            except Exception as exc:
-                raise ApplicationConfigurationError(
-                    f"binding {binding_id!r} answer admission declaration is invalid"
-                ) from exc
+            except Exception:
+                self._record_diagnostic("answer_evaluation_unavailable")
         self._hook("policy_composition")
         for binding_id in sorted(bindings):
             profile = _binding_profile(bindings[binding_id])

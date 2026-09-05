@@ -114,10 +114,10 @@ def test_real_boundary_limits_zero_reference_business_question(tmp_path: Path) -
     )
 
     finalized, admission = _admission(execution)
-    assert finalized.status == "limited"
+    assert finalized.status == "success"
     assert admission.mode == "limited"
     assert admission.assurance == "limited"
-    assert "execution limitation" in finalized.answer_output
+    assert "execution limitation" not in finalized.answer_output
 
 
 def test_no_new_tool_answer_preserves_text_and_continues_to_real_powerflow(
@@ -139,16 +139,16 @@ def test_no_new_tool_answer_preserves_text_and_continues_to_real_powerflow(
     monkeypatch.setattr(validation_run.ScriptedApplicationTransport, "prompt_and_wait", prompt)
     execution = execute_application_case(case, runs_root=tmp_path / "runs", timeout_seconds=17.0)
     first = execution.controller.finalized_turns[0]
-    assert reader_text in first.answer_output
-    assert first.status == "limited"
+    assert reader_text == first.answer_output
+    assert first.status == "success"
     assert _turn_admission(first).assurance == "limited"
     assert first.result_refs == first.evidence_refs == ()
     assert execution.outcome.status == "completed"
     assert execution.outcome.completed_questions == 3
     assert execution.controller.finalized_turns[-1].result_refs
     report = execution.outcome.report_path.read_text()
-    assert "成功：2；未完成：1" in report
-    assert "Guarantee scope" in report and "- limited" in report
+    assert "成功：3；未完成：0" in report
+    assert "证据评估（仅供参考）" in report and "第 1 题：证据绑定不足" in report
     assert reader_text in report
 
 
@@ -163,7 +163,7 @@ def test_real_boundary_renders_natural_language_offline_knowledge(tmp_path: Path
     assert finalized.status == "success"
     assert admission.mode == "offline_information"
     assert admission.assurance == "deterministic_information"
-    assert "AC" in finalized.answer_output
+    assert "什么是交流潮流" in finalized.answer_output
 
 
 @pytest.mark.parametrize(
@@ -352,7 +352,7 @@ def test_only_current_successful_published_guide_can_admit_zero_reference_text(
         assert prior_admission.mode == "offline_information"
         assert prior_admission.assurance == "guide_access_verified"
     admission = _turn_admission(target)
-    assert target.status == "limited"
+    assert target.status == "success"
     assert target.result_refs == ()
     assert target.evidence_refs == ()
     assert admission.mode == "limited"

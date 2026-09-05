@@ -10,6 +10,23 @@
 
 ## 1. 状态、依据与授权边界
 
+### 当前修正：评估支线不得否决主线（替代下述历史 limited→未完成方案）
+
+用户明确否决此前将评估受限计为未完成、在正文前插入警告的实现。
+主线保留模型原文，通过引用完整性检查并成功提交即为 success；评估
+limited 或评估器异常仅生成独立附注，不影响正文、完成计数和后续执行。
+不新增工具白名单，不为补评估证据而强迫重复仿真。真实执行/引用/提交失败仍失败。
+
+- [x] Kernel 隔离评估异常，忽略评估器替换文本；提交状态不依赖保证等级。
+- [x] Domain limited 保留原文；报告改为带题号的中文独立证据评估。
+- [x] 启动评估声明/factory异常只记固定诊断；兼容CLI按主答案事件和hash读取，评估侧车缺失/损坏不再拦截。
+- [x] inventory 仅调整 conformance 的原文保留断言，生产代码不变；保护树基线相应更新为 `30aa2c7a29cacca95c5567499665e3857dfcc921`，未解除保护。
+- [x] 七题真实重跑 `run-20260905t153203z-7bf4f2f2`：7 完成、7 成功、0 未完成；第1题评估仍 limited，验证并非伪造保证等级。
+- [x] 补齐入口后的最终实跑 `run-20260905t154146z-f32d896e`：exit 0，7 成功、0 未完成，第1题 limited 仅附注；历史报告未重写。
+- [x] 聚焦测试、make test 全部目标、E2E37、类型及doctor通过；提交后复跑validate以核验保护树。
+
+以下章节保留历史排障过程；与本节冲突的警告注入、limited→未完成和评估替换答案要求全部失效。
+
 ### 准入保证与运行失败解耦（2026-09-05，替代局部放行思路）
 
 第三次实际失败run `run-20260905t140947z-c87f71ad` 第四题直接根据已有模型上下文
@@ -23,7 +40,7 @@
 - [x] 在 `packages/grid-agent/tests/e2e/test_answer_admission.py` 添加无工具参数回答后继续真实潮流回归；99921观察原文丢失RED，99797观察报告错误标成功RED，修正后通过。
 - [x] `packages/pandapower-domain-pack/src/pandapower_domain/answer_admission.py` limited保留模型原文及未验证说明。
 - [x] `packages/capability-agent-kernel/src/capability_agent/application/runner.py` 允许已提交limited继续；同步受限回归断言。
-- [ ] 完整门禁与实际 `make application INSTRUCTIONS=validation/questions/task.md.txt` 九题重跑、报告证据检查；main提交。
+- [x] 实际 `make application INSTRUCTIONS=validation/questions/task.md.txt` 九题重跑、报告证据检查；main提交51a5bc2。4964续跑E2E37通过，提交后53891 doctor/validate7+10+8/覆盖24最终exit0，保护路径检查通过。
 
 复核补齐：兼容报告不能把limited硬编码成success；需映射“未完成”并保留保证级别。
 实际第二次实跑虽9/9处理完成，但第九题复述旧结果未绑定证据；领域策略明确本轮

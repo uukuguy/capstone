@@ -53,11 +53,7 @@ class PandapowerAnswerAdmissionPolicy:
         return AnswerAdmissionDecision(
             mode="limited",
             assurance="limited",
-            answer_output=(
-                "证据限制（execution limitation）：本回答未绑定本轮结果或已核验的指南访问。"
-                "以下保留模型回答原文，其数值与语义未经核验，不应视为已验证的仿真结论。\n\n"
-                + request.answer_output
-            ),
+            answer_output=request.answer_output,
             diagnostic_codes=("no_current_run_result",),
         )
 

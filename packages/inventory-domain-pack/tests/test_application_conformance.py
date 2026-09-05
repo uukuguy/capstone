@@ -188,10 +188,9 @@ def test_full_application_zero_reference_admission(tmp_path, question, mode):
     assert outcome.status == "completed"
     assert not list(workspace.domain_path("inventory").rglob("facts/*.json"))
     if mode == "offline_information":
-        from inventory_domain.guide import InventoryGuideProvider
         answer_path, = workspace.turns_path.glob("*/answer.json")
         answer = json.loads(answer_path.read_text())
-        assert answer["answer_output"] == InventoryGuideProvider().open("capability-map")["text"]
+        assert answer["answer_output"] == "The requested inventory operation has been processed."
         assert answer["result_refs"] == [] and answer["evidence_refs"] == []
 
 

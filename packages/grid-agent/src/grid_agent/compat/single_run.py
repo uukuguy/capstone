@@ -8,13 +8,14 @@ legacy two-field delivery projection.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from hashlib import sha256
+import json
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 from capability_agent.domain.execution import CapabilityExecutor
 
-from capability_agent.application import ApplicationContextStore, ApplicationRequest
-from capability_agent.domain import read_answer_admission_metadata
+from capability_agent.application import ApplicationContextStore, ApplicationRequest, read_bound_regular_path
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.runtime.models import CliLLMOptions
 
@@ -97,11 +98,12 @@ class SingleRunAdapter:
 
     @staticmethod
     def read_committed_answer(workspace: Path, outcome: object) -> str:
-        """Bind public text to one committed answer event and its sidecar.
+        """Bind public text to one committed answer event and answer record.
 
         The event ledger is treated as an immutable declaration: ambiguous,
         unbound, or outside-turn answers fail closed instead of using rendered
-        provider output.
+        provider output.  Admission sidecars remain evaluation metadata; their
+        absence or corruption must not replace a valid committed answer.
         """
         refs = getattr(getattr(outcome, "result", None), "core", None)
         answer_refs = getattr(refs, "answer_refs", ())
@@ -131,9 +133,9 @@ class SingleRunAdapter:
             raise SingleRunCompatibilityError("committed answer event is invalid")
         if payload.get("answer_ref") != answer_ref:
             raise SingleRunCompatibilityError("committed answer event is not bound to outcome")
-        admission_ref = payload.get("admission_ref")
         relative = payload.get("answer_path")
-        if not isinstance(admission_ref, str) or not isinstance(relative, str):
+        expected_sha256 = payload.get("answer_sha256")
+        if not isinstance(relative, str) or not isinstance(expected_sha256, str):
             raise SingleRunCompatibilityError("committed answer event lacks durable bindings")
         pure = PurePosixPath(relative)
         if pure.is_absolute() or ".." in pure.parts or not pure.parts or pure.parts[0] != "turns":
@@ -147,19 +149,28 @@ class SingleRunAdapter:
             and getattr(candidate, "turn_id", None) == turn_id
             and isinstance(getattr(candidate, "payload", None), dict)
             and candidate.payload.get("answer_ref") == answer_ref
-            and candidate.payload.get("admission_ref") == admission_ref
+            and candidate.payload.get("answer_path") == relative
+            and candidate.payload.get("answer_sha256") == expected_sha256
         ]
         if len(completed) != 1:
             raise SingleRunCompatibilityError("committed answer completion is missing or ambiguous")
         try:
-            decision = read_answer_admission_metadata(
-                answer_path, expected_admission_ref=admission_ref
-            )
-        except ValueError as exc:
-            raise SingleRunCompatibilityError("committed answer metadata is invalid") from exc
-        if decision is None:
-            raise SingleRunCompatibilityError("committed answer has no admission metadata")
-        return decision.answer_output
+            answer_bytes = read_bound_regular_path(answer_path)
+            answer = json.loads(answer_bytes)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SingleRunCompatibilityError("committed answer record is unreadable") from exc
+        actual_sha256 = sha256(answer_bytes).hexdigest()
+        if expected_sha256 != actual_sha256 or answer_ref != f"answer:sha256:{actual_sha256}":
+            raise SingleRunCompatibilityError("committed answer record does not match its bindings")
+        if (
+            not isinstance(answer, dict)
+            or answer.get("schema") != "capability-agent-answer/1.0"
+            or answer.get("run_id") != workspace.name
+            or answer.get("turn_id") != turn_id
+            or not isinstance(answer.get("answer_output"), str)
+        ):
+            raise SingleRunCompatibilityError("committed answer record is invalid")
+        return answer["answer_output"]
 
 __all__ = ["SingleRunAdapter", "SingleRunCompatibilityError"]
 

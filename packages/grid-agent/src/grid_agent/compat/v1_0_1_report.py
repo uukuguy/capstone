@@ -69,8 +69,17 @@ class PandapowerApplicationReportShell:
             report += "\n## Submission checkpoint diagnostic\n\n- Submission checkpoint unavailable; report processing continued.\n"
         assurance_values = tuple(_text_values(assurances, "assurances"))
         if assurance_values:
-            report += "\n## Guarantee scope\n\n" + "\n".join(
-                f"- {value}" for value in assurance_values
+            labels = {
+                "lineage_verified": "已核验结果及证据来源；不代表回答语义完全正确",
+                "guide_access_verified": "已读取发布指南；未核验回答语义及数值",
+                "deterministic_information": "已匹配发布资料",
+                "limited": "证据绑定不足，未给予来源保证",
+                "unknown": "评估记录不可用",
+                "corrupt": "评估记录完整性检查未通过",
+            }
+            report += "\n## 证据评估（仅供参考）\n\n以下评估不改变答案正文、执行状态或完成计数。\n\n" + "\n".join(
+                f"- 第 {index} 题：{labels.get(value.split(' — ', 1)[0], value)}"
+                for index, value in enumerate(assurance_values, start=1)
             ) + "\n"
         return report
 

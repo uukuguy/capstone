@@ -186,8 +186,28 @@ def test_submit_calls_domain_admission_for_a_zero_reference_answer(active_turn) 
             evidence_refs=(),
         )
     ]
-    assert committed.status == "limited"
+    assert committed.status == "success"
     assert committed.answer_output == "unverified business assertion"
+
+
+@pytest.mark.parametrize("evaluation_fails", [False, True])
+def test_evaluation_cannot_rewrite_or_fail_primary_answer(active_turn, evaluation_fails):
+    _store, _workspace, current = active_turn
+
+    def evaluate(request):
+        if evaluation_fails:
+            raise RuntimeError("evaluation unavailable")
+        return AnswerAdmissionDecision("limited", "limited", "replacement text", ())
+
+    current.prepared.binding.profile.create_answer_admission_policy = lambda authority: SimpleNamespace(admit=evaluate)
+    controller = TurnController(store=current.store, workspace=current.workspace,
+                                bindings={"grid": current.prepared})
+    committed = controller.submit(current.handle, answer_output="original primary answer", duration_seconds=1.0)
+    assert committed.status == "success"
+    assert committed.answer_output == "original primary answer"
+    assert committed.admission.assurance == "limited"
+    if evaluation_fails:
+        assert committed.admission.diagnostic_codes == ("answer_evaluation_unavailable",)
 
 
 @pytest.mark.parametrize(("contract", "ok", "blocks_guide"), [
@@ -468,7 +488,7 @@ def test_submit_accepts_current_turn_reference_when_static_allowlist_also_allows
     assert committed.admission.assurance == "lineage_verified"
 
 
-def test_submit_rejects_admission_mode_not_declared_by_selected_profile(active_turn) -> None:
+def test_submit_diagnoses_undeclared_evaluation_mode_without_veto(active_turn) -> None:
     _store, _workspace, current = active_turn
     current.prepared.binding.profile.answer_admission_capabilities = frozenset(
         {"authority_backed", "limited"}
@@ -483,8 +503,10 @@ def test_submit_rejects_admission_mode_not_declared_by_selected_profile(active_t
         store=current.store, workspace=current.workspace, bindings={"grid": current.prepared}
     )
 
-    with pytest.raises(AnswerCommitError, match="declared"):
-        controller.submit(current.handle, answer_output="model", duration_seconds=0.1)
+    committed = controller.submit(current.handle, answer_output="model", duration_seconds=0.1)
+    assert committed.status == "success"
+    assert committed.answer_output == "model"
+    assert committed.admission.diagnostic_codes == ("answer_evaluation_unavailable",)
 
 
 def test_submit_rejects_empty_admitted_answer(active_turn) -> None:

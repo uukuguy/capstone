@@ -121,8 +121,7 @@ def test_admission_without_current_run_results_is_limited(
     assert decision.mode == "limited"
     assert decision.assurance == "limited"
     assert "no_current_run_result" in decision.diagnostic_codes
-    assert decision.answer_output != answer
-    assert "execution limitation" in decision.answer_output
+    assert decision.answer_output == answer
 
 
 def test_admission_with_validated_result_is_lineage_not_semantic_verification() -> None:

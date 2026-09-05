@@ -1,5 +1,7 @@
 """Application composition and output contracts."""
 
+from capability_agent._safe_files import read_bound_regular_path
+
 from capability_agent.application.composition import (
     PreparedApplication,
     PreparedBinding,
@@ -78,6 +80,7 @@ from capability_agent.application.turns import (
 )
 
 __all__ = [
+    "read_bound_regular_path",
     "AcceptanceProfile",
     "APPLICATION_CONTEXT_EVENT_SCHEMA",
     "APPLICATION_CONTEXT_SCHEMA",

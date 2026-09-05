@@ -217,9 +217,11 @@ def test_cli_assembles_runtime_from_extracted_package_owners() -> None:
     assert ("grid_agent.domains", ("build_pandapower_profile",)) not in imports
 
 
-def test_single_run_adapter_projects_only_committed_sidecar_answer(
+@pytest.mark.parametrize("sidecar_bytes", (None, b"not-json"), ids=("missing", "corrupt"))
+def test_single_run_adapter_projects_committed_answer_when_admission_sidecar_is_unavailable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    sidecar_bytes: bytes | None,
 ) -> None:
     """A presentation value returned by the application is never public truth."""
     workspace = tmp_path / "runs" / "committed-answer"
@@ -243,31 +245,26 @@ def test_single_run_adapter_projects_only_committed_sidecar_answer(
 
     answer_bytes = canonical_json_bytes(answer)
     answer_ref = "answer:sha256:" + sha256(answer_bytes).hexdigest()
-    admission = {
-        "schema": "capability-agent-answer-admission/1.0",
-        "run_id": "committed-answer",
-        "turn_id": "turn-001",
-        "answer_ref": answer_ref,
-        "mode": "authority_backed",
-        "assurance": "lineage_verified",
-        "diagnostic_codes": [],
-    }
-    admission_ref = "admission:sha256:" + sha256(canonical_json_bytes(admission)).hexdigest()
     (turn / "answer.json").write_bytes(answer_bytes)
-    (turn / "answer-admission.json").write_bytes(canonical_json_bytes(admission))
+    if sidecar_bytes is not None:
+        (turn / "answer-admission.json").write_bytes(sidecar_bytes)
     event = SimpleNamespace(
         event_type="answer.submitted",
         turn_id="turn-001",
         payload={
             "answer_ref": answer_ref,
             "answer_path": "turns/turn-001/answer.json",
-            "admission_ref": admission_ref,
+            "answer_sha256": sha256(answer_bytes).hexdigest(),
         },
     )
     completed = SimpleNamespace(
         event_type="turn.completed",
         turn_id="turn-001",
-        payload={"answer_ref": answer_ref, "admission_ref": admission_ref},
+        payload={
+            "answer_ref": answer_ref,
+            "answer_path": "turns/turn-001/answer.json",
+            "answer_sha256": sha256(answer_bytes).hexdigest(),
+        },
     )
     monkeypatch.setattr(
         "grid_agent.compat.single_run.ApplicationContextStore.replay_events",

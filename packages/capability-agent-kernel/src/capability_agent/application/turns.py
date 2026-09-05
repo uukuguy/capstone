@@ -285,11 +285,18 @@ class TurnController:
         except Exception:
             raise AnswerCommitError("answer claims are invalid") from None
 
-        admission = self._admit_answer(
-            handle=handle, answer_output=answer_output, selected=selected,
-            results=results, evidence=evidence, owners=owners,
-        )
-        answer_output = admission.answer_output
+        # Evaluation annotates the answer; it cannot rewrite or veto it.
+        # Reference integrity validation remains on the primary path above.
+        try:
+            admission = self._admit_answer(
+                handle=handle, answer_output=answer_output, selected=selected,
+                results=results, evidence=evidence, owners=owners,
+            )
+        except Exception:
+            admission = AnswerAdmissionDecision(
+                mode="limited", assurance="limited", answer_output=answer_output,
+                diagnostic_codes=("answer_evaluation_unavailable",),
+            )
 
         validated_by_binding: list[AnswerSubmission] = []
         audit_diagnostics: list[object] = []
@@ -432,7 +439,7 @@ class TurnController:
             event_type="turn.completed",
             turn_id=handle.turn_id,
             payload={
-                "status": "success" if admission.mode != "limited" else "limited",
+                "status": "success",
                 "answer_ref": answer_ref,
                 "answer_path": str(answer_path.relative_to(self._workspace.root)),
                 "answer_sha256": sha256(answer_bytes).hexdigest(),
@@ -477,7 +484,7 @@ class TurnController:
         _remove_if_present(self._active_turn_path)
         return FinalizedTurn(
             turn_id=handle.turn_id,
-            status="success" if admission.mode != "limited" else "limited",
+            status="success",
             answer_output=answer_output,
             answer_path=answer_path,
             answer_ref=answer_ref,

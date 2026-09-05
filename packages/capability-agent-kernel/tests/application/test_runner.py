@@ -1242,25 +1242,32 @@ def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Pat
 
 
 @pytest.mark.parametrize(
-    "factory",
-    (
-        None,
-        lambda _authority: object(),
-        lambda _authority: (_ for _ in ()).throw(RuntimeError("factory exploded")),
-    ),
+    "evaluation_failure",
+    ("declaration", "missing_factory", "invalid_policy", "factory_exception"),
 )
-def test_runner_rejects_invalid_answer_admission_factory_before_provider_creation(
-    tmp_path: Path, factory: object
+def test_runner_continues_when_answer_admission_preflight_evaluation_is_unavailable(
+    tmp_path: Path, evaluation_failure: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A prepared binding must have a usable policy before any provider exists."""
+    """Admission evaluation is diagnostic-only before a provider starts."""
     events: list[str] = []
     provider_calls: list[str] = []
+    diagnostic_codes: list[str] = []
+    declaration = lambda: None
+    factory: object = lambda _authority: SimpleNamespace(admit=lambda _request: None)
+    if evaluation_failure == "declaration":
+        declaration = lambda: (_ for _ in ()).throw(RuntimeError("declaration exploded"))
+    elif evaluation_failure == "missing_factory":
+        factory = None
+    elif evaluation_failure == "invalid_policy":
+        factory = lambda _authority: object()
+    else:
+        factory = lambda _authority: (_ for _ in ()).throw(RuntimeError("factory exploded"))
     binding = SimpleNamespace(
         binding_id="alpha",
         profile=SimpleNamespace(
             policy_provider=SimpleNamespace(load=lambda: events.append("domain.policy")),
             guide_provider=SimpleNamespace(load=lambda: ()),
-            validate_answer_admission_declaration=lambda: None,
+            validate_answer_admission_declaration=declaration,
             create_answer_admission_policy=factory,
         ),
         runtime=SimpleNamespace(authority=object()),
@@ -1271,17 +1278,31 @@ def test_runner_rejects_invalid_answer_admission_factory_before_provider_creatio
         output_renderer=SimpleNamespace(render=lambda result: result),
         report_shell=SimpleNamespace(),
     )
+    monkeypatch.setattr(
+        AgentApplication,
+        "_record_diagnostic",
+        lambda _self, code: diagnostic_codes.append(code),
+    )
 
     outcome = AgentApplication(
         profile=profile,
         prepared_application=SimpleNamespace(bindings={"alpha": binding}),
-        provider_factory=lambda **_: provider_calls.append("factory"),
+        workspace_root=tmp_path,
+        catalog=object(),
+        provider_factory=lambda **_: provider_calls.append("factory") or FakeTransport(events),
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
     ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
 
-    assert outcome.status == "failed"
-    assert outcome.error is not None
-    assert provider_calls == []
-    assert "provider.start" not in events
+    assert outcome.status == "completed"
+    assert provider_calls == ["factory"]
+    assert "provider.start" in events
+    assert diagnostic_codes == ["answer_evaluation_unavailable"]
 
 
 @pytest.mark.parametrize("binding", (SimpleNamespace(binding_id="alpha"), SimpleNamespace(
