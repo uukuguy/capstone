@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,10 +12,16 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Receive, Scope, Send
 
-from grid_agent.trajectory.api.artifacts import ArtifactAccessError, ArtifactGateway
+from grid_agent.trajectory.api.artifacts import (
+    ArtifactAccessError,
+    ArtifactGateway,
+    ArtifactSnapshot,
+    ArtifactTooLarge,
+)
 from grid_agent.trajectory.api.catalog import RunNotFoundError, TrajectoryRunCatalog
 from grid_agent.trajectory.api.cursor import CursorCodec, CursorError, CursorExpectation, CursorState
 from grid_agent.trajectory.api.models import ApiError, RunListResponse, RunSummary
@@ -146,6 +153,12 @@ def create_trajectory_app(
 
     @app.exception_handler(ArtifactAccessError)
     async def artifact_access(_: Request, exc: ArtifactAccessError) -> JSONResponse:
+        if isinstance(exc, ArtifactTooLarge):
+            return _api_error_response(
+                status_code=413,
+                code="artifact_too_large",
+                message="artifact exceeds the 256 MiB download limit; prefix preview remains available",
+            )
         missing = str(exc) == "artifact is not registered"
         return _api_error_response(
             status_code=404 if missing else 403,
@@ -320,16 +333,56 @@ def create_trajectory_app(
         )
 
     @app.get("/api/runs/{analysis_id}/artifacts/{artifact_ref}")
-    def artifact(analysis_id: str, artifact_ref: str) -> Response:
+    def artifact(analysis_id: str, artifact_ref: str, request: Request) -> Response:
+        max_bytes = None
+        ranges = request.headers.getlist("range")
+        if ranges:
+            match = re.fullmatch(r"bytes=0-([0-9]{1,6})", ranges[0])
+            if len(ranges) != 1 or match is None or int(match[1]) >= 131072:
+                return Response(status_code=416)
+            max_bytes = int(match[1]) + 1
         projected = catalog.open(analysis_id)
         run_root = Path(catalog.runs_root) / projected.analysis_id
-        opened = ArtifactGateway(run_root, projected.artifacts).open(artifact_ref)
-        response = Response(content=opened.content, media_type=opened.media_type)
+        gateway = ArtifactGateway(run_root, projected.artifacts)
+        if max_bytes is None:
+            return _ArtifactDownloadResponse(gateway.snapshot(artifact_ref))
+        opened = gateway.open(artifact_ref, max_bytes=max_bytes)
+        if max_bytes is not None and opened.size_bytes == 0:
+            return Response(status_code=416, headers={"Content-Range": "bytes */0"})
+        response = Response(content=opened.content, media_type=opened.media_type, status_code=206)
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Content-Range"] = f"bytes 0-{len(opened.content) - 1}/{opened.size_bytes}"
         response.headers["Content-Disposition"] = f'attachment; filename="{opened.filename}"'
         return response
 
     mount_workbench(app, static_root or _packaged_static_root())
     return app
+
+
+class _ArtifactDownloadResponse(StreamingResponse):
+    """Own the verified snapshot through success, disconnect and send failures."""
+
+    def __init__(self, snapshot: ArtifactSnapshot) -> None:
+        self.snapshot = snapshot
+        try:
+            super().__init__(
+                iter(lambda: snapshot.file.read(65536), b""),
+                media_type=snapshot.metadata.media_type,
+                headers={
+                    "Content-Length": str(snapshot.metadata.size_bytes),
+                    "Content-Disposition": f'attachment; filename="{snapshot.metadata.filename}"',
+                    "Accept-Ranges": "bytes",
+                },
+            )
+        except BaseException:
+            snapshot.file.close()
+            raise
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self.snapshot.file.close()
 
 
 def _invalid_query(parameter: str) -> RequestValidationError:

@@ -1,6 +1,22 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 18:28 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 18:50 CST. **Session remains active — not a final handoff.**
+
+## Active OP08 integration (newer than the notes below)
+
+Working tree now implements actual 206 prefix responses (128 KiB maximum),
+same-fd full SHA verification with bounded retained bytes, and verified temporary
+snapshot downloads streamed in 64 KiB chunks. Download snapshot limit is 256 MiB;
+413 leaves prefix preview available. Frontend requires exact 206 range/length and
+cancels ignored or malformed responses. API108, Workbench148, browser13 and types
+passed. Root doctor/test/E2E/validate process33137 completed exit0: CLI31,
+offline7/7, scripted10/10, full8/8 and capability24/24. Final cap/source changes
+also passed agent810 (77511) and API108/types (13758). Independent gateway and
+final simple download-cap reviews passed; no new review artifact. OP13 is untouched.
+
+Next: resolve the existing upstream projection/Domain whole-JSON decoding and large
+context omission gap. This HTTP improvement does NOT close OP08 or its
+whole-request memory requirement. Frozen parser prototypes remain unused.
 
 ## Priority override: OP09 accepted; return to complete preview delivery
 
@@ -19,7 +35,7 @@ Root doctor/types/test/E2E/validate chain84039 exit0; final workbench138 and
 browser behavior/accessibility13 PASS; CLI E2E31, offline7/7 scripted10/10 full8/8.
 Cross-review closed cancelled queued requests, legacy retry and unrelated-page
 error masking. Contract/acceptance is in canonical OP09, no new micro-report.
-Next: commit OP09-owned paths only, then inspect the real OP08 preview API/Domain/
+OP09 committed97b708b. Next: inspect the real OP08 preview API/Domain/
 UI integration gap as ONE end-to-end deliverable; do not resume extra parser or
 resource-proof work. OP09 implementation needs OP07's projection, not OP08's
 unfinished parser; canonical dependency explicitly corrected, final integration
@@ -34,7 +50,7 @@ commits and old review artifacts remain recoverable, not production-adopted.
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD fc31e25 (index fix and delivery refocus).
+  branch feat/capstone-optimization; HEAD97b708b (complete OP09 batch evidence feature).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 follows07 now.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.

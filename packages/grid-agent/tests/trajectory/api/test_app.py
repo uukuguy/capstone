@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from hashlib import sha256
 from pathlib import Path
@@ -247,6 +248,81 @@ def create_test_app(
         catalog,
         codec,
     )
+
+
+@pytest.mark.parametrize("end", [3, 131071])
+def test_artifact_prefix_response(tmp_path: Path, end: int) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    response = TestClient(app).get(
+        f"/api/runs/analysis-test/artifacts/{catalog.artifact_ref}",
+        headers={"Range": f"bytes=0-{end}"},
+    )
+    expected = b"# Answer\n"[:end + 1]
+    assert response.status_code == 206
+    assert response.content == expected
+    assert response.headers["content-range"] == f"bytes 0-{len(expected) - 1}/9"
+    assert response.headers["content-length"] == str(len(expected))
+
+
+@pytest.mark.parametrize("value", ["bytes=1-3", "bytes=-4", "bytes=0-131072", "bytes=0-1,3-4"])
+def test_artifact_invalid_range_precedes_projection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    def forbidden(_: str) -> None:
+        pytest.fail("invalid range must not load the run")
+    monkeypatch.setattr(catalog, "open", forbidden)
+    response = TestClient(app).get(
+        f"/api/runs/analysis-test/artifacts/{catalog.artifact_ref}",
+        headers={"Range": value},
+    )
+    assert response.status_code == 416
+
+
+def test_download_limit_is_explicit_and_preview_remains_available(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from grid_agent.trajectory.api import artifacts
+
+    app, catalog, _ = create_test_app(tmp_path)
+    monkeypatch.setattr(artifacts, "MAX_DOWNLOAD_BYTES", 8, raising=False)
+    client = TestClient(app)
+    url = f"/api/runs/analysis-test/artifacts/{catalog.artifact_ref}"
+    response = client.get(url)
+    assert response.status_code == 413
+    assert response.json()["code"] == "artifact_too_large"
+    assert client.get(url, headers={"Range": "bytes=0-3"}).status_code == 206
+
+
+@pytest.mark.parametrize("fail_send", [False, True])
+def test_artifact_download_closes_snapshot(tmp_path: Path, fail_send: bool) -> None:
+    from grid_agent.trajectory.api.app import _ArtifactDownloadResponse
+    from grid_agent.trajectory.api.artifacts import ArtifactGateway
+
+    _, catalog, _ = create_test_app(tmp_path)
+    snapshot = ArtifactGateway(catalog.run_root, catalog.projected.artifacts).snapshot(catalog.artifact_ref)
+    response = _ArtifactDownloadResponse(snapshot)
+    chunks: list[bytes] = []
+
+    async def send(message: Any) -> None:
+        if fail_send:
+            raise RuntimeError("send failed")
+        if message["type"] == "http.response.body":
+            chunks.append(message["body"])
+
+    async def receive() -> Any:
+        return {"type": "http.disconnect"}
+
+    async def run() -> None:
+        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+
+    if fail_send:
+        with pytest.raises(RuntimeError, match="send failed"):
+            asyncio.run(run())
+    else:
+        asyncio.run(run())
+        assert b"".join(chunks) == b"# Answer\n"
+    assert snapshot.file.closed
 
 
 def _sha256_canonical_sorted(value: object) -> str:
@@ -944,6 +1020,15 @@ def test_native_api_verifies_simulator_artifacts_and_downloads_exact_bytes(tmp_p
         artifact = client.get(f"/api/runs/analysis-native-artifacts/artifacts/{reference}")
         assert artifact.status_code == 200
         assert sha256(artifact.content).hexdigest() == record["sha256"]
+        preview = client.get(
+            f"/api/runs/analysis-native-artifacts/artifacts/{reference}",
+            headers={"Range": "bytes=0-31"},
+        )
+        assert preview.status_code == 206
+        assert preview.content == artifact.content[:32]
+        assert preview.headers["content-range"] == (
+            f"bytes 0-{len(preview.content) - 1}/{len(artifact.content)}"
+        )
 
 
 def test_native_api_reads_historical_v1_request_without_mutating_bytes(

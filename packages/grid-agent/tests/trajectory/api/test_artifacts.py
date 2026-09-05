@@ -28,6 +28,29 @@ def artifact_fixture(tmp_path: Path) -> tuple[Path, ArtifactIndex, str]:
     return run_root, ArtifactIndex(analysis_id="analysis-test", records={reference: record}), reference
 
 
+def test_gateway_prefix_keeps_total_size_and_verifies_the_tail(tmp_path: Path) -> None:
+    run_root, index, reference = artifact_fixture(tmp_path)
+    gateway = ArtifactGateway(run_root, index)
+    response = gateway.open(reference, max_bytes=4)
+    assert response.content == b'{"fa'
+    assert response.size_bytes == len(b'{"fact":"verified"}\n')
+    path = run_root / index.records[reference].relative_path
+    path.write_bytes(b'{"fact":"modified"}\n')
+    with pytest.raises(ArtifactAccessError, match="integrity"):
+        gateway.open(reference, max_bytes=4)
+
+
+def test_download_snapshot_survives_source_change(tmp_path: Path) -> None:
+    run_root, index, reference = artifact_fixture(tmp_path)
+    snapshot = ArtifactGateway(run_root, index).snapshot(reference)
+    try:
+        (run_root / index.records[reference].relative_path).write_bytes(b"changed")
+        assert snapshot.metadata.content == b""
+        assert snapshot.file.read() == b'{"fact":"verified"}\n'
+    finally:
+        snapshot.file.close()
+
+
 def test_gateway_opens_only_verified_indexed_artifact(tmp_path: Path) -> None:
     run_root, index, evidence_ref = artifact_fixture(tmp_path)
 

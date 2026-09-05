@@ -837,3 +837,6 @@ _Recovered pre-merge mainline entries._
 - 18:15 OP09后端批量接口9RED→9PASS；原生run组合已补测试，前端合批/部分失败显示并行接入中。
 - 18:28 OP09完整功能接通；工作台138/浏览器13/CLI E2E31通过，旧客户端重试与部分失败隔离已修复，validate运行中。
 - 18:28 OP09整链doctor/types/test/E2E/validate通过；offline7/7、scripted10/10、full8/8，完整批量证据功能验收。
+- 18:29 提交OP09批量证据与部分失败重试，交付完整工作台功能而非原型切片 [97b708b]。
+- 18:44 OP08前缀/下载HTTP接通；完整摘要保留，API108/工作台148/浏览器13/类型通过，整仓门禁运行中，Domain全量解码仍待解决。
+- 18:50 OP08 HTTP集成门禁通过：agent810、E2E31、validate7/10/8零失败；独立复审通过，OP08跨层目标仍未关闭。

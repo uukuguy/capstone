@@ -360,6 +360,8 @@ assert materialize_spy.call_count == 1
 
 ### OP-08：服务端限制工件和上下文预览
 
+**2026-09-05当前接入进展（优先于下方历史原型清单）**：实际HTTP已接通128KiB前缀206与无Range完整下载；网关同fd分块校验完整SHA后返回前缀，下载先生成已验证临时快照再64KiB分块发送，正常/发送失败均关闭。单次下载快照上限256MiB，超限413/`artifact_too_large`，前缀预览仍可用；这不是总磁盘配额。前端严格检查206/Content-Range/长度，拒绝并取消忽略Range的200。实际Range7RED及下载上限1RED均转绿；API108（含原生运行七类工件前缀/下载一致）、工作台148、浏览器13、最终agent810和类型检查通过；独立网关/上限增量复审通过。doctor/test/E2E/validate链33137 exit0，CLI E2E31、offline7/7、scripted10/10、full8/8、能力24/24；下载上限收尾后另跑最终agent810及API108/types，未重复无关模拟器门禁。上游投影/Domain整份JSON解码及大上下文省略仍未完成，不能据此关闭08-B/C/D或OP08。原型继续冻结。
+
 **Files**：Modify `packages/grid-agent/src/grid_agent/trajectory/api/artifacts.py`、`api/app.py`、`packages/trajectory-workbench/src/evidence/preview.ts`、`src/api/types.ts`；Test `packages/grid-agent/tests/trajectory/api/test_artifacts.py`、`test_app.py`、`packages/trajectory-workbench/src/evidence/preview.test.ts`。
 
 **接口**：工件预览支持单一前缀 Range；服务端上限 131072 bytes，多段/非法范围明确拒绝。大文件全量下载与预览分离。上下文详情使用分页/截断字段，不把截断 JSON 当完整状态。

@@ -56,7 +56,10 @@ describe('trajectory drill-down views', () => {
     const filtersChanged = vi.fn();
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
-    const fetcher = vi.fn<typeof fetch>(async () => new Response('{"safe":true}', { headers: { 'Content-Type': 'application/json' } }));
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('{"safe":true}', {
+      status: 206,
+      headers: { 'Content-Type': 'application/json', 'Content-Range': 'bytes 0-12/13' },
+    }));
     render(<EvidenceView
       rows={[verifiedEvidence]}
       filters={{}}
