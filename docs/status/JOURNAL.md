@@ -856,3 +856,7 @@ _Recovered pre-merge mainline entries._
 - 19:36 OP14补齐R01–R13范围对账、双语保证边界与恢复指引；44本地链接/相对symlink/doctor/diff通过，最终门禁及文档复审仍进行。
 - 19:40 97660终态exit0：7e9b10c同源码完整doctor/check-release通过，业务7/10/8、应用2/2；OP13未混入。
 - 19:40 OP14文档复审三项历史指令冲突已修正；v2验收关闭，解析扩展/OP13继续DEFERRED，保留分支与用户数据。
+- 19:49 用户纠正分支停留：main已快进1c32c0a，旧恢复指引单独stash保留；主目录环境同步和入口回归68429运行。
+- 19:55 主目录应用实例化2/2及make test通过；uv实际导入Application/Kernel/Domain均为main路径，E2E继续。
+- 19:58 E2E68429退出2：30通过/1失败，脚本测试漏设model而继承本地deepseek；补齐测试环境，79559定向及E2E/validate续跑。
+- 20:04 主目录79559 exit0：定向1/E2E31/业务7、10、8/覆盖24通过；入口与本地优化框架一致，主目录交付闭环。

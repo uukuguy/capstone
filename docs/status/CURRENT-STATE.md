@@ -6,7 +6,7 @@
 - Theme-level focus: Unified agent framework interfaces, business capability-pack integration, and cross-domain AI application validation; not enterprise service performance
 - Project route: direct
 - Canonical optimization worklist: `docs/superpowers/plans/2026-09-05-capstone-optimization.md`
-- Active optimization work package: none; optimization v2 accepted on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. OP-08 strict arbitrary-JSON extension and OP-13 segmented storage are deferred, not pending productionization. The canonical plan owns task status. Closure does not automatically start C.2 domain selection or authorize main integration.
+- Active optimization work package: none; accepted optimization source is integrated into main and its actual application entry point/local runtime regression is verified. OP-08 strict arbitrary-JSON extension and OP-13 segmented storage remain deferred; unaccepted worktree changes are excluded. The canonical plan owns acceptance evidence. Application delivery closes in main, not at branch acceptance; C.2 remains separate.
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
 - Completed work package: Workstream C.1 application-instantiation closure. The first real pandapower application passed both canonical business task files through the generic path and the explicit v1.0.1 compatibility projection.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.

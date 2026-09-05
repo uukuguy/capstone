@@ -19,7 +19,7 @@
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist v2 accepted: framework integration verified; strict JSON extension and OP13 deferred; branch preserved, no automatic C.2 or cleanup. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Optimization v2 integrated and verified in main; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
 
 ## Climb storage and configuration
 

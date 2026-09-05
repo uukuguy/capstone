@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## 2026-09-05 — Delivery closes in the main application checkout
+
+- **Correction:** branch/worktree acceptance is intermediate, not user delivery. Unless explicitly requested otherwise, integrate accepted commits into main and verify its actual application entry point and local runtime before claiming completion.
+- **Action:** main fast-forwarded to1c32c0a; OP13 uncommitted changes remain excluded. Main recovery-baton edit is preserved in the named pre-integration stash; unrelated guide and ignored runtime/user data remain intact. Post-integration regression is required and tracked in the canonical plan.
+- **Precedence:** supersedes the earlier branch-only closure wording. Does not authorize deleting deferred work, paid provider calls, remote publication or new-domain implementation.
+- **Verification:** main import paths and public application factory confirmed; doctor/test/application2/2 passed. First E2E30/31 exposed an unpinned test model; two explicit test environment settings fixed it without changing production logic or user configuration. Focused1 and fullE2E31, business7/10/8 and coverage24/24 passed; continuation79559 exit0.
+
 ## 2026-09-05 — Framework-first optimization scope supersedes service scaling
 
 - **Decision:** the user's product correction governs optimization v2: prioritize public Kernel SPI, independently installable business capability packs, common agent orchestration and current-run authority evidence. Enterprise service capacity is not the target.

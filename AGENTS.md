@@ -120,6 +120,12 @@ Do not duplicate frequently changing facts in this file. Read the owning source:
 
 ### Isolated worktree setup
 
+An isolated worktree is an implementation aid, not the delivery endpoint. Unless
+the user explicitly requests branch-only delivery, integrate accepted changes
+back into the main checkout and verify its real application entry point before
+claiming completion. Preserve unrelated work and exclude unaccepted changes;
+do not delete a worktree containing user data or deferred work to simulate closure.
+
 A new Git worktree does not include ignored local runtime state. Before running
 tests that exercise Pi, `gridctl`, or the JavaScript tools in an isolated
 worktree, run these commands from that worktree:
