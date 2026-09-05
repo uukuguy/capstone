@@ -777,3 +777,6 @@ _Recovered pre-merge mainline entries._
 - 12:50 correction: root早先未resolve的macOS临时路径探针被父目录检查拦截，不能作为manifest读竞争证据；有效复测已另存。
 - 12:56 OP13-A独立复审仅余ctime身份HIGH，Terra补RED修复；B/C健康补偿规则纳入canonical待独立复审。
 - 12:58 OP13-B/C typed健康及旧格式回滚不确定性合同独立复审PASS；A首修494及类型通过，第二读取窗口复核中。
+- 12:58 提交OP13补偿健康合同，防止包装异常重启不安全补偿；文档链接、symlink及doctor通过 [2978bac]
+- 13:00 OP13-A原H1关闭，复审新增M1最终fstat后合法替换误拒；Terra补双时序回归修复。
+- 13:04 OP13-A最终独立PASS，32定向/496Kernel及类型通过，提交严格reader；转B且默认不变 [3bc24a2]

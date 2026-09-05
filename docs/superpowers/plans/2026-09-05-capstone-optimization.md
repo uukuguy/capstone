@@ -1141,11 +1141,12 @@ All three `TurnController` mutation paths must distinguish commit outcome:
   its existing idempotent cleanup. Any later cleanup/publication error cannot
   undo the committed failure segment or trigger another context append.
 
-The runner must recognize `ContextCommitIndeterminateError` before its broad
+The runner must recognize an indeterminate commit before its broad
 ordinary-exception compensation and must not call `_fail_active_turn()`,
-`_mark_failed()`, or retry another context transition for that turn. Direct
-lifecycle append wrappers must preserve the subtype instead of flattening it
-before this decision. It may return a sanitized failed application outcome,
+`_mark_failed()`, or retry another context transition for that turn. The B/C
+supplement below defines concrete sticky health and lexical phase checks so
+existing lifecycle/projector wrappers need not relay the exception subtype.
+It may return a sanitized failed application outcome,
 preserving the run for reopen/recovery. A known committed transaction is
 returned normally even when `context.json` needs repair, so it follows the
 existing successful controller path.
@@ -1649,18 +1650,34 @@ segment codec verifies structural/event boundary/digest consistency; the public
 store later applies the existing reducer to the returned complete events.
 This split must not import `context_store` back into `context_segments`.
 
-- [ ] Add actual canonical genesis/batch files and first RED tests for codec,
-  reader, limits and anti-downgrade; preserve complete initial output.
-- [ ] Reject top/nested duplicate keys, nonfinite/exponent overflow, UTF-8 error,
+- [x] Add actual canonical genesis/batch files and first RED tests for codec,
+  reader, limits and anti-downgrade; evidence-retention deviation noted below.
+- [x] Reject top/nested duplicate keys, nonfinite/exponent overflow, UTF-8 error,
   whitespace/key-order recoding, wrong filename/payload hash, missing/extra
   schema fields, inconsistent revision/count/run/hash and nonregular files.
   Require exact max+1 read enforcement, not a post-read length check alone.
-- [ ] Test manifest opened-before-replace returns old full chain; marker or
+- [x] Test manifest opened-before-replace returns old full chain; marker or
   immutable segment replacement fails. Wrong/missing manifest with new sentinels
   never reads fallback JSONL. Test helpers construct real canonical files, not
   writer-memory return values.
-- [ ] Run and review `test_context_segments.py`; commit only reader/codec/tests.
+- [x] Run and review `test_context_segments.py`; commit only reader/codec/tests.
   Existing production defaults and old ledger remain unchanged.
+
+Slice A source: `3bc24a2`. Final root checks: 32 focused tests, 496 complete
+Kernel tests and production pyright pass; independent review passes with H1
+(mtime-restored same-inode rewrite) and M1 (replacement after final fstat)
+closed. Full raw root checks are retained in
+`runs/optimization/OP-13/root-slice-a-gates-final.json`; review history remains
+in `slice-a-review.md`. This is not the later full release gate or performance
+acceptance.
+
+Evidence-retention deviation: the worker's initial/H1 RED tool responses were
+not archived in full; later race RED evidence also records a summary rather
+than its complete traceback. They are not recreated or labeled full raw
+evidence. Root's actual resolved-root probes and complete verification captures
+are retained, and all four race regressions were independently rerun. Slice A
+code is accepted with this explicit historical audit limitation. Subsequent
+slices must capture complete tool returns immediately, including failed runs.
 
 **B — transaction writer and public store dispatch, explicit new-layout fixtures**
 
