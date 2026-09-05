@@ -770,3 +770,10 @@ _Recovered pre-merge mainline entries._
 - 12:20 固化OP12实测与验收，转OP13恢复合同细化，避免无证据切存储 [baf38cf]
 - 12:26 OP13合同独立复审暂拒绝：增长快照、严格JSON、manifest并发读规则待补；保持无生产改动。
 - 12:34 OP13合同B1–B3修订与canonical A–D顺序复审PASS，准备从codec/reader起步，默认writer不变。
+- 12:34 提交已复审分段事务合同与执行切片，限定先读者后默认切换 [4be6fa9]
+- 12:44 OP13-A初版20测试通过但root复现surrogate/深JSON异常泄漏及manifest读中替换误拒，退回补测。
+- 12:44 OP13后续补偿接缝选typed store health加runner阶段，覆盖wrapper改写异常；A独立，尚未实施writer。
+- 12:50 OP13-A全Kernel494与全类型通过；独立复审仍阻断ctime过宽豁免，真实resolved-root原地改写探针复现。
+- 12:50 correction: root早先未resolve的macOS临时路径探针被父目录检查拦截，不能作为manifest读竞争证据；有效复测已另存。
+- 12:56 OP13-A独立复审仅余ctime身份HIGH，Terra补RED修复；B/C健康补偿规则纳入canonical待独立复审。
+- 12:58 OP13-B/C typed健康及旧格式回滚不确定性合同独立复审PASS；A首修494及类型通过，第二读取窗口复核中。

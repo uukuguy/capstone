@@ -1295,10 +1295,11 @@ Additional production/tool changes that are actually necessary:
    `start()`, `submit()`, and `fail()`; retain restoration only for definitely
    uncommitted failures and preserve potentially referenced sidecars otherwise.
 2. `application/__init__.py` and top-level `capability_agent/__init__.py`: export
-   the additive indeterminate subtype if the current public error exports are
-   kept symmetric.
-3. `application/runner.py`: suppress `_fail_active_turn()`/context retry for the
-   indeterminate subtype while returning only sanitized failure information.
+   the additive indeterminate subtype and read-only `ContextStoreHealth` enum
+   symmetrically, as required by the B/C compensation supplement below.
+3. `application/runner.py`: use concrete typed health plus lexical persistence
+   phases to suppress unsafe compensation even through wrapped exceptions;
+   follow the B/C supplement while returning only sanitized failure information.
 4. `grid_agent/compat/v1_0_1_report.py`: narrow public-replay validation and
    nonblocking diagnostic; no legacy report/parser rewrite.
 5. `tools/benchmark_optimization.py`: count actual staged segment bytes and
@@ -1348,6 +1349,269 @@ Tests for the distinct old `grid_agent.analysis.store.AnalysisContextStore` and
 Every recovery helper in tests must read the real marker, manifest, and segment
 files through an independent replay path. It may not return the writer's cached
 snapshot or infer commitment from a test hook call count.
+
+##### Compensation health and wrapper seams — B/C contract supplement
+
+This supplement refines the earlier indeterminate-exception rules. Typed store
+health plus lexical runner phases govern compensation even when an adapter
+wraps the original exception. It does not expand Slice A or authorize OP-08.
+The source review motivating this supplement is retained in the ignored
+`runs/optimization/OP-13/compensation-seams.md`; this canonical section owns
+the implementation and acceptance requirements.
+
+###### Decision
+
+Use one explicit read-only health value on the concrete
+`ApplicationContextStore`, plus lexical runner phases around provider work and
+controller persistence. Do not require every existing wrapper to preserve a
+new exception subtype, and do not inspect duck-typed flags on controllers,
+projectors, reports, or injected fakes.
+
+The public typed state is:
+
+```text
+ContextStoreHealth.READY
+ContextStoreHealth.UNAVAILABLE
+ContextStoreHealth.COMMIT_OUTCOME_UNKNOWN
+```
+
+`ApplicationContextStore.health -> ContextStoreHealth` is read-only.
+`COMMIT_OUTCOME_UNKNOWN` is sticky for that instance: only reopening and
+replaying the workspace can establish a new usable instance. The existing
+private snapshot-repair-pending state remains separate; a known committed
+transaction with a stale rebuildable snapshot is still `READY`.
+
+Once health is `COMMIT_OUTCOME_UNKNOWN`, every later store mutation rejects
+without touching disk and leaves health unchanged. That rejection must not
+overwrite the sticky state with `UNAVAILABLE`; only an authoritative backend's
+ambiguous commit boundary can enter unknown, and only a fresh replayed store
+can leave it.
+
+Runner checks use `isinstance(store, ApplicationContextStore)` followed by the
+enum property. A structurally injected test store is not queried for `health`;
+there is no `getattr(..., "health")`, truthy flag, or Protocol expansion.
+
+The segmented backend sets `COMMIT_OUTCOME_UNKNOWN` before propagating:
+
+- `ContextCommitIndeterminateError` after manifest replacement when directory
+  durability was not established; and
+- an unclassified exception or control-flow `BaseException` while manifest
+  replacement/commit outcome cannot be proven old or committed.
+
+A validation failure or a persistence failure proven to precede manifest
+replacement is `UNAVAILABLE` (or remains `READY` for preflight validation), not
+unknown. A successful durable manifest commit followed by a classified
+snapshot-refresh failure publishes the next memory state, returns success, and
+remains `READY` with private repair pending.
+
+The same health contract applies to the retained legacy writer without changing
+its JSONL or transaction-record format. Its current append path can swallow an
+exception from `_rollback_transaction()` and then propagate the original
+ordinary `ContextStoreError`; that exception type alone is **not** proof of
+rollback. After any failure once the legacy transaction may have touched an
+authoritative file, re-read the ledger and snapshot through the bound safe
+reader and compare both against the transaction's recorded previous hashes:
+
+- an exact old ledger/snapshot pair means definitely uncommitted and health
+  becomes `UNAVAILABLE`, preserving the existing fail-closed instance behavior
+  and byte-for-byte rollback assertions; but
+- a missing, unreadable, mixed, new, or otherwise non-old pair after rollback
+  failure means `COMMIT_OUTCOME_UNKNOWN`, while the original exception remains
+  the propagated error.
+
+Thus `UNAVAILABLE` means mutation is prohibited, not that every historical
+error was implicitly rolled back. Controller compensation is safe only when
+the error is a known definitely-uncommitted type **and** concrete health is not
+unknown. A fresh legacy recovery may use its existing transaction marker to
+resolve old/new state; no legacy format, normal rollback behavior, or migration
+is added here.
+
+###### Why this is smaller than wrapper-by-wrapper typed relay
+
+Two designs were considered:
+
+1. **Relay `ContextCommitIndeterminateError` through every wrapper.** This
+   requires special catches in controller, both projector append sites, report
+   reference publication, completion/failure lifecycle helpers, and runner. It
+   still cannot preserve the original type of a control-flow `BaseException`
+   while converting it to an ordinary typed error. One missed broad catch
+   silently re-enables compensation.
+2. **Concrete store health plus lexical runner phase — selected.** The store is
+   the only component that knows the durable boundary. The runner already owns
+   a concrete `ApplicationContextStore | None`, so it can compare a real enum
+   directly. Existing `DomainProjectionError`, `ApplicationConfigurationError`,
+   and the original `BaseException` remain unchanged. Structural controller and
+   projector fakes need no new attribute.
+
+This state is not a generic result protocol and is not added to
+`TurnControllerSession`. It answers only whether another context mutation or
+destructive compensation is safe on this concrete store instance.
+
+###### Runner phase rule
+
+The current inner `try` combines `_call_prompt()` and `controller.submit()`.
+Split it into two lexical blocks:
+
+1. **Provider/projector phase.** Ordinary provider failure retains the existing
+   best-effort `controller.fail()` path while the concrete store is not
+   `COMMIT_OUTCOME_UNKNOWN`. This includes ordinary transport/model failures.
+   A provider-phase `BaseException` retains the current behavior: attempt the
+   same safe failure publication, preserve the original control-flow exception,
+   and attach only a compensation `BaseException` as its cause.
+2. **Controller submit phase.** After entering `controller.submit()`, an
+   indeterminate, unclassified `Exception`, or control-flow `BaseException`
+   must not invoke `controller.fail()` or any later context compensation. The
+   controller owns definitely-uncommitted sidecar restoration. Rethrow the
+   original exception unchanged; do not convert a control-flow exception. A
+   known definitely-uncommitted `AnswerCommitError`, or a non-indeterminate
+   `ContextStoreError` after controller restoration, retains the old failure
+   lifecycle when concrete store health is not unknown.
+
+Use a module-private enum, not an object flag or `getattr`, for the outer handler:
+
+```text
+_CompensationDisposition.ALLOWED
+_CompensationDisposition.PRESERVE_POSSIBLE_COMMIT
+```
+
+Set `PRESERVE_POSSIBLE_COMMIT` when an unclassified/indeterminate failure leaves
+`start()` or `submit()`, and whenever the concrete store health is
+`COMMIT_OUTCOME_UNKNOWN`. Do not set it for a known definitely-uncommitted
+`AnswerCommitError` or non-indeterminate `ContextStoreError` after its owning
+controller compensation has completed and concrete store health is not
+unknown. The outer `except Exception` checks both the enum and the store health
+before **each** call to `_fail_active_turn()` or `_mark_failed()`. It may still
+construct a sanitized failed `ApplicationOutcome`; it does not append another
+context event when preservation is required.
+
+This lexical split is necessary even with store health. A bug after a store
+append returned committed events can leave the store `READY` while the
+controller raises a `RuntimeError`; the submit-phase disposition still prevents
+a second transition. Conversely, an ordinary provider failure with a `READY`
+store keeps the old failure lifecycle.
+
+`controller.start()` also needs its own boundary because it currently runs
+outside the inner `try`. A typed definitely-uncommitted error may retain normal
+application-failure handling after the controller restores its pre-start files.
+An indeterminate or unclassified exception sets `PRESERVE_POSSIBLE_COMMIT`;
+`BaseException` is rethrown unchanged and reaches only `finally` cleanup.
+
+For both `start()` and `submit()`, “known definitely uncommitted” means the
+caught value is `AnswerCommitError`, or is `ContextStoreError` but not
+`ContextCommitIndeterminateError`, **and** a concrete store is not
+`COMMIT_OUTCOME_UNKNOWN`. Ordinary admission/preflight/validation rejection is
+therefore not mislabeled as an uncertain commit.
+
+###### Exact seam behavior
+
+| Current seam | Required narrow behavior |
+| --- | --- |
+| `runner.py:601` ordinary inner catch | This catch belongs only to provider/projector work after the split. Before calling `_fail_active_turn`, require disposition `ALLOWED` and concrete store health not unknown. A submit-phase known definitely-uncommitted typed error retains this lifecycle; only an unclassified/indeterminate submit exception sets preserve disposition. |
+| `runner.py:610` control-flow catch | Provider-phase `BaseException` may use the existing failure attempt and must rethrow the original object. Submit-phase `BaseException` performs no compensation and is rethrown directly. |
+| `runner.py:682` outer catch | Recheck store health and disposition. If either requires preservation, skip both `_fail_active_turn` and `_mark_failed`; return only sanitized failure output/diagnostic. Never infer rollback merely from the caught wrapper type. |
+| `_fail_active_turn():1542` | Add the concrete `store` as a private keyword argument and return `_CompensationDisposition`. Check typed health before calling `controller.fail`. A known successful `fail()` return yields `ALLOWED`; any ordinary exception after entering `fail()` is swallowed only to preserve the original provider error but yields `PRESERVE_POSSIBLE_COMMIT`, even if store health is still `READY`. Unknown health also records the fixed diagnostic `context_commit_outcome_unknown`. A control-flow exception still propagates. The caller merges the returned disposition before any later append. |
+| `_mark_failed():1498` | Do not call an indeterminate write away. Skip the append if health is already unknown. If its own append makes health unknown, retain the original application failure as primary, record the same fixed diagnostic, and return without recursion or retry. Ordinary best-effort failure remains nonfatal. |
+| `_record_report_reference():1462` | Existing `ApplicationConfigurationError` wrapping may remain. Store health survives the wrapper. No sidecar compensation occurs here. |
+| `_publish_report():1315` | Presentation/write/admission exceptions remain an ordinary nonblocking `report_unavailable` result only when store health is not unknown. If report-reference append made health unknown, rethrow the caught existing exception; do not convert it into a report warning and continue to completion. Outer handling skips all context compensation. |
+| `_mark_completed():1481` | Existing `ApplicationConfigurationError` wrapping may remain. Outer handling must observe unknown health and must not follow it with `_mark_failed`. A known definitely-uncommitted completion error keeps the existing failure path. |
+| `projector.py:218-220,652-654` | Existing `DomainProjectionError` / `CapabilityTransportError` wrapping may remain under this design. The segmented store's sticky unknown health survives flattening; the provider-phase catch checks it before attempting `controller.fail`. Therefore no projector production change is required solely for relay. |
+
+The fixed `context_commit_outcome_unknown` diagnostic uses the existing
+artifact/stderr diagnostic path; it is not itself appended to the unavailable
+context store and contains no exception text, path, or provider data.
+
+###### Controller compensation contract
+
+The canonical controller rules remain, with one implementation clarification:
+
+- `start()`: restore prior active/draft files only for a proven precommit
+  failure. Preserve the post-preparation active sidecar on indeterminate,
+  unclassified, or control-flow outcome.
+- `submit()`: separate sidecar writes from store append. Restore captured files
+  for sidecar-write or proven precommit typed failure. Preserve them for
+  indeterminate, unclassified, or control-flow outcome. Validation of the
+  returned event tuple occurs outside the destructive rollback block.
+- `fail()`: active/draft cleanup, optional failure-answer publication, and
+  `_record_turn_failed` occur only after append returned a known committed
+  result. Any exception from append leaves those files and in-memory controller
+  records untouched.
+
+Controllers should continue to propagate `ContextCommitIndeterminateError`
+when directly available, but runner safety does not depend on every adapter or
+projector retaining it. No new `AnswerCommitError` subtype is required.
+
+###### Minimal source scope
+
+- `application/context_store.py`: define/export `ContextStoreHealth`, expose the
+  read-only property, and set sticky unknown at the backend's ambiguous commit
+  boundary. This belongs to Slice B/C, not Slice A codec/reader.
+- `application/turns.py`: apply the already-canonical three-path compensation
+  rules; no store-health duck typing.
+- `application/runner.py`: provider/submit lexical split, private compensation
+  enum, concrete health checks at the named seams, and fixed diagnostic.
+- Public `application/__init__.py` and `capability_agent/__init__.py`: export the
+  health enum consistently with the existing store error exports.
+
+No production change is required in `projector.py`, report implementations, a
+Domain Pack, Kernel SPI protocols, or injected fake interfaces for this
+decision. `grid_agent.compat.v1_0_1_report.py` remains separately required by
+the physical segmented-layout compatibility contract, not by compensation
+state propagation.
+
+###### Focused RED/GREEN matrix
+
+1. Store transition tests prove `READY -> UNAVAILABLE` for a definite
+   precommit I/O failure, `READY -> COMMIT_OUTCOME_UNKNOWN` for manifest
+   durability ambiguity/control-flow injection, stickiness after later calls,
+   and a fresh reopened instance resolving to a valid old or committed prefix.
+   A later rejected append on the unknown instance must leave health unknown,
+   not downgrade it to unavailable.
+   Legacy fault injection separately proves successful old-pair rollback yields
+   `UNAVAILABLE`, while a swallowed rollback failure with no provable old pair
+   yields sticky unknown and prevents sidecar compensation, without changing
+   the legacy ledger bytes or transaction schema.
+2. A projector append sets unknown, projector wraps it as
+   `DomainProjectionError`, and runner calls neither `controller.fail` nor
+   `_mark_failed`.
+3. An ordinary provider exception with a `READY` store still calls
+   `controller.fail` once and follows the existing failed-run path.
+4. If that `controller.fail` append becomes unknown, the original provider
+   failure remains the sanitized primary failure, active sidecars remain, and
+   `_mark_failed` is not called.
+   The same no-mark assertion applies when `controller.fail` raises an
+   unclassified `RuntimeError` after a known commit while store health remains
+   `READY`; the private returned disposition carries that lexical uncertainty.
+5. `controller.submit` indeterminate and unclassified `RuntimeError` cases both
+   preserve all answer/admission/active files and cause zero compensating
+   transitions. A `BaseException` case proves object identity is preserved and
+   only `finally` cleanup runs.
+   Separate admission/preflight `AnswerCommitError` and definite
+   non-indeterminate `ContextStoreError` cases prove the old failure lifecycle
+   still runs when store health is not unknown.
+6. Provider-phase `BaseException` retains the existing single failure attempt
+   and original exception/cause behavior, demonstrating that the submit rule
+   did not disable ordinary provider cleanup.
+7. Report-reference append unknown is not returned as
+   `ReportPublication("unavailable")`; completion and application-failed
+   appends are not attempted, and the report artifact remains for recovery.
+8. Completion append unknown is not followed by `_mark_failed`; failure output
+   is sanitized and all previously committed answer/report artifacts remain.
+9. `_mark_failed` becoming unknown emits only the fixed diagnostic and performs
+   no recursive/retry append.
+10. Structural injected controller/projector fakes without a `health` member
+    continue to work because runner reads health only from its concrete
+    `ApplicationContextStore` reference.
+
+###### Non-goals
+
+- Do not change Slice A raw codec/reader or its current review boundary.
+- Do not create a general transaction-result protocol, attach flags to
+  exceptions, or add `health` to controller/projector/report Protocols.
+- Do not reinterpret report rendering failures as primary failures; only a
+  context commit whose outcome is unknown escapes report-warning isolation.
+- Do not retry, compensate, delete sidecars, or select a committed prefix from
+  in-memory assumptions after unknown health. Fresh public replay is the only
+  resolution.
 
 #### OP-13 implementation slices and review gates
 
@@ -1419,7 +1683,9 @@ partial/nonempty layouts, not migrate them.
 - [ ] Implement the reviewed segment publication, strict fsync and locked
   constant manifest protocol. Return committed events with pending snapshot
   repair only after the durable commit point; raise the additive public
-  `ContextCommitIndeterminateError` for uncertain durability.
+  `ContextCommitIndeterminateError` for uncertain durability. Export the
+  read-only `ContextStoreHealth`; test sticky unknown across later rejected
+  calls and legacy rollback ambiguity using the supplement's old-pair proof.
 - [ ] Inject ordinary I/O failures and subprocess `os._exit` at every boundary
   in the reviewed matrix. Inspect real disk state in a fresh process:
 
@@ -1450,7 +1716,8 @@ grid compatibility/single-run/report and generic-entrypoint tests.
 - [ ] First reproduce sidecar deletion under an injected indeterminate append
   for start and submit; record RED. Then split preparation failure from append
   outcome handling. Preserve sidecars on indeterminate/unclassified/control-flow
-  outcomes and propagate the typed indeterminate error through lifecycle wrappers.
+  outcomes. Use the B/C supplement's concrete health and lexical boundaries;
+  safety must survive existing wrapper exception types without Protocol changes.
 - [ ] Assert fail/runner paths add no compensating transition, call neither
   `_fail_active_turn` nor `_mark_failed`, and return only sanitized failure
   information. Replay determines commitment; the test must not presume that an
