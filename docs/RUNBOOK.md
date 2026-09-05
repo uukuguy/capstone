@@ -56,7 +56,9 @@ make test-packages
 
 inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/context/result/evidence:sha256:*` 内容引用持久化。authority 使用 no-follow、同绑定校验拒绝跨 run、篡改、符号链接、引用类型错配与未关联证据。该参考域没有创建、更新、预留、调拨或删除操作。
 
-`make validate` 会校验 Workstream C 配置中三个 protected framework path 的 Git tree digest 与工作树清洁性；它们是 `capability-agent-kernel`、`pi-capability-tools` 和 `trajectory-workbench`。这使“第二领域未通过修改框架核心而作弊”成为可执行发布条件。
+完整 Profile 还提供端点准备、状态/输出验证、指南、答案准入和展示组件。`make test-inventory` 包含真实 authority 的两轮应用、报告降级和回放验收；`make test-packages` 在仓库外使用 wheel 安装的 `inventoryctl` 重复完整应用，不依赖源码树。`guide:overview`、`guide:capability-map` 和 `guide:evidence-and-recovery` 可返回确定性打包信息；无引用业务请求仍为 limited，谱系准入不验证自由文本数值语义。运行环境仅保留明确的运行时白名单，不向 authority 透传 Provider/业务环境变量。
+
+`make validate` 使用当前保护配置 `configs/runtime/application-instantiation-protected-paths.json` 检查已提交路径摘要与工作树清洁性。历史 Workstream C closure 的保护记录保留为当时证明，不能替代当前发布基线。
 
 ## 主路径：执行自然语言分析问题
 

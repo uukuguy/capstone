@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-11；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-12；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -49,8 +49,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端映射与范围复审完成；Kernel/Domain扩展待用户确认，未实施 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
-| OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | RUNNING | 依赖已完成；只读SPI映射已准备，进行领域组件设计，尚无生产改动 |
-| OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | PLANNED | 未执行 |
+| OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
+| OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | RUNNING | 只读基准接缝映射完成；测量设计与实现待推进，未改变存储格式 |
 | OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | CONDITIONAL | 未执行 |
 | OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
 
@@ -434,13 +434,13 @@ assert provider_start_spy.call_count == 0
 
 ### OP-11：完成 inventory 的应用级 conformance
 
-**Files**：Modify `packages/inventory-domain-pack/src/inventory_domain/profile.py`；Create 同目录 `provisioning.py`、`state.py`、`answer_policy.py`、`answer_admission.py`、`policy.py`、`guide.py`、`presentation.py`、`output.py`、`acceptance.py`；Create `packages/inventory-domain-pack/tests/test_application_conformance.py`；Modify `tools/test_package_artifacts.sh`、`configs/runtime/application-instantiation-protected-paths.json`。
+**Files**：Modify `packages/inventory-domain-pack/src/inventory_domain/profile.py`、`execution.py`（仅环境过滤）；Create 同目录 `provisioning.py`、`state.py`、`answer_policy.py`、`answer_admission.py`、`guide.py`（含 policy provider）、`presentation.py`、`output.py`、`acceptance.py`；Create `packages/inventory-domain-pack/tests/test_application_conformance.py` 及组件测试；Modify `packages/grid-agent/tests/contract/installed_smoke.py`、`configs/runtime/application-instantiation-protected-paths.json`；复用现有 `tools/test_package_artifacts.sh` 无需修改。
 
 **接口**：实现现有 DomainRuntimeProfile 八个完整应用组件及 OP-01 准入，复用公共 Kernel Protocol；测试中装配 ApplicationProfile，不注册 production grid CLI 的 inventory 模式。
 
-- [ ] 从 `missing_application_components()` 为空开始写红灯，再加入两组独立问题：库存/资产查询与上下文复用、无效对象/外来引用/错误 authority 的受限结果。
-- [ ] 提供真实 inventoryctl provisioner、状态验证、输出验证、报告片段、离线知识策略、接受案例声明；所有 current-run 数据由 reference authority 产生。
-- [ ] 使用 scripted transport 但真实 executor/authority 跑 AgentApplication；验证答案、core、domains.inventory、报告失败降级及 replay。
+- [x] 从 `missing_application_components()` 为空开始写红灯，再加入两组独立问题：库存/资产查询与上下文复用、无效对象/外来引用/错误 authority 的受限结果。
+- [x] 提供真实 inventoryctl provisioner、状态验证、输出验证、报告片段、离线知识策略、接受案例声明；所有 current-run 数据由 reference authority 产生。
+- [x] 使用 scripted transport 但真实 executor/authority 跑 AgentApplication；验证答案、core、domains.inventory、报告失败降级及 replay。
 
 ```python
 assert profile.missing_application_components() == ()
@@ -449,9 +449,9 @@ assert set(outcome.result.domains) == {"inventory"}
 assert replayed_context == stored_context
 ```
 
-- [ ] 扩展干净 wheel 安装测试，从仓库外目录完整执行该应用；不得依赖 `validation/` 或源码树绝对路径来解析包资源。
-- [ ] inventory 路径受 C.1 保护：先验证旧基线，记录允许变化的目录/理由/旧摘要，完成独立复审和不依赖 protected gate 的领域测试。先提交领域改动，再用 `git rev-parse HEAD:packages/inventory-domain-pack` 取得摘要更新当前配置并独立提交，然后执行完整门禁；中间两提交在集成分支不得视为 release。历史 Climb 配置与旧 closure 不变。
-- [ ] 执行 `make test-inventory`、`make check-package-boundaries`、`make test-packages` 和更新后的 `make check-release`。
+- [x] 扩展干净 wheel 安装测试，从仓库外目录完整执行该应用；不得依赖 `validation/` 或源码树绝对路径来解析包资源。
+- [x] inventory 路径受 C.1 保护：先验证旧基线，记录允许变化的目录/理由/旧摘要，完成独立复审和不依赖 protected gate 的领域测试。先提交领域改动，再用 `git rev-parse HEAD:packages/inventory-domain-pack` 取得摘要更新当前配置并独立提交，然后执行完整门禁；中间两提交在集成分支不得视为 release。历史 Climb 配置与旧 closure 不变。
+- [x] 执行 `make test-inventory`、`make check-package-boundaries`、`make test-packages` 和更新后的 `make check-release`。
 
 **关闭条件**：独立 Domain Pack 通过完整应用闭环，Kernel/generic Pi 不加入 inventory 特例。提交主题：`test: prove complete inventory application conformance`。
 
@@ -461,7 +461,7 @@ assert replayed_context == stored_context
 
 This refines the already approved canonical OP11, not an additional product
 mode. OP10 dependency is closed at d5eec21; closure documentation is 2f6c452.
-No OP11 production edits exist. Old protected trees were verified at 10:40 CST:
+At design review no OP11 production edits existed. Old protected trees were verified at 10:40 CST:
 inventory-domain-pack dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108,
 inventory-reference-service 3267711cc30e5c2dc3ff1e0e630b76f21a0d030a.
 
@@ -504,6 +504,15 @@ to InventoryctlExecutor. Output-limit metadata is descriptive: it does not
 bound subprocess.run's captured output in the existing executor. Do not widen
 OP11 into an executor or Kernel refactor or claim a memory bound from metadata.
 No second execution route or shell invocation.
+
+Implementation review refinement (2026-09-05): the existing inventory environment
+denylist retains nonstandard provider credentials (for example cloud credential
+paths and PAT variables). Tighten only inventory execution.sanitize_environment
+to a small runtime allowlist shared by provisioning and the legacy executor
+factory; unknown business/provider variables and import-path injection stay out.
+This is credential-boundary completion, not an executor I/O, subprocess-buffer,
+Kernel or authority refactor. Verify both actual child environments and endpoint
+metadata, retaining installed environment.describe conformance.
 
 GuideProvider.load/open uses only the existing resource allowlist (overview,
 capability-map, evidence-and-recovery) and verifies regular no-follow bound reads
@@ -671,6 +680,36 @@ Then derive HEAD:packages/inventory-domain-pack and update only the current
 protected config in a separate commit. Do not modify historical Climb digests.
 Run package boundaries, installed packages, then fixed-source doctor/check-release.
 Neither intermediate code nor digest-only commit closes OP11 without full gates.
+
+#### OP-11 acceptance record (2026-09-05)
+
+- Source: `416a04d052c51fe4639a29347a975107bb624cac` (22 source/test files).
+  Independent digest-only commit `218b672eea615d92d6c4af3d52b6c4af8ed20f54`;
+  inventory tree `dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108` →
+  `c224b47dd15ad5988935e907966ed48f11774527`. Reference service unchanged.
+- Fixed-source `make doctor && make check-release` exit0 at11:42 CST; HEAD
+  remained218b672, only task documentation changed. Production pyright0;
+  agent788/simulator165/Kernel464/pandapower79/inventory-service11/
+  inventory-domain118+transport1/Pi43+34/Workbench128/gate-selftests18;
+  built SDK four cases, E2E31, offline/scripted coverage24/24,
+  full application validation, six-wheel/two-npm and frozen-source install PASS.
+- Environment: Darwin arm64, main Python3.14.3/Node23.11.0; actual clean wheel
+  Python3.12.12. Dependency warnings retained; no remote CI or paid-provider claim.
+  Raw untruncated capture: `runs/optimization/OP-11/gate-release-218b672.json`.
+- Reviews: `root-slice-a-review.md`, `root-b-components-review.md`,
+  `application-tests-review.md` under the same evidence directory all PASS.
+  Cross-kind result collision2RED and nonstandard credential leakage1RED fixed.
+  Preliminary worker reports remain incomplete history, superseded by root reports.
+- Failures retained: initial incomplete component assertions; test namespace
+  mismatches; catalog-only limited admission; public typed transport error handling.
+  Corrected tests preserve existing Kernel semantics. Source smoke environments
+  lacked inventory or interpreter-adjacent script; assertions stayed strict and
+  actual six-wheel external-directory execution passed.
+- Contract: eleven profile components, real two-turn authority execution,
+  current-run admitted outputs, report isolation and replay. Read-only inventory
+  remains conformance infrastructure, not a new production CLI/domain selection.
+  Domain lineage does not prove free-text numeric semantics. No Kernel/Pi/service
+  change, user-state migration, push or paid provider. Decision DONE; next OP-12.
 
 ### OP-12：长运行基准与存储改造决策
 

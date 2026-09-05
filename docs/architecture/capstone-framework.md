@@ -203,6 +203,12 @@ unchanged generic Pi transport without modifying protected framework paths.
 Inventory is conformance infrastructure, not a production application and not
 a runtime-selectable `grid-agent` mode.
 
+The complete inventory profile supplies provisioning, detached state, domain
+output validation, admission, guides and presentation through those same public
+interfaces. Its conformance executes two real authority-backed turns and checks
+report isolation and replay; installed-wheel tests exercise this application
+outside the source tree. No inventory branch is added to the Kernel or grid CLI.
+
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, multi-domain routing, cross-domain conflict resolution, or a chosen
 second production domain. Governed writes, approval flows, tenant/actor scope,

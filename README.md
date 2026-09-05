@@ -167,6 +167,13 @@ this historical proof does not claim those paths remain unchanged. The shipped
 `grid-agent` CLI still explicitly selects the pandapower profile; inventory
 remains conformance infrastructure, not a second production domain.
 
+The inventory profile now supplies every complete-application SPI component.
+Its provider-free conformance uses real `inventoryctl` execution for two-turn
+context reuse, admitted answers, `core` + `domains.inventory`, report isolation
+and replay. Clean-wheel tests repeat the complete application outside the
+repository using the interpreter's installed console script. These checks prove
+runtime wiring and evidence lineage, not semantic verification of free-form prose.
+
 The external grid compatibility CLI, Pi tool names, `grid-capability/1.0`
 protocol, v1.0.1 two-field stdout envelope, stderr diagnostics, `runs/` evidence
 layout, and simulator-owned truth contract remain unchanged. The explicitly

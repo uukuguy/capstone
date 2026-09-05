@@ -750,3 +750,14 @@ _Recovered pre-merge mainline entries._
 - 10:35 OP10固定完整release通过并关闭；证据已保存，转OP11领域应用设计，OP08扩展仍待批 [d5eec21]
 - 10:37 OP10验收与OP11恢复入口入账；文档39链接/相对symlink/doctor通过 [2f6c452]
 - 10:42 OP11旧保护摘要核验通过；root组件契约草案交Sol复审，尚未修改领域源码。
+- 10:52 OP11复审定稿入canonical方案；Terra启动state/output/presentation切片A的TDD [a3c0fe5]
+- 11:13 OP11-A初稿不完整，root接手；15RED及缺字段1RED修复，完整inventory51通过、pyright零错误。
+- 11:13 真实inventoryctl到authority/projector/state/output组件链路通过；尚非完整应用验收，切片A待独立复审。
+- 11:23 OP11-A跨组同引用冲突2RED修复，独立复审PASS；指南13、准入22、端点18定向通过。
+- 11:23 OP11-B端点初稿不完整，root接手10RED修复；profile完整性1RED后装配十一字段，整包检查中。
+- 11:34 OP11-B整包107与类型通过；Sol发现非典型凭据泄漏，root1RED修复共享白名单，复审PASS。
+- 11:34 完整应用/错误协议14通过；两轮、报告、回放、foreign/tamper/wrong-authority及limited均覆盖，安装脚本扩充待验。
+- 11:37 OP11完整应用实现提交；119测试、类型、独立复审与真实六wheel通过，待独立摘要及发布门禁 [416a04d]
+- 11:35 correction: 上条11:37为估时笔误；实际时钟11:35，提交及验证结论不变。
+- 11:35 独立更新inventory保护树并校验通过，冻结218b672开始完整发布门禁 [218b672]
+- 11:42 固定218b672完整release通过，原始证据保存，关闭OP11并转OP12长运行基准。

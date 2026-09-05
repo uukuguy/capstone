@@ -1,36 +1,37 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 10:42 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 11:44 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
-- Goal active：持续完成OP01–14；Project route direct。唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。
-- 实施目录 .worktrees/capstone-optimization，分支feat/capstone-optimization，生产HEAD d5eec21。
-- OP01–07、OP10 DONE；OP11 RUNNING设计阶段，尚无生产改动。OP08跨层扩展待明确批准、无生产代码，自动续跑不等于批准。OP09等08；OP12依赖已满足，可在11之后继续。
-- 当前无root活动长命令。51870固定d5eec21的make doctor && make check-release已exit0，勿再轮询/重复整套门禁。
+- Active unbounded goal: continue approved optimization implementation, not just a plan. Project route direct; one worklist: docs/superpowers/plans/2026-09-05-capstone-optimization.md.
+- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEAD218b672; OP11 source416a04d plus independent protected digest218b672.
+- OP01–07/10/11 DONE. OP12 RUNNING (read-only preflight only, no new benchmark source). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP13 conditional on12; OP14 waits the remaining packages.
+- No active root terminal. Fixed218b672 make doctor && make check-release terminal89274 exited0 at11:42 CST; full raw capture saved. Do not poll ended terminals or repeat this gate for unchanged source.
 
-## Immediate next action: OP11
+## Immediate next action: OP12
 
-1. root已写ignored OP-11/root-implementation-contract.md，Sol /root/op10_contract_decision正在只读审查，输出OP-11/design-review.md。先处理真实阻碍、将定稿纳canonical OP11，再按A(state/output/admission)→B(provisioning/resources/profile/完整应用)TDD；root负责installed_smoke.py及账本。依赖01/03/10已关闭。
-2. 只读输入：runs/optimization/OP-11/preflight-source-map.md与exact-spi-map.md。后者初稿admission字段有误，Terra已按源码改成AnswerAdmissionInput(question,answer_output,result_refs,evidence_refs)与Decision(mode,assurance,answer_output,diagnostic_codes)，实际源码优先。
-3. implementation-design.md只是初始导航，root已加NOT implementation-ready：fake inventoryctl安装验收建议被否决；offline-limited也不能替代确定性offline_information。完整测试必须scripted provider + 真正installed inventoryctl/executor/authority。禁止生产grid CLI新增inventory模式，不改Kernel/generic Pi加领域特例。
-4. inventory现有models/projectors/authority/executor已可复用；profile缺全部11应用字段。状态adapter须承接真实InventoryStateDelta，build_context提供当前已准入引用，输出/报告不直接扫描authority或信任模型文字。具体格式/语义待设计，不能照抄pandapower业务实现。
-5. 包资源现有guides为SKILL.md与references/capability-map.md、evidence-and-recovery.md；可以据此设计可复用信息目录，不能fixture/问题/资产特定离线捷径。真实console script由inventory_reference.cli:main提供；provisioner须使用真实installed executable和现有protocol。
-6. 10:40实际protected checker PASS，HEAD tree对应domain dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108、service3267711cc30e5c2dc3ff1e0e630b76f21a0d030a。仅domains新增应用组件；不改reference service。领域代码独立复审/测试/提交，然后按提交tree独立更新当前保护摘要。历史Climb配置不动，中间态不当release。
+1. Finish committing the OP11 closure documentation (README bilingual/RUNBOOK/architecture/status/canonical plan); links44/symlink/diffcheck passed, rerun doctor for the final docs state. Record commit with actual clock timestamp.
+2. Read canonical OP12 and runs/optimization/OP-12/preflight.md. Implement tools/benchmark_optimization.py and tools/tests/test_benchmark_optimization.py, Makefile only. First clarify exact logical I/O counters, fixed batch/workload, repetitions/percentiles/RSS and actual preview path. Do not change context persistence or claim hypothetical performance.
+3. Use legal synthetic events and fixed artifact sizes in isolated temp roots at1000/10000/100000, repeat3. Measure real append_many/replay/list/cold-hot projection/preview. Preserve failed/resource-limited scales and distinguish logical counters from disk traffic; actual trigger budgets govern OP13, no extrapolated pass.
+4. Existing OP07 tools/benchmark_projection_cache.py provides valid trajectory fixtures/counters, but is one-repeat and lacks I/O/RSS. Kernel context ledger is a different format; read-only map explains real write/backup seams. No new benchmark code exists yet.
+5. Only after verified OP12 data make the OP13 branch decision. A storage-format implementation needs its explicit detailed recovery/commit-point review as required by the approved plan.
 
-## OP10 closed evidence and decisions
+## OP11 closed evidence
 
-- 生产d5eec21f11a40056d3fdf104035ee00447fdfa9d固定完整release exit0（10:35CST），HEAD未变，raw runs/optimization/OP-10/gate-release-d5eec21.json。
-- 全pyright0；agent788/sim165/Kernel464/pandapower79/inventory11/13/1/Pi43/34/UI128/自检18/真实SDK四例/E2E31/24-of-24/完整应用/六wheel两npm/frozen源码安装PASS。Darwinarm64/Python3.14.3/Node23.11.0，wheel另Python3.12.12；警告保留、无付费provider/远端CI矩阵。
-- 最终runtime-final-rereview.md PASS；HIGH无效controller返回假完成及MEDIUM测试旧helper均关闭，真实malformed-submit failed/0。controller结构注入但值DTO保留真实实例，六通道保留；strict五kwargs factories与完整callbacks；legacy具名适配；prepared/catalog原对象；report原实例9/11字段及派生隔离；selected-output typed map与旧schemafallback保持。
-- E2E缺heartbeat8失败已RED→GREEN及整套关闭；root并行test/validate目录锁冲突记录parallel-gates-conflict.json，随后serial-precommit-gates.json全PASS，再本次完整release。今后门禁串行，不放宽隔离。旧33798/16312/98481/80849/79401/75197全结束。
-- checker仅允许from grid_simulator.capabilities import contract_root（alias可），54回归/边界及双语架构文档独立PASS；未改保护路径。任务生成Kernel uv.lock保存在ignored generated-kernel-uv.lock，可恢复不提交。
-- OP07生产7638188及OP06生产41b48d0均已关闭，不重做；完整证据各OP目录与canonicalplan。
+- Source416a04d052c51fe4639a29347a975107bb624cac (22 files); independent digest218b672eea615d92d6c4af3d52b6c4af8ed20f54.
+- inventory tree olddc7c1e666af660f95fa8fcb6cfb7bd21a4a74108 → c224b47dd15ad5988935e907966ed48f11774527. Reference service3267711cc30e5c2dc3ff1e0e630b76f21a0d030a unchanged. Old baseline was actually checked10:40 before edits; historical Climb config unchanged.
+- Full fixed release raw runs/optimization/OP-11/gate-release-218b672.json, no tool truncation. Types0; agent788/sim165/Kernel464/pandapower79/service11/inventory118+1/Pi43+34/UI128/selftests18; real SDK4/E2E31/24-of-24/fullapplication/sixwheel-twonpm/frozen-source install allPASS. Darwinarm64 Python3.14.3 Node23.11.0; wheelPython3.12.12. Warnings retained; not remoteCI/paidprovider.
+- Sol root-slice-a-review.md and root-b-components-review.md PASS; Terra application-tests-review.md PASS. Root took over incomplete worker A/B code; preliminary reports are superseded, not closure evidence. Cross-kind result collision2RED and nonstandard secret leakage1RED fixed.
+- Strict state, deep detached contexts, four-kind admitted_refs; output active context+revision only and actual report wrapper. Eleven profile fields complete, real interpreter-adjacent console discovery, exclusive target copy, sanitized runtime allowlist shared with legacy executor. No Kernel/Pi/reference-service changes.
+- Full app10 plus error protocol4 passed: two turns, report content/failure, replay, foreign/tampered refs and wrong authority. Public credential-screening executor intentionally hides raw errors as CapabilityTransportError; scripted model recovers to persisted limited. Catalog-only has no result/evidence and is limited. completed_questions includes finalized limited turns. Domain executor separately proves asset_not_found.
+- Source smoke environment mismatches kept strict; actual six-wheel external smoke succeeded in /tmp/op11-wheel-smoke.2wgzi6 (task-owned scratch retained, no user data deleted) and again in full release.
 
-## Scope and collaboration
+## Prior closed work / scope
 
-- OP08待批：Kernel流式工件验证、grid context省略、Domain语义验证。只改HTTP不能称端到端内存有界，raw hash不能替代Domain JSON语义准入。canonical提案与ignored调查为输入，非实现授权。
-- 可复用代理：op02_single_run（Terra，运行接口实现与OP11精确映射）；op01_implementation（Terra，checker及heartbeat复审，OP11导航初稿被root限制）；op10_contract_decision（Sol，契约最终复审）。全部idle；op01_finish_tests及newspawn遇threadlimit，勿重试。
-- main用户未跟踪2026-08-31-capstone-framework-guide.md不动；不push/main合并、不删var/auth、不跑付费provider、不复制worktree忽略状态。
-- Pi旧source-preserved-e75b4119c3bc411b835e686d0307786f可恢复保留。
-- Kernel中立、Domain策略、authority事实；stdout两字段；谱系不等于自由文本数值语义验证。
+- OP10 d5eec21 fixed complete releasePASS, raw OP-10/gate-release-d5eec21.json; closure docs2f6c452, OP11 reviewed designa3c0fe5. Strict five-kwarg factories, complete heartbeat/correlation callbacks, explicit legacy adapter, typed DTO controller returns, configured report publishers, selected output contracts; no duck fallback success. All detailed decisions stay canonical/OP-10.
+- OP07 7638188 and OP06 41b48d0 closed; do not redo. Pi0.84.4 exact source/three locks/zero audit/built SDK capture validated. Historical0.80.6 exception unchanged expires2026-09-30.
+- OP08 pending expansion: Kernel streaming artifact verification, grid context omission, domain semantic verification. Gateway-only optimization is not end-to-end bounded memory; raw hash cannot substitute domain JSON semantic admission. Automatic continuation is not approval.
+- No concurrent complete gates sharing fixed run IDs: earlier OP10 test/validate collision was recorded then serially rerun. No paidprovider, push/main merge, new production domain or user data migration.
+- Main user untracked docs/superpowers/plans/2026-08-31-capstone-framework-guide.md stays untouched. No deletion/copy of user var/auth or ignored runtime state across worktrees. Preserved Pi old source remains recoverable.
+- Available reusable agents idle: op01_implementation Terra (bounded reviews), op02_single_run Terra (OP11 coding repeatedly incomplete; root takeover), op10_contract_decision Sol (contract/security reviews). New-agent/obsolete op01_finish_tests hit thread limit; do not retry blindly. Root handles routine implementation inline; delegate only bounded useful review/tasks.

@@ -18,7 +18,7 @@
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist OP-01–OP-14, dependencies, acceptance and rollback; active package OP-11, OP-08 scope awaiting approval. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist OP-01–OP-14, dependencies, acceptance and rollback; active package OP-12, OP-08 scope awaiting approval. |
 
 ## Climb storage and configuration
 

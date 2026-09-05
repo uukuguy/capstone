@@ -99,6 +99,8 @@ make test-packages
 
 在其记录的 conformance 基线中，inventory 参考域复用通用 Pi transport 和 Kernel 组合路径，证明独立打包的只读业务权威可在不复制 `grid-agent` 的前提下实例化单领域框架。后续 Kernel 与 simulator 优化均由各自当前记录独立复审和保护；这项历史证明不宣称这些路径至今未变。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；inventory 仍是 conformance 基础设施，而不是第二个生产领域。
 
+inventory Profile 现已提供完整应用所需的全部 SPI 组件。无 Provider 验收通过真实 `inventoryctl` 执行两轮上下文复用、准入答案、`core` + `domains.inventory`、报告隔离与回放；干净 wheel 测试在仓库外使用当前解释器安装的 console script 重复完整应用。这些检查证明运行装配和证据谱系，不证明自由文本解释的语义正确性。
+
 外部 grid 兼容 CLI、Pi 工具名、`grid-capability/1.0` 协议、v1.0.1 双字段 stdout 封装、stderr 诊断、`runs/` 证据布局和模拟器事实所有权契约保持不变。显式的 `analysis-generic` 命令使用下文的组合输出契约。
 
 ## 通用应用路径
