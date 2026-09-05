@@ -1,37 +1,36 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 10:23 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 10:35 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
-- Goal active：持续完成 OP01–14；Project route direct。唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。
-- 实施目录 .worktrees/capstone-optimization，分支 feat/capstone-optimization，HEAD 2471387；OP10全部未提交且源码冻结。
-- OP01–07 DONE；OP08跨层扩展待明确批准，无生产代码。OP10仅依赖已完成OP05，按账本例外先行；其后可推进OP11/12。自动续跑不等于OP08批准。
-- OP07生产7638188固定完整release PASS，关闭文档165f921；证据 runs/optimization/OP-07/gate-release-7638188.json，无需重做。
+- Goal active：持续完成OP01–14；Project route direct。唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。
+- 实施目录 .worktrees/capstone-optimization，分支feat/capstone-optimization，生产HEAD d5eec21。
+- OP01–07、OP10 DONE；OP11 RUNNING设计阶段，尚无生产改动。OP08跨层扩展待明确批准、无生产代码，自动续跑不等于批准。OP09等08；OP12依赖已满足，可在11之后继续。
+- 当前无root活动长命令。51870固定d5eec21的make doctor && make check-release已exit0，勿再轮询/重复整套门禁。
 
-## Immediate next action
+## Immediate next action: OP11
 
-1. Sol最终复审PASS：OP-10/runtime-final-rereview.md，HIGH/MEDIUM均关闭；malformed-submit实测failed/0。Terra报告Kernel应用267/grid应用41/全pyright0。OP10 VERIFYING。
-2. E2E31已通过。随后root并行make test与validate撞固定案例运行锁，两命令失败并结束（80849/79401勿轮询），证据parallel-gates-conflict.json。当前唯一活动终端75197串行make doctor && make test && make validate，store op10_serial_precommit保存分块。保持源码冻结，不再并行验证门禁。
-3. 复审无问题且端到端通过后，完成最新源码完整门禁、精确任务路径提交，再固定提交跑 make doctor && make check-release。不能用修复前precommit-main-tests.json的doctor/test PASS关闭当前包。
-4. 按最新固定源码验收证据更新canonical OP10及JOURNAL；未完成之前不标DONE，不完成整个goal。
+1. 按canonical OP11细化inventory完整应用组件设计并复审，再TDD。依赖01/03/10全部关闭。
+2. 只读输入：runs/optimization/OP-11/preflight-source-map.md与exact-spi-map.md。后者初稿admission字段有误，Terra已按源码改成AnswerAdmissionInput(question,answer_output,result_refs,evidence_refs)与Decision(mode,assurance,answer_output,diagnostic_codes)，实际源码优先。
+3. implementation-design.md只是初始导航，root已加NOT implementation-ready：fake inventoryctl安装验收建议被否决；offline-limited也不能替代确定性offline_information。完整测试必须scripted provider + 真正installed inventoryctl/executor/authority。禁止生产grid CLI新增inventory模式，不改Kernel/generic Pi加领域特例。
+4. inventory现有models/projectors/authority/executor已可复用；profile缺全部11应用字段。状态adapter须承接真实InventoryStateDelta，build_context提供当前已准入引用，输出/报告不直接扫描authority或信任模型文字。具体格式/语义待设计，不能照抄pandapower业务实现。
+5. 包资源现有guides为SKILL.md与references/capability-map.md、evidence-and-recovery.md；可以据此设计可复用信息目录，不能fixture/问题/资产特定离线捷径。真实console script由inventory_reference.cli:main提供；provisioner须使用真实installed executable和现有protocol。
+6. 改inventory前先验证configs/runtime/application-instantiation-protected-paths.json旧baseline；当前记录domain dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108、service3267711cc30e5c2dc3ff1e0e630b76f21a0d030a，须现场复核。领域代码独立复审/测试/提交，然后按提交tree独立更新当前保护摘要。历史Climb配置不动，中间态不当release。
 
-## OP10 decisions and evidence
+## OP10 closed evidence and decisions
 
-- 控制器结构注入，但值必须为既有ActiveTurnHandle/FinalizedTurn且返回原实例；constructor即适配typed Session，完整验证start/submit/fail签名。六个Path通道均保留，仅active/context可workspace默认。runner直接DTO字段，无成功默认。
-- provider/preparer各五kwargs不变，registry/credentials完整保留，credentials为CredentialBroker；strict factory不再过滤kwargs；LegacyPromptSession完整支持callback/correlation/heartbeat；动态transport start前验证，正确调用内部TypeError仍runfailed。
-- PreparedApplicationRuntime检查bindings结构并保留原对象/profile；catalog保持opaque对象身份，不包装或强制具体类型。
-- 配置GenericReportShell原实例显式九字段，其他renderer十一字段；render-only允许，缺render才fallback，render抛错不fallback。属性发现懒执行并在派生隔离内，BaseException不吞。
-- typed selected-output map在preflight创建；legacy validator先_scope_output_contract再validate(payload)，context-aware传context；保持既有schema fallback。测试改走_prepare_output_validator，旧helper删除。
-- checker仅允许Domain从grid_simulator.capabilities导入contract_root（可alias）；其他导入拒绝，真实dependency版本pin测试保留。54PASS、独立boundary/docs复审PASS；双语README/架构区分imports/runtime/evidence。链接38目标与CLAUDE→AGENTS相对symlink已验。
-- ignored证据根 runs/optimization/OP-10/。slice1/2独立PASS，最终slice3以新复审为准。precommit-main-tests.json为旧源码全test PASS；precommit-e2e-failed.json记录8fail及traceback工具截断，e2e-short-red.json完整短trace。旧终端33798/16312/98481均结束，不再轮询。
-- Kernel任务生成uv.lock已移入证据generated-kernel-uv.lock，可恢复不提交；测试使用uv run --project packages/grid-agent避免重生锁。
+- 生产d5eec21f11a40056d3fdf104035ee00447fdfa9d固定完整release exit0（10:35CST），HEAD未变，raw runs/optimization/OP-10/gate-release-d5eec21.json。
+- 全pyright0；agent788/sim165/Kernel464/pandapower79/inventory11/13/1/Pi43/34/UI128/自检18/真实SDK四例/E2E31/24-of-24/完整应用/六wheel两npm/frozen源码安装PASS。Darwinarm64/Python3.14.3/Node23.11.0，wheel另Python3.12.12；警告保留、无付费provider/远端CI矩阵。
+- 最终runtime-final-rereview.md PASS；HIGH无效controller返回假完成及MEDIUM测试旧helper均关闭，真实malformed-submit failed/0。controller结构注入但值DTO保留真实实例，六通道保留；strict五kwargs factories与完整callbacks；legacy具名适配；prepared/catalog原对象；report原实例9/11字段及派生隔离；selected-output typed map与旧schemafallback保持。
+- E2E缺heartbeat8失败已RED→GREEN及整套关闭；root并行test/validate目录锁冲突记录parallel-gates-conflict.json，随后serial-precommit-gates.json全PASS，再本次完整release。今后门禁串行，不放宽隔离。旧33798/16312/98481/80849/79401/75197全结束。
+- checker仅允许from grid_simulator.capabilities import contract_root（alias可），54回归/边界及双语架构文档独立PASS；未改保护路径。任务生成Kernel uv.lock保存在ignored generated-kernel-uv.lock，可恢复不提交。
+- OP07生产7638188及OP06生产41b48d0均已关闭，不重做；完整证据各OP目录与canonicalplan。
 
-## Scope boundaries and agent reuse
+## Scope and collaboration
 
-- OP08待批范围：Kernel工件流式验证、grid context省略及Domain语义验证。单改HTTP不能宣称端到端内存有界，不能raw hash冒充Domain JSON语义准入。具体提案在canonical OP08，三个ignored调查只作输入。
-- OP11只读导航已存 runs/optimization/OP-11/preflight-source-map.md，无实现/验收；未来改inventory保护路径前验证旧baseline，代码/摘要独立提交。
-- 可复用代理：op02_single_run实现已冻结；op10_contract_decision最终复审；op01_implementation完成heartbeat独立复审现idle。op01_finish_tests及新spawn遇thread limit，勿重复尝试。
+- OP08待批：Kernel流式工件验证、grid context省略、Domain语义验证。只改HTTP不能称端到端内存有界，raw hash不能替代Domain JSON语义准入。canonical提案与ignored调查为输入，非实现授权。
+- 可复用代理：op02_single_run（Terra，运行接口实现与OP11精确映射）；op01_implementation（Terra，checker及heartbeat复审，OP11导航初稿被root限制）；op10_contract_decision（Sol，契约最终复审）。全部idle；op01_finish_tests及newspawn遇threadlimit，勿重试。
 - main用户未跟踪2026-08-31-capstone-framework-guide.md不动；不push/main合并、不删var/auth、不跑付费provider、不复制worktree忽略状态。
-- Pi旧runtime source-preserved-e75b4119c3bc411b835e686d0307786f保持可恢复；OP06已关闭，不重做。
+- Pi旧source-preserved-e75b4119c3bc411b835e686d0307786f可恢复保留。
 - Kernel中立、Domain策略、authority事实；stdout两字段；谱系不等于自由文本数值语义验证。

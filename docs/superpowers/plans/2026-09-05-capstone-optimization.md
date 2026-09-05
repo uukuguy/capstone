@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-10；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-11；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -48,8 +48,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端映射与范围复审完成；Kernel/Domain扩展待用户确认，未实施 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
-| OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | VERIFYING | 最终复审HIGH/MEDIUM修复后PASS，E2E31通过；并行门禁固定案例目录冲突已记录，正在串行重跑最新源码完整验收 |
-| OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | PLANNED | 未执行 |
+| OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
+| OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | RUNNING | 依赖已完成；只读SPI映射已准备，进行领域组件设计，尚无生产改动 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | PLANNED | 未执行 |
 | OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | CONDITIONAL | 未执行 |
 | OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
@@ -412,12 +412,12 @@ expect(screen.getByText('部分证据加载失败')).toBeVisible();
 
 最终复审修复补充：类型声明不是返回值验证。controller source在构造装配时校验签名/通道并存入session；start/submit/fail调用后必须验证实际值DTO且保留实例身份，不能以缺status默认success，也不能把调用后内部异常误报为签名错误。合法具体controller实现不受强制；测试替身仍可结构实现controller，但返回既有DTO。引用验证回归必须通过新的selected-output适配生产路径，不以已无调用方的旧helper通过冒充覆盖。支持性调用方范围增加`validation/run.py`及`packages/grid-agent/tests/validation/test_scripted_transport.py`：脚本transport接收并调用on_heartbeat，原8项E2E因缺此参数失败；不放宽Kernel预检，不改变权威步骤或证据。所有失败和修复需要新源码重跑，不沿用初稿全绿。
 
-- [ ] 列出 runner 各注入点的实际生产调用与测试替身，按已有签名定义 ProviderSession、TurnController、PreparedApplication、ReportPublisher Protocol；不为未实现的多域功能增加抽象。
-- [ ] 将 `_call_factory` 的反射适配限制于具名 legacy adapter；生产接口参数缺失在 provider 启动前报配置错误。新增丢失 projector/correlation/authority 参数的负例。
-- [ ] 修复 `_domain_output_schema` 返回标注与真实 str 返回不一致等类型缺口；删除无效 object 联合，但不通过大量 cast 掩盖错误。
-- [x] 明确 Domain Pack 可导入 authority 的公开协议资源/规范化 API，禁止 raw simulator 内部。先记录 allowlist 与包版本测试，再评估是否需要独立 contracts 包；本包不复制两份 capability schema。局部证据：54项checker测试、边界门、boundary-review.md及docs-version-review.md；尚未完成整包门禁。
+- [x] 列出 runner 各注入点的实际生产调用与测试替身，按已有签名定义 ProviderSession、TurnController、PreparedApplication、ReportPublisher Protocol；不为未实现的多域功能增加抽象。
+- [x] 将 `_call_factory` 的反射适配限制于具名 legacy adapter；生产接口参数缺失在 provider 启动前报配置错误。新增丢失 projector/correlation/authority 参数的负例。
+- [x] 修复 `_domain_output_schema` 返回标注与真实 str 返回不一致等类型缺口；删除无效 object 联合，但不通过大量 cast 掩盖错误。
+- [x] 明确 Domain Pack 可导入 authority 的公开协议资源/规范化 API，禁止 raw simulator 内部。先记录 allowlist 与包版本测试，再评估是否需要独立 contracts 包；本包不复制两份 capability schema。局部证据：54项checker测试、边界门、boundary-review.md及docs-version-review.md；固定整包门禁已通过，见下方记录。
 - [x] 文档分别绘制代码依赖、运行调用和证据返回；维持四层职责。README 涉及同一事实时双语同步。双语及architecture复审PASS，本地38目标链接和CLAUDE相对symlink检查通过。
-- [ ] 验证缺少必需调用参数稳定拒绝：
+- [x] 验证缺少必需调用参数稳定拒绝：
 
 ```python
 with pytest.raises(ApplicationConfigurationError):
@@ -426,9 +426,11 @@ assert provider_start_spy.call_count == 0
 ```
 
 该测试 helper 必须在测试文件中构造缺少生产 Protocol 必需参数的 transport，并走真实装配入口，不能直接 mock 配置错误。
-- [ ] 执行 `make check-types`、`make check-package-boundaries`、Kernel 全测试和 `make test-packages`。
+- [x] 执行 `make check-types`、`make check-package-boundaries`、Kernel 全测试和 `make test-packages`。
 
 **关闭条件**：生产调用无静默丢参；装配失败可诊断；公开资源 API 与 raw 实现边界可测试。提交主题：`refactor: enforce typed application runtime seams`。
+
+验收记录（2026-09-05 10:35 CST）：固定源码 `d5eec21f11a40056d3fdf104035ee00447fdfa9d` 的 `make doctor && make check-release` exit0，结束后HEAD未变。全生产pyright零错误；agent788、sim165、Kernel464、pandapower79、inventory11/13/1、Pi43/34、workbench128、门禁自检18、真实SDK捕获四例、E2E31、offline/scripted/24-of-24、完整应用、六wheel/两npm干净安装及frozen源码安装全部通过。完整原始证据 `runs/optimization/OP-10/gate-release-d5eec21.json`，最终独立复审 `runtime-final-rereview.md` PASS；早先HIGH无效controller返回被视为成功及MEDIUM测试旧helper均已关闭，实际malformed-submit为failed/0。checker另54项回归与独立边界/文档复审通过。`_domain_output_schema`的str修复已在OP05完成，本包保留既有fallback，不重复改profile或schema。曾出现脚本transport缺heartbeat的8项E2E失败，已真实RED→GREEN并全套重跑；root一度并行test/validate撞固定案例锁，失败保留 `parallel-gates-conflict.json`，随后串行doctor/test/validate及本次完整release通过，不删除隔离或放宽断言。运行环境Darwin arm64/Python3.14.3/Node23.11.0，安装烟测另Python3.12.12；上游警告保留，未声称远端CI矩阵已运行，未调用付费provider，未改保护路径。
 
 ### OP-11：完成 inventory 的应用级 conformance
 
