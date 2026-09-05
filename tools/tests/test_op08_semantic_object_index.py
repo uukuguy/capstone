@@ -66,6 +66,24 @@ def test_digest_collision_requires_exact_key_bytes(storage, monkeypatch) -> None
     assert [m.value_id for m in index.members(object_id)] == [3, 2]
 
 
+def test_member_after_is_keyset_read_without_retained_iterator(storage) -> None:
+    connection, keys = storage
+    index = DiskObjectIndex(connection, keys)
+    object_id = index.new_object()
+    a, b = append_key(keys, b'"a"'), append_key(keys, b'"b"')
+    assert index.member_after(object_id, -1) is None
+    index.put(object_id, *a, 1)
+    index.put(object_id, *b, 2)
+    assert index.member_after(object_id, -1).value_id == 1
+    index.put(object_id, *a, 3)
+    assert index.member_after(object_id, 0).value_id == 2
+    assert index.member_after(object_id, 1) is None
+    with pytest.raises(ObjectIndexError):
+        index.member_after(999, -1)
+    with pytest.raises(ValueError):
+        index.member_after(object_id, True)
+
+
 @pytest.mark.parametrize("offset,length", [(-1, 1), (False, 1), (0, 0), (0, -1), (0, True)])
 def test_invalid_range_arguments(storage, offset: int, length: int) -> None:
     connection, keys = storage

@@ -27,6 +27,8 @@ class StringInfo:
 
 
 _SPECIAL_CHARACTER = re.compile(r'["\\\x00-\x1f]')
+_NUMBER_DELIMITER = re.compile(r'[,\]} \t\r\n]')
+_JSON_WHITESPACE = re.compile(r'[ \t\r\n]+')
 _SIMPLE_ESCAPES = {
     '"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f",
     "n": "\n", "r": "\r", "t": "\t",
@@ -61,7 +63,7 @@ class UTF8Cursor:
         while self._offset == len(self._text) and not self._eof:
             try:
                 raw = self._source.read(self._chunk_size)
-            except OSError as error:
+            except (OSError, UnicodeError) as error:
                 raise StringIOError("source read failed") from error
             if not isinstance(raw, bytes):
                 raise StringIOError("source returned non-bytes")
@@ -90,6 +92,24 @@ class UTF8Cursor:
         span = self._text[self._offset : end]
         self._offset = end
         return span
+
+    def read_number_span(self) -> str:
+        """Return a bounded numeric-token fragment, preserving its delimiter."""
+        self._fill()
+        match = _NUMBER_DELIMITER.search(self._text, self._offset)
+        end = match.start() if match is not None else len(self._text)
+        span = self._text[self._offset:end]
+        self._offset = end
+        return span
+
+    def skip_whitespace(self) -> None:
+        """Consume only JSON's four whitespace characters in bounded spans."""
+        while True:
+            self._fill()
+            match = _JSON_WHITESPACE.match(self._text, self._offset)
+            if match is None:
+                return
+            self._offset = match.end()
 
 
 def _write_all(sink: BinaryIO, value: bytes) -> None:

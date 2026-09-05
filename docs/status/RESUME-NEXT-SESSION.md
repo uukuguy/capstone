@@ -1,13 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 17:11 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 17:45 CST. **Session remains active — not a final handoff.**
 
 ## Scope and workspace
 
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD 0b6696b (B0.2 isolated numeric prototype).
+  branch feat/capstone-optimization; HEAD 80e2ae3 (B0.3 isolated disk index).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 depends08.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
@@ -53,8 +53,30 @@ test1fcc96dda39a5ce0f1bbff0fa9d32a23deacb4a8.
 Evidence OP08/b0-index-design-review.md, b0-index-root-verification.md,
 b0-index-review.md. Reviewer independently27PASS/types0 and extra order/closure
 probe; valid short pread loops, premature EOF/invalid progress rejects.
-Next: B0.4 document assembly design and independent review, then TDD. Preserve
-overwritten invalid vs parse-time error semantics, disk quota/identity/cleanup.
+B0.4 document design conditionally approved by /root/op02_single_run. Root owns
+uncommitted document.py/document_store.py and test_op08_semantic_document.py,
+plus additive cursor/member_after interfaces. Initial32RED became32PASS; extended
+44PASS27.59s includes12000depth and8/64MiB four document shapes, peak<=600251bytes.
+Independent35focusedPASS and1000structured differentials found caller UnicodeError
+classification bug: actual2RED then boundary normalization, now38smallPASS0.28s.
+Second-table creation failure test confirms whole owned scratch disposal and caller
+stream ownership; no local schema recovery/extra transaction required (plan §6).
+Explicit prototype types and repository doctor/types passed. Independent re-review
+SPEC/QUALITY PASS with38focusedPASS; combined daily225PASS2.13s (23stress deselected).
+B0.4 isolated scope accepted; no full B0 feasibility/production adoption claim.
+User clarified development tests control boundaries, not delivery-level exhaustive
+verification: plan §6 now tiers daily/phase/delivery gates. Do not repeat unchanged
+large/deep evidence per small fix. Next: commit B0.4 only, then advance remaining
+B0 resource/source binding and Domain feasibility; do not expand fault permutations.
+Evidence OP08/b0-document-{design-review,initial-evidence,root-verification,review}.md.
+CurrentCPython3.14.3 accepts10000nestedarrays despite sysrecursion1000; don't add
+an arbitrary1000-depth validity cap. Root must be mapping. Construct index before
+document tables on sharedfreshDB, dispose exclusively-created scratch on failure.
+Reference RecursionError/MemoryError is reference_unavailable, not semanticPASS;
+record availability differences as unresolved adoption risk. Validate complete
+syntax before omitting top-level result_ref; only reachable canonical-invalid
+values are rejected, but invalid syntax/int limits cannot be overwritten away.
+Prior198PASS covers the three accepted primitives, not full B0 feasibility.
 No production integration authorized by a primitive's acceptance; full B0
 feasibility remains unproven. SQLite pragmas do not establish a native RSS cap.
 Do not assume eager UTF8 read-ahead reports invalid bytes token-locally.

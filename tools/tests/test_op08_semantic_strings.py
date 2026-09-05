@@ -86,6 +86,28 @@ def test_string_leaves_following_token_readable() -> None:
     assert cursor.read_char() == ":"
 
 
+def test_document_cursor_spans_leave_delimiters_and_skip_only_json_space() -> None:
+    cursor = UTF8Cursor(io.BytesIO(b" \t\r\n-12.3e+4, 0]"), chunk_size=3)
+    cursor.skip_whitespace()
+    pieces = []
+    while piece := cursor.read_number_span():
+        assert len(piece) <= 3
+        pieces.append(piece)
+    assert "".join(pieces) == "-12.3e+4"
+    assert cursor.read_char() == ","
+    cursor.skip_whitespace()
+    assert cursor.read_number_span() == "0"
+    assert cursor.read_char() == "]"
+    cursor.skip_whitespace()
+    assert cursor.peek_char() == ""
+
+
+def test_document_cursor_does_not_accept_non_json_whitespace() -> None:
+    cursor = UTF8Cursor(io.BytesIO("\u00a01".encode()))
+    cursor.skip_whitespace()
+    assert cursor.peek_char() == "\u00a0"
+
+
 @pytest.mark.parametrize("following", [b",", b":", b"]"])
 def test_string_preserves_each_common_following_token(following: bytes) -> None:
     cursor = UTF8Cursor(_SplitSource(b'"value"' + following, 2))

@@ -414,6 +414,20 @@ B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel whe
 - [x] B0.3独立设计复核后，先建立可导入占位和真实行为RED：首次位置/最后值、不同对象、相同长度强制摘要碰撞、规范转义等价、缺失对象/非法范围、数据库故障回滚、键读取错误、调用方资源保留、懒迭代与写入互斥。初始15RED后实现15PASS，补充覆盖最终27PASS。
 - [x] B0.3实现并测量真实8/64MiB键（键文件分块生成，注册及重复比对均测量），固定4MiB tracemalloc上限及65536 pread上界；成员数量规模验证懒读取，明确SQLite原生缓存和磁盘增长未由tracemalloc覆盖。两规模峰值均264501字节；256/4096成员遍历峰值2472/1096字节。
 - [x] 命令`uv run --project packages/grid-agent pytest tools/tests/test_op08_semantic_object_index.py -q -s`，联合字符串/数值回归、显式原型Pyright、仓库类型/doctor/diff/符号链接检查；独立SPEC/QUALITY通过再提交。root联合198PASS，独立索引27PASS/显式类型0、额外顺序/碰撞/提前关闭探针通过；源21248c9b19c78d6fbd70fbcc7288d1f207053a13，测试1fcc96dda39a5ce0f1bbff0fa9d32a23deacb4a8。证据OP08 `b0-index-design-review.md`、`b0-index-root-verification.md`、`b0-index-review.md`。B0.4仍须完成文档语法/组装、重复覆盖可达性、资源配额/身份/清理和完整差分，不以该索引子项替代。
+
+**B0.4完整文档组装原型**：新增`tools/experiments/op08_semantic/document.py`（资源生命周期、语法扫描、输出控制）及`document_store.py`（SQLite节点/数组边/磁盘遍历状态），测试`tools/tests/test_op08_semantic_document.py`。必要时给strings.UTF8Cursor增加有界数字token片段/空白消费方法，给DiskObjectIndex增加`member_after(object_id,position)->Member|None`，均先补RED并保留已验收回归。不读取整个数字/键/文档，不用Python递归或随深度增长的列表/生成器栈。所有节点及解析/输出栈帧关系在SQLite，Python只持有当前节点/帧和有界片段。
+
+接口：`canonicalize_document(source: BinaryIO,sink: BinaryIO,*,scratch_parent: Path,omit_top_level_key: str|None=None)->DocumentInfo(byte_count,digest)`。仅支持与当前Domain权威一致的对象根节点；先完成整个JSON语法及解析时错误检查，再按最终成员索引遍历可达值，可选排除指定顶层键（结果摘要使用result_ref，嵌套同名键不排除）。重复键首位置/末值保持，NaN/Infinity/未配对代理值仅在最终仍可达时拒绝；无法通过覆盖逃避非法UTF8/非法转义/整数转换位数限制。保留下来的键字节也做严格UTF8可编码性检查，不能因其值被覆盖而跳过键合法性。
+
+共享新建磁盘库由组装器独占：先初始化要求fresh schema的DiskObjectIndex，再建立文档节点/数组边/遍历帧表。采用autocommit，不在索引调用外留下活动事务；每次解析失败整个scratch实例作废，不提供部分恢复状态。每个数字使用组装器拥有的临时整数spool，完成后关闭；调用方source/sink始终不关闭。资源均置于scratch_parent下唯一TemporaryDirectory，只清理本次创建的文件；失败/中断也清理，清理错误不覆盖首错。解析完毕后输出可能因保留非法值而失败，部分sink输出不可作成功/摘要证据。
+
+错误分类：DocumentDecodeError表示词法/语法/解析时数字位数错误，DocumentShapeError表示非对象根，DocumentCanonicalError表示最终保留非有限数或不可UTF8编码的键/值；DocumentResourceError表示I/O、SQLite、临时存储/运行时资源故障，不将资源耗尽报告为JSON不合法。原型不宣称源身份、磁盘额度、native RSS或生产可用性已完成。
+
+深度约束证据：当前CPython3.14.3、sys递归限制1000，实测100/500/999/1000/2000/10000层数组及被覆盖版本均可解析/规范化；不能自加1000层数据上限。采用磁盘迭代遍历，不设输入深度合法性阈值。参考json.loads/dumps若发生RecursionError/MemoryError，测试记录reference_unavailable而非语义PASS；新旧资源可用性差异必须保留为后续采纳风险，不能借此宣称完整等价。独立设计有条件批准见OP08 `b0-document-design-review.md`。
+
+- [x] B0.4先写真实端到端行为RED：普通嵌套、数组、重复/转义键、被覆盖非法值、保留非法键/值、解析时错误不可覆盖、顶层字段排除、非对象根、尾随数据、清理和流所有权。初始32RED→32PASS；清理掩盖主错1RED及调用方异常分类2RED均修复。
+- [x] 实现磁盘语法/遍历及必要的有界cursor/keyset接口。完整文档专项44PASS27.59s（含8/64MiB四形状与12000层，无skip），峰值<=600251字节；独立1000结构差分通过。最终四模块日常回归225PASS2.13s，23项既有压力用例按§6不重复运行；完整字节/长度/SHA、重复成员和嵌套语义均覆盖。
+- [x] 显式原型Pyright、doctor/仓库类型/diff/符号链接检查通过；独立SPEC/QUALITY复审PASS，另38项聚焦PASS。证据OP08 `b0-document-root-verification.md`、`b0-document-review.md`；最终document源3615bb7898eae5ffc4205be86a9ddf90765c7f39、测试279c146ca40cb88d3f77f55d084cb52fb7001260。完整B0还须磁盘额度、同fd身份、清理失败、native内存及完整Domain语义验证；本子项不自动触发生产迁入。
 - [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 
@@ -1972,6 +1986,12 @@ assert no_partially_committed_transaction()
 **关闭条件**：源码版本、门禁、证据和文档一致，真实待办没有隐藏在“全部完成”中。提交主题：`docs: close Capstone optimization acceptance`。
 
 ## 6. 验收门禁与兼容矩阵
+
+### 开发与交付分层（2026-09-05 用户调整）
+
+开发测试用于控制边界，不逐轮套用交付标准。日常修改运行正常路径、关键合同边界和已发现缺陷的最小回归；阶段收敛运行相关集成、类型和环境检查；生产行为变更在阶段验收执行 AGENTS 规定门禁，交付阶段执行完整兼容、压力及资源验证。保留既有专项证据，不因无关小改重复8/64MiB、超深嵌套或故障组合穷举；仅当对应算法、缓冲或资源生命周期变化使原证据失效时重测。极端用例不得自动演变为新的产品要求或无限扩张当前任务。证据真实性、stdout合同、权威边界、兼容性及用户数据安全不降级。
+
+OP08-B0.4具体裁量：文档存储是单次操作独占且失败即整体废弃的临时库，无局部恢复接口；不要求文档表初始化额外事务。以第二张表创建失败后整个临时目录已清理、调用方流仍打开、无成功输出的聚焦测试验证。B0.3可复用索引自身的既定savepoint合同不变。
 
 OP-05 之前使用当前已有命令；新增 check-* 目标不能在尚未实现时当成可运行命令。
 

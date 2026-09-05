@@ -203,6 +203,25 @@ class DiskObjectIndex:
             ).close()
             return Member(position, key_offset, key_length, value_id)
 
+    def member_after(self, object_id: int, position: int) -> Member | None:
+        """Return one keyset row, retaining no cursor across subtree traversal."""
+        _integer(object_id, minimum=1)
+        _integer(position, minimum=-1)
+        self._ready(write=False)
+        try:
+            if self._one("SELECT 1 FROM objects WHERE id=?", (object_id,)) is None:
+                raise ObjectIndexError("object is missing")
+            row = self._one(
+                "SELECT position,key_offset,key_length,value_id FROM object_members "
+                "WHERE object_id=? AND position>? ORDER BY position LIMIT 1",
+                (object_id, position),
+            )
+            return None if row is None else Member(*row)
+        except ObjectIndexError:
+            raise
+        except (sqlite3.Error, OSError, AttributeError, TypeError, ValueError) as error:
+            raise ObjectIndexError("member keyset read failed") from error
+
     def members(self, object_id: int) -> Iterator[Member]:
         """Yield ordered rows lazily; close the iterator to release write exclusion."""
         _integer(object_id, minimum=1)
