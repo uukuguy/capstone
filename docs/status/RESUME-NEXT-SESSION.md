@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 08:56 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 09:00 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
@@ -8,11 +8,11 @@
 - 实施worktree .worktrees/capstone-optimization；branch feat/capstone-optimization。生产HEAD 7638188。
 - OP01–07 DONE；OP08 RUNNING仅设计/只读映射，未修改生产代码；OP09–12/14待执行，OP13条件分支。
 - 固定7638188完整make doctor && make check-release于08:55 exit0；会话90322已结束，勿再轮询或重复整套门禁。原始捕获证据OP07/gate-release-7638188.json，一段sim warnings工具截断已如实标注。
-- 当前dirty为OP07关闭/OP08入口的状态文档，准备独立提交。代码没有混入新包。
+- OP07关闭文档已提交165f921。OP08扩展范围提案已写canonical plan，待用户确认；没有OP08生产代码、没有活动长命令。
 
 ## Immediate next action
 
-1. 提交OP07关闭状态文档（plan/CURRENT/INDEX/JOURNAL/RESUME）并journal。
+1. **先等待用户确认canonical OP08“待批准的范围补充”**：端到端选定工件内存预算需要改Kernel流式工件验证、grid上下文省略、Domain有界语义验证，超出原OP08文件清单且涉及信任边界。brainstorming设计确认步骤要求批准后再实施。不要把RUNNING或已有全方案授权当作此具体跨层扩展已获批准；目标仍active，尚未满足三轮blocked阈值，不标完成。
 2. 读取OP08三个ignored设计输入：frontend-read-only-map.md、backend-memory-map.md、bounded-preview-design-review.md。它们是调查/建议，不是已落实的生产契约。
 3. 在canonical OP08细化可执行设计和范围，再独立复审、TDD。不能只修改HTTP网关却宣称端到端内存有界：
    - artifact HTTP先catalog.open→ProjectionService，OP07 hot也eagerverify。

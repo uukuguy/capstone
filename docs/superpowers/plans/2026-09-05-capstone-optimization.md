@@ -46,7 +46,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
-| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端只读映射完成；上游全量读路径需设计细化，尚未实施 |
+| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端映射与范围复审完成；Kernel/Domain扩展待用户确认，未实施 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | PLANNED | 未执行 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | PLANNED | 未执行 |
@@ -344,6 +344,22 @@ assert materialize_spy.call_count == 1
 **Files**：Modify `packages/grid-agent/src/grid_agent/trajectory/api/artifacts.py`、`api/app.py`、`packages/trajectory-workbench/src/evidence/preview.ts`、`src/api/types.ts`；Test `packages/grid-agent/tests/trajectory/api/test_artifacts.py`、`test_app.py`、`packages/trajectory-workbench/src/evidence/preview.test.ts`。
 
 **接口**：工件预览支持单一前缀 Range；服务端上限 131072 bytes，多段/非法范围明确拒绝。大文件全量下载与预览分离。上下文详情使用分页/截断字段，不把截断 JSON 当完整状态。
+
+#### 待批准的范围补充（2026-09-05）
+
+状态：**仅提案，尚未授权实施此扩展**。只读证据与独立比较保存在 `runs/optimization/OP-08/frontend-read-only-map.md`、`backend-memory-map.md`、`bounded-preview-design-review.md`。原OP08清单中的网关/HTTP/UI改动不足以兑现完整请求路径的选定工件内存上限：
+
+1. Artifact HTTP在网关前调用完整ProjectionService；即使cache hit，eager依赖验证仍调用Kernel `ImmutableArtifactRegistry.register_existing`，其 `_read_descriptor` 用chunks列表与join分配完整工件。
+2. 上下文投影解析完整context-view；context detail还解析完整canonical request。只截HTTP输出不能消除之前的分配，也不能把空对象伪称为完整历史状态。
+3. Pandapower `ContentReferenceVerifier`先完整JSON解码再核对领域内容摘要和类型。不能以原始文件SHA替换领域语义准入，不能因UI显示verified而跳过当前run校验。
+
+建议扩展为共享读取链的有界实现（独立方案比较推荐B）：增加Kernel中立流式工件身份校验、grid投影的显式上下文省略表示，以及Domain拥有的有界语义验证接口；网关保留同fd完整摘要验证、有界前缀和已验证spool下载。备选薄预览路由仍需要处理同一Domain缓冲问题，并会增加重复的准入/上下文还原路径，因此暂不推荐。
+
+待批准的额外文件范围：Kernel `trajectory/artifacts.py`及相邻测试；grid `trajectory/service.py`、`cache_identity.py`、`context_projection.py`、`projection_models.py`及相邻测试；pandapower `authority.py`及相邻测试；Workbench实际context消费者及测试。具体小模块拆分与版本失效规则须在实现前写明并独立复审，不预先批准新依赖或自制通用JSON解析器。
+
+控制条件：原有Domain摘要、类型、关联及当前run准入语义保持等价，正常小响应保持兼容；大上下文明确省略字段并仅提供已准入工件入口。新增8/64MiB真实HTTP全链路测试与峰值/读取计数，不能仅用假投影测试网关后半段。非普通文件、symlink替换、源文件变化、摘要失败与拒绝/省略状态均测试；不扩LLM工具、不修改业务authority计算、不隐式降低合法证据预览能力。保证限定为选定工件body保留内存有界，不宣称事件账本/工件数量/总请求内存O(1)或摘要I/O常数时间。如语义等价与预算不能同时满足，必须报告剩余缺口，不能降低断言关闭OP08。
+
+确认此跨层范围前不修改OP08生产代码；原有OP07关闭结论与固定release证据不受影响。
 
 - [ ] 新增 8 MiB 和 64 MiB 已注册安全工件 fixture；请求 `Range: bytes=0-131071`，断言 206、Content-Range、长度以及完整源摘要失败时拒绝。
 - [ ] 使用同一 no-follow fd 分块验证摘要并保留有界前缀；检测读取前后文件身份变化，失效重试有次数上限。未经全量验证不能声称 prefix 属于已验证工件。
