@@ -45,7 +45,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
-| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | RUNNING | 只读依赖映射与契约细化完成，设计复审中，未修改生产代码 |
+| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | VERIFYING | 实现及独立复审PASS；三规模热读零build/write，固定源码完整release待执行 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | PLANNED | 未执行 |
@@ -301,7 +301,7 @@ check-release: check-fast check-integration test-packages test-source-setup
 
 ### OP-07：使投影缓存有效，运行列表轻量化
 
-**Files**：Modify `packages/grid-agent/src/grid_agent/trajectory/service.py`、`materialize.py`、`api/catalog.py`；Create `packages/grid-agent/src/grid_agent/trajectory/cache_identity.py`；Test `packages/grid-agent/tests/trajectory/test_service.py`、`test_materialize.py`、`api/test_catalog.py`。
+**Files**：Modify `packages/grid-agent/src/grid_agent/trajectory/service.py`、`materialize.py`、`api/catalog.py`；Create `packages/grid-agent/src/grid_agent/trajectory/cache_identity.py`；Test `packages/grid-agent/tests/trajectory/test_service.py`、`test_materialize.py`、`test_cache_inputs.py`、`api/test_catalog.py`、`api/test_projection_pages.py`。真实输入矩阵独立保存在 test_cache_inputs.py，避免扩大已有 service 测试文件。
 
 **接口**：缓存 identity 包含 run 身份、事件可信前缀/内容摘要、投影版本及实际读取的 metadata/artifact 依赖；缓存不承担权威证据准入。活动运行以新前缀失效，关闭运行可复用。
 
@@ -315,11 +315,11 @@ check-release: check-fast check-integration test-packages test-source-setup
 - 服务强制 cache root 位于 run 外（含解析后的路径），违规配置不得向 runs 写缓存。每服务/每run identity single-flight覆盖收集/读缓存/构建，防止等待期间拼接陈旧身份；不同run不共锁，空闲锁条目清理。缓存写失败不阻断有效读取，返回固定码、无路径/凭据的有界诊断。
 - 额外测试范围允许 `tests/trajectory/api/test_projection_pages.py` 以验证游标失效。1k/10k/100k测量区分prefix/hash I/O与投影build/write次数；即使热读仍需全量验证，也不能宣称O(1)或无I/O。只读映射/设计审查留存在 `runs/optimization/OP-07/`。
 
-- [ ] 用计数 spy 写重复 open、不同 run 同 ID、工件变化、manifest/descriptor 变化、损坏缓存、活动运行追加、缺少写权限用例。
-- [ ] 将源身份收集和投影构建分开；缓存命中时恢复 typed projection，缓存 miss 才 materialize。访问证据仍执行安全文件身份/内容验证。
-- [ ] 运行列表使用可重建摘要，历史/未知格式安全回退；不为了展示列表对所有运行执行全部业务/上下文投影。状态不确定时显示 unknown，不能用旧缓存伪称 trusted。
-- [ ] 缓存写入失败返回正确读结果和诊断；同一 key 构建合并，防止并发缓存击穿。不得在 runs 写缓存。
-- [ ] 用测试断言：
+- [x] 用计数 spy 写重复 open、不同 run 同 ID、工件变化、manifest/descriptor 变化、损坏缓存、活动运行追加、缺少写权限用例。
+- [x] 将源身份收集和投影构建分开；缓存命中时恢复 typed projection，缓存 miss 才 materialize。访问证据仍执行安全文件身份/内容验证。
+- [x] 运行列表使用可重建摘要，历史/未知格式安全回退；不为了展示列表对所有运行执行全部业务/上下文投影。状态不确定时显示 unknown，不能用旧缓存伪称 trusted。
+- [x] 缓存写入失败返回正确读结果和诊断；同一 key 构建合并，防止并发缓存击穿。不得在 runs 写缓存。
+- [x] 用测试断言：
 
 ```python
 first = service.open_run(run_root)
@@ -329,9 +329,13 @@ assert projection_build_spy.call_count == 1
 assert materialize_spy.call_count == 1
 ```
 
-- [ ] 运行 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory/test_service.py packages/grid-agent/tests/trajectory/test_materialize.py packages/grid-agent/tests/trajectory/api/test_catalog.py -q`；对受控 fixture 测量 1k/10k/100k 事件冷/热请求。
+- [x] 运行 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory/test_service.py packages/grid-agent/tests/trajectory/test_materialize.py packages/grid-agent/tests/trajectory/api/test_catalog.py -q`；对受控 fixture 测量 1k/10k/100k 事件冷/热请求。
 
 **关闭条件**：热请求不重建/重写投影，变化正确失效；冷请求仍真实验证；记录实际复杂度，不承诺未经测量的毫秒数。提交主题：`perf: reuse verified trajectory projections`。
+
+实施与测量记录（2026-09-05，完整release待验）：独立设计、缓存实现、路径dirfd/no-follow/FIFO、真实输入/HTTP游标和基准工具复审均PASS，详见 `runs/optimization/OP-07/final-cache-approval.md` 等。轨迹整套293通过（随后新增FIFO定向14通过），类型零错误，验证目标18通过。曾实际发现并修复损坏prefix仍写cache、路径替换窗口与FIFO阻塞；未删除失败断言。
+
+命令 `uv run --project packages/grid-agent python tools/benchmark_projection_cache.py --sizes 1000 10000 100000` exit0，原始结果 `runs/optimization/OP-07/benchmark-final.json`。Darwin arm64/Python3.14.3，单次合成生命周期/诊断事件，无外部工件I/O；每规模冷读五种投影build及materialize各1次，热读均0次，投影相等。1k冷/热0.1082/0.0763秒，10k为1.2149/0.9541秒，100k为14.1877/11.7483秒。缓存字节分别1,206,822 /12,160,762 /122,601,782。热请求仍需全prefix验证/摘要和typed缓存解码，保持随规模增长的成本，不能宣称O(1)、生产延迟或工件I/O加速。冷读仅指投影cache miss，非冷OS页缓存。基准工具只规范化自身新建临时根以兼容macOS /var别名；生产cache不跟随symlink。
 
 ### OP-08：服务端限制工件和上下文预览
 

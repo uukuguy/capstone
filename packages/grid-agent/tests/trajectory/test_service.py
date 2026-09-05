@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import cast
+import threading
+import time
 
 import pytest
 from pydantic import ValidationError
@@ -24,6 +26,8 @@ from grid_agent.trajectory.replay import ImportedRunEvent, SourceCoordinate
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
 from grid_agent.trajectory.artifacts import ImmutableArtifactRegistry
 from grid_agent.trajectory.service import ProjectionService, _NativeArtifacts
+from grid_agent.trajectory.cache_identity import build_identity
+from grid_agent.trajectory.materialize import PROJECTION_SCHEMA
 
 
 def test_imported_event_keeps_null_time_and_importer_integrity_label() -> None:
@@ -59,6 +63,164 @@ def test_projection_service_opens_legacy_run_without_writing_source(tmp_path) ->
     projected = ProjectionService(tmp_path / ".grid-agent/trajectory-cache").open_run(run)
     assert projected.analysis_id == "analysis-old"
     assert _digests(run) == before
+
+
+def test_projection_service_reuses_typed_cache_and_never_writes_inside_run(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from .test_legacy_v02 import _fixture
+
+    run = _fixture(tmp_path)
+    service = ProjectionService(tmp_path / ".grid-agent" / "trajectory-cache")
+    calls = 0
+    module = __import__("grid_agent.trajectory.service", fromlist=["project_agent"])
+    real_project = module.project_agent
+
+    def counted_project(events):
+        nonlocal calls
+        calls += 1
+        return real_project(events)
+
+    monkeypatch.setattr(module, "project_agent", counted_project)
+    first = service.open_run(run)
+    second = service.open_run(run)
+
+    assert first == second
+    assert calls == 1
+
+    inside = ProjectionService(run / "cache")
+    inside.open_run(run)
+    assert not (run / "cache").exists()
+
+
+def test_projection_service_merges_three_concurrent_cold_builds(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from .test_legacy_v02 import _fixture
+
+    run = _fixture(tmp_path)
+    service = ProjectionService(tmp_path / "cache")
+    module = __import__("grid_agent.trajectory.service", fromlist=["project_agent"])
+    real_project = module.project_agent
+    started = threading.Event()
+    calls = 0
+
+    def blocked_project(events):
+        nonlocal calls
+        calls += 1
+        started.set()
+        time.sleep(0.05)
+        return real_project(events)
+
+    monkeypatch.setattr(module, "project_agent", blocked_project)
+    results: list[ProjectedRun] = []
+    threads = [threading.Thread(target=lambda: results.append(service.open_run(run))) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    assert started.wait(1)
+    for thread in threads:
+        thread.join(1)
+    assert len(results) == 3
+    assert calls == 1
+    assert results[0] == results[1] == results[2]
+
+
+def test_projection_service_skips_cache_leaf_symlinked_into_run(tmp_path) -> None:
+    from .test_legacy_v02 import _fixture
+
+    run = _fixture(tmp_path)
+    cache = tmp_path / "cache"
+    service = ProjectionService(cache)
+    service.open_run(run)
+    leaf = next(cache.rglob("projected-run.json")).parent
+    saved = tmp_path / "saved-cache-leaf"
+    leaf.rename(saved)
+    leaf.symlink_to(run, target_is_directory=True)
+
+    service.open_run(run)
+
+    assert not any(run.glob("projected-run.json"))
+    assert not any(run.glob("agent.json"))
+
+
+def test_projection_service_does_not_mkdir_through_cache_ancestor_symlink(tmp_path) -> None:
+    from .test_legacy_v02 import _fixture
+
+    run = _fixture(tmp_path)
+    cache = tmp_path / "cache"
+    (cache / "analysis-old").parent.mkdir(parents=True)
+    (cache / "analysis-old").symlink_to(run, target_is_directory=True)
+
+    ProjectionService(cache).open_run(run)
+
+    assert not any(run.rglob("trajectory-projection"))
+
+
+def test_projection_service_returns_projection_when_cache_write_fails(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from .test_legacy_v02 import _fixture
+    from grid_agent.trajectory.materialize import ProjectionMaterializer
+
+    run = _fixture(tmp_path)
+
+    def fail_write(self, projected_run, source_fingerprint, *, cache_identity=None):
+        raise OSError("read-only cache")
+
+    monkeypatch.setattr(ProjectionMaterializer, "write", fail_write)
+    projected = ProjectionService(tmp_path / "cache").open_run(run)
+
+    assert projected.analysis_id == "analysis-old"
+    assert any(item.code == "cache_write_unavailable" for item in projected.diagnostics)
+    assert all(str(tmp_path) not in item.message for item in projected.diagnostics)
+
+
+def test_cache_identity_separates_public_cursor_from_private_run_key(tmp_path) -> None:
+    from .test_legacy_v02 import _fixture
+    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+
+    run = _fixture(tmp_path)
+    imported = LegacyV02Importer(run).import_run()
+    first = build_identity(run_root=tmp_path / "one", analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=imported.source_fingerprint, legacy_diagnostics=imported.diagnostics)
+    second = build_identity(run_root=tmp_path / "two", analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=imported.source_fingerprint, legacy_diagnostics=imported.diagnostics)
+
+    assert first.source_fingerprint == second.source_fingerprint
+    assert first.cache_key != second.cache_key
+
+
+@pytest.mark.parametrize(
+    ("metadata", "dependencies", "legacy_source"),
+    [
+        (({"path": "manifest.json", "status": "present", "sha256": "b" * 64},), (), "legacy-source"),
+        (({"path": "domains/a/runtime/runtime-descriptor.json", "status": "present", "sha256": "a" * 64},), (), "legacy-source"),
+        ((), ({"ref": "artifact:sha256:x", "status": "unavailable"},), "legacy-source"),
+        ((), ({"ref": "artifact:sha256:x", "status": "verified", "sha256": "c" * 64},), "legacy-source"),
+        ((), (), "changed-legacy-source"),
+    ],
+)
+def test_cache_identity_invalidates_metadata_and_dependency_inputs(
+    tmp_path, metadata, dependencies, legacy_source
+) -> None:
+    from .test_legacy_v02 import _fixture
+    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+
+    run = _fixture(tmp_path)
+    imported = LegacyV02Importer(run).import_run()
+    base = build_identity(run_root=run, analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint="legacy-source", legacy_diagnostics=imported.diagnostics)
+    changed = build_identity(run_root=run, analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=metadata, dependencies=dependencies, source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=legacy_source, legacy_diagnostics=imported.diagnostics)
+
+    assert changed.source_fingerprint != base.source_fingerprint
+
+
+def test_cache_identity_invalidates_trusted_event_prefix(tmp_path) -> None:
+    from .test_legacy_v02 import _fixture
+    from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
+
+    imported = LegacyV02Importer(_fixture(tmp_path)).import_run()
+    full = build_identity(run_root=tmp_path, analysis_id="analysis-old", events=imported.events, failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=imported.source_fingerprint, legacy_diagnostics=imported.diagnostics)
+    shortened = build_identity(run_root=tmp_path, analysis_id="analysis-old", events=imported.events[:-1], failure=None, metadata_inputs=(), dependencies=(), source_kind="legacy-v0.2", projection_schema=PROJECTION_SCHEMA, legacy_source_fingerprint=imported.source_fingerprint, legacy_diagnostics=imported.diagnostics)
+
+    assert full.source_fingerprint != shortened.source_fingerprint
 
 
 def test_projected_run_keeps_application_and_binding_identity_for_read_models() -> None:

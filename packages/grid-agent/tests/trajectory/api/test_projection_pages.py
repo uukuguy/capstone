@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 from hashlib import sha256
 from pathlib import Path
 
@@ -22,6 +23,66 @@ from grid_agent.trajectory.projection_models import (
 )
 
 from .test_app import create_test_app
+
+
+@pytest.mark.parametrize("changed_input", ["events", "manifest"])
+def test_real_cached_projection_cursor_tracks_source_changes(tmp_path: Path, changed_input: str) -> None:
+    from grid_agent.trajectory.api.app import create_trajectory_app
+    from grid_agent.trajectory.api.catalog import TrajectoryRunCatalog
+    from grid_agent.trajectory.api.cursor import CursorCodec
+    from grid_agent.trajectory.events import EventDraft, RunScope
+    from grid_agent.trajectory.recorder import RunEventRecorder
+    from grid_agent.trajectory.service import ProjectionService
+
+    run = tmp_path / "runs" / "analysis-cursor"
+    run.mkdir(parents=True)
+    manifest = {
+        "schema_version": "grid-agent-analysis-manifest/1.0",
+        "analysis_id": run.name,
+        "status": "running",
+        "events_path": "events/run-events.jsonl",
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    recorder = RunEventRecorder(run / "events/run-events.jsonl", run.name)
+    try:
+        recorder.append(EventDraft(event_type="analysis.started", payload={}))
+        for ordinal in range(1, 502):
+            recorder.append(EventDraft(
+                event_type="turn.started",
+                scope=RunScope(turn_id=f"{run.name}-t{ordinal:03d}"),
+                payload={"ordinal": ordinal, "instruction_sha256": "4" * 64},
+            ))
+        cache = tmp_path / "cache"
+        service = ProjectionService(cache)
+        catalog = TrajectoryRunCatalog(run.parent, cache, service)
+        app = create_trajectory_app(catalog, CursorCodec.load_or_create(tmp_path / "cursor.key"))
+        client = TestClient(app)
+        endpoint = f"/api/runs/{run.name}/agent"
+        first = client.get(endpoint, params={"kind": "turn"})
+        assert first.status_code == 200
+        cursor = first.json()["older_cursor"]
+        assert cursor
+        cache_files = tuple(cache.rglob("projected-run.json"))
+        assert len(cache_files) == 1
+        before = cache_files[0].stat().st_mtime_ns
+        hot = client.get(endpoint, params={"kind": "turn", "cursor": cursor})
+        assert hot.status_code == 200
+        assert len(hot.json()["items"]) == 1
+        assert cache_files[0].stat().st_mtime_ns == before
+        if changed_input == "events":
+            recorder.append(EventDraft(
+                event_type="turn.started",
+                scope=RunScope(turn_id=f"{run.name}-t502"),
+                payload={"ordinal": 502, "instruction_sha256": "4" * 64},
+            ))
+        else:
+            manifest["status"] = "completed"
+            (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        stale = client.get(endpoint, params={"kind": "turn", "cursor": cursor})
+        assert stale.status_code == 409
+        assert stale.json()["code"] == "stale_cursor"
+    finally:
+        recorder.close()
 
 
 def _sha256_canonical_sorted(value: object) -> str:

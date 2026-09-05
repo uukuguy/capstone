@@ -113,7 +113,7 @@ test-makefile-application:
 	bash tools/test_makefile_application.sh
 
 test-verification-targets:
-	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py -q
+	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py -q
 
 test-agent:
 	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e -q

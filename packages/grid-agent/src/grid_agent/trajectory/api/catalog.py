@@ -25,6 +25,8 @@ LEGACY_V02_REQUIRED_FILES = (
 class ProjectionOpener(Protocol):
     def open_run(self, run_root: Path) -> ProjectedRun: ...
 
+    def read_application_metadata(self, run_root: Path) -> object | None: ...
+
 
 class RunNotFoundError(LookupError):
     """The requested run is not a discovered, safe run."""
@@ -119,10 +121,9 @@ class TrajectoryRunCatalog:
         source_kind: str,
     ) -> RunSummary:
         diagnostic: str | None = None
-        status = manifest.status or "unavailable"
+        status = manifest.status or "unknown"
         last_sequence: int | None = None
         replay_trusted_through: int | None = None
-        projected: ProjectedRun | None = None
         if source_kind == "native":
             prefix = RunEventReader(run_root / "events/run-events.jsonl").read_prefix()
             last_sequence = prefix.events[-1].sequence if prefix.events else 0
@@ -130,16 +131,12 @@ class TrajectoryRunCatalog:
             if prefix.failure is not None:
                 status = "corrupt"
                 diagnostic = f"native trajectory is corrupt ({prefix.failure.code})"
-        try:
-            projected = self.projection_service.open_run(run_root)
-            turn_count = len(projected.agent.turns)
-        except Exception:
-            # A manifest-identified run remains listable, but never divulges a
-            # path or importer exception in its operator-facing diagnostic.
-            turn_count = manifest.total_turns or 0
-            status = "corrupt"
-            diagnostic = diagnostic or "trajectory projection is unavailable"
-        application = getattr(projected, "application", None)
+        turn_count = (
+            manifest.completed_turns
+            if manifest.completed_turns is not None
+            else manifest.total_turns or 0
+        )
+        application = self.projection_service.read_application_metadata(run_root)
         raw_bindings = getattr(application, "bindings", {})
         bindings = (
             tuple(raw_bindings.values()) if isinstance(raw_bindings, Mapping) else ()
@@ -155,13 +152,11 @@ class TrajectoryRunCatalog:
             diagnostic=diagnostic,
             application_id=(
                 getattr(application, "application_id", None)
-                if projected is not None
-                else None
+                if application is not None else None
             ),
             application_version=(
                 getattr(application, "application_version", None)
-                if projected is not None
-                else None
+                if application is not None else None
             ),
             bindings=bindings,
         )

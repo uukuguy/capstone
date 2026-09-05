@@ -91,14 +91,18 @@ def write_historical_v02_run(root: Path) -> Path:
 
 
 class FakeProjectionService:
-    def __init__(self) -> None:
+    def __init__(self, metadata: object | None = None) -> None:
         self.opened: list[Path] = []
+        self.metadata = metadata
 
     def open_run(self, run_root: Path) -> ProjectedRun:
         self.opened.append(run_root)
         return cast(
             ProjectedRun, SimpleNamespace(agent=SimpleNamespace(turns=(object(), object())))
         )
+
+    def read_application_metadata(self, run_root: Path) -> object | None:
+        return self.metadata
 
 
 def fake_projection_service() -> FakeProjectionService:
@@ -110,8 +114,9 @@ def test_catalog_discovers_native_and_v02_runs_by_manifest(tmp_path: Path) -> No
     write_native_run(runs / "analysis-native")
     write_v02_run(runs / "analysis-legacy")
     (runs / "not-a-run").mkdir(parents=True)
+    service = fake_projection_service()
     catalog = TrajectoryRunCatalog(
-        runs, tmp_path / ".grid-agent/trajectory-cache", fake_projection_service()
+        runs, tmp_path / ".grid-agent/trajectory-cache", service
     )
 
     summaries = catalog.list_runs()
@@ -120,7 +125,8 @@ def test_catalog_discovers_native_and_v02_runs_by_manifest(tmp_path: Path) -> No
         ("analysis-native", "native"),
         ("analysis-legacy", "legacy-v0.2"),
     ]
-    assert summaries[0].turn_count == 2
+    assert summaries[0].turn_count == 1
+    assert service.opened == []
 
 
 def test_catalog_accepts_current_native_manifest_fields(tmp_path: Path) -> None:
@@ -216,3 +222,49 @@ def test_catalog_reports_corrupt_only_after_manifest_identity_is_safe(tmp_path: 
     assert summary.status == "corrupt"
     assert summary.diagnostic is not None
     assert str(tmp_path) not in summary.diagnostic
+
+
+def test_catalog_uses_fixed_application_metadata_without_opening_projection(tmp_path: Path) -> None:
+    write_native_run(tmp_path / "runs/analysis-native")
+    service = FakeProjectionService(
+        SimpleNamespace(
+            application_id="pandapower-static-analysis",
+            application_version="1.0",
+            bindings={},
+        )
+    )
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", service).list_runs()[0]
+
+    assert (summary.application_id, summary.application_version, summary.bindings) == (
+        "pandapower-static-analysis", "1.0", ()
+    )
+    assert service.opened == []
+
+
+def test_catalog_legacy_has_no_native_trust_extent(tmp_path: Path) -> None:
+    write_v02_run(tmp_path / "runs/analysis-legacy")
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.replay_trusted_through is None
+    assert summary.last_sequence is None
+
+
+def test_catalog_reports_missing_legacy_status_as_unknown(tmp_path: Path) -> None:
+    write_v02_run(tmp_path / "runs/analysis-legacy")
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.status == "unknown"
+
+
+def test_catalog_preserves_explicit_zero_completed_turns(tmp_path: Path) -> None:
+    root = write_native_run(tmp_path / "runs/analysis-native")
+    manifest = json.loads(root.joinpath("manifest.json").read_text(encoding="utf-8"))
+    manifest.update({"completed_turns": 0, "total_turns": 5})
+    write_json(root / "manifest.json", manifest)
+
+    summary = TrajectoryRunCatalog(tmp_path / "runs", tmp_path / "cache", fake_projection_service()).list_runs()[0]
+
+    assert summary.turn_count == 0

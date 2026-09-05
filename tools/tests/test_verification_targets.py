@@ -32,6 +32,7 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
         "packages/trajectory-workbench",
         "tools/tests/test_verification_targets.py",
         "tools/tests/test_runtime_risk_exception.py",
+        "tools/tests/test_projection_benchmark.py",
     ):
         assert expected in output
     assert "pytest packages/grid-agent/tests/e2e -q" not in output

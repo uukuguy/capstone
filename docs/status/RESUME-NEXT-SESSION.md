@@ -1,18 +1,20 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 08:15 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 08:46 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
 - Persistent goal active: 完成 OP01–14，route direct。唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。实施worktree .worktrees/capstone-optimization，branch feat/capstone-optimization。
 - OP01–06 DONE。最新生产提交41b48d0，固定make doctor && make check-release完整exit0，OP06/gate-release-41b48d0.json；全release会话94595已结束，勿重轮询/重跑。源码不再修改，当前仅状态闭合文档dirty待commit。
-- OP07 RUNNING，目前只有只读mapping/design，未修改生产代码。op02_single_run完成read-only-map.md及实际artifact I/O依赖addendum；op01_finish_tests设计与明确publicfingerprint语义决策均PASS，完整约束已写canonical plan。
+- OP07 RUNNING，HEAD 180aab6；缓存/轻量列表/基准工具未提交。设计与公开指纹语义复审PASS。缓存首轮复审发现6项缺口及派生cache路径symlink写入run风险，正在修复与补齐回归；不得按局部测试数关闭。
 
 ## Immediate next actions
 
+最新覆盖：OP07全部实现与独立复审PASS（final-cache-approval.md），已VERIFYING。dirfd根/叶/文件no-follow、FIFO非阻塞拒绝、坏prefix不写cache均有回归；最后materialize14通过，此前轨迹293/类型零错误，Make验证目标18通过。root补齐真实输入11例与HTTP游标2例。三规模benchmark-final.json exit0，热读五build+write全0，100k冷14.1877/热11.7483秒；不是O(1)/生产性能。立即显式暂存任务路径提交，然后固定HEAD跑make doctor && make check-release，完整通过后关闭OP07并启动OP08。下方旧修复派工已完成，勿重复派发；所有旧focused/benchmark会话均已结束，无活动长命令。
+
 1. public source_fingerprint设计已独立PASS并写plan：projected-source/2.0 digest用同一typedprefix+actualmetadata+verifieddependencies，cursor随任一投影输入变化失效；cache identity另外加入resolvedrunroot+projector schema。wire不改，不扩Kernelreader，必须补cursor回归。
-2. 持久化OP06闭合/OP07设计约束（plan+CURRENT+INDEX+JOURNAL+RESUME），独立文档提交。随后授权OP07 TDD实现；catalog复用现有read_application_metadata(run_root)签名，cacheworker须保留。
-3. 实现分工建议：op02_single_run已有service/dependency上下文，负责cache_identity+service+materialize及相邻tests；op01_implementation独立负责catalog轻量list+tests，但须等root明确metadata helper接口（同service复用）避免冲突。op01_finish_tests保持独立review。
+2. op02_single_run仅负责materialize.py/test_materialize.py最后TOCTOU修复：检查后路径被换symlink仍能写run，需held dirfd/no-follow创建/读/原子写与注入回归。前六项复审已关闭；cache-fix-review.md仍REQUEST CHANGES，必须修复后复审，不能绕过。
+3. root已补test_cache_inputs.py 9例真实工件tamper/delete/negative→present、manifest/三descriptor、payload-only context依赖parity、hot eagerverify；api/test_projection_pages.py 2例真实501事件HTTP分页hot/事件追加或manifest变化409。独立复审均PASS。catalog缺失status→unknown修复后13通过。轨迹整套287通过，make check-types零错误；Starlette与pyright版本提示保留。make test-verification-targets18通过，benchmark已复审但正式三规模未跑。root删除无调用旧_metadata_identity_inputs辅助函数，尚待后续门禁。
 4. OP07 benchmark1k/10k/100k与完整门禁仍未执行；不得宣称cache已加速。OP08等依赖按唯一plan推进，OP13需OP12数据触发，C2延后。
 
 ## OP07 design anchors

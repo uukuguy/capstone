@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import threading
 from pathlib import Path
 from types import SimpleNamespace
+from dataclasses import dataclass
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal, cast
 
@@ -18,7 +20,8 @@ from grid_agent.trajectory.legacy_v02 import LegacyV02Importer
 from pandapower_domain.authority import ContentReferenceVerifier
 from capability_agent.trajectory.artifacts import ArtifactIntegrityError, ArtifactPointer, ImmutableArtifactRegistry
 from grid_agent.trajectory.artifact_policy import GridArtifactPathPolicy
-from grid_agent.trajectory.materialize import ProjectionMaterializer
+from grid_agent.trajectory.materialize import PROJECTION_SCHEMA, ProjectionMaterializer
+from grid_agent.trajectory.cache_identity import build_identity, collect_native_dependencies
 from grid_agent.trajectory.projection_models import (
     ApplicationProjectionMetadata,
     BindingProjectionMetadata,
@@ -144,6 +147,8 @@ class _NativeArtifacts:
 class ProjectionService:
     def __init__(self, cache_root: Path) -> None:
         self.cache_root = Path(cache_root)
+        self._locks: dict[str, tuple[threading.Lock, int]] = {}
+        self._locks_guard = threading.Lock()
 
     def read_application_metadata(
         self, run_root: Path
@@ -157,57 +162,72 @@ class ProjectionService:
         from a manifest are never opened.
         """
 
-        root = Path(run_root)
-        manifest = _read_json_file(root, "manifest.json")
-        context = _read_json_file(root, "core/context.json")
-        descriptors = tuple(
-            value
-            for path in _descriptor_paths(root)
-            if (value := _read_json_path(root, path)) is not None
-        )
+        return _metadata_from_snapshot(_metadata_snapshot(Path(run_root)))
 
-        app_id, app_version = _application_identity(manifest, context, descriptors)
-        merged: dict[str, dict[str, object]] = {}
-        for descriptor in descriptors:
-            _merge_binding_records(merged, _binding_records(descriptor))
-        _merge_binding_records(merged, _binding_records(manifest))
-        _merge_binding_records(merged, _context_binding_records(context))
-        if app_id is None and not merged:
-            return None
-        return ApplicationProjectionMetadata(
-            application_id=app_id or "unknown-application",
-            application_version=app_version or "unknown",
-            bindings={
-                binding_id: BindingProjectionMetadata(
-                    binding_id=binding_id,
-                    domain_id=str(values.get("domain_id") or binding_id),
-                    domain_version=str(values.get("domain_version") or "unknown"),
-                    authority_id=str(values.get("authority_id") or "unknown"),
-                    schema_id=str(values.get("schema") or "unknown"),
-                    presentation=cast(
-                        Mapping[str, Any], _safe_mapping(values.get("presentation"))
-                    ),
-                )
-                for binding_id, values in sorted(merged.items())
-            },
-        )
 
     def open_run(self, run_root: Path) -> ProjectedRun:
         run_root = Path(run_root)
+        lock_key = str(run_root.resolve())
+        with self._locks_guard:
+            lock, users = self._locks.get(lock_key, (threading.Lock(), 0))
+            self._locks[lock_key] = (lock, users + 1)
+        try:
+            with lock:
+                return self._open_run_locked(run_root)
+        finally:
+            with self._locks_guard:
+                _, users = self._locks[lock_key]
+                if users == 1:
+                    self._locks.pop(lock_key, None)
+                else:
+                    self._locks[lock_key] = (lock, users - 1)
+
+    def _open_run_locked(self, run_root: Path) -> ProjectedRun:
         native_path = run_root / "events/run-events.jsonl"
+        legacy_source_fingerprint: str | None = None
+        legacy_diagnostics: tuple[object, ...] = ()
         if native_path.is_file():
             prefix = RunEventReader(native_path).read_prefix()
             events = prefix.events
-            source_fingerprint = hashlib.sha256(native_path.read_bytes()).hexdigest()
             extra = () if prefix.failure is None else (ProjectionDiagnostic(id="native-replay-failure", source_sequences=(max(1, len(events)),), rule_id="native-prefix-validation/v1", severity="error", code=prefix.failure.code, message=prefix.failure.message),)
             artifacts = _NativeArtifacts(run_root)
+            source_kind = "native"
+            failure = prefix.failure
         else:
             imported = LegacyV02Importer(run_root).import_run()
-            events, source_fingerprint = imported.events, imported.source_fingerprint
+            events = imported.events
             extra = tuple(ProjectionDiagnostic(id=f"legacy:{item.code}", source_sequences=(1,), rule_id="legacy-import/v1", severity="warning", code=item.code, message=item.message) for item in imported.diagnostics)
             artifacts = _HistoricalArtifacts(run_root)
+            source_kind = "legacy-v0.2"
+            failure = None
+            legacy_source_fingerprint = imported.source_fingerprint
+            legacy_diagnostics = tuple(imported.diagnostics)
         replay_events = cast(Sequence[ReplayEventLike], events)
-        metadata = self.read_application_metadata(run_root)
+        metadata_snapshot = _metadata_snapshot(run_root)
+        metadata = _metadata_from_snapshot(metadata_snapshot)
+        dependencies = collect_native_dependencies(replay_events, artifacts)
+        identity = build_identity(
+            run_root=run_root,
+            analysis_id=events[0].analysis_id if events else run_root.name,
+            events=replay_events,
+            failure=failure,
+            metadata_inputs=metadata_snapshot.identity_inputs,
+            dependencies=dependencies,
+            source_kind=source_kind,
+            projection_schema=PROJECTION_SCHEMA,
+            legacy_source_fingerprint=legacy_source_fingerprint,
+            legacy_diagnostics=legacy_diagnostics,
+        )
+        materializer = ProjectionMaterializer(self.cache_root)
+        cache_allowed = _cache_root_is_outside_run(self.cache_root, run_root)
+        if identity.cacheable and cache_allowed:
+            cached = materializer.load_if_current(
+                events[0].analysis_id if events else run_root.name,
+                identity.source_fingerprint,
+                cache_identity=identity.cache_key,
+            )
+            if cached is not None:
+                return cached
         binding = (
             next(iter(metadata.bindings.values()))
             if metadata is not None and len(metadata.bindings) == 1
@@ -226,7 +246,7 @@ class ProjectionService:
         )
         projected = ProjectedRun(
             analysis_id=events[0].analysis_id if events else run_root.name,
-            source_fingerprint=source_fingerprint,
+            source_fingerprint=identity.source_fingerprint,
             core_timeline=project_core_timeline(replay_events),
             application=metadata,
             agent=agent,
@@ -235,8 +255,52 @@ class ProjectionService:
             artifacts=artifact_index,
             diagnostics=extra,
         )
-        ProjectionMaterializer(self.cache_root).write(projected, source_fingerprint)
+        if identity.cacheable and cache_allowed:
+            try:
+                materializer.write(projected, identity.source_fingerprint, cache_identity=identity.cache_key)
+            except OSError:
+                projected = projected.model_copy(update={"diagnostics": (*projected.diagnostics, ProjectionDiagnostic(id="cache-write-unavailable", source_sequences=(1,), rule_id="trajectory-cache/v1", severity="warning", code="cache_write_unavailable", message="trajectory cache could not be written"))})
         return projected
+
+
+@dataclass(frozen=True, slots=True)
+class _MetadataSnapshot:
+    manifest: Mapping[str, object] | None
+    context: Mapping[str, object] | None
+    descriptors: tuple[Mapping[str, object], ...]
+    identity_inputs: tuple[dict[str, object], ...]
+
+
+def _metadata_snapshot(root: Path) -> _MetadataSnapshot:
+    paths = (Path("manifest.json"), Path("core/context.json"), *_descriptor_paths(root))
+    parsed: list[Mapping[str, object] | None] = []
+    identity: list[dict[str, object]] = []
+    for relative in paths:
+        path = root / relative
+        try:
+            if path.is_symlink() or not path.is_file():
+                parsed.append(None); identity.append({"path": relative.as_posix(), "status": "missing"}); continue
+            resolved = path.resolve(strict=True)
+            if not resolved.is_relative_to(root.resolve(strict=True)):
+                parsed.append(None); identity.append({"path": relative.as_posix(), "status": "unsafe"}); continue
+            raw = resolved.read_bytes(); value = json.loads(raw)
+            parsed.append(value if isinstance(value, Mapping) else None)
+            identity.append({"path": relative.as_posix(), "status": "present", "sha256": hashlib.sha256(raw).hexdigest()})
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+            parsed.append(None); identity.append({"path": relative.as_posix(), "status": "unavailable"})
+    return _MetadataSnapshot(parsed[0], parsed[1], tuple(item for item in parsed[2:] if item is not None), tuple(identity))
+
+
+def _metadata_from_snapshot(snapshot: _MetadataSnapshot) -> ApplicationProjectionMetadata | None:
+    app_id, app_version = _application_identity(snapshot.manifest, snapshot.context, snapshot.descriptors)
+    merged: dict[str, dict[str, object]] = {}
+    for descriptor in snapshot.descriptors:
+        _merge_binding_records(merged, _binding_records(descriptor))
+    _merge_binding_records(merged, _binding_records(snapshot.manifest))
+    _merge_binding_records(merged, _context_binding_records(snapshot.context))
+    if app_id is None and not merged:
+        return None
+    return ApplicationProjectionMetadata(application_id=app_id or "unknown-application", application_version=app_version or "unknown", bindings={binding_id: BindingProjectionMetadata(binding_id=binding_id, domain_id=str(values.get("domain_id") or binding_id), domain_version=str(values.get("domain_version") or "unknown"), authority_id=str(values.get("authority_id") or "unknown"), schema_id=str(values.get("schema") or "unknown"), presentation=cast(Mapping[str, Any], _safe_mapping(values.get("presentation")))) for binding_id, values in sorted(merged.items())})
 
 
 def project_core_timeline(
@@ -286,6 +350,13 @@ def _descriptor_paths(root: Path) -> tuple[Path, ...]:
         if child.is_dir() and not child.is_symlink()
     )
     return tuple(paths)
+
+
+def _cache_root_is_outside_run(cache_root: Path, run_root: Path) -> bool:
+    try:
+        return not Path(cache_root).resolve().is_relative_to(Path(run_root).resolve(strict=True))
+    except OSError:
+        return False
 
 
 def _read_json_file(root: Path, relative_path: str) -> Mapping[str, object] | None:
