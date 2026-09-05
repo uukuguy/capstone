@@ -50,7 +50,8 @@ _REFERENCE_LAYOUTS: dict[str, tuple[str, str, str]] = {
     "evidence": ("evidence:sha256:", "evidence", "evidence"),
 }
 _DIRECTORY_OPEN_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-_FILE_OPEN_FLAGS = os.O_RDONLY | os.O_NOFOLLOW
+_FILE_OPEN_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+_STREAM_READ_SIZE = 1024 * 1024
 
 
 class NeutralArtifactPathPolicy:
@@ -274,7 +275,7 @@ class ImmutableArtifactRegistry:
                     "artifact path already contains different content"
                 )
 
-        return self._pointer_for(kind, identity, path, value)
+        return self._pointer_for(kind, identity, path, sha256(value).hexdigest(), len(value))
 
     def register_existing(
         self, kind: str, identity: str, path: Path
@@ -286,11 +287,8 @@ class ImmutableArtifactRegistry:
             raise ArtifactIntegrityError(
                 "artifact path is not the registered path for its kind and identity"
             )
-        with self._open_parent(supplied, create=False) as (_, parent_descriptor):
-            value = _read_regular_at(parent_descriptor, supplied.name)
-        if value is None:
-            raise ArtifactIntegrityError("registered artifact does not exist")
-        return self._pointer_for(kind, identity, supplied, value)
+        digest, size_bytes = self._stream_path(supplied)
+        return self._pointer_for(kind, identity, supplied, digest, size_bytes)
 
     def verify_reference(self, reference: str) -> ArtifactPointer:
         """Reverify a reference previously returned by this registry."""
@@ -330,13 +328,14 @@ class ImmutableArtifactRegistry:
             artifact_descriptor = _open_regular_at(parent_descriptor, path.name)
             if artifact_descriptor is None:
                 raise ArtifactIntegrityError("artifact does not exist")
+            failed = False
             try:
-                value = _read_descriptor(artifact_descriptor)
-                if len(value) != pointer.size_bytes:
+                digest, size_bytes, original = _stream_descriptor(artifact_descriptor)
+                if size_bytes != pointer.size_bytes:
                     raise ArtifactIntegrityError(
                         "artifact size does not match its pointer"
                     )
-                if sha256(value).hexdigest() != pointer.sha256:
+                if digest != pointer.sha256:
                     raise ArtifactIntegrityError(
                         "artifact digest does not match its pointer"
                     )
@@ -346,8 +345,15 @@ class ImmutableArtifactRegistry:
                     parent_descriptor=parent_descriptor,
                     artifact_descriptor=artifact_descriptor,
                 )
+                _ensure_unchanged(artifact_descriptor, original)
+            except ArtifactIntegrityError:
+                failed = True
+                raise
+            except OSError as error:
+                failed = True
+                raise ArtifactIntegrityError("artifact could not be verified safely") from error
             finally:
-                os.close(artifact_descriptor)
+                _close_checked(artifact_descriptor, suppress=failed)
         return path
 
     def _path_for(self, kind: str, identity: str) -> Path:
@@ -375,19 +381,43 @@ class ImmutableArtifactRegistry:
         )
 
     def _pointer_for(
-        self, kind: str, identity: str, path: Path, value: bytes
+        self, kind: str, identity: str, path: Path, digest: str, size_bytes: int
     ) -> ArtifactPointer:
-        digest = sha256(value).hexdigest()
         pointer = ArtifactPointer(
             ref=f"artifact:sha256:{digest}",
             kind=kind,
             relative_path=path.relative_to(self.run_root).as_posix(),
             sha256=digest,
-            size_bytes=len(value),
+            size_bytes=size_bytes,
         )
         self.verify(pointer)
         self._registered_by_ref[pointer.ref] = pointer
         return pointer
+
+    def _stream_path(self, path: Path) -> tuple[str, int]:
+        with self._open_parent(path, create=False) as (root_descriptor, parent_descriptor):
+            artifact_descriptor = _open_regular_at(parent_descriptor, path.name)
+            if artifact_descriptor is None:
+                raise ArtifactIntegrityError("registered artifact does not exist")
+            failed = False
+            try:
+                digest, size_bytes, original = _stream_descriptor(artifact_descriptor)
+                self._verify_named_binding(
+                    path,
+                    root_descriptor=root_descriptor,
+                    parent_descriptor=parent_descriptor,
+                    artifact_descriptor=artifact_descriptor,
+                )
+                _ensure_unchanged(artifact_descriptor, original)
+                return digest, size_bytes
+            except ArtifactIntegrityError:
+                failed = True
+                raise
+            except OSError as error:
+                failed = True
+                raise ArtifactIntegrityError("artifact could not be verified safely") from error
+            finally:
+                _close_checked(artifact_descriptor, suppress=failed)
 
     def _identity_from_pointer(self, pointer: ArtifactPointer) -> str:
         if not isinstance(pointer.kind, str) or not isinstance(pointer.relative_path, str):
@@ -408,15 +438,27 @@ class ImmutableArtifactRegistry:
             raise ArtifactIntegrityError("artifact path escapes the run root") from error
         root_descriptor = _open_directory_path(self.run_root, create=create)
         parent_descriptor: int | None = None
+        failed = False
         try:
             parent_descriptor = _open_relative_directory(
                 root_descriptor, relative.parts[:-1], create=create
             )
             yield root_descriptor, parent_descriptor
+        except BaseException:
+            failed = True
+            raise
         finally:
-            if parent_descriptor is not None:
-                os.close(parent_descriptor)
-            os.close(root_descriptor)
+            close_error: OSError | None = None
+            for descriptor in (parent_descriptor, root_descriptor):
+                if descriptor is None:
+                    continue
+                try:
+                    os.close(descriptor)
+                except OSError as error:
+                    if not failed and close_error is None:
+                        close_error = error
+            if close_error is not None:
+                raise ArtifactIntegrityError("artifact directory could not be closed safely") from close_error
 
     def _verify_named_binding(
         self,
@@ -430,6 +472,8 @@ class ImmutableArtifactRegistry:
         relative = path.relative_to(self.run_root)
         rebound_root = _open_directory_path(self.run_root, create=False)
         rebound_parent: int | None = None
+        rebound_artifact: int | None = None
+        failed = False
         try:
             if not _same_file_descriptor(rebound_root, root_descriptor):
                 raise ArtifactIntegrityError("artifact run root changed during verification")
@@ -441,15 +485,25 @@ class ImmutableArtifactRegistry:
             rebound_artifact = _open_regular_at(rebound_parent, path.name)
             if rebound_artifact is None:
                 raise ArtifactIntegrityError("artifact changed during verification")
-            try:
-                if not _same_file_descriptor(rebound_artifact, artifact_descriptor):
-                    raise ArtifactIntegrityError("artifact changed during verification")
-            finally:
-                os.close(rebound_artifact)
+            if not _same_file_descriptor(rebound_artifact, artifact_descriptor):
+                raise ArtifactIntegrityError("artifact changed during verification")
+        except BaseException:
+            failed = True
+            raise
         finally:
-            if rebound_parent is not None:
-                os.close(rebound_parent)
-            os.close(rebound_root)
+            close_error: OSError | None = None
+            for descriptor in (rebound_artifact, rebound_parent, rebound_root):
+                if descriptor is None:
+                    continue
+                try:
+                    os.close(descriptor)
+                except OSError as error:
+                    if not failed and close_error is None:
+                        close_error = error
+            if close_error is not None:
+                raise ArtifactIntegrityError(
+                    "artifact could not be verified safely"
+                ) from close_error
 
 
 def _write_bytes_atomic(parent_descriptor: int, filename: str, value: bytes) -> bool:
@@ -579,9 +633,13 @@ def _open_regular_at(parent_descriptor: int, filename: str) -> int | None:
             raise ArtifactIntegrityError("artifact file must not be a symlink") from error
         raise ArtifactIntegrityError("artifact file could not be opened safely") from error
 
-    details = os.fstat(descriptor)
+    try:
+        details = os.fstat(descriptor)
+    except OSError as error:
+        _close_checked(descriptor, suppress=True)
+        raise ArtifactIntegrityError("artifact file could not be opened safely") from error
     if not stat.S_ISREG(details.st_mode):
-        os.close(descriptor)
+        _close_checked(descriptor, suppress=True)
         raise ArtifactIntegrityError("artifact file is not regular")
     return descriptor
 
@@ -601,6 +659,62 @@ def _read_descriptor(descriptor: int) -> bytes:
     while chunk := os.read(descriptor, 1024 * 1024):
         chunks.append(chunk)
     return b"".join(chunks)
+
+
+def _stream_descriptor(descriptor: int) -> tuple[str, int, os.stat_result]:
+    """Digest an open regular descriptor without retaining its full content."""
+    try:
+        original = os.fstat(descriptor)
+    except OSError as error:
+        raise ArtifactIntegrityError("artifact could not be verified safely") from error
+    if not stat.S_ISREG(original.st_mode):
+        raise ArtifactIntegrityError("artifact file is not regular")
+    digest = sha256()
+    count = 0
+    try:
+        while count <= original.st_size:
+            chunk = os.read(
+                descriptor, min(_STREAM_READ_SIZE, original.st_size - count + 1)
+            )
+            if not chunk:
+                break
+            digest.update(chunk)
+            count += len(chunk)
+    except OSError as error:
+        raise ArtifactIntegrityError("artifact could not be read safely") from error
+    if count != original.st_size:
+        raise ArtifactIntegrityError("artifact changed during verification")
+    _ensure_unchanged(descriptor, original)
+    return digest.hexdigest(), count, original
+
+
+def _ensure_unchanged(descriptor: int, original: os.stat_result) -> None:
+    try:
+        current = os.fstat(descriptor)
+    except OSError as error:
+        raise ArtifactIntegrityError("artifact could not be verified safely") from error
+    if (
+        original.st_dev,
+        original.st_ino,
+        original.st_size,
+        original.st_mtime_ns,
+        original.st_ctime_ns,
+    ) != (
+        current.st_dev,
+        current.st_ino,
+        current.st_size,
+        current.st_mtime_ns,
+        current.st_ctime_ns,
+    ):
+        raise ArtifactIntegrityError("artifact changed during verification")
+
+
+def _close_checked(descriptor: int, *, suppress: bool) -> None:
+    try:
+        os.close(descriptor)
+    except OSError as error:
+        if not suppress:
+            raise ArtifactIntegrityError("artifact could not be verified safely") from error
 
 
 def _write_descriptor(descriptor: int, value: bytes) -> None:
