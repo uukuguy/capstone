@@ -390,6 +390,18 @@ B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel whe
   2026-09-05根复核发现首次21PASS漏测：高代理项后接简单转义被误拒绝，高/高/低序列配对错误；已实测并退回Terra补RED修复、异常覆盖及真实峰值记录，尚未验收。
   后续更正：根补全测试另发现Unicode转义控制字符/引号/反斜杠规范化错误，实测34RED后修复并可读性重构，以上最终验收覆盖这些修正。严格UTF8分片预读可提前发现后续无效字节；后续解析不得假设错误只发生于当前token内。
 - [ ] B0后续：数值等价、对象/数组及重复键磁盘索引、配额/身份/清理、整体差分与规模测量、可行性结论。
+
+**B0.2数值隔离原型（现有授权内，自主推进）**：新增`tools/experiments/op08_semantic/numbers.py`和`tools/tests/test_op08_semantic_numbers.py`。`NumberCanonicalizer(sink, integer_spool)`只接受调用方持有的空可寻址磁盘spool，`feed(chunk: bytes)`每块最多65536字节，`finish()->NumberInfo(byte_count,digest,has_nonfinite)`；一次实例仅处理完整单个数字token，不接收JSON分隔符，不是完整文档解析器。source读取与磁盘配额由后续解析器控制，不能以这个子项代替完整资源证明。有限输出精确等于Python json.loads/json.dumps；NaN/±Infinity及溢出不输出伪造数值，以has_nonfinite标记延期至重复键消解后的可达性检查。
+
+词法状态覆盖负号、零/非零整数、小数点及至少一个小数位、指数标记/符号及至少一个指数位；拒绝前导零、空token、空指数及非ASCII数字。遇小数/指数前，整数前缀分块写临时spool，不能因超过当前整数位数阈值就提前拒绝可能合法的浮点拼写；结束确认为整数才检查`sys.get_int_max_str_digits()`（0代表无限），流式复写原数字，整数-0输出0。spool不读成完整bytes、不关闭调用方流、不覆盖非空spool；部分失败输出不得代表成功。
+词法另显式接受大小写精确的NaN、Infinity、-Infinity，其他常量拼写拒绝。spool须fileno/fstat证明普通文件、seekable且初始大小/位置为0，拒绝BytesIO、非普通文件、非空文件及不可寻址文件；调用方提供独占、可读写且与sink不同的文件。成功后spool保留整数前缀，位置在前缀末尾；失败保留部分内容和当时位置，调用方负责清理及磁盘额度。原型不操作路径/身份准入，也不自行删除或截断文件。
+
+浮点尾数保留最前1100个有效数字、总有效位数N、小数位数F和被舍弃尾部非零sticky。完整尾数总位数T已知后，指数绝对值仅在T+2000处饱和，并仍消费/校验全部指数拼写。代表数指数q=E-F+N-L，L是保留位数；sticky时代表数字追加1并令q减1。binary64舍入中点含次正规/溢出边界的有限十进制有效位数小于1100，故前缀区间内不含舍入边界，保留端点与尾部非零性即可保持舍入。全零尾数独立保留浮点负零但不能跳过词法验证。先检查运行时binary64前提，不满足归类为原型不可用，不伪造值。独立数学裁决已确认相对T的饱和保留指数抵消；6200组候选差分已通过，不当作实现验收。
+舍入证明前提还包括本地CPython十进制转换器正确舍入至最近偶数；不仅凭sys.float_info断言所有解释器成立。当前CPython3.14.3环境经实际中点/次正规/溢出对照校准，跨运行时需重复校准；生产兼容性结论暂不扩展。依据Python json文档的默认int/float转换及CPython dtoa.c的nearest/round-even说明，参考链接见隔离设计复核记录。
+
+- [x] B0.2先建立可导入占位接口和行为测试，捕获真实RED；小数/整数/常数规范化、无效词法、每字节分块、运行时整数阈值、负零/溢出延期、准确中点及远尾sticky、指数抵消、短写/故障/流所有权均须断言。最终完整初始60RED；后续超读1RED、复审协议异常19RED均修复。
+- [x] B0.2实现后运行`uv run --project packages/grid-agent pytest tools/tests/test_op08_semantic_numbers.py -q -s`及原字符串回归；8/64MiB真实数值文件覆盖长整数前缀后转float、大量小数零后指数抵消、超长指数，固定4MiB tracemalloc增量，spool为磁盘文件，输出长度/摘要/读取上界有实测记录。默认阈值拒绝巨大整数；阈值0场景必须流式输出而非构造Python大整数。八组最大峰值132879字节，块65536；最终数值/字符串联合171PASS。
+- [x] B0.2显式Pyright原型、仓库类型门禁、doctor/diff/符号链接检查和独立SPEC/QUALITY复审后单独提交；不改生产模块/OP13，不关闭完整B0。独立复审171PASS/类型0、额外13173组有效分割差分及18类无效拼写通过；源ccc397c17bf8608ed0413755fbae80dfd67dad15，测试e11c7b47871ebe919935610287b7b57f61fe6fb9。证据OP08 `b0-number-design-review.md`、`b0-number-root-verification.md`、`b0-number-measurements.txt`、`b0-number-review.md`。仅验收完整数字token原型，不是完整JSON文档或生产语义校验器。
 - [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 

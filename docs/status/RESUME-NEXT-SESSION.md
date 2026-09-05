@@ -1,13 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 16:28 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 16:53 CST. **Session remains active — not a final handoff.**
 
 ## Scope and workspace
 
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; source HEAD b7b49f6.
+  branch feat/capstone-optimization; HEAD 1d5cc40 (B0.1 isolated prototype).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 depends08.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
@@ -32,9 +32,21 @@ incremental output/count/SHA verification. This is primitive-only acceptance.
 Evidence: OP08/b0-string-root-verification.md and b0-string-review.md.
 Frozen source787145337829f3a69c7fdae5845afe94549268a9;
 testfd2477450f24771cadcbd8e55f978853c211f17e.
-Next meaningful slice: design and independently review numerical-equivalence
-primitive under existing B0 authorization, with Python spelling/rounding/negative
-zero/overflow semantics and fixed-memory huge-spelling proof before implementation.
+Numeric B0.2 accepted after independent final SPEC/QUALITY PASS. No active editor.
+Files tools/experiments/op08_semantic/numbers.py and tools/tests/test_op08_semantic_numbers.py.
+Evidence OP08/b0-number-{root-verification,design-review,review}.md and
+b0-number-measurements.txt. Initial60RED; spool-overread1RED then correction;
+independent protocol-exception finding19RED then normalization with causes retained.
+Final root/independent171 combined string/numeric PASS; independent13173 valid
+split comparisons and18 malformed families; explicit types/doctor/repository types
+PASS. Eight8/64MiB four-shape measurements peak<=132879 bytes, maxchunk65536.
+Sourceccc397c17bf8608ed0413755fbae80dfd67dad15;
+teste11c7b47871ebe919935610287b7b57f61fe6fb9.
+Next: duplicate-key disk index/document assembly design and independent review
+within approved B0. Preserve first key position/last value, overwritten invalid
+values vs parse-time errors, huge escaped-key identity/collision handling, and
+bounded memory/disk quota/cleanup. No production integration authorized by a
+primitive's acceptance; full B0 feasibility is still unproven.
 Do not assume eager UTF8 read-ahead reports invalid bytes token-locally.
 
 B0.1: fixed64KiB UTF8 cursor, precise quote consumption and next-token retention,
@@ -45,8 +57,9 @@ do not reject overwritten values prematurely. Root verified existing Python
 accepts NaN/Infinity/unpaired-surrogate-containing values when later duplicate
 replaces them; final retained-document checks must reflect that behavior.
 
-B0 numerical spelling/rounding, duplicate-key disk index, object/array assembly,
-disk quotas, identity/cleanup and full feasibility are still unresolved. Six
+B0 numerical token primitive passed review; duplicate-key disk index,
+object/array assembly, disk quotas, identity/cleanup and full feasibility remain
+unresolved. Six
 small hash vectors and candidate-library evidence are under OP08. Prior
 domain-streaming-decision.md records pre-approval rationale, not current denial.
 Raw hash is not semantic hash; don't narrow evidence preview or hide whole
