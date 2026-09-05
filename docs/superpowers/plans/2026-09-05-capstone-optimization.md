@@ -402,6 +402,18 @@ B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel whe
 - [x] B0.2先建立可导入占位接口和行为测试，捕获真实RED；小数/整数/常数规范化、无效词法、每字节分块、运行时整数阈值、负零/溢出延期、准确中点及远尾sticky、指数抵消、短写/故障/流所有权均须断言。最终完整初始60RED；后续超读1RED、复审协议异常19RED均修复。
 - [x] B0.2实现后运行`uv run --project packages/grid-agent pytest tools/tests/test_op08_semantic_numbers.py -q -s`及原字符串回归；8/64MiB真实数值文件覆盖长整数前缀后转float、大量小数零后指数抵消、超长指数，固定4MiB tracemalloc增量，spool为磁盘文件，输出长度/摘要/读取上界有实测记录。默认阈值拒绝巨大整数；阈值0场景必须流式输出而非构造Python大整数。八组最大峰值132879字节，块65536；最终数值/字符串联合171PASS。
 - [x] B0.2显式Pyright原型、仓库类型门禁、doctor/diff/符号链接检查和独立SPEC/QUALITY复审后单独提交；不改生产模块/OP13，不关闭完整B0。独立复审171PASS/类型0、额外13173组有效分割差分及18类无效拼写通过；源ccc397c17bf8608ed0413755fbae80dfd67dad15，测试e11c7b47871ebe919935610287b7b57f61fe6fb9。证据OP08 `b0-number-design-review.md`、`b0-number-root-verification.md`、`b0-number-measurements.txt`、`b0-number-review.md`。仅验收完整数字token原型，不是完整JSON文档或生产语义校验器。
+
+**B0.3磁盘对象成员索引（现有隔离授权内）**：新增`tools/experiments/op08_semantic/object_index.py`及`tools/tests/test_op08_semantic_object_index.py`。`DiskObjectIndex(connection: sqlite3.Connection, keys: BinaryIO)`使用调用方独占的新建磁盘SQLite库和追加式普通键文件；不关闭、不删除、不截断调用方资源。拒绝内存库、已有schema、活动外部事务、非默认row/text factory及非普通/不可寻址键文件。SQLite采用并读取确认cache_size=-1024、mmap_size=0、temp_store=FILE；这些是配置证据，不是native RSS硬上界。
+
+接口：`new_object()->int`分配对象ID；`put(object_id,key_offset,key_length,value_id)->Member(position,key_offset,key_length,value_id)`，ID为正SQLite整数、position从0开始。键范围由B0.1产生的规范带引号字节给出；索引不解析JSON、不接受全量键字符串。flush后用同一fd的pread最多65536字节重算SHA256，查询object_id+digest+length候选，再对每个候选逐块精确比对。摘要碰撞不能当作相等；新键分配末位，重复键仅更新value_id，保留首次键范围和位置。不同对象互不影响。value_id是不透明引用，非有限/代理项延期验证与值可达性由后续文档组装负责；保留首次规范键范围供最终可达输出验证。
+
+`members(object_id)->Iterator[Member]`顺序懒加载，不fetchall；从开始迭代到关闭/耗尽期间禁止该索引写入，避免游标与修改混用。每次new_object/put用独立savepoint原子操作；异常回滚并保留原始cause，回滚失败标记索引不可再用且不得掩盖首错。输入位置/长度与文件实际范围检查，不以其他对象已有ID猜测成功。调用方遵守键文件仅追加、无并发修改；这不是权威源身份校验或路径安全证明。
+独立复核补充：拒绝附加数据库，schema初始化也须原子；objects(id INTEGER PRIMARY KEY,next_position INTEGER NOT NULL)，members以(object_id,position)为WITHOUT ROWID主键，碰撞索引为(object_id,digest,key_length,position)。pread合法短读循环补足，EOF/超读拒绝；提前关闭迭代器释放游标。savepoint清理覆盖BaseException并原样重抛中断，普通存储/协议/状态失败统一ObjectIndexError(OSError)保留cause，非法标量参数ValueError。任何回滚失败后索引失效。
+具体机制：PRAGMA database_list只允许main（不接受attached）；初始化表和索引全部在savepoint中，失败不遗留部分schema。pread每次请求<=65536，短读循环，EOF/非bytes/超出请求均ObjectIndexError。members的游标在finally关闭（包括generator.close）。BaseException路径执行ROLLBACK TO及RELEASE，KeyboardInterrupt/SystemExit原样重抛；清理失败附加不含源数据的诊断且poison，不能覆盖首错。
+
+- [x] B0.3独立设计复核后，先建立可导入占位和真实行为RED：首次位置/最后值、不同对象、相同长度强制摘要碰撞、规范转义等价、缺失对象/非法范围、数据库故障回滚、键读取错误、调用方资源保留、懒迭代与写入互斥。初始15RED后实现15PASS，补充覆盖最终27PASS。
+- [x] B0.3实现并测量真实8/64MiB键（键文件分块生成，注册及重复比对均测量），固定4MiB tracemalloc上限及65536 pread上界；成员数量规模验证懒读取，明确SQLite原生缓存和磁盘增长未由tracemalloc覆盖。两规模峰值均264501字节；256/4096成员遍历峰值2472/1096字节。
+- [x] 命令`uv run --project packages/grid-agent pytest tools/tests/test_op08_semantic_object_index.py -q -s`，联合字符串/数值回归、显式原型Pyright、仓库类型/doctor/diff/符号链接检查；独立SPEC/QUALITY通过再提交。root联合198PASS，独立索引27PASS/显式类型0、额外顺序/碰撞/提前关闭探针通过；源21248c9b19c78d6fbd70fbcc7288d1f207053a13，测试1fcc96dda39a5ce0f1bbff0fa9d32a23deacb4a8。证据OP08 `b0-index-design-review.md`、`b0-index-root-verification.md`、`b0-index-review.md`。B0.4仍须完成文档语法/组装、重复覆盖可达性、资源配额/身份/清理和完整差分，不以该索引子项替代。
 - [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 

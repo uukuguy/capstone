@@ -1,13 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 16:53 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 17:11 CST. **Session remains active — not a final handoff.**
 
 ## Scope and workspace
 
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD 1d5cc40 (B0.1 isolated prototype).
+  branch feat/capstone-optimization; HEAD 0b6696b (B0.2 isolated numeric prototype).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 depends08.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
@@ -42,11 +42,21 @@ split comparisons and18 malformed families; explicit types/doctor/repository typ
 PASS. Eight8/64MiB four-shape measurements peak<=132879 bytes, maxchunk65536.
 Sourceccc397c17bf8608ed0413755fbae80dfd67dad15;
 teste11c7b47871ebe919935610287b7b57f61fe6fb9.
-Next: duplicate-key disk index/document assembly design and independent review
-within approved B0. Preserve first key position/last value, overwritten invalid
-values vs parse-time errors, huge escaped-key identity/collision handling, and
-bounded memory/disk quota/cleanup. No production integration authorized by a
-primitive's acceptance; full B0 feasibility is still unproven.
+B0.3 disk object index is accepted after /root/op02_single_run independent
+SPEC/QUALITY PASS. No active editor. Files object_index.py and
+test_op08_semantic_object_index.py under existing prototype/test directories.
+Design already independently approved, initial15RED then15PASS; supplemental27PASS,
+combined198PASS. Real8/64MiB duplicate keys peak264501bytes/maxpread65536;
+256/4096 member iteration2472/1096bytes. Explicit types/doctor/repository typesPASS.
+Source21248c9b19c78d6fbd70fbcc7288d1f207053a13;
+test1fcc96dda39a5ce0f1bbff0fa9d32a23deacb4a8.
+Evidence OP08/b0-index-design-review.md, b0-index-root-verification.md,
+b0-index-review.md. Reviewer independently27PASS/types0 and extra order/closure
+probe; valid short pread loops, premature EOF/invalid progress rejects.
+Next: B0.4 document assembly design and independent review, then TDD. Preserve
+overwritten invalid vs parse-time error semantics, disk quota/identity/cleanup.
+No production integration authorized by a primitive's acceptance; full B0
+feasibility remains unproven. SQLite pragmas do not establish a native RSS cap.
 Do not assume eager UTF8 read-ahead reports invalid bytes token-locally.
 
 B0.1: fixed64KiB UTF8 cursor, precise quote consumption and next-token retention,
@@ -57,7 +67,7 @@ do not reject overwritten values prematurely. Root verified existing Python
 accepts NaN/Infinity/unpaired-surrogate-containing values when later duplicate
 replaces them; final retained-document checks must reflect that behavior.
 
-B0 numerical token primitive passed review; duplicate-key disk index,
+B0 numerical token and duplicate-key disk index primitives passed review;
 object/array assembly, disk quotas, identity/cleanup and full feasibility remain
 unresolved. Six
 small hash vectors and candidate-library evidence are under OP08. Prior
