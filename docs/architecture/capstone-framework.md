@@ -133,6 +133,14 @@ Kernel neither owns nor requires that grid envelope for another application.
 ## Current-run evidence protocol
 
 Offline informational answers create no simulator or authority evidence.
+Answer assurance is separate from application execution: a committed `limited`
+answer remains visible with a front-loaded unverified-content warning and does
+not abort subsequent questions. Provider/runner failures preventing answer
+submission, protocol errors, reference-integrity errors and commit failures
+still fail the run. A typed domain-tool failure can be represented by a
+committed limited answer and continue. `core.status=completed` means processing
+finished, not that all answers are verified; per-turn assurance and the grid
+report's unsuccessful count retain that distinction.
 For a successful current-turn read of a published guide, a Domain Pack may
 preserve model-written informational text with `guide_access_verified`.
 This verifies access to the published source, not answer semantics or numerical

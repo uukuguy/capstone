@@ -1,6 +1,23 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 22:04 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 23:00 CST. **Session remains active — not a final handoff.**
+
+## Active correction: assurance is not application failure
+
+Latest user failurec87f71ad answered question4 without tools. Root cause was
+runner aborting a valid committed limited turn, plus Domain replacing its text.
+Main working tree now retains unverified text with a Chinese warning, continues
+limited turns, and maps limited honestly in the compatibility report. Existing
+protocol/reference/commit failures remain fatal; typed domain-tool errors may
+be committed as limited. Policy explains current-turn
+retrieval of existing run evidence without recalculation.
+Actual final-source run1999fd31 (65752) completed9/9, exit0: q4limited, q9
+lineage_verified with9 result/9 evidence refs; all9 committed admission hashes
+verified. Full33200 reached inventory old continuation assertions; only two test
+assertions changed, no inventory business code. Inventory118+1 and Workbench154
+pass; E2E4964 passed37 and exited0. Protected tree baseline updated only for that test delta;
+commit then run make validate. All older "no paid run performed" notes below
+are superseded by the user's explicit actual-rerun authorization and these runs.
 
 ## Fourth-question discovery classification repair
 
@@ -10,8 +27,8 @@ execution. Main now exempts only successful stateless capabilities explicitly
 declaring evidence_required=false; no tool-name whitelist or new API.
 Regression2509 failed before correction; admission11/controller26/type checks
 pass after correction. Full main gates3997 exited0: doctor/test/E2E36,
-validate7+10+8 and coverage24 passed. Repair is delivered directly in main;
-resolve the latest fix commit with git log. No test process remains active.
+validate7+10+8 and coverage24 passed. Repair48fb64f is committed directly in main.
+No test process remains active.
 The earlier live Provider nine-question workflow is still NOT verified complete.
 
 ## Guide admission regression repair (supersedes historical closure below)

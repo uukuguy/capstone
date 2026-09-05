@@ -10,6 +10,33 @@
 
 ## 1. 状态、依据与授权边界
 
+### 准入保证与运行失败解耦（2026-09-05，替代局部放行思路）
+
+第三次实际失败run `run-20260905t140947z-c87f71ad` 第四题直接根据已有模型上下文
+回答参数，没有新调用。`limited` 被runner当作致命异常，Domain还丢弃了完整中文回答。
+继续列举工具或强迫每轮读取指南不能解决这一结构性错误。
+
+设计：保留既有 `limited` 保证等级和零证据事实，保留回答原文并附明确未核验说明；
+仅保证受限的已提交回答继续报告和后续问题；阻止提交的Provider/runner异常、协议/引用/提交异常仍失败，已类型化领域工具错误可以提交为limited继续。
+`completed` 表示问题处理结束，不表示全部回答经过数值或语义核验。不新增分类器/新保证等级。
+
+- [x] 在 `packages/grid-agent/tests/e2e/test_answer_admission.py` 添加无工具参数回答后继续真实潮流回归；99921观察原文丢失RED，99797观察报告错误标成功RED，修正后通过。
+- [x] `packages/pandapower-domain-pack/src/pandapower_domain/answer_admission.py` limited保留模型原文及未验证说明。
+- [x] `packages/capability-agent-kernel/src/capability_agent/application/runner.py` 允许已提交limited继续；同步受限回归断言。
+- [ ] 完整门禁与实际 `make application INSTRUCTIONS=validation/questions/task.md.txt` 九题重跑、报告证据检查；main提交。
+
+复核补齐：兼容报告不能把limited硬编码成success；需映射“未完成”并保留保证级别。
+实际第二次实跑虽9/9处理完成，但第九题复述旧结果未绑定证据；领域策略明确本轮
+使用已有evidence.get/result查询重新取回相关证据，不重算、不全量继承旧引用、不增加SPI。
+首次未改源码实跑dd61eac2为9/9；7a7ac2cf为8成功+1受限，不冒充九题完全通过。
+
+最终源码实际65752：`run-20260905t144839z-1999fd31` 224.4秒处理9/9、exit0；
+第四题无guide访问为limited但原文保留，后续仿真照常；第九题9个result与9个evidence引用，
+lineage_verified。9份准入摘要与提交哈希逐一核对通过；报告明确8成功+1受限而非9项均验证。
+整仓33200在inventory三项旧“limited即失败”断言失败；只改两处断言，不改业务实现。
+inventory118+1与工作台154续跑通过；保护树仅该测试文件改变，基线由c224b47更新为
+80b3cada（git index tree计算），保留全部保护路径；提交后再运行make validate验证。
+
 ### 第四题目录查询误拦截修复（2026-09-05）
 
 真实run `run-20260905t133022z-c081b57c` 第三题已过，第四题的指南、

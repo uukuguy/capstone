@@ -167,7 +167,7 @@ def test_missing_asset_has_typed_failure_and_persisted_limited_admission(tmp_pat
         [("asset.get", {"context_ref": "$context", "asset_id": "not-an-asset"})],
     ]
     outcome, workspace, transports = run_application(tmp_path, turns)
-    assert outcome.status == "failed"
+    assert outcome.status == "completed"
     # The runner counts durable finalized turns, including a limited turn.
     assert outcome.completed_questions == 2
     assert transports[0].calls[-1][2]["code"] == "capability_transport_failed"
@@ -185,7 +185,7 @@ def test_full_application_zero_reference_admission(tmp_path, question, mode):
     outcome, workspace, transports = run_application(tmp_path, [[]], questions=[question])
     assert transports[0].calls == []
     assert admissions(workspace)[0]["mode"] == mode
-    assert outcome.status == ("completed" if mode == "offline_information" else "failed")
+    assert outcome.status == "completed"
     assert not list(workspace.domain_path("inventory").rglob("facts/*.json"))
     if mode == "offline_information":
         from inventory_domain.guide import InventoryGuideProvider

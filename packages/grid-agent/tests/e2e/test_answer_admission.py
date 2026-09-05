@@ -120,6 +120,38 @@ def test_real_boundary_limits_zero_reference_business_question(tmp_path: Path) -
     assert "execution limitation" in finalized.answer_output
 
 
+def test_no_new_tool_answer_preserves_text_and_continues_to_real_powerflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = json.loads((ROOT / "validation/application/pandapower-scripted-task.json").read_text())
+    question = "潮流计算工具（pandapower runpp）需要输入哪些参数?"
+    reader_text = "必填参数是 context_ref；可选参数包括 algorithm、init、max_iteration。"
+    case = _questions_case([
+        {"id": "parameters", "text": question, "steps": []},
+        *copy.deepcopy(source["questions"][:2]),
+    ], "admission-no-new-tool")
+    original = validation_run.ScriptedApplicationTransport.prompt_and_wait
+
+    def prompt(self: object, *args: object, **kwargs: object) -> str:
+        response = original(self, *args, **kwargs)
+        return reader_text if args[0] == question else response
+
+    monkeypatch.setattr(validation_run.ScriptedApplicationTransport, "prompt_and_wait", prompt)
+    execution = execute_application_case(case, runs_root=tmp_path / "runs", timeout_seconds=17.0)
+    first = execution.controller.finalized_turns[0]
+    assert reader_text in first.answer_output
+    assert first.status == "limited"
+    assert _turn_admission(first).assurance == "limited"
+    assert first.result_refs == first.evidence_refs == ()
+    assert execution.outcome.status == "completed"
+    assert execution.outcome.completed_questions == 3
+    assert execution.controller.finalized_turns[-1].result_refs
+    report = execution.outcome.report_path.read_text()
+    assert "成功：2；未完成：1" in report
+    assert "Guarantee scope" in report and "- limited" in report
+    assert reader_text in report
+
+
 def test_real_boundary_renders_natural_language_offline_knowledge(tmp_path: Path) -> None:
     execution = execute_application_case(
         _case("什么是交流潮流？", [], "admission-offline"),
@@ -309,6 +341,8 @@ def test_only_current_successful_published_guide_can_admit_zero_reference_text(
     )
 
     turns = execution.controller.finalized_turns
+    assert len(turns) == 2
+    assert execution.outcome.status == "completed"
     target = turns[-1]
     if name == "prior-turn-guide":
         assert len(turns) == 2
@@ -317,8 +351,6 @@ def test_only_current_successful_published_guide_can_admit_zero_reference_text(
         assert first_turn.status == "success"
         assert prior_admission.mode == "offline_information"
         assert prior_admission.assurance == "guide_access_verified"
-    else:
-        assert len(turns) == 1
     admission = _turn_admission(target)
     assert target.status == "limited"
     assert target.result_refs == ()

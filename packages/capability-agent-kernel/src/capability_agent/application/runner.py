@@ -627,7 +627,9 @@ class AgentApplication:
                     raise
                 completed_answers.append(finalized)
                 active_turn = None
-                if finalized.status != "success":
+                # Evidence assurance is not execution status. A committed
+                # limited answer remains visible and does not abort later work.
+                if finalized.status not in {"success", "limited"}:
                     raise ApplicationConfigurationError("question did not produce an accepted answer")
                 self._run_presentation(
                     lambda: self._write_report_checkpoint(

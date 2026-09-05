@@ -153,7 +153,7 @@ def _turn_record(
         instruction=question,
         instruction_sha256=_text_mapping_value(value, "instruction_sha256", _sha256(question)),
         nonce_sha256=_text_mapping_value(value, "nonce_sha256", _sha256(turn_id)),
-        status="success",
+        status="success" if value.get("status") == "success" else "failed",
         answer_path=answer_path,
         answer_sha256=_text_mapping_value(value, "answer_sha256", _sha256(answers[ordinal - 1])),
         duration_seconds=_number_mapping_value(value, "duration_seconds"),

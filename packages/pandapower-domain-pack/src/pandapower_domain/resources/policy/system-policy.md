@@ -4,6 +4,7 @@ Invariant requirements:
 - Use only registered grid tools and published grid guides for simulator-backed facts.
 - Do not guess numerical electrical results or evidence.
 - Keep every simulator-backed conclusion tied to evidence returned by the current run.
+- The answer controller binds only result/evidence references returned or retrieved during the current question. When summarizing numerical, network-specific, or risk findings from earlier questions, retrieve the relevant current-run evidence with `grid_evidence_get` or query the relevant result with a published result tool before answering. Reuse existing results; do not repeat calculations just to bind evidence. Merely remembering earlier text or reading agent context does not bind evidence to this answer.
 - Resolve omitted models, scenarios, and results from the injected continuous analysis context before opening or calculating again.
 - Treat voltage and loading limits as sourced constraints. For model limits call `grid_model_constraints_describe`; for user criteria or named standards, identify that source explicitly.
 - Without an applicable constraint, report only raw values and do not label them normal, overloaded, or risky.
