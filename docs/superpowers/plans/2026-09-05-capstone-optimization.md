@@ -44,7 +44,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | DONE | 6ad5df4；独立复审与固定源码完整主/包门禁exit0，详见验收记录 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
-| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | RUNNING | 从0.84.4候选的补丁/安装/审计验证开始，例外尚未关闭 |
+| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | VERIFYING | 0.84.4真实安装、三锁零审计、捕获与独立复审通过；完整release待验收 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
@@ -283,11 +283,15 @@ check-release: check-fast check-integration test-packages test-source-setup
 
 **Files**：Modify `configs/runtime/pi-runtime.lock.json`、`configs/runtime/pi-security-risk-exception-v1.json`、`packages/pi-capability-tools/package.json`、`packages/pi-capability-tools/package-lock.json`、`packages/pi-grid-tools/package-lock.json`；检查 `configs/runtime/patches/pi-0.80.6-before-model-request.patch` 的版本兼容性；Test `tools/tests/test_runtime_risk_exception.py`、两套 Pi capture tests。
 
+实施控制澄清（2026-09-05）：上述例外文件改为**保留原文**，不更新旧版本漏洞计数或到期日。新增独立 `configs/runtime/pi-security-remediation-v1.json` 绑定真实替代版本的 source/npm integrity/patch、托管源码与两个扩展的三份完整 lock 字节摘要及平台无关依赖图。新 patch 使用独立版本文件名；旧 patch 保留。实际候选构建需要扩展 Kernel installer 的构建顺序，并安全保留含旧 patch 或未知修改的 managed source 后建立新目录；真实 Git 回归必须覆盖此升级路径。
+
+安全状态的顺序为：实际安装 → 三份 frozen lock 的新鲜完整审计（六项 severity/total 均零且漏洞列表为空）及真实 patched SDK 捕获验证 → 保存精确 remediation 记录 → 固定源码完整 release 验收。记录不预先断言未来 release 已通过；默认检查器仅本地验证，不触发网络审计或 provider。捕获验证须绑定所测 runtime commit、patch 摘要和明确通过结果；安装图区分实际依赖根与包内 metadata，普通包不得借符号链接逃逸。检查器回归纳入 Make 常规门禁。详细设计和独立审查证据在 `runs/optimization/OP-06/`；本段是版本化的执行依据。
+
 补充实际升级触点（只读调查）：还须同步 `packages/capability-agent-kernel/src/capability_agent/runtime/lock.py` 的active pin校验、`packages/pi-capability-tools/src/model-request-capture.mjs` 的capture身份、`packages/pi-grid-tools/package.json`、`tools/check_runtime_risk_exception.py`、`tools/test_source_setup.sh`，以及相关installer/locator/capture/package测试和第三方声明/当前运行文档。不要机械替换历史记录或仅用于通用身份传播的旧版本测试值。候选研究与官方来源见 `runs/optimization/OP-06/version-research.md`；0.84.4仅为优先本地验证候选，尚未选择或关闭风险。原hook在候选中仍未上游提供，必须按实际SDK控制流重写并验证patch。
 
-- [ ] 用 `rg --files configs/runtime` 和 runtime locator 确认 `pi-runtime.lock.json` 及其中 package/source/patches 摘要；旧版本专用 patch 不能原样套在新版本，按实际 hook API 更新版本化 patch 和摘要。
-- [ ] 检查当前官方 Pi release/API 与依赖审计，按现有例外的 >=0.84.3 下限挑选首个能满足全部 hook/extension 契约的版本；将选定版本、审计日期和理由写入执行记录。
-- [ ] 在隔离环境更新统一版本和 frozen locks；保留 canonical request hook、descriptor、correlation、stdout、受限工具和凭据过滤回归。
+- [x] 用 `rg --files configs/runtime` 和 runtime locator 确认 `pi-runtime.lock.json` 及其中 package/source/patches 摘要；旧版本专用 patch 不能原样套在新版本，按实际 hook API 更新版本化 patch 和摘要。
+- [x] 检查当前官方 Pi release/API 与依赖审计，按现有例外的 >=0.84.3 下限挑选首个能满足全部 hook/extension 契约的版本；将选定版本、审计日期和理由写入执行记录。
+- [x] 在隔离环境更新统一版本和 frozen locks；保留 canonical request hook、descriptor、correlation、stdout、受限工具和凭据过滤回归。
 - [ ] 执行 `make install-pi`、`make doctor`、`make check-release`，并执行更新后的依赖审计；禁止仅改 risk_counts 或删除 advisory 让门变绿。
 - [ ] 修复确认后关闭例外；如果没有合格版本，标 BLOCKED 并明确发布阻断，到期门继续失败；不能自行延期例外或声称漏洞已修复。
 

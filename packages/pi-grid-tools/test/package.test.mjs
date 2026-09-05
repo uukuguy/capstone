@@ -11,7 +11,7 @@ import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
 const ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
 test("package pins the validated Pi API", () => {
-  assert.equal(packageJson.dependencies["@earendil-works/pi-coding-agent"], "0.80.6");
+  assert.equal(packageJson.dependencies["@earendil-works/pi-coding-agent"], "0.84.4");
 });
 
 test("package surface admits canonical request hook without expanding grid tools", async () => {
@@ -117,6 +117,6 @@ function gridToolContract(name, capability) {
 
 async function readPatchText() {
   return import("node:fs/promises").then(({ readFile }) =>
-    readFile(join(ROOT, "configs/runtime/patches/pi-0.80.6-before-model-request.patch"), "utf8"),
+    readFile(join(ROOT, "configs/runtime/patches/pi-0.84.4-before-model-request.patch"), "utf8"),
   );
 }

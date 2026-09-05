@@ -1,0 +1,766 @@
+diff --git a/packages/coding-agent/src/core/extensions/index.ts b/packages/coding-agent/src/core/extensions/index.ts
+index f19816a9a..1dcde68da 100644
+--- a/packages/coding-agent/src/core/extensions/index.ts
++++ b/packages/coding-agent/src/core/extensions/index.ts
+@@ -36,6 +36,7 @@ export type {
+ 	BashToolResultEvent,
+ 	BeforeAgentStartEvent,
+ 	BeforeAgentStartEventResult,
++	BeforeModelRequestEvent,
+ 	BeforeProviderHeadersEvent,
+ 	BeforeProviderRequestEvent,
+ 	BeforeProviderRequestEventResult,
+@@ -115,6 +116,13 @@ export type {
+ 	// Provider Registration
+ 	ProviderConfig,
+ 	ProviderModelConfig,
++	PublicModelRequestAssistantContent,
++	PublicModelRequestContent,
++	PublicModelRequestContext,
++	PublicModelRequestMessage,
++	PublicModelRequestModel,
++	PublicModelRequestOptions,
++	PublicModelRequestTool,
+ 	ReadToolCallEvent,
+ 	ReadToolResultEvent,
+ 	// Commands
+diff --git a/packages/coding-agent/src/core/extensions/runner.ts b/packages/coding-agent/src/core/extensions/runner.ts
+index 3346645a1..93d8f428f 100644
+--- a/packages/coding-agent/src/core/extensions/runner.ts
++++ b/packages/coding-agent/src/core/extensions/runner.ts
+@@ -3,7 +3,7 @@
+  */
+ 
+ import type { AgentMessage } from "@earendil-works/pi-agent-core";
+-import type { ImageContent, Model, Provider, ProviderHeaders } from "@earendil-works/pi-ai";
++import type { Api, Context, ImageContent, Model, Provider, ProviderHeaders } from "@earendil-works/pi-ai";
+ import type { KeyId } from "@earendil-works/pi-tui";
+ import { type Theme, theme } from "../../modes/interactive/theme/theme.ts";
+ import type { ResourceDiagnostic } from "../diagnostics.ts";
+@@ -15,6 +15,7 @@ import type { BuildSystemPromptOptions } from "../system-prompt.ts";
+ import type {
+ 	BeforeAgentStartEvent,
+ 	BeforeAgentStartEventResult,
++	BeforeModelRequestEvent,
+ 	BeforeProviderHeadersEvent,
+ 	BeforeProviderRequestEvent,
+ 	CompactOptions,
+@@ -47,6 +48,10 @@ import type {
+ 	ProjectTrustEvent,
+ 	ProjectTrustEventResult,
+ 	ProviderConfig,
++	PublicModelRequestContext,
++	PublicModelRequestMessage,
++	PublicModelRequestModel,
++	PublicModelRequestOptions,
+ 	RegisteredCommand,
+ 	RegisteredTool,
+ 	ReplacedSessionContext,
+@@ -90,6 +95,85 @@ const RESERVED_KEYBINDINGS_FOR_EXTENSION_CONFLICTS = [
+ 	"tui.editor.deleteToLineEnd",
+ ] as const;
+ 
++function projectBeforeModelRequestModel(model: Model<Api>): PublicModelRequestModel {
++	return { provider: model.provider, api: model.api, id: model.id };
++}
++
++function projectBeforeModelRequestContext(context: Context): PublicModelRequestContext {
++	const projected: PublicModelRequestContext = {
++		messages: context.messages.map(projectBeforeModelRequestMessage),
++	};
++	if (context.systemPrompt !== undefined) projected.systemPrompt = context.systemPrompt;
++	if (context.tools !== undefined) {
++		projected.tools = context.tools.map((tool) => ({
++			name: tool.name,
++			description: tool.description,
++			parameters: structuredClone(tool.parameters),
++		}));
++	}
++	return projected;
++}
++
++function projectBeforeModelRequestMessage(message: Context["messages"][number]): PublicModelRequestMessage {
++	if (message.role === "user") {
++		return {
++			role: "user",
++			content: typeof message.content === "string" ? message.content : message.content.map(projectPublicContent),
++		};
++	}
++	if (message.role === "toolResult") {
++		return {
++			role: "toolResult",
++			toolCallId: message.toolCallId,
++			toolName: message.toolName,
++			content: message.content.map(projectPublicContent),
++			details: structuredClone(message.details ?? null),
++			isError: message.isError,
++		};
++	}
++	if (message.role !== "assistant") throw new Error("unsupported model request message role");
++	return {
++		role: "assistant",
++		content: message.content.map((content) => {
++			if (content.type === "thinking") return { type: "thinking", redacted: true };
++			if (content.type === "toolCall") {
++				return {
++					type: "toolCall",
++					id: content.id,
++					name: content.name,
++					arguments: structuredClone(content.arguments),
++				};
++			}
++			if (content.type === "text") return { type: "text", text: content.text };
++			throw new Error("unsupported model request assistant content");
++		}),
++	};
++}
++
++function projectPublicContent(
++	content: { type: "text"; text: string } | { type: "image"; data: string; mimeType: string },
++) {
++	if (content.type === "text") return { type: "text" as const, text: content.text };
++	if (content.type === "image") return { type: "image" as const, data: content.data, mimeType: content.mimeType };
++	throw new Error("unsupported model request content");
++}
++
++function projectPublicModelRequestOptions(options: PublicModelRequestOptions): PublicModelRequestOptions {
++	const projected: PublicModelRequestOptions = {};
++	if (options.reasoning !== undefined) projected.reasoning = options.reasoning;
++	if (options.thinkingBudgets !== undefined) projected.thinkingBudgets = structuredClone(options.thinkingBudgets);
++	if (options.temperature !== undefined) projected.temperature = options.temperature;
++	if (options.maxTokens !== undefined) projected.maxTokens = options.maxTokens;
++	if (options.transport !== undefined) projected.transport = options.transport;
++	if (options.cacheRetention !== undefined) projected.cacheRetention = options.cacheRetention;
++	if (options.timeoutMs !== undefined) projected.timeoutMs = options.timeoutMs;
++	if (options.websocketConnectTimeoutMs !== undefined)
++		projected.websocketConnectTimeoutMs = options.websocketConnectTimeoutMs;
++	if (options.maxRetries !== undefined) projected.maxRetries = options.maxRetries;
++	if (options.maxRetryDelayMs !== undefined) projected.maxRetryDelayMs = options.maxRetryDelayMs;
++	return projected;
++}
++
+ type BuiltInKeyBindings = Partial<Record<KeyId, { keybinding: string; restrictOverride: boolean }>>;
+ 
+ const buildBuiltinKeybindings = (resolvedKeybindings: KeybindingsConfig): BuiltInKeyBindings => {
+@@ -1097,6 +1181,27 @@ export class ExtensionRunner {
+ 		return currentPayload;
+ 	}
+ 
++	async emitBeforeModelRequest(
++		model: Model<Api>,
++		context: Context,
++		options: PublicModelRequestOptions,
++	): Promise<void> {
++		const ctx = this.createContext();
++		for (const ext of this.extensions) {
++			const handlers = ext.handlers.get("before_model_request");
++			if (!handlers || handlers.length === 0) continue;
++			for (const handler of handlers) {
++				const event: BeforeModelRequestEvent = {
++					type: "before_model_request",
++					model: projectBeforeModelRequestModel(model),
++					context: projectBeforeModelRequestContext(context),
++					options: projectPublicModelRequestOptions(options),
++				};
++				await handler(event, ctx);
++			}
++		}
++	}
++
+ 	async emitBeforeProviderHeaders(headers: ProviderHeaders): Promise<ProviderHeaders> {
+ 		const ctx = this.createContext();
+ 
+diff --git a/packages/coding-agent/src/core/extensions/types.ts b/packages/coding-agent/src/core/extensions/types.ts
+index 0b9474664..8b72a6b19 100644
+--- a/packages/coding-agent/src/core/extensions/types.ts
++++ b/packages/coding-agent/src/core/extensions/types.ts
+@@ -19,6 +19,7 @@ import type {
+ 	Api,
+ 	AssistantMessageEvent,
+ 	AssistantMessageEventStream,
++	CacheRetention,
+ 	ConstrainedSamplingConfig,
+ 	Context,
+ 	ImageContent,
+@@ -30,7 +31,9 @@ import type {
+ 	RefreshModelsContext,
+ 	SimpleStreamOptions,
+ 	TextContent,
++	ThinkingBudgets,
+ 	ToolResultMessage,
++	Transport,
+ 	Usage,
+ } from "@earendil-works/pi-ai";
+ import type {
+@@ -696,6 +699,63 @@ export interface BeforeProviderRequestEvent {
+ 	payload: unknown;
+ }
+ 
++export interface PublicModelRequestOptions {
++	reasoning?: ThinkingLevel;
++	thinkingBudgets?: Readonly<ThinkingBudgets>;
++	temperature?: number;
++	maxTokens?: number;
++	transport?: Transport;
++	cacheRetention?: CacheRetention;
++	timeoutMs?: number;
++	websocketConnectTimeoutMs?: number;
++	maxRetries?: number;
++	maxRetryDelayMs?: number;
++}
++
++export interface PublicModelRequestModel {
++	provider: string;
++	api: Api;
++	id: string;
++}
++
++export interface PublicModelRequestTool {
++	name: string;
++	description: string;
++	parameters: Readonly<TSchema>;
++}
++
++export type PublicModelRequestContent =
++	| { type: "text"; text: string }
++	| { type: "image"; data: string; mimeType: string };
++export type PublicModelRequestAssistantContent =
++	| { type: "text"; text: string }
++	| { type: "thinking"; redacted: true }
++	| { type: "toolCall"; id: string; name: string; arguments: Readonly<Record<string, unknown>> };
++export type PublicModelRequestMessage =
++	| { role: "user"; content: string | readonly PublicModelRequestContent[] }
++	| { role: "assistant"; content: readonly PublicModelRequestAssistantContent[] }
++	| {
++			role: "toolResult";
++			toolCallId: string;
++			toolName: string;
++			content: readonly PublicModelRequestContent[];
++			details: unknown;
++			isError: boolean;
++	  };
++
++export interface PublicModelRequestContext {
++	systemPrompt?: string;
++	messages: readonly PublicModelRequestMessage[];
++	tools?: readonly PublicModelRequestTool[];
++}
++
++export interface BeforeModelRequestEvent {
++	type: "before_model_request";
++	model: Readonly<PublicModelRequestModel>;
++	context: Readonly<PublicModelRequestContext>;
++	options: Readonly<PublicModelRequestOptions>;
++}
++
+ /**
+  * Fired after request headers are assembled, before the provider HTTP call.
+  * Handlers mutate `headers` in place (e.g. to inject tracing/session headers);
+@@ -1088,6 +1148,7 @@ export type ExtensionEvent =
+ 	| ResourcesDiscoverEvent
+ 	| SessionEvent
+ 	| ContextEvent
++	| BeforeModelRequestEvent
+ 	| BeforeProviderRequestEvent
+ 	| BeforeProviderHeadersEvent
+ 	| AfterProviderResponseEvent
+@@ -1273,6 +1334,7 @@ export interface ExtensionAPI {
+ 	on(event: "session_before_tree", handler: ExtensionHandler<SessionBeforeTreeEvent, SessionBeforeTreeResult>): void;
+ 	on(event: "session_tree", handler: ExtensionHandler<SessionTreeEvent>): void;
+ 	on(event: "context", handler: ExtensionHandler<ContextEvent, ContextEventResult>): void;
++	on(event: "before_model_request", handler: ExtensionHandler<BeforeModelRequestEvent>): void;
+ 	on(
+ 		event: "before_provider_request",
+ 		handler: ExtensionHandler<BeforeProviderRequestEvent, BeforeProviderRequestEventResult>,
+diff --git a/packages/coding-agent/src/core/sdk.ts b/packages/coding-agent/src/core/sdk.ts
+index adbf102a3..44bad42a6 100644
+--- a/packages/coding-agent/src/core/sdk.ts
++++ b/packages/coding-agent/src/core/sdk.ts
+@@ -1,12 +1,24 @@
+ import { join } from "node:path";
+ import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "@earendil-works/pi-agent-core";
+-import { clampThinkingLevel, type Message, type Model, streamSimple } from "@earendil-works/pi-ai/compat";
++import {
++	clampThinkingLevel,
++	type Message,
++	type Model,
++	type SimpleStreamOptions,
++	streamSimple,
++} from "@earendil-works/pi-ai/compat";
+ import { getAgentDir } from "../config.ts";
+ import { resolvePath } from "../utils/paths.ts";
+ import { AgentSession } from "./agent-session.ts";
+ import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
+ import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
+-import type { ExtensionRunner, LoadExtensionsResult, SessionStartEvent, ToolDefinition } from "./extensions/index.ts";
++import type {
++	ExtensionRunner,
++	LoadExtensionsResult,
++	PublicModelRequestOptions,
++	SessionStartEvent,
++	ToolDefinition,
++} from "./extensions/index.ts";
+ import { convertToLlm } from "./messages.ts";
+ import { findInitialModel } from "./model-resolver.ts";
+ import { ModelRuntime } from "./model-runtime.ts";
+@@ -135,6 +147,48 @@ function getDefaultAgentDir(): string {
+ 	return getAgentDir();
+ }
+ 
++type ResolvedPublicRequestOptions = {
++	timeoutMs: number;
++	websocketConnectTimeoutMs?: number;
++	maxRetries?: number;
++	maxRetryDelayMs: number;
++};
++
++function resolvedPublicRequestOptions(
++	options: SimpleStreamOptions | undefined,
++	providerRetrySettings: ReturnType<SettingsManager["getProviderRetrySettings"]>,
++	settingsManager: SettingsManager,
++): ResolvedPublicRequestOptions {
++	const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
++	const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
++	return {
++		timeoutMs: options?.timeoutMs ?? providerRetrySettings.timeoutMs ?? effectiveTimeoutMs,
++		websocketConnectTimeoutMs: options?.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs(),
++		maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
++		maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
++	};
++}
++
++function publicModelRequestOptions(
++	options: SimpleStreamOptions | undefined,
++	resolved: ResolvedPublicRequestOptions,
++): PublicModelRequestOptions {
++	return {
++		...(options?.reasoning !== undefined ? { reasoning: options.reasoning } : {}),
++		...(options?.thinkingBudgets !== undefined ? { thinkingBudgets: options.thinkingBudgets } : {}),
++		...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
++		...(options?.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
++		...(options?.transport !== undefined ? { transport: options.transport } : {}),
++		...(options?.cacheRetention !== undefined ? { cacheRetention: options.cacheRetention } : {}),
++		timeoutMs: resolved.timeoutMs,
++		...(resolved.websocketConnectTimeoutMs !== undefined
++			? { websocketConnectTimeoutMs: resolved.websocketConnectTimeoutMs }
++			: {}),
++		...(resolved.maxRetries !== undefined ? { maxRetries: resolved.maxRetries } : {}),
++		maxRetryDelayMs: resolved.maxRetryDelayMs,
++	};
++}
++
+ /**
+  * Create an AgentSession with the specified options.
+  *
+@@ -313,20 +367,18 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
+ 		convertToLlm: convertToLlmWithBlockImages,
+ 		streamFn: async (model, context, options) => {
+ 			const providerRetrySettings = settingsManager.getProviderRetrySettings();
+-			const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
+-			// SDKs treat timeout=0 as 0ms (immediate timeout), not "no timeout".
+-			// Use max int32 to effectively disable the timeout.
+-			const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
+-			const timeoutMs = options?.timeoutMs ?? providerRetrySettings.timeoutMs ?? effectiveTimeoutMs;
+-			const websocketConnectTimeoutMs =
+-				options?.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs();
++			const resolved = resolvedPublicRequestOptions(options, providerRetrySettings, settingsManager);
++			const runner = extensionRunnerRef.current;
++			if (runner?.hasHandlers("before_model_request")) {
++				await runner.emitBeforeModelRequest(model, context, publicModelRequestOptions(options, resolved));
++			}
+ 			const headerRunner = extensionRunnerRef.current;
+ 			return modelRuntime.streamSimple(model, context, {
+ 				...options,
+-				timeoutMs,
+-				websocketConnectTimeoutMs,
+-				maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
+-				maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
++				timeoutMs: resolved.timeoutMs,
++				websocketConnectTimeoutMs: resolved.websocketConnectTimeoutMs,
++				maxRetries: resolved.maxRetries,
++				maxRetryDelayMs: resolved.maxRetryDelayMs,
+ 				transformHeaders: async (requestHeaders) => {
+ 					const headers = mergeProviderAttributionHeaders(
+ 						model,
+diff --git a/packages/coding-agent/src/index.ts b/packages/coding-agent/src/index.ts
+index 8e5ce2f3d..4d3c18a3f 100644
+--- a/packages/coding-agent/src/index.ts
++++ b/packages/coding-agent/src/index.ts
+@@ -61,6 +61,7 @@ export type {
+ 	BashToolCallEvent,
+ 	BeforeAgentStartEvent,
+ 	BeforeAgentStartEventResult,
++	BeforeModelRequestEvent,
+ 	BeforeProviderHeadersEvent,
+ 	BeforeProviderRequestEvent,
+ 	BeforeProviderRequestEventResult,
+@@ -115,6 +116,13 @@ export type {
+ 	ProjectTrustHandler,
+ 	ProviderConfig,
+ 	ProviderModelConfig,
++	PublicModelRequestAssistantContent,
++	PublicModelRequestContent,
++	PublicModelRequestContext,
++	PublicModelRequestMessage,
++	PublicModelRequestModel,
++	PublicModelRequestOptions,
++	PublicModelRequestTool,
+ 	ReadToolCallEvent,
+ 	RegisteredCommand,
+ 	RegisteredTool,
+diff --git a/packages/coding-agent/test/before-model-request.test.ts b/packages/coding-agent/test/before-model-request.test.ts
+new file mode 100644
+index 000000000..5d6e7f235
+--- /dev/null
++++ b/packages/coding-agent/test/before-model-request.test.ts
+@@ -0,0 +1,350 @@
++import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import {
++	type Api,
++	type AssistantMessage,
++	type Context,
++	createAssistantMessageEventStream,
++	type Model,
++	type SimpleStreamOptions,
++} from "@earendil-works/pi-ai";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { AuthStorage } from "../src/core/auth-storage.ts";
++import { createAgentSession } from "../src/core/sdk.ts";
++import { SessionManager } from "../src/core/session-manager.ts";
++import { type Settings, SettingsManager } from "../src/core/settings-manager.ts";
++import { createModelRegistry, getModelRuntime } from "./model-runtime-test-utils.ts";
++
++const EVENT_STORE = "__beforeModelRequestPortEvents";
++const RUNTIME_STORE = "__beforeModelRequestRuntimeCalls";
++const ORDER_STORE = "__beforeModelRequestChronology";
++
++describe("before_model_request", () => {
++	let tempDir: string;
++	let cwd: string;
++	let agentDir: string;
++
++	beforeEach(() => {
++		tempDir = mkdtempSync(join(tmpdir(), "pi-before-model-request-"));
++		cwd = join(tempDir, "project");
++		agentDir = join(tempDir, "agent");
++		mkdirSync(cwd, { recursive: true });
++		mkdirSync(agentDir, { recursive: true });
++		(globalThis as Record<string, unknown>)[EVENT_STORE] = [];
++		(globalThis as Record<string, unknown>)[RUNTIME_STORE] = 0;
++		(globalThis as Record<string, unknown>)[ORDER_STORE] = [];
++	});
++
++	afterEach(() => {
++		delete (globalThis as Record<string, unknown>)[EVENT_STORE];
++		rmSync(tempDir, { recursive: true, force: true });
++	});
++
++	it("emits the resolved semantic request before the model runtime streams", async () => {
++		const result = await runRequest({
++			settings: {
++				httpIdleTimeoutMs: 0,
++				websocketConnectTimeoutMs: 800,
++				retry: { provider: { timeoutMs: 550, maxRetries: 2, maxRetryDelayMs: 700 } },
++			},
++			requestOptions: { maxRetries: 1 },
++			extensions: [
++				`export default function(pi) {
++					pi.on("before_model_request", (event) => {
++						globalThis.${ORDER_STORE}.push("hook");
++						globalThis.${EVENT_STORE}.push({ kind: "hook", event });
++					});
++				}`,
++			],
++		});
++
++		expect(result.order).toEqual(["hook", "runtime"]);
++		const event = result.events[0] as { event: { options: Record<string, unknown> } };
++		expect(event.event.options).toEqual({
++			timeoutMs: 550,
++			websocketConnectTimeoutMs: 800,
++			maxRetries: 1,
++			maxRetryDelayMs: 700,
++		});
++		expect(result.runtimeOptions).toMatchObject(event.event.options);
++		expect(JSON.stringify(event.event)).not.toContain("test-api-key");
++	});
++
++	it("projects semantic content faithfully while redacting private and transport-only values", async () => {
++		const result = await runRequest({
++			requestOptions: {
++				timeoutMs: 321,
++				...( {
++					headers: { authorization: "Bearer request-secret" },
++					env: { PROVIDER_TOKEN: "environment-secret" },
++				} as object),
++			} as SimpleStreamOptions,
++			extensions: [
++				`export default function(pi) {
++					pi.on("before_model_request", (event) => {
++						globalThis.${EVENT_STORE}.push({ kind: "hook", event });
++					});
++				}`,
++			],
++		});
++
++		const event = (result.events[0] as { event: { context: Context; options: Record<string, unknown> } }).event;
++		expect(event.context.messages).toMatchObject([
++			{ role: "user", content: [{ type: "text", text: "inspect assets" }, { type: "image", data: "image-bytes", mimeType: "image/png" }] },
++			{
++				role: "assistant",
++				content: [
++					{ type: "thinking", redacted: true },
++					{ type: "text", text: "I will inspect the asset." },
++					{ type: "toolCall", id: "call-1", name: "inventory_lookup", arguments: { asset: "A-1" } },
++				],
++			},
++			{
++				role: "toolResult",
++				toolCallId: "call-1",
++				toolName: "inventory_lookup",
++				content: [{ type: "text", text: "asset A-1 found" }, { type: "image", data: "result-image", mimeType: "image/png" }],
++				details: { source: "inventory", revision: 7 },
++				isError: false,
++			},
++		]);
++		const serialized = JSON.stringify(event);
++		expect(serialized).not.toContain("private chain of thought");
++		expect(serialized).not.toContain("request-secret");
++		expect(serialized).not.toContain("environment-secret");
++		expect(serialized).not.toContain("test-api-key");
++	});
++
++	it("stops before ModelRuntime when a capture handler throws", async () => {
++		await expect(
++			runRequest({
++				extensions: [
++					`export default function(pi) {
++						pi.on("before_model_request", () => { throw new Error("capture rejected"); });
++					}`,
++				],
++			}),
++		).rejects.toThrow("capture rejected");
++		expect((globalThis as Record<string, unknown>)[RUNTIME_STORE]).toBe(0);
++	});
++
++	it("gives each handler an isolated public projection", async () => {
++		const result = await runRequest({
++			extensions: [
++				`export default function(pi) {
++					pi.on("before_model_request", (event) => {
++						event.context.messages[0].content[0].text = "mutated";
++						event.context.tools[0].parameters.properties.asset.type = "number";
++						event.options.timeoutMs = 0;
++					});
++				}`,
++				`export default function(pi) {
++					pi.on("before_model_request", (event) => {
++						globalThis.${EVENT_STORE}.push({ kind: "second", event });
++					});
++				}`,
++			],
++		});
++
++		const second = result.events[0] as { event: { context: Context; options: Record<string, unknown> } };
++		expect(second.event.context.messages[0]).toMatchObject({
++			role: "user",
++			content: [
++				{ type: "text", text: "inspect assets" },
++				{ type: "image", data: "image-bytes", mimeType: "image/png" },
++			],
++		});
++		expect(second.event.context.tools?.[0].parameters).toMatchObject({
++			properties: { asset: { type: "string" } },
++		});
++		expect(second.event.options.timeoutMs).toBe(123);
++		expect(result.runtimeContext.messages[0]).toMatchObject({
++			role: "user",
++			content: [
++				{ type: "text", text: "inspect assets" },
++				{ type: "image", data: "image-bytes", mimeType: "image/png" },
++			],
++		});
++	});
++
++	it("fails closed on an unsupported context role", async () => {
++		await expect(
++			runRequest({
++				context: { messages: [{ role: "system", content: "unsupported" }] } as unknown as Context,
++				extensions: [
++					`export default function(pi) {
++						pi.on("before_model_request", () => undefined);
++					}`,
++				],
++			}),
++		).rejects.toThrow();
++		expect((globalThis as Record<string, unknown>)[RUNTIME_STORE]).toBe(0);
++	});
++
++	it("fails closed on unsupported assistant content", async () => {
++		await expect(
++			runRequest({
++				context: {
++					messages: [{ role: "assistant", content: [{ type: "audio", data: "unsafe" }] }],
++				} as unknown as Context,
++				extensions: [
++					`export default function(pi) {
++						pi.on("before_model_request", () => undefined);
++					}`,
++				],
++			}),
++		).rejects.toThrow("unsupported model request assistant content");
++		expect((globalThis as Record<string, unknown>)[RUNTIME_STORE]).toBe(0);
++	});
++
++	async function runRequest({
++		extensions,
++		settings = { httpIdleTimeoutMs: 123 },
++		requestOptions = {},
++		context = semanticContext(),
++	}: {
++		extensions: string[];
++		settings?: Partial<Settings>;
++		requestOptions?: SimpleStreamOptions;
++		context?: Context;
++	}): Promise<{
++		order: string[];
++		events: unknown[];
++		runtimeContext: Context;
++		runtimeOptions: SimpleStreamOptions;
++	}> {
++		const model = createModel("openai-completions");
++		const extensionsDir = join(agentDir, "extensions");
++		mkdirSync(extensionsDir, { recursive: true });
++		for (const [index, source] of extensions.entries()) {
++			writeFileSync(join(extensionsDir, `capture-${index}.ts`), source);
++		}
++
++		const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
++		await authStorage.modify(model.provider, async () => ({ type: "api_key", key: "test-api-key" }));
++		const registry = await createModelRegistry(authStorage, join(agentDir, "models.json"));
++		const order: string[] = [];
++		let runtimeContext: Context | undefined;
++		let runtimeOptions: SimpleStreamOptions | undefined;
++		registry.registerProvider(model.provider, {
++			api: model.api,
++			streamSimple: (_model, receivedContext, receivedOptions) => {
++				(globalThis as Record<string, string[]>)[ORDER_STORE].push("runtime");
++				(globalThis as Record<string, number>)[RUNTIME_STORE] += 1;
++				runtimeContext = receivedContext;
++				runtimeOptions = receivedOptions;
++				return doneStream(model.api);
++			},
++		});
++
++		const { session } = await createAgentSession({
++			cwd,
++			agentDir,
++			model,
++			modelRuntime: getModelRuntime(registry),
++			settingsManager: SettingsManager.inMemory(settings),
++			sessionManager: SessionManager.inMemory(cwd),
++		});
++		try {
++			const stream = await session.agent.streamFunction(model, context, requestOptions);
++			await stream.result();
++			const events = (globalThis as Record<string, unknown>)[EVENT_STORE] as Array<{ kind: string }>;
++			return {
++				order: (globalThis as Record<string, string[]>)[ORDER_STORE],
++				events,
++				runtimeContext: runtimeContext!,
++				runtimeOptions: runtimeOptions!,
++			};
++		} finally {
++			session.dispose();
++			registry.unregisterProvider(model.provider);
++		}
++	}
++});
++
++function createModel(api: Api): Model<Api> {
++	return {
++		id: "capture-model",
++		name: "Capture Model",
++		api,
++		provider: "capture-provider",
++		baseUrl: "https://capture.invalid/v1",
++		reasoning: false,
++		input: ["text"],
++		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
++		contextWindow: 128000,
++		maxTokens: 4096,
++	};
++}
++
++function semanticContext(): Context {
++	return {
++		messages: [
++			{
++				role: "user",
++				content: [
++					{ type: "text", text: "inspect assets" },
++					{ type: "image", data: "image-bytes", mimeType: "image/png" },
++				],
++				timestamp: Date.now(),
++			},
++			{
++				role: "assistant",
++				content: [
++					{ type: "thinking", thinking: "private chain of thought" },
++					{ type: "text", text: "I will inspect the asset." },
++					{ type: "toolCall", id: "call-1", name: "inventory_lookup", arguments: { asset: "A-1" } },
++				],
++				api: "openai-completions",
++				provider: "capture-provider",
++				model: "capture-model",
++				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
++				stopReason: "toolUse",
++				timestamp: Date.now(),
++			},
++			{
++				role: "toolResult",
++				toolCallId: "call-1",
++				toolName: "inventory_lookup",
++				content: [
++					{ type: "text", text: "asset A-1 found" },
++					{ type: "image", data: "result-image", mimeType: "image/png" },
++				],
++				details: { source: "inventory", revision: 7 },
++				isError: false,
++				timestamp: Date.now(),
++			},
++		],
++		tools: [
++			{
++				name: "inventory_lookup",
++				description: "Look up inventory",
++				parameters: { type: "object", properties: { asset: { type: "string" } } },
++			},
++		],
++	};
++}
++
++function doneStream(api: Api) {
++	const stream = createAssistantMessageEventStream();
++	const message: AssistantMessage = {
++		role: "assistant",
++		content: [{ type: "text", text: "ok" }],
++		api,
++		provider: "capture-provider",
++		model: "capture-model",
++		usage: {
++			input: 0,
++			output: 0,
++			cacheRead: 0,
++			cacheWrite: 0,
++			totalTokens: 0,
++			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
++		},
++		stopReason: "stop",
++		timestamp: Date.now(),
++	};
++	stream.end(message);
++	return stream;
++}

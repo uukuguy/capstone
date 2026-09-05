@@ -144,7 +144,8 @@ pyright 1.1.408 in standard mode (Python 3.12 minimum) across all production
 `src` trees plus the workbench check; three localized Pydantic schema-attribute
 overrides in Kernel output models are intentional public-wire compatibility
 exceptions. `make check-fast` combines boundaries, types, and units;
-`make check-integration` runs E2E and provider-free validation; and
+`make check-integration` runs E2E, the built-SDK capture smoke
+(`make test-pi-capture-runtime`), and provider-free validation; and
 `make check-release` adds clean package and source-setup checks. None invokes
 a paid provider.
 

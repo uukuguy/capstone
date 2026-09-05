@@ -10,20 +10,20 @@ def _valid_lock() -> dict[str, object]:
         "schema_version": 2,
         "source": {
             "repository": "https://github.com/earendil-works/pi.git",
-            "commit": "2b3fda9921b5590f285165287bd442a25817f17b",
+            "commit": "b79e4cc834970cca69daebffab7df1da7d1e52c4",
         },
         "package": {
             "name": "@earendil-works/pi-coding-agent",
-            "version": "0.80.6",
+            "version": "0.84.4",
             "directory": "packages/coding-agent",
             "executable": "dist/cli.js",
             "oauth_helper": "packages/ai/dist/cli.js",
-            "npm_integrity": "sha512-vcfD6tOk402isLl3Cm/qbn2O10TvgroMp1+/fEGM24ZdvETFCdOYv5VZ7m59EI5fPsjfSJh+CpQ5bhBrhfOg7g==",
+            "npm_integrity": "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
         },
         "runtime": {
             "node_minimum": "22.19.0",
-            "pi_ai_version": "0.80.6",
-            "pi_ai_npm_integrity": "sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==",
+            "pi_ai_version": "0.84.4",
+            "pi_ai_npm_integrity": "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
         },
     }
 
@@ -47,3 +47,7 @@ def test_lock_rejects_package_paths_outside_managed_source(
 
     with pytest.raises(PiRuntimeLockError, match="path"):
         PiRuntimeLock._validate(payload)
+
+
+def test_lock_accepts_the_selected_candidate_identity() -> None:
+    PiRuntimeLock._validate(_valid_lock())

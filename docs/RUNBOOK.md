@@ -85,7 +85,11 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 
 `runs/` 是操作者可检查的运行记录，已被 Git 忽略。`.grid-agent/` 只存放项目内部 Pi OAuth、托管 Pi runtime、会话状态等内部状态，同样被 Git 忽略。版本化运行配置位于 `configs/runtime/`，例如 `configs/runtime/pi-runtime.lock.json`。
 
-当前 Pi 0.80.6 依赖树仍有 2 个 High 和 2 个 Moderate 已知漏洞；它们没有被修复，也不能表述为已消失。临时受理记录是 [`configs/runtime/pi-security-risk-exception-v1.json`](../configs/runtime/pi-security-risk-exception-v1.json)，绝对到期日为 2026-09-30，列出了 provider HTTP/解析攻击面、缓解措施、责任人和升级触发条件。`make check-runtime-risk` 会确定性检查 Pi pin、两个 npm lock 中的脆弱版本、实际 `node_modules` 安装图与 lock 的逐包版本一致性、基线计数和到期日；任一漂移或到期都使 gate 失败。该本地门不声称发现锁版本后来新增的 advisory；release 操作者仍须复核可信 registry/audit 信息。目标仍是验证并升级到安全的 Pi >=0.84.3，而不是续期来替代升级。
+当前锁定 Pi 0.84.4。2026-09-05 对托管源码和两个扩展的三份 frozen lock 执行 npm audit，六项严重度/总计均为零，漏洞列表为空；真实构建 SDK 的通用/grid 捕获成功与拒绝路径也已验证。精确版本、源码、补丁、三份锁与依赖图、审计摘要和捕获结果记录在 [`configs/runtime/pi-security-remediation-v1.json`](../configs/runtime/pi-security-remediation-v1.json)。这是一份特定时间、特定依赖状态的验证记录，不保证未来没有新增 advisory，也不代替完整发布验收。
+
+旧 Pi 0.80.6 的 2 个 High 和 2 个 Moderate 风险仍按原文保存在 [历史例外](../configs/runtime/pi-security-risk-exception-v1.json)，其 2026-09-30 到期日不变；不得将新版本审计结果写成旧版本漏洞已经消失。`make check-runtime-risk` 默认只做本地验证：新版本须匹配 remediation 绑定及实际安装图，旧版本继续受原例外与到期门约束，未知版本拒绝。审计不会在默认门禁中自动联网执行；release 操作者仍须复核可信 registry/audit 信息。
+
+`make install-pi` 遇到含旧补丁或其他本地修改的托管源码时，会将整个目录保留为 `.grid-agent/runtime/pi/source-preserved-<id>` 后重新安装，不删除旧源码或认证状态。新安装未完成时不启用 active marker。`make test-pi-capture-runtime` 使用真实已构建 SDK 与两套扩展、仅替换模型传输端，离线验证先持久化再调用及捕获失败阻断；它已纳入 `check-integration` / `check-release`。
 
 ## 连续分析报告
 

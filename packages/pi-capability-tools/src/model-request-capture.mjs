@@ -98,9 +98,9 @@ async function readJson(path) {
 
 function defaultRuntimeIdentity() {
   return {
-    pi_coding_agent_version: "0.80.6",
-    pi_ai_version: "0.80.6",
-    pi_source_commit: "2b3fda9921b5590f285165287bd442a25817f17b",
+    pi_coding_agent_version: "0.84.4",
+    pi_ai_version: "0.84.4",
+    pi_source_commit: "b79e4cc834970cca69daebffab7df1da7d1e52c4",
     pi_patch_set_sha256: "458794796163d70c71846a4f38a543bf2ed495547c5fd216b2f1e0d684e1da0e",
   };
 }

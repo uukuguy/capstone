@@ -31,6 +31,7 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
         "packages/pi-capability-tools",
         "packages/trajectory-workbench",
         "tools/tests/test_verification_targets.py",
+        "tools/tests/test_runtime_risk_exception.py",
     ):
         assert expected in output
     assert "pytest packages/grid-agent/tests/e2e -q" not in output
@@ -44,17 +45,21 @@ def test_release_graph_has_all_named_layers_without_recursion() -> None:
         "validation-application-instantiation",
         "test_package_artifacts.sh",
         "test_source_setup.sh",
+        "test_pi_capture_runtime.mjs",
     ):
         assert expected in output
     assert output.count("packages/capability-agent-kernel/tests") == 1
     assert output.count("npm run check --prefix packages/trajectory-workbench") == 1
     assert output.count("python3 tools/check_package_boundaries.py") == 1
+    assert output.count("tools/tests/test_runtime_risk_exception.py") == 1
+    assert output.count("node tools/test_pi_capture_runtime.mjs") == 4
+    assert "npm audit" not in output
 
 
 def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
     leaves = {
         "check-fast": ("check-package-boundaries", "check-types", "test"),
-        "check-integration": ("test-e2e", "validate", "validate-application"),
+        "check-integration": ("test-pi-capture-runtime", "test-e2e", "validate", "validate-application"),
         "check-release": ("test-packages", "test-source-setup"),
     }
     for aggregate, dependencies in leaves.items():

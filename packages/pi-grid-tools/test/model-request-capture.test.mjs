@@ -308,9 +308,9 @@ function fixturePaths(root, options = {}) {
 
 function runtimeIdentity() {
   return {
-    pi_coding_agent_version: "0.80.6",
-    pi_ai_version: "0.80.6",
-    pi_source_commit: "2b3fda9921b5590f285165287bd442a25817f17b",
+    pi_coding_agent_version: "0.84.4",
+    pi_ai_version: "0.84.4",
+    pi_source_commit: "b79e4cc834970cca69daebffab7df1da7d1e52c4",
     pi_patch_set_sha256: "4".repeat(64),
   };
 }

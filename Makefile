@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup
+.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -113,7 +113,7 @@ test-makefile-application:
 	bash tools/test_makefile_application.sh
 
 test-verification-targets:
-	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py -q
+	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py -q
 
 test-agent:
 	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e -q
@@ -151,7 +151,13 @@ check-types: check-workbench
 
 check-fast: check-package-boundaries check-types test
 
-check-integration: test-e2e validate validate-application
+test-pi-capture-runtime:
+	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode success
+	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode failure
+	node tools/test_pi_capture_runtime.mjs --wrapper grid --mode success
+	node tools/test_pi_capture_runtime.mjs --wrapper grid --mode failure
+
+check-integration: test-pi-capture-runtime test-e2e validate validate-application
 
 check-release: check-fast check-integration test-packages test-source-setup
 

@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
@@ -62,6 +63,8 @@ class PiRuntimeInstaller:
         source = self._prepare_source_dir()
         self._clear_active_marker()
         self._verify_patch_bytes()
+        self._preserve_dirty_source(source)
+        source = self._prepare_source_dir()
         if not (source / ".git").exists():
             self._run(["git", "init"])
         self._run(["git", "remote", "remove", "origin"], check=False)
@@ -154,6 +157,25 @@ class PiRuntimeInstaller:
         except OSError as exc:
             raise PiRuntimeInstallerError("managed runtime active marker could not be removed") from exc
 
+    def _preserve_dirty_source(self, source: Path) -> None:
+        """Keep an existing managed checkout intact when it has local changes.
+
+        A previous runtime's applied patch is a local Git change and blocks a
+        checkout to a new pinned commit. Moving the entire dirty checkout aside
+        avoids treating it as disposable while allowing the new installation to
+        start from a fresh repository.
+        """
+        if not (source / ".git").exists():
+            return
+        status = self._run(["git", "status", "--porcelain"]).stdout
+        if not status.strip():
+            return
+        preserved = source.with_name(f"{source.name}-preserved-{uuid.uuid4().hex}")
+        try:
+            source.rename(preserved)
+        except OSError as exc:
+            raise PiRuntimeInstallerError("dirty managed runtime source could not be preserved") from exc
+
     def _apply_patch(self, patch: PiRuntimePatch) -> None:
         self._verify_patch_bytes(patch)
         self._run(["git", "apply", "--check", str(patch.path)])
@@ -178,7 +200,10 @@ class PiRuntimeInstaller:
     def _run_pi_build(self) -> None:
         for workspace in (
             "@earendil-works/pi-tui",
+            "@earendil-works/pi-telemetry",
             "@earendil-works/pi-agent-core",
+            "@earendil-works/pi-protocol",
+            "@earendil-works/pi-client",
             "@earendil-works/pi-coding-agent",
         ):
             self._run(["npm", "run", "build", "--workspace", workspace], timeout=max(self.timeout_seconds, 300))

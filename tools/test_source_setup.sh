@@ -59,7 +59,7 @@ if checked < 1:
 pi_ai = json.loads(
     (installed_root / "@earendil-works/pi-ai/package.json").read_text(encoding="utf-8")
 )
-if pi_ai.get("version") != "0.80.6":
+if pi_ai.get("version") != "0.84.4":
     raise SystemExit(f"source setup installed unexpected Pi AI version: {pi_ai.get('version')}")
 PY
 (

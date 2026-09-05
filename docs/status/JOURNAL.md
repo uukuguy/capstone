@@ -712,3 +712,10 @@ _Recovered pre-merge mainline entries._
 - 07:17 独立登记inventory资源注解tree，doctor及全部保护摘要检查通过 [2a81535]。
 - 07:19 完整包/类型/CI门禁独立复审PASS，6自检通过；固定源码启动doctor/check-release [2ce5152]。
 - 07:26 2ce5152完整release exit0，全部六Python/两Pi/UI/E2E/验证/安装通过；关闭OP05，启动OP06候选验证。
+- 07:26 固化全包验收与Pi候选恢复边界，阻止未验证升级混入已关闭门禁 [1a8167c]。
+- 07:35 0.84.4隔离包图225及源码图411审计total0；补丁5测试/build通过，开始实际锁迁移，例外未关闭。
+- 07:40 实际两扩展锁frozen安装及audit total0，Pi34/43、Kernel pin5通过；托管runtime待安装，补丁顺序测试待修。
+- 07:48 最终patch修复真实顺序等断言后6通过；真实升级被旧patch阻断，安装器修复与checker独立复审中。
+- 07:54 真实Git升级回归34通过并复审PASS；managed0.84.4安装/doctor成功，旧源码保留source-preserved-e75b4119c3bc411b835e686d0307786f。
+- 07:54 三实际installed图验证通过、managed audit411依赖total0；checker修复10测试及Make16通过，独立复审PASS。
+- 08:02 实际SDK双wrapper成功/拒绝四例通过并复审PASS；真实三锁审计与捕获结果生成remediation，本地风险门通过，E2E31通过。

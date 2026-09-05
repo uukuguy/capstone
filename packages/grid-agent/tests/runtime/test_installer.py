@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -14,8 +15,8 @@ from grid_agent.runtime.locator import PiRuntimeLocator, PiRuntimeLocatorError
 from grid_agent.runtime.lock import PiRuntimeLock, PiRuntimeLockError
 
 
-PATCH_RELATIVE_PATH = "patches/pi-0.80.6-before-model-request.patch"
-PATCH_SHA256 = "28accf22df2a59129fe7710bc9c1d7286cfab8fc1ca15dfda87f797109d85226"
+PATCH_RELATIVE_PATH = "patches/pi-0.84.4-before-model-request.patch"
+PATCH_SHA256 = "64c2ce9b8b0bc1d83b4c82ed06a5e715624b4e836b5f735b8983fa0f67d9c116"
 
 
 def expected_patches_sha256(*patches: tuple[str, str]) -> str:
@@ -36,15 +37,17 @@ class FakeRunner:
     def __init__(
         self,
         *,
-        version: str = "0.80.6",
+        version: str = "0.84.4",
         fail_build: bool = False,
         fail_patch_check: bool = False,
         fail_patch_apply: bool = False,
+        managed_source_status: str = "",
     ) -> None:
         self.version = version
         self.fail_build = fail_build
         self.fail_patch_check = fail_patch_check
         self.fail_patch_apply = fail_patch_apply
+        self.managed_source_status = managed_source_status
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, Any]] = []
 
@@ -52,6 +55,8 @@ class FakeRunner:
         self.calls.append(list(argv))
         self.kwargs.append(kwargs)
         cwd = Path(kwargs["cwd"])
+        if list(argv) == ["git", "status", "--porcelain"]:
+            return subprocess.CompletedProcess(list(argv), 0, self.managed_source_status, "")
         if list(argv)[:3] == ["git", "apply", "--check"] and self.fail_patch_check:
             return subprocess.CompletedProcess(list(argv), 1, "", "patch does not apply")
         if list(argv)[:2] == ["git", "apply"] and self.fail_patch_apply:
@@ -66,7 +71,7 @@ class FakeRunner:
             archive.write_text("fixture", encoding="utf-8")
             return subprocess.CompletedProcess(
                 list(argv), 0,
-                '[{"filename":"pi-ai.tgz","integrity":"sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA=="}]', "",
+                '[{"filename":"pi-ai.tgz","integrity":"sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw=="}]', "",
             )
         if list(argv)[:3] == ["tar", "-xzf", ""]:
             raise AssertionError("unreachable")
@@ -85,6 +90,17 @@ class FakeRunner:
         return subprocess.CompletedProcess(list(argv), 0, "", "")
 
 
+class GitRunner(FakeRunner):
+    """Use a real local Git repository while keeping npm/network operations fake."""
+
+    def __call__(self, argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if list(argv)[0] == "git":
+            self.calls.append(list(argv))
+            self.kwargs.append(kwargs)
+            return subprocess.run(list(argv), **kwargs)
+        return super().__call__(argv, **kwargs)
+
+
 @pytest.fixture
 def fake_runner() -> FakeRunner:
     return FakeRunner()
@@ -95,20 +111,20 @@ def lock_data(*, patches: list[dict[str, str]] | None = None) -> dict[str, Any]:
         "schema_version": 2,
         "source": {
             "repository": "https://github.com/earendil-works/pi.git",
-            "commit": "2b3fda9921b5590f285165287bd442a25817f17b",
+            "commit": "b79e4cc834970cca69daebffab7df1da7d1e52c4",
         },
         "package": {
             "name": "@earendil-works/pi-coding-agent",
-            "version": "0.80.6",
+            "version": "0.84.4",
             "directory": "packages/coding-agent",
             "executable": "dist/cli.js",
             "oauth_helper": "packages/ai/dist/cli.js",
-            "npm_integrity": "sha512-vcfD6tOk402isLl3Cm/qbn2O10TvgroMp1+/fEGM24ZdvETFCdOYv5VZ7m59EI5fPsjfSJh+CpQ5bhBrhfOg7g==",
+            "npm_integrity": "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==",
         },
         "runtime": {
             "node_minimum": "22.19.0",
-            "pi_ai_version": "0.80.6",
-            "pi_ai_npm_integrity": "sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==",
+            "pi_ai_version": "0.84.4",
+            "pi_ai_npm_integrity": "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==",
         },
     }
     if patches is not None:
@@ -126,7 +142,7 @@ def write_lock(root: Path, data: dict[str, Any], patch_bytes: bytes = b"diff --g
 
 
 def test_lock_records_schema_v2_pi_ai_version_and_verified_patch_identity(runtime_lock: PiRuntimeLock) -> None:
-    assert runtime_lock.pi_ai_version == "0.80.6"
+    assert runtime_lock.pi_ai_version == "0.84.4"
     assert len(runtime_lock.patches) == 1
     assert runtime_lock.patches[0].path == runtime_lock.path.parent / PATCH_RELATIVE_PATH
     assert runtime_lock.patches[0].sha256 == PATCH_SHA256
@@ -162,9 +178,19 @@ def test_installer_uses_detached_pinned_commit(tmp_path: Path, fake_runner: Fake
     assert ["git", "apply", "--check", str(runtime_lock.patches[0].path)] in fake_runner.calls
     assert ["git", "apply", str(runtime_lock.patches[0].path)] in fake_runner.calls
     assert ["npm", "ci"] in fake_runner.calls
-    assert ["npm", "run", "build", "--workspace", "@earendil-works/pi-tui"] in fake_runner.calls
-    assert ["npm", "run", "build", "--workspace", "@earendil-works/pi-agent-core"] in fake_runner.calls
-    assert ["npm", "run", "build", "--workspace", "@earendil-works/pi-coding-agent"] in fake_runner.calls
+    build_calls = [
+        call
+        for call in fake_runner.calls
+        if call[:4] == ["npm", "run", "build", "--workspace"]
+    ]
+    assert build_calls == [
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-tui"],
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-telemetry"],
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-agent-core"],
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-protocol"],
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-client"],
+        ["npm", "run", "build", "--workspace", "@earendil-works/pi-coding-agent"],
+    ]
     assert fake_runner.calls.index(["git", "checkout", "--detach", runtime_lock.commit]) < fake_runner.calls.index(
         ["git", "reset", "--hard", runtime_lock.commit]
     )
@@ -175,8 +201,8 @@ def test_installer_uses_detached_pinned_commit(tmp_path: Path, fake_runner: Fake
         ["git", "apply", "--check", str(runtime_lock.patches[0].path)]
     )
     assert fake_runner.calls.index(["git", "apply", str(runtime_lock.patches[0].path)]) < fake_runner.calls.index(["npm", "ci"])
-    assert command.identity.commit == "2b3fda9921b5590f285165287bd442a25817f17b"
-    assert command.identity.pi_ai_version == "0.80.6"
+    assert command.identity.commit == "b79e4cc834970cca69daebffab7df1da7d1e52c4"
+    assert command.identity.pi_ai_version == "0.84.4"
     assert command.identity.patches_sha256 == runtime_lock.patches_sha256
 
 
@@ -291,6 +317,65 @@ def test_installer_normal_managed_source_proceeds_after_validation(
     assert fake_runner.calls[0] == ["git", "init"]
 
 
+def test_installer_preserves_dirty_previous_managed_source_before_upgrade(
+    tmp_path: Path,
+    runtime_lock: PiRuntimeLock,
+) -> None:
+    paths = ProjectPaths.from_root(tmp_path)
+    source = paths.pi_runtime_dir / "source"
+    source.joinpath(".git").mkdir(parents=True)
+    source.joinpath("packages/coding-agent/src/core/sdk.ts").parent.mkdir(parents=True)
+    source.joinpath("packages/coding-agent/src/core/sdk.ts").write_text("legacy managed patch\n", encoding="utf-8")
+    stale_marker = paths.pi_runtime_dir / "active"
+    stale_marker.write_text("stale marker\n", encoding="utf-8")
+    runner = FakeRunner(managed_source_status=" M packages/coding-agent/src/core/sdk.ts\n")
+
+    PiRuntimeInstaller(runtime_lock, paths.pi_runtime_dir, runner=runner).install()
+
+    preserved_sources = list(paths.pi_runtime_dir.glob("source-preserved-*"))
+    assert len(preserved_sources) == 1
+    assert preserved_sources[0].joinpath("packages/coding-agent/src/core/sdk.ts").read_text(encoding="utf-8") == "legacy managed patch\n"
+    assert ["git", "status", "--porcelain"] in runner.calls
+    assert runner.calls.index(["git", "status", "--porcelain"]) < runner.calls.index(["git", "init"])
+    assert stale_marker.read_text(encoding="utf-8") != "stale marker\n"
+
+
+def test_installer_upgrades_dirty_managed_checkout_with_real_git(tmp_path: Path) -> None:
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    subprocess.run(["git", "init"], cwd=upstream, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=upstream, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.name", "Runtime test"], cwd=upstream, check=True, capture_output=True, text=True)
+    upstream.joinpath("tracked.txt").write_text("candidate\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=upstream, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "candidate"], cwd=upstream, check=True, capture_output=True, text=True)
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=upstream, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+    patch_bytes = b"diff --git a/installed-marker b/installed-marker\nnew file mode 100644\nindex 0000000..4b825dc\n--- /dev/null\n+++ b/installed-marker\n@@ -0,0 +1 @@\n+installed\n"
+    patch_digest = hashlib.sha256(patch_bytes).hexdigest()
+    data = lock_data(
+        patches=[{"path": PATCH_RELATIVE_PATH, "sha256": patch_digest}],
+    )
+    lock = replace(
+        PiRuntimeLock.load(write_lock(tmp_path / "lock", data, patch_bytes)),
+        repository=str(upstream),
+        commit=commit,
+    )
+    paths = ProjectPaths.from_root(tmp_path / "state")
+    paths.pi_runtime_dir.mkdir(parents=True)
+    subprocess.run(["git", "clone", str(upstream), str(paths.pi_runtime_dir / "source")], check=True, capture_output=True, text=True)
+    paths.pi_runtime_dir.joinpath("source", "tracked.txt").write_text("legacy patch\n", encoding="utf-8")
+
+    PiRuntimeInstaller(lock, paths.pi_runtime_dir, runner=GitRunner()).install()
+
+    preserved = next(paths.pi_runtime_dir.glob("source-preserved-*"))
+    assert preserved.joinpath("tracked.txt").read_text(encoding="utf-8") == "legacy patch\n"
+    assert paths.pi_runtime_dir.joinpath("source", "tracked.txt").read_text(encoding="utf-8") == "candidate\n"
+    assert paths.pi_runtime_dir.joinpath("source", "installed-marker").read_text(encoding="utf-8") == "installed\n"
+
+
 def test_installer_rehashes_patch_bytes_before_running_git(tmp_path: Path, runtime_lock: PiRuntimeLock) -> None:
     patch = runtime_lock.patches[0].path
     lock_root = tmp_path / "runtime"
@@ -311,8 +396,8 @@ def test_installer_rehashes_patch_bytes_before_running_git(tmp_path: Path, runti
 
 
 def test_installer_rejects_version_mismatch(tmp_path: Path, runtime_lock: PiRuntimeLock) -> None:
-    with pytest.raises(PiRuntimeInstallerError, match="0.80.6"):
-        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(version="0.80.5")).install()
+    with pytest.raises(PiRuntimeInstallerError, match="0.84.4"):
+        PiRuntimeInstaller(runtime_lock, ProjectPaths.from_root(tmp_path).pi_runtime_dir, runner=FakeRunner(version="0.84.3")).install()
 
 
 @pytest.mark.parametrize("runner", [FakeRunner(fail_patch_check=True), FakeRunner(fail_patch_apply=True)])

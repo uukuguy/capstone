@@ -150,17 +150,17 @@ class PiRuntimeLock:
             )
         if source["repository"] != "https://github.com/earendil-works/pi.git":
             raise PiRuntimeLockError("runtime lock repository is not pinned")
-        if source["commit"] != "2b3fda9921b5590f285165287bd442a25817f17b":
+        if source["commit"] != "b79e4cc834970cca69daebffab7df1da7d1e52c4":
             raise PiRuntimeLockError("runtime lock commit is not pinned")
         if package["name"] != "@earendil-works/pi-coding-agent":
             raise PiRuntimeLockError("runtime lock package is not pinned")
-        if package["version"] != "0.80.6":
+        if package["version"] != "0.84.4":
             raise PiRuntimeLockError("runtime lock package version is not pinned")
-        if runtime["pi_ai_version"] != "0.80.6":
+        if runtime["pi_ai_version"] != "0.84.4":
             raise PiRuntimeLockError("runtime lock dependency version is not pinned")
-        if runtime["pi_ai_npm_integrity"] != "sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==":
+        if runtime["pi_ai_npm_integrity"] != "sha512-AClAZxf5+c4RRu44NJPS6wyQy+Nmq+Mzyyrdvm4ZVMNuixelO02RZX4G4Aq1F145Yzp43wnM5S+hLlSI7ypfVw==":
             raise PiRuntimeLockError("runtime lock dependency integrity is not pinned")
-        if package["npm_integrity"] != "sha512-vcfD6tOk402isLl3Cm/qbn2O10TvgroMp1+/fEGM24ZdvETFCdOYv5VZ7m59EI5fPsjfSJh+CpQ5bhBrhfOg7g==":
+        if package["npm_integrity"] != "sha512-jmOlrqUmvhh/siNWFRXjYLJzhKFIHNsAQaysRwzQPQFnPAaV/vhqHsLH/MBsIISA1Rjj7WTUFR3nJrpXoLx39w==":
             raise PiRuntimeLockError("runtime lock package integrity is not pinned")
         for field_name in ("directory", "executable", "oauth_helper"):
             _validate_package_path(package[field_name], field_name)

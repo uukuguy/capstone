@@ -17,7 +17,7 @@ def runtime_lock() -> PiRuntimeLock:
 
 
 class FakeRunner:
-    def __init__(self, *, version: str = "0.80.6") -> None:
+    def __init__(self, *, version: str = "0.84.4") -> None:
         self.version = version
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, Any]] = []
@@ -152,8 +152,8 @@ def test_locator_records_managed_identity_and_lock_sha(tmp_path: Path, runtime_l
     assert command.identity.source == "managed"
     assert command.identity.commit == runtime_lock.commit
     assert command.identity.lock_sha256 == runtime_lock.sha256
-    assert command.identity.package_version == "0.80.6"
-    assert command.identity.pi_ai_version == "0.80.6"
+    assert command.identity.package_version == "0.84.4"
+    assert command.identity.pi_ai_version == "0.84.4"
     assert command.identity.patches_sha256 == runtime_lock.patches_sha256
 
 
@@ -200,7 +200,7 @@ def test_probe_runs_non_generation_version_check(tmp_path: Path) -> None:
         runner=runner,
     ).probe()
 
-    assert probed.version == "0.80.6"
+    assert probed.version == "0.84.4"
     assert runner.calls == [["/opt/homebrew/bin/pi", "--version"]]
     assert runner.kwargs[0]["shell"] is False
     assert runner.kwargs[0]["capture_output"] is True
