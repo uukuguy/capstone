@@ -8,18 +8,18 @@
 | `JOURNAL.md` | Append-only durable event log. |
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |
-| `DECISIONS.md` | Active architectural decisions, including domain-only report optionality/versioning. |
+| `DECISIONS.md` | Active architectural decisions, including framework-first scope/deferrals and domain-only report optionality/versioning. |
 | `climb/research-tree.md` | Generated Workstream C inventory reference-domain scoring summary; resume-load. |
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
 | `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |
 | `2026-09-05-capstone-design-code-review.md` | Optimization evidence baseline R01–R13; current remediation status belongs to the canonical plan. |
-| `capstone-scope-cleanup-backlog.md` | 超纲实现清理候选、实际位置与风险；用户要求后续评估，当前不执行删除。 |
+| `capstone-scope-cleanup-backlog.md` | 超纲实现清理候选、实际位置与风险；静态产物缺口已由7e9b10c补齐，当前不执行删除。 |
 
 ## External execution anchors
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist v2: framework integration focus; OP08 basic display accepted, strict JSON extension and OP13 deferred; OP14 final reconciliation active. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical optimization worklist v2 accepted: framework integration verified; strict JSON extension and OP13 deferred; branch preserved, no automatic C.2 or cleanup. |
 
 ## Climb storage and configuration
 

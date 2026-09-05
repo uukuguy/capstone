@@ -11,10 +11,10 @@
 ## 1. 状态、依据与授权边界
 
 - 方案版本：2，2026-09-05；用户明确框架优先后收敛范围；代码审查基线：`5a38c5b`。
-- 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
+- 用户已授权按本方案持续实施；Terra负责协调与普通工作，仅在有明确收益时将有界任务交Luna/Terra，复杂或高风险事项按AGENTS使用Sol专项复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行：OP08仅收尾已有上下文功能并验收，任意规模语义解析已暂缓；OP13复杂分段实现暂缓、默认legacy。随后按框架公共接口、能力包接入和跨领域复用验收OP14。全方案尚未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前终态：OP01–12及OP14按用户修订的v2范围完成验收；OP08任意规模语义解析与OP13复杂分段实现DEFERRED，默认legacy。7e9b10c集成源码的doctor/check-release已exit0，最终文档对账完成。交付保留在feat/capstone-optimization及.worktrees/capstone-optimization，不自动合并、推送或启动C.2。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -35,6 +35,8 @@ Capstone的核心是：在统一智能体框架下接入不同业务能力包，
 本条是用户对产品目的的明确纠偏，不只是测试频率调整。后续恢复必须先读本条，不继续执行下方已被覆盖的严格资源/解析器/存储门槛。
 
 ### 整体精简与交付重排（用户指出两小时投入失衡后；优先于旧切片门槛）
+
+> 历史调度记录：本小节表格及“最短交付顺序”已被上方用户产品定位和§3状态表覆盖，不再授权继续OP08领域有界解析或OP13复审/生产化；保留原文仅供追溯。
 
 本次调整改变实施方式和顺序，不把尚未交付的原目标标为完成。保留历史证据，不因沉没投入强行接入自研组件。日常循环不再要求每个私有小改独立设计报告、独立代码复审及整套release；信任/持久化/公共SPI变更仍遵守AGENTS及§4风险复审，完整交付执行仓库支持门禁。
 
@@ -84,7 +86,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | DONE | de3a5c7九样本/实测复审/固定完整release PASS，100.339/100.490写入倍率触发OP13 |
 | OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | DEFERRED | 用户明确框架优先后暂缓；A已验收3bc24a2；B脏改动未验收且保留隔离，C/D不启动；默认legacy，不宣称实现完成 |
-| OP-14 | 5 | 框架集成关闭与范围对账 | OP-01–12，OP-13 disposition 已记录 | RUNNING | 应用实例化2/2与inventory通用流程通过；待当前集成提交的最终证据/文档对账，不扩外围性能项目 |
+| OP-14 | 5 | 框架集成关闭与范围对账 | OP-01–12，OP-13 disposition 已记录 | DONE | 7e9b10c相同源码doctor/check-release exit0；R01–R13及保证边界对账、独立文档复审问题关闭；明确保留DEFERRED项 |
 
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
 2026-09-05调度补充：OP08额外跨层范围待用户批准时，按已满足的依赖推进独立OP10；不把自动续行视为OP08批准，不启动依赖OP08的OP09。OP10既有范围保持不变。
@@ -373,6 +375,8 @@ assert materialize_spy.call_count == 1
 关闭验收：固定 `7638188365482966bf57888904b3d02dbfe3d189` 的 `make doctor && make check-release` exit0（08:55 CST），结束后HEAD未变化，仅状态文档dirty。agent785、sim165、Kernel438、pandapower79、inventory11/13/1、Pi34/43、UI128、门禁自检18、SDK四例、E2E31、offline/scripted/24-of-24、完整应用、六wheel/两npm干净安装和frozen源码安装全部通过。证据 `runs/optimization/OP-07/gate-release-7638188.json` 保存命令/HEAD/退出码与捕获输出；其中一段模拟器上游warnings被工具截断，测试总数和终态保留，不声称无截断控制台转录。未运行付费provider或远端CI矩阵。
 
 ### OP-08：服务端限制工件和上下文预览
+
+> 当前终态：v2基础展示已完成（ab247eb、0bfc69d、7e9b10c）。下方带时间的开发记录、原型清单和未勾选项均为非活跃历史；其中“未提交/不能关闭/需继续Domain有界验证”只描述当时状态，不是当前指令。任意JSON严格有界扩展DEFERRED，未授权继续执行。
 
 **v2范围验收，2026-09-05 19:21**：基础展示改动收尾；独立实现复审两项（父目录替换、未检查状态的误导标题）已结清。最终trajectory+benchmark345、工作台154、类型/doctor通过；浏览器13通过。原门禁38874在旧benchmark helper契约失败，已修复；从失败目标续跑50882最终exit0，涵盖verification targets、Kernel、Domain、generic tools、inventory、Workbench、CLI E2E31与validate7/10/8，另应用实例化2/2。未重复不受最后小改影响的已通过模拟器门禁。此验收覆盖用户修订后的基础预览/上下文展示，不证明任意JSON严格内存上界、不验收OP13脏改动；相关超纲代码保留在清理候选记录中。
 
@@ -941,6 +945,8 @@ uv run --project packages/grid-agent python tools/benchmark_optimization.py --ev
   unreviewed writer switch. OP-08 scope approval remains outstanding.
 
 ### OP-13：触发后实现分段事务日志
+
+> 当前终态：DEFERRED。本节至OP14前的设计、review、starts/controls implementation措辞及全部未勾选任务均为非活跃历史，不能作为执行授权。旧reader提交保留；未验收writer/default-switch/恢复改动隔离保留、不接受、不删除。默认legacy。上方OP12历史记录中的“OP13 starts”同样已被§2和§3覆盖。
 
 **Files**：Modify `packages/capability-agent-kernel/src/capability_agent/application/context_store.py`、`application/workspace.py`；Create `packages/capability-agent-kernel/src/capability_agent/application/context_segments.py`；Test `packages/capability-agent-kernel/tests/application/test_context_store.py`。
 
@@ -2034,14 +2040,41 @@ assert no_partially_committed_transaction()
 
 **Files**：Modify 本计划、`docs/status/CURRENT-STATE.md`、`docs/status/RESUME-NEXT-SESSION.md`、`docs/status/JOURNAL.md`、`docs/status/DECISIONS.md`、`docs/status/INDEX.md`；需要更新产品事实时同步 README 双语和 RUNBOOK。
 
-- [ ] 核对 R01–R13 每项都有已完成包或有依据的范围说明；OP-13 可 NOT_NEEDED，不能空置。OP-06 未关闭则整体 release 不得通过。
-- [ ] 在集成 HEAD 执行 `make doctor`、`make check-release`、`git diff --check`，记录所有失败与最终重跑；不能拼接不同源码版本的通过日志。
-- [ ] 独立复审答案信任、报告失败、路径/凭据、缓存失效和事务恢复；清零高优先级发现，确认测试没有削弱原契约。
-- [ ] 更新用户文档的保证范围：lineage 验证、确定性事实展示、自由文本解释、报告状态各自说明，不能宣称通用语义证明。
-- [ ] C.2 只进入候选选择：重新验证 GitHub authority 边界、API 版本/分页/新鲜度/权限、两个独立任务集和授权外部探针需求。选择记录完成前不添加正式 Domain Pack。
-- [ ] 完成条件写入 DECISIONS/JOURNAL，并将 RESUME 指向具体下一步；此包不自动启动付费验证或外部发布。
+- [x] 核对 R01–R13 每项都有已完成包或有依据的范围说明，见下表；OP13按用户决定DEFERRED，不误标NOT_NEEDED。OP-06 已在41b48d0关闭，当前集成仍执行风险门禁。
+- [x] 集成源码7e9b10c执行`make doctor`、`make check-release`最终exit0，clone的`git diff HEAD --exit-code`通过；早期失败及静态产物补齐过程保留在下方记录，未拼接不同实现通过日志。
+- [x] 已接受源码的答案信任、报告失败、路径/凭据与缓存变更按各包独立复审记录验收；OP14额外文档复审确认保证边界，所发现三项活跃/历史指令冲突已修正。确认OP13脏改动未进入验收clone；不借OP14重新复审或接受暂缓writer/事务实现。最终门禁状态单独记录。
+- [x] 更新用户文档的保证范围：README双语及RUNBOOK区分lineage验证、确定性事实展示、自由文本解释、报告状态；不宣称通用语义证明。
+- [x] C.2按v2只保留既有`docs/status/c2-github-repository-intelligence-candidate.md`候选记录，不开展外部API调研、不选择或添加正式Domain Pack；旧外部探针清单留待另期授权。
+- [x] 完成条件写入DECISIONS/JOURNAL，RESUME记录终态及保留分支/暂缓代码的下一步边界；未启动付费验证或外部发布。
 
 **关闭条件**：源码版本、门禁、证据和文档一致，真实待办没有隐藏在“全部完成”中。提交主题：`docs: close Capstone optimization acceptance`。
+
+#### OP14发现对账（2026-09-05，v2验收完成）
+
+| 发现 | 实现或范围处置 | 现有证据锚点 |
+| --- | --- | --- |
+| R01 答案准入 | OP01完成；谱系不等于自由文本语义证明 | cbc6d97；领域准入及零引用回归 |
+| R02 单问提交 | OP02完成，兼容run使用公共控制器 | c81c83a；CLI E2E与应用实例化 |
+| R03 报告隔离 | OP03完成，主答案与派生报告分别处理 | 6ad5df4；inventory报告故障回归 |
+| R04 门禁覆盖 | OP05完成，各包独立运行并纳入默认test | 2ce5152；Makefile check-release |
+| R05 投影重复工作 | OP07完成；不扩展服务容量保证 | 7638188；缓存及目录测试 |
+| R06 工件资源 | OP08按v2基础展示完成；任意JSON严格有界扩展DEFERRED | ab247eb、0bfc69d、7e9b10c；预览及上下文回归 |
+| R07 日志放大 | OP12测量完成；OP13复杂实现DEFERRED，性能问题未宣称消除 | de3a5c7；默认legacy，未验收改动保留隔离 |
+| R08 跨域完整应用 | OP11完成；inventory是验证能力包，不是新服务产品 | 416a04d、218b672；真实两轮authority、报告、replay及仓库外wheel安装 |
+| R09 类型化接口 | OP10完成 | d5eec21；公共SPI与类型检查 |
+| R10 证据查询错误 | OP09完成 | 97b708b；批量API/前端/部分错误回归 |
+| R11 RPC测试竞态 | OP04完成 | 9d13ea4；runtime及E2E回归 |
+| R12 Pi风险例外 | OP06完成；不自动授权后续依赖升级 | 41b48d0；当前风险门禁及真实Pi捕获 |
+| R13 依赖关系说明 | OP10完成，区分源码导入/运行调用/证据返回 | d5eec21；架构文档及package-boundaries |
+
+集成验收位置：临时本地克隆`/tmp/capstone-op14-NEBqIx/source`，不含OP13脏改动。
+41308在0bfc69d运行独立六wheel/两npm包安装及source-setup，exit0。
+随后setup重建发现随包app.js陈旧；两目录重建字节一致，修复提交7e9b10c。
+97660在setup完成重建后执行doctor/check-release，执行文件内容与7e9b10c一致，clone已切到该提交且diff为空；最终exit0。
+通过范围：类型检查、默认test各独立包、真实Pi捕获四例、E2E31、offline7/7、scripted10/10、full8/8、应用实例化2/2、能力24/24、六wheel/两npm仓库外安装和source-setup。
+当前集成Kernel517（不含未验收OP13测试），agent816、Domain79、inventory11/118/1、Workbench154。报告保存在`runs/optimization/OP-14/7e9b10c/`。
+本地Darwin验证；Node23产生Vitest引擎警告，上游模拟器弃用警告保留，控制台部分输出曾截断，不声称无警告或完整原始转录。远程CI/付费Provider未运行，不在本轮授权验收内。
+最终独立文档复审无Critical，三项Important均为历史指令冲突，已以非活跃标记、OP13排除条件及状态文件DEFERRED说明关闭；没有增加新压力矩阵、重启OP13或外部业务选型。
 
 ## 6. 验收门禁与兼容矩阵
 

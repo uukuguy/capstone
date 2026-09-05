@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## 2026-09-05 — Framework-first optimization scope supersedes service scaling
+
+- **Decision:** the user's product correction governs optimization v2: prioritize public Kernel SPI, independently installable business capability packs, common agent orchestration and current-run authority evidence. Enterprise service capacity is not the target.
+- **Disposition:** OP08's arbitrary-JSON bounded parser and OP13's complex segmented writer/recovery are DEFERRED, not implemented or proven unnecessary. Keep the legacy default and isolate unaccepted changes. Existing prototypes and peripheral mechanisms are recorded for later cleanup, not deleted now.
+- **Acceptance:** OP14 reconciles normal framework, package, compatibility and evidence gates. Inventory remains a cross-domain conformance proof; C.2 remains an unselected candidate with no automatic external research or paid validation.
+- **Evidence:** canonical optimization plan v2 and `capstone-scope-cleanup-backlog.md`. This decision overrides the earlier conditional rule that OP12 scale measurements automatically require OP13 productionization.
+- **Closure:** OP14 accepted against7e9b10c executable source: doctor/check-release exit0, real authority application validation2/2, business suites7/10/8 and capability24/24. Final document review conflicts corrected. Keep the feature branch and excluded OP13 work intact; no automatic merge, publication, new domain or cleanup.
+
 ## 2026-09-05 — Version report optionality in the owning domain contract
 
 - **Decision:** OP-03 keeps `capability-agent-output/1.0` and the exact grid compatibility stdout unchanged, while revising the pandapower payload schema to `pandapower-static-analysis-output/1.1`.

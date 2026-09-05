@@ -131,7 +131,7 @@ make application
 stderr 固定诊断。不要把没有接纳引用的报告检查点当作可信最终报告；必要答案、
 证据和上下文完成事务失败仍会使运行失败。
 
-运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`make application` 是需要 Provider 的正式产品入口；不要把 Provider 凭据写进参数以外的提交文件、日志或工件。完整参数、输出契约、兼容边界和当前运行证据检查见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
+运行后应在 `runs/<run_id>/` 检查当前运行结果/证据 lineage、上下文快照与 replay、答案审计、工具轨迹和已接纳的报告工件。`make application` 是需要 Provider 的正式产品入口；Provider 凭据只保存在环境变量或项目拥有的 ignored 认证状态中，不写入命令参数、提交文件、日志或工件。完整参数、输出契约、兼容边界和当前运行证据检查见 [Pandapower Static-Analysis Application](PANDAPOWER-APPLICATION.md)。
 
 Task 10 的无 Provider 验收用确定性的 scripted model transport 调用同一份已准备 pandapower endpoint，再由真实语义 `gridctl` 执行工具调用。它覆盖 `validation/application/` 中的两个脚本案例，并检查当前运行引用、上下文复用、答案审计、报告摘要/接纳、replay equality 和 `core` + `domains.grid` 输出：
 
@@ -236,6 +236,8 @@ Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具�
 连续分析的 stderr 应显示分析工具调用和一次正常模型完成；trace 不应包含模型发起的 `grid_submit_answer` 调用。若任一必需回合失败，运行状态为 `failed`、CLI 退出码为 `1`，且 `report.md` 必须在回答占位符之后保留该回合已经成功返回的可观察轨迹与工具结果摘要。
 
 最终答案只能引用当前运行中实际存在的 `evidence:sha256:*` 或 `result:sha256:*`。迁移和清理不会删除用户主工作树中的既有 `var/` 数据；本分支只使用新的 ignored `runs/` 和 `.grid-agent/` 布局。
+
+保证范围：引用准入证明当前运行谱系和内容完整性，不逐句验证模型自由文本。确定性事实展示应回到已验证的 authority 结果核对。报告/观察器失败通过独立诊断体现，不撤销已接纳的主答案；排查时分别检查主答案和报告状态，不把报告缺失等同于业务计算失败。必需的证据、答案和上下文提交失败不按展示故障降级。
 
 ## 验证
 

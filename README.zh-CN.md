@@ -31,6 +31,8 @@ Application -> Domain Pack -> Kernel -> registered Authority
 
 完整的所有权、运行时、组合输出和当前运行证据协议以 [Capstone 框架架构](docs/architecture/capstone-framework.md) 为准。
 
+上述保证验证引用完整性和当前运行谱系，不证明模型生成的每句话在语义上正确。确定性事实展示来自已验证的 Authority 结果；自由文本解释仍是模型输出。报告或观察器故障单独记录，不撤销已接纳的主答案；必需的证据和答案持久化失败仍会阻止相应操作成功。Capstone 面向能力包接入与 AI 业务验证，不以企业级服务性能为目标。
+
 ## 首个应用：电网静态分析
 
 本仓库中的首个 Capstone 应用是 `grid-static-analysis`：`grid-agent`
