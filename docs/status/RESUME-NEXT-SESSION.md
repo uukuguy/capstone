@@ -1,5 +1,19 @@
 # Live Session Checkpoint
 
+> Updated: 2026-09-05 22:04 CST. **Session remains active — not a final handoff.**
+
+## Fourth-question discovery classification repair
+
+The user's run-20260905t133022z-c081b57c passed question3 but failed question4:
+successful operation list/describe were incorrectly counted as missing-evidence
+execution. Main now exempts only successful stateless capabilities explicitly
+declaring evidence_required=false; no tool-name whitelist or new API.
+Regression2509 failed before correction; admission11/controller26/type checks
+pass after correction. Full main gates3997 exited0: doctor/test/E2E36,
+validate7+10+8 and coverage24 passed. Repair is delivered directly in main;
+resolve the latest fix commit with git log. No test process remains active.
+The earlier live Provider nine-question workflow is still NOT verified complete.
+
 ## Guide admission regression repair (supersedes historical closure below)
 
 Working directly in main after69a1ca9. Real run
@@ -9,8 +23,8 @@ guide_access_verified (not semantic/numerical verification), retaining existing
 authority evidence admission. Main doctor/test/test-e2e36/validate7+10+8 and
 coverage24 passed (chain11027 exit0). Final four-turn regression84521 also
 passed: both real user guide questions followed by real powerflow; projector15
-and type checks pass. Final review approved; this repair is delivered in main
-(resolve its commit with git log). Do not treat the closure as proof the
+and type checks pass. Final review approved; repair0a04daa is committed in main,
+post-commit doctor passed. No repair process remains active. Do not treat this as proof the
 real Provider nine-question workflow passed. No paid Provider calls authorized.
 
 > Updated: 2026-09-05 20:04 CST. Main delivery closure checkpoint.

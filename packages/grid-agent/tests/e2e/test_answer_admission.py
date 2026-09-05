@@ -199,7 +199,10 @@ def test_current_published_guide_admits_reader_text_without_refs_and_later_autho
         [
             first,
             {"id": "current-guide", "text": guide_question, "steps": []},
-            {"id": "parameter-guide", "text": parameter_question, "steps": []},
+            {"id": "parameter-guide", "text": parameter_question, "steps": [
+                {"capability": "analysis.operation.list", "arguments": {}},
+                {"capability": "analysis.operation.describe", "arguments": {"operation": "powerflow.ac"}},
+            ]},
             later_authority,
         ],
         "admission-current-guide",

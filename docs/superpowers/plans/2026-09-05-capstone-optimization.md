@@ -10,6 +10,18 @@
 
 ## 1. 状态、依据与授权边界
 
+### 第四题目录查询误拦截修复（2026-09-05）
+
+真实run `run-20260905t133022z-c081b57c` 第三题已过，第四题的指南、
+`analysis.operation.list/describe` 均成功；旧 `authority_attempted=any(capability_id)`
+却把无需证据的无状态目录查询算成缺失仿真结果。本次沿用已有能力契约，
+只有成功、`evidence_required=false` 且 `state_effect=none` 的调用不阻断指南准入；
+失败、未声明或要求证据的调用仍阻断。保留中文原文及既有引用验证，不增加工具/题目白名单。
+
+- [x] 在 `test_answer_admission.py` 四轮回归中实际调用operation list/describe，修复前2509因第四轮未执行而失败。
+- [x] `application/turns.py` 从prepared runtime能力文档识别无证据无状态查询，修正authority_attempted；控制器26测试通过，失败/缺失契约/要求证据/有副作用仍阻断。
+- [x] 主目录3997最终exit0：doctor/test/E2E36/validate7+10+8/覆盖24通过；75301准入11与类型通过。修复直接交付main，真实Provider九题仍未重跑。
+
 ### 真实指南问答回归修复（2026-09-05，覆盖先前完成声明）
 
 用户实际运行 `make application INSTRUCTIONS=validation/questions/task.md.txt` 的

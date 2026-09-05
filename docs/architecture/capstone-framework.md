@@ -136,8 +136,11 @@ Offline informational answers create no simulator or authority evidence.
 For a successful current-turn read of a published guide, a Domain Pack may
 preserve model-written informational text with `guide_access_verified`.
 This verifies access to the published source, not answer semantics or numerical
-claims; it cannot stand in for a failed authority call. The Kernel passes
-turn- and binding-scoped guide receipts to admission, without question matching
+claims; it cannot stand in for a failed authority call.
+Successful stateless capabilities whose published contracts require no evidence
+do not block that guide path (for example, operation discovery and parameter
+schemas); failed calls or missing declarations do not receive this exemption.
+The Kernel passes turn- and binding-scoped guide receipts to admission, without question matching
 or domain interpretation. This assurance uses answer-admission sidecar1.1;
 existing assurance modes retain1.0 and the reader accepts both versions.
 Simulator- or authority-backed answers persist result and evidence artifacts

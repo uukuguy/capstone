@@ -598,6 +598,14 @@ class TurnController:
                 record for record in self._store.snapshot.core.diagnostics
                 if record.get("turn_id") == handle.turn_id and record.get("binding_id") == binding_id
             )
+            # Successful stateless discovery does not promise run evidence.
+            # Read the binding's published contracts, never question/tool names.
+            informational_capabilities = {
+                document["id"]
+                for document in getattr(getattr(prepared, "runtime", None), "capability_documents", ())
+                if document.get("evidence_required") is False
+                and document.get("state_effect") == "none"
+            }
             request = AnswerAdmissionInput(
                 question=handle.instruction, answer_output=answer_output,
                 result_refs=tuple(ref for ref in results if owners.get(ref, binding_id) == binding_id),
@@ -606,7 +614,12 @@ class TurnController:
                     (record["resource_id"], record["sha256"])
                     for record in observations if record.get("kind") == "published_guide_read"
                 ),
-                authority_attempted=any(record.get("capability_id") for record in observations),
+                authority_attempted=any(
+                    record.get("capability_id")
+                    and not (record.get("ok") is True
+                             and record.get("capability_id") in informational_capabilities)
+                    for record in observations
+                ),
             )
             try:
                 decision = policy.admit(request)

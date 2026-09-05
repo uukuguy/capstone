@@ -190,6 +190,27 @@ def test_submit_calls_domain_admission_for_a_zero_reference_answer(active_turn) 
     assert committed.answer_output == "unverified business assertion"
 
 
+@pytest.mark.parametrize(("contract", "ok", "blocks_guide"), [
+    ({"evidence_required": False, "state_effect": "none"}, True, False),
+    ({"evidence_required": False, "state_effect": "none"}, False, True),
+    ({"evidence_required": True, "state_effect": "none"}, True, True),
+    ({"evidence_required": False, "state_effect": "write"}, True, True),
+    ({}, True, True),
+])
+def test_guide_guard_uses_success_and_published_contract(active_turn, contract, ok, blocks_guide) -> None:
+    _store, _workspace, current = active_turn
+    current.prepared.runtime.capability_documents = ({"id": "generic.lookup", **contract},)
+    current.store.append(ContextEventDraft(
+        event_type="tool.observation.recorded", binding_id="grid", turn_id=current.handle.turn_id,
+        payload={"binding_id": "grid", "turn_id": current.handle.turn_id,
+                 "capability_id": "generic.lookup", "ok": ok},
+    ))
+    controller = TurnController(store=current.store, workspace=current.workspace,
+                                bindings={"grid": current.prepared})
+    controller.submit(current.handle, answer_output="reader text", duration_seconds=1.0)
+    assert current.prepared.admission.requests[-1].authority_attempted is blocks_guide
+
+
 def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_turn) -> None:
     _store, workspace, current = active_turn
     controller = TurnController(
