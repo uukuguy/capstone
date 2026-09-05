@@ -455,6 +455,223 @@ assert replayed_context == stored_context
 
 **关闭条件**：独立 Domain Pack 通过完整应用闭环，Kernel/generic Pi 不加入 inventory 特例。提交主题：`test: prove complete inventory application conformance`。
 
+设计细化复审（2026-09-05）：`runs/optimization/OP-11/design-review.md` PASS；下面契约属于本包已批准方向的实施细化。修订消除了报告上下文形状、报告附加引用覆盖、历史catalog混入输出及prepare失败语义四处缺口；不改Kernel或reference service。支持性安装验收调用方 `packages/grid-agent/tests/contract/installed_smoke.py` 纳入本包，复用现有仓库外复制执行路径。
+
+#### OP-11 implementation contract — reviewed refinement
+
+This refines the already approved canonical OP11, not an additional product
+mode. OP10 dependency is closed at d5eec21; closure documentation is 2f6c452.
+No OP11 production edits exist. Old protected trees were verified at 10:40 CST:
+inventory-domain-pack dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108,
+inventory-reference-service 3267711cc30e5c2dc3ff1e0e630b76f21a0d030a.
+
+#### Scope and approach
+
+Complete inventory's existing public Kernel SPI using its current executor,
+authority, projectors and packaged resources. Do not modify Kernel, generic Pi,
+the reference service, its calculations, or grid CLI selection. No new package
+dependency or capability schema. Keep inventory a conformance/reference Domain
+Pack. Reject the initial preflight note's fake-authority acceptance approach.
+
+Alternative of adapting pandapower components by importing that pack is rejected:
+it couples domain policy/state. A second runner or canned precomputed responses
+would not prove SPI conformance. Independent inventory components with real
+authority execution are the selected existing-plan approach.
+
+#### Component contracts
+
+##### Runtime preparation and profile assembly
+
+New provisioning.py owns InventoryRuntimeProvisioner.prepare(*, binding,
+workspace: Path, credentials: CredentialLease) -> PreparedInventoryEndpoint.
+The endpoint has executor, metadata, idempotent close. Validate matching
+credential scope and empty credentials before process work. Resolve a supplied
+trusted executable first; otherwise check the real inventoryctl beside the
+current interpreter in its scripts directory, then configured PATH as a fallback.
+Require an executable regular file; an explicit invalid executable fails without
+falling back to a different authority. The clean-wheel smoke must exercise the
+default no-argument profile discovery, not inject a source executable.
+Do not guess another worktree or copy ignored runtime state.
+
+Expose a binding-local executable basename, fixed request/--workspace arguments,
+a binding-local search path, timeout/output-limit metadata and sanitized
+environment through the existing descriptor contract. Install the validated
+console script into the newly owned binding bin without following destination
+symlinks or replacing an existing unexpected path. Reuse InventoryctlExecutor;
+composition's existing environment.describe call verifies the registered
+protocol/capability surface. Supply timeout and sanitized environment directly
+to InventoryctlExecutor. Output-limit metadata is descriptive: it does not
+bound subprocess.run's captured output in the existing executor. Do not widen
+OP11 into an executor or Kernel refactor or claim a memory bound from metadata.
+No second execution route or shell invocation.
+
+GuideProvider.load/open uses only the existing resource allowlist (overview,
+capability-map, evidence-and-recovery) and verifies regular no-follow bound reads
+and captured digests before returning text/index data. PolicyProvider.load uses
+the packaged system policy. No imports from pandapower private helpers.
+
+build_inventory_profile() keeps its no-argument entry point and existing
+manifest/authority/executor/projector semantics, adding all eleven required
+application fields. Use the same concrete resource set for guides and policy.
+The test can use dataclasses.replace for an explicit provisioner/executable;
+do not add a production inventory CLI branch.
+
+##### Domain state and context
+
+New state.py owns a versioned inventory-readonly-state/1.0 JSON mapping:
+state_schema, state_revision, active_context_ref, catalogs keyed by context_ref,
+asset_results keyed by result_ref, stock_summaries keyed by result_ref.
+Use existing ActiveCatalogState, AssetResultState, StockSummaryState and
+InventoryStateDelta. Accept initial empty mapping as empty state, reject wrong
+schema, negative/bool revision, unknown structural fields, key/reference
+mismatch, wrong reference kinds, missing catalog context and revision mismatch.
+Keep catalog history so a later catalog selection does not invalidate legitimate
+previous results. Preserve original source record on identical replay/reuse;
+reject conflicting content under the same content reference. A different
+producer_turn_id alone for identical authority data must not fabricate a
+collision; retain the first provenance record.
+
+merge is pure and validates both input and output; it never queries authority.
+Only existing verified projectors produce deltas. build_context returns a
+detached DomainContextView containing the supplied binding_id, state and top-level
+admitted_refs derived from these admitted records: inventory context, revision,
+result and evidence references. Do not put these refs solely in admitted_artifact_refs:
+the existing Kernel report wrapper replaces that field with the report artifact
+reference. The inventory validator must combine public admitted_refs and
+admitted_artifact_refs and never inspect the wrapper's private base object.
+The state adapter cannot invent an artifact/report reference. DomainContextView
+is not a cryptographic admission
+API for arbitrary callers: production trust comes from Kernel authority-verified
+projection and committed current-run context.
+
+##### Answer admission and evidence policy
+
+answer_policy.py implements the existing AnswerEvidencePolicy methods against
+inventory result/evidence reference kinds and supported semantic claim categories
+(asset, stock, evidence, offline_information). The controller already enforces
+current-turn ownership and authority verification; do not bypass or replace it.
+No hardcoded grid reference formats or arbitrary binding-name restriction.
+
+answer_admission.py factory receives the current-run authority and returns the
+existing AnswerAdmissionDecision(mode, assurance, answer_output, diagnostic_codes).
+For authority-backed input retain reader text and lineage_verified only; never
+claim free-text numbers are semantically proven. Without references, only a
+deterministic packaged informational request is offline_information /
+deterministic_information. Unknown/mixed business requests return limited.
+
+Reusable information categories come from the actual guides: read-only inventory
+capabilities, current-run evidence, and recovery after missing context. Exact
+guide:<resource-id> and bounded English/Chinese information-request syntax may
+select those concepts, but must match the entire informational request. No
+question/asset/catalog/expected-answer shortcut, substring business classifier,
+or dependence on model-generated text. Offline response returns packaged text
+and does not invoke the authority or manufacture evidence.
+
+##### Output and presentation
+
+New output.py declares inventory-readonly-output/1.0. Its payload contains only
+catalog_id, context_ref, revision_ref (all nullable together when no catalog),
+asset_result_refs, stock_summary_refs (lists), and report_artifact_ref (nullable).
+Build from the supplied inventory context, never a directory scan or model text.
+The two result lists contain only records whose context_ref AND revision_ref
+match the active catalog triple. Retain other valid catalogs/results in state,
+but do not mix historical catalog refs into this single-active-catalog payload.
+When no active catalog exists, both result lists must be empty.
+Cross-check all inventory refs against the context's retained catalogs/results
+and admitted evidence lineage. Preserve non-null report refs only when admitted
+by the existing Kernel report context wrapper; null report remains valid.
+
+Implement context-aware validate_with_context(payload, *, context) plus
+validate(payload) for the public SPI. Standalone validation must fail closed on
+non-null references without a supplied admission scope; use a constructor
+allowed_references option or a clearly defined structural-only empty-payload
+case, not permissive reference validation. Validate exact payload keys,
+list/string shapes, reference types, matching catalog/context/revision, and
+binding identity during build. No framework core/domains fields nested in
+the domain payload; no raw artifact paths exposed by payload.
+
+presentation.py renders context/report fragments exclusively from the detached
+verified inventory records. Actual runner report dispatch passes the public
+application snapshot, whereas output dispatch passes DomainContextView. Accept
+both forms: for the snapshot, select exactly one domains envelope whose
+schema_id is inventory-readonly-state/1.0, use its mapping key as binding_id,
+validate/detach its state through InventoryStateAdapter, and reject absent,
+foreign or ambiguous matches. DomainStateEnvelope has no domain_id field.
+Do not inspect other domains' state or modify Kernel reporting. An initialized
+matching envelope with empty state is valid. Formatting may display counts and
+totals already returned by authority, not recompute inventory balances.
+Renderer failures are derived and must leave accepted answers and a valid
+null-report output. Test the real default GenericReportShell path for actual
+inventory summary content, not just existence of a report reference.
+
+##### Acceptance and packaging
+
+acceptance.py provides DomainAcceptanceProfile offline/scripted/provider
+declarations as inspectable case metadata; declarations alone are not evidence.
+No provider invocation in acceptance declarations or profile construction.
+
+Test scripted transports carry the exact OP10 signature and drive real
+prepared capability tools/executor/authority through semantic events. At least:
+1. Two turns: catalog.open + asset.list, then stock.summary using the previous
+   actual context without reopening. Assert committed answers, core,
+   domains.inventory, real result/evidence refs, report and replay equality.
+2. Missing asset request produces typed tool failure and a limited answer with
+   no invented evidence. Foreign-run refs and wrong authority cannot acquire
+   lineage_verified; where existing preflight rejects, provider start remains
+   zero. A mismatch detected only during tool projection occurs after start:
+   do not add a new preflight guarantee. Persisted limited admission is the
+   negative acceptance evidence; the existing runner subsequently returns a
+   failed ApplicationOutcome, not happy-path completed domain output.
+3. Zero-reference business prose remains limited; supported information returns
+   deterministic guide text with no result/evidence; mixed request is limited.
+4. Report prepare-only failure leaves the accepted answer and a diagnostic;
+   if subsequent render succeeds, report publication may still succeed.
+   Final render/publication failure leaves the accepted answer, with report_path,
+   report_ref and domain report_artifact_ref all null. Exercise these separately;
+   do not change existing Kernel failure-isolation semantics.
+5. A successful report must preserve inventory admitted_refs while adding its
+   admitted_artifact_refs; validate both domain and report references through the
+   actual report-aware output path. A state unit test with two valid catalog
+   histories proves only active context/revision results enter output (synthetic
+   unit records are not substituted for real authority conformance).
+6. Tampered current-run artifact fails authority verification; state/output
+   reject unadmitted or foreign refs rather than recomputing expected answers.
+
+Extend the existing standalone installed smoke at
+packages/grid-agent/tests/contract/installed_smoke.py, already copied and run
+outside the repo by tools/test_package_artifacts.sh. Keep its existing tests.
+Add complete inventory AgentApplication execution using real wheel-installed
+inventoryctl and packaged guides. Assert the expected installed console script
+exists at Path(sys.executable).parent / inventoryctl(.exe) in the fresh venv,
+then use the default no-argument profile/provisioner so lookup cannot silently
+test a host-PATH executable. No import of validation/ or test source paths.
+This supporting test caller is included in OP11 scope; no new public CLI/helper
+is needed. The packaged acceptance declaration does not become a fake executor.
+
+#### Implementation slices and verification
+
+A: state/output/presentation + focused real-data and negative tests.
+B: provisioning/guide/policy/answer_policy/answer_admission/acceptance/profile +
+complete application conformance tests. This avoids admission depending on a
+guide provider that does not exist yet. A before B integration; root owns
+installed smoke and ledger.
+All task-owned test files live under packages/inventory-domain-pack/tests/;
+additional standalone smoke remains root-owned. No concurrent suite runs sharing
+fixed run IDs. Use temporary isolated run roots for every new test.
+
+RED first for missing_application_components and each missing behavioral seam;
+verify red is the intended missing behavior, then implement, run smallest
+focused test, full inventory tests and full production pyright. Independent
+review must cover current-run trust, state/reference identity and installed
+execution, not just Protocol presence.
+
+Before changing a protected tree: old baseline check above. After focused tests
+and independent review, commit domain source/tests and installed test caller.
+Then derive HEAD:packages/inventory-domain-pack and update only the current
+protected config in a separate commit. Do not modify historical Climb digests.
+Run package boundaries, installed packages, then fixed-source doctor/check-release.
+Neither intermediate code nor digest-only commit closes OP11 without full gates.
+
 ### OP-12：长运行基准与存储改造决策
 
 **Files**：Create `tools/benchmark_optimization.py`、`tools/tests/test_benchmark_optimization.py`；Modify `Makefile`；不修改 context store 的持久化格式。

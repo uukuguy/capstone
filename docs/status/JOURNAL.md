@@ -748,3 +748,5 @@ _Recovered pre-merge mainline entries._
 - 10:23 OP10最终复审PASS且E2E31通过；root并行test/validate撞固定案例锁，记录失败后改串行重跑。
 - 10:28 OP10严格运行接口提交；串行doctor/test/validate通过，开始固定源码release验收 [d5eec21]
 - 10:35 OP10固定完整release通过并关闭；证据已保存，转OP11领域应用设计，OP08扩展仍待批 [d5eec21]
+- 10:37 OP10验收与OP11恢复入口入账；文档39链接/相对symlink/doctor通过 [2f6c452]
+- 10:42 OP11旧保护摘要核验通过；root组件契约草案交Sol复审，尚未修改领域源码。

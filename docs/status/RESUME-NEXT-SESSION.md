@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 10:35 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 10:42 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
@@ -11,12 +11,12 @@
 
 ## Immediate next action: OP11
 
-1. 按canonical OP11细化inventory完整应用组件设计并复审，再TDD。依赖01/03/10全部关闭。
+1. root已写ignored OP-11/root-implementation-contract.md，Sol /root/op10_contract_decision正在只读审查，输出OP-11/design-review.md。先处理真实阻碍、将定稿纳canonical OP11，再按A(state/output/admission)→B(provisioning/resources/profile/完整应用)TDD；root负责installed_smoke.py及账本。依赖01/03/10已关闭。
 2. 只读输入：runs/optimization/OP-11/preflight-source-map.md与exact-spi-map.md。后者初稿admission字段有误，Terra已按源码改成AnswerAdmissionInput(question,answer_output,result_refs,evidence_refs)与Decision(mode,assurance,answer_output,diagnostic_codes)，实际源码优先。
 3. implementation-design.md只是初始导航，root已加NOT implementation-ready：fake inventoryctl安装验收建议被否决；offline-limited也不能替代确定性offline_information。完整测试必须scripted provider + 真正installed inventoryctl/executor/authority。禁止生产grid CLI新增inventory模式，不改Kernel/generic Pi加领域特例。
 4. inventory现有models/projectors/authority/executor已可复用；profile缺全部11应用字段。状态adapter须承接真实InventoryStateDelta，build_context提供当前已准入引用，输出/报告不直接扫描authority或信任模型文字。具体格式/语义待设计，不能照抄pandapower业务实现。
 5. 包资源现有guides为SKILL.md与references/capability-map.md、evidence-and-recovery.md；可以据此设计可复用信息目录，不能fixture/问题/资产特定离线捷径。真实console script由inventory_reference.cli:main提供；provisioner须使用真实installed executable和现有protocol。
-6. 改inventory前先验证configs/runtime/application-instantiation-protected-paths.json旧baseline；当前记录domain dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108、service3267711cc30e5c2dc3ff1e0e630b76f21a0d030a，须现场复核。领域代码独立复审/测试/提交，然后按提交tree独立更新当前保护摘要。历史Climb配置不动，中间态不当release。
+6. 10:40实际protected checker PASS，HEAD tree对应domain dc7c1e666af660f95fa8fcb6cfb7bd21a4a74108、service3267711cc30e5c2dc3ff1e0e630b76f21a0d030a。仅domains新增应用组件；不改reference service。领域代码独立复审/测试/提交，然后按提交tree独立更新当前保护摘要。历史Climb配置不动，中间态不当release。
 
 ## OP10 closed evidence and decisions
 
