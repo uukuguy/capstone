@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-06。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-07。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -44,8 +44,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-03 | 1 | 报告与观察故障隔离 R03 | OP-01 | DONE | 6ad5df4；独立复审与固定源码完整主/包门禁exit0，详见验收记录 |
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
-| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | VERIFYING | 0.84.4真实安装、三锁零审计、捕获与独立复审通过；完整release待验收 |
-| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | PLANNED | 未执行 |
+| OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
+| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | RUNNING | 只读依赖映射与契约细化完成，设计复审中，未修改生产代码 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | PLANNED | 未执行 |
@@ -292,16 +292,28 @@ check-release: check-fast check-integration test-packages test-source-setup
 - [x] 用 `rg --files configs/runtime` 和 runtime locator 确认 `pi-runtime.lock.json` 及其中 package/source/patches 摘要；旧版本专用 patch 不能原样套在新版本，按实际 hook API 更新版本化 patch 和摘要。
 - [x] 检查当前官方 Pi release/API 与依赖审计，按现有例外的 >=0.84.3 下限挑选首个能满足全部 hook/extension 契约的版本；将选定版本、审计日期和理由写入执行记录。
 - [x] 在隔离环境更新统一版本和 frozen locks；保留 canonical request hook、descriptor、correlation、stdout、受限工具和凭据过滤回归。
-- [ ] 执行 `make install-pi`、`make doctor`、`make check-release`，并执行更新后的依赖审计；禁止仅改 risk_counts 或删除 advisory 让门变绿。
-- [ ] 修复确认后关闭例外；如果没有合格版本，标 BLOCKED 并明确发布阻断，到期门继续失败；不能自行延期例外或声称漏洞已修复。
+- [x] 执行 `make install-pi`、`make doctor`、`make check-release`，并执行更新后的依赖审计；禁止仅改 risk_counts 或删除 advisory 让门变绿。
+- [x] 修复确认后关闭例外；如果没有合格版本，标 BLOCKED 并明确发布阻断，到期门继续失败；不能自行延期例外或声称漏洞已修复。
 
 **关闭条件**：升级证据及风险状态明确。2026-09-30 前未关闭则发布被阻断；不强迫无证据升级。提交主题：`build: upgrade validated Pi runtime and close risk exception`。
+
+验收记录（2026-09-05）：固定源码 `41b48d0` 的 `make doctor && make check-release` exit0，完整原始输出 `runs/optimization/OP-06/gate-release-41b48d0.json`。类型零错误；agent749、sim165、Kernel438、pandapower79、inventory11/13/1、Pi34/43、workbench128、门禁自检16、真实SDK捕获四例、E2E31、offline/scripted及24/24、完整应用、六wheel/两npm干净安装与frozen源码安装全部通过。安装器真实Git升级回归、hook、checker、捕获smoke、记录/文档集成均独立复审PASS，证据同目录。三锁新鲜audit六项计数零且漏洞列表空；版本化remediation精确绑定其源码/补丁/依赖图与捕获结果，原0.80.6例外和patch未改。旧managed源码保留为source-preserved目录，认证/var未动。记录当前替代版本的风险闭合，不声称旧版本漏洞消失或未来无新advisory。运行环境Darwin arm64/Python3.14.3/Node23.11.0，包安装烟测另用Python3.12.12；未声称远端CI矩阵全跑，未调用付费provider。上游deprecation等警告保留在原始证据中。
 
 ### OP-07：使投影缓存有效，运行列表轻量化
 
 **Files**：Modify `packages/grid-agent/src/grid_agent/trajectory/service.py`、`materialize.py`、`api/catalog.py`；Create `packages/grid-agent/src/grid_agent/trajectory/cache_identity.py`；Test `packages/grid-agent/tests/trajectory/test_service.py`、`test_materialize.py`、`api/test_catalog.py`。
 
 **接口**：缓存 identity 包含 run 身份、事件可信前缀/内容摘要、投影版本及实际读取的 metadata/artifact 依赖；缓存不承担权威证据准入。活动运行以新前缀失效，关闭运行可复用。
+
+实施契约细化（2026-09-05，独立设计复审PASS）：
+
+- 不新增 RunSummary wire 字段。已知 manifest status 是记录状态而非业务正确性保证；不确定为 unknown，坏 native prefix 为 corrupt，legacy 的 replay_trusted_through 为 null。列表只读当前可信前缀和既有固定安全 metadata，通过现有 `ProjectionService.read_application_metadata` 取得标签；不调用 open_run 或任何完整投影器。保留该 helper 的现有公开签名供两个实施切面共用。
+- Native identity 统一使用当前 reader 返回的 typed event tuple 的 canonical digest，含可信长度、analysis identity 与 source kind；不再另读原始日志以拼接不同时间的 snapshot。坏 prefix 先不缓存。Legacy 保留 importer identity 和明确来源类别。不为本包修改 Kernel reader。
+- 明确公开 `source_fingerprint` 的生成语义升级为 `projected-source/2.0`：同一可信 typed prefix、实际 metadata 输入和当前 verified/unavailable 工件依赖状态的 canonical 摘要。原字段是 opaque 非空字符串/游标失效令牌，无公开 raw-byte-SHA 承诺；wire 字段和类型不变。cache identity 另外加入 resolved run root 与投影版本，不能用私有 cache key 代替公开 fingerprint。补 event/metadata/artifact 变化旧cursor拒绝、同输入热读cursor可继续的回归；两根目录同analysis_id不得共享缓存。
+- 依赖集合独立来自所有 event.refs.produced/consumed/evidence 并集，以及仅 `context.projected`/`context.injected` 的 typed payload.artifact_ref。不得解析任意 payload 字符串为路径。shared collector 或 projector-I/O parity 测试保证没有遗漏；记录负查找，工件缺失→出现、内容损坏→不可用也须失效。metadata包含同一固定安全发现集及缺失状态；不是从缓存自报清单取得 authority。
+- Hit 在返回缓存中的 verified 状态或事实前 eager 重核所有实际工件依赖；端点访问仍独立安全验证。版本化 typed cache envelope 绑定预期 identity、analysis_id 和payload摘要；摘要检测缓存损坏，不假称同用户可同时改payload/digest时仍有加密来源保证。坏缓存miss重建。
+- 服务强制 cache root 位于 run 外（含解析后的路径），违规配置不得向 runs 写缓存。每服务/每run identity single-flight覆盖收集/读缓存/构建，防止等待期间拼接陈旧身份；不同run不共锁，空闲锁条目清理。缓存写失败不阻断有效读取，返回固定码、无路径/凭据的有界诊断。
+- 额外测试范围允许 `tests/trajectory/api/test_projection_pages.py` 以验证游标失效。1k/10k/100k测量区分prefix/hash I/O与投影build/write次数；即使热读仍需全量验证，也不能宣称O(1)或无I/O。只读映射/设计审查留存在 `runs/optimization/OP-07/`。
 
 - [ ] 用计数 spy 写重复 open、不同 run 同 ID、工件变化、manifest/descriptor 变化、损坏缓存、活动运行追加、缺少写权限用例。
 - [ ] 将源身份收集和投影构建分开；缓存命中时恢复 typed projection，缓存 miss 才 materialize。访问证据仍执行安全文件身份/内容验证。

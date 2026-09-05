@@ -719,3 +719,5 @@ _Recovered pre-merge mainline entries._
 - 07:54 真实Git升级回归34通过并复审PASS；managed0.84.4安装/doctor成功，旧源码保留source-preserved-e75b4119c3bc411b835e686d0307786f。
 - 07:54 三实际installed图验证通过、managed audit411依赖total0；checker修复10测试及Make16通过，独立复审PASS。
 - 08:02 实际SDK双wrapper成功/拒绝四例通过并复审PASS；真实三锁审计与捕获结果生成remediation，本地风险门通过，E2E31通过。
+- 08:03 固化Pi0.84.4安全升级与完整绑定记录，独立复审通过，开始固定源码release验收 [41b48d0]。
+- 08:11 固定41b48d0完整release exit0，三锁零审计/捕获/安装复审闭合OP06；启动OP07缓存设计。
