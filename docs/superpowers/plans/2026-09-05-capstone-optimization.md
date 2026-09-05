@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-13；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-08（跨层范围已获用户“同意”，接口细化中）；OP-13 B继续BLOCKED，独立复审未完成。全方案未完成；此前goal工具的blocked状态不冒充已恢复。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -46,12 +46,12 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
-| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端映射与范围复审完成；Kernel/Domain扩展待用户确认，未实施 |
+| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | A流式工件校验已验收b7b49f6；root593Kernel/类型、独立双PASS；B/C/D未完成 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | DONE | de3a5c7九样本/实测复审/固定完整release PASS，100.339/100.490写入倍率触发OP13 |
-| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | RUNNING | 触发条件与OP12验收已满足；持久化/恢复合同细化复审中，尚未实施 |
+| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | BLOCKED | A已验收3bc24a2；B未验收，572全Kernel/类型、Linux126定向通过；整体独立复审服务中断，C/D未开始、默认仍legacy |
 | OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
 
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
@@ -346,9 +346,9 @@ assert materialize_spy.call_count == 1
 
 **接口**：工件预览支持单一前缀 Range；服务端上限 131072 bytes，多段/非法范围明确拒绝。大文件全量下载与预览分离。上下文详情使用分页/截断字段，不把截断 JSON 当完整状态。
 
-#### 待批准的范围补充（2026-09-05）
+#### 已批准的范围补充（2026-09-05）
 
-状态：**仅提案，尚未授权实施此扩展**。只读证据与独立比较保存在 `runs/optimization/OP-08/frontend-read-only-map.md`、`backend-memory-map.md`、`bounded-preview-design-review.md`。原OP08清单中的网关/HTTP/UI改动不足以兑现完整请求路径的选定工件内存上限：
+状态：**用户以“同意”批准以下跨层扩展，采用共享读取链方案B；未豁免独立复审，也未批准新依赖或自制通用JSON解析器**。只读证据与独立比较保存在 `runs/optimization/OP-08/frontend-read-only-map.md`、`backend-memory-map.md`、`bounded-preview-design-review.md`。原OP08清单中的网关/HTTP/UI改动不足以兑现完整请求路径的选定工件内存上限：
 
 1. Artifact HTTP在网关前调用完整ProjectionService；即使cache hit，eager依赖验证仍调用Kernel `ImmutableArtifactRegistry.register_existing`，其 `_read_descriptor` 用chunks列表与join分配完整工件。
 2. 上下文投影解析完整context-view；context detail还解析完整canonical request。只截HTTP输出不能消除之前的分配，也不能把空对象伪称为完整历史状态。
@@ -356,11 +356,36 @@ assert materialize_spy.call_count == 1
 
 建议扩展为共享读取链的有界实现（独立方案比较推荐B）：增加Kernel中立流式工件身份校验、grid投影的显式上下文省略表示，以及Domain拥有的有界语义验证接口；网关保留同fd完整摘要验证、有界前缀和已验证spool下载。备选薄预览路由仍需要处理同一Domain缓冲问题，并会增加重复的准入/上下文还原路径，因此暂不推荐。
 
-待批准的额外文件范围：Kernel `trajectory/artifacts.py`及相邻测试；grid `trajectory/service.py`、`cache_identity.py`、`context_projection.py`、`projection_models.py`及相邻测试；pandapower `authority.py`及相邻测试；Workbench实际context消费者及测试。具体小模块拆分与版本失效规则须在实现前写明并独立复审，不预先批准新依赖或自制通用JSON解析器。
+已批准的额外文件范围：Kernel `trajectory/artifacts.py`及相邻测试；grid `trajectory/service.py`、`cache_identity.py`、`context_projection.py`、`projection_models.py`及相邻测试；pandapower `authority.py`及相邻测试；Workbench实际context消费者及测试。具体小模块拆分与版本失效规则须在实现前写明并独立复审，不预先批准新依赖或自制通用JSON解析器。
 
 控制条件：原有Domain摘要、类型、关联及当前run准入语义保持等价，正常小响应保持兼容；大上下文明确省略字段并仅提供已准入工件入口。新增8/64MiB真实HTTP全链路测试与峰值/读取计数，不能仅用假投影测试网关后半段。非普通文件、symlink替换、源文件变化、摘要失败与拒绝/省略状态均测试；不扩LLM工具、不修改业务authority计算、不隐式降低合法证据预览能力。保证限定为选定工件body保留内存有界，不宣称事件账本/工件数量/总请求内存O(1)或摘要I/O常数时间。如语义等价与预算不能同时满足，必须报告剩余缺口，不能降低断言关闭OP08。
 
-确认此跨层范围前不修改OP08生产代码；原有OP07关闭结论与固定release证据不受影响。
+跨层范围授权已解除，但各切片仍须满足下列设计、测试和独立复审门槛；原有OP07关闭结论与固定release证据不受影响。OP-13未提交持久化文件不属于本包，禁止混入提交。
+
+#### 执行切片与设计门槛
+
+按08-A→08-B→08-C→08-D串行集成；只读映射可以并行。Root负责契约和集成，Luna只做有界映射/机械检查，Terra按明确文件所有权实施；风险契约由独立复审者复核。每片记录源码身份、命令、退出码、失败与修复，不以切片通过宣称整包完成。
+
+| 切片 | 实现范围与接口约束 | 先写的失败测试与验收 | 前置门槛 |
+| --- | --- | --- | --- |
+| 08-A 中立摘要读取 | Kernel `trajectory/artifacts.py`及测试；保持`ArtifactPointer`、`register_existing`、`verify`公开契约，内部以固定块累计长度/原始SHA，不收集chunks后join；保留同fd及路径绑定检查 | 已注册8/64MiB文件不调用整文件读取helper；摘要/长度错误、读取中变化、路径替换拒绝；记录峰值与读取量，现有完整性测试不退化 | 明确读取前后身份检查与错误类型，并独立复审；不得改OP-13文件 |
+| 08-B 领域语义与投影 | Domain `authority.py`保持领域摘要/类型/关系准入；grid `service.py`、`context_projection.py`、`projection_models.py`与`cache_identity.py`传播显式省略状态 | 对现有解码/重编码结果做差分测试：键顺序、重复键、转义、Unicode、整数/浮点、嵌套及大标量；旧缓存不可返回旧的完整状态假象，小对象兼容 | 先确定有界语义算法及缓存版本失效规则；新依赖/通用解析器须另行说明并获批准 |
+| 08-C HTTP与Workbench | API `artifacts.py`、`app.py`及Workbench预览/API类型/context消费者；前缀与下载分离；context显式`state_omitted`、`omitted_fields`和已准入工件入口 | 非法/多段/后缀Range在工件读取前拒绝；206与Content-Range精确；前端拒绝忽略Range的200；未知媒体类型先拒绝；取消/源变化/下载清理均覆盖 | 明确spool磁盘上限、超限状态和生命周期；API/前端同步变更，禁止路径重开下载 |
+| 08-D 全链验收 | 真实冷/热ProjectionService→当前run准入→网关→客户端，禁止假投影替代 | 8/64MiB两档真实HTTP内存及读取计数；context省略与下载快照；focused→完整release，独立复审、回退检查 | A/B/C均验收；剩余线性分配必须如实列出，不能放宽内存断言 |
+
+领域语义核查已确认：`_content_hash`使用`json.dumps(..., ensure_ascii=False, separators=(",", ":"), allow_nan=False)`，不排序键；默认`json.loads`接受重复键并保留最后值。result解析后移除顶层`result_ref`再摘要；evidence/context对完整解析文档摘要；revision则使用原始UTF-8字节摘要。流式实现必须分别保留这些规则，不能统一替换成raw SHA。超大标量和重复键是有界实现的未决难点，不得通过隐藏子进程全量分配或拒绝原本合法文档来伪装等价。
+
+08-A内部实现约束：私有流式helper接收已打开普通文件fd，返回累计字节数和SHA256；读取块上限1MiB。开始记录`fstat`的dev/ino/size/mtime_ns/ctime_ns，读取最多初始size加一个探测字节，长度不符或身份变化抛`ArtifactIntegrityError`，避免增长文件无限读取。仍在原fd打开期间检查run root、parent和leaf命名绑定，并在命名检查后再次核对原fd身份。`register_existing`与`verify`均走此链；既有第二次验证允许保留，明确是两次线性I/O而非常数I/O。打开叶子加nonblocking，随后fstat拒绝非普通文件；fstat失败必须关闭fd。返回Path仍是现有API，不承诺之后调用者重新打开获得原快照；08-C下载必须自行保有已验证快照。
+
+08-A测试执行路径：`packages/capability-agent-kernel/tests/trajectory/test_artifacts.py`保留原回归；新增相邻`test_artifact_streaming.py`覆盖8/64MiB注册和验证、禁止整读helper、逐块计数及tracemalloc峰值、同inode等长变更/追加/截短、EOF后变更、root/parent/leaf替换、FIFO限时拒绝与fstat异常fd关闭。fixture分块构造且在内存测量前结束；只测注册/验证调用的增量分配，峰值上限须来自固定块预算，不随fixture规模放宽。命令：`uv run --project packages/capability-agent-kernel pytest packages/capability-agent-kernel/tests/trajectory/test_artifacts.py packages/capability-agent-kernel/tests/trajectory/test_artifact_streaming.py -q`，预期新行为先FAIL再全PASS；随后`make test-kernel`及生产类型门禁。完整OP08仍按08-D执行release。
+
+- [x] 08-A具体身份检查设计经Sol独立复审APPROVE；33项工件测试基线通过，记录`runs/optimization/OP-08/streaming-registry-baseline.md`。实现约束与复审结论摘录见`streaming-registry-brief.md`，Terra负责该切片源/测试；此设计通过不等于代码验收。
+- [x] 08-A RED→最小实现→GREEN、全Kernel/类型门禁及独立代码复审：b7b49f6验收；清理异常修复后独立SPEC/QUALITY双PASS，focused52/root593Kernel及类型通过，8/64MiB峰值约2.1MB。历史TDD记录缺口通过干净恢复源→完整RED→重新实现解决，不追认旧记录。另以37661bf提交测试可移植性修复，保持真实递归失败及公共异常断言，无产品解析变更。证据：OP08 `streaming-registry-closure.md`、`streaming-registry-report.md`、`kernel-gate-investigation.md`。仅关闭A，不代表真实HTTP全链或整包完成。
+- [ ] 08-B算法和缓存版本提案；若需额外依赖，先提交理由、兼容性与内存证据再申请授权。
+- [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
+- [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
+
+回退：各片单独提交且不混入OP-13；按D/C/B/A逆依赖回退任务提交，失效新版本派生缓存，不迁移或删除历史runs。已接受答案、权威证据与默认legacy存储行为保持不变。
 
 - [ ] 新增 8 MiB 和 64 MiB 已注册安全工件 fixture；请求 `Range: bytes=0-131071`，断言 206、Content-Range、长度以及完整源摘要失败时拒绝。
 - [ ] 使用同一 no-follow fd 分块验证摘要并保留有界前缀；检测读取前后文件身份变化，失效重试有次数上限。未经全量验证不能声称 prefix 属于已验证工件。
@@ -1720,6 +1745,99 @@ assert recovered.state_hash == independently_replayed_disk_chain.state_hash
   still-usable store, and absent locking backend.
 - [ ] Full Kernel tests and production pyright; independent persistence review.
   Commit this opt-in backend only after high-priority findings are resolved.
+
+##### B implementation refinement: bound directory generation and failure phases
+
+The following is part of B acceptance, not additional OP-08 scope. Keep physical
+helpers private to `application/context_segments.py` and transaction orchestration
+in `application/context_store.py`; no public callback or transaction protocol.
+The same locked core descriptor is borrowed by all writer operations.
+
+Cache the successfully constructed core and named `context-segments` directory
+identities as `(st_dev, st_ino)`, validating directory mode and no-follow access
+on every observation. Do not compare directory timestamps or auto-rebase an old
+instance. Bracket constructor chain replay with safe core-path and segments-name
+checks. On append, repeat these checks before/after locked head reading, directly
+before manifest replacement, after manifest replacement plus core fsync, and
+before a normal return following snapshot work. The segment publisher separately
+compares cached, opened, and named segment-directory identities before/after
+publication. Healthy append must not reread the complete chain.
+
+Use this private phase sequence:
+
+```text
+PRECOMMIT -> MANIFEST_REPLACE_IN_PROGRESS
+          -> MANIFEST_REPLACED_UNSYNCED -> COMMITTED
+```
+
+Set IN_PROGRESS before the atomic replace call. Only the dedicated replace
+helper's classified filesystem failure proves a failed replace and resets to
+PRECOMMIT. Preserve unclassified/control-flow exceptions and their identity.
+Keep UNSYNCED through core fsync and its trailing layout-binding check; mark
+COMMITTED and publish next memory only after both succeed. A late binding loss
+also sets sticky COMMIT_OUTCOME_UNKNOWN: it must not be downgraded by a generic
+COMMITTED cleanup handler. Raise the sanitized indeterminate subtype for a
+classified binding failure; do not publish/repair snapshot, unlink owned temps,
+retry, or compensate after discovering unknown authority. Precommit binding
+failure instead sets UNAVAILABLE and leaves the old manifest and published
+orphan segments intact.
+
+Snapshot staging accepts an absent `context.json`. Classified postcommit
+snapshot/owned-temp failures retain committed success and repair-pending state.
+Normal lock/descriptor cleanup failure after a known commit retains success but
+makes the instance UNAVAILABLE. Cleanup during exception unwinding must never
+replace the original throwable. Legacy rollback proof uses a private bounded-
+buffer, no-follow/nonblocking streaming reread of both old files; inability to
+prove both hashes means sticky unknown, not successful rollback.
+
+- [ ] Add real directory rename tests at: before locked head read; after head
+  read/before segment publication; after segment publication/before manifest;
+  immediately before the actual manifest replace; and the equivalent early/late
+  core-path replacements. Inspect both detached and currently named directories.
+- [ ] Prove precommit rejection writes nothing into the replacement layout;
+  post-replace rejection preserves uncertain artifacts and rejects later empty
+  and nonempty mutations without I/O.
+- [ ] Preserve primary exception identity when snapshot cleanup or lock setup
+  cleanup also raises, including KeyboardInterrupt.
+- [ ] Keep a process-oracle negative control: intentionally skipping manifest
+  core fsync must be detected before snapshot publication. Compare physical
+  decoded segments, public replay, requested payload, and a fresh child reopen.
+
+Implementation-refinement evidence: `runs/optimization/OP-13/slice-b-private-seams.md`
+and `root-process-tests-review.md`. Historical 73 focused tests and production
+pyright pass in `root-cleanup-primary-green.json`. Subsequent directory-generation
+review passes in `root-generation-review.md`; six real rename RED cases and the
+initial-capture sanitization RED were fixed. The expanded 11-process tests pass
+in `root-process-expanded.json`. Short-write/ENOSPC partial-stage cleanup six RED
+cases were fixed; the current full Kernel559 and production pyright pass are in
+`root-partialstage-kernel.json`. Overall B persistence review remains open. These
+are not B closure, full release acceptance, or a performance result.
+
+Later cross-platform evidence: `root-linux-report.md` records126 focused
+persistence tests passing on local Linux arm64/Python3.12.13, exact dependency
+pins, source/test blob fingerprints and reproduction command. The first Linux
+125PASS/1FAIL run is retained: a legacy test's first-stat hook fired during
+Python3.12 format detection, before its intended post-read comparison. The
+corrected hook targets the fd-relative ledger leaf and asserts EOF first;
+production validation and the original failure assertion were not relaxed.
+`root-postlinux-mac-gates.json` records571 full Kernel tests and production
+pyright passing after that fix. This is not remote CI or Windows verification.
+Overall B independent review was interrupted by a service error and has not
+issued a final verdict; neither the generation-only PASS nor these test results
+waives the independent-review gate. Source remains uncommitted and default
+creation remains legacy.
+
+2026-09-05 14:34 CST blocker audit: the independent reviewer remains in a
+terminal service-error state and no overall B report exists after three
+consecutive goal turns carrying that condition. Safe local follow-through
+completed cross-platform and remaining lock tests; the final current-tree
+Kernel572/production pyright/diff gate passes in `root-blocker-audit-gates.json`.
+The full review cannot be replaced by another repeated test run or author
+self-approval. Resume B acceptance only through an available compliant
+independent review, resolve its findings, then commit B and proceed to C.
+OP-08's pending explicit scope approval remains separate; automatic goal
+continuation is not that approval. The full optimization objective is blocked,
+not complete, and no package acceptance criterion has been weakened.
 
 **C — compensation and compatibility consumers**
 

@@ -780,3 +780,31 @@ _Recovered pre-merge mainline entries._
 - 12:58 提交OP13补偿健康合同，防止包装异常重启不安全补偿；文档链接、symlink及doctor通过 [2978bac]
 - 13:00 OP13-A原H1关闭，复审新增M1最终fstat后合法替换误拒；Terra补双时序回归修复。
 - 13:04 OP13-A最终独立PASS，32定向/496Kernel及类型通过，提交严格reader；转B且默认不变 [3bc24a2]
+- 13:06 固化A验收与历史RED归档局限，恢复入口转B；旧wrapper条款对齐健康合同 [a43f810]
+- 13:09 root旧格式实测：cleanup及rollback失败后普通错误伴随磁盘rev2/内存rev1，原始证据保存。
+- 13:23 B子进程3RED修复后5通过；oracle独立复审发现循环验证与fsync定位偏宽，root强化物理链并增漏sync反例后6通过。
+- 13:23 Terra仅完成B骨架且连续提前返回，root接手；旧格式健康6RED修复，33定向及生产类型通过，B仍未验收。
+- 13:27 B未完骨架全Kernel511/生产类型通过，完整返回已存；待绑定目录及不确定提交重构，不能视为B验收。
+- 13:53 B绑定提交4RED修复、清理主异常2RED修复；73定向及生产类型通过，完整原始返回保存。
+- 13:53 旧格式FIFO回滚证明改为私有非阻塞流式校验；进程oracle独立PASS，目录generation补充纳入唯一计划，B未验收。
+- 14:02 root目录替换6RED修复，扩展14用例通过；全Kernel532及类型通过，generation独立复审进行中。
+- 14:02 底层cleanup掩盖原中断3RED、unsupported布局1RED、新建分段未复核内容1RED均已最小修复；完整回归93174运行中。
+- 14:09 generation初捕获原始OSError泄漏1RED修复，独立复审PASS；全Kernel539及类型通过。
+- 14:09 临时文件替换误删1RED修复；ENOSPC六边界、repair/preflight覆盖通过；公共reducer提取后全Kernel545及类型通过。
+- 14:14 当前B全Kernel548/类型通过，进程强退扩展11通过；整体复审发现短写残留，6RED修复后21故障用例/类型通过。
+- 14:16 短写修复后全Kernel559/生产类型通过，完整输出root-partialstage-kernel.json；整体B复审继续，未验收或提交。
+- 14:19 暂存旧manifest可被当新提交HIGH真实RED修复：稳定读取同时校验payload及identity；全Kernel560/类型通过，独立复核中。
+- 14:21 整体B独立复审服务风险标记中断，未出最终报告；保留未验收，不将generation PASS或560绿灯替代整体复审。
+- 14:20 correction: 上条复审中断实际记录时间为14:20 CST，非14:21。
+- 14:31 ENOSPC矩阵14、非普通锁子进程3、锁获取时替换1通过；Linux首轮125/1失败定位Python3.12测试钩子过早触发。
+- 14:31 保留Linux首败，精确钩子后Linux126通过，macOS全Kernel571及类型通过；整体独立复审仍缺，不推进C/default。
+- 14:34 当前树全Kernel572/类型/diff通过；复审错误终态与缺报告连续三轮未解除，且OP08待授权，整体目标标阻塞而非完成。
+- 14:55 用户同意OP08跨层扩展；登记A–D切片与领域摘要等价门槛，未豁免OP13独立复审，未改生产代码。
+- 15:14 OP08-A工件基线33通过；Sol批准流式身份校验设计，已交Terra按限定文件TDD实施，尚未代码验收。
+- 15:12 correction: 上条登记时间为15:12 CST，非15:14。
+- 15:14 OP08-A真实RED命中register_existing整读helper，exit1；Terra实施中，补充EOF变更和FIFO防挂测试要求。
+- 15:21 OP08-A定向48/类型通过，8/64MiB峰值约2.1MB；独立复审要求关闭异常修复，Terra处理中；标准Kernel586/1失败待定位。
+- 15:30 OP08-A干净重做TDD全RED12F/37P/1S后GREEN50，复审认可过程；补修rebound/fstat关闭路径。JSON500k方案证伪，独立批准Python扫描器测试，focused34通过。
+- 15:35 递归JSON测试改为确定性异常与真实Python扫描器，消除固定C栈深度假设 [37661bf]。
+- 15:35 OP08-A流式注册/校验验收提交，独立双PASS、root593Kernel/类型通过，未混入OP13 [b7b49f6]。
+- 15:34 correction: 上两条提交登记时间为15:34 CST，非15:35。
