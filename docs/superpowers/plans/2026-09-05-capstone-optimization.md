@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-12；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-13；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -50,8 +50,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
-| OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | RUNNING | 只读基准接缝映射完成；测量设计与实现待推进，未改变存储格式 |
-| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | CONDITIONAL | 未执行 |
+| OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | DONE | de3a5c7九样本/实测复审/固定完整release PASS，100.339/100.490写入倍率触发OP13 |
+| OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | RUNNING | 触发条件与OP12验收已满足；持久化/恢复合同细化复审中，尚未实施 |
 | OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
 
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
@@ -745,11 +745,11 @@ Neither intermediate code nor digest-only commit closes OP11 without full gates.
   重复及各操作 p50/p95；长测仅显式 `make benchmark-optimization`，普通
   `test-verification-targets` 纳入小规模自测，不隐式启动长测。
 
-- [ ] fixture 采用合法事件生成器，三个规模使用相同事件分布/工件大小；临时目录隔离，重复三次，禁止读取用户业务运行做默认基准。
-- [ ] 测量 context append_many、replay、列表、冷/热投影、预览；用计数器统计逻辑 I/O，时间与 RSS 作为辅助指标。
-- [ ] 验证 10 倍事件量下的写入倍率；若连续两个规模的累计账本写入倍率均 >30，或每新增事件平均账本写入增长 >3 倍，则触发 OP-13。阈值是本计划的工程预算，不是既有性能事实。
-- [ ] 将数据、结论和原始日志摘要写入本计划执行记录；未触发时 OP-13 标 NOT_NEEDED，并保留完整性设计。
-- [ ] 运行 benchmark 自测，再运行三规模命令；规模太大无法完成时记录资源上限和失败规模，不能删掉失败点。
+- [x] fixture 采用合法事件生成器，三个规模使用相同事件分布/工件大小；临时目录隔离，重复三次，禁止读取用户业务运行做默认基准。
+- [x] 测量 context append_many、replay、列表、冷/热投影、预览；用计数器统计逻辑 I/O，时间与 RSS 作为辅助指标。
+- [x] 验证 10 倍事件量下的写入倍率；若连续两个规模的累计账本写入倍率均 >30，或每新增事件平均账本写入增长 >3 倍，则触发 OP-13。阈值是本计划的工程预算，不是既有性能事实。
+- [x] 将数据、结论和原始日志摘要写入本计划执行记录；未触发时 OP-13 标 NOT_NEEDED，并保留完整性设计。
+- [x] 运行 benchmark 自测，再运行三规模命令；规模太大无法完成时记录资源上限和失败规模，不能删掉失败点。
 
 ```sh
 uv run --project packages/grid-agent pytest tools/tests/test_benchmark_optimization.py -q
@@ -757,6 +757,61 @@ uv run --project packages/grid-agent python tools/benchmark_optimization.py --ev
 ```
 
 **关闭条件**：可复现数据、明确分支决策；时间预算不能替代正确性门禁。提交主题：`perf: establish reproducible long-run resource budgets`。
+
+#### OP-12 measurement record — 2026-09-05 12:11 CST
+
+- Source `de3a5c7baa2258de3203cfd938b604347117a1e4`; benchmark SHA256
+  `beb03997247da762a7495eacb00828965bf8ad5418fc02904dc22d9091e812a6`.
+  Only JOURNAL/RESUME dirty at measurement start. macOS26.3 arm64,
+  Python3.14.3, Node23.11.0; batch100, three repeats,300second sample limit.
+- Nine of nine samples completed, no timeout/failed scale omitted; real replay
+  equality, list count1, cold/hot equality, all six hot projector/materializer
+  counters zero, real request preview valid. Request artifact exactly66,410bytes
+  at every scale; initialization excluded and context ledger has N+1 events.
+- Exact cumulative ledger bytes (final+backup) identical across each scale's
+  three repeats. Final ledger sizes786,298 /7,896,303 /79,356,308 bytes are
+  recorded separately and are **not** the cumulative write metric.
+
+| N appended events | Cumulative ledger bytes | Append seconds p50 / p95 | Sample peak RSS bytes p50 / maximum |
+| --- | ---: | ---: | ---: |
+| 1,000 | 7,866,295 | 0.083386 / 0.084449 | 82,788,352 / 83,066,880 |
+| 10,000 | 789,299,940 | 1.405892 / 1.468942 | 587,644,928 / 588,120,064 |
+| 100,000 | 79,316,645,345 | 70.498804 / 70.525125 | 5,198,430,208 / 5,299,552,256 |
+
+| Operation seconds p50 / p95 | N=1,000 | N=10,000 | N=100,000 |
+| --- | ---: | ---: | ---: |
+| context replay | 0.057193 / 0.057971 | 0.575093 / 0.577737 | 5.840944 / 5.865083 |
+| run list | 0.046100 / 0.046757 | 0.454520 / 0.459789 | 4.936301 / 4.986432 |
+| cold projection | 0.083612 / 0.083770 | 0.869022 / 1.019797 | 8.760987 / 8.841518 |
+| hot projection | 0.064233 / 0.066214 | 0.683777 / 0.697590 | 7.004169 / 7.031487 |
+| request preview | 0.003449 / 0.003596 | 0.003566 / 0.003646 | 0.003476 / 0.003568 |
+
+- **Decision: OP-13 TRIGGERED.** Tenfold cumulative write ratios100.339479 and
+  100.489866 both exceed30; corresponding per-event ratios10.033948 and
+  10.048987 both exceed3. This proves the approved engineering trigger for
+  this fixed workload, not a latency SLA or a general business distribution.
+- Large sample process high-water reaches about5.30GB; per-operation RSS cannot
+  attribute that cumulative peak solely to preview/projection. The fixed-size
+  preview reads66,410bytes and does not prove bounded HTTP/artifact memory.
+  Hot cache avoids rebuilding/writing but still reads144,912,541 logical bytes
+  at100k; no O(1) read claim. No provider or operator business runs accessed.
+- Raw full metrics/repetitions: `runs/optimization/benchmarks/report.json`;
+  untruncated tool capture: `runs/optimization/OP-12/formal-benchmark-de3a5c7.json`.
+  Selftest evidence and independent design/code reviews in the same OP-12 folder.
+  Final benchmark23 tests PASS; prior20+verification6 PASS; doctor/links3/
+  relative CLAUDE symlink/diffcheck PASS. Initial15 missing-source RED,
+  fdopen duplicate-count RED and malformed-progress/no-comparison3RED retained
+  and repaired. Independent measurement-review.md PASS.
+- Fixed `de3a5c7` `make doctor && make check-release` exited0 at12:18 CST.
+  Production pyright0; agent788/simulator165/Kernel464/pandapower79;
+  inventory service11/domain118+genericPi1; Pi43+34; workbench128;
+  gate selftests41 (including benchmark23); real installed SDK4; E2E31;
+  offline/scripted24-of-24/full application; six-wheel/two-npm clean install
+  and frozen source setup all PASS. Raw untruncated capture:
+  `runs/optimization/OP-12/gate-release-de3a5c7.json`.
+  Upstream dependency warnings retained; local Darwin verification, not remote
+  CI or paid provider. OP-12 DONE; OP-13 starts with contract review, not an
+  unreviewed writer switch. OP-08 scope approval remains outstanding.
 
 ### OP-13：触发后实现分段事务日志
 

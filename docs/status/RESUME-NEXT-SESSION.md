@@ -1,21 +1,22 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 12:04 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 12:18 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
 - Active unbounded goal: continue approved optimization implementation, not just a plan. Project route direct; one worklist: docs/superpowers/plans/2026-09-05-capstone-optimization.md.
-- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEADae2dac1; OP11 source416a04d plus independent protected digest218b672 and closure docsae2dac1.
-- OP01–07/10/11 DONE. OP12 RUNNING (benchmark implementation/review/selftests PASS, formal measurements pending). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP13 conditional on12; OP14 waits the remaining packages.
-- No active root terminal. Fixed218b672 make doctor && make check-release terminal89274 exited0 at11:42 CST; full raw capture saved. Do not poll ended terminals or repeat this gate for unchanged source.
+- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEADde3a5c7 (OP12 reviewed benchmark); OP11 source416a04d plus independent protected digest218b672 and closure docsae2dac1.
+- OP01–07/10/11/12 DONE. OP13 RUNNING (contract refinement only, no new storage code). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP14 waits the remaining packages.
+- No active root terminal. Fixed de3a5c7 doctor/check-release41875 ended0 at12:18; raw gate-release-de3a5c7.json saved. Formal benchmark48062 ended0 with9/9 PASS and TRIGGERED; raw formal-benchmark-de3a5c7.json saved. Do not poll ended terminals.
 
-## Immediate next action: OP12
+## Immediate next action: OP13
 
-1. Commit reviewed OP12 benchmark/tests/Makefile and canonical measurement refinement before formal measurements. No production persistence/API changes. HEAD remains ae2dac1 before this commit.
-2. Design and repaired-code independent reviews PASS in runs/optimization/OP-12/. Final benchmark23 selftests PASS; earlier20+verification6 PASS. make doctor/diffcheck PASS. Raw selftest-evidence.json retains available attempts; initial missing-source15RED, fdopen duplicate-write failure and malformed-progress/no-comparison3RED were corrected, not hidden.
-3. Run explicit three-scale command from canonical OP12, repeat3/default batch100/default300second per-sample timeout. Full raw output and report must retain incomplete scales. No formal benchmark numbers exist yet; no OP13 decision.
-4. Exact stream/descriptor I/O counts include chained open and fdopen buffering; ledger final+backup bytes counted separately. Independent child RSS cumulative, fixed256byte state and65536byte request text. Actual replay/list/cold-hot/preview validity, hot zero projector/materializer calls. Preview is helper-only, not HTTP/UI memory proof.
-5. Bad/truncated progress retains failed sample/scratch path and bounded diagnostics; lack of exact10x comparison is INCONCLUSIVE. OP13 only after measured trigger and separate reviewed commit-point/recovery contract; OP08 still pending approval.
+1. Commit OP12 closure docs after diff/link/doctor checks; implementation source de3a5c7 remains unchanged. Canonical table now OP12 DONE/OP13 RUNNING. Do not rerun long benchmark or release for unchanged source.
+2. Read Sol op10_contract_decision candidate runs/optimization/OP-12/segment-contract-proposal.md when ready, critically review and put precise OP13 format/commit point/recovery/compatibility/test slices in canonical plan before code. Candidate is not approval for unreviewed implementation.
+3. OP12 report.json complete9/9, W7,866,295 /789,299,940 /79,316,645,345 bytes; cumulative100.339479/100.489866 and mean10.033948/10.048987 => TRIGGERED. Design/code/measurement reviews PASS; selftests23; full fixed de3a5c7 releasePASS with selftests41, all existing package/E2E31/24-of-24/app/install gates. No source-gate failures; earlier benchmark TDD failures retained in selftest-evidence.json.
+4. Metrics scope: logical Python I/O, ledger final+backup separate; cumulative child RSS max5,299,552,256bytes, not per-operation attributable. Fixed256byte state/65536byte request text, actual66,410byte artifact. Preview helper-only, not HTTP/UI memory proof; hot0projector/materializer but still144,912,541bytes read at100k.
+5. OP13 contract must prevent missing/corrupt new manifest downgrading to legacy, preserve explicit legacy reader/writer tests, use O(1) manifest and immutable segments plus actual cross-process lock. Distinguish rename-before-directory-fsync uncertainty from durable commit with failed rebuildable snapshot. No old-run migration, no mirror rewrite that restores quadratic writes.
+6. Terra storage-consumer-map.md corrected: no genuine concurrent test exists. compat single_run uses Path replay; v1_0_1_report forwards Kernel path to legacy report direct JSONL reader which currently skips generic events. Need narrow public replay-aware report adaptation or explicit compatible entry—not silent format errors. Benchmark counters must follow real new ledger seam and preserve baseline workload. OP08 remains unapproved.
 
 ## OP11 closed evidence
 
