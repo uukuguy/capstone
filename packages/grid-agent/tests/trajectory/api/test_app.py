@@ -825,6 +825,90 @@ def test_api_pages_only_typed_artifact_projection_records_for_evidence(
     assert page["older_cursor"] is None
 
 
+def test_batch_evidence_matches_aliases_missing_and_deduplicates_with_one_projection(tmp_path: Path, monkeypatch) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    calls = []
+    original = catalog.open
+    monkeypatch.setattr(catalog, "open", lambda run: (calls.append(run), original(run))[1])
+    record = next(iter(catalog.projected.artifacts.records.values()))
+    response = TestClient(app).get("/api/runs/analysis-test/evidence/batch", params=[
+        ("ref", record.reference), ("ref", "unknown"), ("ref", record.id), ("ref", record.reference),
+    ])
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["analysis_id"] == "analysis-test"
+    assert [(item["reference"], item["status"]) for item in payload["items"]] == [
+        (record.reference, "matched"), ("unknown", "missing"), (record.id, "matched"),
+    ]
+    assert payload["items"][0]["records"] == [record.model_dump(mode="json")]
+    assert payload["items"][1]["records"] == []
+    assert calls == ["analysis-test"]
+
+
+@pytest.mark.parametrize("params", [
+    [], [("ref", "")], [("ref", "x" * 1001)], [("ref", "bad\nref")],
+    [("ref", "x")] * 33, [("ref", "x"), ("path", "/private")],
+    [("ref", "x" * 1000)] * 20,
+])
+def test_batch_rejects_invalid_query_before_opening_run(tmp_path: Path, monkeypatch, params) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    def unexpected_open(_):
+        pytest.fail("invalid query must not load projection")
+    monkeypatch.setattr(catalog, "open", unexpected_open)
+    response = TestClient(app).get("/api/runs/analysis-test/evidence/batch", params=params)
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid_request"
+
+
+def test_batch_evidence_keeps_oversize_failure_distinct_from_missing(tmp_path: Path) -> None:
+    app, catalog, _ = create_test_app(tmp_path)
+    record = next(iter(catalog.projected.artifacts.records.values()))
+    oversized = record.model_copy(update={"id": "big", "reference": "big", "kind": "x" * (2 * 1024 * 1024)})
+    unsafe = record.model_copy(update={"id": "unsafe", "reference": "unsafe", "relative_path": "/private/secret"})
+    catalog.projected = catalog.projected.model_copy(update={"artifacts": ArtifactIndex(
+        analysis_id="analysis-test", records={"big": oversized, "unsafe": unsafe, record.reference: record},
+    )})
+    response = TestClient(app).get("/api/runs/analysis-test/evidence/batch", params=[
+        ("ref", "big"), ("ref", "unknown"), ("ref", record.reference), ("ref", "unsafe"),
+    ])
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["status"] for item in items] == ["error", "missing", "matched", "matched"]
+    assert items[0]["records"] == [] and items[0]["error_code"] == "response_too_large"
+    assert "/private/secret" not in response.text
+    assert items[3]["records"][0]["verification_status"] == "unavailable"
+
+
+def test_batch_evidence_uses_real_current_run_projection(tmp_path: Path) -> None:
+    app, refs = create_native_catalog_app(tmp_path)
+    requested = [refs["result_ref"], refs["evidence_ref"]]
+    response = TestClient(app).get("/api/runs/analysis-native-artifacts/evidence/batch",
+        params=[("ref", ref) for ref in requested])
+    assert response.status_code == 200
+    assert response.json()["analysis_id"] == "analysis-native-artifacts"
+    for item, reference in zip(response.json()["items"], requested, strict=True):
+        assert item["status"] == "matched" and item["error_code"] is None
+        assert any(record["reference"] == reference and record["verification_status"] == "verified"
+                   for record in item["records"])
+
+
+def test_batch_oversize_group_does_not_consume_successful_item_budget(tmp_path: Path, monkeypatch) -> None:
+    from grid_agent.trajectory.api import projection_pages
+    monkeypatch.setattr(projection_pages, "MAX_PAGE_RECORDS", 2)
+    app, catalog, _ = create_test_app(tmp_path)
+    record = next(iter(catalog.projected.artifacts.records.values()))
+    records = {str(i): record.model_copy(update={"id": str(i), "reference": str(i), "request_id": "group"})
+               for i in range(3)}
+    records[record.reference] = record
+    catalog.projected = catalog.projected.model_copy(update={"artifacts": ArtifactIndex(
+        analysis_id="analysis-test", records=records,
+    )})
+    response = TestClient(app).get("/api/runs/analysis-test/evidence/batch",
+        params=[("ref", "group"), ("ref", record.reference)])
+    assert response.status_code == 200
+    assert [item["status"] for item in response.json()["items"]] == ["error", "matched"]
+
+
 def test_native_api_verifies_simulator_artifacts_and_downloads_exact_bytes(tmp_path: Path) -> None:
     app, refs = create_native_catalog_app(tmp_path)
     client = TestClient(app)

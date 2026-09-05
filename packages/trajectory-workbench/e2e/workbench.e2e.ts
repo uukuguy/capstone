@@ -16,7 +16,13 @@ test('claim investigation reaches evidence, context, and execution without a rou
   await page.goto('/');
   const initialNavigationEntries = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 
+  const batchResponse = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith('/evidence/batch'));
   await page.getByTestId('causal-node-claim:7').click();
+  const lookup = await batchResponse;
+  expect(lookup.status()).toBe(200);
+  expect((await lookup.json()).items).toEqual(expect.arrayContaining([
+    expect.objectContaining({ reference: 'evidence:line-17', status: 'matched' }),
+  ]));
   for (const panel of ['Evidence', 'Context', 'Execution']) {
     await page.getByTestId('audit-inspector').getByRole('tab', { name: panel }).click();
     await expect(page.getByTestId(`audit-panel-${panel.toLowerCase()}`)).toBeVisible();

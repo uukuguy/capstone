@@ -1,6 +1,6 @@
 import type {
   AgentEventRow, AgentPageRequest, ApiErrorResponse, BusinessCausalRow, ContextFrame, ContextFrameSummary,
-  ContextPageRequest, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage,
+  ContextPageRequest, EvidenceBatchResponse, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage,
   RunListResponse, RunSummary,
 } from './types';
 
@@ -64,6 +64,20 @@ export class TrajectoryApiClient {
   }
   getEvidenceIndex(id: string, signal?: AbortSignal) {
     return this.get<EvidenceIndex>(`/api/runs/${encodeURIComponent(id)}/evidence`, signal);
+  }
+  getEvidenceBatch(id: string, references: string[], signal?: AbortSignal) {
+    const uniqueReferences = [...new Set(references)];
+    if (uniqueReferences.length > 32) throw new Error('evidence batch supports at most 32 references');
+    if (uniqueReferences.some((reference) => reference.length > 1000)) {
+      throw new Error('evidence batch references must be at most 1000 characters');
+    }
+    const query = new URLSearchParams();
+    for (const reference of uniqueReferences) query.append('ref', reference);
+    if (query.toString().length > 16 * 1024) throw new Error('evidence batch query exceeds 16 KiB');
+    return this.get<EvidenceBatchResponse>(
+      `/api/runs/${encodeURIComponent(id)}/evidence/batch?${query.toString()}`,
+      signal,
+    );
   }
   artifactUrl(id: string, ref: string) {
     return `/api/runs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(ref)}`;

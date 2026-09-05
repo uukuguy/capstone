@@ -305,6 +305,20 @@ export interface EvidenceIndex {
   records: Record<string, EvidenceRecord>;
 }
 
+export type EvidenceBatchStatus = 'matched' | 'missing' | 'error';
+
+export interface EvidenceBatchItem {
+  reference: string;
+  status: EvidenceBatchStatus;
+  records: EvidenceRecord[];
+  error_code: string | null;
+}
+
+export interface EvidenceBatchResponse {
+  analysis_id: string;
+  items: EvidenceBatchItem[];
+}
+
 export interface AgentPageFilters {
   turn_id?: string | null;
   kind?: AgentEventKind | null;

@@ -16,7 +16,7 @@ from grid_agent.trajectory.api.cursor import (
     CursorExpectation,
     CursorState,
 )
-from grid_agent.trajectory.api.paging import ProjectionPager
+from grid_agent.trajectory.api.paging import MAX_PAGE_BYTES, MAX_PAGE_RECORDS, ProjectionPager
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import StrictFrozenModel
 from grid_agent.trajectory.projection_models import (
@@ -187,6 +187,60 @@ class ProjectionPageResponse(_ProjectionApiModel):
                 ),
             )
         return self
+
+
+class EvidenceLookupItem(_ProjectionApiModel):
+    reference: str
+    status: Literal["matched", "missing", "error"]
+    records: tuple[ArtifactIndexRecord, ...] = ()
+    error_code: Literal["response_too_large"] | None = None
+
+
+class EvidenceBatchResponse(_ProjectionApiModel):
+    analysis_id: str
+    items: tuple[EvidenceLookupItem, ...]
+
+
+def evidence_batch(projected: ProjectedRun, references: list[str]) -> EvidenceBatchResponse:
+    """Resolve a bounded batch against one projection without hiding lookup errors."""
+    requested = dict.fromkeys(references)
+    matches: dict[str, list[ArtifactIndexRecord]] = {ref: [] for ref in requested}
+    match_bytes = dict.fromkeys(requested, 0)
+    failed: set[str] = set()
+    # Reserve envelope/reference/error fields; share existing page limits across
+    # all matches, including records repeated under different requested aliases.
+    used_bytes = len(canonical_json_bytes({"analysis_id": projected.analysis_id,
+        "items": [{"reference": ref, "status": "error", "records": [],
+                   "error_code": "response_too_large"} for ref in requested]}))
+    used_records = 0
+    binding = projected.binding_metadata()
+    for record in projected.artifacts.records.values():
+        related = _evidence_relations(record).intersection(requested).difference(failed)
+        if not related:
+            continue
+        public = _public_evidence_record(record, binding=binding)
+        record_bytes = len(canonical_json_bytes(public.model_dump(mode="json"))) + 1
+        for ref in requested:
+            if ref not in related:
+                continue
+            if used_records >= MAX_PAGE_RECORDS or used_bytes + record_bytes > MAX_PAGE_BYTES:
+                failed.add(ref)
+                used_records -= len(matches[ref])
+                used_bytes -= match_bytes[ref]
+                matches[ref].clear()
+                continue
+            matches[ref].append(public)
+            used_bytes += record_bytes
+            match_bytes[ref] += record_bytes
+            used_records += 1
+    return EvidenceBatchResponse(analysis_id=projected.analysis_id, items=tuple(
+        EvidenceLookupItem(reference=ref, status="error", error_code="response_too_large")
+        if ref in failed else EvidenceLookupItem(
+            reference=ref, status="matched" if records else "missing",
+            records=tuple(sorted(records, key=lambda item: _evidence_sort_key(item, "producer_sequence"))),
+        )
+        for ref, records in matches.items()
+    ))
 
 
 class _FilterModel(StrictFrozenModel):

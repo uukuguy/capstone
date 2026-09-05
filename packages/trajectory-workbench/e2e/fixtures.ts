@@ -304,6 +304,17 @@ export async function mockWorkbenchApi(page: Page, scenario: Scenario = 'ready',
       }
       return route.fulfill({ body: content, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="evidence.json"' } });
     }
+    if (path.endsWith('/evidence/batch')) {
+      return route.fulfill({ json: {
+        analysis_id: 'analysis-test',
+        items: [...new Set(url.searchParams.getAll('ref'))].map((reference) => ({
+          reference,
+          status: reference === lineEvidence.reference ? 'matched' : 'missing',
+          records: reference === lineEvidence.reference ? [lineEvidence] : [],
+          error_code: null,
+        })),
+      } });
+    }
     if (path.endsWith('/evidence')) {
       const relevantRef = url.searchParams.get('relevant_ref');
       if (relevantRef) {

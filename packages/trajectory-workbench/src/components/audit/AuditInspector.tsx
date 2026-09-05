@@ -113,7 +113,13 @@ function PanelContent({
     return <AsyncState state={state} diagnostic={diagnostic} onRetry={onRetry} />;
   }
   if (active === 'overview') return <OverviewPanel model={model} onSelectSequence={onSelectSequence} />;
-  if (active === 'evidence') return <EvidencePanel model={model} artifactUrl={artifactUrl} onSelectSequence={onSelectSequence} />;
+  if (active === 'evidence') return <EvidencePanel
+    model={model}
+    artifactUrl={artifactUrl}
+    onSelectSequence={onSelectSequence}
+    diagnostic={diagnostic}
+    onRetry={onRetry}
+  />;
   if (active === 'context') return <ContextPanel model={model} artifactUrl={artifactUrl} onSelectSequence={onSelectSequence} />;
   return <ExecutionPanel model={model} executionSlice={executionSlice} />;
 }
@@ -145,10 +151,28 @@ function OverviewPanel({ model, onSelectSequence }: { model: AuditInspectorModel
   </div>;
 }
 
-function EvidencePanel({ model, artifactUrl, onSelectSequence }: { model: AuditInspectorModel; artifactUrl: (ref: string) => string; onSelectSequence: (sequence: number) => void }) {
-  if (model.unavailable.evidence) return <p className="unavailable">{model.unavailable.evidence}</p>;
-  return <div className="audit-card-list">
-    {model.evidence.map((record) => <EvidenceCard key={record.reference} record={record} artifactUrl={artifactUrl} onSelectSequence={onSelectSequence} />)}
+function EvidencePanel({
+  model,
+  artifactUrl,
+  onSelectSequence,
+  diagnostic,
+  onRetry,
+}: {
+  model: AuditInspectorModel;
+  artifactUrl: (ref: string) => string;
+  onSelectSequence: (sequence: number) => void;
+  diagnostic?: string | null;
+  onRetry: () => void;
+}) {
+  if (model.unavailable.evidence && !diagnostic) return <p className="unavailable">{model.unavailable.evidence}</p>;
+  return <div className="audit-panel-stack">
+    {diagnostic ? <section className="async-state state-partial" role="alert">
+      <p>{diagnostic}</p>
+      <button type="button" onClick={onRetry}>Retry evidence lookup</button>
+    </section> : null}
+    {model.unavailable.evidence && !diagnostic ? <p className="unavailable">{model.unavailable.evidence}</p> : <div className="audit-card-list">
+      {model.evidence.map((record) => <EvidenceCard key={record.reference} record={record} artifactUrl={artifactUrl} onSelectSequence={onSelectSequence} />)}
+    </div>}
   </div>;
 }
 

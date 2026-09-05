@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type TrajectoryApiClient } from '../api/client';
-import type { AgentEventRow, AgentPageRequest, AgentTurn, BindingMetadata, BusinessCausalRow, BusinessNode, BusinessProblem, ContextFrame, ContextFrameSummary, CoreTimelineItem, DomainPayloadView, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunListResponse } from '../api/types';
+import type { AgentEventRow, AgentPageRequest, AgentTurn, BindingMetadata, BusinessCausalRow, BusinessNode, BusinessProblem, ContextFrame, ContextFrameSummary, CoreTimelineItem, DomainPayloadView, EvidenceBatchResponse, EvidenceIndex, EvidencePageRequest, EvidenceRecord, ExecutionSlice, ProjectionPage, RunListResponse } from '../api/types';
 import { App } from './App';
 
 const run: RunListResponse = {
@@ -461,6 +461,280 @@ describe('App shell', () => {
     await waitFor(() => expect(getEvidencePage).toHaveBeenCalledWith('analysis-test', {
       filters: { relevant_ref: reference },
     }, expect.any(AbortSignal)));
+  });
+
+  it('loads selected evidence in batches of 32 with at most two in flight', async () => {
+    const references = Array.from({ length: 70 }, (_, index) => `evidence:batch-${index}`);
+    const selectedRow = agentEventRow('agent:analysis-test:batch-refs', 49, {
+      related_refs: references,
+      title: 'batch evidence selection',
+    });
+    let active = 0;
+    let maximumActive = 0;
+    const pending: Array<{
+      references: string[];
+      signal: AbortSignal;
+      resolve: (response: EvidenceBatchResponse) => void;
+    }> = [];
+    const getEvidenceBatch = vi.fn((_runId: string, batch: string[], signal?: AbortSignal) => new Promise<EvidenceBatchResponse>((resolve) => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      pending.push({
+        references: batch,
+        signal: signal ?? new AbortController().signal,
+        resolve: (response) => {
+          active -= 1;
+          resolve(response);
+        },
+      });
+    }));
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([selectedRow]),
+      getEvidenceBatch,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /batch evidence selection.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(2));
+    expect(maximumActive).toBe(2);
+    expect(getEvidenceBatch.mock.calls.map(([, batch]) => batch)).toEqual([
+      references.slice(0, 32), references.slice(32, 64),
+    ]);
+
+    const firstTwo = pending.splice(0, 2);
+    for (const request of firstTwo) {
+      request.resolve({
+        analysis_id: 'analysis-test',
+        items: request.references.map((reference) => ({
+          reference,
+          status: 'missing',
+          records: [],
+          error_code: null,
+        })),
+      });
+    }
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(3));
+    expect(maximumActive).toBe(2);
+    expect(getEvidenceBatch.mock.calls[2]?.[1]).toEqual(references.slice(64));
+    pending[0]?.resolve({
+      analysis_id: 'analysis-test',
+      items: pending[0].references.map((reference) => ({
+        reference,
+        status: 'missing',
+        records: [],
+        error_code: null,
+      })),
+    });
+  });
+
+  it('splits selected evidence before the encoded batch query limit', async () => {
+    const references = Array.from({ length: 20 }, (_, index) => `evidence:${index}-${'x'.repeat(980)}`);
+    const selectedRow = agentEventRow('agent:analysis-test:long-refs', 49, {
+      related_refs: references,
+      title: 'long evidence references',
+    });
+    const getEvidenceBatch = vi.fn(async (_runId: string, batch: string[]): Promise<EvidenceBatchResponse> => ({
+      analysis_id: 'analysis-test',
+      items: batch.map((reference) => ({ reference, status: 'missing', records: [], error_code: null })),
+    }));
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([selectedRow]),
+      getEvidenceBatch,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /long evidence references.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(2));
+    for (const [, batch] of getEvidenceBatch.mock.calls) {
+      expect(batch.length).toBeGreaterThan(0);
+      expect(batch.length).toBeLessThanOrEqual(32);
+      expect(new URLSearchParams(batch.map((reference) => ['ref', reference])).toString().length).toBeLessThanOrEqual(16 * 1024);
+    }
+  });
+
+  it('retains matched selected evidence beside a retryable partial batch failure', async () => {
+    const matchedReference = 'evidence:matched';
+    const failedReference = 'evidence:too-large';
+    const selectedRow = agentEventRow('agent:analysis-test:partial-evidence', 49, {
+      related_refs: [matchedReference, failedReference],
+      title: 'partial evidence selection',
+    });
+    const getEvidenceBatch = vi.fn(async (): Promise<EvidenceBatchResponse> => ({
+      analysis_id: 'analysis-test',
+      items: [
+        { reference: matchedReference, status: 'matched', records: [evidenceRecord(matchedReference, 49)], error_code: null },
+        { reference: failedReference, status: 'error', records: [], error_code: 'response_too_large' },
+      ],
+    }));
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([selectedRow]),
+      getEvidenceBatch,
+      artifactUrl: (_runId, reference) => `/artifact/${reference}`,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /partial evidence selection.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledOnce());
+    const inspector = screen.getByRole('complementary', { name: 'Trajectory inspector' });
+    fireEvent.click(within(inspector).getByRole('tab', { name: 'Evidence' }));
+
+    expect(await within(inspector).findByRole('link', { name: matchedReference })).toHaveAttribute('href', `/artifact/${matchedReference}`);
+    expect(within(inspector).getByRole('alert')).toHaveTextContent('Some selected evidence references could not be loaded.');
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Retry evidence lookup' }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps successful selected-batch evidence visible when the main evidence page fails', async () => {
+    const reference = 'evidence:batch-survives-page-failure';
+    const selectedRow = agentEventRow('agent:analysis-test:batch-page-failure', 49, {
+      related_refs: [reference],
+      title: 'batch evidence survives page failure',
+    });
+    const getEvidenceBatch = vi.fn(async (): Promise<EvidenceBatchResponse> => ({
+      analysis_id: 'analysis-test',
+      items: [{ reference, status: 'matched', records: [evidenceRecord(reference, 49)], error_code: null }],
+    }));
+    const getEvidencePage = vi.fn(async (): Promise<ProjectionPage<EvidenceRecord>> => {
+      throw new Error('main evidence page unavailable');
+    });
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([selectedRow]),
+      getEvidenceBatch,
+      getEvidencePage,
+      artifactUrl: (_runId, selectedReference) => `/artifact/${selectedReference}`,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /batch evidence survives page failure.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledOnce());
+    fireEvent.click(viewTab('Evidence'));
+    expect(await screen.findByText('main evidence page unavailable')).toBeVisible();
+
+    const inspector = screen.getByRole('complementary', { name: 'Trajectory inspector' });
+    fireEvent.click(within(inspector).getByRole('tab', { name: 'Evidence' }));
+    expect(await within(inspector).findByRole('link', { name: reference })).toHaveAttribute('href', `/artifact/${reference}`);
+    expect(within(inspector).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('retries the legacy evidence index when no selected lookup method is available', async () => {
+    const reference = 'evidence:legacy-index';
+    const node = { ...nestedProblem.nodes[0], refs: [reference] };
+    let attempts = 0;
+    const getEvidenceIndex = vi.fn(async (): Promise<EvidenceIndex> => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('legacy evidence index unavailable');
+      return {
+        analysis_id: 'analysis-test',
+        records: { [reference]: evidenceRecord(reference, 61) },
+      };
+    });
+    render(<App client={{
+      listRuns: async () => run,
+      getBusinessPage: async () => businessProjectionPage([{ ...nestedProblem, nodes: [node] }]),
+      getEvidenceIndex,
+      artifactUrl: (_runId, selectedReference) => `/artifact/${selectedReference}`,
+    }} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /nested conclusion/i }));
+    await waitFor(() => expect(getEvidenceIndex).toHaveBeenCalledOnce());
+    const inspector = screen.getByRole('complementary', { name: 'Trajectory inspector' });
+    fireEvent.click(within(inspector).getByRole('tab', { name: 'Evidence' }));
+    expect(within(inspector).getByRole('alert')).toHaveTextContent('legacy evidence index unavailable');
+
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(getEvidenceIndex).toHaveBeenCalledTimes(2));
+    expect(await within(inspector).findByRole('link', { name: reference })).toHaveAttribute('href', `/artifact/${reference}`);
+  });
+
+  it('aborts stale selected-evidence batches and ignores their later result', async () => {
+    const staleReference = 'evidence:stale';
+    const currentReference = 'evidence:current';
+    const staleRow = agentEventRow('agent:analysis-test:stale-evidence', 49, {
+      related_refs: [staleReference],
+      title: 'stale evidence selection',
+    });
+    const currentRow = agentEventRow('agent:analysis-test:current-evidence', 50, {
+      related_refs: [currentReference],
+      title: 'current evidence selection',
+    });
+    const pending: Array<{
+      references: string[];
+      signal: AbortSignal;
+      resolve: (response: EvidenceBatchResponse) => void;
+    }> = [];
+    const getEvidenceBatch = vi.fn((_runId: string, references: string[], signal?: AbortSignal) => new Promise<EvidenceBatchResponse>((resolve) => {
+      pending.push({ references, signal: signal ?? new AbortController().signal, resolve });
+    }));
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([staleRow, currentRow]),
+      getEvidenceBatch,
+      artifactUrl: (_runId, reference) => `/artifact/${reference}`,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /stale evidence selection.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('row', { name: /current evidence selection.*sequence 50/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(2));
+    expect(pending[0]?.signal.aborted).toBe(true);
+
+    await act(async () => pending[0]?.resolve({
+      analysis_id: 'analysis-test',
+      items: [{ reference: staleReference, status: 'matched', records: [evidenceRecord(staleReference, 49)], error_code: null }],
+    }));
+    await act(async () => pending[1]?.resolve({
+      analysis_id: 'analysis-test',
+      items: [{ reference: currentReference, status: 'matched', records: [evidenceRecord(currentReference, 50)], error_code: null }],
+    }));
+
+    const inspector = screen.getByRole('complementary', { name: 'Trajectory inspector' });
+    fireEvent.click(within(inspector).getByRole('tab', { name: 'Evidence' }));
+    expect(await within(inspector).findByRole('link', { name: currentReference })).toBeVisible();
+    expect(within(inspector).queryByRole('link', { name: staleReference })).not.toBeInTheDocument();
+  });
+
+  it('does not start queued evidence batches after a selection aborts', async () => {
+    const staleReferences = Array.from({ length: 70 }, (_, index) => `evidence:cancelled-${index}`);
+    const staleRow = agentEventRow('agent:analysis-test:cancelled-evidence', 49, {
+      related_refs: staleReferences,
+      title: 'cancelled evidence selection',
+    });
+    const clearRow = agentEventRow('agent:analysis-test:no-evidence', 50, {
+      related_refs: [],
+      title: 'selection without evidence',
+    });
+    const pending: Array<{
+      references: string[];
+      signal: AbortSignal;
+      resolve: (response: EvidenceBatchResponse) => void;
+    }> = [];
+    const getEvidenceBatch = vi.fn((_runId: string, references: string[], signal?: AbortSignal) => new Promise<EvidenceBatchResponse>((resolve) => {
+      pending.push({ references, signal: signal ?? new AbortController().signal, resolve });
+    }));
+    render(<App client={{
+      ...fixtureClient(),
+      getAgentPage: async () => agentProjectionPage([staleRow, clearRow]),
+      getEvidenceBatch,
+    }} />);
+
+    fireEvent.click(viewTab('Agent'));
+    fireEvent.click(await screen.findByRole('row', { name: /cancelled evidence selection.*sequence 49/i }));
+    await waitFor(() => expect(getEvidenceBatch).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('row', { name: /selection without evidence.*sequence 50/i }));
+    expect(pending.every((request) => request.signal.aborted)).toBe(true);
+    for (const request of pending) {
+      await act(async () => request.resolve({
+        analysis_id: 'analysis-test',
+        items: request.references.map((reference) => ({ reference, status: 'missing', records: [], error_code: null })),
+      }));
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(getEvidenceBatch).toHaveBeenCalledTimes(2);
   });
 
   it('pages Context summaries and fetches exact detail only after selecting a frame', async () => {

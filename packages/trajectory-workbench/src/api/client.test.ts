@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ExecutionSlice } from './types';
+import type { EvidenceBatchResponse, ExecutionSlice } from './types';
 import { ApiError, TrajectoryApiClient } from './client';
 
 describe('TrajectoryApiClient', () => {
@@ -117,5 +117,29 @@ describe('TrajectoryApiClient', () => {
       '/api/runs/analysis%2Ftest/evidence?cursor=evidence%2Fcursor&sort=verification_status&source=observed',
     ]);
     expect(fetcher.mock.calls.every(([, init]) => init.signal === controller.signal)).toBe(true);
+  });
+
+  it('requests a bounded evidence batch with repeated encoded references', async () => {
+    const responseBody: EvidenceBatchResponse = {
+      analysis_id: 'analysis/test',
+      items: [
+        { reference: 'evidence:one/two', status: 'matched', records: [], error_code: null },
+        { reference: 'result:space value', status: 'missing', records: [], error_code: null },
+      ],
+    };
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(responseBody), { status: 200 }));
+    const client = new TrajectoryApiClient(fetcher);
+    const controller = new AbortController();
+
+    await expect(client.getEvidenceBatch(
+      'analysis/test',
+      ['evidence:one/two', 'result:space value', 'evidence:one/two'],
+      controller.signal,
+    )).resolves.toEqual(responseBody);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/runs/analysis%2Ftest/evidence/batch?ref=evidence%3Aone%2Ftwo&ref=result%3Aspace+value',
+      expect.objectContaining({ method: 'GET', signal: controller.signal }),
+    );
   });
 });

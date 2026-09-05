@@ -99,6 +99,58 @@ describe('AuditInspector', () => {
     expect(screen.queryByText(/raw sidecar/i)).not.toBeInTheDocument();
   });
 
+  it('keeps matched evidence visible beside a retryable partial batch diagnostic', () => {
+    const retry = vi.fn();
+    const model: AuditInspectorModel = {
+      selection,
+      evidence: [{
+        id: 'record:line-17', source: 'observed', source_sequences: [61], rule_id: null,
+        status: 'completed', unavailable_reason: null, reference: 'evidence:line-17', kind: 'evidence',
+        relative_path: 'evidence/line-17.json', sha256: 'a'.repeat(64), verification_status: 'verified',
+        producing_sequence: 61, consuming_sequences: [], turn_id: null, step_id: null,
+        request_id: null, tool_call_id: null, result_id: null, evidence_id: null, claim_id: null,
+      }],
+      context: legacyContext,
+      execution: turn,
+      unavailable: {},
+    };
+
+    render(<AuditInspector
+      model={model}
+      artifactUrl={(ref) => `/artifact/${ref}`}
+      panelDiagnostics={{ evidence: 'Some evidence references could not be loaded.' }}
+      onRetryPanel={retry}
+    />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }));
+
+    expect(screen.getByText('evidence · evidence:line-17')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent('Some evidence references could not be loaded.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry evidence lookup' }));
+    expect(retry).toHaveBeenCalledWith('evidence');
+  });
+
+  it('does not label a failed evidence batch as an inferred missing record', () => {
+    const model: AuditInspectorModel = {
+      selection,
+      evidence: [],
+      context: legacyContext,
+      execution: turn,
+      unavailable: { evidence: 'No evidence records match the selected references.' },
+    };
+
+    render(<AuditInspector
+      model={model}
+      artifactUrl={(ref) => `/artifact/${ref}`}
+      panelDiagnostics={{ evidence: 'Some selected evidence references could not be loaded.' }}
+    />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Some selected evidence references could not be loaded.');
+    expect(screen.queryByText('No evidence records match the selected references.')).not.toBeInTheDocument();
+  });
+
   it('suppresses an unverified context request ref and shows its persisted reason', () => {
     const artifactUrl = vi.fn((ref: string) => `/artifact/${ref}`);
     const context = {

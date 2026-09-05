@@ -20,6 +20,8 @@ from grid_agent.trajectory.api.cursor import CursorCodec, CursorError, CursorExp
 from grid_agent.trajectory.api.models import ApiError, RunListResponse, RunSummary
 from grid_agent.trajectory.api.paging import ProjectionPager, ProjectionRecordTooLarge
 from grid_agent.trajectory.api.projection_pages import (
+    EvidenceBatchResponse,
+    evidence_batch,
     ProjectionPageResponse,
     _page_identity,
     projection_page,
@@ -259,6 +261,17 @@ def create_trajectory_app(
         analysis_id: str, at_sequence: int = Query(ge=1)
     ) -> ExecutionSlice:
         return execution_slice(catalog.open(analysis_id), at_sequence)
+
+    @app.get("/api/runs/{analysis_id}/evidence/batch", response_model=EvidenceBatchResponse)
+    def lookup_evidence(analysis_id: str, request: Request) -> EvidenceBatchResponse:
+        references = request.query_params.getlist("ref")
+        if (set(request.query_params) != {"ref"} or not 1 <= len(references) <= 32
+                or len(request.scope.get("query_string", b"")) > 16_384
+                or any(not ref.strip() or len(ref) > 1000
+                       or any(ord(character) < 32 or ord(character) == 127 for character in ref)
+                       for ref in references)):
+            raise _invalid_query("ref")
+        return evidence_batch(catalog.open(analysis_id), references)
 
     @app.get("/api/runs/{analysis_id}/evidence", response_model=ProjectionPageResponse)
     def evidence_page(

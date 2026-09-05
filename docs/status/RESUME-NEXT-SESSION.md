@@ -1,8 +1,8 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 18:08 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 18:28 CST. **Session remains active — not a final handoff.**
 
-## Priority override: stop over-expansion, deliver OP09 next
+## Priority override: OP09 accepted; return to complete preview delivery
 
 User challenged the overall two-hour detour, not only disk quotas. Canonical plan
 §2 now contains the full retain/simplify/defer audit and delivery order. This
@@ -12,8 +12,16 @@ removed; SQLite policy never changed. Existing caps/cleanup remain. One real
 candidate-index scan regression was fixed (INDEXED BY existing member_bucket):
 index27PASS/types0, combined240dailyPASS/doctor/diff; no extra micro-review cycle.
 
-Immediate next: OP09 batch evidence endpoint and frontend consumption/error state,
-as one usable feature. Its implementation needs OP07's projection, not OP08's
+OP09 is accepted as one usable feature; no active worker edits. Batch endpoint,
+client and selected-evidence UI support32refs/16KiB batches, concurrency2,
+partial success/retry, missing vs error, cancel/stale guards and legacy retry.
+Root doctor/types/test/E2E/validate chain84039 exit0; final workbench138 and
+browser behavior/accessibility13 PASS; CLI E2E31, offline7/7 scripted10/10 full8/8.
+Cross-review closed cancelled queued requests, legacy retry and unrelated-page
+error masking. Contract/acceptance is in canonical OP09, no new micro-report.
+Next: commit OP09-owned paths only, then inspect the real OP08 preview API/Domain/
+UI integration gap as ONE end-to-end deliverable; do not resume extra parser or
+resource-proof work. OP09 implementation needs OP07's projection, not OP08's
 unfinished parser; canonical dependency explicitly corrected, final integration
 still checks OP08 compatibility. Then return to OP08 complete preview delivery,
 not more isolated primitive features. OP13 dirty persistence work remains frozen,
@@ -26,7 +34,7 @@ commits and old review artifacts remain recoverable, not production-adopted.
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD ebd472e (B0.6 isolated component limits).
+  branch feat/capstone-optimization; HEAD fc31e25 (index fix and delivery refocus).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 follows07 now.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.

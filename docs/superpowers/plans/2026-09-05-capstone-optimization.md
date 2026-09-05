@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行：按下方整体精简清单，收口OP08已复现索引修复后转OP09完整用户功能；OP08生产B/C/D仍未完成，原型冻结，不自动迁入生产；OP13 B仍未验收。全方案未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行：OP09批量证据完整功能已验收；下一步回到OP08预览端到端接入缺口，生产B/C/D仍未完成，原型冻结、不自动迁入生产；OP13 B仍未验收。按下方整体精简清单执行，全方案未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -65,7 +65,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | A已验收b7b49f6；B0私有隔离原型/验证已批准，生产B/C/D仍未完成 |
-| OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07（与OP08最终集成） | PLANNED | 下一完整用户功能；实现不依赖JSON原型，见整体精简重排 |
+| OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07（与OP08最终集成） | DONE | 批量API/前端/错误重试完整接通；doctor/types/test/E2E/validate通过，工作台138/浏览器13，详见OP09验收 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | DONE | de3a5c7九样本/实测复审/固定完整release PASS，100.339/100.490写入倍率触发OP13 |
@@ -484,10 +484,12 @@ assert response.headers["Content-Range"].startswith("bytes 0-")
 
 **接口**：只读 GET 查询接收重复 ref 参数，每批最多 32 个，返回每引用 matched/missing/error 的判别状态；前端最多并发 2 批，仍绑定 run_id、selection key 与 AbortSignal。
 
-- [ ] 新增 70 引用选择、某批失败、切换 run、旧响应迟到、重复 ref、超长查询和取消用例。
-- [ ] API 对 ref 严格校验并在一次已缓存 projection 上批量索引，输出顺序与请求引用可匹配；未知引用不泄漏路径。
-- [ ] 前端替换逐引用 Promise.all；成功批次保留，失败批次可明确重试，missing 与请求失败分别展示。
-- [ ] 测试请求最多三批且峰值并发不超过二，错误不折叠为“没有证据”。
+固定接口：`GET /api/runs/{analysis_id}/evidence/batch?ref=...&ref=...`，返回`{analysis_id,items:[{reference,status,records,error_code}]}`。去重保留首位置；匹配使用既有证据关系（reference/id/request/tool/result等），可返回多记录；matched表示找到记录，不新增真实性保证。请求最多32原始ref、每ref1000字符、query16KiB，拒绝空白/控制字符/未知参数，非法请求在打开run前返回既有422 envelope。单次catalog.open；复用public证据投影的路径脱敏。共用既有500记录/2MiB响应预算，无法完整返回的引用为error/response_too_large，不静默截断成matched或missing。前端每批失败转为该批明确错误，保留其他批成功项，取消/旧run/旧selection结果不得入当前状态。
+
+- [x] 新增 70 引用选择、某批失败、切换 run、旧响应迟到、重复 ref、超长查询和取消用例。
+- [x] API 对 ref 严格校验并在一次已缓存 projection 上批量索引，输出顺序与请求引用可匹配；未知引用不泄漏路径。
+- [x] 前端替换逐引用 Promise.all；成功批次保留，失败批次可明确重试，missing 与请求失败分别展示。旧客户端重试和无关证据页失败隔离已补回归修复。
+- [x] 测试请求最多三批且峰值并发不超过二，错误不折叠为“没有证据”。取消后不启动排队批次；编码后query也按16KiB拆分。
 
 ```typescript
 expect(requests).toHaveLength(3);
@@ -495,9 +497,11 @@ expect(peakConcurrentRequests).toBeLessThanOrEqual(2);
 expect(screen.getByText('部分证据加载失败')).toBeVisible();
 ```
 
-- [ ] 执行 `make test-workbench` 及 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory/api -q`；最后运行工作台 Playwright 行为测试。
+- [x] 执行 `make test-workbench` 及 `uv run --project packages/grid-agent pytest packages/grid-agent/tests/trajectory/api -q`；工作台最终138PASS，API96PASS后增加预算回归，最终agent全套799PASS；Playwright行为/可访问性13PASS，真实native run批量准入通过。浏览器fixture同步新接口，不用旧单查假装批量已接入。
 
 **关闭条件**：请求有界、取消有效、部分成功可见、错误语义清晰。提交主题：`perf: batch evidence lookups with explicit partial failures`。
+
+OP09验收（2026-09-05 18:28 CST）：初始后端9RED、超限组预算释放1RED；前端缺批量方法/合批/长query/取消排队/错误状态及旧客户端重试均先复现再修复。最终backend批量11PASS（含真实native run准入），agent799PASS、workbench138PASS；原有浏览器fixture在新增批量断言下404RED，补齐新契约后真实浏览器行为/可访问性13PASS。root执行`make doctor && make check-types && make test && make test-e2e && make validate`整链exit0（session84039），CLI E2E31PASS；最终前端冻结后另`make test-workbench`和浏览器13PASS（83073）。validate报告offline7/7、scripted10/10、full8/8，能力矩阵24/24。现有上游弃用警告保留，不升级依赖。前端实施者交叉核对后端契约，root复核前端并关闭取消、旧重试与无关页面错误覆盖问题；不另建微型复审文档。门禁在含原有OP13脏改动的工作树上运行，不代表OP13独立验收；本次仅提交OP09拥有的源码/测试及账本，无付费provider、发布、迁移或用户数据删除。OP08仍须最终集成，不以本包通过宣称整方案完成。
 
 ### OP-10：收紧类型接口与依赖契约
 

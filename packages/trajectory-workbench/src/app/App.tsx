@@ -36,7 +36,98 @@ type AppClient = Pick<TrajectoryApiClient, 'listRuns' | 'getBusinessPage'> & {
   getEvidencePage?: (
     id: string, request?: EvidencePageRequest, signal?: AbortSignal,
   ) => Promise<ProjectionPage<EvidenceRecord>>;
-} & Partial<Pick<TrajectoryApiClient, 'getContextFrame' | 'getExecutionSlice' | 'getEvidenceIndex' | 'artifactUrl'>>;
+} & Partial<Pick<TrajectoryApiClient, 'getContextFrame' | 'getExecutionSlice' | 'getEvidenceBatch' | 'getEvidenceIndex' | 'artifactUrl'>>;
+
+const selectedEvidenceBatchSize = 32;
+const selectedEvidenceBatchConcurrency = 2;
+const selectedEvidenceQueryLength = 16 * 1024;
+
+interface SelectedEvidenceLoad {
+  items: EvidenceRecord[];
+  failedReferences: string[];
+}
+
+function selectedEvidenceBatches(references: string[]): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  for (const reference of references) {
+    const candidate = [...batch, reference];
+    const queryLength = new URLSearchParams(candidate.map((value) => ['ref', value])).toString().length;
+    if (batch.length > 0 && (candidate.length > selectedEvidenceBatchSize || queryLength > selectedEvidenceQueryLength)) {
+      batches.push(batch);
+      batch = [reference];
+    } else {
+      batch = candidate;
+    }
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
+async function mapWithConcurrency<T, Result>(
+  values: T[],
+  limit: number,
+  signal: AbortSignal,
+  operation: (value: T) => Promise<Result>,
+): Promise<Result[]> {
+  const results = new Array<Result>(values.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (!signal.aborted && nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await operation(values[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, worker));
+  return results;
+}
+
+async function loadSelectedEvidence(
+  client: AppClient,
+  analysisId: string,
+  references: string[],
+  signal: AbortSignal,
+): Promise<SelectedEvidenceLoad> {
+  const records = new Map<string, EvidenceRecord>();
+  const failedReferences = new Set<string>();
+  const addRecords = (items: EvidenceRecord[]) => {
+    for (const record of items) records.set(record.reference, record);
+  };
+
+  if (client.getEvidenceBatch) {
+    const batches = selectedEvidenceBatches(references);
+    await mapWithConcurrency(batches, selectedEvidenceBatchConcurrency, signal, async (batch) => {
+      try {
+        const response = await client.getEvidenceBatch!(analysisId, batch, signal);
+        if (response.analysis_id !== analysisId) throw new Error('Evidence batch response identity does not match the requested run.');
+        const byReference = new Map(response.items.map((item) => [item.reference, item]));
+        for (const reference of batch) {
+          const item = byReference.get(reference);
+          if (!item || item.status === 'error') {
+            failedReferences.add(reference);
+            continue;
+          }
+          if (item.status === 'matched') addRecords(item.records);
+        }
+      } catch {
+        for (const reference of batch) failedReferences.add(reference);
+      }
+    });
+  } else if (client.getEvidencePage) {
+    await mapWithConcurrency(references, selectedEvidenceBatchConcurrency, signal, async (reference) => {
+      try {
+        const page = await client.getEvidencePage!(analysisId, { filters: { relevant_ref: reference } }, signal);
+        if (page.analysis_id !== analysisId) throw new Error('Evidence response identity does not match the requested run.');
+        addRecords(page.items);
+      } catch {
+        failedReferences.add(reference);
+      }
+    });
+  }
+
+  return { items: [...records.values()], failedReferences: [...failedReferences] };
+}
 
 interface BusinessProjectionMetadata {
   applicationId: string | null;
@@ -112,7 +203,10 @@ export function App({ client = api }: { client?: AppClient }) {
     analysisId: string;
     requestKey: string;
     items: EvidenceRecord[];
+    failedReferences: string[];
   } | null>(null);
+  const [selectedEvidenceAttempt, setSelectedEvidenceAttempt] = useState(0);
+  const [selectedEvidenceState, setSelectedEvidenceState] = useState<AsyncStateName>('idle');
   const evidenceIndex = useMemo<EvidenceIndex | null>(() => {
     const legacyRecords = legacyEvidenceIndex?.analysis_id === state.selectedRunId
       ? Object.values(legacyEvidenceIndex.records) : [];
@@ -320,44 +414,41 @@ export function App({ client = api }: { client?: AppClient }) {
   }) : null;
   const hasAuditSelection = Boolean(auditSelection);
   const auditArtifactKey = auditSelection?.artifactRefs.join('\0') ?? '';
+  const selectedEvidenceOwnsLookup = auditArtifactKey.length > 0
+    && Boolean(client.getEvidenceBatch || client.getEvidencePage);
   const selectedDomainBinding = businessMetadata.bindings.find((binding) => binding.binding_id === selectedBindingId)
     ?? businessMetadata.bindings[0]
     ?? null;
 
   useEffect(() => {
-    if (!state.selectedRunId || !client.getEvidencePage || auditArtifactKey.length === 0) {
+    if (!state.selectedRunId || !selectedEvidenceOwnsLookup) {
       selectedEvidenceRequestKeyRef.current = '';
       setSelectedEvidence(null);
+      setSelectedEvidenceState('idle');
       return;
     }
     const requestedRunId = state.selectedRunId;
-    const references = [...new Set(auditArtifactKey.split('\0'))].sort();
-    const requestKeys = references.map((reference) => pageRequestKey(requestedRunId, 'evidence', {
-      filters: { relevant_ref: reference },
-    }));
-    const requestKey = JSON.stringify(requestKeys);
+    const references = [...new Set(auditArtifactKey.split('\0'))];
+    const requestKey = JSON.stringify({ analysisId: requestedRunId, references });
     const controller = new AbortController();
     selectedEvidenceRequestKeyRef.current = requestKey;
+    const retainSelectedEvidence = selectedEvidence?.requestKey === requestKey;
     setSelectedEvidence((current) => current?.requestKey === requestKey ? current : null);
-    void Promise.all(references.map((reference) => client.getEvidencePage!(requestedRunId, {
-      filters: { relevant_ref: reference },
-    }, controller.signal))).then((pages) => {
+    setSelectedEvidenceState(retainSelectedEvidence ? 'ready' : 'loading');
+    void loadSelectedEvidence(client, requestedRunId, references, controller.signal).then((result) => {
       if (
         controller.signal.aborted
         || selectedEvidenceRequestKeyRef.current !== requestKey
-        || pages.some((page) => page.analysis_id !== requestedRunId)
       ) return;
       setSelectedEvidence({
         analysisId: requestedRunId,
         requestKey,
-        items: pages.reduce<EvidenceRecord[]>((items, page) => prependOperationalPage(items, page.items), []),
+        ...result,
       });
-    }).catch(() => {
-      if (controller.signal.aborted || selectedEvidenceRequestKeyRef.current !== requestKey) return;
-      setSelectedEvidence((current) => current?.requestKey === requestKey ? null : current);
+      setSelectedEvidenceState('ready');
     });
     return () => controller.abort();
-  }, [auditArtifactKey, client, pageAttempts.evidence, state.selectedRunId]);
+  }, [auditArtifactKey, client, selectedEvidenceAttempt, selectedEvidenceOwnsLookup, state.selectedRunId]);
 
   useEffect(() => {
     if (!auditSequence || !state.selectedRunId || !client.getExecutionSlice) {
@@ -775,17 +866,28 @@ export function App({ client = api }: { client?: AppClient }) {
       setExecutionSliceAttempt((attempt) => attempt + 1);
       return;
     }
-    const view = panel === 'context' ? 'context' : panel === 'evidence' ? 'evidence' : null;
+    if (panel === 'evidence') {
+      if (selectedEvidenceOwnsLookup) setSelectedEvidenceAttempt((attempt) => attempt + 1);
+      else setPageAttempts((attempts) => ({ ...attempts, evidence: attempts.evidence + 1 }));
+      return;
+    }
+    const view = panel === 'context' ? 'context' : null;
     if (!view) return;
     setPageAttempts((attempts) => ({ ...attempts, [view]: attempts[view] + 1 }));
   };
   const inspectorPanelStates: Partial<Record<AuditPanel, AsyncStateName>> = {
-    evidence: projectionPanelState('evidence', state, pageErrors),
+    evidence: selectedEvidenceOwnsLookup
+      ? selectedEvidenceState
+      : projectionPanelState('evidence', state, pageErrors),
     context: projectionPanelState('context', state, pageErrors),
     execution: executionSliceState,
   };
   const inspectorPanelDiagnostics: Partial<Record<AuditPanel, string | null>> = {
-    evidence: state.pageError.evidence,
+    evidence: selectedEvidenceOwnsLookup
+      ? selectedEvidence?.analysisId === state.selectedRunId && selectedEvidence.failedReferences.length > 0
+        ? 'Some selected evidence references could not be loaded.'
+        : null
+      : state.pageError.evidence,
     context: state.pageError.context,
     execution: executionSliceDiagnostic,
   };
