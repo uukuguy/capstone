@@ -27,6 +27,11 @@ current-run domain state; the Kernel owns neutral composition and lifecycle;
 and the registered Authority owns source-backed or deterministic domain facts,
 results, revisions, and evidence.
 
+Source imports, injected runtime calls, and returned evidence are distinct
+relationships. A Domain Pack may import an explicitly allowlisted authority
+protocol/resource API, but not raw authority internals; the Kernel does not
+import a concrete authority. See the [three relationship diagrams](docs/architecture/capstone-framework.md#imports-calls-and-evidence-are-different-relationships).
+
 ## Adding an Application
 
 To integrate a new application, define its authoritative system boundary and

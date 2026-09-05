@@ -146,6 +146,7 @@ class ScriptedApplicationTransport:
         *,
         on_semantic_event: SemanticEventCallback | None = None,
         correlation_id: str | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
     ) -> str:
         questions = self.case.get("questions")
         if not isinstance(questions, list) or self._question_index >= len(questions):
@@ -155,6 +156,9 @@ class ScriptedApplicationTransport:
             raise RuntimeError("scripted application question order changed")
         if not isinstance(correlation_id, str) or not correlation_id:
             raise RuntimeError("scripted application turn identity is missing")
+
+        if on_heartbeat is not None:
+            on_heartbeat()
 
         self._current_result_refs = ()
         self._current_evidence_refs = ()

@@ -731,3 +731,18 @@ _Recovered pre-merge mainline entries._
 - 08:55 固定7638188完整release exit0，关闭OP07；启动OP08上游全量读与预览内存设计细化。
 - 08:56 固化OP07关闭证据与OP08内存调查入口，保持单一执行账本 [165f921]。
 - 09:00 OP08网关外全量缓冲证据成立；跨Kernel/Domain范围补充入计划，待用户确认，未实施。
+- 09:01 保存OP08待批准跨层提案，避免网关局部优化冒充端到端有界 [2471387]。
+- 09:05 确认OP10仅依赖已完成OP05；先推进独立接口/导入边界，OP08扩展仍待批准。
+- 09:12 OP10导入白名单复审PASS；root补真实7RED→53GREEN及版本pin后54通过，运行契约开始slice1。
+- 09:20 OP10运行slice1定向38、root全Kernel446通过；独立复审进行，完整类型收紧与slice2尚未完成。
+- 09:24 OP10 slice1独立复审PASS；局部类型试验7错误已回撤，授权slice2严格调用与报告适配。
+- 09:26 OP10回撤试验后全生产pyright零错误；slice2复现controller/output缺参仍启动provider的2个RED。
+- 09:34 OP10 slice2定向67、Kernel461、应用39及全pyright通过；首次合并测试根同名收集失败已分包纠正。
+- 09:36 OP10 slice2复审PASS；继续typed-storage/caller衔接，保留结构注入兼容；偶生Kernel锁移入证据目录可恢复。
+- 09:34 correction: 上条09:36为估时笔误；时钟确认09:34时slice3已启动，事件顺序与测试结论不变。
+- 09:43 OP10 slice3初稿定向264/40及全pyright通过但复审拒绝；controller/output/report未接类型，legacy公开类型缺口退回修复。
+- 09:54 OP10 Sol限定接口裁决入计划：六通道controller、9/11字段publisher、typed输出组合；Terra继续实现，报告发现异常仍隔离。
+- 10:06 OP10冻结未提交源码doctor及make test全部通过；agent787/Kernel462/sim165等原始记录已保存，最终复审未结束。
+- 10:13 OP10最终复审HIGH控制器假完成/MEDIUM测试旧路径退回；E2E8失败定位脚本heartbeat，root1RED→1GREEN且独立复审PASS。
+- 10:21 OP10修复源码冻结；Terra报告267/41及pyright通过，Sol复审与root端到端重跑中，未关闭验收。
+- 10:23 OP10最终复审PASS且E2E31通过；root并行test/validate撞固定案例锁，记录失败后改串行重跑。

@@ -19,11 +19,18 @@ from capability_agent.application import (
     prepare_domain_runtime,
 )
 from capability_agent.application.errors import ApplicationConfigurationError
+from capability_agent.application.composition import CredentialBroker
 from capability_agent.application.profile import ApplicationProfile
 from capability_agent.application.profile import CredentialScope
 from capability_agent.domain.provisioning import CredentialLease
 from capability_agent.application.registry import DomainRegistry
 from capability_agent.runtime.catalog import ProviderCatalog
+from capability_agent.application.runtime_protocols import (
+    PreparedApplicationRuntime,
+    LegacyPromptSession,
+    ProviderFactory,
+    ProviderSession,
+)
 from capability_agent.runtime.environment import RuntimeHost
 from capability_agent.runtime.extension import ExtensionSpec
 from capability_agent.runtime.models import CliLLMOptions
@@ -54,14 +61,14 @@ def build_generic_application(
     *,
     version: str | None = None,
     registry: ApplicationRegistry | None = None,
-    prepared_application: PreparedApplication | object | None = None,
-    provider: object | None = None,
-    provider_factory: Callable[..., object] | None = None,
-    credentials: object | None = None,
+    prepared_application: PreparedApplicationRuntime | None = None,
+    provider: ProviderSession | LegacyPromptSession | str | None = None,
+    provider_factory: ProviderFactory | None = None,
+    credentials: CredentialBroker | None = None,
     workspace: ApplicationWorkspace | None = None,
     workspace_root: Path | None = None,
     run_id: str | None = None,
-    provider_catalog: ProviderCatalog | object | None = None,
+    provider_catalog: ProviderCatalog | None = None,
     cli_options: CliLLMOptions | None = None,
     environment: Mapping[str, str] | None = None,
     runtime_host: RuntimeHost | None = None,
@@ -75,8 +82,13 @@ def build_generic_application(
     """
 
     provider_name = provider if isinstance(provider, str) else None
+    selected_provider: ProviderSession | LegacyPromptSession | None
     if provider_name is not None:
-        provider = None
+        selected_provider = None
+    else:
+        if isinstance(provider, str):
+            raise AssertionError("provider selection must already be resolved")
+        selected_provider = provider
     model_name = application_options.pop("model", None)
     if model_name is not None and not isinstance(model_name, str):
         raise TypeError("model must be text")
@@ -113,15 +125,12 @@ def build_generic_application(
             profile,
             registry=_domain_registry(profile),
             workspace=selected_workspace.root,
-            credentials=cast(
-                Any,
-                credentials if credentials is not None else _EmptyCredentialBroker(),
-            ),
+            credentials=credentials if credentials is not None else _EmptyCredentialBroker(),
         )
 
     if (
         runtime_host is None
-        and provider is None
+        and selected_provider is None
         and provider_factory is None
         and provider_catalog is not None
         and application_options.get("runtime_paths") is None
@@ -133,7 +142,7 @@ def build_generic_application(
     return AgentApplication(
         profile=profile,
         prepared_application=prepared,
-        provider=provider,
+        provider=selected_provider,
         provider_factory=provider_factory,
         provider_catalog=provider_catalog,
         workspace=selected_workspace,

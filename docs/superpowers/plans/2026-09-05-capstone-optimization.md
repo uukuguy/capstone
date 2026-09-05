@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-08。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-10；OP-08跨层扩展待确认。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -48,13 +48,14 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
 | OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端映射与范围复审完成；Kernel/Domain扩展待用户确认，未实施 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
-| OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | PLANNED | 未执行 |
+| OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | VERIFYING | 最终复审HIGH/MEDIUM修复后PASS，E2E31通过；并行门禁固定案例目录冲突已记录，正在串行重跑最新源码完整验收 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | PLANNED | 未执行 |
 | OP-12 | 5 | 长运行基准与存储决策 R07 | OP-07, OP-10 | PLANNED | 未执行 |
 | OP-13 | 5 | 条件性分段日志实现 R07 | OP-12 确认触发 | CONDITIONAL | 未执行 |
 | OP-14 | 5 | 综合关闭与 C.2 选择入口 | OP-01–12，OP-13 disposition 已记录 | PLANNED | 未执行 |
 
 默认执行顺序：01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10 → 11 → 12 → 条件 13 → 14。
+2026-09-05调度补充：OP08额外跨层范围待用户批准时，按已满足的依赖推进独立OP10；不把自动续行视为OP08批准，不启动依赖OP08的OP09。OP10既有范围保持不变。
 OP-06 以 2026-09-30 例外期限为硬约束；若接近期限，可在独立分支提前做版本调查，但合入仍需 OP-05 门禁。
 并行只能用于不共享文件的独立工作；01/02/03/10 共享 runner 或提交契约，默认串行。
 
@@ -401,11 +402,21 @@ expect(screen.getByText('部分证据加载失败')).toBeVisible();
 
 **Files**：Modify `packages/capability-agent-kernel/src/capability_agent/application/runner.py`、`domain/profile.py`；Create `packages/capability-agent-kernel/src/capability_agent/application/runtime_protocols.py`；Modify `tools/check_package_boundaries.py`、`docs/architecture/capstone-framework.md`；Test Kernel runner/public API 与 `tools/tests/test_check_package_boundaries.py`。
 
+实施依据：`runs/optimization/OP-10/runtime-seams-map.md`与`dependency-boundary-map.md`。OP05已将_domain_output_schema标注修为str，不重复修复。第一独立切面为静态导入边界：仅允许pandapower Domain Pack使用 `from grid_simulator.capabilities import contract_root`（可别名）；拒绝root/module整包导入、其他符号、star、内部子模块及混入未许可符号的from-import。保留实际安装依赖和既有其他方向检查；不声明静态AST门等价于恶意动态代码沙箱。不新建重复contracts包、不改simulator公开导出。
+
+运行接口设计（独立复审PASS，实施前澄清已解决）：保留可调用factory接口，不改成.create/.prepare对象API。provider factory保留request/profile/prepared_application/bindings/catalog五kwargs；preparer保留profile/request/workspace/registry/credentials五kwargs。必要transport/controller/output契约在provider.start前做signature bind预检，不调用provider；不把正确调用后内部TypeError伪装成签名错误。canonical prompt_and_wait转发on_semantic_event/correlation_id/on_heartbeat，旧prompt名称只允许具名适配且完整转发，不静默丢参。legacy validate(payload)仅通过保留已准入引用上下文的具名适配器，不用通用过滤；上下文感知validator显式接收context。报告prepare可缺省为no-op，有render仍使用配置render，只有render缺失时使用GenericReportShell；报告普通异常继续OP03非阻断。新Protocol只覆盖实际消费接口，保留已有具体PreparedApplication/TurnController公开导出，不用大量Any/cast掩盖类型问题。详细调用表与复审见OP10/runtime-contract-design.md、runtime-design-review.md。
+
+类型收紧实施澄清：实际调用方 `packages/grid-agent/src/grid_agent/application/composition.py` 纳入同一接口迁移及相邻装配测试，保留provider字符串选择与对象注入行为；只改类型衔接，不新增provider选择策略。新Protocol应使用已有明确的request/profile/workspace类型和实际消费的结构接口，不能靠 `Protocol | Callable[..., object]` 或 `Concrete | object` 宣称已收紧。需要兼容的动态边界通过校验和具名适配进入类型化内部，不把合法的结构化测试替身强制变成某个具体类。必须以全仓锁定pyright及实际装配测试验证，不能只检查新增文件。09:20左右的局部注解试验暴露七处上下游不一致，已撤回；不作为完成实现。
+
+最终类型裁决（Sol只读复核，2026-09-05）：controller操作使用已有ActiveTurnHandle/FinalizedTurn值对象而非具体controller类；内部协议还显式保留active_turn_path、context_view_path、trajectory_requests_path、trajectory_capture_state_path、trajectory_allowed_refs_path、trajectory_acks_path六个Path或None通道。适配器不得丢失这些属性、包装返回值或用通用__getattr__逃避类型检查。报告内部使用实际ReportPublisher：配置GenericReportShell保留原实例且只传九字段，其他配置render传完整十一字段，缺prepare为no-op；普通发现/签名/执行异常仍置于派生隔离，不在构造或primary preflight变fatal，只有render缺失/不可调用才默认fallback。输出在provider启动前选定类型化state/build/validator组合，保留既有schema选择与当前引用作用域，legacy验证仍先scope再validate。删除未消费的Protocol；public legacy prompt用明确输入协议后转canonical。验收必须覆盖真实descriptor六通道、对象身份、公开legacy装配及报告发现异常，不仅检查私有helper或局部pyright。裁决详情：`runs/optimization/OP-10/final-typing-contract-decision.md`。
+
+最终复审修复补充：类型声明不是返回值验证。controller source在构造装配时校验签名/通道并存入session；start/submit/fail调用后必须验证实际值DTO且保留实例身份，不能以缺status默认success，也不能把调用后内部异常误报为签名错误。合法具体controller实现不受强制；测试替身仍可结构实现controller，但返回既有DTO。引用验证回归必须通过新的selected-output适配生产路径，不以已无调用方的旧helper通过冒充覆盖。支持性调用方范围增加`validation/run.py`及`packages/grid-agent/tests/validation/test_scripted_transport.py`：脚本transport接收并调用on_heartbeat，原8项E2E因缺此参数失败；不放宽Kernel预检，不改变权威步骤或证据。所有失败和修复需要新源码重跑，不沿用初稿全绿。
+
 - [ ] 列出 runner 各注入点的实际生产调用与测试替身，按已有签名定义 ProviderSession、TurnController、PreparedApplication、ReportPublisher Protocol；不为未实现的多域功能增加抽象。
 - [ ] 将 `_call_factory` 的反射适配限制于具名 legacy adapter；生产接口参数缺失在 provider 启动前报配置错误。新增丢失 projector/correlation/authority 参数的负例。
 - [ ] 修复 `_domain_output_schema` 返回标注与真实 str 返回不一致等类型缺口；删除无效 object 联合，但不通过大量 cast 掩盖错误。
-- [ ] 明确 Domain Pack 可导入 authority 的公开协议资源/规范化 API，禁止 raw simulator 内部。先记录 allowlist 与包版本测试，再评估是否需要独立 contracts 包；本包不复制两份 capability schema。
-- [ ] 文档分别绘制代码依赖、运行调用和证据返回；维持四层职责。README 涉及同一事实时双语同步。
+- [x] 明确 Domain Pack 可导入 authority 的公开协议资源/规范化 API，禁止 raw simulator 内部。先记录 allowlist 与包版本测试，再评估是否需要独立 contracts 包；本包不复制两份 capability schema。局部证据：54项checker测试、边界门、boundary-review.md及docs-version-review.md；尚未完成整包门禁。
+- [x] 文档分别绘制代码依赖、运行调用和证据返回；维持四层职责。README 涉及同一事实时双语同步。双语及architecture复审PASS，本地38目标链接和CLAUDE相对symlink检查通过。
 - [ ] 验证缺少必需调用参数稳定拒绝：
 
 ```python

@@ -7,6 +7,7 @@ import pytest
 import capability_agent.application.runner as runner_module
 from capability_agent.application.context_store import ApplicationContextStore
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
+from capability_agent.application.turns import ActiveTurnHandle, FinalizedTurn
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.trajectory.artifacts import ImmutableArtifactRegistry
 
@@ -28,14 +29,27 @@ class Transport:
 
 
 class Controller:
-    def start(self, ordinal: int, _question: str) -> object:
-        return SimpleNamespace(turn_id=f"t-{ordinal}", started_monotonic=0.0)
+    def start(self, ordinal: int, question: str) -> ActiveTurnHandle:
+        return ActiveTurnHandle(
+            ordinal=ordinal, turn_id=f"t-{ordinal}", instruction=question,
+            instruction_sha256="a" * 64, turn_nonce=f"nonce-{ordinal}",
+            started_monotonic=0.0,
+        )
 
-    def submit(self, handle: object, *, answer_output: str, **_kwargs: object) -> object:
-        return SimpleNamespace(answer_ref=f"answer:{handle.turn_id}", answer_output=answer_output, result_refs=(), evidence_refs=(), status="success")
+    def submit(self, handle: ActiveTurnHandle, *, answer_output: str, **_kwargs: object) -> FinalizedTurn:
+        return FinalizedTurn(
+            turn_id=handle.turn_id, status="success", answer_output=answer_output,
+            answer_path=None, answer_ref=f"answer:{handle.turn_id}", admission_ref=None,
+            referenced_bindings=(), result_refs=(), evidence_refs=(), submission=None,
+            audit_diagnostics=(), admission=None, error=None,
+        )
 
-    def fail(self, _handle: object, **_kwargs: object) -> object:
-        return SimpleNamespace(status="failed")
+    def fail(self, handle: ActiveTurnHandle, **_kwargs: object) -> FinalizedTurn:
+        return FinalizedTurn(
+            turn_id=handle.turn_id, status="failed", answer_output="", answer_path=None,
+            answer_ref=None, admission_ref=None, referenced_bindings=(), result_refs=(),
+            evidence_refs=(), submission=None, audit_diagnostics=(), admission=None, error=None,
+        )
 
 
 def make_application(tmp_path, report_shell, *, workspace=None, store=None, projector=None, observer=None):

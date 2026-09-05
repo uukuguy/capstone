@@ -44,6 +44,24 @@ class _Provider:
         self.stopped = True
 
 
+@dataclass
+class _LegacyProvider:
+    answer: str = "legacy answer"
+    started: bool = False
+    stopped: bool = False
+    received: dict[str, object] | None = None
+
+    def start(self) -> None:
+        self.started = True
+
+    def prompt(self, _question: str, **kwargs: object) -> str:
+        self.received = dict(kwargs)
+        return self.answer
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
 class _Renderer:
     def render(self, result: object) -> str:
         return JsonOutputRenderer().render(result)  # type: ignore[arg-type]
@@ -72,6 +90,45 @@ def _prepared(profile: object) -> SimpleNamespace:
             )
         }
     )
+
+
+def test_generic_entrypoint_rejects_prepared_runtime_without_bindings() -> None:
+    with pytest.raises(ApplicationConfigurationError, match="prepared application"):
+        build_generic_application(
+            "pandapower-static-analysis",
+            prepared_application=SimpleNamespace(),
+        )
+
+
+def test_generic_entrypoint_adapts_legacy_prompt_provider_with_all_callbacks(
+    tmp_path: Path,
+) -> None:
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="legacy-run", binding_ids=("grid",)
+    )
+    provider = _LegacyProvider()
+    application = build_generic_application(
+        "pandapower-static-analysis",
+        prepared_application=_prepared(profile),
+        provider=provider,
+        workspace=workspace,
+        catalog=object(),
+    )
+
+    outcome = run_generic_application(
+        "pandapower-static-analysis",
+        (OFFLINE_QUESTION,),
+        application=application,
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert provider.started is True
+    assert provider.stopped is True
+    assert provider.received is not None
+    assert provider.received["correlation_id"]
+    assert callable(provider.received["on_semantic_event"])
+    assert callable(provider.received["on_heartbeat"])
 
 
 def test_generic_entrypoint_renders_validated_core_and_domain_sections(

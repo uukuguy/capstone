@@ -171,6 +171,9 @@ def check_boundaries(root: Path) -> list[str]:
                     ),
                 )
             )
+    domain_root = root / "packages/pandapower-domain-pack/src"
+    if domain_root.exists():
+        violations.extend(check_pandapower_simulator_imports(root, domain_root))
     for source_root, forbidden_modules in EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -207,6 +210,36 @@ def check_boundaries(root: Path) -> list[str]:
                 )
             )
 
+    return violations
+
+
+def check_pandapower_simulator_imports(root: Path, source_root: Path) -> list[str]:
+    """Allow only the installed authority's named public resource entry point."""
+    violations: list[str] = []
+    for path in sorted(source_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                forbidden = any(
+                    alias.name == "grid_simulator"
+                    or alias.name.startswith("grid_simulator.")
+                    for alias in node.names
+                )
+            elif isinstance(node, ast.ImportFrom) and node.module and (
+                node.module == "grid_simulator"
+                or node.module.startswith("grid_simulator.")
+            ):
+                forbidden = not (
+                    node.module == "grid_simulator.capabilities"
+                    and len(node.names) == 1
+                    and node.names[0].name == "contract_root"
+                )
+            else:
+                continue
+            if forbidden:
+                violations.append(
+                    f"{path.relative_to(root).as_posix()} imports forbidden grid_simulator symbol"
+                )
     return violations
 
 

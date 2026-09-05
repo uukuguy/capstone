@@ -16,10 +16,16 @@ from capability_agent.application.output import (
     ValidatedDomainOutput,
 )
 from capability_agent.application.context_store import ApplicationContextStore
+from capability_agent.application.errors import ApplicationConfigurationError
 from capability_agent.application.projector import ApplicationInvocationProjector
+from capability_agent.application.reporting import GenericReportShell
 from capability_agent.application.runner import AgentApplication, ApplicationRequest
 from capability_agent.application.workspace import ApplicationWorkspace
-from capability_agent.application.turns import TurnController
+from capability_agent.application.turns import (
+    ActiveTurnHandle,
+    FinalizedTurn,
+    TurnController,
+)
 from capability_agent.domain.answer_admission import AnswerAdmissionDecision
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.tools.catalog import CompositeToolCatalog
@@ -46,33 +52,750 @@ class FakeTransport:
 @dataclass
 class FakeController:
     events: list[str]
-    answers: list[object] = field(default_factory=list)
-    failed: list[tuple[object, dict[str, object]]] = field(default_factory=list)
+    answers: list[FinalizedTurn] = field(default_factory=list)
+    failed: list[tuple[ActiveTurnHandle, dict[str, object]]] = field(default_factory=list)
     submissions: list[dict[str, object]] = field(default_factory=list)
 
-    def start(self, ordinal: int, instruction: str) -> object:
+    def start(self, ordinal: int, instruction: str) -> ActiveTurnHandle:
         self.events.append(f"turn.start:{ordinal}")
-        return SimpleNamespace(turn_id=f"turn-{ordinal}", started_monotonic=0.0)
+        return ActiveTurnHandle(
+            ordinal=ordinal,
+            turn_id=f"turn-{ordinal}",
+            instruction=instruction,
+            instruction_sha256="a" * 64,
+            turn_nonce=f"nonce-{ordinal}",
+            started_monotonic=0.0,
+        )
 
-    def submit(self, handle: object, **kwargs: object) -> object:
+    def submit(self, handle: ActiveTurnHandle, **kwargs: object) -> FinalizedTurn:
         self.events.append(f"turn.submit:{handle.turn_id}")
         self.submissions.append(kwargs)
-        answer = SimpleNamespace(
+        answer = FinalizedTurn(
+            turn_id=handle.turn_id,
+            status="success",
             answer_ref=f"answer:{handle.turn_id}",
             answer_output=kwargs["answer_output"],
+            answer_path=None,
+            admission_ref=None,
             referenced_bindings=("alpha",),
             result_refs=(),
             evidence_refs=(),
-            status="success",
+            submission=None,
+            audit_diagnostics=(),
+            admission=None,
             error=None,
         )
         self.answers.append(answer)
         return answer
 
-    def fail(self, handle: object, **kwargs: object) -> object:
+    def fail(self, handle: ActiveTurnHandle, **kwargs: object) -> FinalizedTurn:
         self.events.append(f"turn.fail:{handle.turn_id}")
         self.failed.append((handle, kwargs))
-        return SimpleNamespace(status="failed", error=kwargs.get("error"))
+        return FinalizedTurn(
+            turn_id=handle.turn_id,
+            status="failed",
+            answer_output="",
+            answer_path=None,
+            answer_ref=None,
+            admission_ref=None,
+            referenced_bindings=(),
+            result_refs=(),
+            evidence_refs=(),
+            submission=None,
+            audit_diagnostics=(),
+            admission=None,
+            error=kwargs.get("error") if isinstance(kwargs.get("error"), str) else None,
+        )
+
+
+def test_runner_rejects_controller_signature_at_construction() -> None:
+    events: list[str] = []
+    bad_controller = SimpleNamespace(
+        start=lambda _ordinal: object(),
+        submit=lambda _handle, **_kwargs: object(),
+        fail=lambda _handle, **_kwargs: object(),
+    )
+
+    with pytest.raises(ApplicationConfigurationError, match="turn controller start"):
+        AgentApplication(
+            profile=SimpleNamespace(),
+            provider=FakeTransport(events),
+            turn_controller=bad_controller,
+        )
+
+    assert events == []
+
+
+def test_turn_controller_adapter_rejects_invalid_return_values() -> None:
+    from capability_agent.application.runner import _prepare_turn_controller
+
+    handle = ActiveTurnHandle(
+        ordinal=1,
+        turn_id="turn-1",
+        instruction="q",
+        instruction_sha256="a" * 64,
+        turn_nonce="nonce",
+        started_monotonic=0.0,
+    )
+    bad_controller = SimpleNamespace(
+        start=lambda _ordinal, _instruction: handle,
+        submit=lambda _handle, **_kwargs: object(),
+        fail=lambda _handle, **_kwargs: object(),
+    )
+    controller = _prepare_turn_controller(bad_controller)
+
+    assert controller.start(1, "q") is handle
+    with pytest.raises(ApplicationConfigurationError, match="finalized turn"):
+        controller.submit(
+            handle,
+            answer_output="answer",
+            referenced_bindings=(),
+            result_refs=(),
+            evidence_refs=(),
+            duration_seconds=0.0,
+        )
+
+
+@pytest.mark.parametrize(
+    "transport",
+    (
+        SimpleNamespace(
+            start=lambda: None,
+            stop=lambda: None,
+            prompt_and_wait=lambda _question, *, correlation_id: "answer",
+        ),
+        SimpleNamespace(
+            start=lambda: None,
+            stop=lambda: None,
+            prompt_and_wait=lambda _question, *, on_semantic_event: "answer",
+        ),
+        SimpleNamespace(
+            start=lambda: None,
+            stop=lambda: None,
+            prompt_and_wait=lambda _question, *, on_semantic_event, correlation_id: "answer",
+        ),
+    ),
+)
+def test_runner_rejects_static_transport_missing_projection_or_correlation_before_start(
+    transport: object,
+) -> None:
+    """A configured session cannot silently discard primary prompt metadata."""
+
+    with pytest.raises(ApplicationConfigurationError, match="provider session"):
+        AgentApplication(
+            profile=SimpleNamespace(manifest=SimpleNamespace(application_id="fixture-app")),
+            provider=transport,
+        )
+
+
+def test_runner_rejects_static_factory_and_preparer_missing_required_keywords() -> None:
+    """Injection signatures are configuration, not a per-run reflection fallback."""
+
+    def incomplete_factory(*, request: object) -> object:
+        return object()
+
+    def incomplete_preparer(*, profile: object, request: object) -> object:
+        return object()
+
+    profile = SimpleNamespace(manifest=SimpleNamespace(application_id="fixture-app"))
+    with pytest.raises(ApplicationConfigurationError, match="provider factory"):
+        AgentApplication(profile=profile, provider_factory=incomplete_factory)
+    with pytest.raises(ApplicationConfigurationError, match="application preparer"):
+        AgentApplication(profile=profile, application_preparer=incomplete_preparer)
+
+
+def test_runner_passes_only_established_keywords_to_provider_factory(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    received: dict[str, object] = {}
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+
+    def make_provider(**kwargs: object) -> FakeTransport:
+        received.update(kwargs)
+        return FakeTransport(events, answers=["answer"])
+
+    prepared = SimpleNamespace(
+        bindings={"alpha": binding},
+        profile=SimpleNamespace(identity="prepared-profile"),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=prepared,
+        catalog=object(),
+        provider_factory=make_provider,
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert set(received) == {
+        "request",
+        "profile",
+        "prepared_application",
+        "bindings",
+        "catalog",
+    }
+    assert received["prepared_application"] is prepared
+    assert received["prepared_application"].profile.identity == "prepared-profile"
+
+
+def test_runner_passes_all_established_keywords_to_application_preparer(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    received: dict[str, object] = {}
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="preparer-run", binding_ids=("alpha",)
+    )
+    registry = object()
+    credentials = object()
+
+    def prepare(**kwargs: object) -> object:
+        received.update(kwargs)
+        return SimpleNamespace(bindings={"alpha": binding})
+
+    outcome = AgentApplication(
+        profile=profile,
+        application_preparer=prepare,
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace=workspace,
+        registry=registry,
+        credentials=credentials,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert set(received) == {
+        "profile",
+        "request",
+        "workspace",
+        "registry",
+        "credentials",
+    }
+    assert received["workspace"] is workspace
+    assert received["registry"] is registry
+    assert received["credentials"] is credentials
+
+
+def test_runner_rejects_dynamic_transport_before_its_start(tmp_path: Path) -> None:
+    events: list[str] = []
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    incompatible = SimpleNamespace(
+        start=lambda: events.append("provider.start"),
+        stop=lambda: events.append("provider.stop"),
+        prompt_and_wait=lambda _question, *, correlation_id: "answer",
+    )
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider_factory=lambda **_: incompatible,
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert events == []
+
+
+def test_runner_rejects_default_transport_before_its_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[str] = []
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    provider_catalog = ProviderCatalog.from_mapping(
+        {
+            "schema_version": 1,
+            "descriptor_version": "fixture-1",
+            "default_provider": "alpha",
+            "providers": {
+                "alpha": {
+                    "default_model": "alpha-model",
+                    "base_url": "https://provider.example/v1",
+                    "base_url_policy": "fixed",
+                    "auth": {"kind": "api_key_env", "default_env": "ALPHA_KEY"},
+                    "pi_provider": "alpha",
+                    "compatibility_profile": "generic",
+                    "supports_tools": True,
+                }
+            },
+        }
+    )
+    incompatible = SimpleNamespace(
+        start=lambda: events.append("provider.start"),
+        stop=lambda: events.append("provider.stop"),
+        prompt_and_wait=lambda _question, *, correlation_id: "answer",
+    )
+    application = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider_catalog=provider_catalog,
+        environment={"ALPHA_KEY": "fixture-secret"},
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    )
+    monkeypatch.setattr(
+        application,
+        "_default_pi_transport",
+        lambda *_args, **_kwargs: incompatible,
+    )
+
+    outcome = application.run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert events == []
+
+
+@pytest.mark.parametrize("missing_method", ("start", "submit", "fail"))
+def test_runner_rejects_controller_missing_required_method_before_provider_start(
+    tmp_path: Path, missing_method: str
+) -> None:
+    events: list[str] = []
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    methods = {
+        "start": lambda ordinal, question: SimpleNamespace(
+            turn_id=f"turn-{ordinal}", instruction=question
+        ),
+        "submit": lambda _handle, **_kwargs: None,
+        "fail": lambda _handle, *, error, duration_seconds: None,
+    }
+    del methods[missing_method]
+    controller = SimpleNamespace(**methods)
+
+    with pytest.raises(ApplicationConfigurationError, match="turn controller"):
+        AgentApplication(
+            profile=profile,
+            prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+            catalog=object(),
+            provider=FakeTransport(events, answers=["answer"]),
+            workspace_root=tmp_path,
+            turn_controller=controller,
+            domain_output_builder=lambda **_: ValidatedDomainOutput(
+                schema="alpha-output/1.0", status="completed", payload={"ok": True}
+            ),
+            binding_identities=(
+                BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+            ),
+        )
+
+    assert events == []
+
+
+def test_runner_rejects_output_builder_missing_report_reference_before_provider_start(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+
+    def incomplete_builder(
+        *,
+        binding_id: str,
+        binding: object,
+        context: object,
+        committed_answers: tuple[object, ...],
+    ) -> ValidatedDomainOutput:
+        del binding_id, binding, context, committed_answers
+        raise AssertionError("must be rejected before invocation")
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        domain_output_builder=incomplete_builder,
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert events == []
+
+
+@pytest.mark.parametrize("invalid_seam", ("state_adapter", "build", "validator"))
+def test_runner_rejects_invalid_default_output_seam_before_provider_start(
+    tmp_path: Path, invalid_seam: str
+) -> None:
+    events: list[str] = []
+
+    contract_values: dict[str, object] = {
+        "build": lambda *, binding_id, context, committed_answers: {"ok": True},
+        "validate": lambda _payload: None,
+    }
+    profile_values: dict[str, object] = {
+        "policy_provider": SimpleNamespace(load=lambda: None),
+        "guide_provider": SimpleNamespace(load=lambda: ()),
+        "validate_answer_admission_declaration": lambda: None,
+        "create_answer_admission_policy": lambda _authority: SimpleNamespace(
+            admit=lambda _request: None
+        ),
+    }
+    if invalid_seam == "state_adapter":
+        profile_values["state_adapter"] = SimpleNamespace(
+            build_context=lambda *, binding_id: {"binding_id": binding_id}
+        )
+    elif invalid_seam == "build":
+        contract_values["build"] = lambda *, binding_id, context: {"ok": True}
+    else:
+        del contract_values["validate"]
+        contract_values["validate_with_context"] = lambda _payload: None
+    profile_values["output_contract"] = SimpleNamespace(**contract_values)
+
+    binding = SimpleNamespace(
+        binding_id="alpha",
+        profile=SimpleNamespace(**profile_values),
+        runtime=SimpleNamespace(authority=object()),
+    )
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert events == []
+
+
+def test_runner_keeps_provider_implementation_typeerror_as_execution_failure(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+
+    class TypeErrorTransport(FakeTransport):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question, kwargs
+            raise TypeError("provider implementation error")
+
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={"alpha": binding}),
+        catalog=object(),
+        provider=TypeErrorTransport(events),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={"ok": True}
+        ),
+        binding_identities=(
+            BindingIdentity(binding_id="alpha", domain_id="alpha", domain_version="1.0"),
+        ),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "failed"
+    assert outcome.error == "TypeError: application execution failed"
+    assert "provider.start" in events
+
+
+def test_legacy_prompt_method_forwards_complete_callback_contract() -> None:
+    from capability_agent.application.runner import _call_prompt
+
+    received: dict[str, object] = {}
+
+    class LegacyTransport:
+        def prompt(
+            self,
+            _question: str,
+            *,
+            on_semantic_event: object,
+            correlation_id: str | None,
+            on_heartbeat: object,
+        ) -> str:
+            received.update(
+                on_semantic_event=on_semantic_event,
+                correlation_id=correlation_id,
+                on_heartbeat=on_heartbeat,
+            )
+            return "answer"
+
+    answer, projections = _call_prompt(
+        LegacyTransport(), "question", projector=None, turn_id="turn-1"
+    )
+
+    assert answer == "answer"
+    assert projections == ()
+    assert received["correlation_id"] == "turn-1"
+    assert callable(received["on_semantic_event"])
+    assert callable(received["on_heartbeat"])
+
+
+def test_legacy_output_validator_receives_scoped_admitted_references() -> None:
+    from capability_agent.application.runner import _prepare_output_validator
+
+    reference = "artifact:sha256:" + "a" * 64
+
+    class Contract:
+        allowed_references: frozenset[str] | None = None
+
+        def validate(self, payload: object) -> None:
+            assert payload == {"answer": "text"}
+            assert self.allowed_references == frozenset((reference,))
+
+    _prepare_output_validator(Contract(), "alpha").validate(
+        {"answer": "text"},
+        context={"admitted_artifact_refs": (reference,)},
+    )
+
+
+def test_context_aware_output_validator_receives_named_context() -> None:
+    from capability_agent.application.runner import _prepare_output_validator
+
+    context = {"admitted_refs": ("artifact:sha256:" + "b" * 64,)}
+    received: dict[str, object] = {}
+
+    class Contract:
+        def validate_with_context(self, payload: object, *, context: object) -> None:
+            received["payload"] = payload
+            received["context"] = context
+
+    _prepare_output_validator(Contract(), "alpha").validate(
+        {"answer": "text"}, context=context
+    )
+
+    assert received == {"payload": {"answer": "text"}, "context": context}
+
+
+def test_call_factory_does_not_silently_filter_named_inputs() -> None:
+    from capability_agent.application.runner import _call_factory
+
+    with pytest.raises(TypeError):
+        _call_factory(lambda value: value, value="answer", context="discarded")
+
+
+def test_runner_default_generic_report_shell_stays_compatible_with_strict_calls(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=GenericReportShell(),
+    )
+
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        binding_identities=(),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert outcome.report_path is not None
+    assert "# Application report" in outcome.report_path.read_text(encoding="utf-8")
+
+
+def test_runner_preserves_configured_generic_report_shell_instance(tmp_path: Path) -> None:
+    events: list[str] = []
+    rendered: list[tuple[str, ...]] = []
+
+    class SelectedShell(GenericReportShell):
+        def render(self, **kwargs: object) -> str:
+            rendered.append(tuple(sorted(kwargs)))
+            return "selected shell report"
+
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SelectedShell(),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        binding_identities=(),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert len(rendered) == 2
+    assert all(call == (
+        "answers", "assurances", "context", "core", "domains", "presentation",
+        "questions", "references", "trajectories",
+    ) for call in rendered)
+
+
+def test_runner_uses_configured_render_without_prepare(tmp_path: Path) -> None:
+    events: list[str] = []
+    rendered: list[dict[str, object]] = []
+
+    def render(
+        *,
+        questions: tuple[str, ...],
+        answers: tuple[str, ...],
+        assurances: tuple[str, ...],
+        trajectories: tuple[str, ...],
+        references: tuple[str, ...],
+        context: object,
+        presentation: object,
+        core: dict[str, object],
+        domains: dict[str, object],
+        workspace: ApplicationWorkspace,
+        runtime: dict[str, object],
+    ) -> str:
+        rendered.append(
+            {
+                "questions": questions,
+                "answers": answers,
+                "assurances": assurances,
+                "trajectories": trajectories,
+                "references": references,
+                "context": context,
+                "presentation": presentation,
+                "core": core,
+                "domains": domains,
+                "workspace": workspace,
+                "runtime": runtime,
+            }
+        )
+        return "configured report"
+
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(render=render),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        binding_identities=(),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert len(rendered) == 2
+    assert all(set(call) == {
+        "questions", "answers", "assurances", "trajectories", "references",
+        "context", "presentation", "core", "domains", "workspace", "runtime",
+    } for call in rendered)
+
+
+def test_runner_isolates_report_attribute_discovery_failure(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class BrokenReportShell:
+        @property
+        def prepare(self) -> object:
+            raise RuntimeError("report discovery must remain derived")
+
+        @property
+        def render(self) -> object:
+            raise RuntimeError("report discovery must remain derived")
+
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(application_id="fixture-app", version="1.0.0"),
+        application_policy=SimpleNamespace(load=lambda: None),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=BrokenReportShell(),
+    )
+    outcome = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(bindings={}),
+        catalog=object(),
+        provider=FakeTransport(events, answers=["answer"]),
+        workspace_root=tmp_path,
+        turn_controller=FakeController(events),
+        binding_identities=(),
+    ).run(ApplicationRequest(application_id="fixture-app", questions=("q",)))
+
+    assert outcome.status == "completed"
+    assert outcome.result.core.report_ref is None
+    assert outcome.report_path is None
 
 
 def _valid_binding(*, endpoint: object | None = None) -> object:
@@ -995,6 +1718,7 @@ def test_default_provider_uses_resolved_workspace_and_process_environment(
     )
     application = AgentApplication(profile=profile, provider_catalog=catalog)
     captured: dict[str, object] = {}
+    session = FakeTransport([], answers=["answer"])
 
     def fake_default(
         resolved: object,
@@ -1013,7 +1737,7 @@ def test_default_provider_uses_resolved_workspace_and_process_environment(
             workspace=workspace,
             controller=controller,
         )
-        return "transport"
+        return session
 
     monkeypatch.setattr(application, "_default_pi_transport", fake_default)
     request = ApplicationRequest(
@@ -1031,7 +1755,7 @@ def test_default_provider_uses_resolved_workspace_and_process_environment(
         controller=controller,
     )
 
-    assert result == "transport"
+    assert result is not None
     assert captured["workspace"] is workspace
     assert captured["request"] is request
     assert captured["controller"] is controller
@@ -1077,6 +1801,12 @@ def test_default_provider_emits_safe_resolution_before_transport_start(
         def start(self) -> None:
             assert observed
             started.append(True)
+
+        def prompt_and_wait(self, _question: str, **_kwargs: object) -> str:
+            return "answer"
+
+        def stop(self) -> None:
+            pass
 
     monkeypatch.setattr(application, "_default_pi_transport", lambda *_args, **_kwargs: Transport())
     transport = application._ensure_provider(
@@ -1149,6 +1879,32 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
         trajectory_allowed_refs_path=workspace.core_path / "allowed.json",
         trajectory_acks_path=workspace.core_path / "acks",
     )
+    handle = ActiveTurnHandle(
+        ordinal=1,
+        turn_id="turn-1",
+        instruction="q",
+        instruction_sha256="a" * 64,
+        turn_nonce="nonce",
+        started_monotonic=0.0,
+    )
+    finalized = FinalizedTurn(
+        turn_id=handle.turn_id,
+        status="success",
+        answer_output="answer",
+        answer_path=None,
+        answer_ref=None,
+        admission_ref=None,
+        referenced_bindings=(),
+        result_refs=(),
+        evidence_refs=(),
+        submission=None,
+        audit_diagnostics=(),
+        admission=None,
+        error=None,
+    )
+    channels.start = lambda _ordinal, _instruction: handle
+    channels.submit = lambda _handle, **_kwargs: finalized
+    channels.fail = lambda _handle, **_kwargs: finalized
     captured: dict[str, object] = {}
 
     def fake_descriptor(**kwargs: object) -> object:
@@ -1182,13 +1938,24 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
     )
     binding = SimpleNamespace(endpoint=SimpleNamespace(metadata={"executable": "domainctl"}))
 
+    controller = runner_module._prepare_turn_controller(channels)
+    assert controller.start(1, "q") is handle
+    assert controller.submit(
+        handle,
+        answer_output="answer",
+        referenced_bindings=(),
+        result_refs=(),
+        evidence_refs=(),
+        duration_seconds=0.0,
+    ) is finalized
+
     result = application._default_pi_transport(
         SimpleNamespace(secret=None),
         SimpleNamespace(bindings={"alpha": binding}),
         {"alpha": binding},
         request=request,
         workspace=workspace,
-        controller=channels,
+        controller=controller,
     )
 
     assert result == "client"

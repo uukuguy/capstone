@@ -13,10 +13,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeGuard, cast
 
 from capability_agent.application.composition import (
-    PreparedApplication,
+    CredentialBroker,
     PreparedBinding,
     prepare_application,
 )
@@ -39,7 +39,22 @@ from capability_agent.application.output import (
 from capability_agent.application.profile import ApplicationProfile
 from capability_agent.application.projector import ApplicationInvocationProjector
 from capability_agent.application.reporting import GenericReportShell, ReportPublication
-from capability_agent.application.turns import TurnController
+from capability_agent.application.runtime_protocols import (
+    ApplicationPreparer,
+    DomainPayloadBuilder,
+    DomainOutputBuilder,
+    LegacyPromptSession,
+    OutputValidator,
+    PreparedApplicationRuntime,
+    ProviderFactory,
+    ProviderSession,
+    ReportPublisher,
+    StateContextAdapter,
+    TurnControllerSource,
+    TurnControllerSession,
+)
+from capability_agent.application.turns import ActiveTurnHandle, FinalizedTurn, TurnController
+from capability_agent.application.registry import DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.domain.answer_admission import read_answer_admission_metadata
 from capability_agent.runtime.catalog import ProviderCatalog, ProviderCatalogSource
@@ -63,6 +78,26 @@ from capability_agent.trajectory.artifacts import (
 
 
 ApplicationStatus = Literal["completed", "failed"]
+
+_PROVIDER_FACTORY_KEYWORDS = (
+    "request",
+    "profile",
+    "prepared_application",
+    "bindings",
+    "catalog",
+)
+_APPLICATION_PREPARER_KEYWORDS = (
+    "profile",
+    "request",
+    "workspace",
+    "registry",
+    "credentials",
+)
+_PROVIDER_PROMPT_KEYWORDS = (
+    "on_semantic_event",
+    "correlation_id",
+    "on_heartbeat",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,14 +146,271 @@ class ApplicationOutcome:
         return self.rendered
 
 
-class ProviderSession:
-    """Structural marker for injected provider transports."""
+@dataclass(frozen=True, slots=True)
+class _RunnerBindings:
+    prepared: PreparedApplicationRuntime
+    bindings: Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)
-class _RunnerBindings:
-    prepared: PreparedApplication | object
-    bindings: Mapping[str, object]
+class _ProviderSessionAdapter:
+    """Bind a checked structural transport to the canonical session surface."""
+
+    source: object
+
+    def start(self) -> None:
+        _call_method(self.source, "start")
+
+    def prompt_and_wait(
+        self,
+        question: str,
+        *,
+        on_semantic_event: Callable[..., object],
+        correlation_id: str | None,
+        on_heartbeat: Callable[[], None],
+    ) -> str:
+        method = _provider_prompt_method(self.source)
+        answer = method(
+            question,
+            on_semantic_event=on_semantic_event,
+            correlation_id=correlation_id,
+            on_heartbeat=on_heartbeat,
+        )
+        if not isinstance(answer, str):
+            raise ApplicationConfigurationError("provider transport returned non-text answer")
+        return answer
+
+    def stop(self) -> None:
+        _call_method(self.source, "stop")
+
+
+@dataclass(frozen=True, slots=True)
+class _TurnControllerAdapter:
+    source: TurnControllerSource
+    active_turn_path: Path | None
+    context_view_path: Path | None
+    trajectory_requests_path: Path | None
+    trajectory_capture_state_path: Path | None
+    trajectory_allowed_refs_path: Path | None
+    trajectory_acks_path: Path | None
+
+    def start(self, ordinal: int, instruction: str) -> ActiveTurnHandle:
+        handle = self.source.start(ordinal, instruction)
+        if not isinstance(handle, ActiveTurnHandle):
+            raise ApplicationConfigurationError(
+                "turn controller returned an invalid active turn handle"
+            )
+        return handle
+
+    def submit(
+        self,
+        handle: ActiveTurnHandle,
+        *,
+        answer_output: str,
+        referenced_bindings: tuple[str, ...],
+        result_refs: tuple[str, ...],
+        evidence_refs: tuple[str, ...],
+        duration_seconds: float,
+    ) -> FinalizedTurn:
+        finalized = self.source.submit(
+            handle,
+            answer_output=answer_output,
+            referenced_bindings=referenced_bindings,
+            result_refs=result_refs,
+            evidence_refs=evidence_refs,
+            duration_seconds=duration_seconds,
+        )
+        if not isinstance(finalized, FinalizedTurn):
+            raise ApplicationConfigurationError(
+                "turn controller returned an invalid finalized turn"
+            )
+        return finalized
+
+    def fail(
+        self, handle: ActiveTurnHandle, *, error: str, duration_seconds: float
+    ) -> FinalizedTurn:
+        finalized = self.source.fail(
+            handle, error=error, duration_seconds=duration_seconds
+        )
+        if not isinstance(finalized, FinalizedTurn):
+            raise ApplicationConfigurationError(
+                "turn controller returned an invalid finalized turn"
+            )
+        return finalized
+
+
+@dataclass(frozen=True, slots=True)
+class _DomainOutputBuilderAdapter:
+    source: object
+
+    def __call__(self, *, binding_id: str, binding: object | None, context: object | None,
+                 committed_answers: tuple[FinalizedTurn, ...], report_ref: str | None) -> ValidatedDomainOutput:
+        if not callable(self.source):
+            raise ApplicationConfigurationError("domain output builder is unavailable")
+        result = _call_factory(self.source, binding_id=binding_id, binding=binding, context=context,
+            committed_answers=committed_answers, report_ref=report_ref)
+        if not isinstance(result, ValidatedDomainOutput):
+            raise ApplicationConfigurationError("domain output builder returned an invalid output")
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class _SelectedOutputContract:
+    schema_id: str
+    state_adapter: StateContextAdapter | None
+    payload_builder: DomainPayloadBuilder
+    validator: OutputValidator
+
+
+@dataclass(frozen=True, slots=True)
+class _StateContextAdapter:
+    method: Callable[..., object]
+
+    def build_context(self, *, binding_id: str, state: object) -> object:
+        return self.method(binding_id=binding_id, state=state)
+
+
+@dataclass(frozen=True, slots=True)
+class _DomainPayloadBuilder:
+    method: Callable[..., object]
+
+    def build(
+        self,
+        *,
+        binding_id: str,
+        context: object | None,
+        committed_answers: tuple[FinalizedTurn, ...],
+    ) -> Mapping[str, object]:
+        payload = self.method(
+            binding_id=binding_id,
+            context=context,
+            committed_answers=committed_answers,
+        )
+        if not isinstance(payload, Mapping):
+            raise ApplicationConfigurationError("domain output contract returned a non-object")
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class _ContextOutputValidator:
+    method: Callable[..., object]
+
+    def validate(self, payload: Mapping[str, object], *, context: object | None) -> None:
+        self.method(payload, context=context)
+
+
+@dataclass(frozen=True, slots=True)
+class _LegacyOutputValidator:
+    source: object
+    method: Callable[..., object]
+
+    def validate(self, payload: Mapping[str, object], *, context: object | None) -> None:
+        scoped = _scope_output_contract(
+            self.source, _context_admitted_references(context)
+        )
+        method = self.method if scoped is self.source else getattr(scoped, "validate", None)
+        if not callable(method):
+            raise ApplicationConfigurationError("domain output contract validator is unavailable")
+        method(payload)
+
+
+@dataclass(frozen=True, slots=True)
+class _GenericReportPublisherAdapter:
+    source: GenericReportShell
+
+    def prepare(
+        self, *, questions: tuple[str, ...], workspace: ApplicationWorkspace
+    ) -> None:
+        method = getattr(self.source, "prepare", None)
+        if callable(method):
+            method(questions=questions, workspace=workspace)
+
+    def render(
+        self,
+        *,
+        questions: tuple[str, ...],
+        answers: tuple[str, ...],
+        assurances: tuple[str, ...],
+        trajectories: tuple[str, ...],
+        references: tuple[str, ...],
+        context: object | None,
+        presentation: object | None,
+        core: Mapping[str, object],
+        domains: Mapping[str, object],
+        workspace: ApplicationWorkspace,
+        runtime: Mapping[str, object],
+    ) -> str:
+        del workspace, runtime
+        return _render_generic_report_shell(
+            report_method=self.source.render,
+            questions=questions,
+            answers=answers,
+            assurances=assurances,
+            trajectories=trajectories,
+            references=references,
+            context=context,
+            presentation=presentation,
+            core=core,
+            domains=domains,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _ConfiguredReportPublisherAdapter:
+    source: object
+
+    def prepare(
+        self, *, questions: tuple[str, ...], workspace: ApplicationWorkspace
+    ) -> None:
+        method = getattr(self.source, "prepare", None)
+        if callable(method):
+            method(questions=questions, workspace=workspace)
+
+    def render(
+        self,
+        *,
+        questions: tuple[str, ...],
+        answers: tuple[str, ...],
+        assurances: tuple[str, ...],
+        trajectories: tuple[str, ...],
+        references: tuple[str, ...],
+        context: object | None,
+        presentation: object | None,
+        core: Mapping[str, object],
+        domains: Mapping[str, object],
+        workspace: ApplicationWorkspace,
+        runtime: Mapping[str, object],
+    ) -> str:
+        method = getattr(self.source, "render", None)
+        if not callable(method):
+            return _render_generic_report_shell(
+                report_method=GenericReportShell().render,
+                questions=questions,
+                answers=answers,
+                assurances=assurances,
+                trajectories=trajectories,
+                references=references,
+                context=context,
+                presentation=presentation,
+                core=core,
+                domains=domains,
+            )
+        report = method(
+            questions=questions,
+            answers=answers,
+            assurances=assurances,
+            trajectories=trajectories,
+            references=references,
+            context=context,
+            presentation=presentation,
+            core=core,
+            domains=domains,
+            workspace=workspace,
+            runtime=runtime,
+        )
+        if not isinstance(report, str):
+            raise PresentationError("report shell must return text")
+        return report
 
 
 class AgentApplication:
@@ -133,26 +425,26 @@ class AgentApplication:
         self,
         *,
         profile: ApplicationProfile,
-        prepared_application: PreparedApplication | object | None = None,
-        provider_catalog: ProviderCatalogSource | ProviderCatalog | object | None = None,
-        provider_factory: Callable[..., object] | None = None,
-        transport_factory: Callable[..., object] | None = None,
-        provider: object | None = None,
+        prepared_application: PreparedApplicationRuntime | None = None,
+        provider_catalog: ProviderCatalogSource | ProviderCatalog | None = None,
+        provider_factory: ProviderFactory | None = None,
+        transport_factory: ProviderFactory | None = None,
+        provider: ProviderSession | LegacyPromptSession | None = None,
         workspace_root: Path | None = None,
         workspace: ApplicationWorkspace | None = None,
-        registry: object | None = None,
-        credentials: object | None = None,
+        registry: DomainRegistry | None = None,
+        credentials: CredentialBroker | None = None,
         store: ApplicationContextStore | None = None,
-        turn_controller: object | None = None,
-        projector: ApplicationInvocationProjector | object | None = None,
-        catalog: CompositeToolCatalog | object | None = None,
+        turn_controller: TurnControllerSource | None = None,
+        projector: object | None = None,
+        catalog: object | None = None,
         output_composer: FrameworkOutputComposer | None = None,
         output_renderer: object | None = None,
         report_shell: object | None = None,
-        domain_output_builder: Callable[..., ValidatedDomainOutput] | None = None,
+        domain_output_builder: DomainOutputBuilder | None = None,
         binding_identities: Sequence[BindingIdentity] | None = None,
         lifecycle_hooks: Mapping[str, Callable[[], object]] | None = None,
-        application_preparer: Callable[..., object] | None = None,
+        application_preparer: ApplicationPreparer | None = None,
         cli_options: CliLLMOptions | None = None,
         environment: Mapping[str, str] | None = None,
         runtime_host: RuntimeHost | None = None,
@@ -160,16 +452,24 @@ class AgentApplication:
         semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
     ) -> None:
         self.profile = profile
-        self.prepared_application = prepared_application
+        self.prepared_application = (
+            _prepare_runtime(prepared_application)
+            if prepared_application is not None
+            else None
+        )
         self.provider_catalog = provider_catalog
         self.provider_factory = provider_factory or transport_factory
-        self.provider = provider
+        self.provider = _prepare_provider_session(provider) if provider is not None else None
         self.workspace_root = Path(workspace_root) if workspace_root is not None else None
         self.workspace = workspace
         self.registry = registry
         self.credentials = credentials
         self.store = store
-        self.turn_controller = turn_controller
+        self.turn_controller = (
+            _prepare_turn_controller(turn_controller)
+            if turn_controller is not None
+            else None
+        )
         self.projector = projector
         self.catalog = catalog
         self.output_composer = output_composer or FrameworkOutputComposer()
@@ -178,7 +478,10 @@ class AgentApplication:
             or getattr(profile, "output_renderer", None)
             or JsonOutputRenderer()
         )
-        self.report_shell = report_shell or getattr(profile, "report_shell", None) or GenericReportShell()
+        selected_report_shell = (
+            report_shell or getattr(profile, "report_shell", None) or GenericReportShell()
+        )
+        self.report_publisher = _prepare_report_publisher(selected_report_shell)
         self.domain_output_builder = domain_output_builder
         self.binding_identities = tuple(binding_identities or ())
         self.lifecycle_hooks = dict(lifecycle_hooks or {})
@@ -193,6 +496,18 @@ class AgentApplication:
         self._diagnostic_run_id = "run"
         self._diagnostic_refs: list[str] = []
         self._diagnostic_codes: set[str] = set()
+        if self.provider_factory is not None:
+            _validate_keyword_callable(
+                self.provider_factory,
+                label="provider factory",
+                names=_PROVIDER_FACTORY_KEYWORDS,
+            )
+        if self.application_preparer is not None:
+            _validate_keyword_callable(
+                self.application_preparer,
+                label="application preparer",
+                names=_APPLICATION_PREPARER_KEYWORDS,
+            )
 
     def run(self, request: ApplicationRequest) -> ApplicationOutcome:
         self._validate_request(request)
@@ -200,17 +515,18 @@ class AgentApplication:
         self._diagnostic_run_id = "run"
         self._diagnostic_refs = []
         self._diagnostic_codes = set()
-        prepared: object | None = None
-        transport: object | None = self.provider
-        completed_answers: list[object] = []
+        prepared: PreparedApplicationRuntime | None = None
+        transport: ProviderSession | None = self.provider
+        completed_answers: list[FinalizedTurn] = []
         report_path: Path | None = None
         transport_ready = False
         failure: str | None = None
+        selected_output_contracts: Mapping[str, _SelectedOutputContract] = {}
         workspace = self.workspace
         store = self.store
-        controller: object | None = self.turn_controller
+        controller: TurnControllerSession | None = None
         projector: object | None = self.projector
-        active_turn: object | None = None
+        active_turn: ActiveTurnHandle | None = None
         try:
             self._hook("registration")
             prepared = self._prepare(request)
@@ -228,6 +544,7 @@ class AgentApplication:
             catalog = self._validate_before_provider(prepared, bindings)
             self._hook("catalog_validation")
             projector = self._ensure_projector(store, catalog, bindings)
+            selected_output_contracts = self._validate_selected_output_contracts(bindings)
             transport = self._ensure_provider(
                 request=request,
                 prepared=prepared,
@@ -239,9 +556,9 @@ class AgentApplication:
             if transport is None:
                 raise ApplicationConfigurationError("provider transport is not configured")
             transport_ready = True
-            _call_method(transport, "start")
+            transport.start()
             for ordinal, question in enumerate(request.questions, start=1):
-                handle = _call_method(controller, "start", ordinal, question)
+                handle = controller.start(ordinal, question)
                 active_turn = handle
                 turn_started = time.monotonic()
                 try:
@@ -249,15 +566,13 @@ class AgentApplication:
                         transport,
                         question,
                         projector=projector,
-                        turn_id=getattr(handle, "turn_id", None),
+                        turn_id=handle.turn_id,
                         semantic_event_observer=(
                             self._observe_semantic_event
                             if self.semantic_event_observer is not None else None
                         ),
                     )
-                    finalized = _call_method(
-                        controller,
-                        "submit",
+                    finalized = controller.submit(
                         handle,
                         answer_output=answer,
                         referenced_bindings=tuple(
@@ -312,7 +627,7 @@ class AgentApplication:
                     raise
                 completed_answers.append(finalized)
                 active_turn = None
-                if getattr(finalized, "status", "success") != "success":
+                if finalized.status != "success":
                     raise ApplicationConfigurationError("question did not produce an accepted answer")
                 self._run_presentation(
                     lambda: self._write_report_checkpoint(
@@ -329,7 +644,7 @@ class AgentApplication:
                         "type": "application_turn_completed",
                         "ordinal": ordinal,
                         "total_questions": len(request.questions),
-                        "answer_output": str(getattr(finalized, "answer_output", "")),
+                        "answer_output": finalized.answer_output,
                     }
                 )
             preliminary_core = self._build_core_result(
@@ -349,7 +664,7 @@ class AgentApplication:
                 workspace=workspace,
                 store=store,
                 bindings=bindings,
-                controller=controller,
+                selected_output_contracts=selected_output_contracts,
                 completed_answers=tuple(completed_answers),
                 report_ref=report_ref,
             )
@@ -375,7 +690,7 @@ class AgentApplication:
                         0.0,
                         time.monotonic()
                         - float(
-                            getattr(active_turn, "started_monotonic", time.monotonic())
+                            active_turn.started_monotonic
                         ),
                     ),
                 )
@@ -425,25 +740,26 @@ class AgentApplication:
         if application_id is not None and request.application_id != application_id:
             raise ApplicationConfigurationError("application request identity does not match profile")
 
-    def _prepare(self, request: ApplicationRequest) -> object:
+    def _prepare(self, request: ApplicationRequest) -> PreparedApplicationRuntime:
         if self.prepared_application is not None:
             return self.prepared_application
         if self.application_preparer is not None:
-            return _call_factory(
-                self.application_preparer,
-                profile=self.profile,
-                request=request,
-                workspace=self.workspace,
-                registry=self.registry,
-                credentials=self.credentials,
+            return _prepare_runtime(
+                self.application_preparer(
+                    profile=self.profile,
+                    request=request,
+                    workspace=self.workspace,
+                    registry=self.registry,
+                    credentials=self.credentials,
+                )
             )
         if self.registry is None or self.credentials is None or self.workspace is None:
             raise ApplicationConfigurationError("prepared application inputs are incomplete")
         return prepare_application(
             self.profile,
-            registry=cast(Any, self.registry),
+            registry=self.registry,
             workspace=self.workspace.root,
-            credentials=cast(Any, self.credentials),
+            credentials=self.credentials,
         )
 
     def _ensure_workspace(
@@ -468,9 +784,7 @@ class AgentApplication:
     ) -> None:
         if workspace is None:
             return
-        method = getattr(self.report_shell, "prepare", None)
-        if callable(method):
-            _call_factory(method, questions=request.questions, workspace=workspace)
+        self.report_publisher.prepare(questions=request.questions, workspace=workspace)
 
     def _ensure_store(
         self,
@@ -505,16 +819,16 @@ class AgentApplication:
         store: ApplicationContextStore | None,
         workspace: ApplicationWorkspace | None,
         bindings: Mapping[str, object],
-    ) -> object:
+    ) -> TurnControllerSession:
         if self.turn_controller is not None:
             return self.turn_controller
         if store is None or workspace is None:
             raise ApplicationConfigurationError("turn controller is not configured")
-        return TurnController(
+        return _prepare_turn_controller(TurnController(
             store=store,
             workspace=workspace,
             bindings=bindings,
-        )
+        ))
 
     def _ensure_projector(
         self,
@@ -532,8 +846,51 @@ class AgentApplication:
             return None
         return ApplicationInvocationProjector(store, catalog, bindings)
 
+    def _validate_selected_output_contracts(
+        self, bindings: Mapping[str, object]
+    ) -> Mapping[str, _SelectedOutputContract]:
+        """Preflight output seams that are required to complete a run."""
+
+        if self.domain_output_builder is not None:
+            self.domain_output_builder = _prepare_domain_output_builder(
+                self.domain_output_builder
+            )
+            return {}
+        selected: dict[str, _SelectedOutputContract] = {}
+        for binding_id, binding in bindings.items():
+            profile = getattr(binding, "profile", None)
+            profile = profile or getattr(
+                getattr(binding, "binding", None), "profile", None
+            )
+            contract = getattr(profile, "output_contract", None)
+            if contract is None:
+                raise ApplicationConfigurationError(
+                    f"binding {binding_id!r} output contract is unavailable"
+                )
+            identity = next(
+                (
+                    candidate
+                    for candidate in self.binding_identities
+                    if candidate.binding_id == binding_id
+                ),
+                BindingIdentity(
+                    binding_id=binding_id,
+                    domain_id=_domain_id(binding),
+                    domain_version=_domain_version(binding),
+                ),
+            )
+            selected[binding_id] = _SelectedOutputContract(
+                schema_id=_domain_output_schema(binding, identity),
+                state_adapter=_prepare_state_context_adapter(
+                    getattr(profile, "state_adapter", None), binding_id
+                ),
+                payload_builder=_prepare_domain_payload_builder(contract, binding_id),
+                validator=_prepare_output_validator(contract, binding_id),
+            )
+        return selected
+
     def _validate_before_provider(
-        self, prepared: object, bindings: Mapping[str, object]
+        self, prepared: PreparedApplicationRuntime, bindings: Mapping[str, object]
     ) -> object | None:
         _call_method(getattr(self.profile, "application_policy", None), "load")
         for binding_id in sorted(bindings):
@@ -599,22 +956,23 @@ class AgentApplication:
         self,
         *,
         request: ApplicationRequest,
-        prepared: object,
+        prepared: PreparedApplicationRuntime,
         bindings: Mapping[str, object],
         catalog: object | None,
         workspace: ApplicationWorkspace | None,
-        controller: object,
-    ) -> object | None:
+        controller: TurnControllerSession,
+    ) -> ProviderSession | None:
         if self.provider is not None:
             return self.provider
         if self.provider_factory is not None:
-            return _call_factory(
-                self.provider_factory,
-                request=request,
-                profile=self.profile,
-                prepared_application=prepared,
-                bindings=bindings,
-                catalog=catalog,
+            return _prepare_provider_session(
+                self.provider_factory(
+                    request=request,
+                    profile=self.profile,
+                    prepared_application=prepared,
+                    bindings=bindings,
+                    catalog=catalog,
+                )
             )
         if not isinstance(self.provider_catalog, ProviderCatalog):
             source = self.provider_catalog
@@ -653,7 +1011,7 @@ class AgentApplication:
             "timeout_seconds": resolved.config.timeout_seconds,
             "max_retries": resolved.config.max_retries,
         })
-        return transport
+        return _prepare_provider_session(transport)
 
     def _default_pi_transport(
         self,
@@ -663,7 +1021,7 @@ class AgentApplication:
         *,
         request: ApplicationRequest,
         workspace: ApplicationWorkspace,
-        controller: object,
+        controller: TurnControllerSession,
     ) -> PiRpcClient:
         if self.runtime_paths is None:
             if self.runtime_host is None:
@@ -702,28 +1060,17 @@ class AgentApplication:
                 guide_index_sha256=guide_index_sha256,
                 application_id=request.application_id,
                 run_id=workspace.run_id,
-                active_turn_path=_runtime_channel_path(
-                    controller,
-                    "active_turn_path",
-                    default=workspace.turns_path / "active-turn.json",
+                active_turn_path=(
+                    controller.active_turn_path
+                    or workspace.turns_path / "active-turn.json"
                 ),
-                context_view_path=_runtime_channel_path(
-                    controller,
-                    "context_view_path",
-                    default=workspace.context_snapshot_path,
+                context_view_path=(
+                    controller.context_view_path or workspace.context_snapshot_path
                 ),
-                trajectory_requests_path=_runtime_channel_path(
-                    controller, "trajectory_requests_path"
-                ),
-                trajectory_capture_state_path=_runtime_channel_path(
-                    controller, "trajectory_capture_state_path"
-                ),
-                trajectory_allowed_refs_path=_runtime_channel_path(
-                    controller, "trajectory_allowed_refs_path"
-                ),
-                trajectory_acks_path=_runtime_channel_path(
-                    controller, "trajectory_acks_path"
-                ),
+                trajectory_requests_path=controller.trajectory_requests_path,
+                trajectory_capture_state_path=controller.trajectory_capture_state_path,
+                trajectory_allowed_refs_path=controller.trajectory_allowed_refs_path,
+                trajectory_acks_path=controller.trajectory_acks_path,
             )
             write_runtime_descriptor(descriptor_path, descriptor)
             host = self.runtime_host
@@ -763,8 +1110,8 @@ class AgentApplication:
         workspace: ApplicationWorkspace | None,
         store: ApplicationContextStore | None,
         bindings: Mapping[str, object],
-        controller: object,
-        completed_answers: tuple[object, ...],
+        selected_output_contracts: Mapping[str, _SelectedOutputContract],
+        completed_answers: tuple[FinalizedTurn, ...],
         report_ref: str | None,
     ) -> ApplicationResult:
         identities = self.binding_identities or tuple(
@@ -783,6 +1130,7 @@ class AgentApplication:
                 binding,
                 store,
                 completed_answers,
+                selected_output_contracts.get(identity.binding_id),
                 report_ref=report_ref,
             )
         core = self._build_core_result(
@@ -802,13 +1150,13 @@ class AgentApplication:
         *,
         request: ApplicationRequest,
         workspace: ApplicationWorkspace | None,
-        completed_answers: tuple[object, ...],
+        completed_answers: tuple[FinalizedTurn, ...],
         report_ref: str | None,
     ) -> CoreRunResult:
         answer_refs = tuple(
             ref
             for answer in completed_answers
-            for ref in (_optional_text(getattr(answer, "answer_ref", None)),)
+            for ref in (answer.answer_ref,)
             if ref
         )
         manifest = getattr(self.profile, "manifest", None)
@@ -827,7 +1175,8 @@ class AgentApplication:
         binding_id: str,
         binding: object | None,
         store: ApplicationContextStore | None,
-        completed_answers: tuple[object, ...],
+        completed_answers: tuple[FinalizedTurn, ...],
+        selected_contract: _SelectedOutputContract | None,
         *,
         report_ref: str | None,
     ) -> ValidatedDomainOutput:
@@ -835,38 +1184,32 @@ class AgentApplication:
         if report_ref is not None:
             context = _with_report_reference(context, report_ref)
         if self.domain_output_builder is not None:
-            return _call_factory(
-                self.domain_output_builder,
+            return self.domain_output_builder(
                 binding_id=binding_id,
                 binding=binding,
                 context=context,
                 committed_answers=completed_answers,
                 report_ref=report_ref,
             )
-        profile = getattr(binding, "profile", None)
-        profile = profile or getattr(getattr(binding, "binding", None), "profile", None)
-        contract = getattr(profile, "output_contract", None)
-        if contract is None:
+        if selected_contract is None:
             raise ApplicationConfigurationError("domain output contract is not configured")
         context = None
         if store is not None:
             state = store.snapshot.domains[binding_id].state
-            adapter = getattr(profile, "state_adapter", None)
-            if adapter is not None:
-                context = _call_factory(adapter.build_context, binding_id=binding_id, state=state)
+            if selected_contract.state_adapter is not None:
+                context = selected_contract.state_adapter.build_context(
+                    binding_id=binding_id, state=state
+                )
         if report_ref is not None:
             context = _with_report_reference(context, report_ref)
-        payload = _call_factory(
-            contract.build,
+        payload = selected_contract.payload_builder.build(
             binding_id=binding_id,
             context=context,
             committed_answers=completed_answers,
         )
-        if not isinstance(payload, Mapping):
-            raise ApplicationConfigurationError("domain output contract returned a non-object")
-        _validate_domain_output(contract, payload, context)
+        selected_contract.validator.validate(payload, context=context)
         return ValidatedDomainOutput(
-            schema=getattr(contract, "schema_id"),
+            schema=selected_contract.schema_id,
             status="completed",
             payload=payload,
         )
@@ -877,7 +1220,7 @@ class AgentApplication:
         request: ApplicationRequest,
         workspace: ApplicationWorkspace | None,
         bindings: Mapping[str, object],
-        completed_answers: tuple[object, ...],
+        completed_answers: tuple[FinalizedTurn, ...],
         error: str,
     ) -> ApplicationResult:
         """Build a sanitized framework result without rerunning domain logic."""
@@ -907,7 +1250,7 @@ class AgentApplication:
             answer_refs=tuple(
                 ref
                 for answer in completed_answers
-                for ref in (_optional_text(getattr(answer, "answer_ref", None)),)
+                for ref in (answer.answer_ref,)
                 if ref
             ),
             report_ref=None,
@@ -933,8 +1276,8 @@ class AgentApplication:
         workspace: ApplicationWorkspace | None,
         store: ApplicationContextStore | None,
         core: CoreRunResult,
-        completed_answers: tuple[object, ...],
-        prepared: object | None = None,
+        completed_answers: tuple[FinalizedTurn, ...],
+        prepared: PreparedApplicationRuntime | None = None,
     ) -> tuple[Path | None, str | None]:
         if workspace is None:
             return None, None
@@ -960,7 +1303,7 @@ class AgentApplication:
     def _publish_report(
         self, *, request: ApplicationRequest, workspace: ApplicationWorkspace | None,
         store: ApplicationContextStore | None, core: CoreRunResult,
-        completed_answers: tuple[object, ...], prepared: object | None,
+        completed_answers: tuple[FinalizedTurn, ...], prepared: PreparedApplicationRuntime | None,
     ) -> tuple[Path | None, ReportPublication]:
         try:
             path, report_ref = self._write_report(
@@ -1015,8 +1358,8 @@ class AgentApplication:
         request: ApplicationRequest,
         workspace: ApplicationWorkspace | None,
         store: ApplicationContextStore | None,
-        completed_answers: tuple[object, ...],
-        prepared: object | None = None,
+        completed_answers: tuple[FinalizedTurn, ...],
+        prepared: PreparedApplicationRuntime | None = None,
     ) -> None:
         """Refresh the mutable operator report without admitting an artifact."""
         if workspace is None:
@@ -1060,8 +1403,8 @@ class AgentApplication:
         workspace: ApplicationWorkspace,
         store: ApplicationContextStore | None,
         core: CoreRunResult,
-        completed_answers: tuple[object, ...],
-        prepared: object | None = None,
+        completed_answers: tuple[FinalizedTurn, ...],
+        prepared: PreparedApplicationRuntime | None = None,
     ) -> str:
         presentation = None
         bindings = _prepared_bindings(
@@ -1073,18 +1416,14 @@ class AgentApplication:
                 getattr(binding, "binding", None), "profile", None
             )
             presentation = getattr(profile, "presentation_provider", None)
-        answers = tuple(str(getattr(answer, "answer_output", "")) for answer in completed_answers)
+        answers = tuple(answer.answer_output for answer in completed_answers)
         assurances = _persisted_answer_assurances(completed_answers, workspace)
         references = tuple(
             ref
             for answer in completed_answers
-            for ref in getattr(answer, "result_refs", ())
+            for ref in answer.result_refs
         )
-        report_method = getattr(self.report_shell, "render", None)
-        if not callable(report_method):
-            report_method = GenericReportShell().render
-        report = _call_factory(
-            report_method,
+        return self.report_publisher.render(
             questions=request.questions,
             answers=answers,
             assurances=assurances,
@@ -1100,9 +1439,6 @@ class AgentApplication:
                 "model": self.cli_options.model,
             },
         )
-        if not isinstance(report, str):
-            raise PresentationError("report shell must return text")
-        return report
 
     def _record_report_reference(
         self, store: ApplicationContextStore | None, report_ref: str | None
@@ -1162,7 +1498,7 @@ class AgentApplication:
         except Exception:
             pass
 
-    def _cleanup(self, prepared: object | None) -> None:
+    def _cleanup(self, prepared: PreparedApplicationRuntime | None) -> None:
         bindings = _prepared_bindings(prepared)
         control_failure: BaseException | None = None
         for binding_id in reversed(tuple(bindings)):
@@ -1181,8 +1517,8 @@ class AgentApplication:
 
     def _fail_active_turn(
         self,
-        controller: object | None,
-        handle: object,
+        controller: TurnControllerSession | None,
+        handle: ActiveTurnHandle,
         *,
         error: str,
         duration_seconds: float,
@@ -1196,9 +1532,9 @@ class AgentApplication:
         """
 
         try:
-            _call_method(
-                controller,
-                "fail",
+            if controller is None:
+                return
+            controller.fail(
                 handle,
                 error=error,
                 duration_seconds=max(0.0, duration_seconds),
@@ -1212,13 +1548,79 @@ class AgentApplication:
             _call_factory(callback)
 
 
-def _prepared_bindings(prepared: object | None) -> Mapping[str, object]:
+def _prepare_runtime(value: object) -> PreparedApplicationRuntime:
+    if not _is_prepared_runtime(value):
+        raise ApplicationConfigurationError("prepared application bindings are invalid")
+    return value
+
+
+def _is_prepared_runtime(value: object) -> TypeGuard[PreparedApplicationRuntime]:
+    bindings = getattr(value, "bindings", None)
+    return isinstance(bindings, Mapping) and all(
+        isinstance(binding_id, str) for binding_id in bindings
+    )
+
+
+def _prepare_provider_session(value: object) -> ProviderSession:
+    _validate_provider_session(value)
+    return _ProviderSessionAdapter(value)
+
+
+def _prepare_report_publisher(value: object) -> ReportPublisher:
+    if isinstance(value, GenericReportShell):
+        return _GenericReportPublisherAdapter(value)
+    return _ConfiguredReportPublisherAdapter(value)
+
+
+def _prepare_turn_controller(value: object) -> TurnControllerSession:
+    _validate_turn_controller(value)
+    if not _is_turn_controller_source(value):
+        raise ApplicationConfigurationError("turn controller is unavailable")
+    return _TurnControllerAdapter(
+        source=value,
+        active_turn_path=_controller_channel_path(value, "active_turn_path"),
+        context_view_path=_controller_channel_path(value, "context_view_path"),
+        trajectory_requests_path=_controller_channel_path(
+            value, "trajectory_requests_path"
+        ),
+        trajectory_capture_state_path=_controller_channel_path(
+            value, "trajectory_capture_state_path"
+        ),
+        trajectory_allowed_refs_path=_controller_channel_path(
+            value, "trajectory_allowed_refs_path"
+        ),
+        trajectory_acks_path=_controller_channel_path(value, "trajectory_acks_path"),
+    )
+
+
+def _is_turn_controller_source(value: object) -> TypeGuard[TurnControllerSource]:
+    return all(callable(getattr(value, name, None)) for name in ("start", "submit", "fail"))
+
+
+def _controller_channel_path(value: object, name: str) -> Path | None:
+    channel = getattr(value, name, None)
+    if channel is None:
+        return None
+    if isinstance(channel, Path):
+        return channel
+    raise ApplicationConfigurationError(f"runtime channel {name!r} must be a path")
+
+
+def _prepare_domain_output_builder(value: object) -> DomainOutputBuilder:
+    _validate_keyword_callable(
+        value,
+        label="domain output builder",
+        names=("binding_id", "binding", "context", "committed_answers", "report_ref"),
+    )
+    return _DomainOutputBuilderAdapter(value)
+
+
+def _prepared_bindings(
+    prepared: PreparedApplicationRuntime | None,
+) -> Mapping[str, object]:
     if prepared is None:
         return {}
-    bindings = getattr(prepared, "bindings", None)
-    if not isinstance(bindings, Mapping):
-        raise ApplicationConfigurationError("prepared application bindings are invalid")
-    return bindings
+    return prepared.bindings
 
 
 def _state_schema(binding: object) -> str:
@@ -1277,19 +1679,6 @@ def _binding_profile(binding: object | None) -> object | None:
     )
 
 
-def _runtime_channel_path(
-    controller: object, name: str, *, default: Path | None = None
-) -> Path | None:
-    value = getattr(controller, name, None)
-    if value is None:
-        return default
-    if not isinstance(value, Path):
-        raise ApplicationConfigurationError(
-            f"runtime channel {name!r} must be a path"
-        )
-    return value
-
-
 def _safe_failure(error: BaseException) -> str:
     if isinstance(error, CapabilityAgentError):
         return f"{type(error).__name__}: application execution failed"
@@ -1326,49 +1715,135 @@ def _call_method(
 def _call_factory(factory: Callable[..., Any], *args: object, **kwargs: object) -> Any:
     if not callable(factory):
         raise ApplicationConfigurationError("runtime factory is unavailable")
-    try:
-        signature = inspect.signature(factory)
-    except (TypeError, ValueError):
-        return factory(*args, **kwargs)
-    parameters = signature.parameters
-    accepts_kwargs = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
-    if accepts_kwargs:
-        return factory(*args, **kwargs)
-    accepted = {
-        key: value
-        for key, value in kwargs.items()
-        if key in parameters
-        and parameters[key].kind
-        in {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
-    }
-    return factory(*args, **accepted)
+    return factory(*args, **kwargs)
 
 
-def _validate_domain_output(
-    contract: object,
-    payload: Mapping[str, object],
-    context: object | None,
-) -> None:
-    """Validate a domain payload against the same run-scoped context.
+def _validate_turn_controller(controller: object) -> None:
+    _validate_positional_and_keyword_callable(
+        getattr(controller, "start", None),
+        label="turn controller start",
+        positional=(1, "question"),
+        names=(),
+    )
+    _validate_positional_and_keyword_callable(
+        getattr(controller, "submit", None),
+        label="turn controller submit",
+        positional=(object(),),
+        names=(
+            "answer_output",
+            "referenced_bindings",
+            "result_refs",
+            "evidence_refs",
+            "duration_seconds",
+        ),
+    )
+    _validate_positional_and_keyword_callable(
+        getattr(controller, "fail", None),
+        label="turn controller fail",
+        positional=(object(),),
+        names=("error", "duration_seconds"),
+    )
 
-    Most domain contracts expose the historical ``validate(payload)`` method,
-    while a context-aware contract may opt into ``validate_with_context``.  A
-    few existing contracts also expose ``allowed_references`` as a constructor
-    option.  For those contracts, validate through a shallow run-local copy so
-    the admitted references are available without mutating a profile shared by
-    another run.
-    """
 
+def _prepare_state_context_adapter(
+    adapter: object | None, binding_id: str
+) -> StateContextAdapter | None:
+    if adapter is None:
+        return None
+    method = getattr(adapter, "build_context", None)
+    _validate_keyword_callable(
+        method,
+        label=f"binding {binding_id!r} state adapter",
+        names=("binding_id", "state"),
+    )
+    if not callable(method):
+        raise ApplicationConfigurationError("state adapter is unavailable")
+    return _StateContextAdapter(method)
+
+
+def _prepare_domain_payload_builder(
+    contract: object, binding_id: str
+) -> DomainPayloadBuilder:
+    method = getattr(contract, "build", None)
+    _validate_keyword_callable(
+        method,
+        label=f"binding {binding_id!r} output contract build",
+        names=("binding_id", "context", "committed_answers"),
+    )
+    if not callable(method):
+        raise ApplicationConfigurationError("domain output contract is unavailable")
+    return _DomainPayloadBuilder(method)
+
+
+def _prepare_output_validator(contract: object, binding_id: str) -> OutputValidator:
     context_validator = getattr(contract, "validate_with_context", None)
     if callable(context_validator):
-        _call_factory(context_validator, payload, context=context)
-        return
+        _validate_positional_and_keyword_callable(
+            context_validator,
+            label=f"binding {binding_id!r} context-aware output validator",
+            positional=({},),
+            names=("context",),
+        )
+        return _ContextOutputValidator(context_validator)
     validator = getattr(contract, "validate", None)
+    _validate_positional_and_keyword_callable(
+        validator,
+        label=f"binding {binding_id!r} output validator",
+        positional=({},),
+        names=(),
+    )
     if not callable(validator):
         raise ApplicationConfigurationError("domain output contract validator is unavailable")
+    return _LegacyOutputValidator(contract, validator)
 
-    scoped_contract = _scope_output_contract(contract, _context_admitted_references(context))
-    _call_factory(getattr(scoped_contract, "validate"), payload, context=context)
+
+def _validate_positional_and_keyword_callable(
+    factory: object,
+    *,
+    label: str,
+    positional: tuple[object, ...],
+    names: tuple[str, ...],
+) -> None:
+    if not callable(factory):
+        raise ApplicationConfigurationError(f"{label} is unavailable")
+    signature = _runtime_signature(factory, label=label)
+    try:
+        signature.bind(*positional, **{name: None for name in names})
+    except TypeError as exc:
+        raise ApplicationConfigurationError(
+            f"{label} does not accept its required invocation inputs"
+        ) from exc
+
+
+def _render_generic_report_shell(
+    *,
+    report_method: Callable[..., object],
+    questions: Sequence[str],
+    answers: Sequence[str],
+    assurances: Sequence[str],
+    trajectories: Sequence[str],
+    references: Sequence[str],
+    context: object | None,
+    presentation: object | None,
+    core: Mapping[str, object],
+    domains: Mapping[str, object],
+) -> str:
+    """Adapt the nine-field generic shell without runner-only details."""
+
+    report = report_method(
+        questions=questions,
+        answers=answers,
+        assurances=assurances,
+        trajectories=trajectories,
+        references=references,
+        context=context,
+        presentation=presentation,
+        core=core,
+        domains=domains,
+    )
+    if not isinstance(report, str):
+        raise PresentationError("report shell must return text")
+    return report
 
 
 def _scope_output_contract(contract: object, references: frozenset[str]) -> object:
@@ -1421,6 +1896,84 @@ def _context_mapping(context: object) -> dict[str, object]:
     return {}
 
 
+def _validate_provider_session(session: object) -> None:
+    """Reject a transport that would lose current-turn callbacks before start."""
+
+    _validate_no_argument_method(session, "start", label="provider session")
+    _validate_no_argument_method(session, "stop", label="provider session")
+    _provider_prompt_method(session, validate=True)
+
+
+def _provider_prompt_method(
+    session: object, *, validate: bool = False
+) -> Callable[..., object]:
+    """Return the canonical prompt method or a fully-compatible named legacy one."""
+
+    method = getattr(session, "prompt_and_wait", None)
+    if not callable(method):
+        method = getattr(session, "prompt", None)
+    if not callable(method):
+        raise ApplicationConfigurationError("provider session cannot process a question")
+    if validate:
+        _validate_prompt_callable(method)
+    return method
+
+
+def _validate_prompt_callable(method: Callable[..., object]) -> None:
+    signature = _runtime_signature(method, label="provider session prompt")
+    try:
+        signature.bind(
+            "question",
+            **{name: None for name in _PROVIDER_PROMPT_KEYWORDS},
+        )
+    except TypeError as exc:
+        raise ApplicationConfigurationError(
+            "provider session prompt must accept question, projection callback, "
+            "correlation id, and heartbeat callback"
+        ) from exc
+
+
+def _validate_no_argument_method(target: object, name: str, *, label: str) -> None:
+    method = getattr(target, name, None)
+    if not callable(method):
+        raise ApplicationConfigurationError(f"{label} method {name!r} is unavailable")
+    signature = _runtime_signature(method, label=f"{label} method {name!r}")
+    try:
+        signature.bind()
+    except TypeError as exc:
+        raise ApplicationConfigurationError(
+            f"{label} method {name!r} must not require arguments"
+        ) from exc
+
+
+def _validate_keyword_callable(
+    factory: object,
+    *,
+    label: str,
+    names: tuple[str, ...],
+) -> None:
+    if not callable(factory):
+        raise ApplicationConfigurationError(f"{label} is unavailable")
+    signature = _runtime_signature(factory, label=label)
+    try:
+        signature.bind(**{name: None for name in names})
+    except TypeError as exc:
+        raise ApplicationConfigurationError(
+            f"{label} must accept required keyword inputs: {', '.join(names)}"
+        ) from exc
+
+
+def _runtime_signature(
+    callable_object: Callable[..., object], *, label: str
+) -> inspect.Signature:
+    try:
+        return inspect.signature(callable_object)
+    except (TypeError, ValueError) as exc:
+        raise ApplicationConfigurationError(
+            f"{label} signature is unavailable for preflight"
+        ) from exc
+
+
 def _call_prompt(
     transport: object,
     question: str,
@@ -1429,40 +1982,40 @@ def _call_prompt(
     turn_id: str | None,
     semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
 ) -> tuple[str, tuple[Any, ...]]:
-    method = getattr(transport, "prompt_and_wait", None)
-    if not callable(method):
-        method = getattr(transport, "prompt", None)
-    if not callable(method):
-        raise ApplicationConfigurationError("provider transport cannot process a question")
-    kwargs: dict[str, object] = {}
+    method = _provider_prompt_method(transport)
     projections: list[Any] = []
     callback = getattr(projector, "observe", None) if projector is not None else None
-    if callable(callback) or semantic_event_observer is not None:
-            def on_event(
-                event: Mapping[str, object],
-                sequence: int | None = None,
-                **event_kwargs: object,
-            ) -> None:
-                if callable(callback) and turn_id is not None:
-                    outcome = callback(
-                        event,
-                        turn_id=turn_id,
-                        trace_sequence=sequence,
-                        **event_kwargs,
-                    )
-                    if outcome is not None:
-                        projections.append(outcome)
-                if semantic_event_observer is not None:
-                    _observe_nonblocking(semantic_event_observer, event)
-            kwargs["on_semantic_event"] = on_event
-    if turn_id is not None:
-        kwargs["correlation_id"] = turn_id
-    if semantic_event_observer is not None:
-        kwargs["on_heartbeat"] = lambda: _observe_nonblocking(
-            semantic_event_observer,
-            {"type": "application_waiting"}
-        )
-    answer = _call_factory(method, question, **kwargs)
+
+    def on_event(
+        event: Mapping[str, object],
+        sequence: int | None = None,
+        **event_kwargs: object,
+    ) -> None:
+        if callable(callback) and turn_id is not None:
+            outcome = callback(
+                event,
+                turn_id=turn_id,
+                trace_sequence=sequence,
+                **event_kwargs,
+            )
+            if outcome is not None:
+                projections.append(outcome)
+        if semantic_event_observer is not None:
+            _observe_nonblocking(semantic_event_observer, event)
+
+    def on_heartbeat() -> None:
+        if semantic_event_observer is not None:
+            _observe_nonblocking(
+                semantic_event_observer,
+                {"type": "application_waiting"},
+            )
+
+    answer = method(
+        question,
+        on_semantic_event=on_event,
+        correlation_id=turn_id,
+        on_heartbeat=on_heartbeat,
+    )
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")
     return answer, tuple(projections)
@@ -1534,7 +2087,7 @@ def _with_report_reference(
 
 
 def _persisted_answer_assurances(
-    answers: tuple[object, ...], workspace: ApplicationWorkspace
+    answers: tuple[FinalizedTurn, ...], workspace: ApplicationWorkspace
 ) -> tuple[str, ...]:
     """Use the verified ledger once, then bind every display to its event."""
     try:
@@ -1567,14 +2120,14 @@ def _persisted_answer_assurances(
 
 
 def _persisted_answer_assurance(
-    answer: object,
+    answer: FinalizedTurn,
     workspace: ApplicationWorkspace,
     declared: Mapping[tuple[str, str, str, str], int],
 ) -> str:
-    path = getattr(answer, "answer_path", None)
-    answer_ref = getattr(answer, "answer_ref", None)
-    admission_ref = getattr(answer, "admission_ref", None)
-    turn_id = getattr(answer, "turn_id", None)
+    path = answer.answer_path
+    answer_ref = answer.answer_ref
+    admission_ref = answer.admission_ref
+    turn_id = answer.turn_id
     if not (
         isinstance(answer_ref, str) and answer_ref
         and isinstance(admission_ref, str) and admission_ref

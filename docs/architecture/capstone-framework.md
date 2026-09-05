@@ -46,6 +46,46 @@ credentials scoped, and defaults to no cross-domain data sharing. Domain Packs
 communicate with an authority through their declared executor/protocol instead
 of importing its implementation into the Kernel.
 
+### Imports, calls, and evidence are different relationships
+
+The layer ordering above constrains ownership and dependencies; it does not
+require an import through every adjacent layer. The implemented source imports
+are:
+
+```text
+Application -> Kernel public application API
+Application -> selected Domain Pack public factory
+Domain Pack -> Kernel public SPI
+Domain Pack -> explicitly allowlisted Authority protocol/resource API
+```
+
+The Kernel has no import of a concrete registered authority. In the pandapower
+pack, the sole simulator import permitted by the static boundary gate is
+`from grid_simulator.capabilities import contract_root` (an alias is allowed).
+This public installed-resource function locates the directory containing the
+authority-owned capability JSON; it does not admit registry classes, simulator implementation modules,
+raw networks, or arbitrary simulator calls. The pack retains an exact simulator
+package dependency, declared in its `pyproject.toml`, so resource availability
+is checked in clean wheel installation. The schema is not copied into a new
+independently maintained contracts package. The AST check enforces declared
+source imports; it is not a sandbox for malicious dynamic Python code.
+
+Runtime calls use injected interfaces, not reverse implementation imports:
+
+```text
+Application -> Kernel lifecycle -> injected Domain executor -> Authority
+```
+
+Evidence returns through validated contracts, in the opposite data direction:
+
+```text
+Authority -> Domain admission/projector -> Kernel typed state/commits -> Application
+```
+
+Returning a reference does not expose an authority object or let the Kernel
+recompute a domain fact. The Domain Pack still owns semantic admission, and
+the application still owns its public compatibility projection.
+
 ## Runtime and tool protocol
 
 At startup, the selected Domain Pack provisions a trusted endpoint for the

@@ -6,7 +6,7 @@
 - Theme-level focus: Capstone answer assurance, failure isolation, verification coverage, and scalable domain composition
 - Project route: direct
 - Canonical optimization worklist: `docs/superpowers/plans/2026-09-05-capstone-optimization.md`
-- Active optimization work package: OP-08; execution is isolated on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. The canonical plan owns task status. Optimization closure precedes C.2 domain selection.
+- Active optimization work package: OP-10; OP-08's additional cross-layer scope awaits approval. Execution is isolated on `feat/capstone-optimization` in `.worktrees/capstone-optimization`. The canonical plan owns task status. Optimization closure precedes C.2 domain selection.
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
 - Completed work package: Workstream C.1 application-instantiation closure. The first real pandapower application passed both canonical business task files through the generic path and the explicit v1.0.1 compatibility projection.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.

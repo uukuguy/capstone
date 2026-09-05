@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "tools/check_package_boundaries.py"
+
+
+def test_domain_resource_dependency_pins_authority_package_version() -> None:
+    simulator = tomllib.loads((ROOT / "packages/grid-simulator/pyproject.toml").read_text())
+    domain = tomllib.loads((ROOT / "packages/pandapower-domain-pack/pyproject.toml").read_text())
+    expected = f"grid-simulator=={simulator['project']['version']}"
+    dependencies = domain["project"]["dependencies"]
+    assert expected in dependencies
+    assert sum(value.startswith("grid-simulator") for value in dependencies) == 1
 
 
 def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
@@ -31,6 +41,39 @@ def test_kernel_rejects_forbidden_grid_agent_import(tmp_path: Path) -> None:
         "packages/capability-agent-kernel/src/capability_agent/bad.py imports grid_agent.cli"
     ]
     assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import grid_simulator\n",
+        "import grid_simulator.client\n",
+        "from grid_simulator import capabilities\n",
+        "from grid_simulator.capabilities import CapabilityRegistry\n",
+        "from grid_simulator.capabilities import *\n",
+        "from grid_simulator.capabilities.registry import CapabilityRegistry\n",
+        "from grid_simulator.capabilities import contract_root, CapabilityRegistry\n",
+    ],
+)
+def test_pandapower_domain_rejects_simulator_imports_except_contract_root(tmp_path: Path, source: str) -> None:
+    domain = tmp_path / "packages/pandapower-domain-pack/src/pandapower_domain"
+    domain.mkdir(parents=True)
+    (domain / "bad.py").write_text(source, encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert result.stderr == "packages/pandapower-domain-pack/src/pandapower_domain/bad.py imports forbidden grid_simulator symbol\n"
+
+
+def test_pandapower_domain_allows_contract_root_alias(tmp_path: Path) -> None:
+    domain = tmp_path / "packages/pandapower-domain-pack/src/pandapower_domain"
+    domain.mkdir(parents=True)
+    (domain / "resources.py").write_text("from grid_simulator.capabilities import contract_root as root\n", encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 0
 
 
 def test_application_rejects_grid_owned_semantic_literals(tmp_path: Path) -> None:

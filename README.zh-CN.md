@@ -16,6 +16,8 @@ Application -> Domain Pack -> Kernel -> registered Authority
 
 依赖只能向右流动。结果和证据引用通过显式契约返回，而不是反向导入或暴露原始对象。Application 拥有公共 CLI 或 UI 以及任何兼容投影；Domain Pack 拥有领域契约、策略、指南、执行、投影和当前运行领域状态；Kernel 拥有领域无关的组合与生命周期；已登记的 Authority 拥有基于来源或确定性产生的领域事实、结果、修订和证据。
 
+源码导入、注入接口的运行调用和证据返回是不同的关系。Domain Pack 可以导入显式白名单内的 authority 协议／资源 API，但不能导入其原始实现；Kernel 不导入具体 authority。详见[三类关系图](docs/architecture/capstone-framework.md#imports-calls-and-evidence-are-different-relationships)。
+
 ## 添加应用
 
 集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。Capstone 当前不提供动态发现、运行时领域选择或多领域路由。
