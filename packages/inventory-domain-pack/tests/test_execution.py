@@ -52,4 +52,14 @@ def test_executor_environment_removes_credentials() -> None:
             "INVENTORY_TOKEN": "secret",
             "VISIBLE_SETTING": "yes",
         }
-    ) == {"PATH": "/bin", "VISIBLE_SETTING": "yes"}
+    ) == {"PATH": "/bin"}
+
+
+def test_missing_asset_preserves_domain_error_before_public_screening(tmp_path):
+    executable = shutil.which("inventoryctl")
+    assert executable is not None
+    executor = InventoryctlExecutor(executable=Path(executable), workspace=tmp_path)
+    opened = executor.invoke("catalog.open", {"catalog_id": "warehouse-a"})
+    with pytest.raises(InventoryCapabilityError) as caught:
+        executor.invoke("asset.get", {"context_ref": opened["context_ref"], "asset_id": "not-an-asset"})
+    assert caught.value.error["code"] == "asset_not_found"

@@ -2,24 +2,19 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 from uuid import uuid4
 
 
-_SECRET_NAMES = {
-    "OPENAI_API_KEY",
-    "OPENROUTER_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "MINIMAX_API_KEY",
-    "CAPABILITY_AGENT_SECRET_ENV_NAMES",
-}
-_CREDENTIAL_PATTERN = re.compile(
-    r"(?:API_KEY|TOKEN|SECRET|AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY)$",
-    re.IGNORECASE,
-)
+_RUNTIME_ENVIRONMENT_NAMES = frozenset({
+    "PATH", "LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "LC_COLLATE",
+    "LC_NUMERIC", "LC_TIME", "LC_MONETARY", "TZ",
+    "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "SystemRoot", "WINDIR", "windir",
+    "COMSPEC", "ComSpec", "PATHEXT",
+    "PYTHONIOENCODING", "PYTHONUTF8", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE",
+})
 
 
 def sanitize_environment(
@@ -31,11 +26,10 @@ def sanitize_environment(
         for item in source.get("CAPABILITY_AGENT_SECRET_ENV_NAMES", "").split(",")
         if item.strip()
     }
-    blocked = _SECRET_NAMES | selected
     return {
         name: value
         for name, value in source.items()
-        if name not in blocked and not _CREDENTIAL_PATTERN.search(name)
+        if name in _RUNTIME_ENVIRONMENT_NAMES and name not in selected
     }
 
 

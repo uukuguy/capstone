@@ -50,3 +50,28 @@ def test_installed_inventory_profile_materializes_public_spi_runtime(tmp_path) -
     ]
     assert prepared.authority.authority_id == "inventoryctl"
     assert prepared.authority.workspace_root == workspace
+
+
+def test_profile_is_complete_and_acceptance_is_declarative(monkeypatch):
+    import subprocess
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("profile construction must not execute a provider or authority")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    profile = build_inventory_profile()
+    assert profile.missing_application_components() == ()
+    profile.validate_answer_admission_declaration()
+    assert profile.guide_provider is not None
+    assert profile.policy_provider is not None
+    assert profile.policy_provider.load()
+    assert len(profile.guide_provider.load()) == 3
+    assert profile.acceptance_profile is not None
+    cases = (
+        *profile.acceptance_profile.offline_cases(),
+        *profile.acceptance_profile.scripted_cases(),
+        *profile.acceptance_profile.provider_cases(),
+    )
+    assert len({case.case_id for case in cases}) == len(cases)
+    assert {case.mode for case in cases} == {"offline", "scripted", "provider"}
+    assert all(case.description for case in cases)
