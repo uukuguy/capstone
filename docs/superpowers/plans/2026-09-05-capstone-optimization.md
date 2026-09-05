@@ -429,6 +429,10 @@ B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel whe
 - [x] 实现磁盘语法/遍历及必要的有界cursor/keyset接口。完整文档专项44PASS27.59s（含8/64MiB四形状与12000层，无skip），峰值<=600251字节；独立1000结构差分通过。最终四模块日常回归225PASS2.13s，23项既有压力用例按§6不重复运行；完整字节/长度/SHA、重复成员和嵌套语义均覆盖。
 - [x] 显式原型Pyright、doctor/仓库类型/diff/符号链接检查通过；独立SPEC/QUALITY复审PASS，另38项聚焦PASS。证据OP08 `b0-document-root-verification.md`、`b0-document-review.md`；最终document源3615bb7898eae5ffc4205be86a9ddf90765c7f39、测试279c146ca40cb88d3f77f55d084cb52fb7001260。完整B0还须磁盘额度、同fd身份、清理失败、native内存及完整Domain语义验证；本子项不自动触发生产迁入。
 - [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
+
+**B0.5源绑定切面（隔离验证）**：新增`verified_source.py`，提供`VerifiedSource(fd,expected_digest,expected_size)`只读适配器；调用方已安全打开并准入普通文件，适配器不接收路径、不重开、不关闭调用方fd。固定最大65536字节pread，从偏移0开始，独立于调用方游标；逐块累计原始SHA，EOF前核对预期长度/摘要及同fd dev/ino/size/mtime_ns/ctime_ns。文件被改动或I/O失败均资源错误，不当作JSON不合法。与document原型组合时_parse必须读至EOF后才_emit，故失败不得产生成功摘要或输出。只证明已打开fd到语义输入的绑定，不替代路径准入、不可变下载快照或恶意写入者隔离。日常测试仅正常绑定、错误摘要/长度、读取中修改、调用方fd所有权/游标及读取上界；小型真实文件足够。磁盘额度与完整Domain验证仍为后续B0工作。
+
+- [x] B0.5上述边界4RED→4PASS；联合日常229PASS2.33s、显式类型0/doctor/diff/符号链接通过，不重复23项既有压力用例；独立SPEC/QUALITY通过（另4PASS及类型0）。证据OP08 `b0-source-root-verification.md`、`b0-source-review.md`；源5ea46282ed87f17068dc53cf8221abe1dde0eadf，测试2ffabf51f224cf218b7e12edfa01530d37123530。仅验收原始fd绑定，不等于完整B0通过。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 
 回退：各片单独提交且不混入OP-13；按D/C/B/A逆依赖回退任务提交，失效新版本派生缓存，不迁移或删除历史runs。已接受答案、权威证据与默认legacy存储行为保持不变。

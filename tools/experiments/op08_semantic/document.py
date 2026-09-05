@@ -17,7 +17,7 @@ from tools.experiments.op08_semantic.document_store import DocumentStore
 from tools.experiments.op08_semantic.numbers import NumberCanonicalizer, NumberDecodeError
 from tools.experiments.op08_semantic.object_index import ObjectIndexError
 from tools.experiments.op08_semantic.strings import (
-    StringDecodeError, StringIOError, UTF8Cursor, read_json_string,
+    ReadableSource, StringDecodeError, StringIOError, UTF8Cursor, read_json_string,
 )
 
 
@@ -248,7 +248,7 @@ def _emit(store: DocumentStore, blobs: BinaryIO, sink: BinaryIO,
 
 
 def canonicalize_document(
-    source: BinaryIO,
+    source: ReadableSource,
     sink: BinaryIO,
     *,
     scratch_parent: Path,

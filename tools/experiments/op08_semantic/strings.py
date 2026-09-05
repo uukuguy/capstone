@@ -6,7 +6,11 @@ import codecs
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import BinaryIO
+from typing import BinaryIO, Protocol
+
+
+class ReadableSource(Protocol):
+    def read(self, size: int, /) -> bytes: ...
 
 
 class StringDecodeError(ValueError):
@@ -47,7 +51,7 @@ class UTF8Cursor:
     not through the underlying stream, to preserve unread characters.
     """
 
-    def __init__(self, source: BinaryIO, *, chunk_size: int = 65536) -> None:
+    def __init__(self, source: ReadableSource, *, chunk_size: int = 65536) -> None:
         if isinstance(chunk_size, bool) or not isinstance(chunk_size, int):
             raise ValueError("invalid chunk_size")
         if not 0 < chunk_size <= 65536:
