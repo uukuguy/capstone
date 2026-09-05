@@ -29,6 +29,54 @@ DocumentCanonicalError = _MODULE.DocumentCanonicalError
 DocumentResourceError = _MODULE.DocumentResourceError
 
 
+@pytest.mark.parametrize("component", ["blob_bytes", "integer_bytes", "database_bytes"])
+def test_scratch_component_limit_rejects_and_cleans(tmp_path: Path, component: str) -> None:
+    limits = _MODULE.ScratchLimits(**{component: 1})
+    source, sink = io.BytesIO(b'{"a":12345}'), io.BytesIO()
+    with pytest.raises(DocumentResourceError):
+        canonicalize_document(source, sink, scratch_parent=tmp_path, limits=limits)
+    assert list(tmp_path.iterdir()) == []
+    assert not source.closed and not sink.closed
+    assert sink.getvalue() == b''
+
+
+def test_small_document_fits_explicit_scratch_limits(tmp_path: Path) -> None:
+    limits = _MODULE.ScratchLimits(blob_bytes=8, integer_bytes=5, database_bytes=65536)
+    sink = io.BytesIO()
+    canonicalize_document(io.BytesIO(b'{"a":12345}'), sink, scratch_parent=tmp_path, limits=limits)
+    assert sink.getvalue() == b'{"a":12345}'
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5])
+def test_scratch_limits_require_positive_integer_configuration(value) -> None:
+    with pytest.raises(ValueError):
+        _MODULE.ScratchLimits(blob_bytes=value)
+
+
+def test_scratch_file_limit_checks_before_extending(tmp_path: Path) -> None:
+    path = tmp_path / "bounded"
+    with _MODULE.LimitedFile(path, 4) as stream:
+        assert stream.write(b'abcd') == 4
+        with pytest.raises(OSError):
+            stream.write(b'e')
+        assert path.stat().st_size == 4
+
+
+def test_database_growth_reaches_limit_and_cleans(tmp_path: Path) -> None:
+    limits = _MODULE.ScratchLimits(database_bytes=32768)
+    raw = b'{"a":[' + b','.join([b'0'] * 300) + b']}'
+    sink = io.BytesIO()
+    with pytest.raises(DocumentResourceError) as error:
+        canonicalize_document(io.BytesIO(raw), sink, scratch_parent=tmp_path, limits=limits)
+    cause = error.value
+    while cause.__cause__ is not None:
+        cause = cause.__cause__
+    assert isinstance(cause, sqlite3.OperationalError)
+    assert cause.sqlite_errorcode == sqlite3.SQLITE_FULL
+    assert sink.getvalue() == b'' and list(tmp_path.iterdir()) == []
+
+
 @pytest.mark.parametrize("raw", [
     b'{}', b' {"a": [1, -0.0, true, false, null, {"x":"y"}]} ',
     b'{"a":1,"b":2,"a":3}', b'{"a":1,"\\u0061":2}',

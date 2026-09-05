@@ -435,6 +435,10 @@ B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel whe
 - [x] B0.5上述边界4RED→4PASS；联合日常229PASS2.33s、显式类型0/doctor/diff/符号链接通过，不重复23项既有压力用例；独立SPEC/QUALITY通过（另4PASS及类型0）。证据OP08 `b0-source-root-verification.md`、`b0-source-review.md`；源5ea46282ed87f17068dc53cf8221abe1dde0eadf，测试2ffabf51f224cf218b7e12edfa01530d37123530。仅验收原始fd绑定，不等于完整B0通过。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 
+**B0.6临时存储分量额度**：在原型增加`ScratchLimits`（blob_bytes、integer_bytes、database_bytes，默认各256MiB）及写入前检查的普通文件；数据库初始化前设置并读回`max_page_count=floor(database_bytes/page_size)`。整数spool每token释放，blob文件在整次结束释放；配置是资源准入策略，不改变JSON语法判定，超限统一资源错误且清理本次scratch。调用方sink的存储由调用方负责。本切面不宣称总文件系统硬配额：SQLite rollback journal/临时文件须另计，不能使用journal_size_limit冒充写入中上限（官方[PRAGMA](https://www.sqlite.org/pragma.html#pragma_journal_size_limit)、[临时文件](https://www.sqlite.org/tempfiles.html)）。先用正常小文档及三个分量超限回归验证，默认大文件证据不重复；分量通过后继续闭合日志预算与实际占用方案。
+
+- [x] B0.6分量额度实现；真实额度3RED与配置4RED后239日常PASS2.68s、类型/doctor/diff/符号链接通过，独立SPEC/QUALITY通过（另25聚焦PASS、类型0）。原型源scratch7b7a6cd6e6e8faec8ddb2616bbab3d5cd88a8b0a、document12f06bb6d853df32903f0683df08679ce88093fd；证据OP08 `b0-scratch-root-verification.md`及`b0-scratch-review.md`。总占用策略仍未完成。
+
 回退：各片单独提交且不混入OP-13；按D/C/B/A逆依赖回退任务提交，失效新版本派生缓存，不迁移或删除历史runs。已接受答案、权威证据与默认legacy存储行为保持不变。
 
 - [ ] 新增 8 MiB 和 64 MiB 已注册安全工件 fixture；请求 `Range: bytes=0-131071`，断言 206、Content-Range、长度以及完整源摘要失败时拒绝。

@@ -16,6 +16,7 @@ from typing import BinaryIO, Iterator
 from tools.experiments.op08_semantic.document_store import DocumentStore
 from tools.experiments.op08_semantic.numbers import NumberCanonicalizer, NumberDecodeError
 from tools.experiments.op08_semantic.object_index import ObjectIndexError
+from tools.experiments.op08_semantic.scratch import LimitedFile, ScratchLimits, limit_database
 from tools.experiments.op08_semantic.strings import (
     ReadableSource, StringDecodeError, StringIOError, UTF8Cursor, read_json_string,
 )
@@ -56,11 +57,12 @@ def _write(stream: BinaryIO, payload: bytes) -> None:
 
 
 @contextmanager
-def _integer_spool(directory: Path) -> Iterator[BinaryIO]:
+def _integer_spool(directory: Path, limit: int) -> Iterator[BinaryIO]:
     spool = tempfile.TemporaryFile(dir=directory)
     primary: BaseException | None = None
     try:
-        yield spool
+        with LimitedFile(spool.fileno(), limit, closefd=False) as bounded:
+            yield bounded
     except BaseException as error:
         primary = error
         raise
@@ -75,7 +77,7 @@ def _integer_spool(directory: Path) -> Iterator[BinaryIO]:
 
 
 def _value(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO,
-           directory: Path, parent: int | None) -> int:
+           directory: Path, parent: int | None, limits: ScratchLimits) -> int:
     cursor.skip_whitespace()
     character = cursor.peek_char()
     if character in {"{", "["}:
@@ -86,7 +88,7 @@ def _value(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO,
         info = read_json_string(cursor, blobs)
         return store.create("scalar", parent, offset, info.byte_count, info.has_unpaired_surrogate)
     if character and character in "-0123456789NI":
-        with _integer_spool(directory) as integer_spool:
+        with _integer_spool(directory, limits.integer_bytes) as integer_spool:
             number = NumberCanonicalizer(blobs, integer_spool)
             while span := cursor.read_number_span():
                 try:
@@ -108,8 +110,9 @@ def _value(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO,
     raise DocumentDecodeError("missing JSON value")
 
 
-def _parse(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO, directory: Path) -> int:
-    root = _value(cursor, store, blobs, directory, None)
+def _parse(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO, directory: Path,
+           limits: ScratchLimits) -> int:
+    root = _value(cursor, store, blobs, directory, None, limits)
     current: int | None = root
     while current is not None:
         node = store.node(current)
@@ -142,7 +145,7 @@ def _parse(cursor: UTF8Cursor, store: DocumentStore, blobs: BinaryIO, directory:
                 raise DocumentDecodeError("missing object colon")
             store.state(current, "value")
         elif node.state in {"first", "value"}:
-            current = _value(cursor, store, blobs, directory, current)
+            current = _value(cursor, store, blobs, directory, current, limits)
         else:
             raise DocumentResourceError("invalid parser state")
     cursor.skip_whitespace()
@@ -253,6 +256,7 @@ def canonicalize_document(
     *,
     scratch_parent: Path,
     omit_top_level_key: str | None = None,
+    limits: ScratchLimits = ScratchLimits(),
 ) -> DocumentInfo:
     """Canonicalize one mapping using exclusively-owned scratch resources.
 
@@ -268,9 +272,10 @@ def canonicalize_document(
         directory = tempfile.TemporaryDirectory(prefix="op08-document-", dir=scratch_parent)
         folder = Path(directory.name)
         connection = sqlite3.connect(folder / "document.sqlite3", isolation_level=None)
-        blobs = (folder / "blobs.bin").open("w+b")
+        limit_database(connection, limits.database_bytes)
+        blobs = LimitedFile(folder / "blobs.bin", limits.blob_bytes)
         store = DocumentStore(connection, blobs)
-        root = _parse(UTF8Cursor(source), store, blobs, folder)
+        root = _parse(UTF8Cursor(source), store, blobs, folder, limits)
         return _emit(store, blobs, sink, root, omit_top_level_key)
     except (StringDecodeError, NumberDecodeError, UnicodeDecodeError) as error:
         primary = DocumentDecodeError("document syntax or encoding is invalid")

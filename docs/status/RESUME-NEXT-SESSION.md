@@ -1,13 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 17:51 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 17:56 CST. **Session remains active — not a final handoff.**
 
 ## Scope and workspace
 
 - Objective: finish full optimization plan; not completed. Canonical worklist:
   docs/superpowers/plans/2026-09-05-capstone-optimization.md.
 - Worktree /Users/sujiangwen/sandbox/SGAI/grid-static-analysis/.worktrees/capstone-optimization;
-  branch feat/capstone-optimization; HEAD c9c0708 (B0.4 isolated document assembler).
+  branch feat/capstone-optimization; HEAD f4a5712 (B0.5 isolated source binding).
 - OP01–07/10/11/12 DONE. OP08-A accepted; B/C/D incomplete. OP09 depends08.
   OP13 A accepted, B dirty/unaccepted, C/D not started, default legacy.
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
@@ -67,14 +67,21 @@ B0.4 isolated scope accepted; no full B0 feasibility/production adoption claim.
 User clarified development tests control boundaries, not delivery-level exhaustive
 verification: plan §6 now tiers daily/phase/delivery gates. Do not repeat unchanged
 large/deep evidence per small fix. B0.4 committed c9c0708.
-B0.5 same-fd VerifiedSource isolated prototype now accepted, pending commit:
+B0.5 same-fd VerifiedSource isolated prototype accepted and committed f4a5712:
 4RED→4PASS; five-module daily229PASS2.33s, types0/doctor/diff/symlinkPASS;
 independent SPEC/QUALITY PASS with4focusedPASS/types0. Source/file ownership,
 raw hash/size and read-time mutation checks run before semantic output. Additive
 ReadableSource protocol only, no production interface/import changes.
 Evidence OP08/b0-source-{root-verification,review}.md.
-Next: disk quota design/implementation for owned blobs/integer spool/SQLite,
-then native memory and full Domain feasibility; avoid fault-permutation expansion.
+B0.6 component limits implemented, accepted, pending commit:
+scratch.py positive integer caps(default256MiB each), LimitedFile checked writes,
+SQLite max_page_count before schema; source/cleanup lifetime unchanged. Three
+real quotaRED and four configRED fixed;239dailyPASS/types0/doctorPASS. Early
+artificial placeholder failure excluded from evidence. Independent SPEC/QUALITY
+PASS,25targetedPASS/types0; OP08/b0-scratch-{root-verification,review}.md.
+Next: commit B0.6, then address SQLite journal/temp allocation
+in the total-space strategy, native memory and full Domain feasibility. Component
+limits do not claim filesystem quota; avoid fault-permutation expansion.
 Source adapter assumes already safely admitted fd; it is not path admission or
 an immutable downloadable snapshot, which remain later integration concerns.
 Evidence OP08/b0-document-{design-review,initial-evidence,root-verification,review}.md.
