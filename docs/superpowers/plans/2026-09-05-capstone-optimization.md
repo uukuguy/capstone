@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-08（跨层范围已获用户“同意”，接口细化中）；OP-13 B继续BLOCKED，独立复审未完成。全方案未完成；此前goal工具的blocked状态不冒充已恢复。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-08（A已验收；B0隔离原型与验证已获用户“同意”，不授权生产集成或新增依赖）；OP-13 B继续BLOCKED，独立复审未完成。全方案未完成。执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -46,7 +46,7 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
 | OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
-| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | A流式工件校验已验收b7b49f6；root593Kernel/类型、独立双PASS；B/C/D未完成 |
+| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | A已验收b7b49f6；B0私有隔离原型/验证已批准，生产B/C/D仍未完成 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | DONE | d5eec21；最终复审PASS，固定完整doctor/check-release exit0，详见验收记录 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | DONE | 416a04d实现/218b672独立摘要；119测试/复审/真实六wheel及固定完整release exit0 |
@@ -381,7 +381,15 @@ assert materialize_spy.call_count == 1
 
 - [x] 08-A具体身份检查设计经Sol独立复审APPROVE；33项工件测试基线通过，记录`runs/optimization/OP-08/streaming-registry-baseline.md`。实现约束与复审结论摘录见`streaming-registry-brief.md`，Terra负责该切片源/测试；此设计通过不等于代码验收。
 - [x] 08-A RED→最小实现→GREEN、全Kernel/类型门禁及独立代码复审：b7b49f6验收；清理异常修复后独立SPEC/QUALITY双PASS，focused52/root593Kernel及类型通过，8/64MiB峰值约2.1MB。历史TDD记录缺口通过干净恢复源→完整RED→重新实现解决，不追认旧记录。另以37661bf提交测试可移植性修复，保持真实递归失败及公共异常断言，无产品解析变更。证据：OP08 `streaming-registry-closure.md`、`streaming-registry-report.md`、`kernel-gate-investigation.md`。仅关闭A，不代表真实HTTP全链或整包完成。
-- [ ] 08-B算法和缓存版本提案；若需额外依赖，先提交理由、兼容性与内存证据再申请授权。
+- [ ] 08-B算法和缓存版本提案；若需额外依赖，先提交理由、兼容性与内存证据再申请授权。2026-09-05核查发现既有依赖不提供分片字符串/键；ijson和json-stream的所评估API仍完整交付单个值，stream-json虽有分片但引入Node运行依赖且不直接保证Python语义。六组真实摘要差分和独立裁决保存在OP08 `domain-semantic-vectors.json`、`domain-streaming-decision.md`。B0隔离验证已批准；B生产集成仍需验证与独立复审后的决定。
+
+**已批准OP08-B0（不改变完整目标）**：用户在解释明确后以“同意”批准Domain私有“分片JSON语义校验器＋临时磁盘索引”的隔离原型和验证。仅使用现有Python标准库，不新增Kernel公共JSON接口、外部依赖或Node要求；不改现有证据，不接入生产。先完成可行性验证和独立复审，再决定生产集成。需证明重复键首位置/末值、转义键、Unicode/代理项、浮点舍入/负零/整浮差异、被覆盖非法值、result_ref排除和无效JSON与现有行为严格一致；以8/64MiB单个巨大字符串/键/数值拼写及多成员结构验证固定内存预算；明确磁盘额度、清理、失败分类和同fd身份绑定。不得靠隐藏整读、额外合法性限制或排除领域证据来通过。分项通过不等于B0可行性通过；生产集成仍需后续决定。
+B0原型放在`tools/experiments/op08_semantic/`，不安装进Domain/Kernel wheel，不由任何生产模块导入；通过后也不得自动迁入生产。首个独立切面B0.1：`strings.py`提供64KiB固定缓冲UTF8Cursor与`read_json_string(cursor,sink)->StringInfo(byte_count,digest,has_unpaired_surrogate)`，精确保留后续token；正常分片与全部转义按Python语义重编码。未配对代理项以内部surrogatepass及标记保留，待重复键去重后的可达文档阶段判断；不能过早拒绝被覆盖值。测试`tools/tests/test_op08_semantic_strings.py`覆盖所有分割点、异常/短写及8/64MiB真实文件固定4MiB峰值预算。独立设计复核已批准，Terra按`runs/optimization/OP-08/b0-string-brief.md`执行TDD；根代理负责后续集成复审。重复键磁盘索引、任意数值拼写和全链资源预算仍是B0未闭合项目，不以字符串子项通过替代整体证明。
+
+- [x] B0.1字符串原型：完整RED、差分/大文件GREEN、类型检查、独立代码复审。最终root78PASS、独立78PASS及7776组差分通过；原型显式Pyright/仓库类型/doctor/diff及符号链接检查通过。四组8/64MiB键/值峰值均263243字节，最大读取65536字节，输出长度及增量SHA一致。独立SPEC/QUALITY双PASS；源blob787145337829f3a69c7fdae5845afe94549268a9，测试fd2477450f24771cadcbd8e55f978853c211f17e。证据OP08 `b0-string-root-verification.md`、`b0-string-review.md`。只验收隔离字符串子项，不代表完整B0可行性。
+  2026-09-05根复核发现首次21PASS漏测：高代理项后接简单转义被误拒绝，高/高/低序列配对错误；已实测并退回Terra补RED修复、异常覆盖及真实峰值记录，尚未验收。
+  后续更正：根补全测试另发现Unicode转义控制字符/引号/反斜杠规范化错误，实测34RED后修复并可读性重构，以上最终验收覆盖这些修正。严格UTF8分片预读可提前发现后续无效字节；后续解析不得假设错误只发生于当前token内。
+- [ ] B0后续：数值等价、对象/数组及重复键磁盘索引、配额/身份/清理、整体差分与规模测量、可行性结论。
 - [ ] 08-C明确HTTP失败状态、spool预算/清理及省略字段契约，落实到类型和测试。
 - [ ] 08-D记录真实全链证据，并完成整包独立复审后才能关闭OP-08、启动OP-09。
 

@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 15:34 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 16:28 CST. **Session remains active — not a final handoff.**
 
 ## Scope and workspace
 
@@ -13,22 +13,49 @@
 - No paid provider, push/main merge, auth/runtime copy or user-data migration.
   Preserve main's modified RESUME and untracked framework guide.
 
-## Next: OP08-B design
+## Next: OP08-B0 isolated prototype (approved)
 
-Shared-reading approach and cross-layer scope approved. New dependencies/custom
-generic JSON parser NOT approved. Domain semantic hashing must preserve Python
-parse/re-encode insertion order, last duplicate value and numeric representation.
-result removes top-level result_ref; evidence/context hash whole parsed document;
-revision uses raw UTF8 SHA. Raw SHA cannot replace semantic admission.
+User explicitly answered “同意” after explanation: custom parser prototype and
+verification only; no production integration, new external dependencies or
+existing-evidence changes. B0 is RUNNING; do not ask for this same permission
+again. Full semantic equivalence and fixed memory remain mandatory.
 
-Large scalar/dedup canonicalization remains unresolved. Determine algorithm,
-context omission DTOs and cache-version invalidation before production edits.
-Report required extra authority/dependency decisions for approval; do not hide
-full allocations in subprocesses or reject formerly valid evidence silently.
-Maps: OP08/backend-memory-map.md, bounded-preview-design-review.md,
-context-consumer-map.md. ContextView comparisons and AuditInspector must not
-treat omitted state as an empty complete object; retain hash provenance.
-OP08-C owns verified prefix/spool snapshot; Path return alone isn't a snapshot.
+Independent /root/op02_single_run approved B0.1 final code SPEC/QUALITY PASS.
+No active worker owns edits. Root finished missing coverage/readable implementation
+after worker's partial corrections. Prototype remains outside production packages.
+Initial21PASS omitted surrogate combinations; root later observed34RED from
+escaped control/quote/backslash canonicalization. All were fixed before final
+78PASS, explicit prototype Pyright and repository types, doctor/diff/symlink checks.
+Reviewer independently ran78PASS and7776 Cartesian/split comparisons. Four real
+8/64MiB key/value measurements each peaked263243 bytes with maxread65536 and
+incremental output/count/SHA verification. This is primitive-only acceptance.
+Evidence: OP08/b0-string-root-verification.md and b0-string-review.md.
+Frozen source787145337829f3a69c7fdae5845afe94549268a9;
+testfd2477450f24771cadcbd8e55f978853c211f17e.
+Next meaningful slice: design and independently review numerical-equivalence
+primitive under existing B0 authorization, with Python spelling/rounding/negative
+zero/overflow semantics and fixed-memory huge-spelling proof before implementation.
+Do not assume eager UTF8 read-ahead reports invalid bytes token-locally.
+
+B0.1: fixed64KiB UTF8 cursor, precise quote consumption and next-token retention,
+bounded canonical string output with byte_count/digest/unpaired-surrogate flag,
+partial-write handling, differential split cases and8/64MiB files with fixed4MiB
+peak allocation. Preserve dangling surrogate flags until later duplicate removal;
+do not reject overwritten values prematurely. Root verified existing Python
+accepts NaN/Infinity/unpaired-surrogate-containing values when later duplicate
+replaces them; final retained-document checks must reflect that behavior.
+
+B0 numerical spelling/rounding, duplicate-key disk index, object/array assembly,
+disk quotas, identity/cleanup and full feasibility are still unresolved. Six
+small hash vectors and candidate-library evidence are under OP08. Prior
+domain-streaming-decision.md records pre-approval rationale, not current denial.
+Raw hash is not semantic hash; don't narrow evidence preview or hide whole
+allocation in subprocesses. Production B remains unimplemented pending proof.
+
+Context omission DTO/cache version and C API/Workbench integration remain later
+work. Maps: backend-memory-map.md, bounded-preview-design-review.md,
+context-consumer-map.md. Preserve recorded vs verified hashes; omitted isn't an
+empty complete object. Returning Path doesn't provide a later download snapshot.
 
 ## OP08-A accepted evidence
 
@@ -49,7 +76,7 @@ OP08-C owns verified prefix/spool snapshot; Path return alone isn't a snapshot.
   preserved in kernel-gate-investigation.md with CPython issue140125. Final
   test uses real stdlib Python scanner on100k plus parse/canonical RecursionError
   injection. No production parser/depth policy change. Standard593 now passes.
-- /root/op08_stream_impl completed/frozen; no active editor assigned.
+- A and B0.1 are frozen; no active editor assigned.
 
 ## OP13 B blocked: preserve dirty work
 
