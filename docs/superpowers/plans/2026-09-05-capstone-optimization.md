@@ -14,7 +14,7 @@
 - 用户已授权按本方案持续实施；机械任务交 Luna，明确实现交 Terra，复杂设计由 Astra 协调，风险变更独立复审。
 - [评估记录](../../status/2026-09-05-capstone-design-code-review.md) 保存 R01–R13 证据、基线测试和限制。
 - [架构总览](../../architecture/capstone-framework.md) 与仓库 `AGENTS.md` 继续约束实现。
-- 当前执行包：OP-07。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
+- 当前执行包：OP-08。全方案状态：RUNNING；执行分支 feat/capstone-optimization，隔离目录 .worktrees/capstone-optimization。
 - 保留当前 `Project route: direct`；本计划供直接执行与 project-state 恢复使用，不创建第二套隐藏状态系统。
 - 旧 C.2 立即推进顺序被本计划替代；C.1 历史完成结论和旧 Climb 证据不改写。
 
@@ -45,8 +45,8 @@ OP 编号是唯一任务标识。表中依赖全部完成后才允许启动生�
 | OP-04 | 2 | RPC 测试竞态 R11 | 无 | DONE | 9d13ea4；focused2 / 30次重复 / runtime72通过，独立规范与质量复审PASS |
 | OP-05 | 2 | 全包门禁、类型检查、CI R04 | OP-02, OP-03, OP-04 | DONE | 2ce5152；独立复审及固定源码完整check-release exit0，详见验收记录 |
 | OP-06 | 2 | Pi 风险例外关闭或明确阻断 R12 | OP-05 | DONE | 41b48d0；真实0.84.4/三锁零审计/捕获独立复审及固定完整release exit0 |
-| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | VERIFYING | 实现及独立复审PASS；三规模热读零build/write，固定源码完整release待执行 |
-| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | PLANNED | 未执行 |
+| OP-07 | 3 | 投影缓存、轻量运行列表 R05 | OP-05 | DONE | 7638188；独立复审、三规模测量、固定完整release exit0 |
+| OP-08 | 3 | 有界工件与上下文预览 R06 | OP-07 | RUNNING | 前后端只读映射完成；上游全量读路径需设计细化，尚未实施 |
 | OP-09 | 3 | 批量证据与明确错误状态 R10 | OP-07, OP-08 | PLANNED | 未执行 |
 | OP-10 | 4 | 类型化执行接口与依赖说明 R09,R13 | OP-05 | PLANNED | 未执行 |
 | OP-11 | 4 | 完整 inventory 应用验收 R08 | OP-01, OP-03, OP-10 | PLANNED | 未执行 |
@@ -333,9 +333,11 @@ assert materialize_spy.call_count == 1
 
 **关闭条件**：热请求不重建/重写投影，变化正确失效；冷请求仍真实验证；记录实际复杂度，不承诺未经测量的毫秒数。提交主题：`perf: reuse verified trajectory projections`。
 
-实施与测量记录（2026-09-05，完整release待验）：独立设计、缓存实现、路径dirfd/no-follow/FIFO、真实输入/HTTP游标和基准工具复审均PASS，详见 `runs/optimization/OP-07/final-cache-approval.md` 等。轨迹整套293通过（随后新增FIFO定向14通过），类型零错误，验证目标18通过。曾实际发现并修复损坏prefix仍写cache、路径替换窗口与FIFO阻塞；未删除失败断言。
+实施与测量记录（2026-09-05）：独立设计、缓存实现、路径dirfd/no-follow/FIFO、真实输入/HTTP游标和基准工具复审均PASS，详见 `runs/optimization/OP-07/final-cache-approval.md` 等。轨迹整套293通过（随后新增FIFO定向14通过），类型零错误，验证目标18通过。曾实际发现并修复损坏prefix仍写cache、路径替换窗口与FIFO阻塞；未删除失败断言。
 
 命令 `uv run --project packages/grid-agent python tools/benchmark_projection_cache.py --sizes 1000 10000 100000` exit0，原始结果 `runs/optimization/OP-07/benchmark-final.json`。Darwin arm64/Python3.14.3，单次合成生命周期/诊断事件，无外部工件I/O；每规模冷读五种投影build及materialize各1次，热读均0次，投影相等。1k冷/热0.1082/0.0763秒，10k为1.2149/0.9541秒，100k为14.1877/11.7483秒。缓存字节分别1,206,822 /12,160,762 /122,601,782。热请求仍需全prefix验证/摘要和typed缓存解码，保持随规模增长的成本，不能宣称O(1)、生产延迟或工件I/O加速。冷读仅指投影cache miss，非冷OS页缓存。基准工具只规范化自身新建临时根以兼容macOS /var别名；生产cache不跟随symlink。
+
+关闭验收：固定 `7638188365482966bf57888904b3d02dbfe3d189` 的 `make doctor && make check-release` exit0（08:55 CST），结束后HEAD未变化，仅状态文档dirty。agent785、sim165、Kernel438、pandapower79、inventory11/13/1、Pi34/43、UI128、门禁自检18、SDK四例、E2E31、offline/scripted/24-of-24、完整应用、六wheel/两npm干净安装和frozen源码安装全部通过。证据 `runs/optimization/OP-07/gate-release-7638188.json` 保存命令/HEAD/退出码与捕获输出；其中一段模拟器上游warnings被工具截断，测试总数和终态保留，不声称无截断控制台转录。未运行付费provider或远端CI矩阵。
 
 ### OP-08：服务端限制工件和上下文预览
 

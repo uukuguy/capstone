@@ -1,40 +1,38 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 08:46 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 08:56 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
-- Persistent goal active: 完成 OP01–14，route direct。唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。实施worktree .worktrees/capstone-optimization，branch feat/capstone-optimization。
-- OP01–06 DONE。最新生产提交41b48d0，固定make doctor && make check-release完整exit0，OP06/gate-release-41b48d0.json；全release会话94595已结束，勿重轮询/重跑。源码不再修改，当前仅状态闭合文档dirty待commit。
-- OP07 RUNNING，HEAD 180aab6；缓存/轻量列表/基准工具未提交。设计与公开指纹语义复审PASS。缓存首轮复审发现6项缺口及派生cache路径symlink写入run风险，正在修复与补齐回归；不得按局部测试数关闭。
+- Goal active: 完成OP01–14。Project route direct；唯一账本 docs/superpowers/plans/2026-09-05-capstone-optimization.md。
+- 实施worktree .worktrees/capstone-optimization；branch feat/capstone-optimization。生产HEAD 7638188。
+- OP01–07 DONE；OP08 RUNNING仅设计/只读映射，未修改生产代码；OP09–12/14待执行，OP13条件分支。
+- 固定7638188完整make doctor && make check-release于08:55 exit0；会话90322已结束，勿再轮询或重复整套门禁。原始捕获证据OP07/gate-release-7638188.json，一段sim warnings工具截断已如实标注。
+- 当前dirty为OP07关闭/OP08入口的状态文档，准备独立提交。代码没有混入新包。
 
-## Immediate next actions
+## Immediate next action
 
-最新覆盖：OP07全部实现与独立复审PASS（final-cache-approval.md），已VERIFYING。dirfd根/叶/文件no-follow、FIFO非阻塞拒绝、坏prefix不写cache均有回归；最后materialize14通过，此前轨迹293/类型零错误，Make验证目标18通过。root补齐真实输入11例与HTTP游标2例。三规模benchmark-final.json exit0，热读五build+write全0，100k冷14.1877/热11.7483秒；不是O(1)/生产性能。立即显式暂存任务路径提交，然后固定HEAD跑make doctor && make check-release，完整通过后关闭OP07并启动OP08。下方旧修复派工已完成，勿重复派发；所有旧focused/benchmark会话均已结束，无活动长命令。
+1. 提交OP07关闭状态文档（plan/CURRENT/INDEX/JOURNAL/RESUME）并journal。
+2. 读取OP08三个ignored设计输入：frontend-read-only-map.md、backend-memory-map.md、bounded-preview-design-review.md。它们是调查/建议，不是已落实的生产契约。
+3. 在canonical OP08细化可执行设计和范围，再独立复审、TDD。不能只修改HTTP网关却宣称端到端内存有界：
+   - artifact HTTP先catalog.open→ProjectionService，OP07 hot也eagerverify。
+   - Kernel ImmutableArtifactRegistry.register_existing→_read_regular_at→_read_descriptor用chunks列表+b''.join全量缓冲，generic ref在hot也分配。
+   - context_projection解析完整context-view；pandapower ContentReferenceVerifier完整解析result/evidence JSON；context detail另读完整canonical request。
+4. reviewer建议B：共享stream generic verification+bounded context omission；但要覆盖domain语义验证或准确限定保证，不可用raw hash冒充domain admission。方案尚待root技术取舍；不要直接按建议写代码。目标是选定工件body保留内存有界，不是事件账本/全请求O(1)。
+5. 当前protected配置只列capability JSON、simulator、inventory两包、两题集，不含Kernel/pandapower；如改listed路径仍需旧摘要验证、独立复审、代码/摘要分离提交。不得靠放宽断言或authority语义达成性能。
 
-1. public source_fingerprint设计已独立PASS并写plan：projected-source/2.0 digest用同一typedprefix+actualmetadata+verifieddependencies，cursor随任一投影输入变化失效；cache identity另外加入resolvedrunroot+projector schema。wire不改，不扩Kernelreader，必须补cursor回归。
-2. op02_single_run仅负责materialize.py/test_materialize.py最后TOCTOU修复：检查后路径被换symlink仍能写run，需held dirfd/no-follow创建/读/原子写与注入回归。前六项复审已关闭；cache-fix-review.md仍REQUEST CHANGES，必须修复后复审，不能绕过。
-3. root已补test_cache_inputs.py 9例真实工件tamper/delete/negative→present、manifest/三descriptor、payload-only context依赖parity、hot eagerverify；api/test_projection_pages.py 2例真实501事件HTTP分页hot/事件追加或manifest变化409。独立复审均PASS。catalog缺失status→unknown修复后13通过。轨迹整套287通过，make check-types零错误；Starlette与pyright版本提示保留。make test-verification-targets18通过，benchmark已复审但正式三规模未跑。root删除无调用旧_metadata_identity_inputs辅助函数，尚待后续门禁。
-4. OP07 benchmark1k/10k/100k与完整门禁仍未执行；不得宣称cache已加速。OP08等依赖按唯一plan推进，OP13需OP12数据触发，C2延后。
+## OP07 closure
 
-## OP07 design anchors
+- 7638188完整release：agent785/sim165/Kernel438/pandapower79/inventory11/13/1/Pi34/43/UI128/门禁自检18/SDK四例/E2E31/24-of-24/完整应用/六wheel两npm/frozen源码安装全PASS，HEAD未变。
+- final-cache-approval.md独立spec/quality PASS。公开projected-source/2.0与私有root key分离、metadata一次快照、legacy指纹/诊断、waiter singleflight、坏prefix不读写cache。
+- 当前依赖eagerverify；typed缓存不是authority。cache根至最终文件dirfd nofollow、buffered I/O、原子rename，FIFO O_NONBLOCK+regular检查。写失败固定安全诊断。
+- 实际工件tamper/delete/恢复、metadata/descriptor、sameID根、损坏prefix、HTTP游标都有回归。最终门禁覆盖了全部测试。
+- benchmark-final.json三规模exit0：1k冷/热0.1082/0.0763秒，10k1.2149/0.9541，100k14.1877/11.7483。所有hot五投影build/materialize各0，投影相等；仍全prefix验证/解码成本。无外部工件I/O、单样本，非生产延迟/O(1)。
+- 未改protected路径。Starlette/httpx、pandapower、pyright版本提示等警告未掩盖。Darwinarm64/Python3.14.3/Node23.11.0，wheel安装另Python3.12.12；未远端跑CI矩阵。
 
-- runs/optimization/OP-07/read-only-map.md、implementation-decisions.md、design-review.md（ignored evidence，核心决定须复制到versioned plan）。
-- 实际artifact依赖：所有event.refs produced/consumed/evidence并集 + 仅context.projected/context.injected的typed payload.artifact_ref。没有任意payload路径读取；sharedcollector需parity测试对照projector实际I/O。记录verified/unavailable状态与negative→present变化。
-- 缓存hit eager reverify实际依赖，端点仍current安全验证；缓存不作authority。typedprefix失败时先不缓存，只返回当前诊断；metadata固定安全发现集含缺失状态。
-- RunSummary字段不扩，unknown/corrupt与nullable replay extent表达状态；list不调用open_run或任何业务/context/artifact/core projector。cache根必须在run外强制保证，单flight清理idle锁，写失败不阻断正确读结果。
-- 保留现有currentrun/pointer/symlink验证，不借性能优化扩大证据准入。无Kernel领域逻辑。
+## Boundaries and agent reuse
 
-## OP06 closure evidence
-
-- 41b48d0 fullrelease: agent749/sim165/Kernel438/pandapower79/inventory11/13/1/Pi34/43/workbench128/selftests16/SDK4cases/E2E31/24-24/application/六wheel两npm/frozen源码全部通过；doctor/types/boundaries/protectedpaths通过。
-- Pi0.84.4 source b79e4cc834970cca69daebffab7df1da7d1e52c4，patch64c2ce9b8b0bc1d83b4c82ed06a5e715624b4e836b5f735b8983fa0f67d9c116，patchset410f8f797d93da650e5a1a97f9331c881036d46bf815981b76475010f484be2d。
-- 原exception/0.80.6patch不变；新remediation record binds3actualzeroaudits+currentlocks/graphs+SDKcaptures，独立integrationreviewPASS。实际graph391/226/227；审计依赖数不同（workspace/root计数）不表示遗漏。
-- installer先checkout旧patch阻断，后保留整dirtysource再freshclone；真实Git34tests+真实安装成功。旧source保留 .grid-agent/runtime/pi/source-preserved-e75b4119c3bc411b835e686d0307786f，不删。
-- runtime SDK smoke真实sdk/extensions，仅fake传输，PI_OFFLINE+tmpauth；generic/grid success9/failure5 assertions。所有旧install/测试session均结束。
-- 本地Darwinarm64/Python3.14.3/Node23.11.0；包安装另Python3.12.12。未声称远端CI全矩阵通过，无付费provider。
-
-## Durable boundaries
-
-- main用户未跟踪2026-08-31-capstone-framework-guide.md不动；不push/main合并，不删var/auth。受保护路径修改需独立review和单独digest提交，但OP06未改受保护目录。
-- Kernel中立、Domain策略、authority事实；stdout两字段，谱系≠自由文本数值验证。默认securitygate offline，未来advisory需显式可信audit，原例外期限不延期。
+- main用户未跟踪2026-08-31-capstone-framework-guide.md不动；不push/main合并，不删var/auth，不跑付费provider。
+- OP06固定41b48d0完整release已关闭，不重做。Pi0.84.4 source b79e4cc834970cca69daebffab7df1da7d1e52c4；原0.80.6例外/patch保留历史。managed旧dirty source保留source-preserved-e75b4119c3bc411b835e686d0307786f，不删。
+- Kernel中立/Domain策略/authority事实；stdout两字段；谱系≠文本数值语义验证。
+- 三个已有Terra代理均idle：op01_finish_tests负责独立review（已做OP08建议），op02_single_run后端/缓存背景，op01_implementation前端mapping/目录摘要背景。root补齐过代理未完成的真实集成测试，不能凭局部测试数关闭整包。
