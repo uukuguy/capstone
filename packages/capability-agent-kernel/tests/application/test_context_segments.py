@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from hashlib import sha256
 from pathlib import Path
@@ -52,8 +53,40 @@ def test_decode_document_sanitizes_parser_and_canonicalization_failures(raw: byt
         decode_document(raw, max_bytes=len(raw))
 
 
-def test_decode_document_sanitizes_deeply_nested_json_failure() -> None:
-    raw = b'{"key":' + b"[" * 100_000 + b"0" + b"]" * 100_000 + b"}\n"
+@pytest.mark.parametrize("failure_stage", ["parse", "canonicalize"])
+def test_decode_document_sanitizes_recursion_errors(
+    monkeypatch: pytest.MonkeyPatch, failure_stage: str
+) -> None:
+    def fail_recursion(*args: object, **kwargs: object) -> object:
+        raise RecursionError("internal recursion diagnostic")
+
+    if failure_stage == "parse":
+        monkeypatch.setattr(segments_module.json, "loads", fail_recursion)
+    else:
+        monkeypatch.setattr(segments_module, "canonical_json_bytes", fail_recursion)
+
+    raw = b'{"key":0}\n'
+    with pytest.raises(SegmentStorageError, match="^segmented document is invalid$"):
+        decode_document(raw, max_bytes=len(raw))
+
+
+def test_decode_document_sanitizes_deeply_nested_python_json_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The C accelerator has no fixed failure depth (CPython issue140125).
+    # Exercise real recursive parsing with the standard library Python scanner.
+    scanner_factory = getattr(json.scanner, "py_make_scanner", None)
+    if scanner_factory is None:
+        pytest.skip("stdlib Python JSON scanner is unavailable")
+
+    def recursive_loads(text: str, **kwargs: object) -> object:
+        decoder = json.JSONDecoder(**kwargs)  # type: ignore[arg-type]
+        decoder.scan_once = scanner_factory(decoder)
+        return decoder.decode(text)
+
+    monkeypatch.setattr(segments_module.json, "loads", recursive_loads)
+    depth = 100_000
+    raw = b'{"key":' + b"[" * depth + b"0" + b"]" * depth + b"}\n"
 
     with pytest.raises(SegmentStorageError):
         decode_document(raw, max_bytes=len(raw))
