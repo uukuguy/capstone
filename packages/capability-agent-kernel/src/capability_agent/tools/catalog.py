@@ -339,10 +339,12 @@ class CompositeToolCatalog:
         core_tools: tuple[ToolDocument, ...],
         domain_tools: tuple[BoundToolDocument, ...],
         auxiliary_tool_names: tuple[str, ...] = (),
+        guide_tool_bindings: tuple[tuple[str, str], ...] = (),
     ) -> None:
         self.core_tools = core_tools
         self.domain_tools = domain_tools
         self.auxiliary_tool_names = frozenset(auxiliary_tool_names)
+        self.guide_tool_bindings = dict(guide_tool_bindings)
         self._by_name = {
             tool.name: tool for tool in (*self.core_tools, *self.domain_tools)
         }
@@ -386,6 +388,10 @@ class CompositeToolCatalog:
             raise ToolCatalogError("composite catalog requires exactly one domain binding")
         return cls(
             core_tools=tuple(sorted(core.tools, key=lambda tool: tool.name)),
+            guide_tool_bindings=tuple(
+                (domain.guide_tool_name, domain.binding_id)
+                for domain in domains if domain.guide_tool_name is not None
+            ),
             domain_tools=tuple(sorted(domain_tools, key=lambda tool: tool.name)),
             auxiliary_tool_names=tuple(
                 name

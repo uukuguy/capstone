@@ -19,7 +19,8 @@
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Optimization v2 integrated and verified in main; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Main delivery and reopened natural-language guide regression evidence; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
+| [Capstone framework](../architecture/capstone-framework.md) | Layer contracts, current-run evidence and guide-access assurance boundaries. |
 
 ## Climb storage and configuration
 

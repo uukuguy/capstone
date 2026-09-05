@@ -17,12 +17,14 @@ class AnswerAdmissionInput:
     answer_output: str
     result_refs: tuple[str, ...]
     evidence_refs: tuple[str, ...]
+    guide_reads: tuple[tuple[str, str], ...] = ()
+    authority_attempted: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class AnswerAdmissionDecision:
     mode: Literal["authority_backed", "offline_information", "limited"]
-    assurance: Literal["lineage_verified", "deterministic_information", "limited"]
+    assurance: Literal["lineage_verified", "deterministic_information", "guide_access_verified", "limited"]
     answer_output: str
     diagnostic_codes: tuple[str, ...]
 
@@ -67,7 +69,7 @@ def read_answer_admission_metadata(
     ).hexdigest()
     if expected_admission_ref is not None and actual_admission_ref != expected_admission_ref:
         raise ValueError("answer admission metadata digest does not match its commit")
-    if not isinstance(payload, dict) or payload.get("schema") != "capability-agent-answer-admission/1.0":
+    if not isinstance(payload, dict) or payload.get("schema") not in {"capability-agent-answer-admission/1.0", "capability-agent-answer-admission/1.1"}:
         raise ValueError("answer admission metadata schema is invalid")
     if payload.get("answer_ref") != expected_ref:
         raise ValueError("answer admission metadata does not match its answer")
@@ -76,7 +78,7 @@ def read_answer_admission_metadata(
     codes = payload.get("diagnostic_codes")
     if (
         mode not in {"authority_backed", "offline_information", "limited"}
-        or assurance not in {"lineage_verified", "deterministic_information", "limited"}
+        or assurance not in {"lineage_verified", "deterministic_information", "guide_access_verified", "limited"}
         or not isinstance(codes, list)
         or any(not isinstance(code, str) or not code for code in codes)
     ):
@@ -86,6 +88,8 @@ def read_answer_admission_metadata(
         ("offline_information", "deterministic_information"),
         ("limited", "limited"),
     }
+    if payload["schema"] == "capability-agent-answer-admission/1.1":
+        pairs.add(("offline_information", "guide_access_verified"))
     if (mode, assurance) not in pairs:
         raise ValueError("answer admission metadata assurance is invalid")
     answer_output = answer.get("answer_output") if isinstance(answer, dict) else None

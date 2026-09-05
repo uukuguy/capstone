@@ -8,6 +8,30 @@ from pandapower_domain.answer_admission import PandapowerAnswerAdmissionPolicy
 from pandapower_domain.answer_policy import PandapowerAnswerEvidencePolicy
 
 
+def test_current_turn_verified_guide_preserves_informational_answer() -> None:
+    from hashlib import sha256
+    from pandapower_domain.profile import build_pandapower_profile
+    from capability_agent.tools.guide import GuideIndex
+
+    root = build_pandapower_profile().manifest.guide_root
+    text = GuideIndex.load(root).open("contingency-analysis").text.strip()
+    policy = PandapowerAnswerAdmissionPolicy(guide_root=root)
+    request = AnswerAdmissionInput(
+        question="N-1静态安全校核需要检查哪些越限类型?",
+        answer_output="需检查电压上下限、线路过载及潮流不收敛。",
+        result_refs=(), evidence_refs=(),
+        guide_reads=(("contingency-analysis", sha256(text.encode()).hexdigest()),),
+    )
+    decision = policy.admit(request)
+    assert decision.mode == "offline_information"
+    assert decision.assurance == "guide_access_verified"
+    assert decision.answer_output == request.answer_output
+
+    from dataclasses import replace
+    assert policy.admit(replace(request, authority_attempted=True)).mode == "limited"
+    assert policy.admit(replace(request, guide_reads=(("contingency-analysis", "0" * 64),))).mode == "limited"
+
+
 @pytest.mark.parametrize(
     "category",
     [

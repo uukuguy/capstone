@@ -389,7 +389,7 @@ class TurnController:
         answer_ref = "answer:sha256:" + sha256(answer_bytes).hexdigest()
         admission_path = turn_path / "answer-admission.json"
         admission_bytes = canonical_json_bytes({
-            "schema": "capability-agent-answer-admission/1.0",
+            "schema": ("capability-agent-answer-admission/1.1" if admission.assurance == "guide_access_verified" else "capability-agent-answer-admission/1.0"),
             "run_id": self._workspace.run_id,
             "turn_id": handle.turn_id,
             "answer_ref": answer_ref,
@@ -594,10 +594,19 @@ class TurnController:
             prepared = self._bindings[binding_id]
             authority = _binding_authority(prepared)
             policy = _binding_answer_admission_policy(prepared, authority)
+            observations = tuple(
+                record for record in self._store.snapshot.core.diagnostics
+                if record.get("turn_id") == handle.turn_id and record.get("binding_id") == binding_id
+            )
             request = AnswerAdmissionInput(
                 question=handle.instruction, answer_output=answer_output,
                 result_refs=tuple(ref for ref in results if owners.get(ref, binding_id) == binding_id),
                 evidence_refs=tuple(ref for ref in evidence if owners.get(ref, binding_id) == binding_id),
+                guide_reads=tuple(
+                    (record["resource_id"], record["sha256"])
+                    for record in observations if record.get("kind") == "published_guide_read"
+                ),
+                authority_attempted=any(record.get("capability_id") for record in observations),
             )
             try:
                 decision = policy.admit(request)
@@ -887,10 +896,12 @@ def _validate_admission_decision(
             raise AnswerCommitError("authority-backed answer admission is invalid")
         return
     if decision.mode == "offline_information":
-        if decision.assurance != "deterministic_information" or (
+        if decision.assurance not in {"deterministic_information", "guide_access_verified"} or (
             request.result_refs or request.evidence_refs
         ):
             raise AnswerCommitError("offline answer admission is invalid")
+        if decision.assurance == "guide_access_verified" and (not request.guide_reads or request.authority_attempted):
+            raise AnswerCommitError("guide answer admission is invalid")
         return
     if decision.mode == "limited" and decision.assurance == "limited":
         return

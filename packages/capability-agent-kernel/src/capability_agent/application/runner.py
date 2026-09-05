@@ -2147,6 +2147,8 @@ def _persisted_answer_assurance(
         )
     except ValueError:
         return "corrupt"
+    if decision is not None and decision.assurance == "guide_access_verified":
+        return "guide_access_verified — published guide access verified; answer semantics and numerical claims are not verified"
     return decision.assurance if decision is not None else "unknown"
 
 

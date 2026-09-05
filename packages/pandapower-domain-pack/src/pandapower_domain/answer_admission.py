@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from hashlib import sha256
 import stat
 
 from capability_agent.domain.answer_admission import (
@@ -13,17 +14,17 @@ from capability_agent.tools.guide import GuideIndex, GuideNotFound
 
 
 class PandapowerAnswerAdmissionPolicy:
-    """Admit lineage, or render an explicitly selected packaged guide.
+    """Admit lineage, current-turn guide access, or explicit packaged guidance.
 
-    Offline information is intentionally selected by the reader's stable
-    ``guide:<relative-resource>`` request, not inferred from model prose or
-    grid-looking words.  This keeps arbitrary no-reference business answers
-    in the limited path.
+    Guide access preserves reader-facing prose without claiming its semantics
+    or numerical assertions were verified. Failed authority execution cannot
+    use that path to substitute guidance for missing current-run evidence.
     """
 
     def __init__(self, authority: object | None = None, guide_root: Path | None = None) -> None:
         self._authority = authority
         self._guides = _trusted_guides(guide_root) if guide_root is not None else {}
+        self._guide_index = GuideIndex.load(guide_root) if guide_root is not None else None
 
     def admit(self, request: AnswerAdmissionInput) -> AnswerAdmissionDecision:
         if request.result_refs or request.evidence_refs:
@@ -33,6 +34,14 @@ class PandapowerAnswerAdmissionPolicy:
                 answer_output=request.answer_output,
                 diagnostic_codes=("current_run_lineage_verified",),
             )
+        if request.guide_reads and not request.authority_attempted:
+            verified = self._verified_guide_reads(request.guide_reads)
+            if verified:
+                return AnswerAdmissionDecision(
+                    mode="offline_information", assurance="guide_access_verified",
+                    answer_output=request.answer_output,
+                    diagnostic_codes=("published_guide_access_verified", "answer_semantics_not_verified"),
+                )
         offline = self._offline_answer(request.question)
         if offline is not None:
             return AnswerAdmissionDecision(
@@ -50,6 +59,17 @@ class PandapowerAnswerAdmissionPolicy:
             ),
             diagnostic_codes=("no_current_run_result",),
         )
+
+    def _verified_guide_reads(self, reads: tuple[tuple[str, str], ...]) -> bool:
+        if self._guide_index is None:
+            return False
+        try:
+            return all(
+                sha256(self._guide_index.open(resource_id).text.strip().encode()).hexdigest() == digest
+                for resource_id, digest in reads
+            )
+        except (GuideNotFound, OSError, ValueError):
+            return False
 
     def _offline_answer(self, question: str) -> str | None:
         prefix = "guide:"

@@ -590,8 +590,9 @@ def test_projector_rejects_symlinked_artifact_escape(
     assert current.grid_adapter.merge_calls == []
 
 
+@pytest.mark.parametrize("identity_key", ["turn_id", "correlation_id"])
 def test_projector_rejects_foreign_event_turn_even_when_explicit_turn_is_current(
-    tmp_path: Path,
+    tmp_path: Path, identity_key: str,
 ) -> None:
     current = _harness(tmp_path)
     projector = ApplicationInvocationProjector(
@@ -605,7 +606,7 @@ def test_projector_rejects_foreign_event_turn_even_when_explicit_turn_is_current
                 "type": "tool_result",
                 "tool_name": "grid_asset_read",
                 "capability_key": CapabilityKey("grid", "asset.read"),
-                "turn_id": "run-foreign-t001",
+                identity_key: "run-foreign-t001",
                 "ok": True,
                 "result": {"value": 1},
             },

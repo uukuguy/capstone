@@ -1,5 +1,18 @@
 # Live Session Checkpoint
 
+## Guide admission regression repair (supersedes historical closure below)
+
+Working directly in main after69a1ca9. Real run
+run-20260905t120836z-92084c98 failed on question3 after a successful guide read.
+The minimal fix preserves current-turn published-guide reader text with
+guide_access_verified (not semantic/numerical verification), retaining existing
+authority evidence admission. Main doctor/test/test-e2e36/validate7+10+8 and
+coverage24 passed (chain11027 exit0). Final four-turn regression84521 also
+passed: both real user guide questions followed by real powerflow; projector15
+and type checks pass. Final review approved; this repair is delivered in main
+(resolve its commit with git log). Do not treat the closure as proof the
+real Provider nine-question workflow passed. No paid Provider calls authorized.
+
 > Updated: 2026-09-05 20:04 CST. Main delivery closure checkpoint.
 
 ## Delivered in main

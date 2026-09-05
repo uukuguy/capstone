@@ -34,6 +34,7 @@ from capability_agent.tools.catalog import (
     CompositeToolCatalog,
 )
 from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.tools.guide import GuideIndex, GuideNotFound
 from capability_agent.trajectory.events import EventDraft, EventRefs, RunScope
 
 
@@ -95,6 +96,7 @@ class ApplicationInvocationProjector:
         start = self._matching_start(event)
         tool = self._resolve_tool(event, start)
         if tool is None:
+            self._observe_guide(event, start, turn_id, trace_sequence)
             # Core tools are deliberately opaque to the domain projector.
             self._forget_start(event)
             return None
@@ -231,6 +233,41 @@ class ApplicationInvocationProjector:
             state_revision=current_envelope.revision + 1,
         )
 
+    def _observe_guide(
+        self, event: Mapping[str, object], start: Mapping[str, object],
+        turn_id: str | None, trace_sequence: int | None,
+    ) -> None:
+        name = _first_string(event, "tool_name", "name", "toolName") or _first_string(start, "tool_name", "name", "toolName")
+        binding_id = self._catalog.guide_tool_bindings.get(name) if name is not None else None
+        if binding_id is None or event.get("ok") is not True:
+            return
+        self._validate_run_identity(event, start)
+        current_turn = self._resolve_turn_id(event, start, turn_id)
+        result = event.get("result")
+        if not isinstance(result, Mapping):
+            return
+        resource_id, text = result.get("resource_id"), result.get("text")
+        if not isinstance(resource_id, str) or not isinstance(text, str):
+            return
+        prepared = self._bindings[binding_id]
+        binding = getattr(prepared, "binding", prepared)
+        root = getattr(getattr(getattr(binding, "profile", None), "manifest", None), "guide_root", None)
+        if not isinstance(root, Path):
+            return
+        try:
+            document = GuideIndex.load(root).open(resource_id)
+        except (GuideNotFound, OSError, ValueError):
+            return
+        if document.text.strip() != text.strip():
+            return
+        self._store.append(ContextEventDraft(
+            event_type="tool.observation.recorded", binding_id=binding_id,
+            turn_id=current_turn, trace_sequence=trace_sequence,
+            payload={"kind": "published_guide_read", "binding_id": binding_id,
+                     "turn_id": current_turn, "resource_id": resource_id,
+                     "sha256": hashlib.sha256(text.strip().encode()).hexdigest()},
+        ))
+
     def _resolve_tool(
         self,
         event: Mapping[str, object],
@@ -311,13 +348,16 @@ class ApplicationInvocationProjector:
         start: Mapping[str, object],
         explicit: str | None,
     ) -> str:
-        event_turn_id = _optional_identity(event, "turn_id", "turnId")
-        start_turn_id = _optional_identity(start, "turn_id", "turnId")
         if explicit is not None and (not isinstance(explicit, str) or not explicit):
             raise CapabilityRoutingError("capability turn identity is invalid")
         declared = tuple(
             value
-            for value in (event_turn_id, start_turn_id, explicit)
+            for value in (
+                *(_optional_identity(source, key)
+                  for source in (event, start)
+                  for key in ("turn_id", "turnId", "correlation_id")),
+                explicit,
+            )
             if value is not None
         )
         if len(set(declared)) > 1:
