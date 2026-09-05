@@ -767,3 +767,6 @@ _Recovered pre-merge mainline entries._
 - 12:04 提交OP12隔离基准与计量契约，为存储分支提供可复现证据 [de3a5c7]
 - 12:11 OP12固定源码九样本全通过；十倍规模账本写入倍率100.339/100.490触发OP13，完整发布门禁开始。
 - 12:18 固定de3a5c7完整release通过且实测复审PASS，关闭OP12；启动OP13持久化合同细化，尚未改存储。
+- 12:20 固化OP12实测与验收，转OP13恢复合同细化，避免无证据切存储 [baf38cf]
+- 12:26 OP13合同独立复审暂拒绝：增长快照、严格JSON、manifest并发读规则待补；保持无生产改动。
+- 12:34 OP13合同B1–B3修订与canonical A–D顺序复审PASS，准备从codec/reader起步，默认writer不变。

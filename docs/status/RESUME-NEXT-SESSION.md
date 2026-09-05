@@ -1,18 +1,19 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-05 12:18 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-05 12:34 CST. **Session remains active — not a final handoff.**
 
 ## Execution state
 
 - Active unbounded goal: continue approved optimization implementation, not just a plan. Project route direct; one worklist: docs/superpowers/plans/2026-09-05-capstone-optimization.md.
-- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEADde3a5c7 (OP12 reviewed benchmark); OP11 source416a04d plus independent protected digest218b672 and closure docsae2dac1.
+- Worktree .worktrees/capstone-optimization, branch feat/capstone-optimization, HEADbaf38cf (OP12 closure), benchmark source de3a5c7; OP11 source416a04d plus independent protected digest218b672 and closure docsae2dac1.
 - OP01–07/10/11/12 DONE. OP13 RUNNING (contract refinement only, no new storage code). OP08 extra cross-layer scope still awaits explicit approval; no implementation. OP09 depends08; OP14 waits the remaining packages.
 - No active root terminal. Fixed de3a5c7 doctor/check-release41875 ended0 at12:18; raw gate-release-de3a5c7.json saved. Formal benchmark48062 ended0 with9/9 PASS and TRIGGERED; raw formal-benchmark-de3a5c7.json saved. Do not poll ended terminals.
 
 ## Immediate next action: OP13
 
-1. Commit OP12 closure docs after diff/link/doctor checks; implementation source de3a5c7 remains unchanged. Canonical table now OP12 DONE/OP13 RUNNING. Do not rerun long benchmark or release for unchanged source.
-2. Read Sol op10_contract_decision candidate runs/optimization/OP-12/segment-contract-proposal.md when ready, critically review and put precise OP13 format/commit point/recovery/compatibility/test slices in canonical plan before code. Candidate is not approval for unreviewed implementation.
+1. OP12 closure docs committed baf38cf after diff/link/doctor checks; implementation source de3a5c7 unchanged. Canonical OP12 DONE/OP13 RUNNING. Do not rerun unchanged long benchmark/release. Continue candidate contract review next.
+2. OP13 final contract and A–D slices now in canonical (around line820 onward), Sol proposal + independent Terra review PASS after initial B1–B3 BLOCK. Canonical sequence/interface consistency also PASS. Commit contract then start A strict codec/reader only; no workspace default/writer/consumer changes until later reviewed slices.
+7. Resolved B1: keep healthy full snapshot attempts, postcommit repair exception explicit; fixed-state ledger AND total snapshot-inclusive writes <=15, small100/1000 growing-core diagnostic test reports unresolved cost. B2 strict UTF8/duplicate/nonfinite/byte-canonical decode, meta16KiB/segment64MiB, writer oversize preflight keeps store usable, legacy unchanged. B3 mutable reader permits old-open manifest inode across atomic replacement; immutable named bindings strict. No unreviewed Windows backend, safe nonblocking leaf reads confined to OP13.
 3. OP12 report.json complete9/9, W7,866,295 /789,299,940 /79,316,645,345 bytes; cumulative100.339479/100.489866 and mean10.033948/10.048987 => TRIGGERED. Design/code/measurement reviews PASS; selftests23; full fixed de3a5c7 releasePASS with selftests41, all existing package/E2E31/24-of-24/app/install gates. No source-gate failures; earlier benchmark TDD failures retained in selftest-evidence.json.
 4. Metrics scope: logical Python I/O, ledger final+backup separate; cumulative child RSS max5,299,552,256bytes, not per-operation attributable. Fixed256byte state/65536byte request text, actual66,410byte artifact. Preview helper-only, not HTTP/UI memory proof; hot0projector/materializer but still144,912,541bytes read at100k.
 5. OP13 contract must prevent missing/corrupt new manifest downgrading to legacy, preserve explicit legacy reader/writer tests, use O(1) manifest and immutable segments plus actual cross-process lock. Distinguish rename-before-directory-fsync uncertainty from durable commit with failed rebuildable snapshot. No old-run migration, no mirror rewrite that restores quadratic writes.

@@ -817,10 +817,698 @@ uv run --project packages/grid-agent python tools/benchmark_optimization.py --ev
 
 **Files**：Modify `packages/capability-agent-kernel/src/capability_agent/application/context_store.py`、`application/workspace.py`；Create `packages/capability-agent-kernel/src/capability_agent/application/context_segments.py`；Test `packages/capability-agent-kernel/tests/application/test_context_store.py`。
 
+#### OP-13 reviewed implementation contract — 2026-09-05
+
+Root accepts the four persistence choices and the bounded consumer changes below
+as necessary implementation detail of the approved segmented-log direction.
+Sol authored the candidate; Terra independently reviewed B1–B3, initially BLOCK,
+then PASS after the corrections below. Source design/review evidence remains in
+`runs/optimization/OP-12/segment-contract-proposal.md` and
+`segment-contract-review.md`; this versioned section controls implementation.
+No OP08, domain behavior, user-run migration or paid/external scope is added.
+
+##### Recommendation and rejected alternatives
+
+Adopt an immutable, content-addressed segment chain with one constant-cardinality
+manifest as the only authority for newly created workspaces. Keep
+`core/context-events.jsonl` as an empty, regular **logical replay entry**, not as
+a second ledger. Public `ApplicationContextStore.replay()` and
+`replay_events()` retain their signatures and dispatch from that path to the
+sibling segmented layout.
+
+Two alternatives should be rejected:
+
+1. Rewriting a full compatibility JSONL after every append preserves raw-file
+   consumers but recreates the O(N²) write pattern and two crash-coordination
+   authorities.
+2. Appending a non-authoritative full JSONL mirror is linear in normal runs but
+   exposes partial transactions after crashes and still creates ambiguous raw
+   consumers. The existing legacy report discards all
+   `application-context-event/1.0` records anyway, so that mirror has no report
+   value.
+
+The selected design therefore changes raw-file inspection for **new** runs but
+preserves the supported store API and every `ContextEvent` domain meaning.
+
+##### New workspace layout and fail-closed format selection
+
+`ApplicationWorkspace.create()` creates the following new-run layout:
+
+```text
+core/
+  context-storage.json          immutable layout marker
+  context-manifest.json         absent until the genesis transaction commits
+  context-segments/             immutable committed segments and owned temps
+  context-events.jsonl          empty 0600 regular logical replay entry
+  context.json                  rebuildable materialized snapshot
+  .context-write.lock           fixed regular cross-process lock file
+```
+
+The layout marker is an exact-schema document:
+
+```json
+{
+  "schema": "application-context-storage/1.0",
+  "mode": "segmented-transactions/1.0",
+  "run_id": "<portable run id>"
+}
+```
+
+It is created exclusively, fsynced, and never rewritten. The segments directory
+and lock file are created by the same new-workspace operation. Computed
+workspace properties may expose these fixed paths; do not add a user/CLI writer
+mode or a required constructor field that breaks structural workspace fakes.
+
+Format selection is disk-derived and must not downgrade:
+
+| On-disk condition | Reader/writer decision |
+| --- | --- |
+| Valid marker + segments directory | Segmented v1; a missing/invalid manifest after initialization is corruption |
+| No marker, no manifest, no segments directory | Legacy JSONL v1, unchanged |
+| Any partial/mixed segmented sentinel | Fail closed; never try the legacy JSONL reader |
+| Valid segmented marker plus nonempty `context-events.jsonl` | Fail closed as inconsistent new layout; never interpret it as authority |
+
+The one permitted pre-initialization state is a valid marker, an empty segments
+directory, no manifest, and empty snapshot/logical-entry files. Only
+`initialize()` may turn that state into the genesis commit. After genesis,
+manifest absence is always an integrity failure.
+
+Deleting only the manifest while leaving the marker or segments directory must
+therefore fail, even if an attacker writes syntactically valid legacy JSONL into
+the placeholder. If an attacker can delete and replace every layout sentinel,
+there is no repository-local external trust anchor that can distinguish the
+replacement; that limitation already exists for wholesale old-ledger
+replacement and must not be disguised as downgrade protection.
+
+Existing user runs are never migrated, rewritten, or deleted. A pre-OP-13 tree
+with none of the segmented sentinels keeps the current legacy reader **and
+writer**, including its existing transaction recovery.
+
+##### Exact manifest and segment records
+
+The manifest has a constant number of bounded scalar fields; it never contains
+a segment list, event list, or accumulated digest history. Its byte size is
+O(1) in transaction count (integer spelling may grow logarithmically):
+
+```json
+{
+  "schema": "application-context-segment-manifest/1.0",
+  "run_id": "<portable run id>",
+  "segment_count": 17,
+  "committed_revision": 1201,
+  "committed_state_hash": "<64 lowercase hex>",
+  "head_segment_sha256": "<64 lowercase hex>"
+}
+```
+
+One successful `append_many()` produces exactly one segment. A segment has this
+exact, extra-forbidden shape:
+
+```json
+{
+  "schema": "application-context-segment/1.0",
+  "run_id": "<portable run id>",
+  "start_revision": 1102,
+  "end_revision": 1201,
+  "previous_segment_sha256": "<64 lowercase hex or null for genesis>",
+  "previous_state_hash": "<64 lowercase hex>",
+  "next_state_hash": "<64 lowercase hex>",
+  "payload_sha256": "<64 lowercase hex>",
+  "events": ["<strict ContextEvent JSON objects>"]
+}
+```
+
+Digest definitions are unambiguous:
+
+- `payload_sha256 = sha256(canonical_json_bytes(events))`.
+- `segment_sha256 = sha256(canonical_json_bytes(the complete segment object))`.
+- The committed filename is `context-segments/<segment_sha256>.json`; the
+  manifest and predecessor links contain the bare 64-character digest.
+
+The publisher must never overwrite a final segment. Stage under an unpredictable
+owned temporary name in `context-segments`, fsync the descriptor, and publish
+with an atomic no-clobber operation. If the final digest name already exists,
+accept it only after binding a regular no-follow descriptor and proving its
+bytes have the exact digest and content; otherwise fail. Then fsync the segments
+directory. A portable no-clobber helper belongs in `context_segments.py`; plain
+`os.replace()` over an unchecked final segment is not sufficient.
+
+Replay starts from the manifest head, strictly decodes the exact digest-named
+regular file, verifies its full-file digest, and walks predecessor digests
+backward before reversing the chain. It must prove all of the following:
+
+- exactly `segment_count` distinct segments are reachable, with no cycle;
+- the first segment has `start_revision == 1` and a null predecessor;
+- every segment contains at least one event and
+  `len(events) == end_revision - start_revision + 1`;
+- every event has the manifest run ID, contiguous sequence/revision values, and
+  the existing event/state hash invariants;
+- adjacent segment revision, predecessor digest, and state-hash boundaries
+  match;
+- the head end revision/state hash equals the manifest scalars; and
+- replaying the existing reducer yields the same final revision and state hash.
+
+Raw JSON is part of the integrity contract, not merely an input to Pydantic.
+Use one strict decoder for marker, manifest, and segment bytes that:
+
+- rejects duplicate object keys at every nesting depth through an
+  `object_pairs_hook`;
+- rejects `NaN`, `Infinity`, and `-Infinity` through `parse_constant`, and
+  recursively rejects every non-finite decoded float (including exponent
+  overflow such as `1e309`);
+- accepts strict UTF-8 only; and
+- requires `raw_bytes == canonical_json_bytes(decoded_value)`, including key
+  order, separators, UTF-8 spelling, and exactly one final newline.
+
+Only after that raw-canonical check may strict models validate the decoded
+shape. For a segment, then verify the canonical `events` value against
+`payload_sha256`, verify the complete raw bytes against both
+`segment_sha256` and the digest filename, and finally replay the event/state
+chain. A whitespace-reencoded or key-reordered document is invalid even when it
+decodes to the same values and its filename was recomputed from those
+noncanonical bytes.
+
+Reads are bounded before allocation: marker and manifest are each limited to
+16 KiB; a segment is limited to 64 MiB. The reader consumes at most limit + 1
+bytes and rejects overflow. The writer applies the same segment limit to its
+canonical bytes before staging, so an oversized `append_many()` fails before
+durable mutation with the store still usable. These constants are segmented-v1
+storage-format limits, not operator configuration; the legacy JSONL reader and
+writer retain their existing behavior and receive no retroactive size limit.
+
+Every marker, manifest, and segment read must pin the parent chain first (the
+existing `open_bound_parent()` is suitable), then open the leaf with
+`O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK`, and only then use `fstat()` to
+require a regular file before reading. Recheck the opened descriptor metadata
+after the bounded read.
+
+Identity treatment differs intentionally by mutability:
+
+- The layout marker and content-addressed segments are immutable. Recheck that
+  the currently named leaf is the same inode as the opened descriptor; a
+  replacement is corruption.
+- The manifest is the mutable atomic pointer. Pin and validate the opened
+  regular descriptor and its selected immutable chain, but do **not** reject it
+  merely because a concurrent writer atomically replaced the named manifest
+  with a new inode after open. The opened old manifest is a valid committed
+  prefix. No retry is needed if that old chain validates completely. This
+  exception applies to lock-free replay; a writer holding the exclusive lock
+  must still bind and recheck the currently named manifest before committing.
+
+The current `read_bound_regular_file()` both omits `O_NONBLOCK` and enforces
+named-leaf identity, which is wrong for the mutable-manifest case.
+`context_segments.py` therefore needs narrow private readers with explicit
+immutable/mutable binding modes rather than directly reusing that leaf reader.
+This stays scoped to OP-13 storage and does not broaden the OP-08
+public-artifact reader.
+
+Unreferenced final-name segments are not committed. Readers ignore them; they
+must never select “the newest filename.” Recovery may remove only exact owned
+temporary files. It must not garbage-collect final-name segments during OP-13,
+because doing so adds reader/GC races and risks historical user data.
+
+##### Writer lock and stale-instance rule
+
+The current in-process `RLock` remains for reentrancy/thread ordering, but it is
+not a multi-instance transaction lock. Segmented writes additionally hold one
+OS advisory exclusive lock on `core/.context-write.lock` from the first manifest
+read through segment publication, manifest commit, and snapshot refresh.
+
+The lock contract is:
+
+- open no-follow, require a regular file, bind `(device, inode)` before and
+  after acquisition, and fail on replacement;
+- on the current supported Linux/macOS release targets, use POSIX `flock`,
+  released automatically on process death, rather than a mkdir/PID lock that
+  requires unsafe stale-lock deletion;
+- import the POSIX locking facility conditionally so importing the package on
+  another platform does not crash, but fail closed with a sanitized unsupported
+  storage-platform error before creating or opening a segmented writer when no
+  reviewed lock backend exists; OP-13 does **not** claim or implement untested
+  Windows locking;
+- after acquiring it, reread and validate the authoritative manifest/head;
+- compare run ID, revision, state hash, and head digest with the store instance's
+  cached base; a stale instance fails before staging anything rather than
+  rebasing silently or creating a fork; and
+- readers need no lock: one atomically read manifest selects an immutable chain.
+  Old reachable segments are retained, so a reader sees either the old or new
+  complete prefix while a writer commits.
+
+Two processes constructed from the same head therefore have one winner. The
+loser receives a sanitized `ContextStoreError`, becomes unavailable, and must
+be reopened against the winning head before its caller deliberately retries.
+
+##### Commit point and typed failure outcome
+
+Before touching durable files, reduce and validate the complete draft batch.
+Stage and fsync the next materialized snapshot after the segment is durable but
+before the manifest replacement, so ordinary snapshot allocation/no-space
+failures still occur before the authoritative commit.
+
+Under the write lock, perform this sequence:
+
+1. validate the locked base manifest/head;
+2. stage and fsync the immutable segment;
+3. atomically publish the segment without overwrite;
+4. strictly fsync `context-segments/`;
+5. stage and fsync the next `context.json` projection without publishing it;
+6. stage and fsync the next constant-cardinality manifest;
+7. atomically replace `context-manifest.json`;
+8. strictly fsync `core/` — **this successful fsync is the commit point**;
+9. publish the next in-memory snapshot immediately, then attempt to publish the
+   already-staged `context.json`, fsync `core/`, and clean only owned temporary
+   files.
+
+Authoritative fsync helpers must propagate failure; the current best-effort
+directory-fsync helper is not suitable for steps 4 or 8.
+
+Outcome semantics are explicit:
+
+| Failure boundary | Logical outcome | Required API behavior |
+| --- | --- | --- |
+| Draft/reducer validation | Definitely uncommitted | Existing `ContextStoreError`; store remains usable |
+| Segment/snapshot/manifest staging or segment publication before manifest replacement | Definitely uncommitted | Sanitized `ContextStoreError`; best-effort cleanup; store unavailable after any uncertain I/O |
+| Manifest replacement not performed or atomically reports failure | Definitely uncommitted | Same; old manifest remains authority |
+| Manifest replacement succeeded but its directory fsync reports failure | **Indeterminate durability** | Raise `ContextCommitIndeterminateError(ContextStoreError)`; store unavailable; never claim rollback or retry in-place |
+| Commit point passed; snapshot replace/fsync or cleanup then fails | Definitely committed | `append_many()` returns the committed event tuple normally, publishes the next in-memory snapshot, records projection repair as pending, and never rolls back/deletes authoritative or sidecar data |
+
+`ContextCommitIndeterminateError` is an additive public subtype with no backend
+message or path leakage. It means “do not retry and do not delete files that the
+transaction may reference; reopen/replay to determine the committed prefix.” It
+does not mean committed or rolled back.
+
+Only classified snapshot/cleanup I/O failures after the commit point may be
+treated as a stale derived projection. The manifest's committed revision and
+state hash are the durable stale-snapshot record; the live store additionally
+sets a private `_snapshot_refresh_pending` flag with a sanitized reason code.
+It retries atomic snapshot materialization after reopening and at the next safe
+locked entry, but a repeated projection-only failure does not change the
+already-valid append result or authorize an event retry. `store.snapshot`
+remains the committed next state. `verify_materialized_snapshot()` remains a
+strict check and raises while disk projection is stale; it does not pretend the
+old file is current. OP-13 does not add a report dependency on this private
+status: report-side public replay verifies the manifest authority directly, so
+snapshot projection diagnostics cannot block or weaken the primary answer.
+
+Do not catch programming errors or all `BaseException` as benign projection
+warnings. A control-flow `BaseException` during the manifest boundary keeps its
+original type and has an unknown outcome; upper layers must preserve potentially
+referenced sidecars. Process-kill tests determine recovery from disk rather
+than expecting in-process cleanup.
+
+All three `TurnController` mutation paths must distinguish commit outcome:
+
+- `start()` currently restores the prior active-turn and active-draft files for
+  every `BaseException` around `store.append()`. It may restore them only for a
+  definitely-uncommitted typed error. On indeterminate, unclassified, or
+  control-flow failure it leaves the post-preparation filesystem state intact
+  (the new active-turn file remains and the obsolete draft remains removed),
+  then rethrows; a committed `turn.started` must not lose its active sidecar to
+  compensation.
+- `submit()` must separate sidecar-write compensation from the
+  `store.append_many()` call. A sidecar write failure before append restores the
+  four captured file states. A definitely-uncommitted `ContextStoreError` from
+  append also restores them. `ContextCommitIndeterminateError`, an unclassified
+  post-entry exception, or a control-flow `BaseException` preserves all answer,
+  admission, archive, and active files and is rethrown without being flattened
+  to an ordinary `AnswerCommitError`. Validate the returned two-event tuple
+  outside the rollback block so an implementation invariant failure cannot
+  delete potentially referenced files.
+- `fail()` already performs active/draft cleanup only after `append_many()`
+  returns. Preserve that ordering: indeterminate/control-flow failure rethrows
+  with active files intact, performs no optional failure-answer publication,
+  and does not call `_record_turn_failed`; a known committed return proceeds to
+  its existing idempotent cleanup. Any later cleanup/publication error cannot
+  undo the committed failure segment or trigger another context append.
+
+The runner must recognize `ContextCommitIndeterminateError` before its broad
+ordinary-exception compensation and must not call `_fail_active_turn()`,
+`_mark_failed()`, or retry another context transition for that turn. Direct
+lifecycle append wrappers must preserve the subtype instead of flattening it
+before this decision. It may return a sanitized failed application outcome,
+preserving the run for reopen/recovery. A known committed transaction is
+returned normally even when `context.json` needs repair, so it follows the
+existing successful controller path.
+
+##### Recovery and snapshot contract
+
+The manifest, not `context.json`, is authority. On segmented-store construction:
+
+1. take the writer/recovery lock;
+2. select format without fallback;
+3. replay the manifest-selected chain independently;
+4. if `context.json` is missing, stale, truncated, or hash-invalid, attempt an
+   atomic rebuild from replay; and
+5. expose that replayed state as `store.snapshot` even if the derived-file
+   rebuild reports a classified I/O failure, retaining the pending repair flag.
+
+A crash before the manifest commit leaves the old manifest authoritative; a
+published-but-unreferenced segment is logically discarded. A crash after the
+commit point leaves the new chain authoritative even if the snapshot is old.
+Recovery must always satisfy:
+
+```python
+assert recovered.revision in {before.revision, committed.revision}
+assert recovered == replay_committed_segments()
+assert no_partially_committed_transaction()
+```
+
+Missing/truncated/digest-invalid referenced segments, duplicate revisions,
+chain forks selected through a forged predecessor, marker/run-ID mismatch,
+symlink/replacement races, and an invalid manifest are authority failures and
+raise sanitized `ContextStoreError`. They are never repaired from snapshot or
+the empty JSONL placeholder. A classified snapshot-repair I/O error leaves the
+opened store on replayed authority with repair pending; it does not validate or
+publish the stale file as current.
+
+##### Performance claim boundary
+
+Every healthy segmented append attempts and stages the complete current
+`context.json` in the same transaction. With normal I/O it materializes that
+snapshot before return; the classified post-commit projection failure follows
+the pending-repair success semantics above. OP-13 does not introduce a
+checkpoint cadence, intentionally delayed public snapshot, or snapshot API
+change. That choice keeps OP-13 focused on the demonstrated full-ledger rewrite
+problem.
+
+The OP-13 rerun of the same fixed-state 1k/10k/100k workload must report two
+separate logical-write counters and keep the original ledger gate:
+
+1. `context_ledger_write_bytes`: all canonical segment bytes plus every staged
+   manifest byte. Its tenfold ratios must remain `<=15`.
+2. `context_total_logical_write_bytes`: the first counter plus every staged
+   `context.json` byte, including failed-attempt bytes where the existing probe
+   counts them. Its tenfold ratios on the same fixed-state workload must also
+   remain `<=15`.
+
+Directory metadata/fsync traffic is reported separately when observable and is
+not invented as payload bytes. Neither counter uses final file size as a proxy.
+The first remains directly comparable to the canonical ledger gate; the second
+prevents a constant manifest from hiding snapshot rewrite cost.
+
+Add one bounded 100/1,000-event growing-core characterization using
+`diagnostic.recorded`, which appends to the real `CoreContext.diagnostics`
+collection. It must complete and replay equivalently and must publish its
+snapshot and total-write ratios, but that ratio is descriptive rather than an
+OP-13 acceptance threshold.
+Repeatedly serializing genuinely growing current state can remain superlinear;
+OP-13 must state that this cost is unresolved and must not claim comprehensive
+O(N) storage behavior from the fixed-state result.
+
+A focused unit test must construct/recover the segmented store, replace the
+full-chain replay helper with a failure sentinel, and then successfully append
+from the cached validated head. Full-chain replay is allowed on construction,
+explicit replay, and recovery, but not on each healthy append.
+
+##### Public API, Path replay, and compatibility
+
+The following API remains unchanged:
+
+- `ApplicationContextStore.initialize(workspace, ...)`
+- `append()` / `append_many()` and their return types
+- `snapshot`, `workspace`, `replay()`, `replay_events()`
+- `verify_materialized_snapshot()`
+- `ContextEvent` fields, ordering, hashes, and reducer semantics
+- `ApplicationWorkspace.context_events_path`
+
+For a Workspace argument, replay uses its fixed sibling paths. For a Path
+argument, a path named `context-events.jsonl` remains the logical entry:
+
+1. safely bind the path and its parent as today, preserving relative-path use;
+2. inspect the exact sibling marker/manifest/segments sentinels;
+3. choose segmented or legacy by the fail-closed table above; and
+4. in segmented mode require the entry itself to be an empty regular file, but
+   obtain all events from the manifest chain.
+
+An invalid segmented layout never falls back merely because the placeholder is
+valid JSONL. Arbitrary legacy ledger paths without the sibling sentinels retain
+the current JSONL behavior. No new public manifest-path overload is needed.
+
+###### Legacy report bridge
+
+`grid_agent.analysis.report._read_context_events()` directly reads the path
+but already discards every application-context event. Do not create a full
+JSONL mirror for it. Instead, narrowly update
+`grid_agent.compat.v1_0_1_report.PandapowerApplicationReportShell` to call the
+public `ApplicationContextStore.replay_events(workspace)` inside its existing
+report-isolation boundary before invoking the legacy renderer:
+
+- successful replay keeps the current report meaning: the empty placeholder
+  yields no legacy analysis events;
+- a replay/integrity failure adds one sanitized “application context ledger
+  unavailable” report diagnostic and rendering continues; and
+- ordinary report/descriptor/I/O failures remain nonfatal to the primary
+  answer. `BaseException` is not converted into a report warning.
+
+The compatibility single-run answer reader and Kernel runner replay call sites
+already use the public API and need replay regressions, not a replay-call rewrite.
+The runner's separate indeterminate-compensation changes remain required above.
+
+###### Legacy writer coverage
+
+Legacy-format tests must use a test-only fixture that materializes the exact
+pre-OP-13 workspace tree with all three segmented sentinels absent. Do not add a
+runtime/CLI `legacy` switch, and do not weaken old malformed/truncated,
+replacement, transaction rollback, or byte-for-byte failure assertions.
+
+New-workspace tests separately prove that `ApplicationWorkspace.create()`
+selects segmented v1 by default. The rollout sequence is implementation-local
+reader/writer opt-in during development, all compatibility/recovery/release
+gates, then the single default switch in workspace creation. A rollback may
+switch future workspace creation back to legacy, but the segmented reader must
+remain permanently available for runs already created.
+
+##### Required scope beyond the canonical three source files
+
+The canonical source ownership remains:
+
+- `application/context_segments.py`: strict records, digest/chain validation,
+  safe segment publication, strict fsync, lock, and segmented replay.
+- `application/context_store.py`: public dispatch, reducer integration, commit
+  outcomes, snapshot recovery, and legacy backend retention.
+- `application/workspace.py`: new-run marker/directory/lock/placeholder creation
+  and computed paths.
+
+Additional production/tool changes that are actually necessary:
+
+1. `application/turns.py`: apply the outcome-aware compensation rules to
+   `start()`, `submit()`, and `fail()`; retain restoration only for definitely
+   uncommitted failures and preserve potentially referenced sidecars otherwise.
+2. `application/__init__.py` and top-level `capability_agent/__init__.py`: export
+   the additive indeterminate subtype if the current public error exports are
+   kept symmetric.
+3. `application/runner.py`: suppress `_fail_active_turn()`/context retry for the
+   indeterminate subtype while returning only sanitized failure information.
+4. `grid_agent/compat/v1_0_1_report.py`: narrow public-replay validation and
+   nonblocking diagnostic; no legacy report/parser rewrite.
+5. `tools/benchmark_optimization.py`: count actual staged segment bytes and
+   manifest bytes at the new seam, and report committed segment storage rather
+   than the zero-byte logical entry. Preserve initialization exclusion; report
+   snapshot bytes separately **and** include them in the additional total
+   logical-write counter.
+
+No production changes are required in Kernel projector, compatibility
+single-run, inventory, a CLI, or any domain pack if the public store API is
+preserved.
+
+Test changes beyond canonical `test_context_store.py` are required only where
+tests inspect physical JSONL bytes rather than behavior:
+
+- Kernel `test_workspace.py`, `test_turns.py`, `test_projector.py`, and relevant
+  `test_runner.py` cases;
+- grid generic-entrypoint/offline-walking-skeleton raw-ledger assertions;
+- targeted `compat/single_run` and v1 report bridge regressions;
+- benchmark instrumentation self-tests; and
+- existing installed-smoke and inventory-conformance replay assertions as
+  unchanged end-to-end gates.
+
+Tests for the distinct old `grid_agent.analysis.store.AnalysisContextStore` and
+`context/context-events.jsonl` are out of scope and must remain unchanged.
+
+##### Minimum test matrix
+
+| Area | Required cases and assertions |
+| --- | --- |
+| New default | New workspace has valid marker/segments/lock, empty logical entry, no pre-genesis manifest; genesis creates one committed segment and manifest |
+| Legacy | Explicit pre-OP-13 fixture reads/appends unchanged; malformed line, missing newline, replacement, rollback, and relative Path tests retain their old assertions |
+| Anti-downgrade | Missing/corrupt manifest with marker or segments present; partial sentinels; nonempty placeholder; marker/run mismatch all fail without legacy fallback |
+| Raw/record validation | Truncated/missing head; duplicate top-level and nested event-payload keys; non-finite constants/exponent overflow; whitespace/key-order recoding; noncanonical digest-named bytes; oversize marker/manifest/segment; wrong filename/payload digest; extra/missing fields; wrong run ID; cycle, duplicate/noncontiguous revision, predecessor/state-hash mismatch |
+| Commit boundaries | Inject before/after segment write/fsync/publish/directory fsync, manifest write/fsync/replace/directory fsync, snapshot replace/fsync, and cleanup; a fresh process sees exactly old or committed revision |
+| No space | Fail each allocation/write boundary; precommit stays old, postcommit snapshot failure replays new and rebuilds projection |
+| Forced exit | Use subprocess `os._exit` at each durable boundary; reopen from disk and assert the three canonical recovery invariants without writer-memory helpers |
+| Concurrency | Two processes append from the same head behind a barrier: exactly one wins, loser is stale/unavailable, no branch/lost update; deterministic manifest replacement after reader open accepts the opened old valid inode, while a reader starting later sees the new complete prefix |
+| Path safety | Relative logical path, symlinked parent, marker/manifest/segment/lock replacement, FIFO/socket/device leaves proving nonblocking rejection, final-name collision, and no overwrite outside `core/` |
+| Turn compensation | For `start`, `submit`, and `fail`: definitely-uncommitted typed append failures restore only their pre-append file states; indeterminate/unclassified/control-flow outcomes preserve post-preparation files; known committed plus stale snapshot follows success and replays all referenced sidecars |
+| Runner | Indeterminate start/submit/fail does not call `_fail_active_turn`, `_mark_failed`, retry a context transition, or delete active/answer artifacts; failure output is sanitized and a fresh replay determines the prefix |
+| Platform lock | Linux and macOS exercise real cross-process `flock` and crash release; a simulated unsupported platform fails before segmented storage creation/open and does not fall back to an unlocked writer |
+| Report | Segmented public replay is validated, legacy report still sees no analysis ledger events, corrupt segment produces only sanitized report diagnostic, and no full JSONL mirror is generated |
+| Consumers | Kernel runner/turns/projector equality, `compat.single_run` Path replay, inventory conformance, and installed smoke all match `store.snapshot` |
+| Performance | Instrument real segment, manifest, and snapshot staging; reject a zero/stale probe; fixed-state 1k/10k/100k requires both ledger-only and total logical-write tenfold ratios `<=15`; cached append must not replay the chain; 100/1,000 growing-core completes/equates and reports its non-gating ratio and unresolved scope |
+
+Every recovery helper in tests must read the real marker, manifest, and segment
+files through an independent replay path. It may not return the writer's cached
+snapshot or infer commitment from a test hook call count.
+
+#### OP-13 implementation slices and review gates
+
+Each slice follows RED → minimal implementation → focused GREEN → independent
+review → explicit-path commit. Do not run concurrent complete gates, and do not
+switch the workspace default before slices A–C pass. Existing legacy assertions
+remain; raw-file tests gain new-layout equivalents rather than reading an empty
+placeholder and falsely passing.
+
+**A — strict format and reader, no writer/default switch**
+
+Files: Create
+`packages/capability-agent-kernel/src/capability_agent/application/context_segments.py`,
+`packages/capability-agent-kernel/tests/application/test_context_segments.py`;
+test-only pre-OP13 workspace fixture belongs in
+`packages/capability-agent-kernel/tests/conftest.py` if shared. Do not change
+`ApplicationWorkspace.create()` in this slice.
+
+Internal interfaces (not added to the public Kernel SPI):
+
+```python
+def decode_document(raw: bytes, *, max_bytes: int) -> dict[str, object]: ...
+def encode_segment(
+    events: tuple[ContextEvent, ...], previous: SegmentManifest | None,
+) -> tuple[ContextSegment, bytes, str]: ...
+def decode_segment(raw: bytes, *, expected_sha256: str) -> ContextSegment: ...
+def read_chain(
+    entry_path: Path,
+) -> tuple[SegmentManifest, tuple[ContextEvent, ...]]: ...
+```
+
+`StorageMarker`, `SegmentManifest`, `ContextSegment` implement the exact
+schemas above; `SegmentStorageError` is the private sanitized error. The
+segment codec verifies structural/event boundary/digest consistency; the public
+store later applies the existing reducer to the returned complete events.
+This split must not import `context_store` back into `context_segments`.
+
+- [ ] Add actual canonical genesis/batch files and first RED tests for codec,
+  reader, limits and anti-downgrade; preserve complete initial output.
+- [ ] Reject top/nested duplicate keys, nonfinite/exponent overflow, UTF-8 error,
+  whitespace/key-order recoding, wrong filename/payload hash, missing/extra
+  schema fields, inconsistent revision/count/run/hash and nonregular files.
+  Require exact max+1 read enforcement, not a post-read length check alone.
+- [ ] Test manifest opened-before-replace returns old full chain; marker or
+  immutable segment replacement fails. Wrong/missing manifest with new sentinels
+  never reads fallback JSONL. Test helpers construct real canonical files, not
+  writer-memory return values.
+- [ ] Run and review `test_context_segments.py`; commit only reader/codec/tests.
+  Existing production defaults and old ledger remain unchanged.
+
+**B — transaction writer and public store dispatch, explicit new-layout fixtures**
+
+Files: Modify the new module, `application/context_store.py`, public error
+exports `application/__init__.py` and `capability_agent/__init__.py`;
+Test `test_context_segments.py` and `test_context_store.py`.
+A private `create_segmented_layout(core_path: Path, run_id: str) -> None`
+creates only a fresh marker/directory/lock; test fixtures can explicitly call
+it before initialization until the default switch. It must reject existing
+partial/nonempty layouts, not migrate them.
+
+- [ ] Add RED tests for public Workspace/Path dispatch, genesis, append/replay
+  equality, reopen with absent/stale snapshot and strict snapshot verification.
+  Use a genuine pre-OP13 fixture for old writer fault-injection tests; do not
+  delete new sentinels to manufacture a legacy fixture.
+- [ ] Separate common event reduction from backend publication so both backends
+  preserve identical `ContextEvent` semantics. Segmented store construction
+  validates/replays the chain; healthy append only validates locked current
+  head against cached base. Prove append works with full replay patched to fail.
+- [ ] Implement the reviewed segment publication, strict fsync and locked
+  constant manifest protocol. Return committed events with pending snapshot
+  repair only after the durable commit point; raise the additive public
+  `ContextCommitIndeterminateError` for uncertain durability.
+- [ ] Inject ordinary I/O failures and subprocess `os._exit` at every boundary
+  in the reviewed matrix. Inspect real disk state in a fresh process:
+
+```python
+assert recovered.revision in {before.revision, expected_committed.revision}
+assert recovered == independently_replayed_disk_chain
+assert [event.sequence for event in disk_events] == list(range(1, recovered.revision + 1))
+assert recovered.state_hash == independently_replayed_disk_chain.state_hash
+```
+
+- [ ] Use an actual two-process barrier with two instances loaded from one head;
+  exactly one append wins, loser fails stale, and no event is lost/forked.
+  Kill the lock holder and prove another process can acquire the same safe lock.
+  Include FIFO and lock/parent/manifest replacement, oversize preflight with a
+  still-usable store, and absent locking backend.
+- [ ] Full Kernel tests and production pyright; independent persistence review.
+  Commit this opt-in backend only after high-priority findings are resolved.
+
+**C — compensation and compatibility consumers**
+
+Files: Modify
+`packages/capability-agent-kernel/src/capability_agent/application/turns.py`,
+`application/runner.py`,
+`packages/grid-agent/src/grid_agent/compat/v1_0_1_report.py`;
+Test Kernel `test_turns.py`, `test_runner.py`, `test_projector.py`;
+grid compatibility/single-run/report and generic-entrypoint tests.
+
+- [ ] First reproduce sidecar deletion under an injected indeterminate append
+  for start and submit; record RED. Then split preparation failure from append
+  outcome handling. Preserve sidecars on indeterminate/unclassified/control-flow
+  outcomes and propagate the typed indeterminate error through lifecycle wrappers.
+- [ ] Assert fail/runner paths add no compensating transition, call neither
+  `_fail_active_turn` nor `_mark_failed`, and return only sanitized failure
+  information. Replay determines commitment; the test must not presume that an
+  exception always means rollback.
+- [ ] After a real durable commit plus forced snapshot-refresh failure, assert
+  primary success, current memory, all referenced sidecars present, and fresh
+  replay equality. Ordinary precommit typed errors retain existing rollback tests.
+- [ ] Add the narrow public-replay report check with diagnostic-only failure;
+  preserve legacy report meaning and no JSONL mirror. Test corrupt segment
+  diagnostics do not revoke an otherwise valid primary answer.
+- [ ] Run complete application/compatibility and inventory/installed replay
+  gates, then independent trust/compensation review and explicit-path commit.
+  No Domain Pack source, legacy AnalysisContextStore or stdout schema change.
+
+**D — measurement seams, new default, documentation and acceptance**
+
+Files: Modify `application/workspace.py`, `test_workspace.py`,
+`tools/benchmark_optimization.py`, `tools/tests/test_benchmark_optimization.py`,
+and only consumer tests tied to physical layout. Update `docs/RUNBOOK.md` and
+`docs/architecture/capstone-framework.md` for new-run inspection/recovery;
+if shared README facts change, synchronize `README.md` and `README.zh-CN.md`.
+
+- [ ] Instrument real segment/manifest/snapshot staging, separately report each
+  and ledger/total sums. Keep old-format counter support for the retained legacy
+  fixture. A zero-byte logical entry is not a ledger size and never a write metric.
+  Add exact-counter RED/GREEN tests before benchmark changes.
+- [ ] Switch only newly created workspaces to the reviewed segmented layout;
+  test no data migration, old-format read/append, anti-downgrade, exclusive run
+  creation, default generic/single-run/report/installed flow and supported-platform
+  error. Run types and focused tests before any long measurement.
+- [ ] Freeze source and preserve OP12 baseline report. New measurement output
+  must use a distinct path, never overwrite the existing OP12 evidence:
+
+```sh
+uv run --project packages/grid-agent pytest packages/capability-agent-kernel/tests/application/test_context_segments.py packages/capability-agent-kernel/tests/application/test_context_store.py -q
+uv run --project packages/grid-agent pytest tools/tests/test_benchmark_optimization.py -q
+uv run --project packages/grid-agent python tools/benchmark_optimization.py --events 1000 10000 100000 --output runs/optimization/OP-13/benchmarks/report.json
+make doctor
+make check-release
+git diff --check
+```
+
+- [ ] The tool also runs/reports the reviewed bounded100/1000 growing-core
+  characterization without changing the baseline fixed-state workload. Check
+  both fixed-state ledger-only and snapshot-inclusive tenfold ratios <=15.
+  Preserve failed scales and exact source/runtime/limits; no extrapolated pass.
+- [ ] Independent final storage/recovery/consumer/metric review. Keep unsupported
+  Windows, current-run evidence, growing-snapshot cost and helper-only preview
+  limitations explicit. Record all gates and commits here before OP13 DONE;
+  leave OP08 approval and OP09 dependency visible.
+- [ ] Rollback changes only future workspace creation. Retain new-format reader
+  for already-created segmented runs; do not delete segments, snapshots, sidecars
+  or user evidence to make a rollback appear clean.
+
 **固定格式方向**：新运行采用版本化不可变 transaction segment；每组 append_many 对应一个 segment，含起止 revision、previous/next state hash 和 payload digest。一个原子更新 manifest 指向已提交 segment；snapshot 是可重建投影。旧运行继续旧 reader，不自动迁移。
 
-- [ ] 实现前把格式字段、commit point、读者兼容矩阵补入本包执行记录并复审；不改变公共 ContextEvent 的领域语义。
-- [ ] 依次实现 segment stage → fsync → rename → directory fsync → 原子 manifest commit → snapshot refresh。manifest 提交前中断丢弃未提交 segment；提交后从 segment 重建 snapshot。
+- [x] 实现前把格式字段、commit point、读者兼容矩阵补入本包执行记录并复审；不改变公共 ContextEvent 的领域语义。
+- [ ] 依次实现 segment stage → fsync → publish → directory fsync → 原子 manifest commit → snapshot refresh。manifest 提交前中断不把未引用 segment 纳入已提交前缀，保留 final-name 文件；提交后从 segment 重建 snapshot。以以上详细提交点/异常合同为准。
 - [ ] 注入每个持久化边界的异常/强制退出；覆盖截断尾部、重复 revision、哈希不匹配、symlink 替换、并发 writer、snapshot 落后和无空间；不能把异常都降级为报告警告。
 - [ ] 保留旧格式读取、已有 run-id 防重用和信任边界；只有新 workspace 选择新 writer。
 - [ ] 执行 recovery 矩阵的核心断言：
