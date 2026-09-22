@@ -14,17 +14,21 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from capability_agent._safe_files import ensure_bound_directory
 from capability_agent.application.profile import DomainBinding
 from capability_agent.domain.execution import CapabilityExecutor
 from capability_agent.domain.provisioning import CredentialLease
 
-from pandapower_domain.execution import GridctlExecutor, sanitize_environment
+from pandapower_domain.execution import (
+    DEFAULT_MAX_OUTPUT_BYTES,
+    GridctlExecutor,
+    sanitize_environment,
+)
 
 
 GRIDCTL_ENVIRONMENT_NAME = "GRID_AGENT_GRIDCTL_EXECUTABLE"
 GRIDCTL_NAME = "gridctl.exe" if os.name == "nt" else "gridctl"
 DEFAULT_TIMEOUT_SECONDS = 60.0
-DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 
 
 class PandapowerProvisioningError(RuntimeError):
@@ -111,6 +115,7 @@ class PandapowerRuntimeProvisioner:
             executable=target,
             workspace=binding_root,
             timeout_seconds=self.timeout_seconds,
+            max_output_bytes=self.max_output_bytes,
             environment=safe_environment,
         )
         return PreparedPandapowerEndpoint(executor=executor, metadata=metadata)
@@ -194,35 +199,11 @@ __all__ = [
 
 def _prepare_workspace(workspace: Path) -> Path:
     try:
-        candidate = Path(os.path.abspath(os.fspath(workspace)))
-        metadata = candidate.lstat() if candidate.exists() or candidate.is_symlink() else None
+        return ensure_bound_directory(workspace)
     except (OSError, TypeError, ValueError) as exc:
         raise PandapowerProvisioningError(
-            "pandapower binding workspace is invalid"
+            "pandapower binding workspace could not be prepared safely"
         ) from exc
-    if metadata is not None and stat.S_ISLNK(metadata.st_mode):
-        raise PandapowerProvisioningError(
-            "pandapower binding workspace must not be a symlink"
-        )
-    try:
-        resolved = candidate.resolve(strict=False)
-        if resolved.exists() and not resolved.is_dir():
-            raise PandapowerProvisioningError(
-                "pandapower binding workspace is not a directory"
-            )
-        resolved.mkdir(parents=True, exist_ok=True, mode=0o700)
-        final_metadata = resolved.lstat()
-    except PandapowerProvisioningError:
-        raise
-    except OSError as exc:
-        raise PandapowerProvisioningError(
-            "pandapower binding workspace could not be prepared"
-        ) from exc
-    if stat.S_ISLNK(final_metadata.st_mode) or not stat.S_ISDIR(final_metadata.st_mode):
-        raise PandapowerProvisioningError(
-            "pandapower binding workspace is not a private directory"
-        )
-    return resolved
 
 
 def _ensure_directory(path: Path, *, label: str) -> None:

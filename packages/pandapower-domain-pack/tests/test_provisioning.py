@@ -88,6 +88,7 @@ def test_provisioner_resolves_gridctl_with_fixed_arguments_and_sanitized_environ
     )
     assert endpoint.metadata["search_path"] == (str(workspace / "bin"),)
     assert endpoint.metadata["max_output_bytes"] == 2 * 1024 * 1024
+    assert executor.max_output_bytes == endpoint.metadata["max_output_bytes"]
     environment = cast(Mapping[str, object], endpoint.metadata["environment"])
     assert "GRID_AGENT_SECRET" not in environment
     assert environment["PATH"]
@@ -267,6 +268,23 @@ def test_provisioner_rejects_a_symlinked_binding_workspace(tmp_path: Path) -> No
         PandapowerRuntimeProvisioner(executable=executable).prepare(
             binding=_binding(), workspace=workspace, credentials=_Lease()
         )
+
+
+def test_provisioner_rejects_a_symlinked_workspace_ancestor(tmp_path: Path) -> None:
+    executable = tmp_path / "gridctl"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    redirect = tmp_path / "redirect"
+    redirect.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(PandapowerProvisioningError, match="workspace"):
+        PandapowerRuntimeProvisioner(executable=executable).prepare(
+            binding=_binding(), workspace=redirect / "binding", credentials=_Lease()
+        )
+
+    assert not (outside / "binding").exists()
 
 
 def test_provisioner_rejects_a_credential_scope_mismatch(tmp_path: Path) -> None:

@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
+from capability_agent._safe_files import write_bound_text
+
 
 _RESOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]+$")
 _ENCODED_SEPARATOR_PATTERN = re.compile(r"%(?:2f|5c)", re.IGNORECASE)
@@ -95,7 +97,6 @@ class GuideIndex:
 
     def materialize(self, path: Path) -> Path:
         target = Path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "protocol": self._protocol,
             "version": "1.0",
@@ -105,7 +106,13 @@ class GuideIndex:
                 for resource_id, resource_path in sorted(self._resources.items())
             },
         }
-        target.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+        try:
+            write_bound_text(
+                target,
+                json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+            )
+        except OSError as exc:
+            raise GuideMaterializationError("guide index could not be materialized safely") from exc
         return target
 
 

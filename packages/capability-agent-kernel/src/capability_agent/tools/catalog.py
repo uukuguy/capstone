@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from capability_agent._safe_files import write_bound_text
+
 if TYPE_CHECKING:
     from capability_agent.application.composition import PreparedBinding
 
@@ -172,7 +174,6 @@ class ToolCatalog:
 
     def materialize(self, path: Path) -> Path:
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
         body = {
             "protocol": self._protocol,
             "version": "1.0",
@@ -180,7 +181,10 @@ class ToolCatalog:
         }
         fingerprint = "sha256:" + hashlib.sha256(_canonical_json(body).encode("utf-8")).hexdigest()
         payload = {"fingerprint": fingerprint, **body}
-        path.write_text(_canonical_json(payload) + "\n", encoding="utf-8")
+        try:
+            write_bound_text(path, _canonical_json(payload) + "\n")
+        except OSError as exc:
+            raise ToolCatalogError("tool catalog could not be materialized safely") from exc
         return path
 
 
