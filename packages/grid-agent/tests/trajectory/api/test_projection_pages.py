@@ -55,7 +55,10 @@ def test_real_cached_projection_cursor_tracks_source_changes(tmp_path: Path, cha
         cache = tmp_path / "cache"
         service = ProjectionService(cache)
         catalog = TrajectoryRunCatalog(run.parent, cache, service)
-        app = create_trajectory_app(catalog, CursorCodec.load_or_create(tmp_path / "cursor.key"))
+        app = create_trajectory_app(
+            catalog, CursorCodec.load_or_create(tmp_path / "cursor.key"),
+            allowed_hosts=("testserver",),
+        )
         client = TestClient(app)
         endpoint = f"/api/runs/{run.name}/agent"
         first = client.get(endpoint, params={"kind": "turn"})

@@ -867,6 +867,41 @@ describe('App shell', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Q7.*overview segment/i }));
 
     expect(new URLSearchParams(window.location.search).get('node')).toBe('analysis-test-t007');
+    expect(new URLSearchParams(window.location.search).get('run')).toBe('analysis-test');
+  });
+
+  it('restores the linked node in its original run when two runs share that node ID', async () => {
+    window.history.replaceState({}, '', '/?run=analysis-partial&node=business:7:claim');
+    const getBusinessPage = vi.fn(async (analysisId: string) => businessProjectionPage(
+      [nestedProblem], { analysisId },
+    ));
+
+    render(<App client={{ listRuns: async () => run, getBusinessPage }} />);
+
+    await waitFor(() => expect(getBusinessPage).toHaveBeenCalledWith('analysis-partial', undefined, expect.any(AbortSignal)));
+    expect(screen.getByRole('button', { name: /analysis-partial/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /analysis-test/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('complementary', { name: 'Trajectory inspector' })).toHaveTextContent('business:7:claim');
+    expect(new URLSearchParams(window.location.search).get('run')).toBe('analysis-partial');
+  });
+
+  it('reports a stale run link without selecting the same node in another run', async () => {
+    window.history.replaceState({}, '', '/?run=analysis-removed&node=business:7:claim');
+    const getBusinessPage = vi.fn(async (analysisId: string) => businessProjectionPage(
+      [nestedProblem], { analysisId },
+    ));
+
+    render(<App client={{ listRuns: async () => run, getBusinessPage }} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('analysis-removed');
+    expect(getBusinessPage).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /analysis-test/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(new URLSearchParams(window.location.search).get('run')).toBe('analysis-removed');
+
+    fireEvent.click(screen.getByRole('button', { name: /analysis-test/ }));
+    await waitFor(() => expect(getBusinessPage).toHaveBeenCalledWith('analysis-test', undefined, expect.any(AbortSignal)));
+    expect(new URLSearchParams(window.location.search).get('run')).toBe('analysis-test');
+    expect(new URLSearchParams(window.location.search).get('node')).toBeNull();
   });
 
   it('resolves a nested business node deep link to its exact inspector node while retaining the parent timeline turn', async () => {

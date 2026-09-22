@@ -165,6 +165,7 @@ export function App({ client = api }: { client?: AppClient }) {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [runListState, setRunListState] = useState<AsyncStateName>('loading');
   const [runListDiagnostic, setRunListDiagnostic] = useState<string | null>(null);
+  const [unavailableRunId, setUnavailableRunId] = useState<string | null>(null);
   const [runListAttempt, setRunListAttempt] = useState(0);
   const [pageAttempts, setPageAttempts] = useState<Record<WorkbenchView, number>>({ business: 0, agent: 0, context: 0, evidence: 0 });
   const [pageErrors, setPageErrors] = useState<Partial<Record<WorkbenchView, unknown>>>({});
@@ -246,7 +247,6 @@ export function App({ client = api }: { client?: AppClient }) {
   const contextDetailRequestKeyRef = useRef('');
   const executionRequestKeyRef = useRef('');
   const selectedEvidenceRequestKeyRef = useRef('');
-  const deepLinkNode = useRef(new URLSearchParams(window.location.search).get('node'));
 
   selectedRunIdRef.current = state.selectedRunId;
 
@@ -274,32 +274,38 @@ export function App({ client = api }: { client?: AppClient }) {
   };
 
   useEffect(() => {
-    const selectedNode = deepLinkNode.current;
-    if (!selectedNode) return;
-    const sequence = contextSequenceFromNodeId(selectedNode);
-    if (sequence !== null) {
-      setContextSequence(sequence);
-      dispatch({ type: 'view/selected', view: 'context' });
-    }
-    dispatch({ type: 'node/selected', nodeId: selectedNode });
-  }, []);
-
-  useEffect(() => {
-    if (!state.selectedNodeId) return;
+    if (runListState !== 'ready' || !state.selectedRunId) return;
     const url = new URL(window.location.href);
-    url.searchParams.set('node', state.selectedNodeId);
+    url.searchParams.set('run', state.selectedRunId);
+    if (state.selectedNodeId) url.searchParams.set('node', state.selectedNodeId);
+    else url.searchParams.delete('node');
     window.history.replaceState(null, '', url);
-  }, [state.selectedNodeId]);
+  }, [runListState, state.selectedNodeId, state.selectedRunId]);
 
   useEffect(() => {
     const controller = new AbortController();
     setRunListState('loading');
     setRunListDiagnostic(null);
     void client.listRuns(controller.signal).then(({ items }) => {
+      if (controller.signal.aborted) return;
+      const search = new URLSearchParams(window.location.search);
+      const linkedRunId = search.get('run');
+      const linkedNodeId = search.get('node');
+      const runId = linkedRunId
+        ? (items.some((item) => item.analysis_id === linkedRunId) ? linkedRunId : null)
+        : (items[0]?.analysis_id ?? null);
       setRuns(items);
       setRunListState(items.length === 0 ? 'empty' : 'ready');
-      dispatch({ type: 'run/selected', runId: items[0]?.analysis_id ?? null });
-      if (deepLinkNode.current) dispatch({ type: 'node/selected', nodeId: deepLinkNode.current });
+      setUnavailableRunId(linkedRunId && !runId ? linkedRunId : null);
+      dispatch({ type: 'run/selected', runId });
+      if (runId && linkedNodeId) {
+        const sequence = contextSequenceFromNodeId(linkedNodeId);
+        if (sequence !== null) {
+          setContextSequence(sequence);
+          dispatch({ type: 'view/selected', view: 'context' });
+        }
+        dispatch({ type: 'node/selected', nodeId: linkedNodeId });
+      }
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return;
       setRuns([]);
@@ -984,9 +990,15 @@ export function App({ client = api }: { client?: AppClient }) {
   return <div className="workbench-bootstrap" aria-label="Trajectory workbench" data-view={state.activeView}>
     <WorkbenchShell
       header={<RunHeader run={selectedRun} activeView={state.activeView} onViewSelect={(view) => dispatch({ type: 'view/selected', view })} theme={activeTheme} onThemeToggle={toggleTheme} />}
-      explorer={<AsyncState state={runListState} diagnostic={runListDiagnostic} onRetry={() => setRunListAttempt((attempt) => attempt + 1)}>
-        <RunExplorer runs={runs} selectedRunId={state.selectedRunId} problems={problems} focusedProblemId={state.focusedProblemId} onSelectRun={(runId) => dispatch({ type: 'run/selected', runId })} onFocusProblem={(problemId) => dispatch({ type: 'problem/focused', problemId })} />
-      </AsyncState>}
+      explorer={<>
+        {unavailableRunId && <div role="alert" data-testid="run-unavailable">Run {unavailableRunId} is unavailable. Choose an available run.</div>}
+        <AsyncState state={runListState} diagnostic={runListDiagnostic} onRetry={() => setRunListAttempt((attempt) => attempt + 1)}>
+          <RunExplorer runs={runs} selectedRunId={state.selectedRunId} problems={problems} focusedProblemId={state.focusedProblemId} onSelectRun={(runId) => {
+            setUnavailableRunId(null);
+            dispatch({ type: 'run/selected', runId });
+          }} onFocusProblem={(problemId) => dispatch({ type: 'problem/focused', problemId })} />
+        </AsyncState>
+      </>}
       timeline={<OverviewTimeline problems={problems} selectedTurnId={auditSelection?.turnId ?? focusedProblem?.turn_id ?? state.selectedNodeId} onSelectTurn={selectTurn} onFocusRange={(range) => dispatch({ type: 'timeline/focused', range })} />}
       content={content}
       inspector={<AuditInspector

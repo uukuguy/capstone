@@ -1,5 +1,32 @@
 import { expect, test } from '@playwright/test';
-import { mockWorkbenchApi } from './fixtures';
+import { businessPage, mockWorkbenchApi } from './fixtures';
+
+test('run and node deep links survive refresh and reject a removed run', async ({ page }) => {
+  await mockWorkbenchApi(page);
+  const summary = {
+    analysis_id: 'analysis-test', status: 'completed', source_kind: 'native',
+    started_at: '2026-08-14T08:18:22Z', turn_count: 9, last_sequence: 100_000,
+    replay_trusted_through: 100_000, diagnostic: null,
+  };
+  await page.route((url) => url.pathname === '/api/runs', (route) => route.fulfill({
+    json: { items: [summary, { ...summary, analysis_id: 'analysis-second' }] },
+  }));
+  await page.route((url) => url.pathname === '/api/runs/analysis-second/business', (route) => route.fulfill({
+    json: { ...businessPage(), analysis_id: 'analysis-second' },
+  }));
+
+  await page.goto('/?run=analysis-second&node=business:100000');
+  await expect(page.getByRole('button', { name: /analysis-second/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('audit-inspector')).toContainText('business:100000');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /analysis-second/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('audit-inspector')).toContainText('business:100000');
+
+  await page.goto('/?run=analysis-removed&node=business:100000');
+  await expect(page.getByRole('alert')).toContainText('analysis-removed');
+  await expect(page.getByRole('button', { name: /analysis-test/ })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: /analysis-second/ })).toHaveAttribute('aria-pressed', 'false');
+});
 
 test('desktop audit density shows ten causal rows and all three audit regions at 1440px', async ({ page }) => {
   await mockWorkbenchApi(page, 'ready', 10);

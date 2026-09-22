@@ -39,7 +39,11 @@ def serve_trajectory(
     )
     codec = CursorCodec.load_or_create(cache_root / "cursor.key")
     uvicorn.run(
-        create_trajectory_app(catalog, codec),
+        create_trajectory_app(
+            catalog, codec,
+            allowed_hosts=("127.0.0.1", "localhost", "::1"),
+            allowed_port=port,
+        ),
         host=host,
         port=port,
         log_config=None,

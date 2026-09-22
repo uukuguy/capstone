@@ -244,6 +244,7 @@ def create_test_app(
             cast(TrajectoryRunCatalog, catalog),
             codec,
             static_root=static_root or write_static_fixture(tmp_path),
+            allowed_hosts=("testserver",),
         ),
         catalog,
         codec,
@@ -609,7 +610,10 @@ def create_native_catalog_app(
     catalog = TrajectoryRunCatalog(runs_root, cache_root, ProjectionService(cache_root))
     from grid_agent.trajectory.api.app import create_trajectory_app
 
-    return create_trajectory_app(catalog, CursorCodec.load_or_create(cache_root / "cursor.key"), static_root=write_static_fixture(tmp_path)), refs
+    return create_trajectory_app(
+        catalog, CursorCodec.load_or_create(cache_root / "cursor.key"),
+        static_root=write_static_fixture(tmp_path), allowed_hosts=("testserver",),
+    ), refs
 
 
 def test_native_context_omission_is_explicit_and_survives_cached_projection(tmp_path: Path) -> None:
@@ -1100,6 +1104,7 @@ def test_native_api_reads_historical_v1_request_without_mutating_bytes(
         catalog,
         CursorCodec.load_or_create(cache_root / "cursor.key"),
         static_root=write_static_fixture(tmp_path),
+        allowed_hosts=("testserver",),
     )
     client = TestClient(app)
 
@@ -1266,6 +1271,36 @@ def test_every_response_has_browser_security_headers_without_cors(tmp_path: Path
     assert response.headers["referrer-policy"] == "no-referrer"
     assert response.headers["cache-control"] == "no-store"
     assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765", "[::1]:8765"])
+def test_local_host_headers_are_accepted(tmp_path: Path, host: str) -> None:
+    from grid_agent.trajectory.api.app import create_trajectory_app
+
+    _, catalog, codec = create_test_app(tmp_path)
+    app = create_trajectory_app(
+        cast(TrajectoryRunCatalog, catalog), codec,
+        allowed_hosts=("127.0.0.1", "localhost", "::1"), allowed_port=8765,
+    )
+
+    assert TestClient(app).get("/api/runs", headers={"host": host}).status_code == 200
+
+
+@pytest.mark.parametrize("host", ["untrusted.example:8765", "127.0.0.1:9999", "127.0.0.1.evil:8765"])
+def test_foreign_host_header_is_rejected_with_secured_envelope(tmp_path: Path, host: str) -> None:
+    from grid_agent.trajectory.api.app import create_trajectory_app
+
+    _, catalog, codec = create_test_app(tmp_path)
+    app = create_trajectory_app(
+        cast(TrajectoryRunCatalog, catalog), codec,
+        allowed_hosts=("127.0.0.1", "localhost", "::1"), allowed_port=8765,
+    )
+
+    response = TestClient(app).get("/api/runs", headers={"host": host})
+
+    assert response.status_code == 400
+    assert response.json() == {"code": "invalid_host", "message": "request host is not allowed"}
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_request_validation_errors_are_typed_and_secured(tmp_path: Path) -> None:

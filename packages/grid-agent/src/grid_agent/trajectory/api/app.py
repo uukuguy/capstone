@@ -87,8 +87,14 @@ def create_trajectory_app(
     cursor_codec: CursorCodec,
     *,
     static_root: Path | None = None,
+    allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost", "::1"),
+    allowed_port: int | None = None,
 ) -> FastAPI:
     """Create the fixed, local, read-only trajectory projection boundary."""
+    allowed_host_headers = {
+        f"{'[' + host + ']' if ':' in host else host}{':' + str(allowed_port) if allowed_port is not None else ''}".lower()
+        for host in allowed_hosts
+    }
     app = FastAPI(
         title="grid-agent trajectory",
         docs_url=None,
@@ -101,6 +107,8 @@ def create_trajectory_app(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        if request.headers.get("host", "").lower() not in allowed_host_headers:
+            return _api_error_response(400, "invalid_host", "request host is not allowed")
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
