@@ -95,6 +95,10 @@ Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些�
 make test-packages
 ```
 
+能力包作者可从 [Domain Pack 接入指南](docs/guides/domain-pack-onboarding.md) 开始，并运行
+`make test-domain-pack-conformance` 验证 inventory SDK、固定 HTTP 与通用 Pi 参考用例。
+HTTP adapter 仅用于测试；干净安装 smoke 会在 wheel 外复制它。
+
 `make test` 是不使用 Provider 的单元门禁：分别运行六个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。

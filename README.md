@@ -150,6 +150,11 @@ importing from source paths:
 make test-packages
 ```
 
+Pack authors can start with the [Domain Pack onboarding guide](docs/guides/domain-pack-onboarding.md)
+and run `make test-domain-pack-conformance` for the inventory SDK, fixed HTTP,
+and generic Pi reference tests. The HTTP adapter is test-only; clean-install
+smoke copies it outside the wheel.
+
 `make test` is the provider-free unit gate: it runs the six Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked

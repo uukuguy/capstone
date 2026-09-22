@@ -193,6 +193,10 @@ keep diagnostics on its diagnostic channel, and preserve its stated public
 output contract. It must not alter the Kernel merely to introduce a domain
 term, raw object, or legacy answer shape.
 
+The [Domain Pack onboarding guide](../guides/domain-pack-onboarding.md) maps
+these responsibilities to the inventory reference files and gives a stable
+provider-free conformance entry for SDK and fixed HTTP authority examples.
+
 ## Verified grid application
 
 `grid-static-analysis` is the first formal Capstone application. Its

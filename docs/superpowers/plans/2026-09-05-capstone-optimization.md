@@ -29,17 +29,24 @@
 
 只更新这两个受保护摘要，未放宽保护路径列表；基线提交 `8ca8b8e`，`make check-protected-paths` 已通过。
 
-### B：固定 HTTP authority 实验（进行中）
+### B：固定 HTTP authority 实验（完成）
 
 在 inventory 的测试装配中替换 provisioner/executor，连接测试进程启动的 `127.0.0.1` authority；其 URL、操作和凭据由可信装配固定，模型只调用既有 inventory 语义工具。实验保留现有 Pack 的状态、投影和答案合同，不将 HTTP 细节加入 Kernel，也不把测试服务作为第二正式业务领域。
 
-- [ ] 两轮脚本模型真实 HTTP 调用、分页完整性、current-run result/evidence、回放与报告故障回归。
-- [ ] 测试凭据仅由绑定的 credential lease 传给服务；结果、metadata、日志、工件不得出现凭据值。
-- [ ] 401/403、429、超时、schema 漂移、部分分页、分页期间版本变化、重复读取均得到明确结果；失败不可留下可准入的完整证据。
-- [ ] 将来源、请求关联、观测时间、版本、页完整性与响应摘要持久化为可离线核验 receipt；准确注明无服务端快照时的限制。
-- [ ] 跑 Pack/Kernel 应用回归、干净安装与仓库门禁，记录接入时间、定制代码量及是否必须修改 Kernel，再决定 C 阶段模板和 SPI 范围。
+- [x] 两轮脚本模型真实 HTTP 调用、分页完整性、current-run result/evidence、回放与报告故障回归。
+- [x] 测试凭据仅由绑定的 credential lease 传给服务；结果、metadata、日志、工件不得出现凭据值。
+- [x] 401/403、429、超时、schema 漂移、部分分页、分页期间版本变化、重复读取均得到明确结果；失败不可留下可准入的完整证据。
+- [x] 将来源、请求关联、观测时间、版本、页完整性与响应摘要持久化为可离线核验 receipt；准确注明无服务端快照时的限制。
+- [x] 跑 Pack/Kernel 应用回归、干净安装与仓库门禁，记录接入时间是否可测、定制代码量及是否必须修改 Kernel，再决定 C 阶段模板和 SPI 范围。
 
-测试变体提交 `2e38b4e` 修改受保护的 `packages/inventory-domain-pack` 测试树，摘要由 `9448b873c2dfc5e6afbd669a6ee37833bd60762d` 更新为 `6cfe336cd3959fa54b21163dad98cf9f924c059b`；保护清单不变。两轮及故障实验 11 项、inventory 全套 131 项、实验模块 Pyright 零错误已通过；干净安装与完整门禁待验证。
+测试变体提交 `2e38b4e` 修改受保护的 `packages/inventory-domain-pack` 测试树，摘要由 `9448b873c2dfc5e6afbd669a6ee37833bd60762d` 更新为 `6cfe336cd3959fa54b21163dad98cf9f924c059b`；应用级 HTTP 429 回归 `ae61ba4` 后摘要更新为 `d9036113285ade5bf6bfbfe59843f5895293039b` (`071cc2a`)，保护清单不变。实验 12 项、inventory 全套 131 项、实验模块 Pyright 零错误通过。主目录 `make doctor`、`make test`、`make test-e2e`（37）、`make validate`（24/24）、`make check-types`、`make check-package-boundaries`、`make validate-application`、`make test-packages` 均通过。实验结论、定制代码量、未测工时与限制见[报告](../../reviews/2026-09-22-http-authority-experiment.md)。
+
+### C：Pack 模板与 conformance 入口（完成）
+
+在现有 inventory 参考实现上提供[接入指南](../../guides/domain-pack-onboarding.md)和 `make test-domain-pack-conformance`，分别覆盖 SDK authority、固定 HTTP 实验、通用 Pi transport。公开包的精确兼容信息继续由各 `pyproject.toml`、npm manifest 和锁文件提供，并用 `make test-packages` 的干净安装矩阵实际核对；避免另存会漂移的版本清单。默认 Pi 仍未接通 HTTP，不把脚本模型实验包装成正式网络能力。
+
+- [x] 聚焦 conformance 命令 24 项通过；双语 README、架构引用和链接检查通过。
+- [x] 新作者可从指南定位全部 Pack 组件、两种 authority 示例、current-run/凭据要求及干净安装命令。
 
 ## 1. 状态、依据与授权边界
 

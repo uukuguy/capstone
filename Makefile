@@ -133,6 +133,10 @@ test-inventory-pi:
 
 test-inventory: test-inventory-service test-inventory-domain test-inventory-pi
 
+# Stable provider-free entry for authors copying the inventory Domain Pack pattern.
+test-domain-pack-conformance: check-package-boundaries
+	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_application_conformance.py packages/inventory-domain-pack/tests/test_http_authority_experiment.py packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
+
 test-domain-package: check-package-boundaries
 	uv run --project packages/grid-agent pytest packages/pandapower-domain-pack/tests -q
 
