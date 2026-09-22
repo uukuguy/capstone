@@ -90,7 +90,7 @@ class ScriptedInventory:
         callback(event, len(self.events))
 
 
-def run_application(tmp_path, turns, *, questions=None, report_shell=None, domain=None, overrides=None, after_invoke=None):
+def run_application(tmp_path, turns, *, questions=None, report_shell=None, domain=None, overrides=None, after_invoke=None, credentials=None, credential_scope=None):
     domain = domain or build_inventory_profile()
     registry = DomainRegistry()
     registry.register(domain.manifest.domain_id, domain.manifest.version, lambda: domain)
@@ -100,7 +100,7 @@ def run_application(tmp_path, turns, *, questions=None, report_shell=None, domai
             "inventory-conformance", "1.0", "Inventory conformance",
             "application-context/1.0", "application-result/1.0", "artifact/1.0", "agent_",
         ),
-        domains=(DomainBinding("inventory", domain.manifest.tool_name_prefix, domain, CredentialScope(), DataSharingPolicy()),),
+        domains=(DomainBinding("inventory", domain.manifest.tool_name_prefix, domain, credential_scope or CredentialScope(), DataSharingPolicy()),),
         output_renderer=JsonOutputRenderer(),
         application_policy=SimpleNamespace(load=lambda: "Use registered inventory capabilities."),
         report_shell=report_shell or GenericReportShell(),
@@ -115,7 +115,7 @@ def run_application(tmp_path, turns, *, questions=None, report_shell=None, domai
 
     application = AgentApplication(
         profile=profile, workspace=workspace, registry=registry,
-        credentials=EmptyCredentials(), provider_factory=provider_factory,
+        credentials=credentials or EmptyCredentials(), provider_factory=provider_factory,
     )
     request = ApplicationRequest(
         profile.manifest.application_id,

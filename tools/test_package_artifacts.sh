@@ -75,6 +75,57 @@ cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"
   PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/python" "$smoke_file"
 )
 
+# Exercise the HTTP experiment against installed wheels while keeping its
+# loopback adapter test-only and outside every published package artifact.
+cp packages/inventory-domain-pack/tests/http_authority_experiment.py "$run_dir/http_authority_experiment.py"
+cat > "$run_dir/http_authority_smoke.py" <<'PY'
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
+
+from http_authority_experiment import (
+    HttpInventoryArtifactAuthority,
+    HttpInventoryProvisioner,
+    LoopbackInventoryService,
+)
+from inventory_domain.profile import build_inventory_profile
+
+
+with LoopbackInventoryService() as service:
+    profile = replace(
+        build_inventory_profile(),
+        provisioner=HttpInventoryProvisioner(service.origin),
+        authority_factory=HttpInventoryArtifactAuthority,
+    )
+    binding = SimpleNamespace(
+        binding_id="inventory",
+        credential_scope=SimpleNamespace(
+            scope_id="inventory-http",
+            credential_names=("INVENTORY_API_TOKEN",),
+        ),
+    )
+    lease = SimpleNamespace(
+        scope_id="inventory-http",
+        credentials={"INVENTORY_API_TOKEN": service.token},
+    )
+    workspace = Path("http-authority-workspace")
+    endpoint = profile.provisioner.prepare(
+        binding=binding, workspace=workspace, credentials=lease,
+    )
+    opened = endpoint.executor.invoke("catalog.open", {"catalog_id": "warehouse-a"})
+    listed = endpoint.executor.invoke("asset.list", {"context_ref": opened["context_ref"]})
+    profile.create_authority(workspace).admit(
+        "asset.list", listed, tuple(listed["evidence_refs"]),
+    )
+    endpoint.close()
+    assert endpoint.closed and service.page_requests >= 2
+print("installed-http-authority-experiment: ok")
+PY
+(
+  cd "$run_dir"
+  "$venv_dir/bin/python" "$run_dir/http_authority_smoke.py"
+)
+
 inspect_npm_tarball() {
   local package_glob="$1"
   local tarball_count
