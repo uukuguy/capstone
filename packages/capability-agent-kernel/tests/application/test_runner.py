@@ -1168,6 +1168,7 @@ def test_runner_processes_questions_in_order_and_preserves_two_output_layers(
 
     assert outcome.result.schema == "capability-agent-output/1.0"
     assert outcome.result.core.status == "completed"
+    assert outcome.model_request_capture_status == "unavailable"
     assert tuple(outcome.result.domains) == ("alpha",)
     assert outcome.result.domains["alpha"].payload["completed_count"] == 2
     assert events.index("provider.start") > events.index("catalog.validate")
@@ -1988,6 +1989,26 @@ def test_default_runtime_descriptor_uses_controller_owned_run_channels(
     assert captured["trajectory_capture_state_path"] == channels.trajectory_capture_state_path
     assert captured["trajectory_allowed_refs_path"] == channels.trajectory_allowed_refs_path
     assert captured["trajectory_acks_path"] == channels.trajectory_acks_path
+
+
+def test_model_request_capture_status_distinguishes_configured_missing_and_partial_channels(
+    tmp_path: Path,
+) -> None:
+    complete = SimpleNamespace(
+        active_turn_path=tmp_path / "active.json",
+        trajectory_requests_path=tmp_path / "requests",
+        trajectory_capture_state_path=tmp_path / "state.json",
+        trajectory_allowed_refs_path=tmp_path / "refs.json",
+        trajectory_acks_path=tmp_path / "acks",
+    )
+    missing = SimpleNamespace(**{name: None for name in vars(complete)})
+    partial = SimpleNamespace(**{**vars(complete), "trajectory_acks_path": None})
+    missing_active_turn = SimpleNamespace(**{**vars(complete), "active_turn_path": None})
+
+    assert runner_module._capture_status_for_channels(complete) == "enabled"
+    assert runner_module._capture_status_for_channels(missing) == "disabled"
+    assert runner_module._capture_status_for_channels(partial) == "unavailable"
+    assert runner_module._capture_status_for_channels(missing_active_turn) == "unavailable"
 
 
 def test_default_runtime_descriptor_materializes_prepared_domain_resources(

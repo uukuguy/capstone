@@ -194,6 +194,17 @@ class RuntimeDescriptor:
                     raise RuntimeDescriptorError(f"{name} is outside workspace_path")
                 _reject_existing_symlink(path, name)
                 object.__setattr__(self, name, path)
+        capture_paths = (
+            self.trajectory_requests_path,
+            self.trajectory_capture_state_path,
+            self.trajectory_allowed_refs_path,
+            self.trajectory_acks_path,
+        )
+        if any(path is not None for path in capture_paths) and (
+            any(path is None for path in capture_paths)
+            or self.active_turn_path is None
+        ):
+            raise RuntimeDescriptorError("model request capture channels must be complete")
         if not isinstance(self.application_id, str) or not self.application_id:
             raise RuntimeDescriptorError("application_id must be non-empty text")
         if not isinstance(self.run_id, str) or not self.run_id:

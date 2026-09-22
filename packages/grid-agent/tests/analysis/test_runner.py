@@ -348,6 +348,7 @@ def test_runner_records_context_injection_after_artifact_write(
         event for event in prefix.events if event.event_type == "context.injected"
     ]
     assert outcome.status == "completed", outcome.error
+    assert outcome.model_request_capture_status == "enabled"
     assert prefix.failure is None
     assert prefix.events[-1].event_type == "analysis.completed"
     assert injected

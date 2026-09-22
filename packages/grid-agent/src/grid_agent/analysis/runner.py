@@ -38,6 +38,7 @@ class AnalysisOutcome:
     completed_turns: int
     total_turns: int
     error: str | None = None
+    model_request_capture_status: Literal["enabled", "disabled", "unavailable"] = "unavailable"
 
 
 ManifestStatus = Literal["completed", "failed"]
@@ -440,6 +441,7 @@ class AnalysisRunner:
             completed_turns=len(self._store.snapshot.turns),
             total_turns=len(request.instructions),
             error=error,
+            model_request_capture_status="enabled" if self._capture is not None else "disabled",
         )
 
 

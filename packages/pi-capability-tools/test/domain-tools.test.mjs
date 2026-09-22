@@ -163,6 +163,13 @@ test("runtime v1 confines domain-owned paths to the binding workspace", () => {
 });
 
 test("runtime v1 confines every optional core path to the binding workspace", () => {
+  const completeCapture = {
+    activeTurnPath: "/tmp/run/domains/inventory/active.json",
+    trajectoryRequestsPath: "/tmp/run/domains/inventory/requests",
+    trajectoryCaptureStatePath: "/tmp/run/domains/inventory/capture.json",
+    trajectoryAllowedRefsPath: "/tmp/run/domains/inventory/refs.json",
+    trajectoryAcksPath: "/tmp/run/domains/inventory/acks",
+  };
   for (const field of [
     "activeTurnPath",
     "analysisContextViewPath",
@@ -175,11 +182,42 @@ test("runtime v1 confines every optional core path to the binding workspace", ()
       () =>
         validateRuntimeDescriptor({
           ...runtimeV1,
-          core: { ...runtimeV1.core, [field]: `/tmp/outside/${field}` },
+          core: { ...runtimeV1.core, ...completeCapture, [field]: `/tmp/outside/${field}` },
         }),
       new RegExp(`${field}.*outside.*workspacePath`),
     );
   }
+});
+
+test("runtime v1 rejects partial model request capture channels", () => {
+  assert.throws(
+    () => validateRuntimeDescriptor({
+      ...runtimeV1,
+      core: {
+        ...runtimeV1.core,
+        trajectoryRequestsPath: "/tmp/run/domains/inventory/requests",
+      },
+    }),
+    /capture channels/,
+  );
+  const capture = {
+    trajectoryRequestsPath: "/tmp/run/domains/inventory/requests",
+    trajectoryCaptureStatePath: "/tmp/run/domains/inventory/capture.json",
+    trajectoryAllowedRefsPath: "/tmp/run/domains/inventory/refs.json",
+    trajectoryAcksPath: "/tmp/run/domains/inventory/acks",
+  };
+  assert.throws(
+    () => validateRuntimeDescriptor({ ...runtimeV1, core: { ...runtimeV1.core, ...capture } }),
+    /capture channels/,
+  );
+  assert.doesNotThrow(() => validateRuntimeDescriptor({
+    ...runtimeV1,
+    core: {
+      ...runtimeV1.core,
+      activeTurnPath: "/tmp/run/domains/inventory/active.json",
+      ...capture,
+    },
+  }));
 });
 
 test("runtime v1 separates application core paths from the domain workspace", () => {
@@ -724,6 +762,9 @@ test("generic source has no product-specific protocol, executable, prefix, or en
   const sourceRoot = dirname(fileURLToPath(import.meta.url)).replace(/[/\\]test$/, "/src");
   const source = `${await readFile(join(sourceRoot, "domain-tools.mjs"), "utf8")}\n${await readFile(
     join(sourceRoot, "model-request-capture.mjs"),
+    "utf8",
+  )}\n${await readFile(
+    join(sourceRoot, "process-transport.mjs"),
     "utf8",
   )}`;
 

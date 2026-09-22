@@ -349,6 +349,8 @@ def test_run_forwards_legacy_provider_options_to_single_run_application(
     captured: dict[str, object] = {}
 
     class FakeSingleRunAdapter:
+        model_request_capture_status = "unavailable"
+
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
 
@@ -508,6 +510,8 @@ def test_run_selects_builtin_profile_before_pi_launch(
     captured: dict[str, object] = {}
 
     class FakeSingleRunAdapter:
+        model_request_capture_status = "unavailable"
+
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
 
@@ -681,7 +685,7 @@ def test_analysis_cli_emits_one_envelope_and_uses_self_contained_paths(
     result = runner.invoke(app, ["analysis", "--instructions", str(instructions)])
 
     assert result.exit_code == 0
-    assert result.stderr == ""
+    assert result.stderr == "model request capture: unavailable\n"
     assert len(result.stdout.splitlines()) == 1
     envelope = AnswerEnvelope.model_validate_json(result.stdout)
     assert set(json.loads(result.stdout)) == {"question_id", "answer_output"}

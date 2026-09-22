@@ -93,6 +93,17 @@ make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 
 `make install-pi` 遇到含旧补丁或其他本地修改的托管源码时，会将整个目录保留为 `.grid-agent/runtime/pi/source-preserved-<id>` 后重新安装，不删除旧源码或认证状态。新安装未完成时不启用 active marker。`make test-pi-capture-runtime` 使用真实已构建 SDK 与两套扩展、仅替换模型传输端，离线验证先持久化再调用及捕获失败阻断；它已纳入 `check-integration` / `check-release`。
 
+实际进入应用或连续分析运行时，CLI 在 stderr 输出 `model request capture: <status>`，不改变 stdout 答案封装。`enabled` 表示本次运行已配置完整捕获通道，`disabled` 表示没有配置通道，`unavailable` 表示使用注入的模型 transport 或在运行准备失败时无法声明捕获状态。Python/JS descriptor 均会预先拒绝不完整的通道组合。`enabled` 只说明配置，须检查当前 run 的 request 工件才能确认某次模型请求已被持久化。当前默认入口矩阵如下：
+
+| 入口 | 默认状态 | 原因 |
+| --- | --- | --- |
+| `analysis` / `report` | `enabled` | 原生轨迹捕获及提交确认通道由连续分析装配。 |
+| `analysis-generic` | `disabled` | 默认通用 Application 尚未配置 canonical request capture。 |
+| `run` 的模型路径 | `disabled` | 单题兼容入口复用通用 Application。 |
+| 注入脚本模型的测试装配 | `unavailable` | 没有可观察的真实 Pi 请求捕获配置。 |
+
+`ApplicationOutcome.model_request_capture_status` 和 `AnalysisOutcome.model_request_capture_status` 向程序调用方提供同一诊断。真实捕获失败继续由现有 Pi/轨迹完整性路径阻断；诊断字段本身不作为证据，也不改变答案成功条件。
+
 ## 连续分析报告
 
 需要按顺序执行 TASK 指令集并生成可复核报告时，使用 `make analysis`：

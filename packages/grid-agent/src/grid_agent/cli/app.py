@@ -260,6 +260,10 @@ class _ProgressReporter:
     def completed(self, answer: str) -> None:
         self._write(f"已完成，输出摘要: {_summary(answer)}")
 
+    def capture_status(self, status: str) -> None:
+        selected = status if status in {"enabled", "disabled", "unavailable"} else "unavailable"
+        self._write(f"model request capture: {selected}")
+
     def _write(self, message: str) -> None:
         typer.echo(f"[{time.monotonic() - self.started_at:6.1f}s] {message}", err=True)
 
@@ -344,6 +348,7 @@ def _analysis_report_envelope(outcome: AnalysisOutcome, project_root: Path) -> A
 
 
 def _emit_analysis_outcome(outcome: AnalysisOutcome, project_root: Path) -> None:
+    typer.echo(f"model request capture: {outcome.model_request_capture_status}", err=True)
     envelope = _analysis_report_envelope(outcome, project_root)
     typer.echo(
         build_grid_v1_0_1_compatibility_adapter().render(
@@ -632,6 +637,7 @@ def analysis_generic(
             environment=runtime_environment,
             semantic_event_observer=progress.on_event,
         )
+        progress.capture_status(outcome.model_request_capture_status)
         if outcome.status != "completed" or not isinstance(outcome.rendered, str):
             message = getattr(outcome, "error", None) or "generic application failed"
             typer.echo(f"generic application failed: {message}", err=True)
@@ -665,7 +671,7 @@ def run(
         )
         progress = _ProgressReporter(request.question)
         if not offline:
-            answer = SingleRunAdapter(
+            adapter = SingleRunAdapter(
                 project_paths=project_paths,
                 request=request,
                 provider=provider,
@@ -676,7 +682,9 @@ def run(
                     _runtime_environment(project_paths.root)
                 ),
                 semantic_event_observer=progress.on_event,
-            ).run()
+            )
+            answer = adapter.run()
+            progress.capture_status(adapter.model_request_capture_status)
             progress.completed(answer)
             envelope = AnswerEnvelope(question_id=request.question_id, answer_output=answer)
             typer.echo(

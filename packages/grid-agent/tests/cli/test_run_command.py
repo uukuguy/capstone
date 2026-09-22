@@ -35,7 +35,10 @@ def test_analysis_generic_emits_the_validated_composite_result(
 
     def run_generic(application_id: str, questions: tuple[str, ...], **kwargs: object) -> object:
         observed.update(application_id=application_id, questions=questions, kwargs=kwargs)
-        return SimpleNamespace(status="completed", rendered=rendered, result=object())
+        return SimpleNamespace(
+            status="completed", rendered=rendered, result=object(),
+            model_request_capture_status="unavailable",
+        )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cli_module, "run_generic_application", run_generic)
@@ -81,6 +84,7 @@ def test_analysis_generic_emits_the_validated_composite_result(
     assert kwargs["provider_catalog"] is generic_catalog
     assert "question_id" not in result.stdout
     assert "analysis-generic" in result.stderr
+    assert "model request capture: unavailable" in result.stderr
 
 
 def test_analysis_generic_adapts_product_llm_configuration_for_generic_runtime(
@@ -93,7 +97,10 @@ def test_analysis_generic_adapts_product_llm_configuration_for_generic_runtime(
 
     def run_generic(*_args: object, **kwargs: object) -> object:
         observed.update(kwargs)
-        return SimpleNamespace(status="completed", rendered="{}\n", result=object())
+        return SimpleNamespace(
+            status="completed", rendered="{}\n", result=object(),
+            model_request_capture_status="unavailable",
+        )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cli_module, "run_generic_application", run_generic)
@@ -145,6 +152,7 @@ def test_analysis_generic_never_projects_failed_run_to_legacy_envelope(
             status="failed",
             rendered=None,
             error="ApplicationConfigurationError: application execution failed",
+            model_request_capture_status="unavailable",
         ),
     )
     monkeypatch.setattr(cli_module, "load_questions", lambda _path: ("question",))
@@ -257,3 +265,4 @@ def test_analysis_generic_uses_the_real_runner_and_pandapower_output_contract(
     assert "question_id" not in result.stdout
     assert "generic application failed" not in result.stderr
     assert "工具开始: grid_run" in result.stderr
+    assert "model request capture: unavailable" in result.stderr

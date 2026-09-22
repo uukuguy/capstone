@@ -156,6 +156,7 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         )
 
         assert completed.returncode == 0, completed.stderr
+        assert "model request capture: disabled" in completed.stderr
         envelope = AnswerEnvelope.model_validate_json(completed.stdout)
         assert envelope.answer_output == "线路11连接母线6与11。"
         assert not (runs_path / "answer-audit.json").exists()
@@ -222,6 +223,7 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         )
 
         assert report.returncode == 0, report.stderr
+        assert "model request capture: enabled" in report.stderr
         report_envelope = AnswerEnvelope.model_validate_json(report.stdout)
         report_root = ROOT / "runs" / report_envelope.question_id
         report_path = ROOT / report_envelope.answer_output

@@ -78,6 +78,7 @@ from capability_agent.trajectory.artifacts import (
 
 
 ApplicationStatus = Literal["completed", "failed"]
+ModelRequestCaptureStatus = Literal["enabled", "disabled", "unavailable"]
 
 _PROVIDER_FACTORY_KEYWORDS = (
     "request",
@@ -140,6 +141,7 @@ class ApplicationOutcome:
     completed_questions: int
     total_questions: int
     error: str | None = None
+    model_request_capture_status: ModelRequestCaptureStatus = "unavailable"
 
     @property
     def output(self) -> object | None:
@@ -521,6 +523,7 @@ class AgentApplication:
         report_path: Path | None = None
         transport_ready = False
         failure: str | None = None
+        capture_status: ModelRequestCaptureStatus = "unavailable"
         selected_output_contracts: Mapping[str, _SelectedOutputContract] = {}
         workspace = self.workspace
         store = self.store
@@ -545,6 +548,8 @@ class AgentApplication:
             self._hook("catalog_validation")
             projector = self._ensure_projector(store, catalog, bindings)
             selected_output_contracts = self._validate_selected_output_contracts(bindings)
+            default_pi = self.provider is None and self.provider_factory is None
+            capture_channels = self.runtime_paths if self.runtime_paths is not None else controller
             transport = self._ensure_provider(
                 request=request,
                 prepared=prepared,
@@ -555,6 +560,8 @@ class AgentApplication:
             )
             if transport is None:
                 raise ApplicationConfigurationError("provider transport is not configured")
+            if default_pi:
+                capture_status = _capture_status_for_channels(capture_channels)
             transport_ready = True
             transport.start()
             for ordinal, question in enumerate(request.questions, start=1):
@@ -682,6 +689,7 @@ class AgentApplication:
                 report_path=report_path,
                 completed_questions=len(completed_answers),
                 total_questions=len(request.questions),
+                model_request_capture_status=capture_status,
             )
         except Exception as exc:
             failure = _safe_failure(exc)
@@ -715,6 +723,7 @@ class AgentApplication:
                 completed_questions=len(completed_answers),
                 total_questions=len(request.questions),
                 error=failure,
+                model_request_capture_status=capture_status,
             )
         finally:
             primary_failure = sys.exc_info()[1]
@@ -1608,6 +1617,26 @@ def _controller_channel_path(value: object, name: str) -> Path | None:
     if isinstance(channel, Path):
         return channel
     raise ApplicationConfigurationError(f"runtime channel {name!r} must be a path")
+
+
+def _capture_status_for_channels(value: object) -> ModelRequestCaptureStatus:
+    """Describe configured capture channels, not successful Provider I/O."""
+    channels = tuple(
+        getattr(value, name, None)
+        for name in (
+            "trajectory_requests_path",
+            "trajectory_capture_state_path",
+            "trajectory_allowed_refs_path",
+            "trajectory_acks_path",
+        )
+    )
+    if all(isinstance(channel, Path) for channel in channels) and isinstance(
+        getattr(value, "active_turn_path", None), Path
+    ):
+        return "enabled"
+    if all(channel is None for channel in channels):
+        return "disabled"
+    return "unavailable"
 
 
 def _prepare_domain_output_builder(value: object) -> DomainOutputBuilder:

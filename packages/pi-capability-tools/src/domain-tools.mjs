@@ -54,6 +54,12 @@ const CORE_KEYS = new Set([
   "trajectoryAllowedRefsPath",
   "trajectoryAcksPath",
 ]);
+const CAPTURE_CHANNEL_KEYS = [
+  "trajectoryRequestsPath",
+  "trajectoryCaptureStatePath",
+  "trajectoryAllowedRefsPath",
+  "trajectoryAcksPath",
+];
 const DOMAIN_KEYS = new Set([
   "bindingId",
   "protocol",
@@ -327,6 +333,12 @@ function validateRuntimeV1(value, options = {}) {
     if (value.core[key] !== undefined) {
       core[key] = requireAbsolutePath(value.core[key], `core ${key}`);
     }
+  }
+  if (CAPTURE_CHANNEL_KEYS.some((key) => core[key] !== undefined) && (
+    core.activeTurnPath === undefined
+    || CAPTURE_CHANNEL_KEYS.some((key) => core[key] === undefined)
+  )) {
+    throw new TypeError("runtime descriptor capture channels must be complete");
   }
 
   if (!Array.isArray(value.domains) || value.domains.length !== 1) {

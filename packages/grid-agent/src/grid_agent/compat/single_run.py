@@ -56,6 +56,7 @@ class SingleRunAdapter:
         self._observe = semantic_event_observer
         self._deterministic_offline = deterministic_offline
         self._build = application_builder
+        self.model_request_capture_status = "unavailable"
 
     def run(self) -> str:
         """Return only the sidecar-bound answer after compatibility publication."""
@@ -85,6 +86,12 @@ class SingleRunAdapter:
                 questions=(self._request.question,),
                 run_id=self._request.question_id,
             )
+        )
+        capture_status = getattr(outcome, "model_request_capture_status", None)
+        self.model_request_capture_status = (
+            capture_status
+            if capture_status in {"enabled", "disabled", "unavailable"}
+            else "unavailable"
         )
         if getattr(outcome, "status", None) != "completed":
             detail = getattr(outcome, "error", None)

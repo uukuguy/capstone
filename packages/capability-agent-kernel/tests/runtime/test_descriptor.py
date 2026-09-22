@@ -76,6 +76,31 @@ def test_descriptor_rejects_schema_override_reserved_and_secret_extensions(
         RuntimeDescriptor(**common, extra={"access_token": "secret"})
 
 
+def test_descriptor_rejects_partial_model_request_capture_channels(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeDescriptorError, match="capture channels"):
+        RuntimeDescriptor(
+            binding_id="alpha",
+            workspace_path=tmp_path,
+            executable="domainctl",
+            trajectory_requests_path=tmp_path / "requests",
+        )
+    capture_channels = {
+        "trajectory_requests_path": tmp_path / "requests",
+        "trajectory_capture_state_path": tmp_path / "capture.json",
+        "trajectory_allowed_refs_path": tmp_path / "refs.json",
+        "trajectory_acks_path": tmp_path / "acks",
+    }
+    with pytest.raises(RuntimeDescriptorError, match="capture channels"):
+        RuntimeDescriptor(
+            binding_id="alpha", workspace_path=tmp_path, executable="domainctl",
+            **capture_channels,
+        )
+    RuntimeDescriptor(
+        binding_id="alpha", workspace_path=tmp_path, executable="domainctl",
+        active_turn_path=tmp_path / "active.json", **capture_channels,
+    )
+
+
 def test_descriptor_rejects_symlinked_parent_before_writing(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
