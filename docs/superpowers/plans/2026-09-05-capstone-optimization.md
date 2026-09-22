@@ -8,6 +8,17 @@
 
 **Tech Stack:** 现有 Python/Pydantic、Pi JavaScript、React/TypeScript、pytest、Node test、Vitest/Playwright、uv、Make。继续使用项目锁定版本；依赖升级仅限 OP-06 的显式范围。
 
+## 2026-09-22 评审修复与保护基线
+
+本次评审确认 F01–F07，先修复有复现用例的可靠性、安全路径和深链接问题；后续 HTTP authority 实验与能力包接入成本测量仍待开展。F01 提交 `5dd0bd9`，F02 提交 `3e0614a`。两项都先写失败测试再修复，`make test`、`make test-e2e`（37 项）与定向测试通过；`make validate` 在更新保护摘要后复跑。
+
+| 受保护路径 | 原 HEAD tree | 新 HEAD tree | 变更原因 |
+| --- | --- | --- | --- |
+| `packages/grid-simulator` | `75b78c2ed13f73681e4631595fa1d806bb02435a` | `00a8ad5fe7c8f60adc96ef3b62008f92995eef89` | F02 在 authority 内校验 dataset 条件并返回类型化协议错误；真实 gridctl 测试覆盖单 JSON 响应。 |
+| `packages/inventory-domain-pack` | `30aa2c7a29cacca95c5567499665e3857dfcc921` | `9448b873c2dfc5e6afbd669a6ee37833bd60762d` | F01 增加两轮真实 authority 应用回归，证明提交后清理失败仍保留完成计数。 |
+
+只更新这两个受保护摘要，未放宽保护路径列表；`make check-protected-paths` 已通过。
+
 ## 1. 状态、依据与授权边界
 
 ### 当前修正：评估支线不得否决主线（替代下述历史 limited→未完成方案）
