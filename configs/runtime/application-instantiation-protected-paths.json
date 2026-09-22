@@ -10,7 +10,7 @@
   "protected_path_digests": {
     "configs/capabilities/pandapower-3.4.0-static-analysis.json": "4300fc12b1802a7a7bdf4d592bea842e6ef567d6",
     "packages/grid-simulator": "00a8ad5fe7c8f60adc96ef3b62008f92995eef89",
-    "packages/inventory-domain-pack": "9448b873c2dfc5e6afbd669a6ee37833bd60762d",
+    "packages/inventory-domain-pack": "6cfe336cd3959fa54b21163dad98cf9f924c059b",
     "packages/inventory-reference-service": "3267711cc30e5c2dc3ff1e0e630b76f21a0d030a",
     "validation/questions/task.md.txt": "c1b3e3a96474904474fd0fd1c249f044ae442430",
     "validation/questions/test.md.txt": "09217e05d49a69e50d886a86b86e5a1c18ea615e"

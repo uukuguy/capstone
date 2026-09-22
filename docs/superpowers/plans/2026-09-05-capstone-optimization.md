@@ -29,6 +29,18 @@
 
 只更新这两个受保护摘要，未放宽保护路径列表；基线提交 `8ca8b8e`，`make check-protected-paths` 已通过。
 
+### B：固定 HTTP authority 实验（进行中）
+
+在 inventory 的测试装配中替换 provisioner/executor，连接测试进程启动的 `127.0.0.1` authority；其 URL、操作和凭据由可信装配固定，模型只调用既有 inventory 语义工具。实验保留现有 Pack 的状态、投影和答案合同，不将 HTTP 细节加入 Kernel，也不把测试服务作为第二正式业务领域。
+
+- [ ] 两轮脚本模型真实 HTTP 调用、分页完整性、current-run result/evidence、回放与报告故障回归。
+- [ ] 测试凭据仅由绑定的 credential lease 传给服务；结果、metadata、日志、工件不得出现凭据值。
+- [ ] 401/403、429、超时、schema 漂移、部分分页、分页期间版本变化、重复读取均得到明确结果；失败不可留下可准入的完整证据。
+- [ ] 将来源、请求关联、观测时间、版本、页完整性与响应摘要持久化为可离线核验 receipt；准确注明无服务端快照时的限制。
+- [ ] 跑 Pack/Kernel 应用回归、干净安装与仓库门禁，记录接入时间、定制代码量及是否必须修改 Kernel，再决定 C 阶段模板和 SPI 范围。
+
+测试变体提交 `2e38b4e` 修改受保护的 `packages/inventory-domain-pack` 测试树，摘要由 `9448b873c2dfc5e6afbd669a6ee37833bd60762d` 更新为 `6cfe336cd3959fa54b21163dad98cf9f924c059b`；保护清单不变。两轮及故障实验 11 项、inventory 全套 131 项、实验模块 Pyright 零错误已通过；干净安装与完整门禁待验证。
+
 ## 1. 状态、依据与授权边界
 
 ### 当前修正：评估支线不得否决主线（替代下述历史 limited→未完成方案）
