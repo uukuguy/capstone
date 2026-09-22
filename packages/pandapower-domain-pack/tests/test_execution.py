@@ -41,6 +41,84 @@ def test_executor_uses_json_stdin_and_clean_stdout(
     assert executor.last_diagnostics == "diagnostic\n"
 
 
+def test_executor_rejects_success_response_when_process_exits_nonzero(tmp_path: Path) -> None:
+    executable = _write_executable(
+        tmp_path / "gridctl",
+        "import json,sys\n"
+        "request=json.loads(sys.stdin.read())\n"
+        "print(json.dumps({'protocol':'grid-capability','protocol_version':'1.0',"
+        "'request_id':request['request_id'],'ok':True,'result':{}}), flush=True)\n"
+        "sys.exit(7)\n",
+    )
+
+    with pytest.raises(GridctlClientError, match="process exited unsuccessfully"):
+        GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
+
+
+def test_executor_preserves_correlated_capability_error_on_nonzero_exit(tmp_path: Path) -> None:
+    executable = _write_executable(
+        tmp_path / "gridctl",
+        "import json,sys\n"
+        "request=json.loads(sys.stdin.read())\n"
+        "print(json.dumps({'protocol':'grid-capability','protocol_version':'1.0',"
+        "'request_id':request['request_id'],'ok':False,'error':{'code':'invalid_arguments','message':'bad input'}}), flush=True)\n"
+        "sys.exit(7)\n",
+    )
+
+    with pytest.raises(SimulatorCapabilityError) as raised:
+        GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
+    assert raised.value.error["code"] == "invalid_arguments"
+
+
+def test_executor_rejects_success_response_when_process_is_signaled(tmp_path: Path) -> None:
+    executable = _write_executable(
+        tmp_path / "gridctl",
+        "import json,os,signal,sys\n"
+        "request=json.loads(sys.stdin.read())\n"
+        "print(json.dumps({'protocol':'grid-capability','protocol_version':'1.0',"
+        "'request_id':request['request_id'],'ok':True,'result':{}}), flush=True)\n"
+        "os.kill(os.getpid(), signal.SIGTERM)\n",
+    )
+
+    with pytest.raises(GridctlClientError, match="process exited unsuccessfully"):
+        GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
+
+
+def test_executor_rejects_malformed_json_stdout(tmp_path: Path) -> None:
+    executable = _write_executable(tmp_path / "gridctl", "print('{')\n")
+
+    with pytest.raises(GridctlClientError, match="non-JSON stdout"):
+        GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr", "both"])
+def test_executor_limits_process_output_before_buffering(
+    tmp_path: Path, stream: str
+) -> None:
+    executable = _write_executable(
+        tmp_path / "gridctl",
+        "import json,sys,time\n"
+        "request=json.loads(sys.stdin.read())\n"
+        f"stream={stream!r}\n"
+        "if stream in ('stderr','both'): sys.stderr.write('x'*8192); sys.stderr.flush()\n"
+        "if stream in ('stdout','both'): sys.stdout.write('x'*8192); sys.stdout.flush()\n"
+        "if stream == 'stderr': print(json.dumps({'protocol':'grid-capability',"
+        "'protocol_version':'1.0','request_id':request['request_id'],'ok':True,'result':{}}), flush=True)\n"
+        "time.sleep(0.2)\n",
+    )
+    executor = GridctlExecutor(
+        executable=executable,
+        workspace=tmp_path,
+        timeout_seconds=2,
+        max_output_bytes=1024,
+    )
+
+    with pytest.raises(GridctlClientError, match="output limit"):
+        executor.invoke("model.list", {})
+
+    assert len(executor.last_diagnostics.encode("utf-8")) <= 1024
+
+
 def test_executor_preserves_exact_request_shape(tmp_path: Path) -> None:
     request_path = tmp_path / "request.json"
     executable = _write_executable(

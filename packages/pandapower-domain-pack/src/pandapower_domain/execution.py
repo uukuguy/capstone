@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 from collections.abc import Mapping
 from pathlib import Path
+from typing import BinaryIO
 from uuid import uuid4
 
 
@@ -84,6 +86,9 @@ class SimulatorCapabilityError(GridctlClientError):
         self.error = error
 
 
+DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+
+
 class GridctlExecutor:
     """Invoke the fixed gridctl capability protocol."""
 
@@ -93,15 +98,19 @@ class GridctlExecutor:
         executable: Path,
         workspace: Path,
         timeout_seconds: float = 60,
+        max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
         environ: Mapping[str, str] | None = None,
         environment: Mapping[str, str] | None = None,
     ) -> None:
         if environ is not None and environment is not None:
             raise TypeError("provide only one of environ or environment")
+        if max_output_bytes <= 0:
+            raise ValueError("max_output_bytes must be positive")
         base_environment = environment if environment is not None else environ
         self.executable = Path(executable)
         self.workspace = Path(workspace)
         self.timeout_seconds = timeout_seconds
+        self.max_output_bytes = int(max_output_bytes)
         self._environment = sanitize_environment(
             os.environ if base_environment is None else base_environment
         )
@@ -116,23 +125,16 @@ class GridctlExecutor:
             "capability": capability,
             "arguments": arguments,
         }
+        request_bytes = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
+        self.last_diagnostics = ""
+        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes)
+        self.last_diagnostics = stderr[:4096].decode("utf-8", errors="ignore")
+        if exceeded:
+            raise GridctlClientError("Grid simulator process output limit exceeded")
         try:
-            completed = subprocess.run(
-                [str(self.executable), "request", "--workspace", str(self.workspace)],
-                input=json.dumps(request, separators=(",", ":")) + "\n",
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                shell=False,
-                check=False,
-                env=self._environment,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise GridctlClientError(
-                "Grid simulator process could not complete"
-            ) from exc
-        self.last_diagnostics = completed.stderr
-        lines = completed.stdout.splitlines()
+            lines = stdout.decode("utf-8").splitlines()
+        except UnicodeDecodeError as exc:
+            raise GridctlClientError("Grid simulator returned invalid UTF-8 stdout") from exc
         if len(lines) != 1:
             raise GridctlClientError("Grid simulator returned an invalid stdout protocol")
         try:
@@ -152,10 +154,79 @@ class GridctlExecutor:
             if isinstance(error, dict):
                 raise SimulatorCapabilityError(error)
             raise SimulatorOperationError("Grid simulator operation failed")
+        if returncode != 0:
+            raise GridctlClientError("Grid simulator process exited unsuccessfully")
         result = response.get("result")
         if not isinstance(result, dict):
             raise GridctlClientError("Grid simulator response has no result object")
         return result
+
+    def _run_bounded(self, request_bytes: bytes) -> tuple[int, bytes, bytes, bool]:
+        try:
+            process = subprocess.Popen(
+                [str(self.executable), "request", "--workspace", str(self.workspace)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                env=self._environment,
+            )
+        except OSError as exc:
+            raise GridctlClientError("Grid simulator process could not complete") from exc
+
+        stdout_chunks: list[bytes] = []
+        stderr_chunks: list[bytes] = []
+        output_lock = threading.Lock()
+        output_bytes = 0
+        exceeded = threading.Event()
+
+        def read_stream(stream: BinaryIO, chunks: list[bytes]) -> None:
+            nonlocal output_bytes
+            while data := stream.read(8192):
+                with output_lock:
+                    remaining = self.max_output_bytes - output_bytes
+                    if remaining > 0:
+                        accepted = data[:remaining]
+                        chunks.append(accepted)
+                        output_bytes += len(accepted)
+                    if len(data) > remaining:
+                        exceeded.set()
+                        try:
+                            process.kill()
+                        except OSError:
+                            pass
+                        break
+
+        def write_request() -> None:
+            assert process.stdin is not None
+            try:
+                process.stdin.write(request_bytes)
+                process.stdin.flush()
+            except OSError:
+                pass
+            finally:
+                process.stdin.close()
+
+        assert process.stdout is not None and process.stderr is not None
+        threads = [
+            threading.Thread(target=read_stream, args=(process.stdout, stdout_chunks)),
+            threading.Thread(target=read_stream, args=(process.stderr, stderr_chunks)),
+            threading.Thread(target=write_request),
+        ]
+        for thread in threads:
+            thread.start()
+        try:
+            returncode = process.wait(timeout=self.timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            process.wait()
+            raise GridctlClientError("Grid simulator process could not complete") from exc
+        finally:
+            for thread in threads:
+                thread.join()
+            process.stdout.close()
+            process.stderr.close()
+        return returncode, b"".join(stdout_chunks), b"".join(stderr_chunks), exceeded.is_set()
 
     def call(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
         return self.invoke(capability, arguments)

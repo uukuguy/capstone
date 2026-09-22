@@ -801,6 +801,38 @@ test("transport caps stdout bytes with a structured error", async () => {
   }
 });
 
+test("transport rejects a successful JSON response from a failed process", async () => {
+  const fixture = await transportFixture(`
+    let input = "";
+    process.stdin.on("data", (chunk) => { input += chunk; });
+    process.stdin.on("end", () => {
+      const request = JSON.parse(input);
+      const response = JSON.stringify({
+        protocol: request.protocol,
+        protocol_version: request.protocol_version,
+        request_id: request.request_id,
+        ok: true,
+        result: {},
+      });
+      process.stdout.write(response, () => process.exit(7));
+    });
+  `);
+  const payload = buildCapabilityRequest(inventory, "asset.list", {}, "failed-process-request");
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${fixture.bin}:${originalPath ?? ""}`;
+
+  try {
+    const response = await runCapability(
+      payload,
+      { ...inventory, executable: fixture.name, executableArgs: [] },
+    );
+    assert.equal(response.ok, false);
+    assert.equal(response.error.code, "capability_transport_process_failed");
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
 test("registers descriptor-prefixed bounded tools", async () => {
   const registered = [];
   const descriptor = Object.freeze({

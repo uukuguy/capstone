@@ -711,7 +711,6 @@ export function runCapability(payload, descriptor, selectedNames = [], transport
       stdio: ["pipe", "pipe", "pipe"],
     });
     const stdout = [];
-    const stderr = [];
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let settled = false;
@@ -755,25 +754,37 @@ export function runCapability(payload, descriptor, selectedNames = [], transport
         );
         return;
       }
-      stderr.push(buffer);
     });
-    child.on("error", (error) => {
-      finish(transportError(payload.request_id, runtime, error.message));
+    child.on("error", () => {
+      finish(transportError(payload.request_id, runtime, "capability executable could not start"));
     });
-    child.on("close", () => {
+    child.on("close", (code, signal) => {
       if (settled) {
         return;
       }
       const stdoutText = Buffer.concat(stdout).toString("utf8");
-      const stderrText = Buffer.concat(stderr).toString("utf8");
       try {
-        finish(JSON.parse(stdoutText));
+        const response = JSON.parse(stdoutText);
+        if (code !== 0 || signal !== null) {
+          if (isCorrelatedResponse(response, payload.request_id, runtime) && response.ok === false) {
+            finish(response);
+          } else {
+            finish(transportError(
+              payload.request_id,
+              runtime,
+              "capability executable exited unsuccessfully",
+              "capability_transport_process_failed",
+            ));
+          }
+          return;
+        }
+        finish(response);
       } catch {
         finish(
           transportError(
             payload.request_id,
             runtime,
-            stderrText || stdoutText || "capability executable returned no JSON",
+            "capability executable returned invalid JSON",
           ),
         );
       }
