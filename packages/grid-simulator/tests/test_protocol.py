@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -149,6 +151,48 @@ def test_context_open_valid_arguments_pass_schema_gate(tmp_path: Path) -> None:
     assert response.ok is True
     assert response.result is not None
     assert response.result["context_ref"].startswith("context:sha256:")
+
+
+def test_gridctl_returns_one_protocol_error_for_incompatible_dataset_filter(tmp_path: Path) -> None:
+    executable = Path(sys.executable).parent / "gridctl"
+
+    def call(capability: str, arguments: dict[str, object]) -> subprocess.CompletedProcess[str]:
+        request_body = {
+            "protocol": "grid-capability",
+            "protocol_version": "1.0",
+            "request_id": "predicate-type-check",
+            "capability": capability,
+            "arguments": arguments,
+        }
+        return subprocess.run(
+            [str(executable), "request", "--workspace", str(tmp_path)],
+            input=json.dumps(request_body),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    opened = call("context.open", {"model_id": "ieee39"})
+    assert opened.returncode == 0
+    context_ref = json.loads(opened.stdout)["result"]["context_ref"]
+    response = call(
+        "model.dataset.query",
+        {
+            "context_ref": context_ref,
+            "dataset": "network.bus",
+            "select": ["index", "vn_kv"],
+            "filters": [{"field": "vn_kv", "operator": "gt", "value": "100.0"}],
+        },
+    )
+
+    assert response.returncode == 0
+    lines = response.stdout.splitlines()
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["request_id"] == "predicate-type-check"
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "dataset_query_invalid"
+    assert "Traceback" not in response.stderr
 
 
 def test_executable_semantic_id_validates_arguments_before_execution(tmp_path: Path) -> None:

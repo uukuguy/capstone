@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 
 def test_dataset_list_covers_all_nonempty_static_element_tables(grid, context_ref: str) -> None:
     response = grid.call("model.dataset.list", {"context_ref": context_ref})
@@ -70,6 +72,32 @@ def test_generic_dataset_query_rejects_undescribed_fields(grid, context_ref: str
     assert error.code == "field_unavailable"
     assert "res_p_mw" in error.details["fields"]
     assert "vm_pu" in error.details["allowed_fields"]
+
+
+@pytest.mark.parametrize(
+    "field,operator,value",
+    [
+        ("vn_kv", "gt", "100.0"),
+        ("vn_kv", "in", 110),
+        ("in_service", "gt", False),
+    ],
+)
+def test_model_dataset_query_rejects_incompatible_predicates(
+    grid, context_ref: str, field: str, operator: str, value: object
+) -> None:
+    error = grid.call_error(
+        "model.dataset.query",
+        {
+            "context_ref": context_ref,
+            "dataset": "network.bus",
+            "select": ["index", field],
+            "filters": [{"field": field, "operator": operator, "value": value}],
+        },
+    )
+
+    assert error.code == "dataset_query_invalid"
+    assert error.phase == "validate"
+    assert error.allowed_recovery_actions == ("describe_dataset", "correct_query")
 
 
 def test_element_resolution_covers_all_schema_described_element_tables(grid, context_ref: str) -> None:

@@ -12,12 +12,16 @@ from grid_simulator.analysis_registry import AnalysisOutcome
 from grid_simulator.evidence import canonical_json, fingerprint, write_json
 from grid_simulator.models import OpenedContext
 from grid_simulator.queries import asset_ref
+from grid_simulator.query_predicates import (
+    InvalidDatasetPredicate,
+    predicate_matches,
+    validate_predicates,
+)
 from grid_simulator.workspace import SimulatorWorkspace
 
 
 _RESULT_REF = re.compile(r"^result:sha256:([0-9a-f]{64})$")
 _SUFFIXES = ("_3ph", "_sc", "_est")
-_FILTER_OPERATORS = frozenset({"eq", "ne", "gt", "gte", "lt", "lte", "in"})
 
 
 class UnknownStoredResultError(ValueError):
@@ -184,7 +188,13 @@ class ResultStore:
         allowed = [str(field["name"]) for field in data["fields"]]
         select = [str(item) for item in request["select"]]
         _require_fields(select, allowed)
-        rows = _filter_rows(rows, dict(request.get("where", {})), list(request.get("filters", [])), allowed)
+        rows = _filter_rows(
+            rows,
+            dict(request.get("where", {})),
+            list(request.get("filters", [])),
+            allowed,
+            field_types={str(field["name"]): str(field["type"]) for field in data["fields"]},
+        )
         sort = request.get("sort")
         if sort is not None:
             field = str(sort["field"])
@@ -387,40 +397,34 @@ def _require_fields(fields: list[str], allowed: list[str]) -> None:
 
 
 def _filter_rows(
-    rows: list[dict[str, Any]], where: dict[str, Any], filters: list[dict[str, Any]], allowed: list[str]
+    rows: list[dict[str, Any]],
+    where: dict[str, Any],
+    filters: list[dict[str, Any]],
+    allowed: list[str],
+    field_types: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     _require_fields([str(field) for field in where], allowed)
     for item in filters:
         _require_fields([str(item["field"])], allowed)
-        if str(item["operator"]) not in _FILTER_OPERATORS:
-            raise ResultQueryError("filter operator is unavailable")
+    try:
+        validate_predicates(filters, field_types or {})
+    except InvalidDatasetPredicate as exc:
+        raise ResultQueryError(str(exc)) from exc
     selected = []
     for row in rows:
         if any(row.get(str(field)) != value for field, value in where.items()):
             continue
-        if all(_matches(row.get(str(item["field"])), str(item["operator"]), item.get("value")) for item in filters):
-            selected.append(row)
+        try:
+            if all(
+                predicate_matches(
+                    row.get(str(item["field"])), str(item["operator"]), item.get("value")
+                )
+                for item in filters
+            ):
+                selected.append(row)
+        except InvalidDatasetPredicate as exc:
+            raise ResultQueryError(str(exc)) from exc
     return selected
-
-
-def _matches(actual: Any, operator: str, expected: Any) -> bool:
-    if operator == "eq":
-        return actual == expected
-    if operator == "ne":
-        return actual != expected
-    if operator == "in":
-        return actual in expected if isinstance(expected, list) else False
-    if actual is None or expected is None:
-        return False
-    if operator == "gt":
-        return actual > expected
-    if operator == "gte":
-        return actual >= expected
-    if operator == "lt":
-        return actual < expected
-    if operator == "lte":
-        return actual <= expected
-    return False
 
 
 def _aggregate(rows: list[dict[str, Any]], field: str, operation: str) -> int | float | None:

@@ -58,6 +58,11 @@ from grid_simulator.models import (
     ModelRegistry,
 )
 from grid_simulator.protocol import CapabilityError, GridCapabilityRequest, GridCapabilityResponse
+from grid_simulator.query_predicates import (
+    InvalidDatasetPredicate,
+    predicate_matches,
+    validate_predicates,
+)
 from grid_simulator.queries import (
     BranchRecord,
     BusRecord,
@@ -703,7 +708,15 @@ def _model_dataset_query(
     offset = int(arguments.get("offset", 0))
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
     _require_dataset(net, dataset)
-    _validate_dataset_query(net, dataset, select, where, filters, sort)
+    try:
+        _validate_dataset_query(net, dataset, select, where, filters, sort)
+    except InvalidDatasetPredicate as exc:
+        raise _failure(
+            "dataset_query_invalid",
+            str(exc),
+            phase="validate",
+            allowed_recovery_actions=("describe_dataset", "correct_query"),
+        ) from exc
     try:
         rows = [record.as_dict() for record in records_for_dataset(net, context.revision_ref, dataset)]
     except ValueError as exc:
@@ -713,7 +726,15 @@ def _model_dataset_query(
             phase="execute",
             allowed_recovery_actions=("choose_another_dataset",),
         ) from exc
-    filtered_rows = _filter_rows(rows, where, filters)
+    try:
+        filtered_rows = _filter_rows(rows, where, filters)
+    except InvalidDatasetPredicate as exc:
+        raise _failure(
+            "dataset_query_invalid",
+            str(exc),
+            phase="validate",
+            allowed_recovery_actions=("describe_dataset", "correct_query"),
+        ) from exc
     sorted_rows = _sort_rows(filtered_rows, sort)
     selected_rows = [{field: row[field] for field in select} for row in sorted_rows]
     page_limit = min(limit, MODEL_VIEW_LIMIT)
@@ -1049,6 +1070,11 @@ def _validate_dataset_query(
             allowed_recovery_actions=("describe_dataset",),
             details={"fields": invalid_filters, "allowed_where_fields": list(allowed_fields)},
         )
+    field_types = {
+        str(item["name"]): str(item["type"])
+        for item in field_metadata(dataset, net)
+    }
+    validate_predicates(filters, field_types)
     if sort is None:
         return
     sort_field = str(_mapping(sort)["field"])
@@ -1076,31 +1102,15 @@ def _filter_rows(
         row
         for row in rows
         if all(row[field] == value for field, value in where.items())
-        and all(_predicate_matches(row, predicate) for predicate in filters)
+        and all(
+            predicate_matches(
+                row[str(predicate["field"])],
+                str(predicate["operator"]),
+                predicate.get("value"),
+            )
+            for predicate in filters
+        )
     ]
-
-
-def _predicate_matches(row: dict[str, Any], predicate: dict[str, Any]) -> bool:
-    actual = row[str(predicate["field"])]
-    expected = predicate.get("value")
-    operator = str(predicate["operator"])
-    if operator == "eq":
-        return actual == expected
-    if operator == "ne":
-        return actual != expected
-    if operator == "in":
-        return actual in expected
-    if actual is None or expected is None:
-        return False
-    if operator == "gt":
-        return actual > expected
-    if operator == "gte":
-        return actual >= expected
-    if operator == "lt":
-        return actual < expected
-    if operator == "lte":
-        return actual <= expected
-    return False
 
 
 def _sort_rows(rows: list[dict[str, Any]], sort: object) -> list[dict[str, Any]]:

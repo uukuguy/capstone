@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def _run(grid, context_ref: str) -> dict[str, object]:
     return grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
@@ -69,6 +71,28 @@ def test_result_dataset_query_rejects_undescribed_field_with_recovery(grid, cont
 
     assert error.code == "result_field_unavailable"
     assert "vm_pu" in error.details["allowed_fields"]
+
+
+@pytest.mark.parametrize(
+    "operator,value",
+    [("gt", "1.0"), ("in", 1.0), ("lt", False)],
+)
+def test_result_dataset_query_rejects_incompatible_predicates(
+    grid, context_ref: str, operator: str, value: object
+) -> None:
+    analysis = _run(grid, context_ref)
+    error = grid.call_error(
+        "result.dataset.query",
+        {
+            "result_ref": analysis["result_ref"],
+            "dataset": "result.res_bus",
+            "select": ["index", "vm_pu"],
+            "filters": [{"field": "vm_pu", "operator": operator, "value": value}],
+        },
+    )
+
+    assert error.code == "result_query_invalid"
+    assert error.phase == "validate"
 
 
 def test_result_query_pages_do_not_truncate_the_persisted_full_table(grid, context_ref: str) -> None:
