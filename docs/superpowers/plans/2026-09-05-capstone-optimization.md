@@ -10,14 +10,24 @@
 
 ## 2026-09-22 评审修复与保护基线
 
-本次评审确认 F01–F07，先修复有复现用例的可靠性、安全路径和深链接问题；后续 HTTP authority 实验与能力包接入成本测量仍待开展。F01 提交 `5dd0bd9`，F02 提交 `3e0614a`。两项都先写失败测试再修复，`make test`、`make test-e2e`（37 项）与定向测试通过；`make validate` 在更新保护摘要后复跑。
+本次[深度评审](../../reviews/2026-09-22-capstone-deep-optimization-proposal.md)确认 F01–F07。七项均先以失败测试复现，再完成实现；后续 HTTP authority 实验与能力包接入成本测量仍待开展。
+
+| 修复 | 提交 | 验收重点 |
+| --- | --- | --- |
+| F01 提交后附属故障 | `5dd0bd9` | 两轮 inventory 应用、持久答案与 replay 一致，继续下一题。 |
+| F02 数据集条件类型 | `3e0614a` | model/result 查询与正式 gridctl 返回单个类型化错误。 |
+| F03/F04 Python/JS transport | `1252923`、`1bd44b7` | 非零成功拒绝、保留类型化业务错误、Python stdout+stderr 限额；预配预算传至执行器。 |
+| F05 安全物化 | `1bd44b7` | 叶子及父目录 symlink 哨兵不变，正常物化通过。 |
+| F06/F07 Host 与深链接 | `dc0fc40` | 本地 Host/端口受限，run/node 刷新与失效链接经单测及真实浏览器验证。 |
+
+主工作区门禁结果：`make doctor`、`make test`、`make test-e2e`（37 项）、`make validate`（能力覆盖 24/24）、`make validate-application`、`make check-types`、`make check-package-boundaries`、`make check-protected-paths` 均通过；Workbench 浏览器深链接回归 1 项通过。未运行需付费凭据的 `make validate-provider`。
 
 | 受保护路径 | 原 HEAD tree | 新 HEAD tree | 变更原因 |
 | --- | --- | --- | --- |
 | `packages/grid-simulator` | `75b78c2ed13f73681e4631595fa1d806bb02435a` | `00a8ad5fe7c8f60adc96ef3b62008f92995eef89` | F02 在 authority 内校验 dataset 条件并返回类型化协议错误；真实 gridctl 测试覆盖单 JSON 响应。 |
 | `packages/inventory-domain-pack` | `30aa2c7a29cacca95c5567499665e3857dfcc921` | `9448b873c2dfc5e6afbd669a6ee37833bd60762d` | F01 增加两轮真实 authority 应用回归，证明提交后清理失败仍保留完成计数。 |
 
-只更新这两个受保护摘要，未放宽保护路径列表；`make check-protected-paths` 已通过。
+只更新这两个受保护摘要，未放宽保护路径列表；基线提交 `8ca8b8e`，`make check-protected-paths` 已通过。
 
 ## 1. 状态、依据与授权边界
 
