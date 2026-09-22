@@ -21,7 +21,7 @@ from http_authority_experiment import (
     HttpInventoryProvisioner,
     LoopbackInventoryService,
 )
-from test_application_conformance import TWO_TURNS, run_application
+from test_application_conformance import TWO_TURNS, admissions, run_application
 
 
 class HttpCredentials:
@@ -142,3 +142,32 @@ def test_http_report_failure_does_not_undo_committed_answers(tmp_path) -> None:
     assert outcome.completed_questions == 2
     assert outcome.result.core.diagnostic_refs
     assert ApplicationContextStore.replay(workspace).core.turns[-1]["status"] == "success"
+
+
+def test_http_failure_in_second_turn_preserves_first_turn_without_new_evidence(tmp_path) -> None:
+    with LoopbackInventoryService() as service:
+        domain = replace(
+            build_inventory_profile(),
+            provisioner=HttpInventoryProvisioner(service.origin),
+            authority_factory=HttpInventoryArtifactAuthority,
+        )
+
+        def fail_after_first_turn(capability, _result, _binding):
+            if capability == "asset.list":
+                service.mode = "rate_limited"
+
+        outcome, workspace, transports = run_application(
+            tmp_path, TWO_TURNS, domain=domain,
+            credentials=HttpCredentials(service.token),
+            credential_scope=CredentialScope(credential_names=("INVENTORY_API_TOKEN",)),
+            after_invoke=fail_after_first_turn,
+        )
+
+    assert outcome.status == "completed", outcome.error
+    assert outcome.completed_questions == 2
+    assert transports[0].calls[-1][2] == {"code": "capability_transport_failed"}
+    assert [item["mode"] for item in admissions(workspace)] == ["authority_backed", "limited"]
+    answers = [json.loads(path.read_text()) for path in sorted(workspace.turns_path.glob("*/answer.json"))]
+    assert answers[0]["result_refs"] and answers[0]["evidence_refs"]
+    assert answers[1]["result_refs"] == [] and answers[1]["evidence_refs"] == []
+    assert len(list((workspace.domain_path("inventory") / "evidence/results").glob("*.json"))) == 1

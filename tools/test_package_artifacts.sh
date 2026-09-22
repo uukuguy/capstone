@@ -3,6 +3,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 temporary_root="$(mktemp -d)"
+# macOS exposes its temporary directory through /var -> /private/var. The
+# runtime intentionally rejects symlink ancestors, so use the physical path.
+temporary_root="$(cd "$temporary_root" && pwd -P)"
 artifact_dir="$temporary_root/artifacts"
 venv_dir="$temporary_root/venv"
 run_dir="$temporary_root/run"
@@ -72,7 +75,7 @@ smoke_file="$run_dir/installed_smoke.py"
 cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"
 (
   cd "$run_dir"
-  PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/python" "$smoke_file"
+  TMPDIR="$run_dir" PATH="$venv_dir/bin:$PATH" "$venv_dir/bin/python" "$smoke_file"
 )
 
 # Exercise the HTTP experiment against installed wheels while keeping its
