@@ -11,7 +11,7 @@
     "./model-request-capture": "./src/model-request-capture.mjs"
   },
   "scripts": {
-    "check": "node --check src/domain-tools.mjs && node --check src/model-request-capture.mjs",
+    "check": "node --check src/domain-tools.mjs && node --check src/process-transport.mjs && node --check src/model-request-capture.mjs",
     "test": "node --test"
   },
   "dependencies": {

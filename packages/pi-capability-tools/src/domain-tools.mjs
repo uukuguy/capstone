@@ -1,7 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@earendil-works/pi-ai";
 import { createHash, randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import {
   closeSync,
@@ -15,6 +14,7 @@ import {
 import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
+import { isCorrelatedResponse, runProcessCapability } from "./process-transport.mjs";
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
 const RUNTIME_DESCRIPTOR_ENV = "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR";
@@ -705,92 +705,10 @@ export function runCapability(payload, descriptor, selectedNames = [], transport
   const runtime = selectedBindingRuntime(descriptor);
   validateExecutableArgumentPaths(runtime);
   const limits = validateTransportLimits(transportLimits);
-  return new Promise((resolveResponse) => {
-    const child = spawn(runtime.executable, runtime.executableArgs, {
-      env: sanitizeEnvironment(process.env, [...selectedSecretNames(process.env), ...selectedNames]),
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const stdout = [];
-    let stdoutBytes = 0;
-    let stderrBytes = 0;
-    let settled = false;
-    const finish = (response) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      resolveResponse(response);
-    };
-    const stopWithError = (code, message) => {
-      child.kill("SIGKILL");
-      finish(transportError(payload.request_id, runtime, message, code));
-    };
-    const timer = setTimeout(() => {
-      stopWithError(
-        "capability_transport_timeout",
-        `capability executable exceeded ${limits.timeoutMs}ms transport timeout`,
-      );
-    }, limits.timeoutMs);
-    child.stdout.on("data", (chunk) => {
-      const buffer = Buffer.from(chunk);
-      stdoutBytes += buffer.byteLength;
-      if (stdoutBytes + stderrBytes > limits.maxOutputBytes) {
-        stopWithError(
-          "capability_transport_output_limit",
-          `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
-        );
-        return;
-      }
-      stdout.push(buffer);
-    });
-    child.stderr.on("data", (chunk) => {
-      const buffer = Buffer.from(chunk);
-      stderrBytes += buffer.byteLength;
-      if (stdoutBytes + stderrBytes > limits.maxOutputBytes) {
-        stopWithError(
-          "capability_transport_output_limit",
-          `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
-        );
-        return;
-      }
-    });
-    child.on("error", () => {
-      finish(transportError(payload.request_id, runtime, "capability executable could not start"));
-    });
-    child.on("close", (code, signal) => {
-      if (settled) {
-        return;
-      }
-      const stdoutText = Buffer.concat(stdout).toString("utf8");
-      try {
-        const response = JSON.parse(stdoutText);
-        if (code !== 0 || signal !== null) {
-          if (isCorrelatedResponse(response, payload.request_id, runtime) && response.ok === false) {
-            finish(response);
-          } else {
-            finish(transportError(
-              payload.request_id,
-              runtime,
-              "capability executable exited unsuccessfully",
-              "capability_transport_process_failed",
-            ));
-          }
-          return;
-        }
-        finish(response);
-      } catch {
-        finish(
-          transportError(
-            payload.request_id,
-            runtime,
-            "capability executable returned invalid JSON",
-          ),
-        );
-      }
-    });
-    child.stdin.end(JSON.stringify(payload));
-  });
+  const environment = sanitizeEnvironment(
+    process.env, [...selectedSecretNames(process.env), ...selectedNames],
+  );
+  return runProcessCapability(payload, runtime, limits, environment);
 }
 
 function validateExecutableArgumentPaths(runtime) {
@@ -1612,34 +1530,6 @@ function selectedSecretNames(env) {
 
 function isCredentialName(name) {
   return /(API_KEY|TOKEN|SECRET|AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY|SECRET_ENV_NAMES)$/i.test(name);
-}
-
-function isCorrelatedResponse(response, requestId, descriptor) {
-  return (
-    response &&
-    response.protocol === descriptor.protocol &&
-    response.protocol_version === descriptor.protocolVersion &&
-    response.request_id === requestId
-  );
-}
-
-function transportError(
-  requestId,
-  descriptor,
-  message,
-  code = "capability_transport_error",
-) {
-  return {
-    protocol: descriptor.protocol,
-    protocol_version: descriptor.protocolVersion,
-    request_id: requestId,
-    ok: false,
-    error: {
-      code,
-      phase: "execute",
-      message,
-    },
-  };
 }
 
 function canonicalToolResult(descriptor, contract, response) {
