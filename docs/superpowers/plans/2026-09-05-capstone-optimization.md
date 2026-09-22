@@ -10,7 +10,7 @@
 
 ## 2026-09-22 评审修复与保护基线
 
-本次[深度评审](../../reviews/2026-09-22-capstone-deep-optimization-proposal.md)确认 F01–F07。七项均先以失败测试复现，再完成实现；后续 HTTP authority 实验与能力包接入成本测量仍待开展。
+本次[深度评审](../../reviews/2026-09-22-capstone-deep-optimization-proposal.md)确认 F01–F07。七项均先以失败测试复现，再完成实现；HTTP authority 实验、能力包接入指南及事实/性能实验按下述阶段记录。
 
 | 修复 | 提交 | 验收重点 |
 | --- | --- | --- |
@@ -47,6 +47,18 @@
 
 - [x] 聚焦 conformance 命令 24 项通过；双语 README、架构引用和链接检查通过。
 - [x] 新作者可从指南定位全部 Pack 组件、两种 authority 示例、current-run/凭据要求及干净安装命令。
+
+### D：运行职责收敛与请求捕获诊断（完成）
+
+- [x] 固定进程传输从通用 Pi 工具装配中拆出独立模块；36 项 Node 测试与干净包安装通过，行为/错误码保持。
+- [x] 对连续分析、generic、single-run 和注入 transport 给出 `enabled`/`disabled`/`unavailable` 显式诊断，stdout 兼容封装不变；Python/JS descriptor 在 Provider I/O 前拒绝不完整捕获通道。真实 E2E、四组 Pi 捕获运行时检查及 Pyright 通过；语义和入口矩阵见 [RUNBOOK](../../RUNBOOK.md)。
+- [x] 本批只拆已明确共享故障面的进程传输；runner/turn controller/UI 其余职责已有 Protocol 边界，未发现独立缺陷或可测修改成本，避免仅按行数拆空壳或变更持久化格式。
+
+### E：事实展示与性能实验（完成）
+
+- [x] 领域展示只从与当前模型同源且已收敛的 powerflow 已投影计算派生有数值、单位和引用的总有功损耗卡片，缺少必要字段时省略，不修改模型答案；定向测试与领域包 91 项通过。
+- [x] 通过真实 `gridctl` 协议测量两种已注册模型的重复分析，并重跑 100/1000 事件上下文/投影基准；结论见[实验报告](../../reviews/2026-09-22-fact-and-performance-evaluation.md)。
+- [x] 卡片经通用报告壳定向验证；`make doctor`、`make test`、`make test-e2e`（37 项）、`make validate`（24/24）、`make check-types`、`make check-package-boundaries`、`make validate-application`、`make test-packages`、`make test-source-setup` 和 `make test-pi-capture-runtime` 均通过。真实调用的计算/启动占比及任务重复率未测，不启动 authority 内复用。
 
 ## 1. 状态、依据与授权边界
 
