@@ -713,6 +713,35 @@ def test_submit_rolls_back_sidecar_answer_drafts_and_context_when_sidecar_write_
     assert current.store.snapshot.core.active_turn is not None
 
 
+def test_recorder_failure_after_commit_preserves_success_and_replay(active_turn) -> None:
+    _store, workspace, current = active_turn
+
+    class FailingRecorder:
+        def append(self, draft: object) -> None:
+            raise OSError("trajectory unavailable")
+
+    controller = TurnController(
+        store=current.store,
+        workspace=workspace,
+        bindings={"grid": current.prepared},
+        recorder=FailingRecorder(),
+    )
+
+    committed = controller.submit(
+        current.handle,
+        answer_output="original answer",
+        duration_seconds=0.1,
+    )
+
+    assert committed.status == "success"
+    assert committed.answer_output == "original answer"
+    assert committed.post_commit_diagnostic_codes == ("trajectory_recording_unavailable",)
+    assert committed.answer_path is not None and committed.answer_path.is_file()
+    assert current.store.snapshot.core.turns[-1]["status"] == "success"
+    assert ApplicationContextStore.replay(workspace.context_events_path) == current.store.snapshot
+    assert not (workspace.turns_path / "active-turn.json").exists()
+
+
 def test_committed_turn_replays_with_the_same_nonce_bound_lifecycle(active_turn) -> None:
     _store, workspace, current = active_turn
     controller = TurnController(

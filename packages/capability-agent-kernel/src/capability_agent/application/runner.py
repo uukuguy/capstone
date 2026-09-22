@@ -627,6 +627,8 @@ class AgentApplication:
                     raise
                 completed_answers.append(finalized)
                 active_turn = None
+                for code in finalized.post_commit_diagnostic_codes:
+                    self._record_diagnostic(code)
                 # Evidence assurance is not execution status. A committed
                 # limited answer remains visible and does not abort later work.
                 if finalized.status not in {"success", "limited"}:

@@ -154,6 +154,33 @@ def test_real_two_turn_application_context_output_report_and_replay(tmp_path):
     assert ApplicationContextStore.replay(workspace).model_dump(mode="json") == snapshot
 
 
+def test_post_commit_cleanup_failure_preserves_two_turn_application(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import capability_agent.application.turns as turns_module
+
+    original_remove = turns_module._remove_if_present
+    failed_once = False
+
+    def fail_once(path):
+        nonlocal failed_once
+        if path.name == "active-answer-draft.json" and path.exists() and not failed_once:
+            failed_once = True
+            raise PermissionError("injected cleanup failure")
+        original_remove(path)
+
+    monkeypatch.setattr(turns_module, "_remove_if_present", fail_once)
+    outcome, workspace, _transports = run_application(tmp_path, TWO_TURNS)
+
+    assert failed_once
+    assert outcome.status == "completed", outcome.error
+    assert outcome.completed_questions == 2
+    assert len(tuple(workspace.turns_path.glob("*/answer.json"))) == 2
+    replayed = ApplicationContextStore.replay(workspace)
+    assert [turn["status"] for turn in replayed.core.turns] == ["success", "success"]
+    assert outcome.result.core.diagnostic_refs
+
+
 def admissions(workspace):
     return [
         json.loads(path.read_text())

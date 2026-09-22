@@ -80,6 +80,7 @@ class FinalizedTurn:
     audit_diagnostics: tuple[object, ...]
     admission: AnswerAdmissionDecision | None
     error: str | None
+    post_commit_diagnostic_codes: tuple[str, ...] = ()
 
 
 class _AuthorityReferenceVerifier:
@@ -474,14 +475,24 @@ class TurnController:
                 raise
             raise AnswerCommitError("answer commit persistence failed") from None
 
-        self._record_answer_committed(
-            handle,
-            composite_submission,
-            answer_ref,
-            answer_context_event,
-        )
-        _remove_if_present(self._active_answer_draft_path)
-        _remove_if_present(self._active_turn_path)
+        post_commit_diagnostics: list[str] = []
+        try:
+            self._record_answer_committed(
+                handle,
+                composite_submission,
+                answer_ref,
+                answer_context_event,
+            )
+        except Exception:
+            post_commit_diagnostics.append("trajectory_recording_unavailable")
+        cleanup_failed = False
+        for path in (self._active_answer_draft_path, self._active_turn_path):
+            try:
+                _remove_if_present(path)
+            except Exception:
+                cleanup_failed = True
+        if cleanup_failed:
+            post_commit_diagnostics.append("turn_cleanup_unavailable")
         return FinalizedTurn(
             turn_id=handle.turn_id,
             status="success",
@@ -496,6 +507,7 @@ class TurnController:
             audit_diagnostics=tuple(audit_diagnostics),
             admission=admission,
             error=None,
+            post_commit_diagnostic_codes=tuple(post_commit_diagnostics),
         )
 
     def fail(
