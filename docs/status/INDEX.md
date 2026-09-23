@@ -13,13 +13,16 @@
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
 | `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |
 | `2026-09-05-capstone-design-code-review.md` | Optimization evidence baseline R01–R13; current remediation status belongs to the canonical plan. |
+| `2026-09-22-capstone-review.md` | 企业业务能力包视角的历史评审基线；后续修复和验收见优化计划。 |
+| `2026-09-22-capstone-opensource-research.md` | 企业业务 API/framework 的历史选型研究；HTTP 测试实验已完成，其他候选仍待独立决策。 |
 | `capstone-scope-cleanup-backlog.md` | 超纲实现清理候选、实际位置与风险；静态产物缺口已由7e9b10c补齐，当前不执行删除。 |
 
 ## External execution anchors
 
 | File | Purpose |
 | --- | --- |
-| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Main delivery and reopened natural-language guide regression evidence; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
+| [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical delivery record, including completed reviewed A–E work; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
+| [Framework guide historical plan](../superpowers/plans/2026-08-31-capstone-framework-guide.md) | Completed architecture, bilingual README, and agent-contract documentation work. |
 | [Capstone framework](../architecture/capstone-framework.md) | Layer contracts, current-run evidence and guide-access assurance boundaries. |
 
 ## Climb storage and configuration
