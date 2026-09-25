@@ -154,6 +154,9 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             p_nom=generator["p_nom_mw"], marginal_cost=generator["marginal_cost"],
             committable=generator.get("committable", False),
             start_up_cost=generator.get("start_up_cost", 0.0),
+            p_nom_extendable=generator.get("p_nom_extendable", False),
+            p_nom_max=generator.get("p_nom_max_mw", float("inf")),
+            capital_cost=generator.get("capital_cost", 0.0),
         )
     for line in components.get("lines", []):
         network.add(

@@ -101,3 +101,47 @@ def verify_operation_evidence(
     ):
         raise ModelStoreError("operation evidence result binding differs")
     return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))
+
+
+def verify_planning_result(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "result")
+    model_ref = document.get("model_ref")
+    if (
+        document.get("schema") != "pypsa-planning-result/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or document.get("capability") != "planning.capacity_expand"
+        or document.get("status") != "ok"
+        or not isinstance(model_ref, str)
+    ):
+        raise ModelStoreError("planning result lineage is invalid")
+    verify_model(source_workspace, run_id, model_ref)
+    details = document.get("details")
+    if not isinstance(details, dict) or details.get("status") != "ok":
+        raise ModelStoreError("planning result details are invalid")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "result"))
+
+
+def verify_planning_evidence(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "evidence")
+    result_ref = document.get("result_ref")
+    if (
+        document.get("schema") != "pypsa-planning-evidence/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or not isinstance(result_ref, str)
+    ):
+        raise ModelStoreError("planning evidence lineage is invalid")
+    result = verify_planning_result(workspace, source_workspace, run_id, result_ref)
+    if (
+        document.get("model_ref") != result.document.get("model_ref")
+        or document.get("formulation") != result.document.get("formulation")
+    ):
+        raise ModelStoreError("planning evidence result binding differs")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))

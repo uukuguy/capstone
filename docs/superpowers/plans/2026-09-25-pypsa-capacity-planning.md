@@ -1,6 +1,6 @@
 # PyPSA Capacity Planning Pack Plan
 
-**Status:** active implementation plan
+**Status:** implemented; focused tests, type and boundary checks, and clean-wheel package smoke passed
 **Design:** [approved four-pack design](../specs/2026-09-25-pypsa-multibinding-domain-packs-design.md)
 **Predecessor:** Network Modeling and Power Operations on `main`.
 

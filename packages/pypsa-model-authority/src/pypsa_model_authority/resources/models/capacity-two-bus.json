@@ -1,0 +1,21 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "capacity-two-bus",
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "buses": [
+      {"id": "north", "v_nom_kv": 110.0},
+      {"id": "south", "v_nom_kv": 110.0}
+    ],
+    "loads": [{"id": "demand", "bus": "south", "p_set_mw": 40.0}],
+    "generators": [
+      {"id": "supply", "bus": "north", "p_nom_mw": 0.0, "p_nom_extendable": true,
+       "p_nom_max_mw": 100.0, "capital_cost": 100.0, "marginal_cost": 20.0}
+    ],
+    "lines": [
+      {"id": "link", "from_bus": "north", "to_bus": "south",
+       "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 100.0}
+    ]
+  }
+}

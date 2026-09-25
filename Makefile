@@ -38,6 +38,7 @@ setup-simulator:
 	uv sync --project packages/grid-simulator
 
 setup-pypsa:
+	uv sync --project packages/pypsa-capacity-planning-domain-pack
 	uv sync --project packages/pypsa-power-operations-domain-pack
 
 setup-tools:
@@ -137,7 +138,8 @@ test-inventory-pi:
 test-inventory: test-inventory-service test-inventory-domain test-inventory-pi
 
 test-pypsa:
-	uv run --project packages/pypsa-power-operations-domain-pack pytest packages/pypsa-model-authority/tests packages/pypsa-network-modeling-domain-pack/tests packages/pypsa-power-operations-domain-pack/tests -q
+	uv run --project packages/pypsa-capacity-planning-domain-pack pytest packages/pypsa-model-authority/tests packages/pypsa-network-modeling-domain-pack/tests packages/pypsa-capacity-planning-domain-pack/tests -q
+	uv run --project packages/pypsa-power-operations-domain-pack pytest packages/pypsa-power-operations-domain-pack/tests -q
 
 # Stable provider-free entry for authors copying the inventory Domain Pack pattern.
 test-domain-pack-conformance: check-package-boundaries

@@ -11,6 +11,7 @@ dependencies = ["pypsa==1.3.0", "highspy==1.15.1", "pydantic>=2.12,<3"]
 [project.scripts]
 pypsamodelctl = "pypsa_model_authority.cli:main"
 pypsaopsctl = "pypsa_model_authority.ops_cli:main"
+pypsaplanctl = "pypsa_model_authority.plan_cli:main"
 
 [dependency-groups]
 dev = ["pytest>=9,<10"]

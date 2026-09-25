@@ -7,7 +7,7 @@ from importlib.resources import files
 
 
 def load_registered_model(catalog_id: str) -> dict[str, object]:
-    if catalog_id not in {"two-bus", "unit-commitment", "security-triangle"}:
+    if catalog_id not in {"two-bus", "unit-commitment", "security-triangle", "capacity-two-bus"}:
         raise LookupError("registered PyPSA model was not found")
     resource = files("pypsa_model_authority").joinpath(
         "resources", "models", f"{catalog_id}.json"

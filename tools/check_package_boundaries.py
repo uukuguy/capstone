@@ -19,6 +19,7 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "pypsa_model_authority",
         "pypsa_network_modeling",
         "pypsa_power_operations",
+        "pypsa_capacity_planning",
         "pypsa",
     ),
     "packages/pandapower-domain-pack/src": ("grid_agent",),
@@ -40,14 +41,22 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "capability_agent", "grid_agent", "grid_simulator",
         "pandapower_domain", "inventory_domain", "pypsa_network_modeling",
         "pypsa_power_operations",
+        "pypsa_capacity_planning",
     ),
     "packages/pypsa-network-modeling-domain-pack/src": (
         "grid_agent", "grid_simulator", "pandapower_domain",
         "inventory_domain", "pandapower", "pypsa_power_operations",
+        "pypsa_capacity_planning",
     ),
     "packages/pypsa-power-operations-domain-pack/src": (
         "grid_agent", "grid_simulator", "pandapower_domain",
         "inventory_domain", "pandapower", "pypsa_network_modeling",
+        "pypsa_capacity_planning",
+    ),
+    "packages/pypsa-capacity-planning-domain-pack/src": (
+        "grid_agent", "grid_simulator", "pandapower_domain",
+        "inventory_domain", "pandapower", "pypsa_network_modeling",
+        "pypsa_power_operations",
     ),
     "packages/grid-agent/src/grid_agent/cli": (
         "grid_agent.domain",
@@ -113,6 +122,7 @@ SOURCE_PATH_LITERAL_ROOTS = (
     "packages/pypsa-model-authority/src",
     "packages/pypsa-network-modeling-domain-pack/src",
     "packages/pypsa-power-operations-domain-pack/src",
+    "packages/pypsa-capacity-planning-domain-pack/src",
 )
 GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
     # The complete Kernel is domain-neutral.  Keep semantic vocabulary out of
@@ -148,6 +158,12 @@ FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
     Path("packages/pypsa-power-operations-domain-pack"): (
         "grid-agent", "grid-simulator", "pandapower-domain-pack",
         "inventory-domain-pack", "pandapower", "pypsa-network-modeling-domain-pack",
+        "pypsa-capacity-planning-domain-pack",
+    ),
+    Path("packages/pypsa-capacity-planning-domain-pack"): (
+        "grid-agent", "grid-simulator", "pandapower-domain-pack",
+        "inventory-domain-pack", "pandapower", "pypsa-network-modeling-domain-pack",
+        "pypsa-power-operations-domain-pack",
     ),
 }
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
@@ -210,6 +226,7 @@ def check_boundaries(root: Path) -> list[str]:
     for pypsa_domain_root in (
         root / "packages/pypsa-network-modeling-domain-pack/src",
         root / "packages/pypsa-power-operations-domain-pack/src",
+        root / "packages/pypsa-capacity-planning-domain-pack/src",
     ):
         if pypsa_domain_root.exists():
             violations.extend(check_pypsa_authority_imports(root, pypsa_domain_root))
@@ -300,6 +317,8 @@ def check_pypsa_authority_imports(root: Path, source_root: Path) -> list[str]:
                     "pypsa_model_authority.references.verify_evidence",
                     "pypsa_model_authority.references.verify_operation_result",
                     "pypsa_model_authority.references.verify_operation_evidence",
+                    "pypsa_model_authority.references.verify_planning_result",
+                    "pypsa_model_authority.references.verify_planning_evidence",
                 }
             ):
                 violations.append(

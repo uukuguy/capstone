@@ -32,6 +32,7 @@ uv build --project packages/inventory-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-model-authority --out-dir "$artifact_dir"
 uv build --project packages/pypsa-network-modeling-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-power-operations-domain-pack --out-dir "$artifact_dir"
+uv build --project packages/pypsa-capacity-planning-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/grid-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
 cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
@@ -65,10 +66,11 @@ pypsa_wheels=(
   "$artifact_dir"/pypsa_model_authority-*.whl
   "$artifact_dir"/pypsa_network_modeling_domain_pack-*.whl
   "$artifact_dir"/pypsa_power_operations_domain_pack-*.whl
+  "$artifact_dir"/pypsa_capacity_planning_domain_pack-*.whl
 )
 
-if [ "${#python_wheels[@]}" -ne 6 ] || [ "${#pypsa_wheels[@]}" -ne 4 ]; then
-  echo "expected six grid/reference and four PyPSA wheel inputs" >&2
+if [ "${#python_wheels[@]}" -ne 6 ] || [ "${#pypsa_wheels[@]}" -ne 5 ]; then
+  echo "expected six grid/reference and five PyPSA wheel inputs" >&2
   exit 1
 fi
 for wheel in "${python_wheels[@]}" "${pypsa_wheels[@]}"; do
@@ -151,6 +153,12 @@ cp packages/pypsa-power-operations-domain-pack/tests/installed_smoke.py "$run_di
 (
   cd "$run_dir"
   POLARS_MAX_THREADS=4 "$pypsa_venv_dir/bin/python" "$run_dir/installed_pypsa_operations_smoke.py"
+)
+
+cp packages/pypsa-capacity-planning-domain-pack/tests/installed_smoke.py "$run_dir/installed_pypsa_planning_smoke.py"
+(
+  cd "$run_dir"
+  POLARS_MAX_THREADS=4 "$pypsa_venv_dir/bin/python" "$run_dir/installed_pypsa_planning_smoke.py"
 )
 
 inspect_npm_tarball() {
