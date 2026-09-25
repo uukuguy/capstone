@@ -70,6 +70,30 @@ test("validates one binding-aware runtime descriptor", () => {
   assert.equal(Object.isFrozen(descriptor.domains[0]), true);
 });
 
+test("runtime v1.1 validates and freezes two ordered domain bindings", () => {
+  const descriptor = validateRuntimeDescriptor({
+    ...runtimeV1,
+    schema: "capability-agent-runtime/1.1",
+    domains: [
+      { ...runtimeV1.domains[0], bindingId: "grid", guideToolName: "grid_guide_open" },
+      runtimeV1.domains[0],
+    ],
+  });
+  assert.deepEqual(descriptor.domains.map((domain) => domain.bindingId), ["grid", "inventory"]);
+  assert.equal(Object.isFrozen(descriptor.domains[0]), true);
+  assert.equal(Object.isFrozen(descriptor.domains[1]), true);
+});
+
+test("runtime v1.1 rejects empty domains and duplicate binding or guide names", () => {
+  for (const domains of [
+    [],
+    [runtimeV1.domains[0], runtimeV1.domains[0]],
+    [runtimeV1.domains[0], { ...runtimeV1.domains[0], bindingId: "grid" }],
+  ]) {
+    assert.throws(() => validateRuntimeDescriptor({ ...runtimeV1, schema: "capability-agent-runtime/1.1", domains }), /runtime descriptor/);
+  }
+});
+
 test("runtime v1 requires distinct agent-prefixed core tools", () => {
   for (const core of [
     { decisionToolName: "grid_record_decision", contextToolName: "agent_context_get" },
@@ -891,6 +915,83 @@ test("registers descriptor-prefixed bounded tools", async () => {
   assert.deepEqual(registered, []);
 });
 
+test("runtime v1.1 registers both domain groups and shared core and capture once", async () => {
+  const fixture = await runtimeV11Fixture();
+  const registered = new Map();
+  const events = [];
+  const calls = [];
+  createDomainToolsExtension(fixture.descriptor, {
+    createTool(runtime, capabilityContract, runner) {
+      return createCapabilityTool(runtime, capabilityContract, async (payload) => {
+        calls.push({ bindingId: runtime.bindingId, executable: runtime.executable, payload });
+        return {
+          protocol: payload.protocol,
+          protocol_version: payload.protocol_version,
+          request_id: payload.request_id,
+          ok: true,
+          result: {},
+        };
+      });
+    },
+  })({
+    on: (name) => events.push(name),
+    registerTool: (tool) => registered.set(tool.name, tool),
+  });
+  assert.deepEqual([...registered.keys()], [
+    "grid_bus_list", "grid_guide_open", "inventory_asset_list", "inventory_guide_open",
+    "agent_context_get", "agent_record_decision",
+  ]);
+  assert.deepEqual(events, ["before_model_request"]);
+  await registered.get("grid_bus_list").execute("grid-call", {});
+  await registered.get("inventory_asset_list").execute("inventory-call", {});
+  assert.deepEqual(calls.map(({ bindingId, executable, payload }) => [bindingId, executable, payload.protocol]), [
+    ["grid", "gridctl-fixture", "grid-capability"],
+    ["inventory", "inventoryctl-fixture", "inventory-capability"],
+  ]);
+  assert.equal((await registered.get("grid_guide_open").execute("grid-guide", { resource_id: "quick-start" })).details.result.text, "grid only");
+  assert.equal((await registered.get("inventory_guide_open").execute("inventory-guide", { resource_id: "quick-start" })).details.result.text, "inventory only");
+  for (const field of ["bindingId", "endpoint", "endpointPath"]) {
+    await assert.rejects(() => registered.get("grid_bus_list").execute("bad", { [field]: "inventory" }), /controller-owned routing field/);
+  }
+  assert.equal(calls.length, 2);
+});
+
+test("runtime v1.1 rejects cross-domain paths and preflights every group before registration", async () => {
+  const fixture = await runtimeV11Fixture();
+  const [grid, inventoryDomain] = fixture.descriptor.domains;
+  assert.throws(() => validateRuntimeDescriptor({
+    ...fixture.descriptor,
+    domains: [{ ...grid, guideRootPath: inventoryDomain.guideRootPath }, inventoryDomain],
+  }), /guideRootPath.*outside.*workspacePath/);
+  await writeFile(inventoryDomain.toolCatalogPath, JSON.stringify({ tools: [contract("grid_bus_list", "asset.list")] }), "utf8");
+  let created = 0;
+  let registered = 0;
+  assert.throws(() => createDomainToolsExtension(fixture.descriptor, {
+    createTool() { created += 1; return { name: "unexpected" }; },
+  })({ on() {}, registerTool() { registered += 1; } }), /tool name collision|tool prefix/);
+  assert.equal(created, 0);
+  assert.equal(registered, 0);
+});
+
+test("runtime v1.1 checks the second guide digest before any registration", async () => {
+  const fixture = await runtimeV11Fixture();
+  const [grid, inventoryDomain] = fixture.descriptor.domains;
+  const descriptor = {
+    ...fixture.descriptor,
+    domains: [grid, { ...inventoryDomain, guideIndexSha256: "0".repeat(64) }],
+  };
+  let created = 0;
+  let registered = 0;
+  let captured = 0;
+  assert.throws(() => createDomainToolsExtension(descriptor, {
+    createTool() { created += 1; return { name: "unexpected" }; },
+  })({
+    on() { captured += 1; },
+    registerTool() { registered += 1; },
+  }), /guide index digest/);
+  assert.deepEqual([created, registered, captured], [0, 0, 0]);
+});
+
 function contract(name, capability) {
   return {
     name,
@@ -948,6 +1049,59 @@ async function runtimeV1Fixture({ withTrajectory = false } = {}) {
           workspacePath: workspace,
         },
       ],
+    },
+  };
+}
+
+async function runtimeV11Fixture() {
+  const fixture = await runtimeV1Fixture({ withTrajectory: true });
+  const contextPath = join(fixture.root, "run/core/context.json");
+  await mkdir(dirname(contextPath), { recursive: true });
+  await writeFile(contextPath, "{}", "utf8");
+  const inventoryDomain = {
+    ...fixture.descriptor.domains[0],
+    executable: "inventoryctl-fixture",
+  };
+  const gridWorkspace = join(fixture.root, "run/domains/grid");
+  const gridGuideRoot = join(gridWorkspace, "guides");
+  await mkdir(gridGuideRoot, { recursive: true });
+  const gridDomain = {
+    ...inventoryDomain,
+    bindingId: "grid",
+    protocol: "grid-capability",
+    executable: "gridctl-fixture",
+    executableArgs: ["request", "--workspace", gridWorkspace],
+    toolCatalogPath: join(gridWorkspace, "tool-catalog.json"),
+    guideToolName: "grid_guide_open",
+    guideIndexPath: join(gridWorkspace, "guide-index.json"),
+    guideRootPath: gridGuideRoot,
+    workspacePath: gridWorkspace,
+    authorityId: "gridctl-fixture",
+  };
+  for (const [domain, name, text] of [
+    [gridDomain, "grid_bus_list", "grid only"],
+    [inventoryDomain, "inventory_asset_list", "inventory only"],
+  ]) {
+    await writeFile(domain.toolCatalogPath, JSON.stringify({ tools: [contract(name, "asset.list")] }), "utf8");
+    const guidePath = join(domain.guideRootPath, "quick-start.md");
+    await writeFile(guidePath, text, "utf8");
+    const guideIndex = JSON.stringify({
+      protocol: `${domain.protocol.split("-", 1)[0]}-guide-index`,
+      version: "1.0",
+      root: domain.guideRootPath,
+      resources: { "quick-start": guidePath },
+    });
+    await writeFile(domain.guideIndexPath, guideIndex, "utf8");
+    domain.guideIndexSha256 = createHash("sha256").update(guideIndex).digest("hex");
+  }
+  return {
+    ...fixture,
+    descriptor: {
+      ...fixture.descriptor,
+      schema: "capability-agent-runtime/1.1",
+      application: { ...fixture.descriptor.application, workspacePath: join(fixture.root, "run") },
+      core: { ...fixture.descriptor.core, analysisContextViewPath: contextPath },
+      domains: [gridDomain, inventoryDomain],
     },
   };
 }

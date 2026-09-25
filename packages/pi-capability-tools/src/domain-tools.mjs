@@ -277,7 +277,7 @@ function validateLegacyRuntimeDescriptor(value) {
 
 function validateRuntimeV1(value, options = {}) {
   requireExactKeys(value, RUNTIME_V1_KEYS, "runtime descriptor");
-  if (value.schema !== "capability-agent-runtime/1.0") {
+  if (value.schema !== "capability-agent-runtime/1.0" && value.schema !== "capability-agent-runtime/1.1") {
     throw new TypeError("runtime descriptor schema is invalid");
   }
   requireExactKeys(value.application, APPLICATION_KEYS, "runtime descriptor application", {
@@ -341,21 +341,24 @@ function validateRuntimeV1(value, options = {}) {
     throw new TypeError("runtime descriptor capture channels must be complete");
   }
 
-  if (!Array.isArray(value.domains) || value.domains.length !== 1) {
-    throw new TypeError("runtime descriptor requires exactly one domain binding");
+  if (!Array.isArray(value.domains) || (value.schema === "capability-agent-runtime/1.0"
+    ? value.domains.length !== 1
+    : value.domains.length === 0)) {
+    throw new TypeError("runtime descriptor requires one or more domain bindings");
   }
-  const domain = validateRuntimeDomain(value.domains[0], options);
-  const applicationWorkspacePath = application.workspacePath ?? domain.workspacePath;
+  const domains = value.domains.map((domain) => validateRuntimeDomain(domain, options));
+  const applicationWorkspacePath = application.workspacePath ?? domains[0].workspacePath;
   const routingToolNames = [
     core.decisionToolName,
     core.contextToolName,
-    domain.guideToolName,
+    ...domains.map((domain) => domain.guideToolName),
   ];
-  if (new Set(routingToolNames).size !== routingToolNames.length) {
+  if (new Set(routingToolNames).size !== routingToolNames.length ||
+    new Set(domains.map((domain) => domain.bindingId)).size !== domains.length) {
     throw new TypeError("runtime descriptor tool name collision");
   }
   if (!options.legacy) {
-    if (domain.guideToolName.startsWith("agent_")) {
+    if (domains.some((domain) => domain.guideToolName.startsWith("agent_"))) {
       throw new TypeError("runtime descriptor agent_ namespace is reserved for core tools");
     }
     for (const [key, candidate] of Object.entries(core)) {
@@ -368,7 +371,7 @@ function validateRuntimeV1(value, options = {}) {
     schema: value.schema,
     application: Object.freeze(application),
     core: Object.freeze(core),
-    domains: Object.freeze([domain]),
+    domains: Object.freeze(domains),
   });
   return runtime;
 }
@@ -536,7 +539,8 @@ export function createCapabilityTool(descriptor, contract, runner) {
  * descriptor. The returned callback is compatible with Pi's extension API.
  */
 export function createDomainToolsExtension(descriptor, options = {}) {
-  const runtime = selectedBindingRuntime(descriptor);
+  const validated = validateRuntimeDescriptor(descriptor);
+  const runtimes = validated.domains.map((domain) => selectedBindingRuntimeForDomain(validated, domain));
   if (
     !isPlainObject(options) ||
     (options.createTool !== undefined && typeof options.createTool !== "function") ||
@@ -553,51 +557,61 @@ export function createDomainToolsExtension(descriptor, options = {}) {
   const buildTool = options.createTool ?? createCapabilityTool;
   const selectedNames = Object.freeze([...(options.selectedSecretNames ?? [])]);
   return function domainToolsExtension(pi) {
-    const paths = runtimePaths(runtime);
-    const catalog = readJsonSync(paths.toolCatalogPath);
-    if (!Array.isArray(catalog.tools)) {
-      throw new Error("tool catalog must contain a tools array");
-    }
-    preflightContracts(catalog.tools, runtime);
-    if (
-      paths.trajectoryRequestsPath !== undefined &&
-      paths.trajectoryCaptureStatePath !== undefined &&
-      paths.trajectoryAllowedRefsPath !== undefined &&
-      paths.trajectoryAcksPath !== undefined
-    ) {
-      configureModelRequestCapture(pi, {
-        requestsPath: paths.trajectoryRequestsPath,
-        activeTurnPath: paths.activeTurnPath,
-        captureStatePath: paths.trajectoryCaptureStatePath,
-        allowedRefsPath: paths.trajectoryAllowedRefsPath,
-        acknowledgementsPath: paths.trajectoryAcksPath,
-        runtime: paths.piRuntime,
-        schemaVersion: options.modelRequestSchemaVersion,
-      });
-    }
-    for (const contract of catalog.tools) {
-      if (contract.name === runtime.decisionToolName) {
-        continue;
+    const reservedNames = new Set([
+      validated.core.decisionToolName,
+      validated.core.contextToolName,
+      ...runtimes.map((runtime) => runtime.guideToolName),
+    ]);
+    const groups = runtimes.map((runtime) => {
+      const paths = runtimePaths(runtime);
+      const catalog = readJsonSync(paths.toolCatalogPath);
+      if (!Array.isArray(catalog.tools)) {
+        throw new Error("tool catalog must contain a tools array");
       }
-      pi.registerTool(
-        buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
-      );
-    }
-    pi.registerTool(
-      createGuideTool(
+      preflightContracts(catalog.tools, runtime, reservedNames);
+      const guide = createGuideTool(
         runtime,
         paths.guideIndexPath,
         paths.guideWorkspacePath,
         paths.guideRootPath,
         paths.guideIndexSha256,
-      ),
-    );
-    if (paths.analysisContextViewPath !== undefined) {
-      pi.registerTool(createAnalysisContextTool(runtime.contextToolName, paths.analysisContextViewPath));
+      );
+      return { runtime, paths, catalog, guide };
+    });
+    const corePaths = groups[0].paths;
+    if (
+      corePaths.trajectoryRequestsPath !== undefined &&
+      corePaths.trajectoryCaptureStatePath !== undefined &&
+      corePaths.trajectoryAllowedRefsPath !== undefined &&
+      corePaths.trajectoryAcksPath !== undefined
+    ) {
+      configureModelRequestCapture(pi, {
+        requestsPath: corePaths.trajectoryRequestsPath,
+        activeTurnPath: corePaths.activeTurnPath,
+        captureStatePath: corePaths.trajectoryCaptureStatePath,
+        allowedRefsPath: corePaths.trajectoryAllowedRefsPath,
+        acknowledgementsPath: corePaths.trajectoryAcksPath,
+        runtime: corePaths.piRuntime,
+        schemaVersion: options.modelRequestSchemaVersion,
+      });
     }
-    if (paths.trajectoryAllowedRefsPath !== undefined && paths.activeTurnPath !== undefined) {
+    for (const { runtime, catalog, guide } of groups) {
+      for (const contract of catalog.tools) {
+        if (contract.name === runtime.decisionToolName) {
+          continue;
+        }
+        pi.registerTool(
+          buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
+        );
+      }
+      pi.registerTool(guide);
+    }
+    if (corePaths.analysisContextViewPath !== undefined) {
+      pi.registerTool(createAnalysisContextTool(validated.core.contextToolName, corePaths.analysisContextViewPath));
+    }
+    if (corePaths.trajectoryAllowedRefsPath !== undefined && corePaths.activeTurnPath !== undefined) {
       pi.registerTool(
-        createRecordDecisionTool(runtime.decisionToolName, paths.trajectoryAllowedRefsPath, paths.activeTurnPath),
+        createRecordDecisionTool(validated.core.decisionToolName, corePaths.trajectoryAllowedRefsPath, corePaths.activeTurnPath),
       );
     }
   };
@@ -653,9 +667,9 @@ function readRuntimeDescriptor(configuredPath) {
   } catch (error) {
     throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must contain valid JSON: ${error.message}`);
   }
-  if (!isPlainObject(raw) || raw.schema !== "capability-agent-runtime/1.0") {
+  if (!isPlainObject(raw) || !["capability-agent-runtime/1.0", "capability-agent-runtime/1.1"].includes(raw.schema)) {
     throw new Error(
-      `${RUNTIME_DESCRIPTOR_ENV} must contain a capability-agent-runtime/1.0 descriptor`,
+      `${RUNTIME_DESCRIPTOR_ENV} must contain a capability-agent-runtime/1.0 or /1.1 descriptor`,
     );
   }
   try {
@@ -665,8 +679,8 @@ function readRuntimeDescriptor(configuredPath) {
   }
 }
 
-function preflightContracts(contracts, runtime) {
-  const names = new Set([
+function preflightContracts(contracts, runtime, sharedNames) {
+  const names = sharedNames ?? new Set([
     runtime.guideToolName,
     runtime.contextToolName,
     runtime.decisionToolName,
@@ -1341,7 +1355,10 @@ function selectedBindingRuntime(value) {
     return value;
   }
   const runtime = validateRuntimeDescriptor(value);
-  const domain = runtime.domains[0];
+  return selectedBindingRuntimeForDomain(runtime, runtime.domains[0]);
+}
+
+function selectedBindingRuntimeForDomain(runtime, domain) {
   const selected = Object.freeze({
     ...domain,
     applicationWorkspacePath: runtime.application.workspacePath ?? domain.workspacePath,
