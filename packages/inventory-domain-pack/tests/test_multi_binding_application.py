@@ -9,7 +9,7 @@ from capability_agent.application import (
     AgentApplication, ApplicationContextStore, ApplicationManifest,
     ApplicationProfile, ApplicationRequest, ApplicationWorkspace,
     CredentialScope, DataSharingPolicy, DomainBinding, DomainRegistry,
-    GenericReportShell, JsonOutputRenderer, TurnController,
+    GenericReportShell, JsonOutputRenderer, TurnController, prepare_application,
 )
 from inventory_domain.profile import build_inventory_profile
 
@@ -23,7 +23,6 @@ def test_real_two_binding_two_turn_application(tmp_path, monkeypatch):
     for package in ("pandapower-domain-pack", "grid-simulator"):
         monkeypatch.syspath_prepend(str(ROOT / "packages" / package / "src"))
     from pandapower_domain import build_pandapower_profile
-    import capability_agent.application.runner as runner_module
 
     profiles = {"grid": build_pandapower_profile(), "inventory": build_inventory_profile()}
     registry = DomainRegistry()
@@ -37,11 +36,22 @@ def test_real_two_binding_two_turn_application(tmp_path, monkeypatch):
         report_shell=GenericReportShell(), acceptance_profile=SimpleNamespace(cases=lambda: ()),
     )
     workspace = ApplicationWorkspace.create(tmp_path.resolve() / "runs", binding_ids=profiles)
+    questions = ("Inspect both systems.", "Repeat using each system's existing context.")
+    prepared = prepare_application(
+        profile, registry=registry, workspace=workspace.root,
+        credentials=SimpleNamespace(issue=lambda *, binding_id, scope: SimpleNamespace(scope_id=scope.scope_id, credentials={})),
+    )
+    store = ApplicationContextStore.initialize(
+        workspace,
+        domains={key: domain.state_adapter.schema_id for key, domain in profiles.items()},
+        core={"input": {"application_id": profile.manifest.application_id, "questions": list(questions)}},
+    )
     providers = []
 
     class ClaimController(TurnController):
-        # AgentApplication accepts provider text; explicit claims use the public
-        # controller API. Keep all validation and persistence in real submit.
+        # Default provider text does not automatically create typed claims.
+        # Supply the script's claims through the public controller injection
+        # seam, keeping all validation and persistence in real submit.
         def submit(self, handle, **kwargs):
             return super().submit(handle, claims=providers[0].claims, **kwargs)
 
@@ -60,19 +70,20 @@ def test_real_two_binding_two_turn_application(tmp_path, monkeypatch):
                 providers[0].reused_context = True
             return handle
 
-    monkeypatch.setattr(runner_module, "TurnController", ClaimController)
+    controller = ClaimController(store=store, workspace=workspace, bindings=prepared.bindings)
 
     def provider_factory(*, request, profile, prepared_application, bindings, catalog):
+        assert prepared_application.bindings is prepared.bindings
         provider = TwoAuthorityProvider(request, prepared_application, catalog)
         providers.append(provider)
         return provider
 
     application = AgentApplication(
-        profile=profile, registry=registry, workspace=workspace,
-        credentials=SimpleNamespace(issue=lambda *, binding_id, scope: SimpleNamespace(scope_id=scope.scope_id, credentials={})),
+        profile=profile, prepared_application=prepared, workspace=workspace,
+        store=store, turn_controller=controller,
         provider_factory=provider_factory,
     )
-    outcome = application.run(ApplicationRequest(profile.manifest.application_id, ("Inspect both systems.", "Repeat using each system's existing context."), workspace.run_id))
+    outcome = application.run(ApplicationRequest(profile.manifest.application_id, questions, workspace.run_id))
     assert outcome.status == "completed", outcome.error
     assert outcome.completed_questions == 2
     provider, = providers
