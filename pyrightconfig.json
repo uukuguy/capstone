@@ -5,7 +5,9 @@
     "packages/inventory-domain-pack/src",
     "packages/grid-agent/src",
     "packages/grid-simulator/src",
-    "packages/inventory-reference-service/src"
+    "packages/inventory-reference-service/src",
+    "packages/pypsa-model-authority/src",
+    "packages/pypsa-network-modeling-domain-pack/src"
   ],
   "extraPaths": [
     "packages/capability-agent-kernel/src",
@@ -13,7 +15,9 @@
     "packages/inventory-domain-pack/src",
     "packages/grid-agent/src",
     "packages/grid-simulator/src",
-    "packages/inventory-reference-service/src"
+    "packages/inventory-reference-service/src",
+    "packages/pypsa-model-authority/src",
+    "packages/pypsa-network-modeling-domain-pack/src"
   ],
   "typeCheckingMode": "standard",
   "pythonVersion": "3.12",

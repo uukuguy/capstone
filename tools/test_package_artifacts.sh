@@ -8,6 +8,7 @@ temporary_root="$(mktemp -d)"
 temporary_root="$(cd "$temporary_root" && pwd -P)"
 artifact_dir="$temporary_root/artifacts"
 venv_dir="$temporary_root/venv"
+pypsa_venv_dir="$temporary_root/pypsa-venv"
 run_dir="$temporary_root/run"
 grid_pack_dir="$temporary_root/pi-grid-tools-pack"
 
@@ -28,6 +29,8 @@ uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/inventory-reference-service --out-dir "$artifact_dir"
 uv build --project packages/inventory-domain-pack --out-dir "$artifact_dir"
+uv build --project packages/pypsa-model-authority --out-dir "$artifact_dir"
+uv build --project packages/pypsa-network-modeling-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/grid-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
 cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
@@ -56,12 +59,17 @@ python_wheels=(
   "$artifact_dir"/inventory_domain_pack-*.whl
   "$artifact_dir"/grid_agent-*.whl
 )
+pypsa_wheels=(
+  "$artifact_dir"/capability_agent_kernel-*.whl
+  "$artifact_dir"/pypsa_model_authority-*.whl
+  "$artifact_dir"/pypsa_network_modeling_domain_pack-*.whl
+)
 
-if [ "${#python_wheels[@]}" -ne 6 ]; then
-  echo "expected six Python wheels in $artifact_dir" >&2
+if [ "${#python_wheels[@]}" -ne 6 ] || [ "${#pypsa_wheels[@]}" -ne 3 ]; then
+  echo "expected six grid/reference and three PyPSA wheel inputs" >&2
   exit 1
 fi
-for wheel in "${python_wheels[@]}"; do
+for wheel in "${python_wheels[@]}" "${pypsa_wheels[@]}"; do
   if [ ! -f "$wheel" ]; then
     echo "missing Python wheel: $wheel" >&2
     exit 1
@@ -70,6 +78,8 @@ done
 
 uv venv "$venv_dir" >/dev/null
 uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
+uv venv "$pypsa_venv_dir" >/dev/null
+uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
 
 smoke_file="$run_dir/installed_smoke.py"
 cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"
@@ -127,6 +137,12 @@ PY
 (
   cd "$run_dir"
   "$venv_dir/bin/python" "$run_dir/http_authority_smoke.py"
+)
+
+cp packages/pypsa-network-modeling-domain-pack/tests/installed_smoke.py "$run_dir/installed_pypsa_smoke.py"
+(
+  cd "$run_dir"
+  POLARS_MAX_THREADS=4 "$pypsa_venv_dir/bin/python" "$run_dir/installed_pypsa_smoke.py"
 )
 
 inspect_npm_tarball() {

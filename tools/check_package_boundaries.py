@@ -16,6 +16,9 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "grid_simulator",
         "pandapower_domain",
         "pandapower",
+        "pypsa_model_authority",
+        "pypsa_network_modeling",
+        "pypsa",
     ),
     "packages/pandapower-domain-pack/src": ("grid_agent",),
     "packages/inventory-reference-service/src": (
@@ -31,6 +34,14 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "grid_simulator",
         "pandapower_domain",
         "pandapower",
+    ),
+    "packages/pypsa-model-authority/src": (
+        "capability_agent", "grid_agent", "grid_simulator",
+        "pandapower_domain", "inventory_domain", "pypsa_network_modeling",
+    ),
+    "packages/pypsa-network-modeling-domain-pack/src": (
+        "grid_agent", "grid_simulator", "pandapower_domain",
+        "inventory_domain", "pandapower",
     ),
     "packages/grid-agent/src/grid_agent/cli": (
         "grid_agent.domain",
@@ -93,6 +104,8 @@ SOURCE_PATH_LITERAL_ROOTS = (
     "packages/pandapower-domain-pack/src",
     "packages/inventory-reference-service/src",
     "packages/inventory-domain-pack/src",
+    "packages/pypsa-model-authority/src",
+    "packages/pypsa-network-modeling-domain-pack/src",
 )
 GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
     # The complete Kernel is domain-neutral.  Keep semantic vocabulary out of
@@ -117,6 +130,14 @@ FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
         "pandapower-domain-pack",
         "pandapower",
     ),
+    Path("packages/pypsa-model-authority"): (
+        "capability-agent-kernel", "grid-agent", "grid-simulator",
+        "pandapower-domain-pack", "inventory-domain-pack",
+    ),
+    Path("packages/pypsa-network-modeling-domain-pack"): (
+        "grid-agent", "grid-simulator", "pandapower-domain-pack",
+        "inventory-domain-pack", "pandapower",
+    ),
 }
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
 FORBIDDEN_GENERIC_PATTERNS = {
@@ -126,6 +147,7 @@ FORBIDDEN_GENERIC_PATTERNS = {
     "grid_": re.compile(r"\bgrid_[a-z0-9_]*\b"),
     "pandapower_domain": re.compile(r"\bpandapower_domain\b"),
     "pandapower": re.compile(r"\bpandapower\b"),
+    "pypsa": re.compile(r"\bpypsa\b"),
     "power-flow": re.compile(r"\bpower[-_ ]?flow\b"),
     "voltage": re.compile(r"\bvoltage\b"),
     "bus": re.compile(r"\bbus(?:es)?\b"),
@@ -174,6 +196,9 @@ def check_boundaries(root: Path) -> list[str]:
     domain_root = root / "packages/pandapower-domain-pack/src"
     if domain_root.exists():
         violations.extend(check_pandapower_simulator_imports(root, domain_root))
+    pypsa_domain_root = root / "packages/pypsa-network-modeling-domain-pack/src"
+    if pypsa_domain_root.exists():
+        violations.extend(check_pypsa_authority_imports(root, pypsa_domain_root))
     for source_root, forbidden_modules in EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -239,6 +264,30 @@ def check_pandapower_simulator_imports(root: Path, source_root: Path) -> list[st
             if forbidden:
                 violations.append(
                     f"{path.relative_to(root).as_posix()} imports forbidden grid_simulator symbol"
+                )
+    return violations
+
+
+def check_pypsa_authority_imports(root: Path, source_root: Path) -> list[str]:
+    """The modeling Pack may import only the authority's public verifier."""
+    violations: list[str] = []
+    for path in sorted(source_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for module in imported_modules(tree):
+            if module == "pypsa" or module.startswith("pypsa."):
+                violations.append(f"{path.relative_to(root).as_posix()} imports raw pypsa")
+            elif module == "pypsa_model_authority" or (
+                module.startswith("pypsa_model_authority.")
+                and module not in {
+                    "pypsa_model_authority.references",
+                    "pypsa_model_authority.references.VerifiedDocument",
+                    "pypsa_model_authority.references.verify_model",
+                    "pypsa_model_authority.references.verify_result",
+                    "pypsa_model_authority.references.verify_evidence",
+                }
+            ):
+                violations.append(
+                    f"{path.relative_to(root).as_posix()} imports private pypsa authority"
                 )
     return violations
 

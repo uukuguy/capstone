@@ -120,10 +120,12 @@ Each binding retains its own workspace, credential scope, authority, state,
 claim admission and output. A claim cannot mix references owned by different
 bindings. Multi-binding admission records the individual binding decisions.
 
-Data sharing is still denied. Selecting two packs does not authorize either
-pack to consume the other's state, result, evidence or model. A future
-`model_ref` handoff requires a separate source-to-target policy and authority
-contract; this implementation does not provide it.
+Selecting two packs does not authorize either pack to consume the other's
+state, result, evidence or model. A trusted application may declare a
+`ReferenceGrant` for one opaque reference kind, source, target, purpose and
+capability family. The handoff service verifies the source revision, records a
+replayable receipt, and asks the target authority to admit it before the
+target capability runs. Other cross-binding sharing remains denied.
 
 The generic application result is composed from independently validated Kernel
 and Domain Pack contracts. Its generic shape is exactly:
@@ -258,9 +260,25 @@ application's provider interface returns reader-facing text. A managed Pi
 startup smoke also loads both published catalogs and guides through the default
 generic extension without provider I/O.
 
+The separately installable `pypsa-model-authority` and
+`pypsa-network-modeling-domain-pack` provide registered model opening, typed
+load-demand derivation, and bounded inspection. Their
+[`pypsa-model-capability/1.0` coverage](../../configs/capabilities/pypsa-1.3.0-modeling.json)
+does not publish solver operations or the planned operations, planning, and
+sector packs. An application-owned `ReferenceGrant` can permit an opaque model
+revision to cross from one named binding to another for one purpose and
+capability family. The Kernel records a content-addressed receipt in the
+replayable context before target execution; both source and target authorities
+verify the current-run revision. The installed-wheel smoke uses a test-only
+receiver binding and leaves the grid CLI selection unchanged.
+The grid/reference packages and PyPSA packages currently require separate
+Python environments: the pinned pandapower and PyPSA releases require
+different pandas major versions. This installed proof composes PyPSA with a
+receiver, not a pandapower/PyPSA application in one interpreter.
+
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, cross-domain conflict resolution, or a chosen
-second production domain. Governed writes, approval flows, tenant/actor scope,
+second production application. Governed writes, approval flows, tenant/actor scope,
 idempotency, compensation, and write-capability governance are likewise
 deferred. The C.2 GitHub Repository Intelligence record is a working theory,
 not an implemented or selected domain.

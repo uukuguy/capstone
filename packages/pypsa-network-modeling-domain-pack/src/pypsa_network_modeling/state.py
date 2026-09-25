@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TypedDict
 
 from capability_agent.domain.projection import DomainStateDelta
 
@@ -13,13 +14,23 @@ MODEL_STATE_SCHEMA = "pypsa-network-modeling-state/1.0"
 _REF = re.compile(r"^pypsa-(model|result|evidence):sha256:[a-f0-9]{64}$")
 
 
+class ResultRecord(TypedDict):
+    model_ref: str
+    evidence_refs: list[str]
+
+
+class ModelState(TypedDict):
+    active_model_ref: str | None
+    results: dict[str, ResultRecord]
+
+
 def require_reference(reference: object, kind: str) -> str:
     if not isinstance(reference, str) or not _REF.fullmatch(reference) or not reference.startswith(f"pypsa-{kind}:"):
         raise ValueError(f"PyPSA {kind} reference is invalid")
     return reference
 
 
-def _state(value: Mapping[str, object]) -> dict[str, object]:
+def _state(value: Mapping[str, object]) -> ModelState:
     if not isinstance(value, Mapping):
         raise ValueError("PyPSA model state must be a mapping")
     if not value:
@@ -28,11 +39,11 @@ def _state(value: Mapping[str, object]) -> dict[str, object]:
         raise ValueError("PyPSA model state fields are invalid")
     active = value["active_model_ref"]
     if active is not None:
-        require_reference(active, "model")
+        active = require_reference(active, "model")
     raw_results = value["results"]
     if not isinstance(raw_results, Mapping):
         raise ValueError("PyPSA model results must be a mapping")
-    results: dict[str, object] = {}
+    results: dict[str, ResultRecord] = {}
     for ref, raw in raw_results.items():
         require_reference(ref, "result")
         if not isinstance(raw, Mapping) or set(raw) != {"model_ref", "evidence_refs"}:
@@ -53,7 +64,7 @@ def _state(value: Mapping[str, object]) -> dict[str, object]:
 @dataclass(frozen=True, slots=True)
 class ModelContext:
     binding_id: str
-    state: dict[str, object]
+    state: ModelState
     admitted_refs: tuple[str, ...]
 
     def model_dump(self, *, mode: str = "python") -> dict[str, object]:
@@ -84,7 +95,7 @@ class ModelStateAdapter:
         evidence_refs = change["evidence_refs"]
         if not isinstance(evidence_refs, (list, tuple)) or not evidence_refs:
             raise ValueError("PyPSA model state delta has no evidence")
-        record = {
+        record: ResultRecord = {
             "model_ref": model_ref,
             "evidence_refs": [require_reference(item, "evidence") for item in evidence_refs],
         }

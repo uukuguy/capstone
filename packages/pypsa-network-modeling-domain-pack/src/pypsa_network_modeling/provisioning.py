@@ -71,6 +71,7 @@ class ModelRuntimeProvisioner:
         environment = sanitize_environment()
         executor = ModelctlExecutor(
             executable=target, workspace=root, environment=environment,
+            timeout_seconds=180.0,
         )
         return PreparedModelEndpoint(executor, {
             "binding_id": binding.binding_id,

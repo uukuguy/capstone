@@ -116,22 +116,13 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
 def test_type_checking_config_covers_exactly_all_production_source_roots() -> None:
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     source_roots = {
-        "packages/capability-agent-kernel/src",
-        "packages/pandapower-domain-pack/src",
-        "packages/inventory-domain-pack/src",
-        "packages/grid-agent/src",
-        "packages/grid-simulator/src",
-        "packages/inventory-reference-service/src",
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "packages").glob("*/src")
+        if path.is_dir() and (path.parent / "pyproject.toml").is_file()
     }
 
-    assert config["include"] == [
-        "packages/capability-agent-kernel/src",
-        "packages/pandapower-domain-pack/src",
-        "packages/inventory-domain-pack/src",
-        "packages/grid-agent/src",
-        "packages/grid-simulator/src",
-        "packages/inventory-reference-service/src",
-    ]
+    assert len(config["include"]) == len(source_roots)
+    assert set(config["include"]) == source_roots
     assert config["typeCheckingMode"] == "standard"
     assert config["pythonVersion"] == "3.12"
 

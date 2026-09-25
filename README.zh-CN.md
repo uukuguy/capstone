@@ -20,7 +20,7 @@ Application -> Domain Pack -> Kernel -> registered Authority
 
 ## 添加应用
 
-集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。显式多 binding 装配支持在同一应用中组合独立领域，工具、状态、证据和输出均按命名空间隔离。跨领域共享仍被拒绝，直到另行规划的 `model_ref` 交接合同实现。Capstone 当前不提供动态发现或运行时领域选择。
+集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。显式多 binding 装配支持在同一应用中组合独立领域，工具、状态、证据和输出均按命名空间隔离。应用可以针对指定来源、目标和用途授权只读引用交接；未授权共享仍被拒绝。Capstone 当前不提供动态发现或运行时领域选择。
 
 ## 框架保证
 
@@ -76,7 +76,7 @@ LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、
 
 Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些可复用接缝来组装领域包。下方的 pandapower 包构成首个正式应用；`inventory-domain-pack` 仍是 conformance 基础设施，而非已选定的第二个生产领域。
 
-仓库现在包含六个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，另外两个构成只读 inventory 参考域，用于证明公共 Domain Pack SPI：
+仓库现在包含八个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，两个构成只读 inventory 参考域，另两个通过公共 Domain Pack SPI 提供 PyPSA 网络建模的首批能力：
 
 | 发行包 | 职责 |
 | --- | --- |
@@ -86,10 +86,12 @@ Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些�
 | `grid-agent` | CLI、Provider/Pi 运行时初始化、认证、连续分析、报告、工作台服务和最终 JSON 答案封装 |
 | `inventory-reference-service` | `inventoryctl`、已登记只读目录、严格的 `inventory-capability/1.0` 和内容寻址 inventory 工件 |
 | `inventory-domain-pack` | 仅基于公共内核 SPI 的 inventory Profile、策略、指南、契约、执行器、投影器和当前运行工件权威 |
+| `pypsa-model-authority` | 已登记 PyPSA 模型目录、不可变修订、受限建模操作及当前运行结果和证据引用 |
+| `pypsa-network-modeling-domain-pack` | 通过公共 Kernel SPI 提供 PyPSA 建模契约、策略、指南、执行、投影与权威准入 |
 | `@capability-agent/pi-tools` | 通用的描述符驱动 Pi 能力请求传输与请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 保留现有 `grid_*` 工具和指南行为的 grid 兼容 Pi 扩展包装 |
 
-源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建六个 Python wheel 与两个 npm tarball，在仓库外安装并执行冒烟检查，确保不会从源码路径导入：
+源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建八个 Python wheel 与两个 npm tarball，在仓库外隔离安装并执行冒烟检查，确保不会从源码路径导入。grid／参考包和 PyPSA 包使用不同 Python 环境，因为两套已固定的仿真依赖要求不同的 pandas 主版本：
 
 ```sh
 make test-packages
@@ -99,7 +101,9 @@ make test-packages
 `make test-domain-pack-conformance` 验证 inventory SDK、固定 HTTP 与通用 Pi 参考用例。
 HTTP adapter 仅用于测试；干净安装 smoke 会在 wheel 外复制它。
 
-`make test` 是不使用 Provider 的单元门禁：分别运行六个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
+首批 PyPSA 能力提供已登记模型的打开、按类型修改负荷需求并派生修订，以及受限模型检查；精确工具见[覆盖目录](configs/capabilities/pypsa-1.3.0-modeling.json)。`make test-pypsa` 运行聚焦测试；干净 wheel 验证会准备第二个测试专用接收绑定，执行明确授权的当前运行模型引用交接。运行分析、规划和行业耦合三个 Pack 仍待单独实现。grid CLI 仍绑定 pandapower。
+
+`make test` 是不使用 Provider 的单元门禁：分别运行八个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。
 

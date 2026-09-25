@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    import pypsa
+    import pypsa  # pyright: ignore[reportMissingImports] -- authority venv
 
 
 Kind = Literal["model", "result", "evidence"]
@@ -129,7 +129,7 @@ class ModelStore:
 
 def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
     import pandas as pd
-    import pypsa
+    import pypsa  # pyright: ignore[reportMissingImports] -- authority venv
 
     components = document.get("components")
     snapshots = document.get("snapshots")

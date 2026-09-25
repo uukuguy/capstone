@@ -1,0 +1,13 @@
+{
+  "schema": "capstone-capability-coverage/1.0",
+  "domain_pack": "pypsa-network-modeling-domain-pack",
+  "authority": "pypsa-model-authority",
+  "authority_protocol": "pypsa-model-capability/1.0",
+  "pypsa_version": "1.3.0",
+  "published": [
+    {"id": "model.open", "tool_name": "pypsa_model_open", "effect": "open a registered immutable model revision"},
+    {"id": "model.derive", "tool_name": "pypsa_model_derive", "effect": "derive a typed load demand revision"},
+    {"id": "model.inspect", "tool_name": "pypsa_model_inspect", "effect": "inspect bounded model structure and demand"}
+  ],
+  "not_published": ["network operations", "scenario and expansion planning", "sector coupling", "solver results"]
+}

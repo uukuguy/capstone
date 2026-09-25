@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from capability_agent._safe_files import open_bound_parent, read_bound_regular_file
 
@@ -43,7 +43,11 @@ def aggregate_answer_admission(
     else:
         mode, assurance = "limited", "limited"
     codes = tuple(dict.fromkeys(code for decision in decisions for code in decision.diagnostic_codes))
-    return AnswerAdmissionDecision(mode, assurance, answer_output, codes)
+    return AnswerAdmissionDecision(
+        cast(Literal["authority_backed", "offline_information", "limited"], mode),
+        cast(Literal["lineage_verified", "deterministic_information", "guide_access_verified", "limited"], assurance),
+        answer_output, codes,
+    )
 
 
 def read_answer_admission_metadata(
@@ -112,7 +116,11 @@ def read_answer_admission_metadata(
         or payload.get("turn_id") != answer.get("turn_id")
     ):
         raise ValueError("answer record is invalid")
-    decision = AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
+    decision = AnswerAdmissionDecision(
+        cast(Literal["authority_backed", "offline_information", "limited"], mode),
+        cast(Literal["lineage_verified", "deterministic_information", "guide_access_verified", "limited"], assurance),
+        answer_output, tuple(codes),
+    )
     if payload["schema"] == "capability-agent-answer-admission/1.2":
         bindings = payload.get("bindings")
         selected = answer.get("referenced_bindings")
@@ -136,7 +144,11 @@ def read_answer_admission_metadata(
                 or any(not isinstance(code, str) or not code for code in entry_codes)
             ):
                 raise ValueError("answer admission binding metadata is invalid")
-            decisions.append(AnswerAdmissionDecision(entry_mode, entry_assurance, answer_output, tuple(entry_codes)))
+            decisions.append(AnswerAdmissionDecision(
+                cast(Literal["authority_backed", "offline_information", "limited"], entry_mode),
+                cast(Literal["lineage_verified", "deterministic_information", "guide_access_verified", "limited"], entry_assurance),
+                answer_output, tuple(entry_codes),
+            ))
         aggregate = aggregate_answer_admission(tuple(decisions), answer_output)
         # Canonical JSON sorts object keys; diagnostic order follows submission order.
         if (aggregate.mode, aggregate.assurance) != (mode, assurance) or set(aggregate.diagnostic_codes) != set(codes):

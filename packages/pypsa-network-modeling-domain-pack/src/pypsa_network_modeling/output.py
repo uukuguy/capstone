@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from capability_agent.domain.output import CommittedAnswer
+from capability_agent.domain.state import DomainContextView
+
 from pypsa_network_modeling.state import ModelStateAdapter, require_reference
 
 
@@ -11,14 +14,16 @@ class ModelOutputContract:
     schema_id = "pypsa-network-modeling-output/1.0"
 
     def build(
-        self, *, binding_id: str, context: object,
-        committed_answers: tuple[object, ...],
+        self, *, binding_id: str, context: DomainContextView,
+        committed_answers: tuple[CommittedAnswer, ...],
     ) -> Mapping[str, object]:
         del committed_answers
         dumped = context.model_dump(mode="json")
         if dumped.get("binding_id") != binding_id:
             raise ValueError("PyPSA model output binding differs")
         state = dumped.get("state")
+        if not isinstance(state, Mapping):
+            raise ValueError("PyPSA model output state is invalid")
         view = ModelStateAdapter().build_context(binding_id=binding_id, state=state)
         return {
             "active_model_ref": view.state["active_model_ref"],
@@ -40,12 +45,16 @@ class ModelOutputContract:
 
 class ModelPresentationProvider:
     def render_context(self, context: object) -> Mapping[str, object]:
-        raw = context.model_dump(mode="json") if hasattr(context, "model_dump") else context
+        dump = getattr(context, "model_dump", None)
+        raw = dump(mode="json") if callable(dump) else context
         if not isinstance(raw, Mapping):
             raise ValueError("PyPSA model context is invalid")
         if "domains" in raw:
+            domains = raw["domains"]
+            if not isinstance(domains, Mapping):
+                raise ValueError("PyPSA model domains are invalid")
             matches = [
-                (key, value) for key, value in raw["domains"].items()
+                (key, value) for key, value in domains.items()
                 if isinstance(value, Mapping) and value.get("schema_id") == ModelStateAdapter.schema_id
             ]
             if len(matches) != 1:

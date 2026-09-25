@@ -7,8 +7,9 @@ import hashlib
 import math
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, cast
 
-import pypsa
+import pypsa  # pyright: ignore[reportMissingImports] -- resolved in the authority venv
 
 from pypsa_model_authority.catalog import load_registered_model
 from pypsa_model_authority.store import (
@@ -61,8 +62,8 @@ def execute(
             parent = store.load_model(model_ref)
         except ModelStoreError as exc:
             raise ModelCapabilityError("invalid_model_ref", str(exc)) from exc
-        components = copy.deepcopy(parent["components"])
-        loads = components["loads"]
+        components = cast(dict[str, Any], copy.deepcopy(parent["components"]))
+        loads = cast(list[dict[str, Any]], components["loads"])
         matched = [item for item in loads if item["id"] == load_id]
         if len(matched) != 1:
             raise ModelCapabilityError("load_not_found", "load is not present in the model revision")
@@ -72,7 +73,7 @@ def execute(
             {"components": components, "snapshots": parent["snapshots"],
              "snapshot_weightings": parent["snapshot_weightings"]},
             catalog_id=str(parent["catalog_id"]), parent_ref=model_ref,
-            edits=[*parent["edits"], {"operation": "load.p_set", "load_id": load_id, "p_set_mw": value}],
+            edits=[*cast(list[dict[str, object]], parent["edits"]), {"operation": "load.p_set", "load_id": load_id, "p_set_mw": value}],
         )
         return _publish(store, capability, revision)
     if capability == "model.inspect":
@@ -103,14 +104,14 @@ def _revision(
     run_id: str, source: Mapping[str, object], *, catalog_id: str,
     parent_ref: str | None, edits: list[dict[str, object]],
 ) -> dict[str, object]:
-    components = copy.deepcopy(source["components"])
+    components = cast(dict[str, object], copy.deepcopy(source["components"]))
     document: dict[str, object] = {
         "schema": "pypsa-model-revision/1.0", "run_id": run_id,
         "catalog_id": catalog_id, "parent_ref": parent_ref, "edits": edits,
         "components": components,
         "component_digest": hashlib.sha256(canonical_bytes(components)).hexdigest(),
-        "snapshots": list(source["snapshots"]),
-        "snapshot_weightings": list(source["snapshot_weightings"]),
+        "snapshots": list(cast(list[object], source["snapshots"])),
+        "snapshot_weightings": list(cast(list[object], source["snapshot_weightings"])),
         "pypsa_version": pypsa.__version__,
     }
     try:

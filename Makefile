@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime
+.PHONY: help setup setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -29,13 +29,16 @@ help:
 	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
 
-setup: setup-agent setup-simulator setup-tools setup-workbench build-workbench
+setup: setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench
 
 setup-agent:
 	uv sync --project packages/grid-agent
 
 setup-simulator:
 	uv sync --project packages/grid-simulator
+
+setup-pypsa:
+	uv sync --project packages/pypsa-network-modeling-domain-pack
 
 setup-tools:
 	npm ci --prefix packages/pi-capability-tools
@@ -107,7 +110,7 @@ PORT ?= 8765
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-workbench
+test: test-agent test-simulator test-tools test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
@@ -132,6 +135,9 @@ test-inventory-pi:
 	uv run --project packages/inventory-domain-pack pytest packages/inventory-domain-pack/tests/test_generic_pi_transport.py -q
 
 test-inventory: test-inventory-service test-inventory-domain test-inventory-pi
+
+test-pypsa:
+	uv run --project packages/pypsa-network-modeling-domain-pack pytest packages/pypsa-model-authority/tests packages/pypsa-network-modeling-domain-pack/tests -q
 
 # Stable provider-free entry for authors copying the inventory Domain Pack pattern.
 test-domain-pack-conformance: check-package-boundaries
