@@ -141,7 +141,25 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
     if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 for value in weights):
         raise ModelStoreError("model snapshot weightings are invalid")
     network = pypsa.Network()
-    network.set_snapshots(pd.DatetimeIndex(snapshots))
+    investment_periods = document.get("investment_periods")
+    if investment_periods is None:
+        network.set_snapshots(pd.DatetimeIndex(snapshots))
+    elif (
+        isinstance(investment_periods, list)
+        and len(investment_periods) == 2
+        and all(isinstance(period, int) and not isinstance(period, bool) for period in investment_periods)
+        and investment_periods == sorted(set(investment_periods))
+        and len(snapshots) == 2
+        and all(isinstance(item, list) and len(item) == 2 for item in snapshots)
+        and [item[0] for item in snapshots] == investment_periods
+    ):
+        network.set_snapshots(pd.MultiIndex.from_tuples(
+            [(item[0], pd.Timestamp(item[1])) for item in snapshots],
+            names=["period", "timestep"],
+        ))
+        network.investment_period_weightings.loc[investment_periods, ["objective", "years"]] = 1.0
+    else:
+        raise ModelStoreError("registered investment periods are invalid")
     for column in network.snapshot_weightings.columns:
         network.snapshot_weightings[column] = weights
     for carrier in components.get("carriers", []):
@@ -162,9 +180,12 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             p_nom=generator["p_nom_mw"], marginal_cost=generator["marginal_cost"],
             committable=generator.get("committable", False),
             start_up_cost=generator.get("start_up_cost", 0.0),
+            p_min_pu=generator.get("p_min_pu", 0.0),
             p_nom_extendable=generator.get("p_nom_extendable", False),
             p_nom_max=generator.get("p_nom_max_mw", float("inf")),
             capital_cost=generator.get("capital_cost", 0.0),
+            build_year=generator.get("build_year", 0),
+            lifetime=generator.get("lifetime", float("inf")),
         )
         limit = generator.get("p_max_pu")
         if isinstance(limit, list):
@@ -190,13 +211,32 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             e_nom=store["e_nom_mwh"], e_initial=store.get("e_initial_mwh", 0.0),
             e_cyclic=store.get("e_cyclic", False),
         )
+    scenarios = document.get("scenarios")
+    if scenarios is not None:
+        if (
+            not isinstance(scenarios, dict) or len(scenarios) != 2
+            or any(not isinstance(name, str) or not name for name in scenarios)
+            or any(not isinstance(weight, (int, float)) or isinstance(weight, bool) or weight <= 0 for weight in scenarios.values())
+            or abs(sum(scenarios.values()) - 1.0) > 1e-9
+        ):
+            raise ModelStoreError("registered scenarios are invalid")
+        network.set_scenarios(scenarios)
+        for load in components.get("loads", []):
+            scenario_values = load.get("scenario_p_set_mw")
+            if scenario_values is not None:
+                if not isinstance(scenario_values, dict) or set(scenario_values) != set(scenarios):
+                    raise ModelStoreError("registered scenario demand is invalid")
+                for scenario, value in scenario_values.items():
+                    network.loads_t.p_set[(scenario, load["id"])] = _series_values([value], len(snapshots))
     return network
 
 
 def _series_values(values: list[object], count: int) -> list[float]:
-    if len(values) != count or not all(
-        isinstance(value, (int, float)) and not isinstance(value, bool)
-        and math.isfinite(value) for value in values
-    ):
+    if len(values) != count:
         raise ModelStoreError("registered time series is invalid")
-    return [float(value) for value in values]
+    parsed: list[float] = []
+    for value in values:
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+            raise ModelStoreError("registered time series is invalid")
+        parsed.append(float(value))
+    return parsed

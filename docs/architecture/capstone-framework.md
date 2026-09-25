@@ -265,9 +265,10 @@ The separately installable `pypsa-model-authority` and
 load-demand derivation, and bounded inspection. The independent
 `pypsa-power-operations-domain-pack` publishes fixed dispatch, unit commitment,
 registered line-outage security dispatch, and post-dispatch AC validation.
-The `pypsa-capacity-planning-domain-pack` publishes one registered
-single-period generator expansion formulation with separate investment and
-operating costs; multi-period and stochastic workflows remain planned.
+The `pypsa-capacity-planning-domain-pack` publishes registered generator
+expansion, joint capacity and commitment, two-period investment, two-scenario
+stochastic investment, and a near-optimal capacity alternative. The MGA
+capacity objective and its system cost are separate result fields.
 The `pypsa-sector-coupling-domain-pack` publishes registered
 electricity-to-hydrogen, heat-pump, hydrogen and heat storage, and multi-port
 CHP balances. Heat storage uses a registered snapshot COP profile.

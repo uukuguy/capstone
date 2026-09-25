@@ -1,0 +1,25 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "capacity-pathway",
+  "investment_periods": [2025, 2030],
+  "snapshots": [
+    [2025, "2025-01-01T00:00:00"],
+    [2030, "2030-01-01T00:00:00"]
+  ],
+  "snapshot_weightings": [1.0, 1.0],
+  "components": {
+    "buses": [{"id": "bus", "v_nom_kv": 110.0}],
+    "loads": [{"id": "demand", "bus": "bus", "p_set_mw": [20.0, 40.0]}],
+    "generators": [
+      {"id": "early", "bus": "bus", "p_nom_mw": 0.0,
+       "p_nom_extendable": true, "p_nom_max_mw": 100.0,
+       "build_year": 2025, "lifetime": 20.0,
+       "capital_cost": 100.0, "marginal_cost": 10.0},
+      {"id": "late", "bus": "bus", "p_nom_mw": 0.0,
+       "p_nom_extendable": true, "p_nom_max_mw": 100.0,
+       "build_year": 2030, "lifetime": 20.0,
+       "capital_cost": 40.0, "marginal_cost": 10.0}
+    ],
+    "lines": []
+  }
+}

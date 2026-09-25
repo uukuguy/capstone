@@ -85,7 +85,11 @@ class PlanningExecutor:
             passed = {}
         else:
             expected = {"reference", "handoff_ref"}
-            if capability != "planning.capacity_expand" or set(arguments) != expected:
+            if capability not in {
+                "planning.capacity_expand", "planning.capacity_commitment",
+                "planning.multi_period", "planning.stochastic",
+                "planning.near_optimal_capacity",
+            } or set(arguments) != expected:
                 raise ValueError("planning arguments do not match the contract")
             reference = _reference(arguments["reference"], "model")
             receipt_ref = arguments["handoff_ref"]

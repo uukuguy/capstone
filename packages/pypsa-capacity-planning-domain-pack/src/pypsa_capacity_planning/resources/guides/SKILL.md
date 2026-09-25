@@ -1,3 +1,3 @@
 # PyPSA Capacity Planning
 
-The application hands an immutable registered model revision to this Pack. `planning.capacity_expand` solves a bounded single-period generator investment problem. The result distinguishes investment cost, operating cost, and total objective; cite the returned target result and evidence references for numerical claims.
+The application hands an immutable registered model revision to this Pack. `planning.capacity_expand` solves single-period investment; `planning.capacity_commitment` jointly chooses capacity and on/off status. `planning.multi_period` solves a two-year pathway, and `planning.stochastic` shares investment across two scenario dispatch decisions. `planning.near_optimal_capacity` maximizes installed capacity within 5% of the cost optimum. Its alternative objective is capacity, while baseline and alternative system costs are separate fields. Cite returned target result and evidence references for numerical claims.

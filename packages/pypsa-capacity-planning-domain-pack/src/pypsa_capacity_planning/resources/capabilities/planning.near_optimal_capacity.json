@@ -1,0 +1,58 @@
+{
+  "id": "planning.near_optimal_capacity",
+  "tool_name": "pypsa_plan_near_optimal_capacity",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": [
+      "pypsa-planning.result"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-planning.result",
+    "projector": "pypsa-planning-result-v1"
+  },
+  "purpose": "Maximize installed capacity within five percent of the registered cost optimum.",
+  "applies_to": [
+    "registered PyPSA capacity-two-bus model"
+  ],
+  "not_for": [
+    "unregistered models",
+    "arbitrary solver or investment inputs"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reference",
+      "handoff_ref"
+    ],
+    "properties": {
+      "reference": {
+        "type": "string",
+        "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"
+      },
+      "handoff_ref": {
+        "type": "string",
+        "pattern": "^handoff:sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "requires": [
+    "application-granted model handoff"
+  ],
+  "produces": [
+    "result_ref",
+    "evidence_refs",
+    "alternative capacity objective",
+    "baseline system cost",
+    "alternative system cost",
+    "cost slack"
+  ],
+  "common_next": [],
+  "recovery": {
+    "solve_failed": [
+      "Report that the registered planning formulation did not reach an optimum."
+    ]
+  }
+}

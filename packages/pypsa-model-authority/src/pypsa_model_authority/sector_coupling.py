@@ -106,6 +106,7 @@ def execute_sector(
     elif capability == "sector.multiport_balance":
         details = _multiport_details(network)
     else:
+        _, _, link_id, load_id, _ = _FORMULATIONS[capability]
         details = _single_link_details(network, capability, link_id, load_id)
     details.update({
         "status": status, "condition": condition,

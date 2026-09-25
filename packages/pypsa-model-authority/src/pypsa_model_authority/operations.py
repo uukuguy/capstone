@@ -71,7 +71,9 @@ def execute(
         revision = _revision(
             store.run_id,
             {"components": components, "snapshots": parent["snapshots"],
-             "snapshot_weightings": parent["snapshot_weightings"]},
+             "snapshot_weightings": parent["snapshot_weightings"],
+             **({"investment_periods": parent["investment_periods"]} if "investment_periods" in parent else {}),
+             **({"scenarios": parent["scenarios"]} if "scenarios" in parent else {})},
             catalog_id=str(parent["catalog_id"]), parent_ref=model_ref,
             edits=[*cast(list[dict[str, object]], parent["edits"]), {"operation": "load.p_set", "load_id": load_id, "p_set_mw": value}],
         )
@@ -114,6 +116,8 @@ def _revision(
         "component_digest": hashlib.sha256(canonical_bytes(components)).hexdigest(),
         "snapshots": list(cast(list[object], source["snapshots"])),
         "snapshot_weightings": list(cast(list[object], source["snapshot_weightings"])),
+        **({"investment_periods": list(cast(list[object], source["investment_periods"]))} if "investment_periods" in source else {}),
+        **({"scenarios": dict(cast(dict[str, object], source["scenarios"]))} if "scenarios" in source else {}),
         "pypsa_version": pypsa.__version__,
     }
     try:

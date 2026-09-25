@@ -14,10 +14,10 @@ focused real-solver test; existing receipt and replay tests are reused.
 | --- | --- | --- |
 | Network Modeling | bounded typed time-series derivation and model validation | planned |
 | Power Operations | rolling horizon and explicit congested grid OPF | planned |
-| Capacity Planning | combined capacity plus commitment | planned |
-| Capacity Planning | multi-period investment pathway | planned |
-| Capacity Planning | two-scenario stochastic investment | planned |
-| Capacity Planning | near-optimal alternative (MGA) with distinct objective meaning | planned |
+| Capacity Planning | combined capacity plus commitment | implemented; installation verification pending |
+| Capacity Planning | multi-period investment pathway | implemented; installation verification pending |
+| Capacity Planning | two-scenario stochastic investment | implemented; installation verification pending |
+| Capacity Planning | near-optimal alternative (MGA) with distinct objective meaning | implemented; installation verification pending |
 | Sector Coupling | registered heat-pump balance | implemented; installation verification pending |
 | Sector Coupling | variable COP, hydrogen and heat storage balance | implemented; installation verification pending |
 | Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | implemented; installation verification pending |

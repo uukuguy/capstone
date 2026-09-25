@@ -113,7 +113,10 @@ def verify_planning_result(
         document.get("schema") != "pypsa-planning-result/1.0"
         or document.get("target_binding_id") != Path(workspace).name
         or document.get("source_binding_id") != Path(source_workspace).name
-        or document.get("capability") != "planning.capacity_expand"
+        or document.get("capability") not in {
+            "planning.capacity_expand", "planning.capacity_commitment", "planning.multi_period",
+            "planning.stochastic", "planning.near_optimal_capacity",
+        }
         or document.get("status") != "ok"
         or not isinstance(model_ref, str)
     ):

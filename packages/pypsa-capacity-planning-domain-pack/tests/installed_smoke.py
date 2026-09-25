@@ -56,21 +56,33 @@ def main() -> None:
             profile, registry=registry, workspace=workspace.root, credentials=EmptyCredentials(),
         )
         store = ApplicationContextStore.initialize(workspace)
-        opened = prepared.bindings["model"].endpoint.executor.invoke(
-            "model.open", {"catalog_id": "capacity-two-bus"},
-        )
         service = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
-        result, receipt = service.invoke_target(
-            source_binding_id="model", target_binding_id="planning",
-            reference=opened["model_ref"], reference_kind="model", purpose="planning",
-            capability="planning.capacity_expand", arguments={},
-        )
-        assert result["objective"] == 4800.0
         target = prepared.bindings["planning"]
-        assert target.runtime.authority.admit(
-            "planning.capacity_expand", result, tuple(result["evidence_refs"])
-        ).results[0].document["source_binding_id"] == "model"
-        assert service.verify_receipt(receipt) == receipt
+        for catalog_id, capability, expected in (
+            ("capacity-two-bus", "planning.capacity_expand", 4800.0),
+            ("capacity-commitment", "planning.capacity_commitment", 4450.0),
+            ("capacity-pathway", "planning.multi_period", 20.0),
+            ("capacity-scenarios", "planning.stochastic", 20.0),
+            ("capacity-two-bus", "planning.near_optimal_capacity", 42.4),
+        ):
+            opened = prepared.bindings["model"].endpoint.executor.invoke(
+                "model.open", {"catalog_id": catalog_id},
+            )
+            result, receipt = service.invoke_target(
+                source_binding_id="model", target_binding_id="planning",
+                reference=opened["model_ref"], reference_kind="model", purpose="planning",
+                capability=capability, arguments={},
+            )
+            observed = (
+                result["generator_capacity_mw"].get("early", result["generator_capacity_mw"].get("build"))
+                if capability in {"planning.multi_period", "planning.stochastic"}
+                else result["objective"]
+            )
+            assert abs(observed - expected) < 1e-6
+            assert target.runtime.authority.admit(
+                capability, result, tuple(result["evidence_refs"])
+            ).results[0].document["source_binding_id"] == "model"
+            assert service.verify_receipt(receipt) == receipt
         assert ApplicationContextStore.replay(workspace.context_events_path) == store.snapshot
         for binding in prepared.bindings.values():
             binding.endpoint.close()

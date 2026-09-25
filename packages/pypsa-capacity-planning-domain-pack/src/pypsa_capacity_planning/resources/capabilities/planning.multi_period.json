@@ -1,0 +1,57 @@
+{
+  "id": "planning.multi_period",
+  "tool_name": "pypsa_plan_multi_period",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": [
+      "pypsa-planning.result"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-planning.result",
+    "projector": "pypsa-planning-result-v1"
+  },
+  "purpose": "Optimize registered two-period generator investment pathway.",
+  "applies_to": [
+    "registered PyPSA capacity-pathway model"
+  ],
+  "not_for": [
+    "unregistered models",
+    "arbitrary solver or investment inputs"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reference",
+      "handoff_ref"
+    ],
+    "properties": {
+      "reference": {
+        "type": "string",
+        "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"
+      },
+      "handoff_ref": {
+        "type": "string",
+        "pattern": "^handoff:sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "requires": [
+    "application-granted model handoff"
+  ],
+  "produces": [
+    "result_ref",
+    "evidence_refs",
+    "capacity by build year",
+    "investment periods",
+    "pathway cost"
+  ],
+  "common_next": [],
+  "recovery": {
+    "solve_failed": [
+      "Report that the registered planning formulation did not reach an optimum."
+    ]
+  }
+}

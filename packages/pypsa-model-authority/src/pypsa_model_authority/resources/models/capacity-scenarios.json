@@ -1,0 +1,22 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "capacity-scenarios",
+  "scenarios": {"low": 0.5, "high": 0.5},
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "buses": [{"id": "bus", "v_nom_kv": 110.0}],
+    "loads": [
+      {"id": "demand", "bus": "bus", "p_set_mw": 20.0,
+       "scenario_p_set_mw": {"low": 20.0, "high": 40.0}}
+    ],
+    "generators": [
+      {"id": "build", "bus": "bus", "p_nom_mw": 0.0,
+       "p_nom_extendable": true, "p_nom_max_mw": 100.0,
+       "capital_cost": 70.0, "marginal_cost": 10.0},
+      {"id": "backup", "bus": "bus", "p_nom_mw": 100.0,
+       "marginal_cost": 100.0}
+    ],
+    "lines": []
+  }
+}
