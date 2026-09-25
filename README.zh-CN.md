@@ -76,7 +76,7 @@ LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、
 
 Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些可复用接缝来组装领域包。下方的 pandapower 包构成首个正式应用；`inventory-domain-pack` 仍是 conformance 基础设施，而非已选定的第二个生产领域。
 
-仓库现在包含十个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，两个构成只读 inventory 参考域，另四个提供 PyPSA 模型权威、网络建模、运行计算与容量规划 Pack：
+仓库现在包含十一个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，两个构成只读 inventory 参考域，另五个提供 PyPSA 模型权威、网络建模、运行计算、容量规划与行业耦合 Pack：
 
 | 发行包 | 职责 |
 | --- | --- |
@@ -90,10 +90,11 @@ Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些�
 | `pypsa-network-modeling-domain-pack` | 通过公共 Kernel SPI 提供 PyPSA 建模契约、策略、指南、执行、投影与权威准入 |
 | `pypsa-power-operations-domain-pack` | 通过授权模型交接执行固定容量调度、机组启停、登记故障集调度和 AC 校验，保存目标绑定证据 |
 | `pypsa-capacity-planning-domain-pack` | 通过授权模型交接执行登记模型的单周期机组容量扩建，区分投资与运行成本并保存目标绑定证据 |
+| `pypsa-sector-coupling-domain-pack` | 通过授权模型交接执行登记的电转氢转换与需求平衡，并保存目标绑定证据 |
 | `@capability-agent/pi-tools` | 通用的描述符驱动 Pi 能力请求传输与请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 保留现有 `grid_*` 工具和指南行为的 grid 兼容 Pi 扩展包装 |
 
-源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建十个 Python wheel 与两个 npm tarball，在仓库外隔离安装并执行冒烟检查，确保不会从源码路径导入。grid／参考包和 PyPSA 包使用不同 Python 环境，因为两套已固定的仿真依赖要求不同的 pandas 主版本：
+源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建十一个 Python wheel 与两个 npm tarball，在仓库外隔离安装并执行冒烟检查，确保不会从源码路径导入。grid／参考包和 PyPSA 包使用不同 Python 环境，因为两套已固定的仿真依赖要求不同的 pandas 主版本：
 
 ```sh
 make test-packages
@@ -103,9 +104,9 @@ make test-packages
 `make test-domain-pack-conformance` 验证 inventory SDK、固定 HTTP 与通用 Pi 参考用例。
 HTTP adapter 仅用于测试；干净安装 smoke 会在 wheel 外复制它。
 
-PyPSA 建模 Pack 提供已登记模型的打开、按类型修改负荷需求并派生修订，以及受限模型检查。独立的运行计算 Pack 提供固定容量调度、机组启停、登记故障集调度和调度后的 AC 校验。容量规划 Pack 提供登记模型的单周期机组容量扩建。精确工具见[建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)、[运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)与[容量规划目录](configs/capabilities/pypsa-1.3.0-capacity-planning.json)。`make test-pypsa` 运行聚焦测试；干净 wheel 验证会把当前运行模型引用经应用授权交给真实目标 Pack。行业耦合 Pack 仍待单独实现。grid CLI 仍绑定 pandapower。
+PyPSA 建模 Pack 提供已登记模型的打开、按类型修改负荷需求并派生修订，以及受限模型检查。独立的运行计算 Pack 提供固定容量调度、机组启停、登记故障集调度和调度后的 AC 校验。容量规划 Pack 提供登记模型的单周期机组容量扩建。行业耦合 Pack 提供登记的电转氢转换与需求平衡。精确工具见[建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)、[运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)、[容量规划目录](configs/capabilities/pypsa-1.3.0-capacity-planning.json)与[行业耦合目录](configs/capabilities/pypsa-1.3.0-sector-coupling.json)。`make test-pypsa` 运行聚焦测试；干净 wheel 验证会把当前运行模型引用经应用授权交给真实目标 Pack。供热、储能和多端口流程仍在规划中。grid CLI 仍绑定 pandapower。
 
-`make test` 是不使用 Provider 的单元门禁：分别运行十个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
+`make test` 是不使用 Provider 的单元门禁：分别运行十一个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。
 

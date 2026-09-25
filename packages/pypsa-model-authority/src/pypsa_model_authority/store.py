@@ -144,8 +144,13 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
     network.set_snapshots(pd.DatetimeIndex(snapshots))
     for column in network.snapshot_weightings.columns:
         network.snapshot_weightings[column] = weights
+    for carrier in components.get("carriers", []):
+        network.add("Carrier", carrier["id"])
     for bus in components.get("buses", []):
-        network.add("Bus", bus["id"], v_nom=bus["v_nom_kv"])
+        network.add(
+            "Bus", bus["id"], v_nom=bus["v_nom_kv"],
+            **({"carrier": bus["carrier"]} if "carrier" in bus else {}),
+        )
     for load in components.get("loads", []):
         network.add("Load", load["id"], bus=load["bus"], p_set=load["p_set_mw"])
     for generator in components.get("generators", []):
@@ -162,5 +167,11 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
         network.add(
             "Line", line["id"], bus0=line["from_bus"], bus1=line["to_bus"],
             r=line["r_ohm"], x=line["x_ohm"], s_nom=line["s_nom_mva"],
+        )
+    for link in components.get("links", []):
+        network.add(
+            "Link", link["id"], bus0=link["from_bus"], bus1=link["to_bus"],
+            p_nom=link["p_nom_mw"], efficiency=link["efficiency"],
+            carrier=link.get("carrier", ""),
         )
     return network

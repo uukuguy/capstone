@@ -1,0 +1,25 @@
+{
+  "id": "sector.hydrogen_balance",
+  "tool_name": "pypsa_sector_hydrogen_balance",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [], "consumes_state": [],
+    "produces_state": ["pypsa-sector.result"], "invalidates_state": [],
+    "result_kind": "pypsa-sector.result", "projector": "pypsa-sector-result-v1"
+  },
+  "purpose": "Solve registered electricity-to-hydrogen conversion and hydrogen demand balance for an authorized current-run model revision.",
+  "applies_to": ["registered PyPSA electricity-hydrogen model"],
+  "not_for": ["unregistered models", "arbitrary carrier or Link inputs", "heat, storage, or multi-port claims"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["reference", "handoff_ref"],
+    "properties": {
+      "reference": {"type": "string", "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"},
+      "handoff_ref": {"type": "string", "pattern": "^handoff:sha256:[a-f0-9]{64}$"}
+    }
+  },
+  "requires": ["application-granted model handoff"],
+  "produces": ["result_ref", "evidence_refs", "electricity generation", "hydrogen delivery", "conversion loss", "operating cost"],
+  "common_next": [],
+  "recovery": {"solve_failed": ["Report that the registered sector balance did not reach an optimum."]}
+}

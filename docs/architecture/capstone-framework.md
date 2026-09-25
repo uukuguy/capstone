@@ -268,18 +268,22 @@ registered line-outage security dispatch, and post-dispatch AC validation.
 The `pypsa-capacity-planning-domain-pack` publishes one registered
 single-period generator expansion formulation with separate investment and
 operating costs; multi-period and stochastic workflows remain planned.
+The `pypsa-sector-coupling-domain-pack` publishes one registered
+electricity-to-hydrogen conversion and demand balance; heat, storage, and
+multi-port workflows remain planned.
 The [modeling](../../configs/capabilities/pypsa-1.3.0-modeling.json) and
 [operations](../../configs/capabilities/pypsa-1.3.0-power-operations.json) and
-[planning](../../configs/capabilities/pypsa-1.3.0-capacity-planning.json)
+[planning](../../configs/capabilities/pypsa-1.3.0-capacity-planning.json) and
+[sector coupling](../../configs/capabilities/pypsa-1.3.0-sector-coupling.json)
 catalogs identify their separate protocols and tools. An application-owned `ReferenceGrant` can permit an opaque model
 revision to cross from one named binding to another for one purpose and
 capability family. The Kernel records a content-addressed receipt in the
 replayable context before target execution; both source and target authorities
 verify the current-run revision. The Operations executor replays the receipt
 and verifies its source, target, purpose, and model revision before requesting
-the registered solver authority; the Planning executor applies the same grant
+the registered solver authority; the Planning and Sector executors apply the same grant
 boundary. Installed-wheel smoke exercises modeling-to-Operations,
-modeling-to-Planning, and a test-only receiver. The grid CLI selection
+modeling-to-Planning, modeling-to-Sector, and a test-only receiver. The grid CLI selection
 remains unchanged.
 The grid/reference packages and PyPSA packages currently require separate
 Python environments: the pinned pandapower and PyPSA releases require

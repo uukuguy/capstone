@@ -90,6 +90,8 @@ def execute(
             "component_counts": {
                 "Bus": len(network.buses), "Load": len(network.loads),
                 "Generator": len(network.generators), "Line": len(network.lines),
+                **({"Carrier": len(network.carriers)} if len(network.carriers) else {}),
+                **({"Link": len(network.links)} if len(network.links) else {}),
             },
             "load_p_set_mw": {
                 str(name): float(value) for name, value in network.loads.p_set.items()

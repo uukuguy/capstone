@@ -18,11 +18,11 @@ make setup
 make doctor
 ```
 
-`make setup` 分别同步 grid 产品的 `grid-agent`、`grid-simulator`、PyPSA 运行计算与容量规划 Pack 及其建模 Pack 与 authority 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。grid／参考包和 PyPSA 包因 pandas 主版本约束分别安装在不同 Python 环境。
+`make setup` 分别同步 grid 产品的 `grid-agent`、`grid-simulator`、PyPSA 行业耦合、容量规划与运行计算 Pack 及其建模 Pack 与 authority 依赖，并以两个包各自的 lock 执行 frozen `npm ci`。inventory 参考域由 `make test-inventory` 按需同步和验证。grid 包的源码 lock 将 owning Pi 包绑定为本地 `file:` 依赖；发行 gate 会把该依赖转换回可独立安装的精确 `0.1.0` tarball 依赖。`make doctor` 不发送模型请求。grid／参考包和 PyPSA 包因 pandas 主版本约束分别安装在不同 Python 环境。
 
 ## 包模式与安装验证
 
-本仓库现在包含六个 Python 发行包和两个 Pi npm 包；前四个组成 grid 产品，后两个是跨业务实例化证明：
+本仓库现在包含十一个 Python 发行包和两个 Pi npm 包；四个组成 grid 产品，两个构成参考域，另五个组成 PyPSA 模型权威与能力包：
 
 | 发行包 | 资源所有权 |
 | --- | --- |
@@ -32,10 +32,15 @@ make doctor
 | `grid-agent` | CLI、Provider/Pi 运行时、认证、连续分析、报告、工作台服务和 stdout 答案封装 |
 | `inventory-reference-service` | `inventoryctl`、已登记只读 catalog、`inventory-capability/1.0` 与内容寻址业务工件 |
 | `inventory-domain-pack` | 只依赖公共 Kernel SPI 与 reference service 的 inventory Profile、策略、指南、执行器、投影和 authority |
+| `pypsa-model-authority` | 已登记模型、不可变修订、固定求解和当前运行证据 |
+| `pypsa-network-modeling-domain-pack` | 已登记模型打开、派生和检查 |
+| `pypsa-power-operations-domain-pack` | 授权调度、启停、故障集调度和 AC 校验 |
+| `pypsa-capacity-planning-domain-pack` | 授权单周期容量扩建 |
+| `pypsa-sector-coupling-domain-pack` | 授权电转氢转换与需求平衡 |
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
 
-源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建六个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
+源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建十一个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
 
 ```sh
 make test-packages
@@ -263,9 +268,9 @@ make test-inventory
 make test-packages
 ```
 
-`make test` 是完整离线单元入口：分别运行十个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算和容量规划 Pack。`make test-packages` 构建并安装干净发行工件，验证十个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
+`make test` 是完整离线单元入口：分别运行十一个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算、容量规划和行业耦合 Pack。`make test-packages` 构建并安装干净发行工件，验证十一个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
 
-`make check-types` 使用锁定的 pyright 1.1.408，standard 模式、Python 3.12 最低版本，覆盖六个生产 `src` 树，并运行 workbench check。Kernel `output.py` 保留 3 个局部 Pydantic schema-attribute override，以维持现有公开 wire 属性；这不是整包忽略。`make check-fast` 为边界、类型和单元层，`make check-integration` 为 E2E 与两项 provider-free validation，`make check-release` 再加入 package 与 source-setup 检查。所有这些 gate 不调用 provider 或使用付费凭据。
+`make check-types` 使用锁定的 pyright 1.1.408，standard 模式、Python 3.12 最低版本，覆盖全部生产 `src` 树，并运行 workbench check。Kernel `output.py` 保留 3 个局部 Pydantic schema-attribute override，以维持现有公开 wire 属性；这不是整包忽略。`make check-fast` 为边界、类型和单元层，`make check-integration` 为 E2E 与两项 provider-free validation，`make check-release` 再加入 package 与 source-setup 检查。所有这些 gate 不调用 provider 或使用付费凭据。
 
 仓库已配置 GitHub Actions：Linux/macOS × Python 3.12/3.14，Node 22.19.0，依次执行 setup、install-pi、doctor 和 `check-release`。这是配置说明，尚不代表远端 CI 已验证通过。
 

@@ -9,7 +9,8 @@
     "packages/pypsa-model-authority/src",
     "packages/pypsa-network-modeling-domain-pack/src",
     "packages/pypsa-power-operations-domain-pack/src",
-    "packages/pypsa-capacity-planning-domain-pack/src"
+    "packages/pypsa-capacity-planning-domain-pack/src",
+    "packages/pypsa-sector-coupling-domain-pack/src"
   ],
   "extraPaths": [
     "packages/capability-agent-kernel/src",
@@ -21,7 +22,8 @@
     "packages/pypsa-model-authority/src",
     "packages/pypsa-network-modeling-domain-pack/src",
     "packages/pypsa-power-operations-domain-pack/src",
-    "packages/pypsa-capacity-planning-domain-pack/src"
+    "packages/pypsa-capacity-planning-domain-pack/src",
+    "packages/pypsa-sector-coupling-domain-pack/src"
   ],
   "typeCheckingMode": "standard",
   "pythonVersion": "3.12",

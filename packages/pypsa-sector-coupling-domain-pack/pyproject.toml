@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pypsa-sector-coupling-domain-pack"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "capability-agent-kernel==0.1.0",
+  "pypsa-model-authority==0.1.0",
+  "pydantic>=2.12,<3",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "pypsa-network-modeling-domain-pack==0.1.0"]
+
+[tool.uv.sources]
+capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+pypsa-model-authority = { path = "../pypsa-model-authority", editable = true }
+pypsa-network-modeling-domain-pack = { path = "../pypsa-network-modeling-domain-pack", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pypsa_sector_coupling"]

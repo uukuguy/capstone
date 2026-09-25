@@ -128,10 +128,10 @@ The pandapower packages below form the first formal application;
 `inventory-domain-pack` remains conformance infrastructure, not a selected
 second production domain.
 
-The repository now contains ten independently buildable Python distributions
+The repository now contains eleven independently buildable Python distributions
 and two Pi npm packages. Four distributions assemble the grid product; two form
-the read-only inventory reference domain; four provide the PyPSA model
-authority, Network Modeling, Power Operations, and Capacity Planning Packs:
+the read-only inventory reference domain; five provide the PyPSA model
+authority, Network Modeling, Power Operations, Capacity Planning, and Sector Coupling Packs:
 
 | Distribution | Responsibility |
 | --- | --- |
@@ -145,11 +145,12 @@ authority, Network Modeling, Power Operations, and Capacity Planning Packs:
 | `pypsa-network-modeling-domain-pack` | PyPSA model contracts, policy, guides, executor, projection, and authority admission through the public Kernel SPI |
 | `pypsa-power-operations-domain-pack` | Granted model handoff, fixed dispatch and commitment solvers, registered outage dispatch, AC validation, and target-owned evidence |
 | `pypsa-capacity-planning-domain-pack` | Granted single-period generator capacity expansion with explicit investment and operating costs and target-owned evidence |
+| `pypsa-sector-coupling-domain-pack` | Granted electricity-to-hydrogen conversion and demand balance with target-owned evidence |
 | `@capability-agent/pi-tools` | Generic descriptor-driven Pi capability request transport and request capture |
 | `@grid-static-analysis/pi-grid-tools` | Grid-compatible Pi extension wrapper that preserves existing `grid_*` tools and guide behavior |
 
 Source-mode development uses the local path dependencies pinned in the package
-manifests. Install-mode verification builds all ten Python wheels plus both npm
+manifests. Install-mode verification builds all eleven Python wheels plus both npm
 tarballs, installs them outside the repository, and runs smoke checks without
 importing from source paths. The grid/reference wheels and the PyPSA wheels use
 separate Python environments because their pinned simulator dependencies
@@ -168,15 +169,17 @@ The PyPSA modeling Pack publishes registered model opening, typed load-demand
 derivation, and bounded inspection. The independent Operations Pack publishes
 fixed dispatch, unit commitment, registered outage dispatch, and post-dispatch
 AC validation. The Capacity Planning Pack publishes registered single-period
-generator expansion. The [modeling](configs/capabilities/pypsa-1.3.0-modeling.json),
+generator expansion. The Sector Coupling Pack publishes registered electricity-to-hydrogen
+conversion and demand balance. The [modeling](configs/capabilities/pypsa-1.3.0-modeling.json),
 [operations](configs/capabilities/pypsa-1.3.0-power-operations.json), and
-[planning](configs/capabilities/pypsa-1.3.0-capacity-planning.json)
+[planning](configs/capabilities/pypsa-1.3.0-capacity-planning.json), and
+[sector coupling](configs/capabilities/pypsa-1.3.0-sector-coupling.json)
 coverage catalogs list exact tools. `make test-pypsa` runs focused tests;
 clean-wheel verification exercises an application-granted current-run model
-handoff into each real Pack. Sector coupling remains future work. The grid CLI
+handoff into each real Pack. Broader heat, storage, and multi-port sector workflows remain planned. The grid CLI
 remains bound to pandapower.
 
-`make test` is the provider-free unit gate: it runs the ten Python packages,
+`make test` is the provider-free unit gate: it runs the eleven Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked
 pyright 1.1.408 in standard mode (Python 3.12 minimum) across all production

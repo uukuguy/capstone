@@ -1,0 +1,22 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "electricity-hydrogen",
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "carriers": [{"id": "electricity"}, {"id": "hydrogen"}, {"id": "electrolysis"}],
+    "buses": [
+      {"id": "electricity", "carrier": "electricity", "v_nom_kv": 1.0},
+      {"id": "hydrogen", "carrier": "hydrogen", "v_nom_kv": 1.0}
+    ],
+    "loads": [{"id": "hydrogen-demand", "bus": "hydrogen", "p_set_mw": 40.0}],
+    "generators": [
+      {"id": "electricity-supply", "bus": "electricity", "p_nom_mw": 100.0, "marginal_cost": 20.0}
+    ],
+    "links": [
+      {"id": "electrolyser", "from_bus": "electricity", "to_bus": "hydrogen",
+       "carrier": "electrolysis", "p_nom_mw": 100.0, "efficiency": 0.8}
+    ],
+    "lines": []
+  }
+}

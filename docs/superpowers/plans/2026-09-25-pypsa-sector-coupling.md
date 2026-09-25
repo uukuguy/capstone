@@ -1,6 +1,6 @@
 # PyPSA Sector Coupling Pack Plan
 
-**Status:** active implementation plan
+**Status:** implemented; focused tests, full offline gates, type and boundary checks, and clean-wheel package smoke passed
 **Design:** [approved four-pack design](../specs/2026-09-25-pypsa-multibinding-domain-packs-design.md)
 **Predecessor:** Network Modeling, Power Operations, and Capacity Planning on `main`.
 

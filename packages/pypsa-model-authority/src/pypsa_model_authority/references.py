@@ -145,3 +145,48 @@ def verify_planning_evidence(
     ):
         raise ModelStoreError("planning evidence result binding differs")
     return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))
+
+
+def verify_sector_result(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "result")
+    model_ref = document.get("model_ref")
+    if (
+        document.get("schema") != "pypsa-sector-result/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or document.get("capability") != "sector.hydrogen_balance"
+        or document.get("status") != "ok"
+        or document.get("condition") != "optimal"
+        or not isinstance(model_ref, str)
+    ):
+        raise ModelStoreError("sector result lineage is invalid")
+    verify_model(source_workspace, run_id, model_ref)
+    details = document.get("details")
+    if not isinstance(details, dict) or details.get("status") != "ok":
+        raise ModelStoreError("sector result details are invalid")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "result"))
+
+
+def verify_sector_evidence(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "evidence")
+    result_ref = document.get("result_ref")
+    if (
+        document.get("schema") != "pypsa-sector-evidence/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or not isinstance(result_ref, str)
+    ):
+        raise ModelStoreError("sector evidence lineage is invalid")
+    result = verify_sector_result(workspace, source_workspace, run_id, result_ref)
+    if (
+        document.get("model_ref") != result.document.get("model_ref")
+        or document.get("formulation") != result.document.get("formulation")
+    ):
+        raise ModelStoreError("sector evidence result binding differs")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))
