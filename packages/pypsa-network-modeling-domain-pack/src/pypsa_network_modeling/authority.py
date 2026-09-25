@@ -6,6 +6,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from capability_agent.application.reference_handoff import (
+    ReferenceHandoffReceipt, VerifiedTransferReference,
+)
+
 from pypsa_model_authority.references import (
     VerifiedDocument, verify_evidence, verify_model, verify_result,
 )
@@ -27,6 +31,41 @@ class PypsaModelArtifactAuthority:
 
     def verify_model(self, reference: str) -> VerifiedDocument:
         return verify_model(self.workspace_root, self.run_id, reference)
+
+    def verify_transfer_reference(
+        self, reference: str, kind: str
+    ) -> VerifiedTransferReference:
+        if kind != "model":
+            raise ValueError("PyPSA modeling transfers only model revisions")
+        self.verify_model(reference)
+        return VerifiedTransferReference(
+            reference=reference,
+            revision_digest=reference.removeprefix("pypsa-model:sha256:"),
+            run_id=self.run_id,
+            authority_id=self.authority_id,
+        )
+
+    def admit_handoff(
+        self, receipt: ReferenceHandoffReceipt, *, source_workspace: Path
+    ) -> None:
+        """Check that a target receipt names an actual source revision in this run."""
+        if (
+            receipt.run_id != self.run_id
+            or receipt.target_binding_id != self.workspace_root.name
+            or receipt.source_binding_id == receipt.target_binding_id
+            or receipt.reference_kind != "model"
+            or receipt.authority_id != self.authority_id
+        ):
+            raise ValueError("PyPSA handoff does not match the target binding")
+        source = Path(source_workspace)
+        if (
+            source.name != receipt.source_binding_id
+            or source.parent != self.workspace_root.parent
+        ):
+            raise ValueError("PyPSA handoff source is outside this run")
+        document = verify_model(source, self.run_id, receipt.reference)
+        if receipt.revision_digest != document.reference.removeprefix("pypsa-model:sha256:"):
+            raise ValueError("PyPSA handoff revision digest differs")
 
     def verify_result(self, reference: str) -> VerifiedDocument:
         return verify_result(self.workspace_root, self.run_id, reference)

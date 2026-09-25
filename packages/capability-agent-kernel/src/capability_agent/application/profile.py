@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import re
 from typing import Protocol
 
 from capability_agent.application.errors import ApplicationConfigurationError
@@ -25,6 +26,30 @@ class DataSharingPolicy:
     """Cross-binding data-sharing policy; sharing is denied by default."""
 
     mode: str = "deny"
+
+
+_GRANT_TOKEN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceGrant:
+    """Application-owned permission to pass one kind of opaque reference."""
+
+    source_binding_id: str
+    target_binding_id: str
+    reference_kind: str
+    purpose: str
+    capability_family: str
+
+    def __post_init__(self) -> None:
+        for value in (
+            self.source_binding_id, self.target_binding_id, self.reference_kind,
+            self.purpose, self.capability_family,
+        ):
+            if not isinstance(value, str) or not _GRANT_TOKEN.fullmatch(value):
+                raise ApplicationConfigurationError("reference grant contains an invalid token")
+        if self.source_binding_id == self.target_binding_id:
+            raise ApplicationConfigurationError("reference grant requires distinct bindings")
 
 
 class ApplicationPolicy(Protocol):
@@ -64,6 +89,7 @@ class ApplicationProfile:
     application_policy: ApplicationPolicy
     report_shell: ReportShell
     acceptance_profile: AcceptanceProfile
+    reference_grants: tuple[ReferenceGrant, ...] = ()
 
     def __post_init__(self) -> None:
         binding_ids = tuple(binding.binding_id for binding in self.domains)
@@ -84,6 +110,14 @@ class ApplicationProfile:
             raise ApplicationConfigurationError(
                 "application profile requires at least one domain binding"
             )
+
+        for grant in self.reference_grants:
+            if not isinstance(grant, ReferenceGrant):
+                raise ApplicationConfigurationError("reference grant has an invalid type")
+            if grant.source_binding_id not in binding_ids or grant.target_binding_id not in binding_ids:
+                raise ApplicationConfigurationError("reference grant names an unselected binding")
+        if len(set(self.reference_grants)) != len(self.reference_grants):
+            raise ApplicationConfigurationError("duplicate reference grant")
 
         for binding in self.domains:
             missing = binding.profile.missing_application_components()
@@ -112,5 +146,6 @@ __all__ = [
     "DataSharingPolicy",
     "DomainBinding",
     "OutputRenderer",
+    "ReferenceGrant",
     "ReportShell",
 ]

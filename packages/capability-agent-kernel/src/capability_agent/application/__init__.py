@@ -61,6 +61,13 @@ from capability_agent.application.profile import (
     DataSharingPolicy,
     DomainBinding,
     ReportShell,
+    ReferenceGrant,
+)
+from capability_agent.application.reference_handoff import (
+    ReferenceHandoffError,
+    ReferenceHandoffReceipt,
+    ReferenceHandoffService,
+    VerifiedTransferReference,
 )
 from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace, WorkspaceError
@@ -132,6 +139,11 @@ __all__ = [
     "ProjectionOutcome",
     "PresentationError",
     "ReportShell",
+    "ReferenceGrant",
+    "ReferenceHandoffError",
+    "ReferenceHandoffReceipt",
+    "ReferenceHandoffService",
+    "VerifiedTransferReference",
     "FinalizedTurn",
     "StaleAnswerDraftError",
     "TurnController",
