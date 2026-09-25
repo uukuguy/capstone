@@ -8,11 +8,135 @@ from typing import cast
 import pytest
 
 from capability_agent.runtime.descriptor import (
+    CompositeRuntimeDescriptor,
     RuntimeDescriptor,
     RuntimeDescriptorError,
     descriptor_from_endpoint,
     write_runtime_descriptor,
 )
+
+
+def _binding_descriptor(
+    tmp_path: Path, binding_id: str, **overrides: object
+) -> RuntimeDescriptor:
+    application = tmp_path / "run"
+    workspace = application / "domains" / binding_id
+    workspace.mkdir(parents=True, exist_ok=True)
+    catalog = workspace / "catalog.json"
+    catalog.write_text("{}\n", encoding="utf-8")
+    index = workspace / "index.json"
+    index.write_text("{}\n", encoding="utf-8")
+    guides = workspace / "guides"
+    guides.mkdir(exist_ok=True)
+    values: dict[str, object] = {
+        "binding_id": binding_id,
+        "workspace": workspace,
+        "application_workspace_path": application,
+        "protocol": f"{binding_id}-capability",
+        "protocol_version": "1.0",
+        "authority_id": f"{binding_id}-authority",
+        "tool_catalog_path": catalog,
+        "guide_index_path": index,
+        "guide_root_path": guides,
+        "application_id": "fixture-app",
+        "run_id": "run-1",
+        "active_turn_path": application / "core" / "active.json",
+        "context_view_path": application / "core" / "context.json",
+    }
+    endpoint_fields = {
+        name: overrides[name]
+        for name in ("guide_tool_name", "core_tool_names")
+        if name in overrides
+    }
+    values["endpoint"] = {"executable": "domainctl", **endpoint_fields}
+    values.update({key: value for key, value in overrides.items() if key not in endpoint_fields})
+    return descriptor_from_endpoint(**values)
+
+
+def test_composite_descriptor_serializes_two_bindings_and_preserves_v1(
+    tmp_path: Path,
+) -> None:
+    grid = _binding_descriptor(tmp_path, "grid")
+    inventory = _binding_descriptor(tmp_path, "inventory")
+    composite = CompositeRuntimeDescriptor(domains=(grid, inventory))
+
+    payload = composite.as_json()
+    assert payload["schema"] == "capability-agent-runtime/1.1"
+    assert payload["application"] == grid.as_json()["application"]
+    assert payload["core"] == grid.as_json()["core"]
+    assert [item["bindingId"] for item in payload["domains"]] == [
+        "grid", "inventory"
+    ]
+    assert grid.as_json()["schema"] == "capability-agent-runtime/1.0"
+    target = write_runtime_descriptor(tmp_path / "composite.json", composite)
+    expected_bytes = (
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode()
+    assert target.read_bytes() == expected_bytes
+
+
+@pytest.mark.parametrize(
+    ("override", "expected"),
+    [
+        ({"application_id": "other"}, "application"),
+        ({"run_id": "other"}, "application"),
+        ({"application_workspace_path": "other"}, "application"),
+        ({"active_turn_path": "other"}, "core"),
+        ({"core_tool_names": ("agent_decide", "agent_context_get")}, "core"),
+    ],
+)
+def test_composite_descriptor_rejects_inconsistent_shared_fields(
+    tmp_path: Path, override: dict[str, object], expected: str
+) -> None:
+    grid = _binding_descriptor(tmp_path, "grid")
+    if "application_workspace_path" in override:
+        override = {
+            "application_workspace_path": tmp_path / "other",
+            "active_turn_path": tmp_path / "other" / "core" / "active.json",
+            "context_view_path": tmp_path / "other" / "core" / "context.json",
+        }
+    elif "active_turn_path" in override:
+        override = {"active_turn_path": tmp_path / "run" / "core" / "other.json"}
+    inventory = _binding_descriptor(tmp_path, "inventory", **override)
+    with pytest.raises(RuntimeDescriptorError, match=expected):
+        CompositeRuntimeDescriptor(domains=(grid, inventory)).as_json()
+
+
+@pytest.mark.parametrize(
+    ("override", "expected"),
+    [
+        ({"same_binding": True}, "binding"),
+        (
+            {"guide_tool_name": "grid_guide_open", "tool_name_prefix": "grid_"},
+            "guide",
+        ),
+        (
+            {"guide_tool_name": "grid_other_guide_open", "tool_name_prefix": "grid_"},
+            "prefix",
+        ),
+    ],
+)
+def test_composite_descriptor_rejects_duplicate_domain_names(
+    tmp_path: Path, override: dict[str, object], expected: str
+) -> None:
+    grid = _binding_descriptor(tmp_path, "grid")
+    inventory = (
+        _binding_descriptor(tmp_path, "grid")
+        if override.get("same_binding", False)
+        else _binding_descriptor(tmp_path, "inventory", **override)
+    )
+    with pytest.raises(RuntimeDescriptorError, match=expected):
+        CompositeRuntimeDescriptor(domains=(grid, inventory)).as_json()
+
+
+def test_composite_descriptor_rejects_escaping_domain_path(tmp_path: Path) -> None:
+    grid = _binding_descriptor(tmp_path, "grid")
+    with pytest.raises(RuntimeDescriptorError, match="outside workspace"):
+        inventory = _binding_descriptor(
+            tmp_path, "inventory", tool_catalog_path=tmp_path / "elsewhere.json"
+        )
+        CompositeRuntimeDescriptor(domains=(grid, inventory)).as_json()
 
 
 def test_runtime_descriptor_is_binding_aware_and_versioned(tmp_path: Path) -> None:
@@ -55,8 +179,20 @@ def test_runtime_descriptor_is_binding_aware_and_versioned(tmp_path: Path) -> No
         "decisionToolName": "agent_record_decision",
         "contextToolName": "agent_context_get",
     }
-    assert payload["domains"][0]["bindingId"] == "alpha"
-    assert payload["domains"][0]["executable"] == "domainctl"
+    assert payload["domains"] == [{
+        "bindingId": "alpha",
+        "protocol": "alpha-capability",
+        "protocolVersion": "1.0",
+        "executable": "domainctl",
+        "executableArgs": ["request"],
+        "toolCatalogPath": str(catalog),
+        "guideToolName": "alpha_guide_open",
+        "guideIndexPath": str(guide_index),
+        "guideRootPath": str(guide_root),
+        "guideIndexSha256": sha256(guide_index.read_bytes()).hexdigest(),
+        "workspacePath": str(tmp_path),
+        "authorityId": "alpha-authority",
+    }]
     assert "search_path" not in payload
 
 

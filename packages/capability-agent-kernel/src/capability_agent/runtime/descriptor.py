@@ -14,6 +14,7 @@ from typing import Mapping
 
 
 RUNTIME_DESCRIPTOR_SCHEMA = "capability-agent-runtime/1.0"
+COMPOSITE_RUNTIME_DESCRIPTOR_SCHEMA = "capability-agent-runtime/1.1"
 _DESCRIPTOR_FIELDS = frozenset(
     {
         "schema",
@@ -227,6 +228,41 @@ class RuntimeDescriptor:
         object.__setattr__(self, "extra", extra)
 
     def as_json(self) -> dict[str, object]:
+        domain = self._domain_json()
+        return {
+            "schema": self.schema,
+            "application": self._application_json(),
+            "core": self._core_json(),
+            "domains": [domain],
+        }
+
+    def _application_json(self) -> dict[str, object]:
+        return {
+            "applicationId": self.application_id,
+            "runId": self.run_id,
+            "workspacePath": str(self.application_workspace_path),
+            **({"piRuntime": dict(self.pi_runtime)} if self.pi_runtime is not None else {}),
+        }
+
+    def _core_json(self) -> dict[str, object]:
+        decision_tool_name, context_tool_name = self.core_tool_names
+        core: dict[str, object] = {
+            "decisionToolName": decision_tool_name,
+            "contextToolName": context_tool_name,
+        }
+        for source, target in (
+            (self.active_turn_path, "activeTurnPath"),
+            (self.context_view_path, "analysisContextViewPath"),
+            (self.trajectory_requests_path, "trajectoryRequestsPath"),
+            (self.trajectory_capture_state_path, "trajectoryCaptureStatePath"),
+            (self.trajectory_allowed_refs_path, "trajectoryAllowedRefsPath"),
+            (self.trajectory_acks_path, "trajectoryAcksPath"),
+        ):
+            if source is not None:
+                core[target] = str(source)
+        return core
+
+    def _domain_json(self) -> dict[str, object]:
         if self.extra:
             raise RuntimeDescriptorError(
                 "descriptor extensions are not supported by runtime schema"
@@ -279,21 +315,7 @@ class RuntimeDescriptor:
             raise RuntimeDescriptorError("guide_index_sha256 does not match guide index")
         if _SHA256_PATTERN.fullmatch(guide_digest) is None:
             raise RuntimeDescriptorError("guide_index_sha256 is invalid")
-        core: dict[str, object] = {
-            "decisionToolName": decision_tool_name,
-            "contextToolName": context_tool_name,
-        }
-        for source, target in (
-            (self.active_turn_path, "activeTurnPath"),
-            (self.context_view_path, "analysisContextViewPath"),
-            (self.trajectory_requests_path, "trajectoryRequestsPath"),
-            (self.trajectory_capture_state_path, "trajectoryCaptureStatePath"),
-            (self.trajectory_allowed_refs_path, "trajectoryAllowedRefsPath"),
-            (self.trajectory_acks_path, "trajectoryAcksPath"),
-        ):
-            if source is not None:
-                core[target] = str(source)
-        domain: dict[str, object] = {
+        return {
             "bindingId": self.binding_id,
             "protocol": self.protocol,
             "protocolVersion": self.protocol_version,
@@ -307,25 +329,53 @@ class RuntimeDescriptor:
             "workspacePath": str(self.workspace_path),
             "authorityId": self.authority_id,
         }
-        payload: dict[str, object] = {
-            "schema": self.schema,
-            "application": {
-                "applicationId": self.application_id,
-                "runId": self.run_id,
-                "workspacePath": str(self.application_workspace_path),
-                **(
-                    {"piRuntime": dict(self.pi_runtime)}
-                    if self.pi_runtime is not None
-                    else {}
-                ),
-            },
+
+
+@dataclass(frozen=True, slots=True)
+class CompositeRuntimeDescriptor:
+    domains: tuple[RuntimeDescriptor, ...]
+
+    def as_json(self) -> dict[str, object]:
+        if not self.domains or any(not isinstance(item, RuntimeDescriptor) for item in self.domains):
+            raise RuntimeDescriptorError("composite domains must contain descriptors")
+        application = self.domains[0]._application_json()
+        core: dict[str, object] | None = None
+        serialized_domains: list[dict[str, object]] = []
+        binding_ids: set[str] = set()
+        guide_names: set[str] = set()
+        prefixes: set[str] = set()
+        for descriptor in self.domains:
+            domain = descriptor._domain_json()
+            member_core = descriptor._core_json()
+            if descriptor._application_json() != application:
+                raise RuntimeDescriptorError("composite application fields must match")
+            if core is not None and member_core != core:
+                raise RuntimeDescriptorError("composite core fields must match")
+            core = member_core
+            binding_id = str(domain["bindingId"])
+            guide_name = str(domain["guideToolName"])
+            prefix = descriptor.tool_name_prefix or f"{binding_id.replace('-', '_')}_"
+            if binding_id in binding_ids:
+                raise RuntimeDescriptorError("composite binding IDs must be unique")
+            if guide_name in guide_names:
+                raise RuntimeDescriptorError("composite guide names must be unique")
+            if prefix in prefixes:
+                raise RuntimeDescriptorError("composite tool prefixes must be unique")
+            binding_ids.add(binding_id)
+            guide_names.add(guide_name)
+            prefixes.add(prefix)
+            serialized_domains.append(domain)
+        return {
+            "schema": COMPOSITE_RUNTIME_DESCRIPTOR_SCHEMA,
+            "application": application,
             "core": core,
-            "domains": [domain],
+            "domains": serialized_domains,
         }
-        return payload
 
 
-def write_runtime_descriptor(path: Path, descriptor: RuntimeDescriptor) -> Path:
+def write_runtime_descriptor(
+    path: Path, descriptor: RuntimeDescriptor | CompositeRuntimeDescriptor
+) -> Path:
     """Atomically write a private descriptor without following its leaf."""
 
     target = Path(path)
@@ -651,6 +701,8 @@ def _sensitive_name(value: str) -> bool:
 
 
 __all__ = [
+    "COMPOSITE_RUNTIME_DESCRIPTOR_SCHEMA",
+    "CompositeRuntimeDescriptor",
     "RUNTIME_DESCRIPTOR_SCHEMA",
     "RuntimeDescriptor",
     "RuntimeDescriptorError",
