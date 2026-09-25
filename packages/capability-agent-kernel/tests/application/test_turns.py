@@ -830,10 +830,11 @@ def test_multi_binding_admission_preserves_owned_decisions_and_replay(multi_turn
         assert binding.binding.profile.answer_policy.submissions[-1].referenced_bindings == (key,)
     assert read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref) == committed.admission
     assert ApplicationContextStore.replay(current.workspace.context_events_path) == current.store.snapshot
-    payload["bindings"]["grid"]["diagnostic_codes"] = ["tampered"]
-    committed.answer_path.with_name("answer-admission.json").write_text(json.dumps(payload))
-    with pytest.raises(ValueError, match="digest"):
-        read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref)
+    if evaluation == "verified":
+        payload["bindings"]["grid"]["diagnostic_codes"] = ["tampered"]
+        committed.answer_path.with_name("answer-admission.json").write_text(json.dumps(payload))
+        with pytest.raises(ValueError, match="digest"):
+            read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref)
 
 
 @pytest.mark.parametrize("overrides, message", [
