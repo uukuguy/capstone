@@ -67,6 +67,23 @@ class FailingCredentialBroker(EmptyCredentialBroker):
         raise self.failure
 
 
+class PrefixContractSource:
+    def __init__(self, delegate, old_prefix: str, new_prefix: str) -> None:
+        self.delegate = delegate
+        self.old_prefix = old_prefix
+        self.new_prefix = new_prefix
+
+    def load(self):
+        return tuple(
+            {
+                **document,
+                "tool_name": self.new_prefix
+                + document["tool_name"].removeprefix(self.old_prefix),
+            }
+            for document in self.delegate.load()
+        )
+
+
 class CredentialMutatingProvisioner:
     def __init__(self, delegate) -> None:
         self.delegate = delegate
@@ -143,14 +160,46 @@ class Policy:
 
 
 def _registry_for(profile: ApplicationProfile) -> DomainRegistry:
-    domain_profile = profile.domains[0].profile
     registry = DomainRegistry()
-    registry.register(
-        domain_profile.manifest.domain_id,
-        domain_profile.manifest.version,
-        lambda: domain_profile,
-    )
+    for binding in profile.domains:
+        domain_profile = binding.profile
+        registry.register(
+            domain_profile.manifest.domain_id,
+            domain_profile.manifest.version,
+            lambda domain_profile=domain_profile: domain_profile,
+        )
     return registry
+
+
+def _second_binding(profile: ApplicationProfile):
+    binding = profile.domains[0]
+    provisioner = binding.profile.provisioner
+    assert provisioner is not None
+    endpoint = provisioner.endpoint
+    second_endpoint = replace(
+        endpoint,
+        executor=replace(endpoint.executor, calls=[]),
+        closed=False,
+        close_calls=0,
+    )
+    second_profile = replace(
+        binding.profile,
+        manifest=replace(
+            binding.profile.manifest,
+            domain_id="second-domain",
+            tool_name_prefix="second_",
+        ),
+        contract_source=PrefixContractSource(
+            binding.profile.contract_source, binding.tool_namespace, "second_"
+        ),
+        provisioner=replace(provisioner, endpoint=second_endpoint, calls=[]),
+    )
+    return replace(
+        binding,
+        binding_id="second",
+        tool_namespace="second_",
+        profile=second_profile,
+    )
 
 
 def _unsafe_domains(
@@ -422,16 +471,53 @@ def test_prepare_application_rejects_wrong_factory_manifest(
         )
 
 
-def test_prepare_application_rejects_multiple_bindings_before_preparation(
+def test_prepare_application_sorts_and_isolates_multiple_bindings(
     complete_profile: ApplicationProfile, tmp_path: Path
 ) -> None:
-    binding = complete_profile.domains[0]
-    second = replace(binding, binding_id="second", tool_namespace="second_")
-    provisioner = binding.profile.provisioner
-    assert provisioner is not None
-    profile = _unsafe_domains(complete_profile, (second, binding))
+    first = complete_profile.domains[0]
+    second = _second_binding(complete_profile)
+    profile = replace(complete_profile, domains=(second, first))
+    broker = EmptyCredentialBroker()
 
-    with pytest.raises(ApplicationConfigurationError, match="exactly one"):
+    prepared = prepare_application(
+        profile,
+        registry=_registry_for(profile),
+        workspace=tmp_path / "run",
+        credentials=broker,
+    )
+
+    assert tuple(binding.binding_id for binding in profile.domains) == (
+        "second",
+        "fixture",
+    )
+    assert tuple(prepared.bindings) == ("fixture", "second")
+    assert tuple(binding.binding_id for binding in prepared.profile.domains) == (
+        "fixture",
+        "second",
+    )
+    assert [binding_id for binding_id, _ in broker.calls] == ["fixture", "second"]
+    first_provisioner = first.profile.provisioner
+    second_provisioner = second.profile.provisioner
+    assert first_provisioner is not None and second_provisioner is not None
+    assert first_provisioner.calls[0][1] == tmp_path / "run/domains/fixture"
+    assert second_provisioner.calls[0][1] == tmp_path / "run/domains/second"
+    assert first_provisioner.calls[0][2] is not second_provisioner.calls[0][2]
+    assert prepared.bindings["fixture"].runtime.tool_catalog_path != (
+        prepared.bindings["second"].runtime.tool_catalog_path
+    )
+
+
+def test_second_endpoint_failure_closes_first_endpoint(
+    complete_profile: ApplicationProfile, tmp_path: Path
+) -> None:
+    first = complete_profile.domains[0]
+    second = _second_binding(complete_profile)
+    second_provisioner = second.profile.provisioner
+    assert second_provisioner is not None
+    second_provisioner.failure = RuntimeError("second endpoint unavailable")
+    profile = replace(complete_profile, domains=(second, first))
+
+    with pytest.raises(DomainProvisioningError, match="provisioning failed"):
         prepare_application(
             profile,
             registry=_registry_for(profile),
@@ -439,7 +525,10 @@ def test_prepare_application_rejects_multiple_bindings_before_preparation(
             credentials=EmptyCredentialBroker(),
         )
 
-    assert provisioner.calls == []
+    first_provisioner = first.profile.provisioner
+    assert first_provisioner is not None
+    assert first_provisioner.endpoint.close_calls == 1
+    assert second_provisioner.endpoint.close_calls == 0
 
 
 def test_provisioner_failure_occurs_before_runtime_probe(

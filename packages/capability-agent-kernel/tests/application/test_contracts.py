@@ -69,10 +69,18 @@ def _complete_domain_profile(inventory_profile):
 
 
 def _binding(inventory_profile, *, binding_id: str = "inventory", tool_namespace: str = "inventory_") -> DomainBinding:
+    profile = _complete_domain_profile(inventory_profile)
     return DomainBinding(
         binding_id=binding_id,
         tool_namespace=tool_namespace,
-        profile=_complete_domain_profile(inventory_profile),
+        profile=replace(
+            profile,
+            manifest=replace(
+                profile.manifest,
+                domain_id=f"{binding_id}-domain",
+                tool_name_prefix=tool_namespace,
+            ),
+        ),
         credential_scope=CredentialScope(),
         sharing_policy=DataSharingPolicy(),
     )
@@ -135,21 +143,20 @@ def test_application_profile_accepts_one_complete_binding(inventory_profile) -> 
     assert profile.domains[0].sharing_policy == DataSharingPolicy(mode="deny")
 
 
-@pytest.mark.parametrize("count", [0, 2])
-def test_application_profile_requires_exactly_one_binding(
-    inventory_profile, count: int
-) -> None:
-    bindings = tuple(
-        _binding(
-            inventory_profile,
-            binding_id=f"inventory-{index}",
-            tool_namespace=f"inventory_{index}_",
-        )
-        for index in range(count)
-    )
+def test_application_profile_requires_a_binding(inventory_profile) -> None:
+    with pytest.raises(ApplicationConfigurationError, match="at least one"):
+        _profile(inventory_profile, ())
 
-    with pytest.raises(ApplicationConfigurationError, match="exactly one"):
-        _profile(inventory_profile, bindings)
+
+def test_application_profile_accepts_two_complete_bindings_in_declared_order(
+    inventory_profile,
+) -> None:
+    first = _binding(inventory_profile, binding_id="first", tool_namespace="first_")
+    second = _binding(inventory_profile, binding_id="second", tool_namespace="second_")
+
+    profile = _profile(inventory_profile, (second, first))
+
+    assert profile.domains == (second, first)
 
 
 @pytest.mark.parametrize(

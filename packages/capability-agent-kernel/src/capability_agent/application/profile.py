@@ -80,9 +80,9 @@ class ApplicationProfile:
                 "duplicate tool namespace: " + ", ".join(duplicate_tool_namespaces)
             )
 
-        if len(self.domains) != 1:
+        if len(self.domains) < 1:
             raise ApplicationConfigurationError(
-                "application profile requires exactly one domain binding"
+                "application profile requires at least one domain binding"
             )
 
         for binding in self.domains:

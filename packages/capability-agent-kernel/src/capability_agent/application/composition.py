@@ -333,9 +333,9 @@ def _validate_application_profile(
     profile: ApplicationProfile, *, workspace: Path
 ) -> dict[str, Path]:
     domains = profile.domains
-    if len(domains) != 1:
+    if len(domains) < 1:
         raise ApplicationConfigurationError(
-            "application profile requires exactly one domain binding"
+            "application profile requires at least one domain binding"
         )
     binding_ids = tuple(binding.binding_id for binding in domains)
     if len(set(binding_ids)) != len(binding_ids):
