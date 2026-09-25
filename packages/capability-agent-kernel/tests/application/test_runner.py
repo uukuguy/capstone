@@ -2245,6 +2245,10 @@ def test_default_transport_uses_injected_product_runtime_and_split_workspaces(
     assert paths.project_pi_dir == host.project_pi_dir
     assert paths.extension_path == host.extension_path
     assert paths.system_policy_path == host.system_policy_path
+    assert paths.binding_id == "alpha"
+    assert paths.tool_catalog_path == catalog_path
+    assert paths.guide_index_path == guide_index_path
+    assert paths.session_dir == workspace.domain_runtime_path("alpha") / "session"
     descriptor_path = workspace.domain_runtime_path("alpha") / "runtime-descriptor.json"
     descriptor_payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
     assert descriptor_payload["domains"][0]["workspacePath"] == str(domain_root)
@@ -2252,6 +2256,107 @@ def test_default_transport_uses_injected_product_runtime_and_split_workspaces(
         workspace.context_snapshot_path
     )
     assert client is not None
+
+
+def test_default_transport_writes_one_composite_descriptor_without_ambient_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from capability_agent.runtime.environment import RuntimeHost, build_pi_environment
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+
+    workspace = ApplicationWorkspace.create(
+        tmp_path / "runs", run_id="composite-run", binding_ids=("alpha", "zeta")
+    )
+    bindings = {}
+    for binding_id in ("zeta", "alpha"):
+        root = workspace.domain_path(binding_id)
+        catalog = root / "tool-catalog.json"
+        guide_index = root / "guide-index.json"
+        guide_root = root / "guides"
+        catalog.write_text("{}\n", encoding="utf-8")
+        guide_index.write_text("{}\n", encoding="utf-8")
+        guide_root.mkdir()
+        manifest = SimpleNamespace(
+            protocol=f"{binding_id}-capability", protocol_version="1.0",
+            tool_name_prefix=f"{binding_id}_",
+        )
+        bindings[binding_id] = SimpleNamespace(
+            endpoint=SimpleNamespace(metadata={
+                "executable": f"{binding_id}ctl",
+                "arguments": ("--workspace", str(root)),
+                "search_path": (str(tmp_path / f"{binding_id}-bin"),),
+            }),
+            runtime=SimpleNamespace(
+                profile=SimpleNamespace(manifest=manifest),
+                authority=SimpleNamespace(authority_id=f"{binding_id}-authority"),
+                tool_catalog_path=catalog,
+                guide_index_path=guide_index,
+                guide_root_path=guide_root,
+            ),
+        )
+    host = RuntimeHost(
+        command=PiCommand(
+            argv=("node", "/product-owned/pi.js"),
+            identity=PiRuntimeIdentity(
+                path=Path("/product-owned/pi.js"), source="fixture",
+                package_version="1.0.0", lock_sha256="fixture-lock",
+            ),
+        ),
+        project_pi_dir=tmp_path / "product-pi",
+        extension_path=tmp_path / "trusted-extension.mjs",
+    )
+    captured = {}
+
+    def fake_launch(resolved, paths, **kwargs):
+        captured["launch_count"] = captured.get("launch_count", 0) + 1
+        captured["paths"] = paths
+        captured["environment"] = build_pi_environment(
+            resolved, paths, base_environment=kwargs["base_environment"]
+        )
+        return object()
+
+    monkeypatch.setattr(runner_module, "build_pi_launch", fake_launch)
+    monkeypatch.setattr(runner_module, "JsonlTraceWriter", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runner_module, "PiRpcClient", lambda *_args, **_kwargs: "client")
+    application = AgentApplication(
+        profile=SimpleNamespace(), runtime_host=host, environment={}
+    )
+    assert application._default_pi_transport(
+        SimpleNamespace(config=SimpleNamespace(base_url="https://provider.example"), secret=None),
+        SimpleNamespace(bindings=bindings), bindings,
+        request=ApplicationRequest(application_id="fixture-app", questions=("q",)),
+        workspace=workspace,
+        controller=SimpleNamespace(
+            active_turn_path=workspace.turns_path / "active-turn.json",
+            context_view_path=workspace.context_snapshot_path,
+            trajectory_requests_path=None,
+            trajectory_capture_state_path=None,
+            trajectory_allowed_refs_path=None,
+            trajectory_acks_path=None,
+        ),
+    ) == "client"
+
+    paths = captured["paths"]
+    assert captured["launch_count"] == 1
+    descriptor_path = workspace.core_path / "runtime" / "runtime-descriptor.json"
+    payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "capability-agent-runtime/1.1"
+    assert [domain["bindingId"] for domain in payload["domains"]] == ["alpha", "zeta"]
+    for domain in payload["domains"]:
+        binding = bindings[domain["bindingId"]]
+        assert domain["toolCatalogPath"] == str(binding.runtime.tool_catalog_path)
+        assert domain["guideIndexPath"] == str(binding.runtime.guide_index_path)
+    assert paths.runtime_descriptor_path == descriptor_path
+    assert paths.session_dir == workspace.core_path / "runtime" / "session"
+    assert paths.domain_search_paths == (
+        tmp_path / "alpha-bin", tmp_path / "zeta-bin"
+    )
+    assert paths.binding_id is None
+    assert paths.tool_catalog_path is None
+    assert paths.guide_index_path is None
+    assert "CAPABILITY_AGENT_BINDING_ID" not in captured["environment"]
+    assert "CAPABILITY_AGENT_TOOL_CATALOG" not in captured["environment"]
+    assert "CAPABILITY_AGENT_GUIDE_INDEX" not in captured["environment"]
 def test_call_prompt_forwards_transport_heartbeat_to_semantic_observer() -> None:
     from capability_agent.application.runner import _call_prompt
 

@@ -58,7 +58,11 @@ from capability_agent.application.registry import DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.domain.answer_admission import read_answer_admission_metadata
 from capability_agent.runtime.catalog import ProviderCatalog, ProviderCatalogSource
-from capability_agent.runtime.descriptor import descriptor_from_endpoint, write_runtime_descriptor
+from capability_agent.runtime.descriptor import (
+    CompositeRuntimeDescriptor,
+    descriptor_from_endpoint,
+    write_runtime_descriptor,
+)
 from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, build_pi_launch
 from capability_agent.runtime.models import CliLLMOptions, ResolvedLLM
 from capability_agent.runtime.resolver import resolve_llm
@@ -1041,64 +1045,93 @@ class AgentApplication:
                 raise ApplicationConfigurationError(
                     "default Pi transport requires an injected runtime host"
                 )
-            if len(bindings) != 1:
-                raise ApplicationConfigurationError("default Pi transport requires one prepared binding")
-            binding_id = next(iter(bindings))
-            binding = bindings[binding_id]
-            endpoint = getattr(binding, "endpoint", None)
-            runtime = getattr(binding, "runtime", None)
-            binding_profile = getattr(getattr(binding, "binding", None), "profile", None)
-            runtime_profile = getattr(runtime, "profile", None)
-            manifest = getattr(runtime_profile, "manifest", None) or getattr(
-                binding_profile, "manifest", None
+            if not bindings:
+                raise ApplicationConfigurationError(
+                    "default Pi transport requires prepared bindings"
+                )
+            single_binding = len(bindings) == 1
+            runtime_dir = (
+                workspace.domain_runtime_path(next(iter(bindings)))
+                if single_binding else workspace.core_path / "runtime"
             )
-            tool_catalog_path = _runtime_path(runtime, "tool_catalog_path")
-            guide_index_path = _runtime_path(runtime, "guide_index_path")
-            guide_root_path = _runtime_path(runtime, "guide_root_path")
-            guide_index_sha256 = _runtime_file_digest(guide_index_path)
-            runtime_dir = workspace.domain_runtime_path(binding_id)
             descriptor_path = runtime_dir / "runtime-descriptor.json"
-            descriptor = descriptor_from_endpoint(
-                binding_id=binding_id,
-                workspace=workspace.domain_path(binding_id),
-                application_workspace_path=workspace.root,
-                endpoint=endpoint,
-                protocol=getattr(manifest, "protocol", ""),
-                protocol_version=getattr(manifest, "protocol_version", ""),
-                authority_id=getattr(getattr(runtime, "authority", None), "authority_id", ""),
-                tool_catalog_path=tool_catalog_path,
-                guide_index_path=guide_index_path,
-                guide_root_path=guide_root_path,
-                tool_name_prefix=getattr(manifest, "tool_name_prefix", None),
-                guide_index_sha256=guide_index_sha256,
-                application_id=request.application_id,
-                run_id=workspace.run_id,
-                active_turn_path=(
-                    controller.active_turn_path
-                    or workspace.turns_path / "active-turn.json"
-                ),
-                context_view_path=(
-                    controller.context_view_path or workspace.context_snapshot_path
-                ),
-                trajectory_requests_path=controller.trajectory_requests_path,
-                trajectory_capture_state_path=controller.trajectory_capture_state_path,
-                trajectory_allowed_refs_path=controller.trajectory_allowed_refs_path,
-                trajectory_acks_path=controller.trajectory_acks_path,
+            descriptors = []
+            for binding_id in sorted(bindings):
+                binding = bindings[binding_id]
+                endpoint = getattr(binding, "endpoint", None)
+                runtime = getattr(binding, "runtime", None)
+                binding_profile = getattr(getattr(binding, "binding", None), "profile", None)
+                runtime_profile = getattr(runtime, "profile", None)
+                manifest = getattr(runtime_profile, "manifest", None) or getattr(
+                    binding_profile, "manifest", None
+                )
+                tool_catalog_path = _runtime_path(runtime, "tool_catalog_path")
+                guide_index_path = _runtime_path(runtime, "guide_index_path")
+                descriptors.append(
+                    descriptor_from_endpoint(
+                        binding_id=binding_id,
+                        workspace=workspace.domain_path(binding_id),
+                        application_workspace_path=workspace.root,
+                        endpoint=endpoint,
+                        protocol=getattr(manifest, "protocol", ""),
+                        protocol_version=getattr(manifest, "protocol_version", ""),
+                        authority_id=getattr(
+                            getattr(runtime, "authority", None), "authority_id", ""
+                        ),
+                        tool_catalog_path=tool_catalog_path,
+                        guide_index_path=guide_index_path,
+                        guide_root_path=_runtime_path(runtime, "guide_root_path"),
+                        tool_name_prefix=getattr(manifest, "tool_name_prefix", None),
+                        guide_index_sha256=_runtime_file_digest(guide_index_path),
+                        application_id=request.application_id,
+                        run_id=workspace.run_id,
+                        active_turn_path=(
+                            controller.active_turn_path
+                            or workspace.turns_path / "active-turn.json"
+                        ),
+                        context_view_path=(
+                            controller.context_view_path or workspace.context_snapshot_path
+                        ),
+                        trajectory_requests_path=controller.trajectory_requests_path,
+                        trajectory_capture_state_path=controller.trajectory_capture_state_path,
+                        trajectory_allowed_refs_path=controller.trajectory_allowed_refs_path,
+                        trajectory_acks_path=controller.trajectory_acks_path,
+                    )
+                )
+            descriptor = (
+                descriptors[0]
+                if single_binding
+                else CompositeRuntimeDescriptor(tuple(descriptors))
             )
             write_runtime_descriptor(descriptor_path, descriptor)
+            search_paths = tuple(
+                dict.fromkeys(
+                    Path(path) for member in descriptors for path in member.search_path
+                )
+            )
+            single_runtime = (
+                getattr(bindings[next(iter(bindings))], "runtime", None)
+                if single_binding else None
+            )
             host = self.runtime_host
             self.runtime_paths = RuntimePaths(
                 command=host.command,
                 project_pi_dir=host.project_pi_dir,
                 session_dir=runtime_dir / "session",
                 workspace=workspace.root,
-                domain_search_paths=tuple(Path(path) for path in descriptor.search_path),
+                domain_search_paths=search_paths,
                 extension_path=host.extension_path,
-                tool_catalog_path=tool_catalog_path,
-                guide_index_path=guide_index_path,
+                tool_catalog_path=(
+                    _runtime_path(single_runtime, "tool_catalog_path")
+                    if single_binding else None
+                ),
+                guide_index_path=(
+                    _runtime_path(single_runtime, "guide_index_path")
+                    if single_binding else None
+                ),
                 system_policy_path=host.system_policy_path,
                 runtime_descriptor_path=descriptor_path,
-                binding_id=binding_id,
+                binding_id=next(iter(bindings)) if single_binding else None,
             )
         launch = build_pi_launch(
             resolved,
