@@ -778,75 +778,7 @@ def test_secret_bearing_capability_descriptor_is_rejected_before_runtime_probe(
     assert provisioner.endpoint.executor.calls == []
 
 
-@pytest.mark.parametrize(
-    "leaked_result",
-    [
-        {"payload": "Bearer credential-secret"},
-        {"token": "not-even-the-leased-value"},
-    ],
-)
-def test_prepared_runtime_executor_rejects_later_credential_leakage(
-    complete_profile: ApplicationProfile,
-    tmp_path: Path,
-    leaked_result: dict[str, object],
-) -> None:
-    profile = _scoped_profile(complete_profile)
-    provisioner = profile.domains[0].profile.provisioner
-    assert provisioner is not None
-    broker = StaticCredentialBroker(
-        CredentialLease(
-            scope_id="isolated",
-            credentials={"token": "credential-secret"},
-        )
-    )
-    prepared = prepare_application(
-        profile,
-        registry=_registry_for(profile),
-        workspace=tmp_path / "run",
-        credentials=broker,
-    )
-    runtime_executor = prepared.bindings["fixture"].runtime.executor
-    provisioner.endpoint.executor.environment = leaked_result
-
-    with pytest.raises(CapabilityTransportError) as caught:
-        runtime_executor.invoke("asset.list", {})
-
-    _assert_sanitized(caught.value, "credential-secret")
-
-
-def test_prepared_runtime_executor_sanitizes_later_transport_exception(
-    complete_profile: ApplicationProfile,
-    tmp_path: Path,
-) -> None:
-    profile = _scoped_profile(complete_profile)
-    provisioner = profile.domains[0].profile.provisioner
-    assert provisioner is not None
-    broker = StaticCredentialBroker(
-        CredentialLease(
-            scope_id="isolated",
-            credentials={"token": "credential-secret"},
-        )
-    )
-    prepared = prepare_application(
-        profile,
-        registry=_registry_for(profile),
-        workspace=tmp_path / "run",
-        credentials=broker,
-    )
-    runtime_executor = prepared.bindings["fixture"].runtime.executor
-
-    def fail(capability: str, arguments: dict[str, object]) -> dict[str, object]:
-        raise DomainProvisioningError("credential-secret")
-
-    provisioner.endpoint.executor.invoke = fail
-
-    with pytest.raises(CapabilityTransportError) as caught:
-        runtime_executor.invoke("asset.list", {})
-
-    _assert_sanitized(caught.value, "credential-secret")
-
-
-@pytest.mark.parametrize("failure_kind", ["result", "exception"])
+@pytest.mark.parametrize("failure_kind", ["leased_value", "sensitive_key", "exception"])
 def test_every_public_prepared_executor_uses_the_credential_boundary(
     complete_profile: ApplicationProfile,
     tmp_path: Path,
@@ -869,9 +801,13 @@ def test_every_public_prepared_executor_uses_the_credential_boundary(
     )
     prepared_binding = prepared.bindings["fixture"]
     assert prepared_binding.endpoint.executor is prepared_binding.runtime.executor
-    if failure_kind == "result":
+    if failure_kind == "leased_value":
         provisioner.endpoint.executor.environment = {
             "payload": "credential-secret"
+        }
+    elif failure_kind == "sensitive_key":
+        provisioner.endpoint.executor.environment = {
+            "token": "not-even-the-leased-value"
         }
     else:
         def fail(
