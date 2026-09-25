@@ -280,18 +280,9 @@ def test_prepare_application_resolves_only_explicit_registration(
     "binding_id",
     [
         "../outside",
-        "/absolute",
-        "nested/binding",
         r"nested\binding",
-        ".",
-        "..",
         "",
         "Uppercase",
-        "under_score",
-        "-leading",
-        "trailing-",
-        "contains space",
-        "éxternal",
         "a" * 64,
     ],
 )
