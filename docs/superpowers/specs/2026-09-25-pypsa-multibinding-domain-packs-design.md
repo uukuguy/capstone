@@ -1,6 +1,6 @@
 # PyPSA Domain Packs and Multi-Binding Application Design
 
-**Status:** approved direction; implementation planned, not started
+**Status:** approved direction; multi-binding, Network Modeling, and Power Operations implemented
 **Date:** 2026-09-25
 
 ## Decision and scope
@@ -14,8 +14,8 @@ analysis. New PyPSA packs use `pypsa-<capability>-domain-pack` distribution name
 This design supersedes the earlier decision to defer multi-binding composition
 until after selection of a second production domain. It does not change the
 `grid-agent` two-field stdout contract or grant model-side arbitrary Python,
-filesystem, shell, or raw authority access. No PyPSA pack is implemented or
-registered merely by approving this design.
+filesystem, shell, or raw authority access. Design approval alone does not
+register or publish any Pack capability.
 
 The deliverable is a sequence of independently reviewable changes: a working
 multi-binding application path, an authority-owned PyPSA model and reference
