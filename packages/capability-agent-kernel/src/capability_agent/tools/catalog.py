@@ -388,8 +388,8 @@ class CompositeToolCatalog:
         final_names = [*core_names, *routing_names]
         if len(set(final_names)) != len(final_names):
             raise ToolCatalogError("final tool names must be unique")
-        if len(domains) != 1:
-            raise ToolCatalogError("composite catalog requires exactly one domain binding")
+        if not domains:
+            raise ToolCatalogError("composite catalog requires at least one domain binding")
         return cls(
             core_tools=tuple(sorted(core.tools, key=lambda tool: tool.name)),
             guide_tool_bindings=tuple(

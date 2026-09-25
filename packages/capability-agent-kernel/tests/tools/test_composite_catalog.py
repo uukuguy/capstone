@@ -137,6 +137,50 @@ def test_composite_catalog_keeps_core_tools_out_of_domain_catalog() -> None:
     assert bound.protocol_version == "1.0"
 
 
+def test_composite_catalog_routes_two_bindings_by_unique_tool_name() -> None:
+    inventory = _domain(
+        "inventory",
+        "inventory_",
+        capability_id="asset.list",
+        tool_name="inventory_asset_list",
+        guide_tool_name="inventory_guide_open",
+    )
+    grid = _domain(
+        "grid",
+        "grid_",
+        tool_name="grid_analysis_powerflow_ac",
+        guide_tool_name="grid_guide_open",
+    )
+
+    catalog = CompositeToolCatalog.build(
+        core=CoreToolCatalog.default(namespace="agent_"),
+        domains=(inventory, grid),
+    )
+
+    assert catalog.require("inventory_asset_list").key.binding_id == "inventory"
+    assert catalog.require("grid_analysis_powerflow_ac").key.binding_id == "grid"
+    assert catalog.guide_tool_bindings == {
+        "inventory_guide_open": "inventory",
+        "grid_guide_open": "grid",
+    }
+    assert [tool.name for tool in catalog.core_tools] == [
+        "agent_context_get",
+        "agent_record_decision",
+    ]
+    assert [tool.name for tool in catalog.domain_tools] == [
+        "grid_analysis_powerflow_ac",
+        "inventory_asset_list",
+    ]
+
+
+def test_composite_catalog_requires_a_domain_binding() -> None:
+    with pytest.raises(ToolCatalogError, match="at least one domain binding"):
+        CompositeToolCatalog.build(
+            core=CoreToolCatalog.default(namespace="agent_"),
+            domains=(),
+        )
+
+
 def test_composite_catalog_identifies_registered_auxiliary_tools() -> None:
     catalog = CompositeToolCatalog.build(
         core=CoreToolCatalog.default(namespace="agent_"),
@@ -304,6 +348,21 @@ def test_composite_catalog_rejects_a_guide_context_name_collision() -> None:
         CompositeToolCatalog.build(
             core=CoreToolCatalog.default(namespace="agent_"),
             domains=(domain,),
+        )
+
+
+@pytest.mark.parametrize("field", ["guide_tool_name", "context_tool_name"])
+def test_composite_catalog_rejects_duplicate_auxiliary_names_across_bindings(
+    field: str,
+) -> None:
+    first = _domain("primary", "primary_", **{field: "primary_resource_open"})
+    second = _domain("secondary", "secondary_", **{field: "secondary_resource_open"})
+    second = replace(second, **{field: "primary_resource_open"})
+
+    with pytest.raises(ToolCatalogError, match="final tool names"):
+        CompositeToolCatalog.build(
+            core=CoreToolCatalog.default(namespace="agent_"),
+            domains=(first, second),
         )
 
 

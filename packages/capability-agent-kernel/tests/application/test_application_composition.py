@@ -18,6 +18,11 @@ from capability_agent import (
     prepare_application,
 )
 from capability_agent.application import composition
+from capability_agent.tools.catalog import (
+    BoundDomainCatalog,
+    CompositeToolCatalog,
+    CoreToolCatalog,
+)
 
 
 @dataclass(frozen=True)
@@ -505,6 +510,34 @@ def test_prepare_application_sorts_and_isolates_multiple_bindings(
     assert prepared.bindings["fixture"].runtime.tool_catalog_path != (
         prepared.bindings["second"].runtime.tool_catalog_path
     )
+
+
+def test_prepared_bindings_materialize_a_composite_tool_catalog(
+    complete_profile: ApplicationProfile, tmp_path: Path
+) -> None:
+    second = _second_binding(complete_profile)
+    profile = replace(complete_profile, domains=(second, *complete_profile.domains))
+    prepared = prepare_application(
+        profile,
+        registry=_registry_for(profile),
+        workspace=tmp_path / "run",
+        credentials=EmptyCredentialBroker(),
+    )
+
+    catalog = CompositeToolCatalog.build(
+        core=CoreToolCatalog.default(),
+        domains=tuple(
+            BoundDomainCatalog.from_prepared(binding)
+            for binding in prepared.bindings.values()
+        ),
+    )
+
+    assert catalog.require("inventory_asset_list").key.binding_id == "fixture"
+    assert catalog.require("second_asset_list").key.binding_id == "second"
+    assert catalog.guide_tool_bindings == {
+        "inventory_guide_open": "fixture",
+        "second_guide_open": "second",
+    }
 
 
 def test_second_endpoint_failure_closes_first_endpoint(
