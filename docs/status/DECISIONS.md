@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## 2026-09-25 — Capability-named PyPSA packs and multi-binding composition
+
+- **Decision:** an application may explicitly assemble multiple independently installable Domain Packs. PyPSA's Network modeling is its own pack; operations, capacity planning, and sector coupling are separately named packs. Each new distribution name includes `pypsa`, while the existing pandapower distribution remains compatible.
+- **Reason:** PyPSA combines modeling, operating, planning and cross-carrier workflows. A shared, authority-owned immutable `model_ref` lets packs compose without exposing a Python `Network` or coupling their internal state. A single-binding runtime cannot serve the selected multi-pack application.
+- **Sequence:** implement multi-binding preparation, Pi routing and per-binding evidence first; then the typed model-ref sharing protocol and Network modeling pack; then activate operations, planning and sector coupling one at a time. Unimplemented package shells expose no tools or binding.
+- **Compatibility:** `grid-agent` retains its two-field stdout projection and simulator evidence boundary. Dynamic plugin discovery and enterprise write governance remain separate work.
+- **Specification and plan:** `docs/superpowers/specs/2026-09-25-pypsa-multibinding-domain-packs-design.md` and `docs/superpowers/plans/2026-09-25-multi-binding-application-implementation.md` supersede the earlier deferral of Workstream E as the next approved work item; code remains feature-gated until implementation passes its acceptance.
+
 ## 2026-09-05 — Delivery closes in the main application checkout
 
 - **Correction:** branch/worktree acceptance is intermediate, not user delivery. Unless explicitly requested otherwise, integrate accepted commits into main and verify its actual application entry point and local runtime before claiming completion.

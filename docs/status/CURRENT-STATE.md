@@ -10,7 +10,7 @@
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`
 - Completed work package: Workstream C.1 application-instantiation closure. The first real pandapower application passed both canonical business task files through the generic path and the explicit v1.0.1 compatibility projection.
 - Completed foundation: Workstream B package extraction is integrated on `main`; its 100/100 closure and final review remain archived under `docs/status/climb/_archive/2026-08-28-workstream-b-package-extraction/`.
-- Deferred work packages: Workstream C.2 is not started and no real second domain is selected. Workstreams D-E remain future work for enterprise action governance and multi-domain discovery/composition; multiple bindings remain feature-gated.
+- Planned expansion: PyPSA Network modeling, operations, capacity planning, and sector coupling are selected as four capability-named Domain Packs; implementation has not started. Multi-binding composition is the first approved prerequisite and remains feature-gated in code. C.2 dynamic selection/discovery and Workstream D enterprise action governance remain deferred.
 
 ## Current Architecture
 
@@ -52,8 +52,8 @@
 - Pi 0.84.4 uses a separately versioned remediation record binding its exact source/patch, all three frozen locks and installed graphs, zero-finding audit snapshot, and real built-SDK capture result. The unchanged historical 0.80.6 exception retains 2 High/2 Moderate findings and its 2026-09-30 expiry. The offline gate rejects unvalidated identity or graph drift; it does not discover future advisories. Completed optimization acceptance is recorded in the canonical plan.
 - Pandapower/pandas emit upstream deprecation warnings in state-estimation and legacy network construction paths; these do not change current results.
 - Provider latency remains externally variable; future changes must preserve non-blocking trajectory observation.
-- Workstream C.2 has not started: runtime domain selection, plugin discovery, and a useful real second-domain application are not implemented; inventory remains fixture/conformance infrastructure only.
-- Workstream E has not started: multi-binding routing remains intentionally feature-gated. Write-side approval, idempotency, and compensation remain deferred to enterprise action governance.
+- Workstream C.2 dynamic selection/discovery remains unimplemented; inventory remains conformance infrastructure, while the planned PyPSA packs have no production code or binding.
+- Multi-binding routing remains feature-gated despite its approved design and implementation plan. Write-side approval, idempotency, and compensation remain deferred to enterprise action governance.
 
 ## Key Files
 
@@ -69,6 +69,8 @@
 - `docs/status/DECISIONS.md` — architectural decision ledger
 - `docs/status/2026-09-05-capstone-design-code-review.md` — optimization findings, evidence and review limits
 - `docs/superpowers/plans/2026-09-05-capstone-optimization.md` — canonical optimization tasks and execution gates
+- `docs/superpowers/specs/2026-09-25-pypsa-multibinding-domain-packs-design.md` — approved PyPSA pack map, Network model reference and multi-binding design
+- `docs/superpowers/plans/2026-09-25-multi-binding-application-implementation.md` — first implementation plan; later PyPSA packs have dependency and acceptance gates
 
 ### Implementation entry points
 

@@ -8,10 +8,10 @@
 | `JOURNAL.md` | Append-only durable event log. |
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |
-| `DECISIONS.md` | Active architectural decisions, including framework-first scope/deferrals and domain-only report optionality/versioning. |
+| `DECISIONS.md` | Active architectural decisions, including PyPSA pack boundaries and the multi-binding direction. |
 | `climb/research-tree.md` | Generated Workstream C inventory reference-domain scoring summary; resume-load. |
 | `climb/session-state.json` | Active Workstream C hypothesis and deterministic next action. |
-| `c2-github-repository-intelligence-candidate.md` | 🟡 current working theory for the next real business-domain selection; not an implementation decision. |
+| `c2-github-repository-intelligence-candidate.md` | 🟡 historical GitHub C.2 candidate; PyPSA pack selection now governs the next approved design direction. |
 | `2026-09-05-capstone-design-code-review.md` | Optimization evidence baseline R01–R13; current remediation status belongs to the canonical plan. |
 | `2026-09-22-capstone-review.md` | 企业业务能力包视角的历史评审基线；后续修复和验收见优化计划。 |
 | `2026-09-22-capstone-opensource-research.md` | 企业业务 API/framework 的历史选型研究；HTTP 测试实验已完成，其他候选仍待独立决策。 |
@@ -23,6 +23,8 @@
 | --- | --- |
 | [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical delivery record, including completed reviewed A–E work; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
 | [Framework guide historical plan](../superpowers/plans/2026-08-31-capstone-framework-guide.md) | Completed architecture, bilingual README, and agent-contract documentation work. |
+| [PyPSA pack and multi-binding design](../superpowers/specs/2026-09-25-pypsa-multibinding-domain-packs-design.md) | Approved four-pack boundaries, Network model reference, and multi-binding contract. |
+| [Multi-binding implementation plan](../superpowers/plans/2026-09-25-multi-binding-application-implementation.md) | First code work package and later PyPSA activation order. |
 | [Capstone framework](../architecture/capstone-framework.md) | Layer contracts, current-run evidence and guide-access assurance boundaries. |
 
 ## Climb storage and configuration
