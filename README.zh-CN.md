@@ -20,7 +20,7 @@ Application -> Domain Pack -> Kernel -> registered Authority
 
 ## 添加应用
 
-集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。Capstone 当前不提供动态发现、运行时领域选择或多领域路由。
+集成新应用时，先定义权威系统边界和带版本的语义协议；再通过公共 Kernel SPI 实现 Domain Pack；使用具备凭据作用域和公共渲染器的 `ApplicationProfile` 绑定该 Domain Pack；最后使用真实权威调用和当前运行证据链路证明无 Provider 验收。显式多 binding 装配支持在同一应用中组合独立领域，工具、状态、证据和输出均按命名空间隔离。跨领域共享仍被拒绝，直到另行规划的 `model_ref` 交接合同实现。Capstone 当前不提供动态发现或运行时领域选择。
 
 ## 框架保证
 
@@ -104,6 +104,8 @@ HTTP adapter 仅用于测试；干净安装 smoke 会在 wheel 外复制它。
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。
 
 在其记录的 conformance 基线中，inventory 参考域复用通用 Pi transport 和 Kernel 组合路径，证明独立打包的只读业务权威可在不复制 `grid-agent` 的前提下实例化单领域框架。后续 Kernel 与 simulator 优化均由各自当前记录独立复审和保护；这项历史证明不宣称这些路径至今未变。当前发布的 `grid-agent` CLI 仍显式选择 pandapower Profile；inventory 仍是 conformance 基础设施，而不是第二个生产领域。
+
+无 Provider 的[双 binding 验收](packages/inventory-domain-pack/tests/test_multi_binding_application.py)装配 pandapower 与 inventory，在两轮中调用两个真实 authority，提交各自拥有的 claims，并检查报告与 replay。托管 Pi 启动冒烟加载两个已发布的工具目录和指南，以及唯一一组 `agent_` 核心工具，无需调用 Provider。这些检查证明独立组合，不开放 binding 之间的领域模型或证据共享。
 
 inventory Profile 现已提供完整应用所需的全部 SPI 组件。无 Provider 验收通过真实 `inventoryctl` 执行两轮上下文复用、准入答案、`core` + `domains.inventory`、报告隔离与回放；干净 wheel 测试在仓库外使用当前解释器安装的 console script 重复完整应用。这些检查证明运行装配和证据谱系，不证明自由文本解释的语义正确性。
 

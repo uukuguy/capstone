@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 独立包、精确的 Kernel/authority 依赖 | [inventory pyproject](../../packages/inventory-domain-pack/pyproject.toml) | wheel 可单独构建，资源装入 wheel。 |
 | 版本化语义操作和字段 schema | [capabilities](../../packages/inventory-domain-pack/src/inventory_domain/resources/capabilities/) | 模型只见业务参数；没有 URL、令牌、可执行文件或任意代码参数。 |
-| Pack manifest、公开 Profile 和装配 | [profile.py](../../packages/inventory-domain-pack/src/inventory_domain/profile.py) | 公开 Kernel SPI 注入组件；Application 显式选择一个 binding。 |
+| Pack manifest、公开 Profile 和装配 | [profile.py](../../packages/inventory-domain-pack/src/inventory_domain/profile.py) | 公开 Kernel SPI 注入组件；Application 显式选择一个或多个独立 binding。 |
 | 领域策略、指南和资源定位 | [resources](../../packages/inventory-domain-pack/src/inventory_domain/resources/) | 指南与工具清单发布一致，离线说明不伪造事实引用。 |
 | executor 和可信 provisioner | [execution.py](../../packages/inventory-domain-pack/src/inventory_domain/execution.py)、[provisioning.py](../../packages/inventory-domain-pack/src/inventory_domain/provisioning.py) | authority 地址、超时和凭据由装配固定；异常有稳定错误类别。 |
 | current-run authority、投影、状态、输出 | [authority.py](../../packages/inventory-domain-pack/src/inventory_domain/authority.py)、[projection.py](../../packages/inventory-domain-pack/src/inventory_domain/projection.py)、[state.py](../../packages/inventory-domain-pack/src/inventory_domain/state.py)、[output.py](../../packages/inventory-domain-pack/src/inventory_domain/output.py) | result/evidence 属于本轮、可离线验证；`core` 仍归 Kernel。 |
@@ -17,6 +17,14 @@
 ### SDK authority 示例
 
 inventory 的生产参考路径通过 `InventoryRuntimeProvisioner` 固定 `inventoryctl`，由 `InventoryctlExecutor` 请求已注册 authority。[SDK conformance](../../packages/inventory-domain-pack/tests/test_application_conformance.py)只脚本化模型决策，业务调用仍走真实 `inventoryctl`，并验证两轮应用及当前运行证据。复制此模式时，替换领域合同、authority 和业务投影；不要复制 grid 的兼容输出封装。
+
+### 显式多 binding 装配
+
+同一 `ApplicationProfile.domains` 可以显式选择多个 `DomainBinding`。每个 binding 需要唯一 ID、工具前缀、独立工作目录和凭据作用域，并分别注册自己的 authority。运行时 `capability-agent-runtime/1.1` 发布所有已选领域的工具目录和指南，核心 `agent_` 工具仅发布一组；原单 binding `1.0` 格式继续兼容。
+
+[双 binding 验收](../../packages/inventory-domain-pack/tests/test_multi_binding_application.py)提供 pandapower 与 inventory 的两轮真实 authority 示例：第一轮打开各自上下文并读取结果，第二轮复用各自上下文再次调用 authority，随后检查独立 claims、`domains.grid` / `domains.inventory`、报告和 replay。显式 claims 通过真实 `TurnController.submit` 提交；测试中的薄控制器子类只把脚本决策接入该接口，应用的 Provider 接口仍返回读者文本。[Pi 启动冒烟](../../packages/pi-capability-tools/test/domain-tools.test.mjs)使用托管 SDK 和默认通用扩展验证两个已发布目录、指南和唯一核心工具组，不调用 Provider。
+
+多 binding 组合不授予跨领域共享权限。`DataSharingPolicy` 保持拒绝共享，单个 claim 的引用必须属于同一 binding。未来的 `model_ref` 交接需要另行实现源到目标的策略和 authority 合同；当前不能用另一领域的状态或 evidence 代替本领域的权威结果。`grid-agent` CLI 继续显式选择 pandapower，保持两字段兼容输出。
 
 ### 固定 HTTP authority 示例
 

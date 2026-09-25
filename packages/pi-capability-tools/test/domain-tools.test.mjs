@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
 
 import {
   buildCapabilityRequest,
@@ -1002,6 +1002,77 @@ function contract(name, capability) {
     result_kind: "asset.catalog",
   };
 }
+
+test("managed Pi default extension starts with both published catalogs and guides", async () => {
+  const root = resolve(import.meta.dirname, "../../..");
+  const source = (await readFile(join(root, ".grid-agent/runtime/pi/active"), "utf8")).split("\n")[0];
+  const fixture = await runtimeV11Fixture();
+  const previousDescriptor = process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR;
+  const previousOffline = process.env.PI_OFFLINE;
+  let session;
+  try {
+    const expected = ["agent_context_get", "agent_record_decision"];
+    for (const domain of fixture.descriptor.domains) {
+      const grid = domain.bindingId === "grid";
+      const resources = join(root, "packages", grid ? "pandapower-domain-pack/src/pandapower_domain/resources" : "inventory-domain-pack/src/inventory_domain/resources");
+      const contractsRoot = grid
+        ? join(root, "packages/grid-simulator/src/grid_simulator/capabilities/definitions")
+        : join(resources, "capabilities");
+      const tools = [];
+      for (const file of (await readdir(contractsRoot)).filter((name) => name.endsWith(".json")).sort()) {
+        const document = JSON.parse(await readFile(join(contractsRoot, file), "utf8"));
+        if (document.availability !== "published") continue;
+        tools.push({ name: document.tool_name, capability: document.id, description: document.purpose,
+          input_schema: document.input_schema, projector_id: document.context_effect.projector,
+          result_kind: document.context_effect.result_kind });
+      }
+      await writeFile(domain.toolCatalogPath, JSON.stringify({ tools }));
+      const guidePath = join(domain.guideRootPath, "SKILL.md");
+      await writeFile(guidePath, await readFile(join(resources, "guides/SKILL.md")));
+      const index = JSON.stringify({ protocol: `${domain.protocol.split("-", 1)[0]}-guide-index`, version: "1.0", root: domain.guideRootPath, resources: { "skill": guidePath } });
+      await writeFile(domain.guideIndexPath, index);
+      domain.guideIndexSha256 = createHash("sha256").update(index).digest("hex");
+      expected.push(...tools.map((tool) => tool.name), domain.guideToolName);
+    }
+    const descriptorPath = join(fixture.root, "runtime.json");
+    await writeFile(descriptorPath, JSON.stringify(fixture.descriptor));
+    process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
+    process.env.PI_OFFLINE = "1";
+    const cwd = join(fixture.root, "cwd");
+    const agentDir = join(fixture.root, "agent");
+    const extensions = join(agentDir, "extensions");
+    await mkdir(cwd);
+    await mkdir(extensions, { recursive: true });
+    const extensionUrl = pathToFileURL(join(root, "packages/pi-capability-tools/src/domain-tools.mjs")).href;
+    await writeFile(join(extensions, "capabilities.ts"), `export { default } from ${JSON.stringify(extensionUrl)};\n`);
+    const runtimeImport = (name) => import(pathToFileURL(join(source, "packages/coding-agent/dist/core", `${name}.js`)));
+    const [{ createAgentSession }, { ModelRuntime }, { SettingsManager }, { SessionManager }] = await Promise.all([
+      runtimeImport("sdk"), runtimeImport("model-runtime"), runtimeImport("settings-manager"), runtimeImport("session-manager"),
+    ]);
+    const modelRuntime = await ModelRuntime.create({ authPath: join(agentDir, "auth.json"), modelsPath: null, refreshOnCreate: false });
+    modelRuntime.streamSimple = () => { throw new Error("startup smoke must not call a provider"); };
+    const started = await createAgentSession({ cwd, agentDir, modelRuntime,
+      noTools: "builtin", settingsManager: SettingsManager.inMemory({}), sessionManager: SessionManager.inMemory(cwd) });
+    session = started.session;
+    assert.deepEqual(started.extensionsResult.errors, []);
+    assert.deepEqual(session.getActiveToolNames().sort(), expected.sort());
+    assert.deepEqual(session.getActiveToolNames().filter((name) => name.startsWith("agent_")).sort(), ["agent_context_get", "agent_record_decision"]);
+    assert.equal(started.extensionsResult.extensions.length, 1);
+    const registered = started.extensionsResult.extensions[0].tools;
+    for (const name of ["grid_guide_open", "inventory_guide_open"]) {
+      const result = await registered.get(name).definition.execute("guide-smoke", { resource_id: "skill" });
+      assert.equal(result.isError, undefined);
+      assert.ok(result.details.result.text.length > 0);
+    }
+  } finally {
+    session?.dispose();
+    for (const [key, value] of [["CAPABILITY_AGENT_RUNTIME_DESCRIPTOR", previousDescriptor], ["PI_OFFLINE", previousOffline]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
 
 async function runtimeV1Fixture({ withTrajectory = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "capability-runtime-v1-"));

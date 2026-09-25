@@ -42,7 +42,7 @@ an invitation for an outer layer to recreate authority facts.
 An application declares an `ApplicationProfile`; `AgentApplication` owns the
 run lifecycle; each `DomainBinding` injects a selected Domain Pack's public
 contracts. A binding names its domain payload and tool namespace, keeps
-credentials scoped, and defaults to no cross-domain data sharing. Domain Packs
+credentials scoped, and denies cross-domain data sharing. Domain Packs
 communicate with an authority through their declared executor/protocol instead
 of importing its implementation into the Kernel.
 
@@ -110,6 +110,20 @@ authority. Documentation alone never registers a model tool, and an
 implementation that is not published by the selected profile is not exposed.
 
 ## Composite output protocol
+
+Explicit multi-binding assembly is supported: an `ApplicationProfile` selects
+all bindings up front, each invocation carries its controller-owned binding
+identity, and the runtime publishes each domain's catalog and guides alongside
+one shared `agent_` core tool set. Runtime descriptor `capability-agent-runtime/1.1`
+supports multiple bindings; the single-binding `1.0` format remains supported.
+Each binding retains its own workspace, credential scope, authority, state,
+claim admission and output. A claim cannot mix references owned by different
+bindings. Multi-binding admission records the individual binding decisions.
+
+Data sharing is still denied. Selecting two packs does not authorize either
+pack to consume the other's state, result, evidence or model. A future
+`model_ref` handoff requires a separate source-to-target policy and authority
+contract; this implementation does not provide it.
 
 The generic application result is composed from independently validated Kernel
 and Domain Pack contracts. Its generic shape is exactly:
@@ -234,8 +248,18 @@ interfaces. Its conformance executes two real authority-backed turns and checks
 report isolation and replay; installed-wheel tests exercise this application
 outside the source tree. No inventory branch is added to the Kernel or grid CLI.
 
+The repository's [two-binding acceptance](../../packages/inventory-domain-pack/tests/test_multi_binding_application.py)
+explicitly assembles pandapower and inventory in one application. It calls both
+registered authorities over two turns, reuses each binding's context, submits
+separately owned claims through the real controller, and verifies namespaced
+output, current-run evidence, report creation and replay. The scripted provider
+supplies decisions only. Explicit claims use `TurnController.submit`; the
+application's provider interface returns reader-facing text. A managed Pi
+startup smoke also loads both published catalogs and guides through the default
+generic extension without provider I/O.
+
 Capstone does not yet provide dynamic plugin discovery, runtime domain
-selection, multi-domain routing, cross-domain conflict resolution, or a chosen
+selection, cross-domain conflict resolution, or a chosen
 second production domain. Governed writes, approval flows, tenant/actor scope,
 idempotency, compensation, and write-capability governance are likewise
 deferred. The C.2 GitHub Repository Intelligence record is a working theory,

@@ -38,8 +38,11 @@ To integrate a new application, define its authoritative system boundary and
 versioned semantic protocol; implement a Domain Pack through the public Kernel
 SPI; bind that pack from an `ApplicationProfile` with scoped credentials and a
 public renderer; then prove provider-free acceptance using real authority calls
-and current-run evidence lineage. Dynamic discovery, runtime domain selection,
-and multi-domain routing are not currently provided.
+and current-run evidence lineage. Explicit multi-binding assembly supports
+independent domains in one application, with namespaced tools, state, evidence
+and output. Cross-domain sharing remains denied until a separately planned
+`model_ref` handoff contract is implemented. Dynamic discovery and runtime
+domain selection are not currently provided.
 
 ## Framework Guarantees
 
@@ -179,6 +182,13 @@ optimizations are separately reviewed and protected by their current records;
 this historical proof does not claim those paths remain unchanged. The shipped
 `grid-agent` CLI still explicitly selects the pandapower profile; inventory
 remains conformance infrastructure, not a second production domain.
+
+A provider-free [two-binding acceptance](packages/inventory-domain-pack/tests/test_multi_binding_application.py)
+assembles pandapower and inventory, calls both real authorities over two turns,
+commits separately owned claims, and checks report and replay. A managed Pi
+startup smoke loads both published catalogs and guides with one `agent_` core
+tool set, without calling a provider. These checks prove independent composition;
+they do not enable sharing domain models or evidence across bindings.
 
 The inventory profile now supplies every complete-application SPI component.
 Its provider-free conformance uses real `inventoryctl` execution for two-turn
