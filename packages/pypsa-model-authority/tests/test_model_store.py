@@ -78,3 +78,24 @@ def test_only_registered_catalog_and_typed_edits_are_accepted(tmp_path: Path) ->
             root,
             run_id="run-one",
         )
+
+
+def test_typed_snapshot_demand_derivation_and_validation(tmp_path: Path) -> None:
+    _, execute, ModelStore = _authority()
+    root = tmp_path / "authority"
+    opened = execute("model.open", {"catalog_id": "unit-commitment"}, root, run_id="series-run")
+    derived = execute("model.derive_series", {
+        "model_ref": opened["model_ref"], "load_id": "demand",
+        "p_set_mw": [30.0, 50.0],
+    }, root, run_id="series-run")
+    store = ModelStore(root, run_id="series-run")
+    assert store.load_model(derived["model_ref"])["parent_ref"] == opened["model_ref"]
+    assert store.load_network(derived["model_ref"]).loads_t.p_set["demand"].tolist() == [30.0, 50.0]
+    assert store.load_network(opened["model_ref"]).loads_t.p_set["demand"].tolist() == [20.0, 60.0]
+    validated = execute("model.validate", {"model_ref": derived["model_ref"]}, root, run_id="series-run")
+    assert validated["valid"] is True
+    assert validated["total_demand_mw"] == [30.0, 50.0]
+    assert store.load(validated["evidence_refs"][0], "evidence")["result_ref"] == validated["result_ref"]
+    scenario = execute("model.open", {"catalog_id": "capacity-scenarios"}, root, run_id="series-run")
+    scenario_check = execute("model.validate", {"model_ref": scenario["model_ref"]}, root, run_id="series-run")
+    assert scenario_check["scenario_total_demand_mw"] == {"low": [20.0], "high": [40.0]}

@@ -142,8 +142,8 @@ authority, Network Modeling, Power Operations, Capacity Planning, and Sector Cou
 | `inventory-reference-service` | `inventoryctl`, a registered read-only catalog, strict `inventory-capability/1.0`, and content-addressed inventory artifacts |
 | `inventory-domain-pack` | Inventory profile, policy, guides, contracts, executor, projectors, and current-run artifact authority built only on the public kernel SPI |
 | `pypsa-model-authority` | Registered PyPSA model catalog, immutable revisions, bounded model operations, and current-run result/evidence references |
-| `pypsa-network-modeling-domain-pack` | PyPSA model contracts, policy, guides, executor, projection, and authority admission through the public Kernel SPI |
-| `pypsa-power-operations-domain-pack` | Granted model handoff, fixed dispatch and commitment solvers, registered outage dispatch, AC validation, and target-owned evidence |
+| `pypsa-network-modeling-domain-pack` | Registered PyPSA model opening, typed derivation, bounded validation, and authority admission through the public Kernel SPI |
+| `pypsa-power-operations-domain-pack` | Granted dispatch, commitment, rolling storage, congestion, outage, and AC validation workflows with target-owned evidence |
 | `pypsa-capacity-planning-domain-pack` | Granted capacity expansion, commitment, pathway, scenario, and near-optimal solves with target-owned evidence |
 | `pypsa-sector-coupling-domain-pack` | Granted hydrogen, heat-pump, storage, and multi-port balances with target-owned evidence |
 | `@capability-agent/pi-tools` | Generic descriptor-driven Pi capability request transport and request capture |
@@ -165,10 +165,10 @@ and run `make test-domain-pack-conformance` for the inventory SDK, fixed HTTP,
 and generic Pi reference tests. The HTTP adapter is test-only; clean-install
 smoke copies it outside the wheel.
 
-The PyPSA modeling Pack publishes registered model opening, typed load-demand
-derivation, and bounded inspection. The independent Operations Pack publishes
-fixed dispatch, unit commitment, registered outage dispatch, and post-dispatch
-AC validation. The Capacity Planning Pack publishes registered capacity expansion,
+The PyPSA modeling Pack publishes registered model opening, scalar and snapshot
+load-demand derivation, bounded inspection, and model validation. The independent Operations Pack publishes
+fixed dispatch, unit commitment, registered outage dispatch, rolling storage
+dispatch, congested OPF, and post-dispatch AC validation. The Capacity Planning Pack publishes registered capacity expansion,
 joint commitment, two-period investment, two-scenario stochastic planning, and
 near-optimal capacity alternatives. The Sector Coupling Pack publishes registered hydrogen, heat-pump,
 hydrogen and heat storage, and multi-port CHP balances. The [modeling](configs/capabilities/pypsa-1.3.0-modeling.json),

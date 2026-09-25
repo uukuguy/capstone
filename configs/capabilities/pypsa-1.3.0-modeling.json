@@ -7,7 +7,9 @@
   "published": [
     {"id": "model.open", "tool_name": "pypsa_model_open", "effect": "open a registered immutable model revision"},
     {"id": "model.derive", "tool_name": "pypsa_model_derive", "effect": "derive a typed load demand revision"},
-    {"id": "model.inspect", "tool_name": "pypsa_model_inspect", "effect": "inspect bounded model structure and demand"}
+    {"id": "model.inspect", "tool_name": "pypsa_model_inspect", "effect": "inspect bounded model structure and demand"},
+    {"id": "model.derive_series", "tool_name": "pypsa_model_derive_series", "effect": "derive a bounded typed snapshot-demand profile"},
+    {"id": "model.validate", "tool_name": "pypsa_model_validate", "effect": "validate registered component endpoints and report snapshot demand"}
   ],
   "not_published": ["power-operation solver calls through the modeling binding", "scenario and expansion planning", "sector coupling"]
 }

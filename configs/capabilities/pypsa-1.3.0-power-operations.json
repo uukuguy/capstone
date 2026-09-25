@@ -9,7 +9,9 @@
     {"id": "operations.dispatch", "tool_name": "pypsa_ops_dispatch", "effect": "fixed-capacity linear economic dispatch"},
     {"id": "operations.commitment", "tool_name": "pypsa_ops_commitment", "effect": "fixed-capacity unit commitment"},
     {"id": "operations.security_dispatch", "tool_name": "pypsa_ops_security_dispatch", "effect": "registered line-outage security-constrained dispatch"},
-    {"id": "operations.ac_validate", "tool_name": "pypsa_ops_ac_validate", "effect": "post-dispatch AC power-flow validation"}
+    {"id": "operations.ac_validate", "tool_name": "pypsa_ops_ac_validate", "effect": "post-dispatch AC power-flow validation"},
+    {"id": "operations.rolling_dispatch", "tool_name": "pypsa_ops_rolling_dispatch", "effect": "registered rolling-horizon storage dispatch"},
+    {"id": "operations.congested_opf", "tool_name": "pypsa_ops_congested_opf", "effect": "registered congested OPF with branch flow and nodal price"}
   ],
   "not_published": ["scenario and expansion planning", "sector coupling", "arbitrary solver options", "raw Network access"]
 }

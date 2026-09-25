@@ -88,3 +88,37 @@ def test_invalid_source_and_infeasible_solve_never_publish_success(tmp_path) -> 
             target, source, run_id="ops-run",
         )
     assert not (target / "results").exists()
+
+
+def test_registered_rolling_horizon_preserves_storage_dispatch(tmp_path) -> None:
+    source = tmp_path / "runs" / "rolling-run" / "domains" / "model"
+    target = source.parent / "operations"
+    opened = execute("model.open", {"catalog_id": "rolling-storage"}, source, run_id="rolling-run")
+    result = execute_operation(
+        "operations.rolling_dispatch", {"model_ref": opened["model_ref"]},
+        target, source, run_id="rolling-run",
+    )
+    assert result["condition"] == "optimal"
+    assert result["horizon_snapshots"] == 2
+    assert result["generator_dispatch_mw"]["cheap"] == pytest.approx([40.0, 0.0, 0.0])
+    assert result["generator_dispatch_mw"]["backup"] == pytest.approx([0.0, 0.0, 20.0])
+    assert result["store_energy_mwh"]["battery"] == pytest.approx([20.0, 0.0, 0.0])
+    assert result["objective"] == pytest.approx(1000.0)
+    assert ModelStore(target, run_id="rolling-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]
+
+
+def test_congested_opf_exposes_line_flow_and_nodal_prices(tmp_path) -> None:
+    source = tmp_path / "runs" / "congestion-run" / "domains" / "model"
+    target = source.parent / "operations"
+    opened = execute("model.open", {"catalog_id": "congested-two-bus"}, source, run_id="congestion-run")
+    result = execute_operation(
+        "operations.congested_opf", {"model_ref": opened["model_ref"]},
+        target, source, run_id="congestion-run",
+    )
+    assert result["condition"] == "optimal"
+    assert result["generator_dispatch_mw"] == {"cheap": [20.0], "local": [20.0]}
+    assert result["line_flow_mw"]["corridor"] == pytest.approx([20.0])
+    assert result["bus_marginal_price"]["north"] == pytest.approx([10.0])
+    assert result["bus_marginal_price"]["south"] == pytest.approx([30.0])
+    assert result["objective"] == pytest.approx(800.0)
+    assert ModelStore(target, run_id="congestion-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]

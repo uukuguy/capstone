@@ -136,6 +136,19 @@ def main() -> None:
         assert verify_result(workspace.domain_roots["model"], workspace.run_id, inspected["result_ref"])
         assert verify_evidence(workspace.domain_roots["model"], workspace.run_id, inspected["evidence_refs"][0])
         assert service.verify_receipt(receipt) == receipt
+        temporal = source.endpoint.executor.invoke("model.open", {"catalog_id": "unit-commitment"})
+        temporal_revision = source.endpoint.executor.invoke("model.derive_series", {
+            "model_ref": temporal["model_ref"], "load_id": "demand",
+            "p_set_mw": [30.0, 50.0],
+        })
+        checked = source.endpoint.executor.invoke("model.validate", {
+            "model_ref": temporal_revision["model_ref"],
+        })
+        assert checked["valid"] is True
+        assert checked["total_demand_mw"] == [30.0, 50.0]
+        assert verify_evidence(
+            workspace.domain_roots["model"], workspace.run_id, checked["evidence_refs"][0],
+        ).document["result_ref"] == checked["result_ref"]
         assert ApplicationContextStore.replay(workspace.context_events_path) == store.snapshot
         for binding in prepared.bindings.values():
             binding.endpoint.close()

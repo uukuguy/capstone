@@ -262,9 +262,10 @@ generic extension without provider I/O.
 
 The separately installable `pypsa-model-authority` and
 `pypsa-network-modeling-domain-pack` provide registered model opening, typed
-load-demand derivation, and bounded inspection. The independent
+scalar and snapshot load-demand derivation, bounded inspection, and validation. The independent
 `pypsa-power-operations-domain-pack` publishes fixed dispatch, unit commitment,
-registered line-outage security dispatch, and post-dispatch AC validation.
+rolling storage dispatch, congested OPF, registered line-outage security
+dispatch, and post-dispatch AC validation.
 The `pypsa-capacity-planning-domain-pack` publishes registered generator
 expansion, joint capacity and commitment, two-period investment, two-scenario
 stochastic investment, and a near-optimal capacity alternative. The MGA

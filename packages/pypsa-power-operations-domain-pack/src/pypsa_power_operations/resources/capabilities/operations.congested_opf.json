@@ -1,0 +1,59 @@
+{
+  "id": "operations.congested_opf",
+  "tool_name": "pypsa_ops_congested_opf",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": [
+      "pypsa-operations.result"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-operations.result",
+    "projector": "pypsa-operations-result-v1"
+  },
+  "purpose": "Solve registered two-bus congested OPF and report branch flow and nodal prices.",
+  "applies_to": [
+    "registered PyPSA congested-two-bus model"
+  ],
+  "not_for": [
+    "unregistered models",
+    "arbitrary solver options",
+    "raw Network access"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reference",
+      "handoff_ref"
+    ],
+    "properties": {
+      "reference": {
+        "type": "string",
+        "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"
+      },
+      "handoff_ref": {
+        "type": "string",
+        "pattern": "^handoff:sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "requires": [
+    "application-granted model handoff"
+  ],
+  "produces": [
+    "result_ref",
+    "evidence_refs",
+    "generator dispatch",
+    "branch flow",
+    "nodal marginal price",
+    "operating cost"
+  ],
+  "common_next": [],
+  "recovery": {
+    "solve_failed": [
+      "Report that the registered operation did not reach an optimum."
+    ]
+  }
+}

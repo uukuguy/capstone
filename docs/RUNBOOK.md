@@ -33,8 +33,8 @@ make doctor
 | `inventory-reference-service` | `inventoryctl`、已登记只读 catalog、`inventory-capability/1.0` 与内容寻址业务工件 |
 | `inventory-domain-pack` | 只依赖公共 Kernel SPI 与 reference service 的 inventory Profile、策略、指南、执行器、投影和 authority |
 | `pypsa-model-authority` | 已登记模型、不可变修订、固定求解和当前运行证据 |
-| `pypsa-network-modeling-domain-pack` | 已登记模型打开、派生和检查 |
-| `pypsa-power-operations-domain-pack` | 授权调度、启停、故障集调度和 AC 校验 |
+| `pypsa-network-modeling-domain-pack` | 已登记模型打开、单值和逐时派生、检查与验证 |
+| `pypsa-power-operations-domain-pack` | 授权调度、启停、滚动储能、拥塞 OPF、故障集和 AC 校验 |
 | `pypsa-capacity-planning-domain-pack` | 授权容量扩建、联合启停、多期、随机和近最优规划 |
 | `pypsa-sector-coupling-domain-pack` | 授权电转氢、热泵、储能和多端口平衡 |
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |

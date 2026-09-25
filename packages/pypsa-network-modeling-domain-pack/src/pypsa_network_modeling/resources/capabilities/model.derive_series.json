@@ -1,0 +1,76 @@
+{
+  "id": "model.derive_series",
+  "tool_name": "pypsa_model_derive_series",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [
+      "pypsa-model.revision"
+    ],
+    "consumes_state": [
+      "pypsa-model.revision"
+    ],
+    "produces_state": [
+      "pypsa-model.revision"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-model.revision",
+    "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Create an immutable revision with a bounded per-snapshot active-demand profile for one registered load.",
+  "applies_to": [
+    "registered two-to-24-snapshot model revisions"
+  ],
+  "not_for": [
+    "arbitrary time index construction",
+    "editing raw files",
+    "scenario-demand edits"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "model_ref",
+      "load_id",
+      "p_set_mw"
+    ],
+    "properties": {
+      "model_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "load_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "p_set_mw": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 24,
+        "items": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "requires": [
+    "current-run model_ref"
+  ],
+  "produces": [
+    "new model_ref",
+    "result_ref",
+    "current-run evidence"
+  ],
+  "common_next": [
+    "model.validate"
+  ],
+  "recovery": {
+    "invalid_model_ref": [
+      "Open a model in the current run."
+    ],
+    "load_not_found": [
+      "Inspect registered load identifiers."
+    ]
+  }
+}

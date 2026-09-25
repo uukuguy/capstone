@@ -50,7 +50,7 @@ def test_complete_pack_prepares_and_admits_real_model_results(tmp_path) -> None:
     )
     binding = prepared.bindings["pypsa-model"]
     assert {item["id"] for item in binding.runtime.capability_documents} == {
-        "model.open", "model.derive", "model.inspect",
+        "model.open", "model.derive", "model.derive_series", "model.inspect", "model.validate",
     }
     opened = binding.endpoint.executor.invoke("model.open", {"catalog_id": "two-bus"})
     assert opened["model_ref"].startswith("pypsa-model:sha256:")

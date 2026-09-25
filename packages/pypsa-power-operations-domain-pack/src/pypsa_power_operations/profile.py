@@ -89,7 +89,10 @@ class OperationsExecutor:
                 expected.add("outage_set_id")
             if capability == "operations.ac_validate":
                 expected.add("dispatch_result_ref")
-            if not capability.startswith("operations.") or set(arguments) != expected:
+            if capability not in {
+                "operations.dispatch", "operations.commitment", "operations.security_dispatch",
+                "operations.ac_validate", "operations.rolling_dispatch", "operations.congested_opf",
+            } or set(arguments) != expected:
                 raise ValueError("operations arguments do not match the contract")
             reference = _reference(arguments["reference"], "model")
             receipt_ref = arguments["handoff_ref"]

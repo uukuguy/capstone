@@ -1,0 +1,55 @@
+{
+  "id": "model.validate",
+  "tool_name": "pypsa_model_validate",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [
+      "pypsa-model.revision"
+    ],
+    "consumes_state": [
+      "pypsa-model.revision"
+    ],
+    "produces_state": [
+      "pypsa-model.validation"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-model.validation",
+    "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Validate registered component endpoints and report bounded per-snapshot demand for a current-run model revision.",
+  "applies_to": [
+    "registered PyPSA model revisions"
+  ],
+  "not_for": [
+    "solver feasibility claims",
+    "raw component tables"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "model_ref"
+    ],
+    "properties": {
+      "model_ref": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "requires": [
+    "current-run model_ref"
+  ],
+  "produces": [
+    "validation status",
+    "snapshot demand",
+    "result_ref",
+    "current-run evidence"
+  ],
+  "common_next": [],
+  "recovery": {
+    "invalid_model_ref": [
+      "Open a model in the current run."
+    ]
+  }
+}

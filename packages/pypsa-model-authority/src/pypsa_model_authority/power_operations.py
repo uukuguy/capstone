@@ -16,6 +16,8 @@ PUBLISHED_OPERATIONS = (
     "operations.commitment",
     "operations.security_dispatch",
     "operations.ac_validate",
+    "operations.rolling_dispatch",
+    "operations.congested_opf",
 )
 
 
@@ -68,6 +70,46 @@ def execute_operation(
 
     if capability == "operations.ac_validate":
         return _validate_ac(target, network, revision, model_ref, arguments)
+    if capability == "operations.rolling_dispatch":
+        if revision.get("catalog_id") != "rolling-storage" or len(network.snapshots) != 3:
+            raise OperationError("invalid_model", "registered model has no rolling formulation")
+        initial_energy = _finite(network.stores.at["battery", "e_initial"])
+        network.optimize.optimize_with_rolling_horizon(
+            horizon=2, overlap=0, solver_name="highs", log_to_console=False,
+            include_objective_constant=False,
+        )
+        dispatch = _series_by_component(network.generators_t.p)
+        stored = _series_by_component(network.stores_t.e)
+        store_flow = _series_by_component(network.stores_t.p)
+        demand = [_finite(value) for value in network.loads_t.p["demand"].tolist()]
+        previous_energy = initial_energy
+        storage_balanced = True
+        for level, flow in zip(stored["battery"], store_flow["battery"], strict=True):
+            storage_balanced = storage_balanced and abs(level - (previous_energy - flow)) <= 1e-6
+            previous_energy = level
+        if (
+            any(len(values) != len(network.snapshots) for values in (*dispatch.values(), *stored.values()))
+            or any(value < -1e-6 for values in stored.values() for value in values)
+            or not storage_balanced
+            or any(
+                abs(sum(values[index] for values in dispatch.values()) + store_flow["battery"][index] - load) > 1e-6
+                for index, load in enumerate(demand)
+            )
+        ):
+            raise OperationError("invalid_solver_result", "rolling horizon output is incomplete")
+        objective = _finite(sum(
+            value * float(network.generators.at[name, "marginal_cost"])
+            * float(network.snapshot_weightings.generators.iloc[index])
+            for name, values in dispatch.items() for index, value in enumerate(values)
+        ))
+        details = {
+            "status": "ok", "condition": "optimal",
+            "objective_kind": "realized_rolling_operating_cost", "objective": objective,
+            "generator_dispatch_mw": dispatch, "store_energy_mwh": stored,
+            "horizon_snapshots": 2, "overlap_snapshots": 0,
+        }
+        return _publish(target, source_root.name, model_ref, capability,
+                        "registered-two-step-rolling-dispatch/1.0", details)
     if capability == "operations.security_dispatch":
         if arguments["outage_set_id"] != "triangle-l3" or revision.get("catalog_id") != "security-triangle":
             raise OperationError("invalid_outage_set", "outage set is not registered for this model")
@@ -86,13 +128,18 @@ def execute_operation(
         formulation = "fixed-capacity-unit-commitment/1.0"
         objective_kind = "operating_and_startup_cost"
     else:
+        if capability == "operations.congested_opf" and revision.get("catalog_id") != "congested-two-bus":
+            raise OperationError("invalid_model", "registered model has no congested OPF formulation")
         if network.generators.committable.any() or network.generators.p_nom_extendable.any():
             raise OperationError("invalid_model", "dispatch requires fixed, noncommittable generators")
         status, condition = network.optimize(
             solver_name="highs", log_to_console=False,
             include_objective_constant=False,
         )
-        formulation = "fixed-capacity-linear-dispatch/1.0"
+        formulation = (
+            "registered-congested-linear-opf/1.0" if capability == "operations.congested_opf"
+            else "fixed-capacity-linear-dispatch/1.0"
+        )
         objective_kind = "operating_cost"
     if (status, condition) != ("ok", "optimal"):
         raise OperationError("solve_failed", f"operation terminated with {status}/{condition}")
@@ -111,6 +158,16 @@ def execute_operation(
         }
     if capability == "operations.security_dispatch":
         details["outage_set_id"] = "triangle-l3"
+    if capability == "operations.congested_opf":
+        flows = _series_by_component(network.lines_t.p0)
+        prices = _series_by_component(network.buses_t.marginal_price)
+        if not flows or not prices or any(
+            abs(value) > float(network.lines.at[name, "s_nom"]) + 1e-6
+            for name, values in flows.items() for value in values
+        ):
+            raise OperationError("invalid_solver_result", "congested OPF branch flows are invalid")
+        details["line_flow_mw"] = flows
+        details["bus_marginal_price"] = prices
     return _publish(target, source_root.name, model_ref, capability, formulation, details)
 
 

@@ -56,21 +56,26 @@ def main() -> None:
             profile, registry=registry, workspace=workspace.root, credentials=EmptyCredentials(),
         )
         store = ApplicationContextStore.initialize(workspace)
-        opened = prepared.bindings["model"].endpoint.executor.invoke(
-            "model.open", {"catalog_id": "two-bus"},
-        )
         service = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
-        result, receipt = service.invoke_target(
-            source_binding_id="model", target_binding_id="operations",
-            reference=opened["model_ref"], reference_kind="model", purpose="operations",
-            capability="operations.dispatch", arguments={},
-        )
-        assert result["objective"] == 800.0
         target = prepared.bindings["operations"]
-        assert target.runtime.authority.admit(
-            "operations.dispatch", result, tuple(result["evidence_refs"])
-        ).results[0].document["source_binding_id"] == "model"
-        assert service.verify_receipt(receipt) == receipt
+        for catalog_id, capability, objective in (
+            ("two-bus", "operations.dispatch", 800.0),
+            ("rolling-storage", "operations.rolling_dispatch", 1000.0),
+            ("congested-two-bus", "operations.congested_opf", 800.0),
+        ):
+            opened = prepared.bindings["model"].endpoint.executor.invoke(
+                "model.open", {"catalog_id": catalog_id},
+            )
+            result, receipt = service.invoke_target(
+                source_binding_id="model", target_binding_id="operations",
+                reference=opened["model_ref"], reference_kind="model", purpose="operations",
+                capability=capability, arguments={},
+            )
+            assert result["objective"] == objective
+            assert target.runtime.authority.admit(
+                capability, result, tuple(result["evidence_refs"])
+            ).results[0].document["source_binding_id"] == "model"
+            assert service.verify_receipt(receipt) == receipt
         assert ApplicationContextStore.replay(workspace.context_events_path) == store.snapshot
         for binding in prepared.bindings.values():
             binding.endpoint.close()

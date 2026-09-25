@@ -12,8 +12,8 @@ focused real-solver test; existing receipt and replay tests are reused.
 
 | Pack | Remaining workflow | State |
 | --- | --- | --- |
-| Network Modeling | bounded typed time-series derivation and model validation | planned |
-| Power Operations | rolling horizon and explicit congested grid OPF | planned |
+| Network Modeling | bounded typed time-series derivation and model validation | implemented; installation verification pending |
+| Power Operations | rolling horizon and explicit congested grid OPF | implemented; installation verification pending |
 | Capacity Planning | combined capacity plus commitment | implemented; installation verification pending |
 | Capacity Planning | multi-period investment pathway | implemented; installation verification pending |
 | Capacity Planning | two-scenario stochastic investment | implemented; installation verification pending |
