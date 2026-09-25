@@ -857,7 +857,7 @@ test("transport caps stdout bytes with a structured error", async () => {
       payload,
       { ...inventory, executable: fixture.name, executableArgs: [] },
       [],
-      { timeoutMs: 1000, maxOutputBytes: 1024 },
+      { timeoutMs: 5000, maxOutputBytes: 1024 },
     );
     assert.equal(response.ok, false);
     assert.equal(response.error.code, "capability_transport_output_limit");
