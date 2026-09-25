@@ -1,6 +1,6 @@
 # PyPSA Four-Pack Completion Worklist
 
-**Status:** all listed workflows implemented and verified from clean wheels; repository integration pending
+**Status:** complete on `main`; all listed workflows passed focused and clean-wheel verification
 **Scope:** the capability families named in the [approved design](../specs/2026-09-25-pypsa-multibinding-domain-packs-design.md), implemented as bounded workflows over registered authority models.
 
 The existing four Packs and multi-binding handoff are the foundation. A row is
@@ -21,7 +21,7 @@ focused real-solver test; existing receipt and replay tests are reused.
 | Sector Coupling | registered heat-pump balance | verified |
 | Sector Coupling | variable COP, hydrogen and heat storage balance | verified |
 | Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | verified |
-| Cross-pack scope | registered six-bus, three-snapshot regional network through modeling and dispatch | focused solve passed; wheel verification pending |
+| Cross-pack scope | registered six-bus, three-snapshot regional network through modeling and dispatch | verified |
 
 ## Execution order
 
