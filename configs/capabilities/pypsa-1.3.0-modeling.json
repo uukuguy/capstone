@@ -9,5 +9,5 @@
     {"id": "model.derive", "tool_name": "pypsa_model_derive", "effect": "derive a typed load demand revision"},
     {"id": "model.inspect", "tool_name": "pypsa_model_inspect", "effect": "inspect bounded model structure and demand"}
   ],
-  "not_published": ["network operations", "scenario and expansion planning", "sector coupling", "solver results"]
+  "not_published": ["power-operation solver calls through the modeling binding", "scenario and expansion planning", "sector coupling"]
 }

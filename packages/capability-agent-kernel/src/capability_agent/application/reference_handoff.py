@@ -162,18 +162,8 @@ class ReferenceHandoffService:
             receipt.reference_kind, receipt.purpose, receipt.capability_family,
         ) not in self.profile.reference_grants:
             raise ReferenceHandoffError("handoff grant is absent")
-        try:
-            _state, events = ApplicationContextStore.replay_events(self.workspace)
-        except Exception as exc:
-            raise ReferenceHandoffError("handoff decision cannot be replayed") from exc
-        if not any(
-            event.event_type == "decision.recorded"
-            and event.payload.get("decision") == "reference-handoff"
-            and event.payload.get("receipt_ref") == receipt.receipt_ref
-            and dict(event.payload.get("receipt", {})) == document
-            for event in events
-        ):
-            raise ReferenceHandoffError("handoff decision is absent")
+        if resolve_handoff_receipt(self.workspace, receipt.receipt_ref) != receipt:
+            raise ReferenceHandoffError("handoff decision differs from its receipt")
         verified = self._verify_source(
             self._binding(receipt.source_binding_id),
             receipt.reference, receipt.reference_kind,
@@ -221,3 +211,41 @@ class ReferenceHandoffService:
 
 def _receipt_ref(document: Mapping[str, str]) -> str:
     return "handoff:sha256:" + sha256(canonical_json_bytes(dict(document))).hexdigest()
+
+
+def resolve_handoff_receipt(
+    workspace: ApplicationWorkspace | Path, receipt_ref: str,
+    *, expected_run_id: str | None = None,
+) -> ReferenceHandoffReceipt:
+    """Replay an application-owned decision and recover one immutable receipt."""
+    try:
+        state, events = ApplicationContextStore.replay_events(workspace)
+    except Exception as exc:
+        raise ReferenceHandoffError("handoff decision cannot be replayed") from exc
+    for event in events:
+        if (
+            event.event_type != "decision.recorded"
+            or event.payload.get("decision") != "reference-handoff"
+            or event.payload.get("receipt_ref") != receipt_ref
+        ):
+            continue
+        raw = event.payload.get("receipt")
+        if not isinstance(raw, Mapping):
+            raise ReferenceHandoffError("handoff decision receipt is invalid")
+        document = dict(raw)
+        fields = (
+            "run_id", "source_binding_id", "target_binding_id", "reference",
+            "reference_kind", "revision_digest", "authority_id", "purpose",
+            "capability_family",
+        )
+        if (
+            set(document) != {*fields, "schema"}
+            or document.get("schema") != "capability-agent-reference-handoff/1.0"
+            or any(not isinstance(document.get(field), str) or not document[field] for field in fields)
+            or document["run_id"] != state.run_id
+            or (expected_run_id is not None and document["run_id"] != expected_run_id)
+            or receipt_ref != _receipt_ref(document)
+        ):
+            raise ReferenceHandoffError("handoff decision receipt integrity failed")
+        return ReferenceHandoffReceipt(receipt_ref, *(document[field] for field in fields))
+    raise ReferenceHandoffError("handoff decision is absent")

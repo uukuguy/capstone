@@ -1,0 +1,26 @@
+{
+  "id": "operations.ac_validate",
+  "tool_name": "pypsa_ops_ac_validate",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["pypsa-operations.result"], "consumes_state": ["pypsa-operations.result"],
+    "produces_state": ["pypsa-operations.result"], "invalidates_state": [],
+    "result_kind": "pypsa-operations.result", "projector": "pypsa-operations-result-v1"
+  },
+  "purpose": "Validate an admitted dispatch result with PyPSA AC power flow on its source model.",
+  "applies_to": ["current-run dispatch results for a registered model"],
+  "not_for": ["independent AC optimization", "foreign-run schedules"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["reference", "handoff_ref", "dispatch_result_ref"],
+    "properties": {
+      "reference": {"type": "string", "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"},
+      "handoff_ref": {"type": "string", "pattern": "^handoff:sha256:[a-f0-9]{64}$"},
+      "dispatch_result_ref": {"type": "string", "pattern": "^pypsa-result:sha256:[a-f0-9]{64}$"}
+    }
+  },
+  "requires": ["application-granted model handoff", "current-run dispatch result"],
+  "produces": ["result_ref", "evidence_refs", "bounded AC validation data"],
+  "common_next": [],
+  "recovery": {"ac_not_converged": ["Report that the AC validation did not converge."]}
+}

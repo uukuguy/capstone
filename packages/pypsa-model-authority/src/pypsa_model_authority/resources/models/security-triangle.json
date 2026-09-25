@@ -1,0 +1,23 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "security-triangle",
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "buses": [
+      {"id": "north", "v_nom_kv": 110.0},
+      {"id": "east", "v_nom_kv": 110.0},
+      {"id": "south", "v_nom_kv": 110.0}
+    ],
+    "loads": [{"id": "demand", "bus": "south", "p_set_mw": 60.0}],
+    "generators": [
+      {"id": "northgen", "bus": "north", "p_nom_mw": 100.0, "marginal_cost": 10.0},
+      {"id": "southgen", "bus": "south", "p_nom_mw": 100.0, "marginal_cost": 30.0}
+    ],
+    "lines": [
+      {"id": "l1", "from_bus": "north", "to_bus": "east", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 50.0},
+      {"id": "l2", "from_bus": "east", "to_bus": "south", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 50.0},
+      {"id": "l3", "from_bus": "north", "to_bus": "south", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 50.0}
+    ]
+  }
+}

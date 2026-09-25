@@ -1,6 +1,6 @@
 # PyPSA Power Operations Pack Plan
 
-**Status:** active implementation plan  
+**Status:** implemented and verified
 **Design:** [approved four-pack design](../specs/2026-09-25-pypsa-multibinding-domain-packs-design.md)  
 **Predecessor:** Network Modeling Pack and reference handoff on `main` at `a70ccff`.
 

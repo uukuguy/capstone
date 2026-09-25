@@ -1,0 +1,15 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "unit-commitment",
+  "snapshots": ["2026-01-01T00:00:00", "2026-01-01T01:00:00"],
+  "snapshot_weightings": [1.0, 1.0],
+  "components": {
+    "buses": [{"id": "bus", "v_nom_kv": 110.0}],
+    "loads": [{"id": "demand", "bus": "bus", "p_set_mw": [20.0, 60.0]}],
+    "generators": [
+      {"id": "cheap", "bus": "bus", "p_nom_mw": 50.0, "marginal_cost": 10.0, "committable": true, "start_up_cost": 100.0},
+      {"id": "expensive", "bus": "bus", "p_nom_mw": 50.0, "marginal_cost": 30.0}
+    ],
+    "lines": []
+  }
+}

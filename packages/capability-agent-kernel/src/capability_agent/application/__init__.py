@@ -68,6 +68,7 @@ from capability_agent.application.reference_handoff import (
     ReferenceHandoffReceipt,
     ReferenceHandoffService,
     VerifiedTransferReference,
+    resolve_handoff_receipt,
 )
 from capability_agent.application.registry import DomainProfileFactory, DomainRegistry
 from capability_agent.application.workspace import ApplicationWorkspace, WorkspaceError
@@ -144,6 +145,7 @@ __all__ = [
     "ReferenceHandoffReceipt",
     "ReferenceHandoffService",
     "VerifiedTransferReference",
+    "resolve_handoff_receipt",
     "FinalizedTurn",
     "StaleAnswerDraftError",
     "TurnController",

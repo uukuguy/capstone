@@ -262,19 +262,24 @@ generic extension without provider I/O.
 
 The separately installable `pypsa-model-authority` and
 `pypsa-network-modeling-domain-pack` provide registered model opening, typed
-load-demand derivation, and bounded inspection. Their
-[`pypsa-model-capability/1.0` coverage](../../configs/capabilities/pypsa-1.3.0-modeling.json)
-does not publish solver operations or the planned operations, planning, and
-sector packs. An application-owned `ReferenceGrant` can permit an opaque model
+load-demand derivation, and bounded inspection. The independent
+`pypsa-power-operations-domain-pack` publishes fixed dispatch, unit commitment,
+registered line-outage security dispatch, and post-dispatch AC validation.
+The [modeling](../../configs/capabilities/pypsa-1.3.0-modeling.json) and
+[operations](../../configs/capabilities/pypsa-1.3.0-power-operations.json)
+catalogs identify their separate protocols and tools. An application-owned `ReferenceGrant` can permit an opaque model
 revision to cross from one named binding to another for one purpose and
 capability family. The Kernel records a content-addressed receipt in the
 replayable context before target execution; both source and target authorities
-verify the current-run revision. The installed-wheel smoke uses a test-only
-receiver binding and leaves the grid CLI selection unchanged.
+verify the current-run revision. The Operations executor replays the receipt
+and verifies its source, target, purpose, and model revision before requesting
+the registered solver authority. Installed-wheel smoke exercises both the
+modeling-to-Operations path and a test-only receiver. The grid CLI selection
+remains unchanged.
 The grid/reference packages and PyPSA packages currently require separate
 Python environments: the pinned pandapower and PyPSA releases require
-different pandas major versions. This installed proof composes PyPSA with a
-receiver, not a pandapower/PyPSA application in one interpreter.
+different pandas major versions. The installed proofs compose two PyPSA
+bindings, not a pandapower/PyPSA application in one interpreter.
 
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, cross-domain conflict resolution, or a chosen

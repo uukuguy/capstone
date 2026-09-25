@@ -46,3 +46,58 @@ def verify_evidence(workspace: Path, run_id: str, reference: str) -> VerifiedDoc
     if document.get("schema") != "pypsa-model-evidence/1.0":
         raise ModelStoreError("evidence schema is invalid")
     return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))
+
+
+def verify_operation_result(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    """Verify a target-owned operation result against its source model revision."""
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "result")
+    model_ref = document.get("model_ref")
+    if (
+        document.get("schema") != "pypsa-operation-result/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or document.get("status") != "ok"
+        or not isinstance(model_ref, str)
+    ):
+        raise ModelStoreError("operation result lineage is invalid")
+    verify_model(source_workspace, run_id, model_ref)
+    details = document.get("details")
+    if not isinstance(details, dict) or details.get("status") != "ok":
+        raise ModelStoreError("operation result details are invalid")
+    predecessor = details.get("dispatch_result_ref")
+    if predecessor is not None:
+        if not isinstance(predecessor, str):
+            raise ModelStoreError("operation result predecessor is invalid")
+        earlier = verify_operation_result(workspace, source_workspace, run_id, predecessor).document
+        if (
+            earlier.get("schema") != "pypsa-operation-result/1.0"
+            or earlier.get("capability") != "operations.dispatch"
+            or earlier.get("model_ref") != model_ref
+        ):
+            raise ModelStoreError("operation result predecessor lineage is invalid")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "result"))
+
+
+def verify_operation_evidence(
+    workspace: Path, source_workspace: Path, run_id: str, reference: str
+) -> VerifiedDocument:
+    store = ModelStore(workspace, run_id=run_id)
+    document = store.load(reference, "evidence")
+    result_ref = document.get("result_ref")
+    if (
+        document.get("schema") != "pypsa-operation-evidence/1.0"
+        or document.get("target_binding_id") != Path(workspace).name
+        or document.get("source_binding_id") != Path(source_workspace).name
+        or not isinstance(result_ref, str)
+    ):
+        raise ModelStoreError("operation evidence lineage is invalid")
+    result = verify_operation_result(workspace, source_workspace, run_id, result_ref)
+    if (
+        document.get("model_ref") != result.document.get("model_ref")
+        or document.get("formulation") != result.document.get("formulation")
+    ):
+        raise ModelStoreError("operation evidence result binding differs")
+    return VerifiedDocument(reference, document, store.artifact_path(reference, "evidence"))

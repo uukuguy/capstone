@@ -1,0 +1,25 @@
+{
+  "id": "operations.commitment",
+  "tool_name": "pypsa_ops_commitment",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [], "consumes_state": [],
+    "produces_state": ["pypsa-operations.result"], "invalidates_state": [],
+    "result_kind": "pypsa-operations.result", "projector": "pypsa-operations-result-v1"
+  },
+  "purpose": "Solve fixed-capacity unit commitment for an authorized current-run PyPSA model revision.",
+  "applies_to": ["registered PyPSA networks with committable generators"],
+  "not_for": ["unregistered model files", "arbitrary solver configuration"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["reference", "handoff_ref"],
+    "properties": {
+      "reference": {"type": "string", "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"},
+      "handoff_ref": {"type": "string", "pattern": "^handoff:sha256:[a-f0-9]{64}$"}
+    }
+  },
+  "requires": ["application-granted model handoff"],
+  "produces": ["result_ref", "evidence_refs", "bounded commitment data"],
+  "common_next": [],
+  "recovery": {"solve_failed": ["Report that unit commitment did not reach an optimum."]}
+}

@@ -18,6 +18,7 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
         "pandapower",
         "pypsa_model_authority",
         "pypsa_network_modeling",
+        "pypsa_power_operations",
         "pypsa",
     ),
     "packages/pandapower-domain-pack/src": ("grid_agent",),
@@ -38,10 +39,15 @@ FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
     "packages/pypsa-model-authority/src": (
         "capability_agent", "grid_agent", "grid_simulator",
         "pandapower_domain", "inventory_domain", "pypsa_network_modeling",
+        "pypsa_power_operations",
     ),
     "packages/pypsa-network-modeling-domain-pack/src": (
         "grid_agent", "grid_simulator", "pandapower_domain",
-        "inventory_domain", "pandapower",
+        "inventory_domain", "pandapower", "pypsa_power_operations",
+    ),
+    "packages/pypsa-power-operations-domain-pack/src": (
+        "grid_agent", "grid_simulator", "pandapower_domain",
+        "inventory_domain", "pandapower", "pypsa_network_modeling",
     ),
     "packages/grid-agent/src/grid_agent/cli": (
         "grid_agent.domain",
@@ -106,6 +112,7 @@ SOURCE_PATH_LITERAL_ROOTS = (
     "packages/inventory-domain-pack/src",
     "packages/pypsa-model-authority/src",
     "packages/pypsa-network-modeling-domain-pack/src",
+    "packages/pypsa-power-operations-domain-pack/src",
 )
 GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
     # The complete Kernel is domain-neutral.  Keep semantic vocabulary out of
@@ -136,7 +143,11 @@ FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
     ),
     Path("packages/pypsa-network-modeling-domain-pack"): (
         "grid-agent", "grid-simulator", "pandapower-domain-pack",
-        "inventory-domain-pack", "pandapower",
+        "inventory-domain-pack", "pandapower", "pypsa-power-operations-domain-pack",
+    ),
+    Path("packages/pypsa-power-operations-domain-pack"): (
+        "grid-agent", "grid-simulator", "pandapower-domain-pack",
+        "inventory-domain-pack", "pandapower", "pypsa-network-modeling-domain-pack",
     ),
 }
 SOURCE_PATH_PATTERN = re.compile(r"packages/[^'\"\s]+/src")
@@ -196,9 +207,12 @@ def check_boundaries(root: Path) -> list[str]:
     domain_root = root / "packages/pandapower-domain-pack/src"
     if domain_root.exists():
         violations.extend(check_pandapower_simulator_imports(root, domain_root))
-    pypsa_domain_root = root / "packages/pypsa-network-modeling-domain-pack/src"
-    if pypsa_domain_root.exists():
-        violations.extend(check_pypsa_authority_imports(root, pypsa_domain_root))
+    for pypsa_domain_root in (
+        root / "packages/pypsa-network-modeling-domain-pack/src",
+        root / "packages/pypsa-power-operations-domain-pack/src",
+    ):
+        if pypsa_domain_root.exists():
+            violations.extend(check_pypsa_authority_imports(root, pypsa_domain_root))
     for source_root, forbidden_modules in EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -269,7 +283,7 @@ def check_pandapower_simulator_imports(root: Path, source_root: Path) -> list[st
 
 
 def check_pypsa_authority_imports(root: Path, source_root: Path) -> list[str]:
-    """The modeling Pack may import only the authority's public verifier."""
+    """PyPSA Packs may import only the authority's public verifier."""
     violations: list[str] = []
     for path in sorted(source_root.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -284,6 +298,8 @@ def check_pypsa_authority_imports(root: Path, source_root: Path) -> list[str]:
                     "pypsa_model_authority.references.verify_model",
                     "pypsa_model_authority.references.verify_result",
                     "pypsa_model_authority.references.verify_evidence",
+                    "pypsa_model_authority.references.verify_operation_result",
+                    "pypsa_model_authority.references.verify_operation_evidence",
                 }
             ):
                 violations.append(

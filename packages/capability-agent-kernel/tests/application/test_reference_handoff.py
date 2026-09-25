@@ -13,6 +13,7 @@ from capability_agent.application.reference_handoff import (
     ReferenceHandoffError,
     ReferenceHandoffService,
     VerifiedTransferReference,
+    resolve_handoff_receipt,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
 
@@ -99,6 +100,13 @@ def test_grant_records_receipt_before_target_and_replay_verifies_it(tmp_path) ->
     }
     assert store.snapshot.core.decisions[0]["receipt_ref"] == receipt.receipt_ref
     assert service.verify_receipt(receipt) == receipt
+    assert resolve_handoff_receipt(service.workspace, receipt.receipt_ref) == receipt
+    assert resolve_handoff_receipt(
+        service.workspace.context_events_path, receipt.receipt_ref,
+        expected_run_id=service.workspace.run_id,
+    ) == receipt
+    with pytest.raises(ReferenceHandoffError, match="absent"):
+        resolve_handoff_receipt(service.workspace, "handoff:sha256:" + "0" * 64)
     with pytest.raises(ReferenceHandoffError):
         service.verify_receipt(replace(receipt, target_binding_id="other"))
 
