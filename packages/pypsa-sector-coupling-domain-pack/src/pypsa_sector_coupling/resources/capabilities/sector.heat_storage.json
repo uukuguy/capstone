@@ -46,7 +46,7 @@
     "evidence_refs",
     "heat delivery",
     "stored heat energy",
-    "snapshot COP",
+    "registered ambient temperature and derived snapshot COP",
     "operating cost"
   ],
   "common_next": [],

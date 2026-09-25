@@ -272,7 +272,8 @@ stochastic investment, and a near-optimal capacity alternative. The MGA
 capacity objective and its system cost are separate result fields.
 The `pypsa-sector-coupling-domain-pack` publishes registered
 electricity-to-hydrogen, heat-pump, hydrogen and heat storage, and multi-port
-CHP balances. Heat storage uses a registered snapshot COP profile.
+CHP balances. Heat storage derives snapshot COP from registered ambient
+temperatures and a fixed linear formula.
 The [modeling](../../configs/capabilities/pypsa-1.3.0-modeling.json) and
 [operations](../../configs/capabilities/pypsa-1.3.0-power-operations.json) and
 [planning](../../configs/capabilities/pypsa-1.3.0-capacity-planning.json) and

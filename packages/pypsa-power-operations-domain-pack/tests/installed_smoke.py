@@ -62,6 +62,7 @@ def main() -> None:
             ("two-bus", "operations.dispatch", 800.0),
             ("rolling-storage", "operations.rolling_dispatch", 1000.0),
             ("congested-two-bus", "operations.congested_opf", 800.0),
+            ("regional-six-bus", "operations.dispatch", None),
         ):
             opened = prepared.bindings["model"].endpoint.executor.invoke(
                 "model.open", {"catalog_id": catalog_id},
@@ -71,7 +72,10 @@ def main() -> None:
                 reference=opened["model_ref"], reference_kind="model", purpose="operations",
                 capability=capability, arguments={},
             )
-            assert result["objective"] == objective
+            if objective is None:
+                assert result["objective"] > 0
+            else:
+                assert result["objective"] == objective
             assert target.runtime.authority.admit(
                 capability, result, tuple(result["evidence_refs"])
             ).results[0].document["source_binding_id"] == "model"

@@ -104,7 +104,8 @@ make test-packages
 `make test-domain-pack-conformance` 验证 inventory SDK、固定 HTTP 与通用 Pi 参考用例。
 HTTP adapter 仅用于测试；干净安装 smoke 会在 wheel 外复制它。
 
-PyPSA 建模 Pack 提供已登记模型的打开、按类型修改单值或逐时负荷需求并派生修订，以及受限模型检查与验证。独立的运行计算 Pack 提供固定容量调度、机组启停、登记故障集调度、滚动储能调度、拥塞 OPF 和调度后的 AC 校验。容量规划 Pack 提供登记的容量扩建、容量与启停联合优化、双投资期路径、双场景随机投资和近最优容量替代方案。行业耦合 Pack 提供登记的电转氢、热泵、氢储能、热储能和多端口 CHP 平衡；热储能流程使用登记的逐时 COP。精确工具见[建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)、[运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)、[容量规划目录](configs/capabilities/pypsa-1.3.0-capacity-planning.json)与[行业耦合目录](configs/capabilities/pypsa-1.3.0-sector-coupling.json)。`make test-pypsa` 运行聚焦测试；干净 wheel 验证会把当前运行模型引用经应用授权交给真实目标 Pack。grid CLI 仍绑定 pandapower。
+PyPSA 建模 Pack 提供已登记模型的打开、按类型修改单值或逐时负荷需求并派生修订，以及受限模型检查与验证。独立的运行计算 Pack 提供固定容量调度、机组启停、登记故障集调度、滚动储能调度、拥塞 OPF 和调度后的 AC 校验。容量规划 Pack 提供登记的容量扩建、容量与启停联合优化、双投资期路径、双场景随机投资和近最优容量替代方案。行业耦合 Pack 提供登记的电转氢、热泵、氢储能、热储能和多端口 CHP 平衡；热储能流程按登记的环境温度及固定线性公式计算逐时 COP。精确工具见[建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)、[运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)、[容量规划目录](configs/capabilities/pypsa-1.3.0-capacity-planning.json)与[行业耦合目录](configs/capabilities/pypsa-1.3.0-sector-coupling.json)。`make test-pypsa` 运行聚焦测试；干净 wheel 验证会把当前运行模型引用经应用授权交给真实目标 Pack。grid CLI 仍绑定 pandapower。
+登记的六母线区域模型通过既有建模与运行计算路径验证多负荷、可再生能源逐时可用率和三时段调度。
 
 `make test` 是不使用 Provider 的单元门禁：分别运行十一个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 

@@ -1,0 +1,40 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "regional-six-bus",
+  "snapshots": [
+    "2026-01-01T00:00:00", "2026-01-01T01:00:00", "2026-01-01T02:00:00"
+  ],
+  "snapshot_weightings": [1.0, 1.0, 1.0],
+  "components": {
+    "buses": [
+      {"id": "northwest", "v_nom_kv": 110.0},
+      {"id": "northeast", "v_nom_kv": 110.0},
+      {"id": "center", "v_nom_kv": 110.0},
+      {"id": "industrial", "v_nom_kv": 110.0},
+      {"id": "coast", "v_nom_kv": 110.0},
+      {"id": "south", "v_nom_kv": 110.0}
+    ],
+    "loads": [
+      {"id": "central-demand", "bus": "center", "p_set_mw": [20.0, 25.0, 30.0]},
+      {"id": "coastal-demand", "bus": "coast", "p_set_mw": [10.0, 15.0, 10.0]},
+      {"id": "southern-demand", "bus": "south", "p_set_mw": [10.0, 10.0, 15.0]}
+    ],
+    "generators": [
+      {"id": "northwest-supply", "bus": "northwest", "p_nom_mw": 50.0,
+       "marginal_cost": 10.0},
+      {"id": "coastal-wind", "bus": "coast", "p_nom_mw": 20.0,
+       "p_max_pu": [1.0, 0.5, 0.0], "marginal_cost": 0.0},
+      {"id": "southern-backup", "bus": "south", "p_nom_mw": 60.0,
+       "marginal_cost": 40.0}
+    ],
+    "lines": [
+      {"id": "northwest-center", "from_bus": "northwest", "to_bus": "center", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 40.0},
+      {"id": "northwest-northeast", "from_bus": "northwest", "to_bus": "northeast", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 20.0},
+      {"id": "northeast-center", "from_bus": "northeast", "to_bus": "center", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 40.0},
+      {"id": "center-industrial", "from_bus": "center", "to_bus": "industrial", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 40.0},
+      {"id": "industrial-coast", "from_bus": "industrial", "to_bus": "coast", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 40.0},
+      {"id": "coast-south", "from_bus": "coast", "to_bus": "south", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 40.0},
+      {"id": "south-center", "from_bus": "south", "to_bus": "center", "r_ohm": 0.01, "x_ohm": 0.1, "s_nom_mva": 30.0}
+    ]
+  }
+}

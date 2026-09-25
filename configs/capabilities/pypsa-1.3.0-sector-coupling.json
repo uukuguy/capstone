@@ -9,7 +9,7 @@
     {"id": "sector.hydrogen_balance", "tool_name": "pypsa_sector_hydrogen_balance", "effect": "registered electricity-to-hydrogen conversion and demand balance"},
     {"id": "sector.heat_balance", "tool_name": "pypsa_sector_heat_balance", "effect": "registered electricity-to-heat pump conversion and demand balance"},
     {"id": "sector.hydrogen_storage", "tool_name": "pypsa_sector_hydrogen_storage", "effect": "registered two-snapshot electrolysis and hydrogen storage balance"},
-    {"id": "sector.heat_storage", "tool_name": "pypsa_sector_heat_storage", "effect": "registered variable-COP heat pump and heat storage balance"},
+    {"id": "sector.heat_storage", "tool_name": "pypsa_sector_heat_storage", "effect": "registered ambient-temperature-derived COP and heat storage balance"},
     {"id": "sector.multiport_balance", "tool_name": "pypsa_sector_multiport_balance", "effect": "registered CHP electricity, heat, and hydrogen balance"}
   ],
   "planned": [],

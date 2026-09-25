@@ -1,6 +1,6 @@
 # PyPSA Domain Packs and Multi-Binding Application Design
 
-**Status:** approved direction; multi-binding and first bounded capability in all four PyPSA Packs implemented
+**Status:** approved direction; multi-binding and the registered four-Pack worklist implemented, with integration verification in progress
 **Date:** 2026-09-25
 
 ## Decision and scope

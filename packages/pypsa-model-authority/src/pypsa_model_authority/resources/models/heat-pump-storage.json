@@ -16,7 +16,9 @@
     ],
     "links": [
       {"id": "heat-pump", "from_bus": "electricity", "to_bus": "heat",
-       "carrier": "heat-pump", "p_nom_mw": 100.0, "efficiency": [4.0, 2.0]}
+       "carrier": "heat-pump", "p_nom_mw": 100.0,
+       "ambient_temperature_c": [10.0, 0.0],
+       "cop_at_zero_c": 2.0, "cop_per_degree_c": 0.2}
     ],
     "stores": [
       {"id": "heat-store", "bus": "heat", "carrier": "heat",

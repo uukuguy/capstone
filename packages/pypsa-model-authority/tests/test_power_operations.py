@@ -122,3 +122,19 @@ def test_congested_opf_exposes_line_flow_and_nodal_prices(tmp_path) -> None:
     assert result["bus_marginal_price"]["south"] == pytest.approx([30.0])
     assert result["objective"] == pytest.approx(800.0)
     assert ModelStore(target, run_id="congestion-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]
+
+
+def test_registered_regional_network_dispatches_across_three_snapshots(tmp_path) -> None:
+    source = tmp_path / "runs" / "regional-run" / "domains" / "model"
+    target = source.parent / "operations"
+    opened = execute("model.open", {"catalog_id": "regional-six-bus"}, source, run_id="regional-run")
+    inspected = execute("model.inspect", {"model_ref": opened["model_ref"]}, source, run_id="regional-run")
+    assert inspected["component_counts"] == {"Bus": 6, "Load": 3, "Generator": 3, "Line": 7}
+    result = execute_operation(
+        "operations.dispatch", {"model_ref": opened["model_ref"]},
+        target, source, run_id="regional-run",
+    )
+    assert result["condition"] == "optimal"
+    assert [sum(values[index] for values in result["generator_dispatch_mw"].values()) for index in range(3)] == pytest.approx([40.0, 50.0, 55.0])
+    assert result["objective"] > 0
+    assert ModelStore(target, run_id="regional-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]

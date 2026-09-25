@@ -177,8 +177,10 @@ hydrogen and heat storage, and multi-port CHP balances. The [modeling](configs/c
 [sector coupling](configs/capabilities/pypsa-1.3.0-sector-coupling.json)
 coverage catalogs list exact tools. `make test-pypsa` runs focused tests;
 clean-wheel verification exercises an application-granted current-run model
-handoff into each real Pack. The heat-storage formulation uses a registered snapshot COP profile. The grid CLI
+handoff into each real Pack. The heat-storage formulation derives snapshot COP from registered ambient temperatures and a fixed linear formula. The grid CLI
 remains bound to pandapower.
+The registered six-bus regional fixture checks multi-load, renewable availability,
+and three-snapshot dispatch through the existing modeling and operations path.
 
 `make test` is the provider-free unit gate: it runs the eleven Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an

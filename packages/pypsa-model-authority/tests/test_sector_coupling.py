@@ -108,6 +108,7 @@ def test_registered_heat_store_uses_snapshot_cop_profile(tmp_path) -> None:
     )
     assert result["condition"] == "optimal"
     assert result["coefficient_of_performance"] == pytest.approx([4.0, 2.0])
+    assert result["ambient_temperature_c"] == pytest.approx([10.0, 0.0])
     assert result["electricity_input_mwh"] == pytest.approx([10.0, 0.0])
     assert result["heat_store_energy_mwh"] == pytest.approx([40.0, 0.0])
     assert result["heat_delivered_mwh"] == pytest.approx([0.0, 40.0])

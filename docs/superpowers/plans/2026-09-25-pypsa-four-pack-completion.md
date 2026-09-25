@@ -1,6 +1,6 @@
 # PyPSA Four-Pack Completion Worklist
 
-**Status:** active after the four first publications
+**Status:** all listed workflows implemented and verified from clean wheels; repository integration pending
 **Scope:** the capability families named in the [approved design](../specs/2026-09-25-pypsa-multibinding-domain-packs-design.md), implemented as bounded workflows over registered authority models.
 
 The existing four Packs and multi-binding handoff are the foundation. A row is
@@ -12,15 +12,16 @@ focused real-solver test; existing receipt and replay tests are reused.
 
 | Pack | Remaining workflow | State |
 | --- | --- | --- |
-| Network Modeling | bounded typed time-series derivation and model validation | implemented; installation verification pending |
-| Power Operations | rolling horizon and explicit congested grid OPF | implemented; installation verification pending |
-| Capacity Planning | combined capacity plus commitment | implemented; installation verification pending |
-| Capacity Planning | multi-period investment pathway | implemented; installation verification pending |
-| Capacity Planning | two-scenario stochastic investment | implemented; installation verification pending |
-| Capacity Planning | near-optimal alternative (MGA) with distinct objective meaning | implemented; installation verification pending |
-| Sector Coupling | registered heat-pump balance | implemented; installation verification pending |
-| Sector Coupling | variable COP, hydrogen and heat storage balance | implemented; installation verification pending |
-| Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | implemented; installation verification pending |
+| Network Modeling | bounded typed time-series derivation and model validation | verified |
+| Power Operations | rolling horizon and explicit congested grid OPF | verified |
+| Capacity Planning | combined capacity plus commitment | verified |
+| Capacity Planning | multi-period investment pathway | verified |
+| Capacity Planning | two-scenario stochastic investment | verified |
+| Capacity Planning | near-optimal alternative (MGA) with distinct objective meaning | verified |
+| Sector Coupling | registered heat-pump balance | verified |
+| Sector Coupling | variable COP, hydrogen and heat storage balance | verified |
+| Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | verified |
+| Cross-pack scope | registered six-bus, three-snapshot regional network through modeling and dispatch | focused solve passed; wheel verification pending |
 
 ## Execution order
 

@@ -7,7 +7,7 @@ import json
 import math
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -196,7 +196,21 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             r=line["r_ohm"], x=line["x_ohm"], s_nom=line["s_nom_mva"],
         )
     for link in components.get("links", []):
-        efficiency = link["efficiency"]
+        if "ambient_temperature_c" in link:
+            ambient = _series_values(link["ambient_temperature_c"], len(snapshots))
+            baseline, slope = link.get("cop_at_zero_c"), link.get("cop_per_degree_c")
+            if (
+                link.get("carrier") != "heat-pump" or "efficiency" in link
+                or not isinstance(baseline, (int, float)) or isinstance(baseline, bool)
+                or not isinstance(slope, (int, float)) or isinstance(slope, bool)
+                or not math.isfinite(baseline) or not math.isfinite(slope)
+            ):
+                raise ModelStoreError("registered heat-pump COP model is invalid")
+            efficiency = [float(baseline + slope * temperature) for temperature in ambient]
+            if any(not 1.0 <= value <= 10.0 for value in efficiency):
+                raise ModelStoreError("registered heat-pump COP is outside its bounds")
+        else:
+            efficiency = link["efficiency"]
         network.add(
             "Link", link["id"], bus0=link["from_bus"], bus1=link["to_bus"],
             p_nom=link["p_nom_mw"], efficiency=1.0 if isinstance(efficiency, list) else efficiency,
@@ -231,7 +245,7 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
     return network
 
 
-def _series_values(values: list[object], count: int) -> list[float]:
+def _series_values(values: Sequence[object], count: int) -> list[float]:
     if len(values) != count:
         raise ModelStoreError("registered time series is invalid")
     parsed: list[float] = []

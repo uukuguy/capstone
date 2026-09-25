@@ -102,7 +102,7 @@ def execute_sector(
     if capability == "sector.hydrogen_storage":
         details = _hydrogen_storage_details(network)
     elif capability == "sector.heat_storage":
-        details = _heat_storage_details(network)
+        details = _heat_storage_details(network, revision)
     elif capability == "sector.multiport_balance":
         details = _multiport_details(network)
     else:
@@ -206,7 +206,7 @@ def _multiport_details(network: Any) -> dict[str, object]:
     }
 
 
-def _heat_storage_details(network: Any) -> dict[str, object]:
+def _heat_storage_details(network: Any, revision: Mapping[str, object]) -> dict[str, object]:
     inputs = [_finite(value) for value in network.links_t.p0["heat-pump"].tolist()]
     outputs = [_finite(-value) for value in network.links_t.p1["heat-pump"].tolist()]
     coefficients = [_finite(value) for value in network.links_t.efficiency["heat-pump"].tolist()]
@@ -225,9 +225,21 @@ def _heat_storage_details(network: Any) -> dict[str, object]:
         ):
             raise SectorError("invalid_solver_result", "heat storage balance is inconsistent")
         previous = level
+    components = revision.get("components")
+    links = components.get("links") if isinstance(components, dict) else None
+    if not isinstance(links, list) or len(links) != 1 or not isinstance(links[0], dict):
+        raise SectorError("invalid_model", "registered heat-pump profile is unavailable")
+    link = links[0]
+    ambient = [_finite(value) for value in link["ambient_temperature_c"]]
+    baseline = _finite(link["cop_at_zero_c"])
+    slope = _finite(link["cop_per_degree_c"])
+    if any(abs(coefficient - (baseline + slope * temperature)) > 1e-6 for coefficient, temperature in zip(coefficients, ambient, strict=True)):
+        raise SectorError("invalid_solver_result", "registered temperature and COP profile differ")
     return {
         "electricity_input_mwh": inputs,
         "coefficient_of_performance": coefficients,
+        "ambient_temperature_c": ambient,
+        "cop_model": "registered-linear-temperature-cop/1.0",
         "heat_delivered_mwh": demands,
         "heat_store_energy_mwh": stored,
     }
