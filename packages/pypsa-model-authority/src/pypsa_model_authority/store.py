@@ -8,11 +8,12 @@ import math
 import os
 import re
 from collections.abc import Mapping
+from importlib.metadata import version
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-import pandas as pd
-import pypsa
+if TYPE_CHECKING:
+    import pypsa
 
 
 Kind = Literal["model", "result", "evidence"]
@@ -100,6 +101,9 @@ class ModelStore:
     def model_path(self, reference: str) -> Path:
         return self._path(reference, "model")
 
+    def artifact_path(self, reference: str, kind: Kind) -> Path:
+        return self._path(reference, kind)
+
     def load_model(self, reference: str) -> dict[str, object]:
         document = self.load(reference, "model")
         components = document.get("components")
@@ -109,7 +113,7 @@ class ModelStore:
             raise ModelStoreError("model component integrity failed")
         if document.get("schema") != "pypsa-model-revision/1.0":
             raise ModelStoreError("model revision schema is invalid")
-        if document.get("pypsa_version") != pypsa.__version__:
+        if document.get("pypsa_version") != version("pypsa"):
             raise ModelStoreError("model revision PyPSA version is incompatible")
         return document
 
@@ -124,6 +128,9 @@ class ModelStore:
 
 
 def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
+    import pandas as pd
+    import pypsa
+
     components = document.get("components")
     snapshots = document.get("snapshots")
     weights = document.get("snapshot_weightings")

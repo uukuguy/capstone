@@ -1,0 +1,21 @@
+{
+  "id": "model.inspect",
+  "tool_name": "pypsa_model_inspect",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["pypsa-model.revision"], "consumes_state": ["pypsa-model.revision"],
+    "produces_state": ["pypsa-model.inspection"], "invalidates_state": [],
+    "result_kind": "pypsa-model.inspection", "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Inspect bounded component counts, load demand, and snapshot count of one current-run model revision.",
+  "applies_to": ["network model inspection"],
+  "not_for": ["solver outcomes", "raw component tables"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false, "required": ["model_ref"],
+    "properties": {"model_ref": {"type": "string", "minLength": 1}}
+  },
+  "requires": ["current-run model_ref"],
+  "produces": ["bounded model summary", "result_ref", "current-run evidence"],
+  "common_next": ["model.derive"],
+  "recovery": {"invalid_model_ref": ["Use a model_ref returned in the current run."]}
+}

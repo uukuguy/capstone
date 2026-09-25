@@ -1,0 +1,26 @@
+{
+  "id": "model.derive",
+  "tool_name": "pypsa_model_derive",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["pypsa-model.revision"], "consumes_state": ["pypsa-model.revision"],
+    "produces_state": ["pypsa-model.revision"], "invalidates_state": [],
+    "result_kind": "pypsa-model.revision", "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Create a new immutable model revision by changing one registered load's active demand.",
+  "applies_to": ["typed network model derivation"],
+  "not_for": ["editing raw files", "mutating a prior revision"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["model_ref", "load_id", "p_set_mw"],
+    "properties": {
+      "model_ref": {"type": "string", "minLength": 1},
+      "load_id": {"type": "string", "minLength": 1, "maxLength": 100},
+      "p_set_mw": {"type": "number", "minimum": 0}
+    }
+  },
+  "requires": ["current-run model_ref"],
+  "produces": ["new model_ref", "result_ref", "current-run evidence"],
+  "common_next": ["model.inspect"],
+  "recovery": {"invalid_model_ref": ["Open a model in the current run."], "load_not_found": ["Inspect the registered model's load identifiers."]}
+}

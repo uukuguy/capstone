@@ -1,0 +1,20 @@
+{
+  "id": "model.open",
+  "tool_name": "pypsa_model_open",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [], "consumes_state": [],
+    "produces_state": ["pypsa-model.revision"], "invalidates_state": [],
+    "result_kind": "pypsa-model.revision", "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Open an installed, registered PyPSA model catalog as a current-run immutable revision.",
+  "applies_to": ["registered network modeling"],
+  "not_for": ["unregistered model files", "raw Network access"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false, "required": ["catalog_id"],
+    "properties": {"catalog_id": {"type": "string", "minLength": 1, "maxLength": 100}}
+  },
+  "requires": [], "produces": ["model_ref", "result_ref", "current-run evidence"],
+  "common_next": ["model.derive", "model.inspect"],
+  "recovery": {"catalog_not_found": ["Select an installed registered model catalog."]}
+}
