@@ -33,6 +33,19 @@ class AnswerAdmissionPolicy(Protocol):
     def admit(self, request: AnswerAdmissionInput) -> AnswerAdmissionDecision: ...
 
 
+def aggregate_answer_admission(
+    decisions: tuple[AnswerAdmissionDecision, ...], answer_output: str
+) -> AnswerAdmissionDecision:
+    """Conservatively summarize independently validated binding decisions."""
+    pairs = {(decision.mode, decision.assurance) for decision in decisions}
+    if len(pairs) == 1:
+        mode, assurance = next(iter(pairs))
+    else:
+        mode, assurance = "limited", "limited"
+    codes = tuple(dict.fromkeys(code for decision in decisions for code in decision.diagnostic_codes))
+    return AnswerAdmissionDecision(mode, assurance, answer_output, codes)
+
+
 def read_answer_admission_metadata(
     answer_path: Path, *, expected_admission_ref: str | None = None
 ) -> AnswerAdmissionDecision | None:
@@ -69,7 +82,7 @@ def read_answer_admission_metadata(
     ).hexdigest()
     if expected_admission_ref is not None and actual_admission_ref != expected_admission_ref:
         raise ValueError("answer admission metadata digest does not match its commit")
-    if not isinstance(payload, dict) or payload.get("schema") not in {"capability-agent-answer-admission/1.0", "capability-agent-answer-admission/1.1"}:
+    if not isinstance(payload, dict) or payload.get("schema") not in {"capability-agent-answer-admission/1.0", "capability-agent-answer-admission/1.1", "capability-agent-answer-admission/1.2"}:
         raise ValueError("answer admission metadata schema is invalid")
     if payload.get("answer_ref") != expected_ref:
         raise ValueError("answer admission metadata does not match its answer")
@@ -88,7 +101,7 @@ def read_answer_admission_metadata(
         ("offline_information", "deterministic_information"),
         ("limited", "limited"),
     }
-    if payload["schema"] == "capability-agent-answer-admission/1.1":
+    if payload["schema"] != "capability-agent-answer-admission/1.0":
         pairs.add(("offline_information", "guide_access_verified"))
     if (mode, assurance) not in pairs:
         raise ValueError("answer admission metadata assurance is invalid")
@@ -99,11 +112,41 @@ def read_answer_admission_metadata(
         or payload.get("turn_id") != answer.get("turn_id")
     ):
         raise ValueError("answer record is invalid")
-    return AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
+    decision = AnswerAdmissionDecision(mode, assurance, answer_output, tuple(codes))
+    if payload["schema"] == "capability-agent-answer-admission/1.2":
+        bindings = payload.get("bindings")
+        selected = answer.get("referenced_bindings")
+        if (
+            not isinstance(bindings, dict) or len(bindings) < 2
+            or any(not isinstance(key, str) or not key for key in bindings)
+            or not isinstance(selected, list)
+            or (selected and (len(selected) != len(bindings) or set(selected) != set(bindings)))
+        ):
+            raise ValueError("answer admission binding metadata is invalid")
+        decisions = []
+        for entry in bindings.values():
+            if not isinstance(entry, dict):
+                raise ValueError("answer admission binding metadata is invalid")
+            entry_mode, entry_assurance = entry.get("mode"), entry.get("assurance")
+            entry_codes = entry.get("diagnostic_codes")
+            if (
+                not isinstance(entry_mode, str) or not isinstance(entry_assurance, str)
+                or (entry_mode, entry_assurance) not in pairs
+                or not isinstance(entry_codes, list)
+                or any(not isinstance(code, str) or not code for code in entry_codes)
+            ):
+                raise ValueError("answer admission binding metadata is invalid")
+            decisions.append(AnswerAdmissionDecision(entry_mode, entry_assurance, answer_output, tuple(entry_codes)))
+        aggregate = aggregate_answer_admission(tuple(decisions), answer_output)
+        # Canonical JSON sorts object keys; diagnostic order follows submission order.
+        if (aggregate.mode, aggregate.assurance) != (mode, assurance) or set(aggregate.diagnostic_codes) != set(codes):
+            raise ValueError("answer admission aggregate does not match bindings")
+    return decision
 
 __all__ = [
     "AnswerAdmissionDecision",
     "AnswerAdmissionInput",
     "AnswerAdmissionPolicy",
+    "aggregate_answer_admission",
     "read_answer_admission_metadata",
 ]

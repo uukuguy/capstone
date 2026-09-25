@@ -1030,14 +1030,15 @@ def test_report_marks_fabricated_answer_sidecar_unknown_without_durable_submissi
     assert rendered[-1]["assurances"] == ("unknown",)
 
 
+@pytest.mark.parametrize("binding_ids", [("grid",), ("grid", "inventory")])
 def test_report_consumes_only_events_returned_by_its_verified_replay(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, binding_ids
 ) -> None:
     workspace = ApplicationWorkspace.create(
-        tmp_path / "runs", run_id="verified-report", binding_ids=("grid",)
+        tmp_path / "runs", run_id="verified-report", binding_ids=binding_ids
     )
     store = ApplicationContextStore.initialize(
-        workspace, domains={"grid": "grid-state/1.0"}
+        workspace, domains={key: "state/1.0" for key in binding_ids}
     )
     authority = SimpleNamespace(
         authority_id="grid",
@@ -1062,8 +1063,16 @@ def test_report_consumes_only_events_returned_by_its_verified_replay(
     prepared = SimpleNamespace(
         binding=binding, runtime=SimpleNamespace(authority=authority)
     )
+    bindings = {"grid": prepared}
+    if "inventory" in binding_ids:
+        bindings["inventory"] = SimpleNamespace(
+            binding=SimpleNamespace(binding_id="inventory", profile=binding.profile),
+            runtime=SimpleNamespace(authority=SimpleNamespace(
+                authority_id="grid", workspace_root=workspace.domain_roots["inventory"],
+            )),
+        )
     controller = TurnController(
-        store=store, workspace=workspace, bindings={"grid": prepared}
+        store=store, workspace=workspace, bindings=bindings
     )
     committed = controller.submit(
         controller.start(1, "question"),
@@ -1075,7 +1084,7 @@ def test_report_consumes_only_events_returned_by_its_verified_replay(
         profile=SimpleNamespace(
             manifest=SimpleNamespace(application_id="fixture", version="1")
         ),
-        prepared_application=SimpleNamespace(bindings={"grid": prepared}),
+        prepared_application=SimpleNamespace(bindings=bindings),
         report_shell=SimpleNamespace(
             render=lambda **kwargs: rendered.append(kwargs) or "report"
         ),

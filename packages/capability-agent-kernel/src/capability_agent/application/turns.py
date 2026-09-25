@@ -26,7 +26,12 @@ from capability_agent.application.errors import (
     CapabilityAgentError,
 )
 from capability_agent.application.workspace import ApplicationWorkspace
-from capability_agent.domain.answer_admission import AnswerAdmissionDecision, AnswerAdmissionInput, AnswerAdmissionPolicy
+from capability_agent.domain.answer_admission import (
+    AnswerAdmissionDecision,
+    AnswerAdmissionInput,
+    AnswerAdmissionPolicy,
+    aggregate_answer_admission,
+)
 from capability_agent.domain.policy import AnswerEvidencePolicy
 from capability_agent.trajectory.answers import (
     AnswerClaim,
@@ -288,16 +293,23 @@ class TurnController:
 
         # Evaluation annotates the answer; it cannot rewrite or veto it.
         # Reference integrity validation remains on the primary path above.
-        try:
-            admission = self._admit_answer(
-                handle=handle, answer_output=answer_output, selected=selected,
-                results=results, evidence=evidence, owners=owners,
-            )
-        except Exception:
-            admission = AnswerAdmissionDecision(
-                mode="limited", assurance="limited", answer_output=answer_output,
-                diagnostic_codes=("answer_evaluation_unavailable",),
-            )
+        binding_decisions: dict[str, AnswerAdmissionDecision] = {}
+        for binding_id in selected or tuple(self._bindings):
+            try:
+                binding_decisions[binding_id] = self._admit_answer(
+                    handle=handle, answer_output=answer_output,
+                    results=results, evidence=evidence, owners=owners,
+                    binding_id=binding_id,
+                )
+            except Exception:
+                binding_decisions[binding_id] = AnswerAdmissionDecision(
+                    mode="limited", assurance="limited", answer_output=answer_output,
+                    diagnostic_codes=("answer_evaluation_unavailable",),
+                )
+        admission = (
+            next(iter(binding_decisions.values())) if len(binding_decisions) == 1
+            else aggregate_answer_admission(tuple(binding_decisions.values()), answer_output)
+        )
 
         validated_by_binding: list[AnswerSubmission] = []
         audit_diagnostics: list[object] = []
@@ -396,14 +408,24 @@ class TurnController:
         answer_bytes = canonical_json_bytes(answer_payload)
         answer_ref = "answer:sha256:" + sha256(answer_bytes).hexdigest()
         admission_path = turn_path / "answer-admission.json"
+        admission_schema = "capability-agent-answer-admission/1.0"
+        if len(binding_decisions) > 1:
+            admission_schema = "capability-agent-answer-admission/1.2"
+        elif admission.assurance == "guide_access_verified":
+            admission_schema = "capability-agent-answer-admission/1.1"
         admission_bytes = canonical_json_bytes({
-            "schema": ("capability-agent-answer-admission/1.1" if admission.assurance == "guide_access_verified" else "capability-agent-answer-admission/1.0"),
+            "schema": admission_schema,
             "run_id": self._workspace.run_id,
             "turn_id": handle.turn_id,
             "answer_ref": answer_ref,
             "mode": admission.mode,
             "assurance": admission.assurance,
             "diagnostic_codes": list(admission.diagnostic_codes),
+            **({"bindings": {
+                key: {"mode": decision.mode, "assurance": decision.assurance,
+                      "diagnostic_codes": list(decision.diagnostic_codes)}
+                for key, decision in binding_decisions.items()
+            }} if len(binding_decisions) > 1 else {}),
         })
         admission_ref = "admission:sha256:" + sha256(admission_bytes).hexdigest()
         artifact_states = tuple(
@@ -605,57 +627,51 @@ class TurnController:
                 raise AnswerCommitError("controller binding identity is inconsistent")
 
     def _admit_answer(self, *, handle: ActiveTurnHandle, answer_output: str,
-        selected: tuple[str, ...], results: tuple[str, ...], evidence: tuple[str, ...],
-        owners: Mapping[str, str]) -> AnswerAdmissionDecision:
-        binding_ids = selected or tuple(self._bindings)
-        decisions: list[AnswerAdmissionDecision] = []
-        for binding_id in binding_ids:
-            prepared = self._bindings[binding_id]
-            authority = _binding_authority(prepared)
-            policy = _binding_answer_admission_policy(prepared, authority)
-            observations = tuple(
-                record for record in self._store.snapshot.core.diagnostics
-                if record.get("turn_id") == handle.turn_id and record.get("binding_id") == binding_id
-            )
-            # Successful stateless discovery does not promise run evidence.
-            # Read the binding's published contracts, never question/tool names.
-            informational_capabilities = {
-                document["id"]
-                for document in getattr(getattr(prepared, "runtime", None), "capability_documents", ())
-                if document.get("evidence_required") is False
-                and document.get("state_effect") == "none"
-            }
-            request = AnswerAdmissionInput(
-                question=handle.instruction, answer_output=answer_output,
-                result_refs=tuple(ref for ref in results if owners.get(ref, binding_id) == binding_id),
-                evidence_refs=tuple(ref for ref in evidence if owners.get(ref, binding_id) == binding_id),
-                guide_reads=tuple(
-                    (record["resource_id"], record["sha256"])
-                    for record in observations if record.get("kind") == "published_guide_read"
-                ),
-                authority_attempted=any(
-                    record.get("capability_id")
-                    and not (record.get("ok") is True
-                             and record.get("capability_id") in informational_capabilities)
-                    for record in observations
-                ),
-            )
-            try:
-                decision = policy.admit(request)
-            except Exception:
-                raise AnswerCommitError("domain answer admission failed") from None
-            _validate_admission_decision(decision, request)
-            capabilities = getattr(
-                getattr(getattr(prepared, "binding", prepared), "profile", None),
-                "answer_admission_capabilities",
-                None,
-            )
-            if not isinstance(capabilities, frozenset) or decision.mode not in capabilities:
-                raise AnswerCommitError("domain answer admission mode is not declared")
-            decisions.append(decision)
-        if len(decisions) != 1:
-            raise AnswerCommitError("answer admission requires exactly one binding")
-        return decisions[0]
+        results: tuple[str, ...], evidence: tuple[str, ...],
+        owners: Mapping[str, str], binding_id: str) -> AnswerAdmissionDecision:
+        prepared = self._bindings[binding_id]
+        authority = _binding_authority(prepared)
+        policy = _binding_answer_admission_policy(prepared, authority)
+        observations = tuple(
+            record for record in self._store.snapshot.core.diagnostics
+            if record.get("turn_id") == handle.turn_id and record.get("binding_id") == binding_id
+        )
+        # Successful stateless discovery does not promise run evidence.
+        # Read the binding's published contracts, never question/tool names.
+        informational_capabilities = {
+            document["id"]
+            for document in getattr(getattr(prepared, "runtime", None), "capability_documents", ())
+            if document.get("evidence_required") is False
+            and document.get("state_effect") == "none"
+        }
+        request = AnswerAdmissionInput(
+            question=handle.instruction, answer_output=answer_output,
+            result_refs=tuple(ref for ref in results if owners.get(ref, binding_id) == binding_id),
+            evidence_refs=tuple(ref for ref in evidence if owners.get(ref, binding_id) == binding_id),
+            guide_reads=tuple(
+                (record["resource_id"], record["sha256"])
+                for record in observations if record.get("kind") == "published_guide_read"
+            ),
+            authority_attempted=any(
+                record.get("capability_id")
+                and not (record.get("ok") is True
+                         and record.get("capability_id") in informational_capabilities)
+                for record in observations
+            ),
+        )
+        try:
+            decision = policy.admit(request)
+        except Exception:
+            raise AnswerCommitError("domain answer admission failed") from None
+        _validate_admission_decision(decision, request)
+        capabilities = getattr(
+            getattr(getattr(prepared, "binding", prepared), "profile", None),
+            "answer_admission_capabilities",
+            None,
+        )
+        if not isinstance(capabilities, frozenset) or decision.mode not in capabilities:
+            raise AnswerCommitError("domain answer admission mode is not declared")
+        return decision
 
     def _validate_authority_identity(
         self, binding_id: str, prepared: object, authority: object

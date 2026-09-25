@@ -85,8 +85,8 @@ class RecordingAuthority:
         return ()
 
 
-def _prepared_binding(workspace: ApplicationWorkspace, policy: RecordingPolicy) -> object:
-    authority = RecordingAuthority(workspace.domain_roots["grid"])
+def _prepared_binding(workspace: ApplicationWorkspace, policy: RecordingPolicy, binding_id="grid") -> object:
+    authority = RecordingAuthority(workspace.domain_roots[binding_id])
     admission = RecordingAdmissionPolicy()
     profile = SimpleNamespace(
         answer_policy=policy,
@@ -97,7 +97,7 @@ def _prepared_binding(workspace: ApplicationWorkspace, policy: RecordingPolicy) 
         manifest=SimpleNamespace(authority_id=authority.authority_id),
     )
     return SimpleNamespace(
-        binding=SimpleNamespace(binding_id="grid", profile=profile),
+        binding=SimpleNamespace(binding_id=binding_id, profile=profile),
         runtime=SimpleNamespace(authority=authority),
         admission=admission,
     )
@@ -231,8 +231,18 @@ def test_guide_guard_uses_success_and_published_contract(active_turn, contract, 
     assert current.prepared.admission.requests[-1].authority_attempted is blocks_guide
 
 
-def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_turn) -> None:
+@pytest.mark.parametrize("guide", [False, True])
+def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_turn, guide) -> None:
     _store, workspace, current = active_turn
+    if guide:
+        current.prepared.admission.admit = lambda request: AnswerAdmissionDecision(
+            "offline_information", "guide_access_verified", request.answer_output, (),
+        )
+        current.store.append(ContextEventDraft(
+            event_type="tool.observation.recorded", turn_id=current.handle.turn_id,
+            payload={"binding_id": "grid", "turn_id": current.handle.turn_id,
+                     "kind": "published_guide_read", "resource_id": "guide", "sha256": "a" * 64},
+        ))
     controller = TurnController(
         store=current.store, workspace=workspace, bindings={"grid": current.prepared}
     )
@@ -241,6 +251,9 @@ def test_admission_sidecar_binds_answer_and_legacy_answers_are_unknown(active_tu
     )
 
     assert committed.answer_path is not None
+    assert json.loads(committed.answer_path.with_name("answer-admission.json").read_text())["schema"] == (
+        "capability-agent-answer-admission/1.1" if guide else "capability-agent-answer-admission/1.0"
+    )
     admission_ref = current.store.snapshot.core.answer_lifecycle["admission_ref"]
     assert read_answer_admission_metadata(
         committed.answer_path, expected_admission_ref=admission_ref
@@ -758,3 +771,126 @@ def test_committed_turn_replays_with_the_same_nonce_bound_lifecycle(active_turn)
 
     assert committed.answer_ref is not None
     assert ApplicationContextStore.replay(workspace.context_events_path) == current.store.snapshot
+
+
+@pytest.fixture
+def multi_turn(tmp_path):
+    workspace = ApplicationWorkspace.create(tmp_path / "runs", run_id="multi", binding_ids=("grid", "inventory"))
+    store = ApplicationContextStore.initialize(workspace, domains={key: "state/1.0" for key in workspace.domain_roots})
+    bindings = {key: _prepared_binding(workspace, RecordingPolicy(), key) for key in workspace.domain_roots}
+    controller = TurnController(store=store, workspace=workspace, bindings=bindings)
+    handle = controller.start(1, "Inspect both systems")
+    for key in bindings:
+        store.append(ContextEventDraft(
+            event_type="tool.observation.recorded", turn_id=handle.turn_id,
+            payload={"binding_id": key, "turn_id": handle.turn_id,
+                     "result_refs": [f"result:{key}"], "evidence_refs": [f"evidence:{key}"]},
+        ))
+    return SimpleNamespace(workspace=workspace, store=store, bindings=bindings, controller=controller, handle=handle)
+
+
+def _multi_submit(current, **overrides):
+    arguments = dict(
+        answer_output="Both systems were checked.", referenced_bindings=("grid", "inventory"),
+        result_refs=("result:grid", "result:inventory"),
+        evidence_refs=("evidence:grid", "evidence:inventory"),
+        claims=tuple(dict(statement=f"{key} checked", category="observation",
+                          result_refs=(f"result:{key}",), evidence_refs=(f"evidence:{key}",))
+                     for key in ("grid", "inventory")), duration_seconds=0.1,
+    )
+    arguments.update(overrides)
+    return current.controller.submit(current.handle, **arguments)
+
+
+@pytest.mark.parametrize("evaluation", ["verified", "limited", "raises", "invalid"])
+def test_multi_binding_admission_preserves_owned_decisions_and_replay(multi_turn, evaluation):
+    current = multi_turn
+    if evaluation != "verified":
+        def admit(request):
+            if evaluation == "raises":
+                raise RuntimeError("private evaluation error")
+            return AnswerAdmissionDecision(
+                "limited", "limited" if evaluation != "invalid" else "lineage_verified",
+                "replacement", ("inventory_limited",),
+            )
+        current.bindings["inventory"].admission.admit = admit
+    committed = _multi_submit(current)
+    assert committed.admission.assurance == ("lineage_verified" if evaluation == "verified" else "limited")
+    assert committed.status == "success"
+    assert committed.answer_output == "Both systems were checked."
+    assert committed.referenced_bindings == ("grid", "inventory")
+    payload = json.loads(committed.answer_path.with_name("answer-admission.json").read_text())
+    assert payload["schema"] == "capability-agent-answer-admission/1.2"
+    assert list(payload["bindings"]) == ["grid", "inventory"]
+    assert payload["bindings"]["grid"]["assurance"] == "lineage_verified"
+    assert payload["bindings"]["inventory"]["assurance"] == committed.admission.assurance
+    for key, binding in current.bindings.items():
+        assert set(binding.runtime.authority.result_refs) == {f"result:{key}"}
+        assert set(binding.runtime.authority.evidence_refs) == {f"evidence:{key}"}
+        assert binding.binding.profile.answer_policy.submissions[-1].referenced_bindings == (key,)
+    assert read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref) == committed.admission
+    assert ApplicationContextStore.replay(current.workspace.context_events_path) == current.store.snapshot
+    payload["bindings"]["grid"]["diagnostic_codes"] = ["tampered"]
+    committed.answer_path.with_name("answer-admission.json").write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="digest"):
+        read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref)
+
+
+@pytest.mark.parametrize("overrides, message", [
+    ({"claims": (dict(statement="both", category="observation", result_refs=("result:grid", "result:inventory")),)}, "cross binding"),
+    ({"referenced_bindings": ("grid", "unknown")}, "undeclared"),
+    ({"result_refs": ("result:missing",)}, "current turn"),
+    ({"claims": (dict(statement="unqualified", category="observation"),)}, "unqualified"),
+    ({"referenced_bindings": ("grid",)}, "another binding"),
+])
+def test_multi_binding_rejects_ambiguous_or_foreign_references(multi_turn, overrides, message):
+    with pytest.raises(AnswerCommitError, match=message):
+        _multi_submit(multi_turn, **overrides)
+    assert multi_turn.store.snapshot.core.active_turn is not None
+    assert multi_turn.store.snapshot.core.answer_lifecycle == {}
+
+
+@pytest.mark.parametrize("assurances, expected", [
+    (("deterministic_information", "deterministic_information"), "deterministic_information"),
+    (("guide_access_verified", "guide_access_verified"), "guide_access_verified"),
+    (("deterministic_information", "guide_access_verified"), "limited"),
+])
+def test_multi_binding_offline_assurance_requires_unanimity(multi_turn, assurances, expected):
+    for key, assurance in zip(multi_turn.bindings, assurances):
+        multi_turn.bindings[key].admission.admit = lambda request, value=assurance: AnswerAdmissionDecision(
+            "offline_information", value, "replacement", (),
+        )
+        multi_turn.store.append(ContextEventDraft(
+            event_type="tool.observation.recorded", turn_id=multi_turn.handle.turn_id,
+            payload={"binding_id": key, "turn_id": multi_turn.handle.turn_id,
+                     "kind": "published_guide_read", "resource_id": "guide", "sha256": "a" * 64},
+        ))
+    committed = _multi_submit(multi_turn, result_refs=(), evidence_refs=(), claims=())
+    assert committed.admission.assurance == expected
+    assert committed.answer_output == "Both systems were checked."
+    assert read_answer_admission_metadata(committed.answer_path, expected_admission_ref=committed.admission_ref) == committed.admission
+
+
+@pytest.mark.parametrize("mutation", ["missing", "invalid", "aggregate", "codes"])
+def test_multi_binding_reader_rejects_invalid_structure_even_with_matching_digest(multi_turn, mutation):
+    from hashlib import sha256
+    from capability_agent.trajectory.canonical import canonical_json_bytes
+
+    committed = _multi_submit(multi_turn)
+    sidecar = committed.answer_path.with_name("answer-admission.json")
+    payload = json.loads(sidecar.read_text())
+    if mutation == "missing":
+        del payload["bindings"]["inventory"]
+    elif mutation == "invalid":
+        payload["bindings"]["inventory"]["assurance"] = "limited"
+    elif mutation == "aggregate":
+        payload["mode"], payload["assurance"] = "limited", "limited"
+    else:
+        payload["bindings"]["inventory"]["diagnostic_codes"] = ["unexpected"]
+    content = canonical_json_bytes(payload)
+    sidecar.write_bytes(content)
+    with pytest.raises(ValueError, match="binding|aggregate"):
+        read_answer_admission_metadata(
+            committed.answer_path,
+            expected_admission_ref="admission:sha256:" + sha256(content).hexdigest(),
+        )
