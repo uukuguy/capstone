@@ -18,9 +18,9 @@ focused real-solver test; existing receipt and replay tests are reused.
 | Capacity Planning | multi-period investment pathway | planned |
 | Capacity Planning | two-scenario stochastic investment | planned |
 | Capacity Planning | near-optimal alternative (MGA) with distinct objective meaning | planned |
-| Sector Coupling | registered heat-pump balance | in progress |
-| Sector Coupling | temperature-dependent COP and storage balance | planned |
-| Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | planned |
+| Sector Coupling | registered heat-pump balance | implemented; installation verification pending |
+| Sector Coupling | variable COP, hydrogen and heat storage balance | implemented; installation verification pending |
+| Sector Coupling | multi-port conversion and curated electricity-hydrogen-heat balance | implemented; installation verification pending |
 
 ## Execution order
 

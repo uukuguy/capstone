@@ -36,7 +36,7 @@ make doctor
 | `pypsa-network-modeling-domain-pack` | 已登记模型打开、派生和检查 |
 | `pypsa-power-operations-domain-pack` | 授权调度、启停、故障集调度和 AC 校验 |
 | `pypsa-capacity-planning-domain-pack` | 授权单周期容量扩建 |
-| `pypsa-sector-coupling-domain-pack` | 授权电转氢转换与需求平衡 |
+| `pypsa-sector-coupling-domain-pack` | 授权电转氢、热泵、储能和多端口平衡 |
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
 

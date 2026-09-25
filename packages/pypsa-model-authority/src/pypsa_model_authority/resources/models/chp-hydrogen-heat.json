@@ -1,0 +1,33 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "chp-hydrogen-heat",
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "carriers": [
+      {"id": "gas"}, {"id": "electricity"}, {"id": "heat"},
+      {"id": "hydrogen"}, {"id": "chp"}, {"id": "electrolysis"}
+    ],
+    "buses": [
+      {"id": "gas", "carrier": "gas", "v_nom_kv": 1.0},
+      {"id": "electricity", "carrier": "electricity", "v_nom_kv": 1.0},
+      {"id": "heat", "carrier": "heat", "v_nom_kv": 1.0},
+      {"id": "hydrogen", "carrier": "hydrogen", "v_nom_kv": 1.0}
+    ],
+    "loads": [
+      {"id": "electricity-demand", "bus": "electricity", "p_set_mw": 5.0},
+      {"id": "heat-demand", "bus": "heat", "p_set_mw": 50.0},
+      {"id": "hydrogen-demand", "bus": "hydrogen", "p_set_mw": 20.0}
+    ],
+    "generators": [
+      {"id": "gas-supply", "bus": "gas", "p_nom_mw": 100.0, "marginal_cost": 10.0}
+    ],
+    "links": [
+      {"id": "chp", "from_bus": "gas", "to_bus": "electricity", "to_bus2": "heat",
+       "carrier": "chp", "p_nom_mw": 100.0, "efficiency": 0.3, "efficiency2": 0.5},
+      {"id": "electrolyser", "from_bus": "electricity", "to_bus": "hydrogen",
+       "carrier": "electrolysis", "p_nom_mw": 100.0, "efficiency": 0.8}
+    ],
+    "lines": []
+  }
+}

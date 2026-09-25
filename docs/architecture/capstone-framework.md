@@ -268,9 +268,9 @@ registered line-outage security dispatch, and post-dispatch AC validation.
 The `pypsa-capacity-planning-domain-pack` publishes one registered
 single-period generator expansion formulation with separate investment and
 operating costs; multi-period and stochastic workflows remain planned.
-The `pypsa-sector-coupling-domain-pack` publishes one registered
-electricity-to-hydrogen conversion and demand balance; heat, storage, and
-multi-port workflows remain planned.
+The `pypsa-sector-coupling-domain-pack` publishes registered
+electricity-to-hydrogen, heat-pump, hydrogen and heat storage, and multi-port
+CHP balances. Heat storage uses a registered snapshot COP profile.
 The [modeling](../../configs/capabilities/pypsa-1.3.0-modeling.json) and
 [operations](../../configs/capabilities/pypsa-1.3.0-power-operations.json) and
 [planning](../../configs/capabilities/pypsa-1.3.0-capacity-planning.json) and

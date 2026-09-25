@@ -157,7 +157,10 @@ def verify_sector_result(
         document.get("schema") != "pypsa-sector-result/1.0"
         or document.get("target_binding_id") != Path(workspace).name
         or document.get("source_binding_id") != Path(source_workspace).name
-        or document.get("capability") != "sector.hydrogen_balance"
+        or document.get("capability") not in {
+            "sector.hydrogen_balance", "sector.heat_balance",
+            "sector.hydrogen_storage", "sector.heat_storage", "sector.multiport_balance",
+        }
         or document.get("status") != "ok"
         or document.get("condition") != "optimal"
         or not isinstance(model_ref, str)

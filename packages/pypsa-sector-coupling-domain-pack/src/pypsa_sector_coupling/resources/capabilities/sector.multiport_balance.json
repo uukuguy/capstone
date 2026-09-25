@@ -1,0 +1,59 @@
+{
+  "id": "sector.multiport_balance",
+  "tool_name": "pypsa_sector_multiport_balance",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": [
+      "pypsa-sector.result"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-sector.result",
+    "projector": "pypsa-sector-result-v1"
+  },
+  "purpose": "Solve registered CHP electricity and heat outputs with electrolysis and hydrogen demand.",
+  "applies_to": [
+    "registered PyPSA chp-hydrogen-heat model"
+  ],
+  "not_for": [
+    "unregistered models",
+    "user-authored network or profile data"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reference",
+      "handoff_ref"
+    ],
+    "properties": {
+      "reference": {
+        "type": "string",
+        "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"
+      },
+      "handoff_ref": {
+        "type": "string",
+        "pattern": "^handoff:sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "requires": [
+    "application-granted model handoff"
+  ],
+  "produces": [
+    "result_ref",
+    "evidence_refs",
+    "gas input",
+    "electricity delivery",
+    "heat delivery",
+    "hydrogen delivery",
+    "operating cost"
+  ],
+  "common_next": [],
+  "recovery": {
+    "solve_failed": [
+      "Report that the registered sector formulation did not reach an optimum."
+    ]
+  }
+}

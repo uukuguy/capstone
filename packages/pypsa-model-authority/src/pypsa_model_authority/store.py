@@ -152,7 +152,10 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             **({"carrier": bus["carrier"]} if "carrier" in bus else {}),
         )
     for load in components.get("loads", []):
-        network.add("Load", load["id"], bus=load["bus"], p_set=load["p_set_mw"])
+        demand = load["p_set_mw"]
+        network.add("Load", load["id"], bus=load["bus"], p_set=0.0 if isinstance(demand, list) else demand)
+        if isinstance(demand, list):
+            network.loads_t.p_set[load["id"]] = _series_values(demand, len(snapshots))
     for generator in components.get("generators", []):
         network.add(
             "Generator", generator["id"], bus=generator["bus"],
@@ -163,15 +166,37 @@ def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
             p_nom_max=generator.get("p_nom_max_mw", float("inf")),
             capital_cost=generator.get("capital_cost", 0.0),
         )
+        limit = generator.get("p_max_pu")
+        if isinstance(limit, list):
+            network.generators_t.p_max_pu[generator["id"]] = _series_values(limit, len(snapshots))
     for line in components.get("lines", []):
         network.add(
             "Line", line["id"], bus0=line["from_bus"], bus1=line["to_bus"],
             r=line["r_ohm"], x=line["x_ohm"], s_nom=line["s_nom_mva"],
         )
     for link in components.get("links", []):
+        efficiency = link["efficiency"]
         network.add(
             "Link", link["id"], bus0=link["from_bus"], bus1=link["to_bus"],
-            p_nom=link["p_nom_mw"], efficiency=link["efficiency"],
+            p_nom=link["p_nom_mw"], efficiency=1.0 if isinstance(efficiency, list) else efficiency,
             carrier=link.get("carrier", ""),
+            **({"bus2": link["to_bus2"], "efficiency2": link["efficiency2"]} if "to_bus2" in link else {}),
+        )
+        if isinstance(efficiency, list):
+            network.links_t.efficiency[link["id"]] = _series_values(efficiency, len(snapshots))
+    for store in components.get("stores", []):
+        network.add(
+            "Store", store["id"], bus=store["bus"], carrier=store.get("carrier", ""),
+            e_nom=store["e_nom_mwh"], e_initial=store.get("e_initial_mwh", 0.0),
+            e_cyclic=store.get("e_cyclic", False),
         )
     return network
+
+
+def _series_values(values: list[object], count: int) -> list[float]:
+    if len(values) != count or not all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        and math.isfinite(value) for value in values
+    ):
+        raise ModelStoreError("registered time series is invalid")
+    return [float(value) for value in values]

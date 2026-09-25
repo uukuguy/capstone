@@ -1,0 +1,58 @@
+{
+  "id": "sector.heat_storage",
+  "tool_name": "pypsa_sector_heat_storage",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [],
+    "produces_state": [
+      "pypsa-sector.result"
+    ],
+    "invalidates_state": [],
+    "result_kind": "pypsa-sector.result",
+    "projector": "pypsa-sector-result-v1"
+  },
+  "purpose": "Solve registered variable-COP heat pump and heat storage across two snapshots.",
+  "applies_to": [
+    "registered PyPSA heat-pump-storage model"
+  ],
+  "not_for": [
+    "unregistered models",
+    "user-authored network or profile data"
+  ],
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reference",
+      "handoff_ref"
+    ],
+    "properties": {
+      "reference": {
+        "type": "string",
+        "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"
+      },
+      "handoff_ref": {
+        "type": "string",
+        "pattern": "^handoff:sha256:[a-f0-9]{64}$"
+      }
+    }
+  },
+  "requires": [
+    "application-granted model handoff"
+  ],
+  "produces": [
+    "result_ref",
+    "evidence_refs",
+    "heat delivery",
+    "stored heat energy",
+    "snapshot COP",
+    "operating cost"
+  ],
+  "common_next": [],
+  "recovery": {
+    "solve_failed": [
+      "Report that the registered sector formulation did not reach an optimum."
+    ]
+  }
+}

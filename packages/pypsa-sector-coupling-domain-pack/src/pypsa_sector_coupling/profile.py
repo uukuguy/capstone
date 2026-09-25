@@ -85,7 +85,10 @@ class SectorExecutor:
             passed = {}
         else:
             expected = {"reference", "handoff_ref"}
-            if capability != "sector.hydrogen_balance" or set(arguments) != expected:
+            if capability not in {
+                "sector.hydrogen_balance", "sector.heat_balance", "sector.hydrogen_storage",
+                "sector.heat_storage", "sector.multiport_balance",
+            } or set(arguments) != expected:
                 raise ValueError("sector arguments do not match the contract")
             reference = _reference(arguments["reference"], "model")
             receipt_ref = arguments["handoff_ref"]

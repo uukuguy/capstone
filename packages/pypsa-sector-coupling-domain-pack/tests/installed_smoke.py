@@ -56,21 +56,28 @@ def main() -> None:
             profile, registry=registry, workspace=workspace.root, credentials=EmptyCredentials(),
         )
         store = ApplicationContextStore.initialize(workspace)
-        opened = prepared.bindings["model"].endpoint.executor.invoke(
-            "model.open", {"catalog_id": "electricity-hydrogen"},
-        )
         service = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
-        result, receipt = service.invoke_target(
-            source_binding_id="model", target_binding_id="sector",
-            reference=opened["model_ref"], reference_kind="model", purpose="sector",
-            capability="sector.hydrogen_balance", arguments={},
-        )
-        assert result["objective"] == 1000.0
         target = prepared.bindings["sector"]
-        assert target.runtime.authority.admit(
-            "sector.hydrogen_balance", result, tuple(result["evidence_refs"])
-        ).results[0].document["source_binding_id"] == "model"
-        assert service.verify_receipt(receipt) == receipt
+        for catalog_id, capability, objective in (
+            ("electricity-hydrogen", "sector.hydrogen_balance", 1000.0),
+            ("electricity-heat-pump", "sector.heat_balance", 200.0),
+            ("hydrogen-storage", "sector.hydrogen_storage", 1000.0),
+            ("heat-pump-storage", "sector.heat_storage", 200.0),
+            ("chp-hydrogen-heat", "sector.multiport_balance", 1000.0),
+        ):
+            opened = prepared.bindings["model"].endpoint.executor.invoke(
+                "model.open", {"catalog_id": catalog_id},
+            )
+            result, receipt = service.invoke_target(
+                source_binding_id="model", target_binding_id="sector",
+                reference=opened["model_ref"], reference_kind="model", purpose="sector",
+                capability=capability, arguments={},
+            )
+            assert result["objective"] == objective
+            assert target.runtime.authority.admit(
+                capability, result, tuple(result["evidence_refs"])
+            ).results[0].document["source_binding_id"] == "model"
+            assert service.verify_receipt(receipt) == receipt
         assert ApplicationContextStore.replay(workspace.context_events_path) == store.snapshot
         for binding in prepared.bindings.values():
             binding.endpoint.close()

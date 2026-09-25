@@ -1,0 +1,22 @@
+{
+  "schema": "pypsa-registered-model/1.0",
+  "catalog_id": "electricity-heat-pump",
+  "snapshots": ["2026-01-01T00:00:00"],
+  "snapshot_weightings": [1.0],
+  "components": {
+    "carriers": [{"id": "electricity"}, {"id": "heat"}, {"id": "heat-pump"}],
+    "buses": [
+      {"id": "electricity", "carrier": "electricity", "v_nom_kv": 1.0},
+      {"id": "heat", "carrier": "heat", "v_nom_kv": 1.0}
+    ],
+    "loads": [{"id": "heat-demand", "bus": "heat", "p_set_mw": 30.0}],
+    "generators": [
+      {"id": "electricity-supply", "bus": "electricity", "p_nom_mw": 100.0, "marginal_cost": 20.0}
+    ],
+    "links": [
+      {"id": "heat-pump", "from_bus": "electricity", "to_bus": "heat",
+       "carrier": "heat-pump", "p_nom_mw": 100.0, "efficiency": 3.0}
+    ],
+    "lines": []
+  }
+}

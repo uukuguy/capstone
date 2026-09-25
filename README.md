@@ -145,7 +145,7 @@ authority, Network Modeling, Power Operations, Capacity Planning, and Sector Cou
 | `pypsa-network-modeling-domain-pack` | PyPSA model contracts, policy, guides, executor, projection, and authority admission through the public Kernel SPI |
 | `pypsa-power-operations-domain-pack` | Granted model handoff, fixed dispatch and commitment solvers, registered outage dispatch, AC validation, and target-owned evidence |
 | `pypsa-capacity-planning-domain-pack` | Granted single-period generator capacity expansion with explicit investment and operating costs and target-owned evidence |
-| `pypsa-sector-coupling-domain-pack` | Granted electricity-to-hydrogen conversion and demand balance with target-owned evidence |
+| `pypsa-sector-coupling-domain-pack` | Granted hydrogen, heat-pump, storage, and multi-port balances with target-owned evidence |
 | `@capability-agent/pi-tools` | Generic descriptor-driven Pi capability request transport and request capture |
 | `@grid-static-analysis/pi-grid-tools` | Grid-compatible Pi extension wrapper that preserves existing `grid_*` tools and guide behavior |
 
@@ -169,14 +169,14 @@ The PyPSA modeling Pack publishes registered model opening, typed load-demand
 derivation, and bounded inspection. The independent Operations Pack publishes
 fixed dispatch, unit commitment, registered outage dispatch, and post-dispatch
 AC validation. The Capacity Planning Pack publishes registered single-period
-generator expansion. The Sector Coupling Pack publishes registered electricity-to-hydrogen
-conversion and demand balance. The [modeling](configs/capabilities/pypsa-1.3.0-modeling.json),
+generator expansion. The Sector Coupling Pack publishes registered hydrogen, heat-pump,
+hydrogen and heat storage, and multi-port CHP balances. The [modeling](configs/capabilities/pypsa-1.3.0-modeling.json),
 [operations](configs/capabilities/pypsa-1.3.0-power-operations.json), and
 [planning](configs/capabilities/pypsa-1.3.0-capacity-planning.json), and
 [sector coupling](configs/capabilities/pypsa-1.3.0-sector-coupling.json)
 coverage catalogs list exact tools. `make test-pypsa` runs focused tests;
 clean-wheel verification exercises an application-granted current-run model
-handoff into each real Pack. Broader heat, storage, and multi-port sector workflows remain planned. The grid CLI
+handoff into each real Pack. The heat-storage formulation uses a registered snapshot COP profile. The grid CLI
 remains bound to pandapower.
 
 `make test` is the provider-free unit gate: it runs the eleven Python packages,
