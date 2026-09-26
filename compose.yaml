@@ -1,0 +1,84 @@
+name: capstone
+
+x-host-environment: &host-environment
+  DATABASE_URL: postgresql://capstone:${POSTGRES_PASSWORD:?Set deploy/local.env}@postgres:5432/capstone
+  CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Set deploy/local.env}
+  CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
+  CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+  CAPSTONE_ARTIFACT_BACKEND: s3
+  CAPSTONE_ARTIFACT_BUCKET: ${CAPSTONE_ARTIFACT_BUCKET:-capstone-private}
+  CAPSTONE_S3_ENDPOINT: http://objects:9000
+  AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?Set deploy/local.env}
+  AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Set deploy/local.env}
+  AWS_DEFAULT_REGION: us-east-1
+  PORT: "8766"
+
+x-host-service: &host-service
+  image: ${CAPSTONE_BACKEND_IMAGE:-capstone-backend:local}
+  build: .
+  restart: unless-stopped
+  environment: *host-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    objects-init:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: capstone
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set deploy/local.env}
+      POSTGRES_DB: capstone
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U capstone -d capstone"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  objects:
+    image: rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?Set deploy/local.env}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?Set deploy/local.env}
+    volumes:
+      - object-data:/data
+
+  objects-init:
+    image: ${CAPSTONE_BACKEND_IMAGE:-capstone-backend:local}
+    build: .
+    entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/ensure_bucket.py]
+    restart: "no"
+    environment:
+      CAPSTONE_ARTIFACT_BUCKET: ${CAPSTONE_ARTIFACT_BUCKET:-capstone-private}
+      CAPSTONE_S3_ENDPOINT: http://objects:9000
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?Set deploy/local.env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Set deploy/local.env}
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      objects:
+        condition: service_started
+
+  api:
+    <<: *host-service
+    command: [api]
+    ports:
+      - 127.0.0.1:${CAPSTONE_API_PORT:-8767}:8766
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health/ready', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    <<: *host-service
+    command: [worker]
+
+volumes:
+  postgres-data:
+  object-data:

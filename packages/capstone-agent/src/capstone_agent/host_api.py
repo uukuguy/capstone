@@ -42,7 +42,7 @@ def create_host_app(
 
     @app.middleware("http")
     async def access(request: Request, call_next):
-        if request.url.hostname not in allowed_hosts:
+        if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
         origin = request.headers.get("origin")
         if origin is not None and origin not in allowed_origins:

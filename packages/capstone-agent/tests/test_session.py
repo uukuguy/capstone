@@ -11,10 +11,11 @@ from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec, _w
 
 def test_scripted_worker_environment_excludes_provider_secrets() -> None:
     source = {"PATH": "/bin", "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": "/models",
-              "OPENAI_API_KEY": "secret", "UV_CACHE_DIR": "/cache"}
+              "OPENAI_API_KEY": "secret", "UV_CACHE_DIR": "/cache",
+              "UV_NO_SYNC": "1", "UV_NO_DEV": "1"}
     selected = _worker_environment(source, "scripted-demo")
     assert selected == {"PATH": "/bin", "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": "/models",
-                        "UV_CACHE_DIR": "/cache"}
+                        "UV_CACHE_DIR": "/cache", "UV_NO_SYNC": "1", "UV_NO_DEV": "1"}
     assert _worker_environment(source, "provider") == source
 
 

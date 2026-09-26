@@ -17,7 +17,8 @@ from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 
 _SCRIPTED_ENV_NAMES = frozenset({
     "PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SSL_CERT_FILE",
-    "REQUESTS_CA_BUNDLE", "UV_CACHE_DIR", "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR",
+    "REQUESTS_CA_BUNDLE", "UV_CACHE_DIR", "UV_NO_SYNC", "UV_NO_DEV",
+    "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR",
 })
 
 

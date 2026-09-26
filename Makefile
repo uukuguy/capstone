@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-capstone setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-chat capstone-agent-serve report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-chat capstone-agent-serve capstone-app-dev report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -15,6 +15,9 @@ help:
 	@echo "  make capstone-agent-run REQUEST=path  Run a registered application headlessly"
 	@echo "  make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]  Open one interactive run"
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
+	@echo "  make capstone-app-dev      Start the operator App against hosted API on localhost:8767"
+	@echo "  make build-capstone-app    Build the Vercel-ready static App"
+	@echo "  make test-capstone-app     Run focused App tests"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
 	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
@@ -37,7 +40,7 @@ help:
 	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
 
-setup: setup-agent setup-capstone setup-simulator setup-pypsa setup-tools setup-workbench build-workbench
+setup: setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench
 
 setup-agent:
 	uv sync --project packages/grid-agent
@@ -45,6 +48,18 @@ setup-agent:
 setup-capstone:
 	uv sync --project packages/capstone-agent
 	uv sync --project packages/pypsa-agent
+
+setup-capstone-app:
+	npm ci --prefix packages/capstone-app
+
+build-capstone-app:
+	npm run build --prefix packages/capstone-app
+
+test-capstone-app:
+	npm test --prefix packages/capstone-app
+
+capstone-app-dev:
+	npm run dev --prefix packages/capstone-app -- --host 127.0.0.1 --port 5173
 
 setup-simulator:
 	uv sync --project packages/grid-simulator
@@ -152,7 +167,7 @@ CAPSTONE_PORT ?= 8766
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+test: test-agent test-simulator test-tools test-capstone-agent test-capstone-app test-capstone-client test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
 
 test-capstone-agent:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q

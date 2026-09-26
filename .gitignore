@@ -62,6 +62,7 @@ packages/trajectory-workbench/playwright-report/
 packages/trajectory-workbench/coverage/
 /output/playwright/
 /.playwright-cli/
+/deploy/local.env
 **/__pycache__/
 **/.pytest_cache/
 **/.coverage

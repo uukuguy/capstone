@@ -103,6 +103,10 @@ def test_host_api_requires_token_and_explicit_origin(ledger: Ledger, tmp_path: P
     registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
     with TestClient(_app(ledger, registry), base_url="http://localhost") as client:
         assert client.get("/health/ready").status_code == 200
+        assert client.get("/health/ready", headers={"Host": "probe.internal"}).status_code == 200
+        assert client.get("/api/v1/catalog", headers={
+            "Host": "probe.internal", "Authorization": "Bearer hosted-secret",
+        }).status_code == 400
         assert client.get("/api/v1/catalog").status_code == 401
         assert client.get("/api/v1/catalog", headers={
             "Authorization": "Bearer hosted-secret", "Origin": "https://evil.example",
