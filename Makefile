@@ -25,7 +25,7 @@ help:
 	@echo "  make list-pypsa-models       List registered PyPSA model assets and install state"
 	@echo "  make install-pypsa-models    Install all six checked PyPSA example Networks"
 	@echo "  make list-pypsa-cases        List local PyPSA business cases"
-	@echo "  make run-pypsa-case CASE=...  Run one scripted local PyPSA agent case"
+	@echo "  make run-pypsa-case CASE=... [DEMO=1 | INSTRUCTIONS=path]  Run a scripted PyPSA case"
 	@echo "  make test-e2e              Run offline CLI and scripted Pi-to-gridctl scenarios"
 	@echo "  make validate              Run deterministic WP-A validation"
 	@echo "  make validate-application  Run provider-free generic application instantiation validation"
@@ -56,7 +56,7 @@ list-pypsa-cases:
 	uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py list
 
 run-pypsa-case:
-	uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py run "$(CASE)"
+	@uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py run "$(CASE)" $(if $(DEMO),--demo) $(if $(INSTRUCTIONS),--instructions "$(INSTRUCTIONS)")
 
 setup-tools:
 	npm ci --prefix packages/pi-capability-tools

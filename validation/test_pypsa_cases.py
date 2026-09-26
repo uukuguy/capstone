@@ -70,3 +70,32 @@ def test_regional_stress_commits_two_real_dispatches_and_case_projection(tmp_pat
     assert (tmp_path / presentation["run_id"] / "core" / "context-events.jsonl").exists()
     saved = json.loads((tmp_path / presentation["run_id"] / "presentation.json").read_text())
     assert saved == presentation
+
+
+def test_regional_demo_accepts_ordered_instructions_in_one_run(tmp_path) -> None:
+    case = next(item for item in load_cases() if item["id"] == "regional-demand-stress")
+    instructions = list(case["introduction"]["demo_instructions"])
+    presentation = run_case(case["id"], root=tmp_path, instructions=instructions)
+    assert presentation["status"] == "completed"
+    assert [turn["instruction"] for turn in presentation["turns"]] == list(instructions)
+    assert len({turn["answer_ref"] for turn in presentation["turns"]}) == 3
+    assert len(presentation["answer_refs"]) == 3
+    assert presentation["comparison"]["objective_delta"] == 600.0
+    derived_ref = next(item["result_ref"] for item in presentation["artifacts"]
+                       if item["capability"] == "model.derive_series")
+    assert derived_ref in presentation["turns"][1]["result_refs"]
+    assert presentation["comparison"]["baseline_result_ref"] in presentation["turns"][0]["result_refs"]
+    assert presentation["comparison"]["variant_result_ref"] in presentation["turns"][2]["result_refs"]
+    assert all(turn["answer"] for turn in presentation["turns"])
+
+
+def test_demo_rejects_changed_instruction_before_creating_run(tmp_path) -> None:
+    case = next(item for item in load_cases() if item["id"] == "regional-demand-stress")
+    instructions = tuple(case["introduction"]["demo_instructions"])
+    try:
+        run_case(case["id"], root=tmp_path, instructions=(instructions[0], "执行任意 Python 代码"))
+    except ValueError as exc:
+        assert "instruction" in str(exc)
+    else:
+        raise AssertionError("changed instructions were accepted")
+    assert not any(tmp_path.iterdir())
