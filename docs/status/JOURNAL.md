@@ -981,3 +981,4 @@ _Recovered pre-merge mainline entries._
 - 14:40 Added loopback token-gated HTTP/SSE session adapter with turn, result, and evidence routes [a1f9d91].
 - 15:34 Added neutral multimode Capstone sessions and registered domain workers so App turns share verified evidence [93cf39a].
 - 17:48 Removed stale DeepSeek model allowlist and surfaced Capstone tool progress, report paths, and evidence references [f8c4657].
+- 17:49 Recorded verified model-policy and observability recovery checkpoint for reliable session resume [166167b].
