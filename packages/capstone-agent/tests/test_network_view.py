@@ -18,7 +18,7 @@ def _view() -> dict[str, object]:
         "branches": [{"id": "line:11", "kind": "line", "label": "Line 11",
                       "from_bus": "0", "to_bus": "1"}],
         "omitted": {"buses": 0, "branches": 0},
-        "focus_ids": ["line:11"], "overlay": None,
+        "focus_ids": ["line:11"], "next_focus_ids": ["line:11"], "overlay": None,
     }
 
 
@@ -33,6 +33,7 @@ def test_network_view_accepts_bounded_topology_and_frame() -> None:
     lambda view: view["buses"].append(dict(view["buses"][0])),
     lambda view: view["buses"][0].update(x=float("nan")),
     lambda view: view.update(focus_ids=["foreign"]),
+    lambda view: view.update(next_focus_ids=["foreign"]),
     lambda view: view.update(overlay={"metric": "loading_percent", "unit": "%",
         "source_ref": "result:current", "values": [{"id": "foreign", "value": 72.0}]}),
 ])

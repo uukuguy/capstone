@@ -54,4 +54,14 @@ describe('CapstoneClient', () => {
     const client = new CapstoneClient('', 'private-token', browserFetch)
     await expect(client.catalog()).resolves.toMatchObject({ schema: 'capstone-catalog/1.0' })
   })
+
+  it('reads an authenticated current-run network view for one committed step', async () => {
+    const view = { schema: 'capstone-network-view/1.0', ordinal: 2, buses: [], branches: [] }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(view)))
+    const client = new CapstoneClient('', 'private-token', fetcher)
+    await expect(client.network('session-one', 2)).resolves.toEqual(view)
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/sessions/session-one/network?ordinal=2')
+    expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization)
+      .toBe('Bearer private-token')
+  })
 })

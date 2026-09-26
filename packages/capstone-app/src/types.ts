@@ -55,3 +55,22 @@ export type SessionEvent = {
   event: string
   payload: Record<string, unknown>
 }
+
+export type NetworkView = {
+  schema: 'capstone-network-view/1.0'
+  ordinal: number
+  model: { id: string; revision: string; source: string }
+  coordinate_status: 'provided-unverified' | 'schematic-required'
+  buses: { id: string; label: string; x: number | null; y: number | null }[]
+  branches: { id: string; kind: 'line' | 'link' | 'transformer' | 'trafo' | 'trafo3w';
+    label: string; from_bus: string; to_bus: string }[]
+  omitted: { buses: number; branches: number }
+  focus_ids: string[]
+  next_focus_ids: string[]
+  overlay: null | {
+    metric: 'loading_percent' | 'voltage_pu'
+    unit: '%' | 'p.u.'
+    source_ref: string
+    values: { id: string; value: number }[]
+  }
+}

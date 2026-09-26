@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import App from './App'
 import type { CapstoneClient } from './api'
 import type { Catalog, SessionEvent } from './types'
+import { sampleView } from './networkFixture'
 
 afterEach(cleanup)
 
@@ -20,7 +21,8 @@ const catalog: Catalog = {
   }],
 }
 
-function mockClient() {
+function mockClient(eventFlow?: (_id: string, _after: number,
+  signal: AbortSignal) => AsyncGenerator<SessionEvent>) {
   const submitTurn = vi.fn().mockResolvedValue({ session_id: 'session-one', ordinal: 1, state: 'accepted' })
   const createSession = vi.fn().mockResolvedValue({
     session_id: 'session-one', run_id: null,
@@ -30,18 +32,19 @@ function mockClient() {
     catalog: vi.fn().mockResolvedValue(catalog),
     createSession,
     submitTurn,
+    network: vi.fn().mockResolvedValue(sampleView),
     close: vi.fn().mockResolvedValue({ session_id: 'session-one', state: 'closing' }),
     status: vi.fn().mockResolvedValue({
       session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
       state: 'ready', error_code: null, accepted_turns: 0, completed_turns: 0,
     }),
-    events: async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
+    events: eventFlow || (async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
       yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
               sequence: 1, event: 'ready', payload: { run_id: 'run-one' } }
       await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
-    },
+    }),
   }
-  return { client: client as unknown as CapstoneClient, createSession, submitTurn }
+  return { client: client as unknown as CapstoneClient, createSession, submitTurn, network: client.network }
 }
 
 describe('operator workflow', () => {
@@ -77,5 +80,49 @@ describe('operator workflow', () => {
     ))
     fireEvent.click(screen.getByRole('button', { name: '停止自动执行' }))
     expect(screen.queryByRole('button', { name: '停止自动执行' })).toBeNull()
+  })
+
+  it('loads the authenticated network projection after a committed step', async () => {
+    const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 1, event: 'ready', payload: { run_id: 'run-one' } }
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 2, event: 'answer_committed', payload: {
+          ordinal: 1, turn_id: 'turn-one', answer_output: '已打开模型。',
+          answer_ref: 'answer:one', result_refs: [], evidence_refs: [],
+        } }
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 3, event: 'network_view', payload: { ordinal: 1 } }
+      await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+    }
+    const { client, network } = mockClient(flow)
+    render(<App clientFactory={() => client} />)
+    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '启动本轮分析' }))
+    await waitFor(() => expect(network).toHaveBeenCalledWith('session-one', 1))
+    expect(await screen.findByRole('img', { name: '电网拓扑' })).toBeTruthy()
+  })
+
+  it('keeps the answer visible when the authority cannot project a network', async () => {
+    const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 1, event: 'answer_committed', payload: {
+          ordinal: 1, turn_id: 'turn-one', answer_output: '已打开模型。',
+          answer_ref: 'answer:one', result_refs: [], evidence_refs: [],
+        } }
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 2, event: 'network_view_unavailable', payload: { ordinal: 1 } }
+      await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+    }
+    const { client } = mockClient(flow)
+    render(<App clientFactory={() => client} />)
+    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '启动本轮分析' }))
+    expect(await screen.findByText('本轮电网视图暂不可用')).toBeTruthy()
+    expect(screen.getByText('已打开模型。')).toBeTruthy()
   })
 })

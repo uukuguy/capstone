@@ -55,3 +55,9 @@ def test_pypsa_view_colors_only_committed_dispatch_for_matching_revision() -> No
         "regional-demand-stress", dispatch, (),
     )
     assert uncommitted["overlay"] is None
+
+
+def test_pypsa_view_anticipates_registered_link_target() -> None:
+    view = build_pypsa_network_view(TopologyExecutor(), "model:baseline", "ac-dc-six-bus", 1,
+                                    "ac-dc-interconnection", None, ())
+    assert view["next_focus_ids"] == ["link:converter"]

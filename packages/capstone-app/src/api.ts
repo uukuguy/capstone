@@ -1,5 +1,5 @@
 import type {
-  Catalog, CommittedTurn, CreatedSession, SessionEvent, SessionStatus,
+  Catalog, CommittedTurn, CreatedSession, NetworkView, SessionEvent, SessionStatus,
 } from './types'
 
 const MAX_RESPONSE_BYTES = 2_100_000
@@ -107,6 +107,13 @@ export class CapstoneClient {
 
   evidence(sessionId: string, ref: string): Promise<unknown> {
     return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/evidence?ref=${encodeURIComponent(ref)}`)
+  }
+
+  network(sessionId: string, ordinal: number): Promise<NetworkView> {
+    if (!Number.isSafeInteger(ordinal) || ordinal < 1 || ordinal > 3) {
+      return Promise.reject(new Error('电网视图步骤无效'))
+    }
+    return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network?ordinal=${ordinal}`)
   }
 
   async report(sessionId: string): Promise<string> {

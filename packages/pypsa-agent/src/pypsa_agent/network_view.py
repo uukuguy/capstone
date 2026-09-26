@@ -55,6 +55,8 @@ def build_pypsa_network_view(
     focus: list[str] = []
     if case_id == "ac-dc-interconnection" and ordinal == 2:
         focus = [branch["id"] for branch in branches if branch["kind"] == "link"][:20]
+    next_focus = ([branch["id"] for branch in branches if branch["kind"] == "link"][:20]
+                  if case_id == "ac-dc-interconnection" and ordinal == 1 else [])
     overlay = None
     if ordinal == 3 and isinstance(dispatch, Mapping):
         ref = dispatch.get("result_ref")
@@ -81,5 +83,5 @@ def build_pypsa_network_view(
         "buses": buses, "branches": branches,
         "omitted": {"buses": int(omitted_counts["buses"]),
                     "branches": omitted_branches},
-        "focus_ids": focus, "overlay": overlay,
+        "focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay,
     }

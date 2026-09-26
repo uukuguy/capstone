@@ -115,4 +115,5 @@ def test_network_projection_failure_does_not_erase_answer() -> None:
     kinds = [Frame.from_line(line).kind for line in output.getvalue().splitlines(keepends=True)]
     assert "answer_committed" in kinds
     assert "network_view" not in kinds
+    assert "network_view_unavailable" in kinds
     assert "completed" in kinds

@@ -110,8 +110,11 @@ def serve_application(
                     if projection is not None:
                         view = normalize_network_view(projection)
                         emit("network_view", {"ordinal": ordinal, "view": view})
+                    else:
+                        emit("network_view_unavailable", {"ordinal": ordinal})
                 except Exception:
                     print("Network view unavailable for committed turn", file=sys.stderr)
+                    emit("network_view_unavailable", {"ordinal": ordinal})
         else:
             message = render_progress(event)
             if message:

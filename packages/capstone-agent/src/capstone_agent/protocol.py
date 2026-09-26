@@ -24,6 +24,7 @@ _PAYLOAD_FIELDS = {
     "failed": frozenset({"code"}),
     "evidence_result": frozenset({"ref", "value"}),
     "network_view": frozenset({"ordinal", "view"}),
+    "network_view_unavailable": frozenset({"ordinal"}),
 }
 _REQUIRED_PAYLOAD_FIELDS = {
     "open": frozenset({"application_id", "mode"}),
@@ -36,6 +37,7 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "failed": _PAYLOAD_FIELDS["failed"],
     "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
     "network_view": _PAYLOAD_FIELDS["network_view"],
+    "network_view_unavailable": _PAYLOAD_FIELDS["network_view_unavailable"],
 }
 
 
@@ -79,6 +81,10 @@ class Frame:
                 raise ProtocolError("network view payload is invalid") from None
             if self.payload["ordinal"] != normalized["ordinal"]:
                 raise ProtocolError("network view ordinal is invalid")
+        if self.kind == "network_view_unavailable" and (
+            type(self.payload["ordinal"]) is not int or not 1 <= self.payload["ordinal"] <= 3
+        ):
+            raise ProtocolError("network view unavailable ordinal is invalid")
         try:
             json.dumps(self.payload, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):

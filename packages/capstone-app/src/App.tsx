@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
-import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, SessionStatus } from './types'
+import { NetworkView } from './NetworkView'
+import { parseNetworkView } from './networkValidation'
+import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkView as NetworkViewData, SessionStatus } from './types'
 
 type Selection = { applicationId: string; caseId: string }
 type DetailTab = 'overview' | 'report' | 'evidence'
@@ -105,12 +107,17 @@ function AnswerCard({ turn, onEvidence }: {
 }
 
 function RunPanel({ app, caseCard, status, turns, progress, actionPending, automatic, onStart,
-                    onSubmit, onClose, onAuto, onStopAuto, onEvidence }: {
+                    onSubmit, onClose, onAuto, onStopAuto, onEvidence,
+                    networkView, networkFocusKey, networkUnavailable, nextNetworkTask,
+                    selectedStep, onSelectStep }: {
   app: ApplicationCard; caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
   automatic: boolean; onAuto: () => void; onStopAuto: () => void;
   onStart: () => void; onSubmit: () => void; onClose: () => void;
   onEvidence: (ref: string) => void
+  networkView: NetworkViewData | null; networkFocusKey: string;
+  networkUnavailable: boolean; nextNetworkTask: boolean;
+  selectedStep: number | null; onSelectStep: (ordinal: number) => void
 }) {
   const next = (status?.completed_turns ?? 0) + 1
   return <main className="run-panel">
@@ -126,6 +133,8 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
     </div>
     <div className="boundary-note"><span className="boundary-icon" aria-hidden="true">i</span>
       <div><strong>解释边界</strong><p>{caseCard.interpretation_boundary}</p></div></div>
+    <NetworkView view={networkView} modelName={caseCard.model_origin} focusKey={networkFocusKey}
+      unavailable={networkUnavailable} nextTask={nextNetworkTask} />
     <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
       <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div>
     <ol className="timeline">
@@ -135,7 +144,10 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
         const isNext = status?.state === 'ready' && ordinal === next
         const isExecuting = status?.state === 'executing' && ordinal === next
         return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''}`}>
-          <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>
+          {answer ? <button className="timeline-number" type="button"
+            aria-label={`查看指令 ${ordinal} 的电网`} aria-pressed={selectedStep === ordinal}
+            onClick={() => onSelectStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
+            : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
           <div className="timeline-content"><div className="timeline-item-head"><strong>指令 {ordinal}</strong>
             <span>{answer ? '已完成' : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'}</span></div>
             <p className="instruction-text">{instruction}</p>
@@ -241,6 +253,9 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   const [evidenceRef, setEvidenceRef] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<unknown>(null)
   const [evidencePending, setEvidencePending] = useState(false)
+  const [networkViews, setNetworkViews] = useState<Record<number, NetworkViewData>>({})
+  const [unavailableViews, setUnavailableViews] = useState<number[]>([])
+  const [selectedStep, setSelectedStep] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [automatic, setAutomatic] = useState(false)
@@ -262,6 +277,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     stopAutomatic()
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
+    setNetworkViews({}); setUnavailableViews([]); setSelectedStep(null)
   }
 
   async function connect(token: string) {
@@ -285,6 +301,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     if (!client || !sessionId) return
     const controller = new AbortController()
     let cursor = 0
+    const admittedByOrdinal = new Map<number, string[]>()
     const sid = sessionId
     async function complete() {
       const outcomes = await Promise.allSettled([client!.report(sid), client!.result(sid)])
@@ -305,10 +322,35 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
               setProgress(typeof event.payload.message === 'string' ? event.payload.message : null)
             } else if (event.event === 'answer_committed') {
               const answer = event.payload as CommittedTurn
+              admittedByOrdinal.set(answer.ordinal, Array.isArray(answer.result_refs) ? answer.result_refs : [])
               setTurns((before) => ({ ...before, [answer.ordinal]: answer }))
               setStatus((before) => before && { ...before, state: 'ready',
                 completed_turns: answer.ordinal, accepted_turns: answer.ordinal })
               setProgress(null)
+              setSelectedStep(null)
+            } else if (event.event === 'network_view') {
+              const ordinal = event.payload.ordinal
+              if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
+                try {
+                  const raw = await client!.network(sid, Number(ordinal))
+                  if (controller.signal.aborted) return
+                  const view = parseNetworkView(raw, Number(ordinal),
+                    admittedByOrdinal.get(Number(ordinal)) || [])
+                  if (view) {
+                    setNetworkViews((before) => ({ ...before, [view.ordinal]: view }))
+                  } else {
+                    setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
+                  }
+                } catch {
+                  // A missing optional view cannot veto the committed answer.
+                  setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
+                }
+              }
+            } else if (event.event === 'network_view_unavailable') {
+              const ordinal = event.payload.ordinal
+              if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
+                setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
+              }
             } else if (event.event === 'completed') {
               setStatus((before) => before && { ...before, state: 'completed' })
               await complete()
@@ -423,6 +465,12 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     clearRun(); setClient(null); setCatalog(null); setSelection(null); setError(null)
   }
 
+  const displayedOrdinal = selectedStep ?? status?.completed_turns ?? 0
+  const networkView = displayedOrdinal > 0 ? networkViews[displayedOrdinal] ?? null : null
+  const networkFocusKey = `${sessionId ?? 'idle'}:${displayedOrdinal}:${status?.state ?? 'new'}`
+  const nextNetworkTask = selectedStep === null && status?.state === 'executing' && displayedOrdinal > 0
+  const networkUnavailable = displayedOrdinal > 0 && unavailableViews.includes(displayedOrdinal)
+
   return <div className="app-shell">
     <PageHeader connected={!!client} onDisconnect={disconnect} />
     {!client || !catalog || !selected.app || !selected.caseCard ?
@@ -435,6 +483,9 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
           {error && <div className="workspace-alert" role="alert">{error}</div>}
           <RunPanel app={selected.app} caseCard={selected.caseCard} status={status}
             turns={turns} progress={progress} actionPending={pending} automatic={automatic}
+            networkView={networkView} networkFocusKey={networkFocusKey}
+            networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
+            selectedStep={selectedStep} onSelectStep={setSelectedStep}
             onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
             onAuto={startAutomatic} onStopAuto={stopAutomatic}
             onEvidence={(ref) => void showEvidence(ref)} />

@@ -81,6 +81,8 @@ def build_grid_network_view(
         else None
     )
     focus = [focus_id] if focus_id in branch_ids else []
+    next_focus_id = "line:17" if case_id == "pandapower-scripted-test" and ordinal == 1 else None
+    next_focus = [next_focus_id] if next_focus_id in branch_ids else []
     overlay = None
     if case_id == "pandapower-scripted-task" and ordinal == 3:
         for call in reversed(calls):
@@ -118,5 +120,5 @@ def build_grid_network_view(
         "buses": buses, "branches": branches,
         "omitted": {"buses": max(0, bus_count - len(buses)),
                     "branches": max(0, branch_count - len(branches))},
-        "focus_ids": focus, "overlay": overlay,
+        "focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay,
     }

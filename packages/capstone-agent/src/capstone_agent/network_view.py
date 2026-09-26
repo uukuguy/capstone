@@ -46,7 +46,7 @@ def normalize_network_view(value: object) -> dict[str, Any]:
 
     view = _object(value, {
         "schema", "ordinal", "model", "coordinate_status", "buses", "branches",
-        "omitted", "focus_ids", "overlay",
+        "omitted", "focus_ids", "next_focus_ids", "overlay",
     })
     if view["schema"] != SCHEMA or type(view["ordinal"]) is not int or not 1 <= view["ordinal"] <= 3:
         raise ValueError("network view identity is invalid")
@@ -89,11 +89,15 @@ def normalize_network_view(value: object) -> dict[str, Any]:
     selected_omitted = {"buses": _count(omitted["buses"]),
                         "branches": _count(omitted["branches"])}
     known_ids = bus_ids | branch_ids
-    focus = view["focus_ids"]
-    if (not isinstance(focus, list) or len(focus) > 20
-            or any(not isinstance(item, str) or item not in known_ids for item in focus)
-            or len(focus) != len(set(focus))):
-        raise ValueError("network focus IDs are invalid")
+    def checked_focus(raw: object) -> list[str]:
+        if (not isinstance(raw, list) or len(raw) > 20
+                or any(not isinstance(item, str) or item not in known_ids for item in raw)
+                or len(raw) != len(set(raw))):
+            raise ValueError("network focus IDs are invalid")
+        return list(raw)
+
+    focus = checked_focus(view["focus_ids"])
+    next_focus = checked_focus(view["next_focus_ids"])
 
     overlay = None
     if view["overlay"] is not None:
@@ -124,7 +128,7 @@ def normalize_network_view(value: object) -> dict[str, Any]:
         "schema": SCHEMA, "ordinal": view["ordinal"], "model": selected_model,
         "coordinate_status": view["coordinate_status"],
         "buses": buses, "branches": branches, "omitted": selected_omitted,
-        "focus_ids": list(focus), "overlay": overlay,
+        "focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay,
     }
     if len(json.dumps(normalized, ensure_ascii=False, allow_nan=False).encode("utf-8")) > MAX_NETWORK_VIEW_BYTES:
         raise ValueError("network view exceeds size limit")

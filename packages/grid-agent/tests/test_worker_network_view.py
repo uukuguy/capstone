@@ -29,6 +29,7 @@ def test_grid_view_uses_registered_dataset_endpoints_and_step_focus() -> None:
     assert view["branches"][0]["from_bus"] == "0"
     assert view["branches"][0]["to_bus"] == "1"
     assert view["focus_ids"] == ["line:11"]
+    assert view["next_focus_ids"] == []
     assert view["overlay"] is None
     assert [item[1]["dataset"] for item in executor.calls] == [
         "network.buses", "network.branches",
@@ -53,3 +54,9 @@ def test_grid_view_colors_only_ranked_lines_from_current_committed_result() -> N
     stale = build_grid_network_view(NetworkExecutor(), "context:one", 3,
                                    "pandapower-scripted-task", (), (rank,))
     assert stale["overlay"] is None
+
+
+def test_grid_view_anticipates_registered_line_target_only_when_visible() -> None:
+    view = build_grid_network_view(NetworkExecutor(), "context:one", 1,
+                                   "pandapower-scripted-test", (), ())
+    assert view["next_focus_ids"] == []
