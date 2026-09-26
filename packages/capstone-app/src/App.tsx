@@ -114,8 +114,8 @@ function CapstoneIntro() {
               <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
             </div>
           </div>
+          <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
         </div>
-        <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
       </div>
       <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
     </section>
@@ -189,13 +189,13 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
       </div>}
     <div className="run-action-bar">
       {!status && <><div><strong>准备开始</strong><span>执行首条指令，或自动完成全部指令。</span></div>
-        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button>
-          <button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button></div></>}
+        <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
         <span>{automatic ? '自动执行会等待本轮回答后继续。' : '可逐步提交，或由系统自动完成剩余步骤。'}</span></div>
-        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button>
-          <button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button></div>}</>}
+        {!automatic && <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button></div>}</>}
       {status?.state === 'executing' && <div className="working-line"><span className="spinner" />{progress || '正在执行当前指令…'}</div>}
       {status?.state === 'ready' && next > caseCard.instructions.length && <><div><strong>全部指令已完成</strong>
         <span>结束本轮后生成最终结果与报告。</span></div>

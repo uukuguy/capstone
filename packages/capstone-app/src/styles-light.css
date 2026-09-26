@@ -78,12 +78,11 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   outline: 1px solid #dbe6e1; outline-offset: -1px; }
 .capstone-intro-art img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1;
   object-fit: contain; mix-blend-mode: multiply; }
-.capstone-intro-overlay { position: absolute; inset: 0 auto 0 0; width: 59%; padding: clamp(17px, 2.6vw, 31px);
-  padding-bottom: clamp(42px, 4vw, 52px);
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+.capstone-intro-overlay { position: absolute; inset: 0 auto 0 0; width: 59%;
+  padding: clamp(18px, 2.3vw, 27px); padding-bottom: clamp(15px, 1.8vw, 22px);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; justify-items: start;
   background: linear-gradient(90deg, #eef3f1f2 0%, #eef3f1d1 65%, #eef3f100 100%); }
-.capstone-intro-main { display: flex; flex-direction: column; align-items: flex-start;
-  transform: translateY(9px); }
+.capstone-intro-main { display: flex; flex-direction: column; align-items: flex-start; }
 .capstone-intro-kicker { color: #376e69; font-size: 11px; font-weight: 700;
   letter-spacing: .01em; margin-bottom: 19px; }
 .capstone-intro-kicker span { color: #62817a; font-size: 10px; letter-spacing: .03em; }
@@ -96,7 +95,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   padding-left: 11px; color: #637b76; font-size: clamp(10px, .95vw, 12px); line-height: 1.35; }
 .capstone-intro-disciplines span { display: flex; align-items: baseline; gap: 8px; }
 .capstone-intro-disciplines b { color: #356b63; font-weight: 700; min-width: 4.9em; }
-.capstone-intro-principles { position: absolute; bottom: 14px; left: clamp(17px, 2.6vw, 31px);
+.capstone-intro-principles { grid-row: 3;
   color: #527f78; font: 700 9px "SFMono-Regular", Consolas, monospace;
   letter-spacing: .12em; pointer-events: none; }
 .capstone-intro > p { margin: 0; padding: 16px 2px 0; border-top: 1px solid #d4e2db; color: #4e6668;
@@ -253,29 +252,28 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 @media (max-width: 1320px) {
   .workspace-center { --content-gutter: 30px; }
-  .capstone-intro-main { transform: translateY(0); }
 }
 
 @media (max-width: 680px) {
   .app-shell { zoom: 1; }
   .intro-breadcrumb, .capstone-intro { width: calc(100% - 34px); }
   .capstone-intro-art img { height: 210px; aspect-ratio: auto; object-fit: cover; object-position: 58% center; }
-  .capstone-intro-overlay { width: 77%; padding: 15px 16px 27px; }
-  .capstone-intro-main { transform: translateY(5px); }
+  .capstone-intro-overlay { width: 77%; padding: 13px 16px 10px; }
   .capstone-intro-kicker { font-size: 8px; margin-bottom: 7px; }
   .capstone-intro-kicker span { font-size: 7px; letter-spacing: .02em; }
   .capstone-intro-overlay strong { font-size: 17px; margin-bottom: 8px; }
   .capstone-intro-frameworks { margin-bottom: 9px; }
   .capstone-intro-frameworks span { font-size: 9px; padding: 4px 6px; }
   .capstone-intro-disciplines { font-size: 10px; gap: 2px; padding-left: 8px; }
-  .capstone-intro-principles { font-size: 8px; left: 16px; bottom: 7px; }
+  .capstone-intro-principles { font-size: 8px; }
   .capstone-intro > p { padding: 15px 17px 17px; font-size: 13px; }
   .run-panel { padding-left: 17px; padding-right: 17px; }
   .network-head { padding: 18px 17px 12px; }
   .network-head-context { flex-direction: column; align-items: flex-end; }
   .network-meta { padding: 0 17px 12px; flex-wrap: wrap; }
   .network-toolbar { flex-wrap: wrap; padding: 7px; }
-  .network-toolbar button { font-size: 12px; }
+  .network-toolbar button { min-height: 44px; font-size: 12px; }
+  .project-link, .detail-tabs button, .timeline-reset { min-height: 44px; }
   .network-canvas-frame svg { height: 310px; }
   .network-footer { padding: 13px 15px; }
   .action-buttons { width: 100%; flex-wrap: wrap; }

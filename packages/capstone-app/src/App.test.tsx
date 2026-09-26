@@ -323,7 +323,7 @@ describe('operator workflow', () => {
     const manual = screen.getByRole('button', { name: '执行指令 1' })
     expect(automatic.className).toContain('primary-button')
     expect(manual.className).toContain('secondary-button')
-    expect(manual.compareDocumentPosition(automatic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(automatic.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(
