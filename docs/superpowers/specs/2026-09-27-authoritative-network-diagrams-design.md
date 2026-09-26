@@ -3,8 +3,9 @@
 ## Decision and scope
 
 Replace the current operator network preview for the five registered three-step
-cases with one persistent diagram per case. A step changes task focus and an
-admitted numerical overlay; it does not replace or hide the case's network.
+cases with one persistent diagram for each case's latest run. A step changes
+task focus and an admitted numerical overlay; it does not replace or hide the
+case's network.
 Keep the existing run controls and the light operator workspace. The diagram
 uses a white canvas and engineering-oriented symbols and legend.
 
@@ -73,6 +74,17 @@ as if they belonged to the new step. Selecting a historical step restores
 only that step's admitted layer. Reconnect/replay reconstructs the same base
 diagram and selected layer from durable session events.
 
+The App keeps the latest session ID and view state separately for each case
+during the connected browser tab. A case switch is always available, including
+while a turn runs. Switching does not create a new session, erase committed
+answers, stop an in-flight authority task, or cancel an already started
+automatic sequence. On return, the App refreshes that case's status and
+replays missed events from its session; the server remains authoritative for
+accepted and completed turns. It restores that case's selected step, detail
+tab, and diagram camera. Starting a new run is an explicit action that
+replaces only the selected case's latest session. Disconnecting stops local
+automatic advancement; accepted server work retains its normal state.
+
 ## Rendering and interaction
 
 For SciGRID, plot every bus and branch at its model `x`/`y` coordinates with
@@ -95,6 +107,12 @@ elements without admitted values remain neutral. Tooltip/detail text gives
 the exact authority value and result reference. Avoid unexplained traffic-light
 thresholds.
 
+The number and heading of each completed timeline step form one selectable,
+keyboard-accessible control with a clear selected state; evidence buttons in
+the answer remain separate controls. Choosing a step identifies its committed
+answer and admitted diagram layer, even after later steps finish. A visible
+"latest step" action returns to the current run view.
+
 Pan, wheel/button zoom, fit to whole model, fit to current task, keyboard
 navigation, and focus on selecting a timeline step remain available. A new
 step may move the camera once to its known target and nearby network context.
@@ -113,8 +131,10 @@ Existing stdout JSON and current-run evidence contracts remain unchanged.
 
 Focused tests cover complete SciGRID and IEEE-39 component counts and
 coordinates, projection bounds/validation, revision and evidence gating,
-diagram persistence across non-grid steps and replay, correct component
-legend, value coverage, task focus, and diagram controls. Verify the rendered
+diagram persistence across non-grid steps and replay, clickable historical
+steps, per-case latest-session restoration while a run is active, independent
+case state, correct component legend, value coverage, task focus, and diagram
+controls. Verify the rendered
 SciGRID and IEEE-39 cases in the local App, including a step with no new
 network values. Run the smallest focused tests first, then the repository's
 supported gates when needed for this behavior change. Do not run the billed
