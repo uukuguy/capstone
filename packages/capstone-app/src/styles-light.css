@@ -80,8 +80,11 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   padding-bottom: clamp(42px, 4vw, 52px);
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
   background: linear-gradient(90deg, #eef3f1f2 0%, #eef3f1d1 65%, #eef3f100 100%); }
+.capstone-intro-main { display: flex; flex-direction: column; align-items: flex-start;
+  transform: translateY(34px); }
 .capstone-intro-kicker { color: #376e69; font-size: 11px; font-weight: 700;
   letter-spacing: .01em; margin-bottom: 12px; }
+.capstone-intro-kicker span { color: #62817a; font-size: 10px; letter-spacing: .03em; }
 .capstone-intro-overlay strong { color: #173b3c; font-size: clamp(19px, 2vw, 29px);
   line-height: 1.22; letter-spacing: -.04em; margin-bottom: 15px; }
 .capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
@@ -142,6 +145,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .spinner { border-color: #b9dace; border-top-color: #177e6f; }
 .run-action-bar { background: #fff; border-color: #c6dbd1; border-radius: 5px;
   box-shadow: 0 6px 20px #31574714; }
+.auto-pause-notice { margin-top: 18px; padding: 10px 13px; border-left: 2px solid #73a99a;
+  background: #e7f1ec; color: #365f58; font-size: 13px; line-height: 1.55; }
+.auto-pause-notice + .run-action-bar { margin-top: 10px; }
 .run-action-bar strong { color: #254144; font-size: 15px; }
 .run-action-bar span:not(.spinner) { color: #627875; font-size: 13px; }
 .run-action-bar .primary-button span { font-size: 17px; }
@@ -252,7 +258,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .intro-breadcrumb, .capstone-intro { width: calc(100% - 34px); }
   .capstone-intro-art img { height: 210px; aspect-ratio: auto; object-fit: cover; object-position: 58% center; }
   .capstone-intro-overlay { width: 77%; padding: 15px 16px 27px; }
+  .capstone-intro-main { transform: translateY(5px); }
   .capstone-intro-kicker { font-size: 8px; margin-bottom: 7px; }
+  .capstone-intro-kicker span { font-size: 7px; letter-spacing: .02em; }
   .capstone-intro-overlay strong { font-size: 17px; margin-bottom: 8px; }
   .capstone-intro-frameworks { margin-bottom: 9px; }
   .capstone-intro-frameworks span { font-size: 9px; padding: 4px 6px; }

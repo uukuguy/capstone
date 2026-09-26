@@ -195,7 +195,9 @@ def main(
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False)
             else:
-                serve_forever(ledger, selected_registry, artifacts)
+                serve_forever(ledger, selected_registry, artifacts,
+                              idle_seconds=settings.session_idle_seconds,
+                              max_sessions=settings.worker_max_sessions)
     except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
         print(f"capstone-agent error: {type(exc).__name__}", file=errors, flush=True)
         return 1

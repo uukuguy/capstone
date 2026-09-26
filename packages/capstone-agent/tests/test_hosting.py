@@ -25,8 +25,30 @@ def test_host_settings_require_explicit_cross_platform_bindings() -> None:
     assert settings.allowed_origins == {
         "http://localhost:5173", "https://app.example.com",
     }
+    assert settings.session_idle_seconds == 600
+    assert settings.worker_max_sessions == 8
     assert "password" not in repr(settings)
     assert "top-secret-token" not in repr(settings)
+
+
+def test_host_settings_validate_configurable_session_idle_timeout() -> None:
+    env = _env()
+    env["CAPSTONE_SESSION_IDLE_SECONDS"] = "900"
+    assert load_host_settings(env).session_idle_seconds == 900
+    for invalid in ("0", "59", "not-a-number"):
+        env["CAPSTONE_SESSION_IDLE_SECONDS"] = invalid
+        with pytest.raises(ValueError, match="CAPSTONE_SESSION_IDLE_SECONDS"):
+            load_host_settings(env)
+
+
+def test_host_settings_validate_worker_capacity() -> None:
+    env = _env()
+    env["CAPSTONE_WORKER_MAX_SESSIONS"] = "12"
+    assert load_host_settings(env).worker_max_sessions == 12
+    for invalid in ("0", "65", "not-a-number"):
+        env["CAPSTONE_WORKER_MAX_SESSIONS"] = invalid
+        with pytest.raises(ValueError, match="CAPSTONE_WORKER_MAX_SESSIONS"):
+            load_host_settings(env)
 
 
 def test_host_settings_accept_operator_secret_file(tmp_path) -> None:

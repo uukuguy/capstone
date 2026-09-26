@@ -136,7 +136,8 @@ def create_host_app(
             raise HTTPException(503, "case diagram is unavailable") from None
 
     @app.post("/api/v1/sessions", status_code=201)
-    def create_session(values: _CreateSession, request: Request):
+    def create_session(values: _CreateSession, request: Request,
+                       idempotency_key: Annotated[str | None, Header(max_length=200)] = None):
         if request.state.public_demo and values.mode != "scripted-demo":
             raise HTTPException(403, "public demo only accepts registered cases")
         try:
@@ -148,8 +149,12 @@ def create_host_app(
                           provider=values.provider, model=values.model)
         except ValueError:
             raise HTTPException(422, "application mode or case is invalid") from None
-        record = ledger.create_session(values.application_id, values.mode, values.case_id,
-                                       values.provider, values.model)
+        try:
+            record = ledger.create_session(values.application_id, values.mode, values.case_id,
+                                           values.provider, values.model,
+                                           idempotency_key=idempotency_key)
+        except Conflict:
+            raise HTTPException(409, "session key belongs to another request") from None
         return {"session_id": record.session_id, "run_id": None,
                 "application_id": record.application_id, "state": "pending"}
 

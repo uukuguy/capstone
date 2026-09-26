@@ -32,6 +32,17 @@ from its last event sequence when a connection ends. A worker replacement can
 interrupt an in-flight turn after its lease expires, while committed answers
 remain readable. Cloud Run worker pools do not autoscale; scale them explicitly
 after measuring load.
+The worker's `CAPSTONE_SESSION_IDLE_SECONDS=600` releases a session after ten
+minutes waiting for the next instruction. It does not interrupt a running turn
+or report. An expired session keeps its committed answers but cannot resume;
+the visitor can reset the case and start a new run.
+Each worker pool instance starts with `CAPSTONE_WORKER_MAX_SESSIONS=8`; tune this
+against measured memory, then add worker pool instances for aggregate capacity.
+The deployment template accepts `CAPSTONE_WORKER_INSTANCES` and
+`CAPSTONE_WORKER_MAX_SESSIONS` as optional shell settings for these two limits.
+When a worker is full and another session has waited one second, the shared
+ledger reserves the globally longest idle session for eviction after a
+30-second grace period. Active turns are preserved.
 
 On Vercel, set the project root to `packages/capstone-app`, use the checked-in
 `vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
@@ -40,7 +51,8 @@ bucket credentials must stay out of Vercel build variables.
 
 The deployment template enables `CAPSTONE_PUBLIC_DEMO=true` on the API. Visitors
 enter the App automatically with a scoped demonstration credential and can run
-registered scripted cases. Provider sessions still require the separate operator token.
+registered scripted cases. Refresh restores the current tab's last run without
+creating another session. Provider sessions still require the separate operator token.
 
 References: [Cloud Run worker pools](https://docs.cloud.google.com/run/docs/deploy-worker-pools),
 [Cloud Run service health checks](https://docs.cloud.google.com/run/docs/configuring/healthchecks),

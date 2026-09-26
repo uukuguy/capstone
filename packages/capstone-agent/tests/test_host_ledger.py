@@ -51,6 +51,19 @@ def test_session_turn_idempotency_and_cross_connection_reads(ledger: Ledger) -> 
     assert ledger.accept_turn(session.session_id, "second instruction", "retry-key-2").ordinal == 2
 
 
+def test_session_creation_idempotency_reuses_run_and_rejects_different_case(ledger: Ledger) -> None:
+    first = ledger.create_session("fixture-app", "scripted-demo", "case-one", None, None,
+                                  idempotency_key="browser-tab-case-key")
+    repeated = Ledger(ledger.dsn).create_session(
+        "fixture-app", "scripted-demo", "case-one", None, None,
+        idempotency_key="browser-tab-case-key",
+    )
+    assert repeated.session_id == first.session_id
+    with pytest.raises(Conflict):
+        ledger.create_session("fixture-app", "scripted-demo", "case-two", None, None,
+                              idempotency_key="browser-tab-case-key")
+
+
 def test_stale_lease_interrupts_without_discarding_committed_events(ledger: Ledger) -> None:
     session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
     lease = ledger.claim_pending("worker-one", 30)
@@ -63,3 +76,60 @@ def test_stale_lease_interrupts_without_discarding_committed_events(ledger: Ledg
     assert ledger.events_after(session.session_id, 0)[0].kind == "ready"
     with pytest.raises(Conflict):
         ledger.accept_turn(session.session_id, "late turn", "late-key")
+
+
+def test_idle_timeout_interrupts_only_ready_session_without_pending_command(ledger: Ledger) -> None:
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("worker-one", 30)
+    assert claim is not None and claim.lease_token is not None
+    assert not ledger.mark_interrupted_idle(session.session_id, claim.lease_token)
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-idle"}))
+    ledger.accept_turn(session.session_id, "first instruction", "key-1")
+    assert not ledger.mark_interrupted_idle(session.session_id, claim.lease_token)
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 2, "answer_committed", {
+                            "ordinal": 1, "turn_id": "turn-one", "answer_output": "done",
+                            "answer_ref": "answer:one", "result_refs": [], "evidence_refs": [],
+                        }))
+    assert ledger.mark_interrupted_idle(session.session_id, claim.lease_token)
+    result = ledger.get_session(session.session_id)
+    assert result is not None
+    assert result.state == "interrupted"
+    assert result.error_code == "session_idle_timeout"
+    assert result.completed_turns == 1
+    assert [event.kind for event in ledger.events_after(session.session_id, 0)] == [
+        "ready", "answer_committed",
+    ]
+    with pytest.raises(Conflict):
+        ledger.accept_turn(session.session_id, "late instruction", "key-2")
+
+
+def test_capacity_eviction_selects_longest_idle_ready_session(ledger: Ledger) -> None:
+    first = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    second = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    first_claim = ledger.claim_pending("worker-one", 30)
+    second_claim = ledger.claim_pending("worker-one", 30)
+    assert first_claim is not None and first_claim.lease_token is not None
+    assert second_claim is not None and second_claim.lease_token is not None
+    ledger.append_event(first.session_id, first_claim.lease_token,
+                        Frame(first.session_id, 1, "ready", {"run_id": "run-first"}))
+    ledger.append_event(second.session_id, second_claim.lease_token,
+                        Frame(second.session_id, 1, "ready", {"run_id": "run-second"}))
+    ledger.accept_turn(first.session_id, "first instruction", "key-1")
+    ledger.append_event(first.session_id, first_claim.lease_token,
+                        Frame(first.session_id, 2, "answer_committed", {
+                            "ordinal": 1, "turn_id": "turn-first", "answer_output": "done",
+                            "answer_ref": "answer:first", "result_refs": [], "evidence_refs": [],
+                        }))
+    assert Ledger(ledger.dsn).evict_oldest_idle(minimum_idle_seconds=0,
+                                                minimum_wait_seconds=0) is None
+    waiting = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    assert ledger.evict_oldest_idle(minimum_wait_seconds=0) is None
+    assert ledger.evict_oldest_idle(minimum_idle_seconds=0,
+                                    minimum_wait_seconds=0) == second.session_id
+    assert ledger.get_session(second.session_id).error_code == "session_capacity_evicted"
+    assert ledger.get_session(first.session_id).completed_turns == 1
+    assert ledger.get_session(waiting.session_id).state == "pending"
+    assert Ledger(ledger.dsn).evict_oldest_idle(minimum_idle_seconds=0,
+                                                minimum_wait_seconds=0) is None

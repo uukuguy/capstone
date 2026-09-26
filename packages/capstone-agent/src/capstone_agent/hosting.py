@@ -28,6 +28,8 @@ class HostSettings:
     bind_host: str
     runs_root: Path
     public_demo: bool
+    session_idle_seconds: int
+    worker_max_sessions: int
 
 
 def _origin(value: str) -> bool:
@@ -61,6 +63,18 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     demo_setting = environment.get("CAPSTONE_PUBLIC_DEMO", "false").lower()
     if demo_setting not in {"true", "false"}:
         raise ValueError("CAPSTONE_PUBLIC_DEMO is invalid")
+    try:
+        session_idle_seconds = int(environment.get("CAPSTONE_SESSION_IDLE_SECONDS", "600"))
+    except ValueError:
+        raise ValueError("CAPSTONE_SESSION_IDLE_SECONDS is invalid") from None
+    if not 60 <= session_idle_seconds <= 86400:
+        raise ValueError("CAPSTONE_SESSION_IDLE_SECONDS is invalid")
+    try:
+        worker_max_sessions = int(environment.get("CAPSTONE_WORKER_MAX_SESSIONS", "8"))
+    except ValueError:
+        raise ValueError("CAPSTONE_WORKER_MAX_SESSIONS is invalid") from None
+    if not 1 <= worker_max_sessions <= 64:
+        raise ValueError("CAPSTONE_WORKER_MAX_SESSIONS is invalid")
     if not database_url.startswith(("postgresql://", "postgres://")):
         raise ValueError("DATABASE_URL is invalid")
     if len(token) < 8:
@@ -78,7 +92,8 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     default_runs = Path(__file__).resolve().parents[4] / "runs" / "capstone-agent"
     runs_root = Path(environment.get("CAPSTONE_RUNS_ROOT", str(default_runs)))
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
-                        endpoint, port, bind_host, runs_root, demo_setting == "true")
+                        endpoint, port, bind_host, runs_root, demo_setting == "true",
+                        session_idle_seconds, worker_max_sessions)
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

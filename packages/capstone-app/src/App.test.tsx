@@ -5,7 +5,7 @@ import type { CapstoneClient } from './api'
 import type { Catalog, SessionEvent } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); sessionStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
   new Response(JSON.stringify({ token: 'public-demo-token-with-enough-length' })),
 ))))
@@ -70,7 +70,7 @@ describe('operator workflow', () => {
   })
 
   it('opens the demo workspace again after a page reload', async () => {
-    const { client } = mockClient()
+    const { client, createSession } = mockClient()
     const factory = vi.fn(() => client)
     const first = render(<App clientFactory={factory} />)
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
@@ -79,6 +79,31 @@ describe('operator workflow', () => {
     expect(screen.queryByLabelText('访问凭证')).toBeNull()
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     expect(factory).toHaveBeenCalledTimes(2)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('restores an existing run after reload without creating another session', async () => {
+    const sessionId = 'session-0123456789abcdef01234567'
+    const { client, submitTurn } = mockClient()
+    const createSession = vi.fn().mockResolvedValue({ session_id: sessionId, run_id: null,
+      application_id: 'pypsa-business-cases', state: 'pending' })
+    const status = vi.fn().mockResolvedValue({ session_id: sessionId, run_id: 'run-one',
+      application_id: 'pypsa-business-cases', state: 'ready', error_code: null,
+      accepted_turns: 1, completed_turns: 1 })
+    Object.assign(client, { createSession, status,
+      events: async function* (_id: string, _after: number, signal: AbortSignal) {
+        await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+      },
+    })
+    const first = render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
+    await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
+    first.unmount()
+    render(<App clientFactory={() => client} />)
+    expect(await screen.findByRole('button', { name: '执行指令 2' })).toBeTruthy()
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(status).toHaveBeenCalledWith(sessionId)
   })
 
   it('opens the demo workspace on the first navigation', async () => {
@@ -271,7 +296,7 @@ describe('operator workflow', () => {
     expect(createSession).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledWith(
-      'pypsa-business-cases', 'regional-demand-stress',
+      'pypsa-business-cases', 'regional-demand-stress', expect.any(String),
     ))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(
       'session-one', '打开模型。', expect.any(String),
@@ -287,7 +312,7 @@ describe('operator workflow', () => {
     expect(screen.getByText('pandapower')).toBeTruthy()
     expect(screen.getByText('PyPSA')).toBeTruthy()
     expect(screen.getByText(/CAPSTONE 为电力科学AI提供应用底座/)).toBeTruthy()
-    expect(screen.getByText('电力科学AI')).toBeTruthy()
+    expect(screen.getByText(/SCIENTIFIC AI FOR THE GRID/)).toBeTruthy()
     expect(screen.getByText(/DeepONet.*FNO/)).toBeTruthy()
     expect(screen.getByText(/Neural-DAE.*Koopman/)).toBeTruthy()
     expect(screen.getByText(/GraphGPS.*PI-GNN/)).toBeTruthy()
@@ -295,7 +320,7 @@ describe('operator workflow', () => {
     const manual = screen.getByRole('button', { name: '执行指令 1' })
     expect(automatic.className).toContain('primary-button')
     expect(manual.className).toContain('secondary-button')
-    expect(automatic.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(manual.compareDocumentPosition(automatic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(
@@ -303,6 +328,76 @@ describe('operator workflow', () => {
     ))
     fireEvent.click(screen.getByRole('button', { name: '停止自动执行' }))
     expect(screen.queryByRole('button', { name: '停止自动执行' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('后续不会自动提交')
+  })
+
+  it('keeps the accepted instruction running after stop without submitting the next one', async () => {
+    let releaseAnswer: (() => void) | undefined
+    const answerReady = new Promise<void>((resolve) => { releaseAnswer = resolve })
+    let accepted = 0
+    let completed = 0
+    const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one', sequence: 1,
+        event: 'ready', payload: { run_id: 'run-one' } }
+      await answerReady
+      completed = 1
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one', sequence: 2,
+        event: 'answer_committed', payload: { ordinal: 1, turn_id: 'turn-one',
+          answer_output: '第一步完成。', answer_ref: 'answer:1', result_refs: [], evidence_refs: [] } }
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one', sequence: 3,
+        event: 'network_view_unavailable', payload: { ordinal: 1 } }
+      await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+    }
+    const { client } = mockClient(flow)
+    const submitTurn = vi.fn().mockImplementation(async () => { accepted += 1 })
+    Object.assign(client, { submitTurn,
+      status: vi.fn().mockImplementation(async () => ({
+        session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
+        state: accepted > completed ? 'executing' : 'ready', error_code: null,
+        accepted_turns: accepted, completed_turns: completed,
+      })),
+    })
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
+    await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
+    await screen.findByText('正在执行当前指令…')
+    fireEvent.click(screen.getByRole('button', { name: '停止自动执行' }))
+    expect(screen.getByRole('status').textContent).toContain('当前指令仍会完成')
+    releaseAnswer?.()
+    expect(await screen.findByRole('button', { name: '执行指令 2' })).toBeTruthy()
+    expect(submitTurn).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status').textContent).toContain('后续不会自动提交')
+  })
+
+  it('explains an idle session timeout while preserving the completed steps', async () => {
+    const { client } = mockClient()
+    Object.assign(client, { status: vi.fn().mockResolvedValue({
+      session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
+      state: 'interrupted', error_code: 'session_idle_timeout',
+      accepted_turns: 1, completed_turns: 1,
+    }) })
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
+    expect((await screen.findAllByText('会话已超时')).length).toBe(2)
+    expect(screen.getByText(/已完成步骤仍可回看/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重置案例' })).toBeTruthy()
+  })
+
+  it('explains capacity eviction and offers a fresh run', async () => {
+    const { client } = mockClient()
+    Object.assign(client, { status: vi.fn().mockResolvedValue({
+      session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
+      state: 'interrupted', error_code: 'session_capacity_evicted',
+      accepted_turns: 0, completed_turns: 0,
+    }) })
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
+    expect((await screen.findAllByText('空闲会话已让位')).length).toBe(2)
+    expect(screen.getByText(/有新分析需要运行/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重置案例' })).toBeTruthy()
   })
 
   it('offers only report generation after all steps are complete', async () => {

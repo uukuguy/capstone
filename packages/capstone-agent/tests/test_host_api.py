@@ -101,6 +101,17 @@ def test_host_api_reads_completed_run_across_instances(ledger: Ledger, tmp_path:
                           params={"ref": "evidence:foreign"}).status_code == 404
 
 
+def test_create_session_retry_returns_existing_session(ledger: Ledger, tmp_path: Path) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    headers = {"Authorization": "Bearer hosted-secret", "Idempotency-Key": "browser-run-one"}
+    values = {"application_id": "fixture-app", "mode": "scripted-demo"}
+    with TestClient(_app(ledger, registry), base_url="http://localhost") as client:
+        first = client.post("/api/v1/sessions", headers=headers, json=values)
+        second = client.post("/api/v1/sessions", headers=headers, json=values)
+        assert first.status_code == second.status_code == 201
+        assert first.json()["session_id"] == second.json()["session_id"]
+
+
 def test_host_api_requires_token_and_explicit_origin(ledger: Ledger, tmp_path: Path) -> None:
     registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
     with TestClient(_app(ledger, registry), base_url="http://localhost") as client:

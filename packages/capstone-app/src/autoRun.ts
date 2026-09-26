@@ -15,7 +15,7 @@ export function nextAutomaticAction(status: SessionStatus | null, count: number)
 }
 
 type AutomaticClient = {
-  createSession: (applicationId: string, caseId: string) => Promise<CreatedSession>
+  createSession: (applicationId: string, caseId: string, key?: string) => Promise<CreatedSession>
   status: (sessionId: string) => Promise<SessionStatus>
   submitTurn: (sessionId: string, instruction: string, key: string) => Promise<unknown>
   close: (sessionId: string, key: string) => Promise<unknown>
@@ -42,11 +42,12 @@ export async function runAutomaticSession(
   onStatus: (status: SessionStatus) => void,
   wait: (signal: AbortSignal) => Promise<void> = waitForNextPoll,
   onStepCommitted: (sessionId: string, ordinal: number, signal: AbortSignal) => Promise<void> = async () => {},
+  createKey?: string,
 ): Promise<string> {
   let sessionId = initialSessionId
   let presentedTurns: number | null = initialSessionId ? null : 0
   if (!sessionId) {
-    const created = await client.createSession(applicationId, caseId)
+    const created = await client.createSession(applicationId, caseId, createKey)
     sessionId = created.session_id
     onCreated(created)
   }

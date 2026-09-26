@@ -84,10 +84,12 @@ export class CapstoneClient {
     return this.json(`/api/v1/cases/${encodeURIComponent(applicationId)}/${encodeURIComponent(caseId)}/diagram`)
   }
 
-  createSession(applicationId: string, caseId: string): Promise<CreatedSession> {
+  createSession(applicationId: string, caseId: string,
+                key?: string): Promise<CreatedSession> {
     return this.json('/api/v1/sessions', {
       method: 'POST',
       body: JSON.stringify({ application_id: applicationId, mode: 'scripted-demo', case_id: caseId }),
+      headers: key ? { 'Idempotency-Key': key } : undefined,
     })
   }
 

@@ -29,6 +29,17 @@ describe('CapstoneClient', () => {
     }
   })
 
+  it('sends the creation key when opening a demo run', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      session_id: 'session-0123456789abcdef01234567', run_id: null,
+      application_id: 'pypsa-business-cases', state: 'pending',
+    }), { status: 201 }))
+    const client = new CapstoneClient('', 'demo-token', fetcher)
+    await client.createSession('pypsa-business-cases', 'regional-demand-stress', 'create-key')
+    expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>)['Idempotency-Key'])
+      .toBe('create-key')
+  })
+
   it('parses split SSE frames, skips keepalives, and ignores duplicate cursor IDs', async () => {
     const encoder = new TextEncoder()
     const stream = new ReadableStream<Uint8Array>({

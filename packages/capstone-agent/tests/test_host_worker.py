@@ -32,6 +32,7 @@ def _worker(tmp_path: Path) -> tuple[str, ...]:
     script.write_text('''
 import json
 import sys
+import time
 from pathlib import Path
 session = None
 sequence = 0
@@ -47,6 +48,8 @@ for line in sys.stdin:
     if frame["kind"] == "open":
         send("ready", {"run_id": "run-worker-test"})
     elif frame["kind"] == "turn":
+        if frame["payload"]["instruction"] == "slow":
+            time.sleep(0.35)
         turns.append(frame["payload"]["instruction"])
         send("answer_committed", {"ordinal": len(turns), "turn_id": f"turn-{len(turns)}",
              "answer_output": turns[-1].upper(), "answer_ref": f"answer:{len(turns)}",
@@ -120,6 +123,79 @@ def test_worker_loop_claims_new_sessions_and_stops_cleanly(
     stop.set()
     thread.join(timeout=5)
     assert not thread.is_alive()
+
+
+def test_idle_session_releases_worker_slot_for_waiting_session(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    artifacts = ArtifactService(ledger, MemoryObjectStore(), tmp_path / "runs")
+    stop = threading.Event()
+    thread = threading.Thread(target=serve_forever, args=(ledger, registry, artifacts),
+                              kwargs={"stop_event": stop, "poll_seconds": 0.01,
+                                      "max_sessions": 1, "idle_seconds": 0.2}, daemon=True)
+    first = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    thread.start()
+    try:
+        _wait(ledger, first.session_id, "interrupted")
+        assert ledger.get_session(first.session_id).error_code == "session_idle_timeout"
+        second = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+        _wait(ledger, second.session_id, "ready")
+        ledger.accept_close(second.session_id, "close-key")
+        _wait(ledger, second.session_id, "completed")
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def test_new_session_evicts_idle_session_when_worker_is_full(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    artifacts = ArtifactService(ledger, MemoryObjectStore(), tmp_path / "runs")
+    stop = threading.Event()
+    thread = threading.Thread(target=serve_forever, args=(ledger, registry, artifacts),
+                              kwargs={"stop_event": stop, "poll_seconds": 0.01,
+                                      "max_sessions": 1, "idle_seconds": 600,
+                                      "eviction_grace_seconds": 0,
+                                      "pending_grace_seconds": 0}, daemon=True)
+    first = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    thread.start()
+    try:
+        _wait(ledger, first.session_id, "ready")
+        waiting = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+        _wait(ledger, first.session_id, "interrupted")
+        assert ledger.get_session(first.session_id).error_code == "session_capacity_evicted"
+        _wait(ledger, waiting.session_id, "ready")
+        ledger.accept_close(waiting.session_id, "close-key")
+        _wait(ledger, waiting.session_id, "completed")
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def test_idle_timeout_does_not_interrupt_a_running_turn(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("worker-test", 30)
+    assert claim is not None
+    thread = threading.Thread(target=run_claimed_session, args=(ledger, registry, claim),
+                              kwargs={"poll_seconds": 0.01, "idle_seconds": 0.12}, daemon=True)
+    thread.start()
+    _wait(ledger, session.session_id, "ready")
+    ledger.accept_turn(session.session_id, "slow", "slow-key")
+    _wait(ledger, session.session_id, "executing")
+    time.sleep(0.2)
+    assert ledger.get_session(session.session_id).state == "executing"
+    _wait(ledger, session.session_id, "ready")
+    ledger.accept_close(session.session_id, "close-key")
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert ledger.get_session(session.session_id).state == "completed"
 
 
 def test_completed_state_publishes_report_after_artifact_is_stored(

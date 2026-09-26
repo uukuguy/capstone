@@ -167,6 +167,14 @@ class WorkerSession:
         finally:
             self._terminate_process()
 
+    def abort(self) -> None:
+        """Stop an idle or lease-lost worker without requesting a report."""
+        with self._condition:
+            self._failure = "worker session aborted"
+            self._failure_code = "worker_aborted"
+            self._condition.notify_all()
+        self._terminate_process()
+
     def _terminate_process(self) -> None:
         process = self._process
         if process is None:

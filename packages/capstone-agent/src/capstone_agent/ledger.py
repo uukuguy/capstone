@@ -82,8 +82,15 @@ CREATE TABLE IF NOT EXISTS sessions (
     error_code text,
     lease_token text,
     lease_deadline timestamptz,
+    create_key text,
+    create_hash text,
+    capacity_victim_id text,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS create_key text;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS create_hash text;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS capacity_victim_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS sessions_create_key_idx ON sessions(create_key);
 CREATE TABLE IF NOT EXISTS session_commands (
     command_id text PRIMARY KEY,
     session_id text NOT NULL REFERENCES sessions(session_id),
@@ -162,15 +169,30 @@ class Ledger:
     def create_session(
         self, application_id: str, mode: str, case_id: str | None,
         provider: str | None, model: str | None,
+        *, idempotency_key: str | None = None,
     ) -> SessionRecord:
+        if idempotency_key is not None and (not idempotency_key or len(idempotency_key) > 200):
+            raise ValueError("idempotency key is invalid")
+        request_hash = hashlib.sha256(repr((application_id, mode, case_id, provider, model))
+                                      .encode()).hexdigest()
         session_id = "session-" + secrets.token_hex(12)
         with self._connect() as connection:
             row = connection.execute(
-                """INSERT INTO sessions (session_id, application_id, mode, case_id, provider, model, state)
-                   VALUES (%s, %s, %s, %s, %s, %s, 'pending') RETURNING *""",
-                (session_id, application_id, mode, case_id, provider, model),
+                """INSERT INTO sessions
+                   (session_id, application_id, mode, case_id, provider, model,
+                    state, create_key, create_hash)
+                   VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+                   ON CONFLICT (create_key) DO NOTHING RETURNING *""",
+                (session_id, application_id, mode, case_id, provider, model,
+                 idempotency_key, request_hash),
             ).fetchone()
+            if row is None:
+                row = connection.execute(
+                    "SELECT * FROM sessions WHERE create_key = %s", (idempotency_key,),
+                ).fetchone()
         assert row is not None
+        if row["create_hash"] != request_hash:
+            raise Conflict("idempotency key has another session request")
         return _session(row)
 
     def get_session(self, session_id: str) -> SessionRecord | None:
@@ -220,6 +242,77 @@ class Ledger:
                 (moment,),
             )
             return cursor.rowcount
+
+    def mark_interrupted_idle(self, session_id: str, token: str) -> bool:
+        """Release an idle ready session only if no command was accepted meanwhile."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """UPDATE sessions AS current
+                   SET state = 'interrupted', error_code = 'session_idle_timeout',
+                       lease_token = NULL, lease_deadline = NULL
+                   WHERE current.session_id = %s AND current.lease_token = %s
+                   AND current.state = 'ready' AND NOT current.active_turn
+                   AND NOT EXISTS (
+                       SELECT 1 FROM session_commands AS command
+                       WHERE command.session_id = current.session_id AND command.state = 'pending'
+                   ) RETURNING current.session_id""",
+                (session_id, token),
+            ).fetchone()
+        return row is not None
+
+    def evict_oldest_idle(
+        self, *, minimum_idle_seconds: float = 30, minimum_wait_seconds: float = 1,
+    ) -> str | None:
+        """Reserve one globally oldest idle slot for one waiting session."""
+        if minimum_idle_seconds < 0 or minimum_wait_seconds < 0:
+            raise ValueError("minimum idle or waiting duration is invalid")
+        with self._connect() as connection:
+            waiting = connection.execute(
+                """SELECT session_id FROM sessions
+                   WHERE state = 'pending' AND lease_token IS NULL
+                   AND capacity_victim_id IS NULL
+                   AND created_at <= now() - (%s * interval '1 second')
+                   ORDER BY created_at, session_id
+                   LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                (minimum_wait_seconds,),
+            ).fetchone()
+            if waiting is None:
+                return None
+            victim = connection.execute(
+                """SELECT current.session_id FROM sessions AS current
+                   WHERE current.state = 'ready' AND NOT current.active_turn
+                   AND COALESCE((
+                       SELECT max(event.created_at) FROM session_events AS event
+                       WHERE event.session_id = current.session_id
+                       AND event.kind IN ('ready', 'answer_committed')
+                   ), current.created_at) <= now() - (%s * interval '1 second')
+                   AND NOT EXISTS (
+                       SELECT 1 FROM session_commands AS command
+                       WHERE command.session_id = current.session_id
+                       AND command.state = 'pending'
+                   )
+                   ORDER BY COALESCE((
+                       SELECT max(event.created_at) FROM session_events AS event
+                       WHERE event.session_id = current.session_id
+                       AND event.kind IN ('ready', 'answer_committed')
+                   ), current.created_at), current.session_id
+                   LIMIT 1 FOR UPDATE OF current SKIP LOCKED""",
+                (minimum_idle_seconds,),
+            ).fetchone()
+            if victim is None:
+                return None
+            connection.execute(
+                """UPDATE sessions SET state = 'interrupted',
+                   error_code = 'session_capacity_evicted',
+                   lease_token = NULL, lease_deadline = NULL
+                   WHERE session_id = %s""",
+                (victim["session_id"],),
+            )
+            connection.execute(
+                "UPDATE sessions SET capacity_victim_id = %s WHERE session_id = %s",
+                (victim["session_id"], waiting["session_id"]),
+            )
+            return victim["session_id"]
 
     def mark_failed(self, session_id: str, token: str, error_code: str) -> bool:
         with self._connect() as connection:

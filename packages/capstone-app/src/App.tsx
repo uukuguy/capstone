@@ -5,6 +5,8 @@ import { runAutomaticSession } from './autoRun'
 import { commandKey } from './commandKey'
 import { NetworkView } from './NetworkView'
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
+import { ensureCreateKey, forgetRun, readRun, readSelection,
+  rememberSelection, rememberSession } from './sessionMemory'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
   NetworkView as NetworkViewData, SessionStatus } from './types'
 
@@ -16,6 +18,17 @@ const defaultClientFactory = (token: string) => new CapstoneClient(import.meta.e
 const stateLabel: Record<SessionStatus['state'], string> = {
   pending: '等待工作进程', ready: '等待指令', executing: '分析中', closing: '整理结果中',
   completed: '已完成', failed: '运行失败', interrupted: '运行中断',
+}
+
+function statusText(status: SessionStatus | null): string {
+  if (!status) return '尚未开始'
+  if (status.error_code === 'session_idle_timeout') return '会话已超时'
+  if (status.error_code === 'session_capacity_evicted') return '空闲会话已让位'
+  return stateLabel[status.state]
+}
+
+function isTerminal(state: SessionStatus['state']): boolean {
+  return state === 'completed' || state === 'failed' || state === 'interrupted'
 }
 
 function Mark() {
@@ -82,29 +95,31 @@ function CapstoneIntro() {
       <div className="capstone-intro-art notranslate" translate="no">
         <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
         <div className="capstone-intro-overlay">
-          <span className="capstone-intro-kicker">电力科学AI</span>
-          <strong>从专业仿真<br />到智能推演</strong>
-          <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
-          <div className="capstone-intro-disciplines" aria-label="电力科学AI模型方向">
-            <span><b>神经算子</b>DeepONet · FNO</span>
-            <span><b>动力学模型</b>Neural-DAE · Koopman</span>
-            <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
+          <div className="capstone-intro-main">
+            <span className="capstone-intro-kicker">电网科学AI <span> / SCIENTIFIC AI FOR THE GRID</span></span>
+            <strong>从专业仿真<br />到智能推演</strong>
+            <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
+            <div className="capstone-intro-disciplines" aria-label="电网科学AI模型方向">
+              <span><b>神经算子</b>DeepONet · FNO</span>
+              <span><b>动力学模型</b>Neural-DAE · Koopman</span>
+              <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
+            </div>
           </div>
         </div>
         <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
       </div>
-      <p>CAPSTONE 为电力科学AI提供应用底座：把 pandapower、PyPSA 等专业框架封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
+      <p>CAPSTONE 为电力科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
     </section>
 }
 
-function RunPanel({ caseCard, status, turns, progress, actionPending, automatic, onStart,
+function RunPanel({ caseCard, status, turns, progress, actionPending, automatic, autoPaused, onStart,
                     onSubmit, onClose, onAuto, onRestart, onStopAuto, onEvidence,
                     networkView, previewDiagram, previewUnavailable,
                     networkFocusKey, networkUnavailable, nextNetworkTask,
                     selectedStep, onSelectStep, report, result }: {
   caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
-  automatic: boolean; onAuto: () => void; onRestart: () => void; onStopAuto: () => void;
+  automatic: boolean; autoPaused: boolean; onAuto: () => void; onRestart: () => void; onStopAuto: () => void;
   onStart: () => void; onSubmit: () => void; onClose: () => void;
   onEvidence: (ref: string) => void
   networkView: NetworkViewData | null; previewDiagram: NetworkDiagram | null;
@@ -157,15 +172,21 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         </li>
       })}
     </ol>
+    {autoPaused && status?.state !== 'completed' && status?.state !== 'failed' &&
+      status?.state !== 'interrupted' && <div className="auto-pause-notice" role="status">
+        {status && status.accepted_turns > status.completed_turns
+          ? '自动执行已停止；当前指令仍会完成，后续不会自动提交。'
+          : '自动执行已停止；后续不会自动提交，可手动继续或重新自动完成。'}
+      </div>}
     <div className="run-action-bar">
       {!status && <><div><strong>准备开始</strong><span>执行首条指令，或自动完成全部指令。</span></div>
-        <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
-          <button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button></div></>}
+        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button>
+          <button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
         <span>{automatic ? '自动执行会等待本轮回答后继续。' : '可逐步提交，或由系统自动完成剩余步骤。'}</span></div>
-        {!automatic && <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
-          <button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button></div>}</>}
+        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button>
+          <button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button></div>}</>}
       {status?.state === 'executing' && <div className="working-line"><span className="spinner" />{progress || '正在执行当前指令…'}</div>}
       {status?.state === 'ready' && next > caseCard.instructions.length && <><div><strong>全部指令已完成</strong>
         <span>结束本轮后生成最终结果与报告。</span></div>
@@ -173,8 +194,15 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
       {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
         <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
-      {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message"><strong>{stateLabel[status.state]}</strong><span>已提交的回答仍可查看。</span></div>}
-      {automatic && <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
+      {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message">
+        <strong>{statusText(status)}</strong><span>{status.error_code === 'session_idle_timeout'
+          ? '长时间未提交新指令，计算资源已释放；已完成步骤仍可回看。'
+          : status.error_code === 'session_capacity_evicted'
+            ? '有新分析需要运行，当前空闲会话已释放；已完成步骤仍可回看。'
+          : '已提交的回答仍可查看。'}</span></div>}
+      {automatic && status?.state !== 'closing' && status?.state !== 'completed' &&
+        status?.state !== 'failed' && status?.state !== 'interrupted' &&
+        <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
     {report && <section className="run-report" aria-label="本轮分析报告">
       <div className="timeline-heading"><div><span className="eyebrow">CURRENT RUN / REPORT</span><h2>本轮分析报告</h2></div></div>
@@ -214,7 +242,7 @@ function DetailPanel({ status, caseCard, turns, tab, onTab,
     </div>
     {tab === 'overview' && <div className="detail-body">
       <div className="status-card"><span className="detail-label">运行状态</span>
-        <strong>{status ? stateLabel[status.state] : '尚未开始'}</strong>
+        <strong>{statusText(status)}</strong>
         <div className="progress-track"><div style={{ width: `${((status?.completed_turns ?? 0) / caseCard.instructions.length) * 100}%` }} /></div>
         <span className="progress-caption">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 条指令</span></div>
       <div className="detail-metrics"><div><span>已提交回答</span><strong>{String(status?.completed_turns ?? 0).padStart(2, '0')}</strong></div>
@@ -256,14 +284,40 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [unavailableViews, setUnavailableViews] = useState<number[]>([])
   const [selectedStep, setSelectedStep] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
+  const [restoring, setRestoring] = useState(() =>
+    Boolean(readRun(app.application_id, caseCard.case_id)?.sessionId))
   const [error, setError] = useState<string | null>(null)
   const [automatic, setAutomatic] = useState(false)
+  const [autoPaused, setAutoPaused] = useState(false)
   const autoController = useRef<AbortController | null>(null)
   const automaticKeys = useRef(new Map<string, string>())
   const networkOutcomes = useRef(new Set<string>())
   const networkWaiters = useRef(new Map<string, () => void>())
 
   useEffect(() => () => autoController.current?.abort(), [])
+
+  useEffect(() => {
+    const previous = readRun(app.application_id, caseCard.case_id)
+    if (!previous?.sessionId) return
+    let cancelled = false
+    void client.status(previous.sessionId).then((current) => {
+      if (cancelled) return
+      if (current.application_id !== app.application_id) {
+        forgetRun(app.application_id, caseCard.case_id)
+        return
+      }
+      setSessionId(current.session_id)
+      setStatus(current)
+    }).catch((cause) => {
+      if (cancelled) return
+      if (cause instanceof ApiError && cause.status === 404) {
+        forgetRun(app.application_id, caseCard.case_id)
+      } else {
+        setError('恢复上次运行失败，请重试连接。')
+      }
+    }).finally(() => { if (!cancelled) setRestoring(false) })
+    return () => { cancelled = true }
+  }, [client, app.application_id, caseCard.case_id])
 
   useEffect(() => {
     if (!visible || previewDiagram) return
@@ -282,13 +336,18 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   }, [visible, previewDiagram, client, app.application_id, caseCard.case_id, onInvalidToken])
 
   function stopAutomatic() {
-    autoController.current?.abort()
+    if (autoController.current) {
+      autoController.current.abort()
+      setAutoPaused(true)
+    }
     autoController.current = null
     setAutomatic(false)
   }
 
-  function clearRun() {
+  function clearRun(forgetStored = true) {
     stopAutomatic()
+    setAutoPaused(false)
+    if (forgetStored) forgetRun(app.application_id, caseCard.case_id)
     networkOutcomes.current.clear()
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
@@ -336,17 +395,17 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
             if (controller.signal.aborted) return
             cursor = event.sequence
             if (event.event === 'ready') {
-              setStatus((before) => before && { ...before,
+              setStatus((before) => before && (isTerminal(before.state) ? before : { ...before,
                 state: before.accepted_turns > before.completed_turns ? before.state : 'ready',
-                run_id: typeof event.payload.run_id === 'string' ? event.payload.run_id : before.run_id })
+                run_id: typeof event.payload.run_id === 'string' ? event.payload.run_id : before.run_id }))
             } else if (event.event === 'progress') {
               setProgress(typeof event.payload.message === 'string' ? event.payload.message : null)
             } else if (event.event === 'answer_committed') {
               const answer = event.payload as CommittedTurn
               admittedByOrdinal.set(answer.ordinal, Array.isArray(answer.result_refs) ? answer.result_refs : [])
               setTurns((before) => ({ ...before, [answer.ordinal]: answer }))
-              setStatus((before) => before && { ...before, state: 'ready',
-                completed_turns: answer.ordinal, accepted_turns: answer.ordinal })
+              setStatus((before) => before && (isTerminal(before.state) ? before : { ...before, state: 'ready',
+                completed_turns: answer.ordinal, accepted_turns: answer.ordinal }))
               setProgress(null)
               setSelectedStep(null)
             } else if (event.event === 'network_view' || event.event === 'network_layer') {
@@ -392,7 +451,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         } catch (cause) {
           if (controller.signal.aborted) return
           if (cause instanceof ApiError && cause.status === 401) {
-            clearRun()
+            clearRun(false)
             onInvalidToken(cause.message)
             return
           }
@@ -406,10 +465,12 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   }, [client, sessionId])
 
   async function start() {
-    if (!client || !app || !caseCard) return
-    setPending(true); setError(null); clearRun()
+    if (!client || !app || !caseCard || restoring) return
+    setPending(true); setError(null); clearRun(false)
     try {
-      const created = await client.createSession(app.application_id, caseCard.case_id)
+      const createKey = ensureCreateKey(app.application_id, caseCard.case_id)
+      const created = await client.createSession(app.application_id, caseCard.case_id, createKey)
+      rememberSession(app.application_id, caseCard.case_id, createKey, created.session_id)
       setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
       setSessionId(created.session_id)
       let ready: SessionStatus | null = null
@@ -439,24 +500,30 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   }
 
   function startAutomatic() {
-    if (!client || !app || !caseCard || autoController.current) return
+    if (!client || !app || !caseCard || restoring || autoController.current) return
     const existingSessionId = sessionId
-    if (!existingSessionId) clearRun()
+    if (!existingSessionId) clearRun(false)
+    const creationKey = existingSessionId ? undefined :
+      ensureCreateKey(app.application_id, caseCard.case_id)
     const controller = new AbortController()
     autoController.current = controller
-    setAutomatic(true); setError(null)
+    setAutomatic(true); setAutoPaused(false); setError(null)
     void runAutomaticSession(
       client, app.application_id, caseCard.case_id,
       caseCard.instructions, existingSessionId, controller.signal, automaticKeys.current,
       (created) => {
+        if (creationKey) rememberSession(app.application_id, caseCard.case_id,
+                                         creationKey, created.session_id)
         setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
         setSessionId(created.session_id)
       },
       (current) => setStatus((before) => before && before.session_id === current.session_id &&
-        (before.completed_turns > current.completed_turns || before.accepted_turns > current.accepted_turns)
+        (isTerminal(before.state) || before.completed_turns > current.completed_turns ||
+          before.accepted_turns > current.accepted_turns)
         ? before : current),
       undefined,
       presentCommittedStep,
+      creationKey,
     ).then(async (sid) => {
       if (controller.signal.aborted || !autoController.current) return
       const current = await client.status(sid)
@@ -480,7 +547,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     const ordinal = status.completed_turns + 1
     const instruction = caseCard.instructions[ordinal - 1]
     if (!instruction) return
-    setPending(true); setError(null)
+    setPending(true); setAutoPaused(false); setError(null)
     try {
       await client.submitTurn(sessionId, instruction, commandKey())
       setStatus((before) => before && before.completed_turns < ordinal
@@ -491,7 +558,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 
   async function close() {
     if (!client || !sessionId) return
-    setPending(true); setError(null)
+    setPending(true); setAutoPaused(false); setError(null)
     try {
       await client.close(sessionId, commandKey())
       setStatus((before) => before && before.state !== 'completed'
@@ -529,7 +596,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         <span>{app.title}</span><span className="breadcrumb-separator">/</span><strong>{caseCard.title}</strong></div>
       <CapstoneIntro />
       <RunPanel caseCard={caseCard} status={status}
-        turns={turns} progress={progress} actionPending={pending} automatic={automatic}
+        turns={turns} progress={progress} actionPending={pending || restoring}
+        automatic={automatic} autoPaused={autoPaused}
         networkView={networkView} previewDiagram={previewDiagram}
         previewUnavailable={previewUnavailable} networkFocusKey={networkFocusKey}
         networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
@@ -568,8 +636,12 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
       const firstApp = nextCatalog.applications.find((item) => item.cases.length)
       if (!firstApp) throw new Error('没有可运行的案例')
       if (!active) return
-      setCatalog(nextCatalog); setClient(nextClient)
-      setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
+      const previous = readSelection()
+      const selected = previous && nextCatalog.applications.some((item) =>
+        item.application_id === previous.applicationId &&
+        item.cases.some((entry) => entry.case_id === previous.caseId))
+        ? previous : { applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id }
+      setCatalog(nextCatalog); setClient(nextClient); setSelection(selected)
     })().catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : '连接失败')
     }).finally(() => { if (active) setLoading(false) })
@@ -578,6 +650,11 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
 
   function invalidate(message: string) {
     setClient(null); setCatalog(null); setSelection(null); setError(message)
+  }
+
+  function selectCase(value: Selection) {
+    rememberSelection(value)
+    setSelection(value)
   }
 
   return <div className="app-shell">
@@ -592,7 +669,7 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
       </main> :
       <div className="workspace">
         <CatalogPanel catalog={catalog} selection={selection}
-          onSelect={setSelection} />
+          onSelect={selectCase} />
         {catalog.applications.flatMap((app) => app.cases.map((caseCard) =>
           <CaseWorkspace key={`${app.application_id}:${caseCard.case_id}`}
             client={client} app={app} caseCard={caseCard}
