@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 13:12 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-26 13:53 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -8,15 +8,17 @@
 - 三个本地案例已通过：区域负荷增长双情景、SciGRID-DE 调度、AC/DC 拓扑检查。它们使用确定性脚本 Provider 验证完整应用和本轮证据链；开放式 LLM 规划、容器与前端仍待后续工作。
 - 三个可运行案例已有双格式专业介绍：案例清单提供 App 可读的结构化字段，独立 Markdown 说明业务问题、PyPSA 框架支持、智能体交互变化、价值和结论边界。
 - 本地统一客户端现接收同一种有序指令 JSON，请求可分别运行 pandapower 静态分析应用与 PyPSA 案例应用的三回合脚本演示；pandapower 也可走原有正式 Provider 路径。PyPSA 正式通用 CLI 注册和开放式 LLM 工具规划仍待实现与验证。
+- 统一客户端现在实时经 stderr 输出结构化启动、回合与能力调用进度，stdout 仍仅返回最终 JSON；App 可显示进度消息并解析事件字段。
 
 ## Where things stand
 
-- `main` 已提交模型库与案例工作包 `63ccb11`、案例介绍 `a1a37d5`、示范指令 `daefe65`、三回合运行验收 `b2a8304` 和统一客户端 `f3d3524`。没有另建分支。
+- `main` 已提交模型库与案例工作包 `63ccb11`、案例介绍 `a1a37d5`、示范指令 `daefe65`、三回合运行验收 `b2a8304`、统一客户端 `f3d3524` 和流式进度 `db890db`。没有另建分支。
 - 本轮重新通过 `make doctor`、`make test`、`make test-e2e`（37 项）、`make validate`（24/24）、`make test-packages`、`make check-types`、文档链接与符号链接检查。主检出的实际离线 `grid-agent run` stdout 仍是单个 `question_id` / `answer_output` JSON 对象。
 - 六个官方模型资产重新核对为已安装；SciGRID-DE 案例重新完成求解并生成本轮答案、结果及证据引用。
 - 案例介绍变更通过聚焦测试 3/3、`make test`、`make test-e2e` 37/37、`make validate` 24/24、`make doctor`、结构化/Markdown 一致性及本地链接检查。
 - 三回合实现通过 PyPSA 聚焦测试 5/5、三个案例本地演示、`make test`、`make test-e2e` 37/37、`make validate` 24/24、`make doctor` 与链接/符号链接检查；Makefile 演示入口 stdout 为可直接解析的 JSON。
 - 统一客户端通过聚焦测试 11/11、pandapower 与 PyPSA 的实际三回合样例、`make doctor`、`make test`、`make test-e2e` 37/37、`make validate` 24/24、链接与符号链接检查；未调用可能计费的 Provider 路径。
+- 流式进度修复通过客户端聚焦测试 15/15、PyPSA 案例 7/7、实际双应用流式检查、`make doctor`、`make test`、`make test-e2e` 37/37、`make validate` 24/24 和文档链接/符号链接检查。进度输出失败不再阻断案例答案。
 - 工作区仍有用户已暂存的 `.codex/config.toml`；不要把它混入任务提交。
 - `.worktrees/pypsa-operations` 留有忽略的本地运行环境，不要为了清理而删除。
 - 官方 NetCDF 保存在忽略的 `.grid-agent/runtime/pypsa-models/`，运行证据和展示 JSON 保存在忽略的 `runs/pypsa-cases/<run_id>/`。这些本地资产与用户数据都不要为了清理工作区而删除。
@@ -29,6 +31,7 @@
 - `validation/pypsa-cases/cases.json` 的三个可运行条目现带结构化介绍；对应全文在 `validation/pypsa-cases/introductions/`，并由测试检查双格式一致。
 - 每例增加 `current_user_input`、`demo_instructions` 与 `demo_workflow`；`DEMO=1` 或精确匹配的指令文件可在一个本地应用运行中提交三回合。AC/DC 输出按 `Line`/`Link` 组件及端点母线 carrier 说明结构。
 - `tools/capstone_client.py` 用闭合请求契约选择受信任的应用工作进程，`validation/client/` 提供两个无 Provider 的样例。pandapower 脚本样例使用正式应用 Profile 和 `gridctl`，PyPSA 样例复用当前案例运行器；统一封装保留各自领域结果。
+- 客户端和两个脚本工作进程的 `capstone-client-progress/1.0` 事件经 stderr 实时输出；PyPSA 调度事件在实际求解前发出，事件不携带工具参数或计算结果。
 - 已保存的官方案例结果可查看 `runs/pypsa-cases/pypsa-case-7959da36a5044753/presentation.json`（SciGRID-DE）与 `runs/pypsa-cases/pypsa-case-544d2329350449c0/presentation.json`（AC/DC）。区域负荷案例的自动验收见 `validation/test_pypsa_cases.py`。
 
 ## Next steps

@@ -971,3 +971,5 @@ _Recovered pre-merge mainline entries._
 - 12:19 Validated three-turn PyPSA demos with admitted answers and typed AC/DC topology for App playback [b2a8304].
 - 12:19 Saved the active PyPSA App recovery checkpoint after multi-turn acceptance [02ec2a8].
 - 13:12 Added unified local client for pandapower/PyPSA ordered requests and isolated workers for App demos [f3d3524].
+- 13:13 Updated structural state and live recovery checkpoint for unified client continuation [b94f356].
+- 13:53 Streamed turn and capability progress for both client workers to make local App demos observable [db890db].
