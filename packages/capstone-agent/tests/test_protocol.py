@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from capstone_agent.protocol import Frame, ProtocolError
+from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 
 
 def test_worker_frames_round_trip_with_exact_contract() -> None:
@@ -36,7 +36,7 @@ def test_worker_frame_rejects_unknown_or_unsequenced_input(
 
 def test_worker_frame_rejects_oversized_line() -> None:
     with pytest.raises(ProtocolError, match="size"):
-        Frame.from_line(b"x" * 1_000_001)
+        Frame.from_line(b"x" * (MAX_FRAME_BYTES + 1))
 
 
 def test_worker_frame_rejects_incomplete_committed_answer() -> None:

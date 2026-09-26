@@ -7,6 +7,7 @@ from pathlib import Path
 from capstone_agent.protocol import Frame
 from capstone_agent.worker import PreparedWorker, serve_application
 from test_network_view import _view
+from test_network_diagram import projection
 
 
 @dataclass
@@ -117,3 +118,26 @@ def test_network_projection_failure_does_not_erase_answer() -> None:
     assert "network_view" not in kinds
     assert "network_view_unavailable" in kinds
     assert "completed" in kinds
+
+
+def test_worker_publishes_one_base_and_two_historical_layers() -> None:
+    incoming = b"".join((
+        Frame("session-1", 1, "open", {"application_id": "fixture-app", "mode": "provider"}).to_line(),
+        Frame("session-1", 2, "turn", {"instruction": "first"}).to_line(),
+        Frame("session-1", 3, "turn", {"instruction": "second"}).to_line(),
+        Frame("session-1", 4, "close", {}).to_line(),
+    ))
+    output = io.BytesIO()
+    serve_application(
+        lambda _payload, observer: PreparedWorker(
+            application=FakeApplication(observer), run_id="run-fixture",
+            evidence_reader=lambda _ref: None,
+            network_reader=lambda ordinal: projection(ordinal),
+        ), input_stream=io.BytesIO(incoming), output_stream=output,
+    )
+    frames = [Frame.from_line(line) for line in output.getvalue().splitlines(keepends=True)]
+    network = [frame for frame in frames if frame.kind.startswith("network_")]
+    assert [frame.kind for frame in network] == [
+        "network_diagram", "network_layer", "network_layer",
+    ]
+    assert [frame.payload["ordinal"] for frame in network[1:]] == [1, 2]

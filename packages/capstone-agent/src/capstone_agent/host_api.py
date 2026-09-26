@@ -151,7 +151,39 @@ def create_host_app(
         record = get_session(session_id)
         if record.completed_turns < ordinal:
             raise HTTPException(404, "network view not found")
+        from capstone_agent.network_diagram import (
+            normalize_network_diagram, normalize_network_layer,
+        )
+
+        diagrams: dict[str, dict[str, object]] = {}
+        admitted: dict[int, tuple[str, ...]] = {}
         for event in ledger.events_after(session_id, 0):
+            if event.kind == "answer_committed":
+                step = event.payload.get("ordinal")
+                refs = event.payload.get("result_refs")
+                if type(step) is int and isinstance(refs, list):
+                    admitted[step] = tuple(ref for ref in refs if isinstance(ref, str))
+            if event.kind == "network_diagram":
+                try:
+                    diagram = normalize_network_diagram(event.payload.get("diagram"))
+                except ValueError:
+                    continue
+                diagrams[diagram["ref"]] = diagram
+            if event.kind == "network_layer" and event.payload.get("ordinal") == ordinal:
+                raw = event.payload.get("layer")
+                if not isinstance(raw, dict):
+                    continue
+                diagram = diagrams.get(raw.get("diagram_ref"))
+                if diagram is None:
+                    continue
+                try:
+                    layer = normalize_network_layer(
+                        raw, diagram, ordinal, admitted_refs=admitted.get(ordinal, ()),
+                    )
+                except ValueError:
+                    continue
+                return {"schema": "capstone-network-view/2.0", "ordinal": ordinal,
+                        "diagram": diagram, "layer": layer}
             if event.kind == "network_view" and event.payload.get("ordinal") == ordinal:
                 return event.payload["view"]
         raise HTTPException(404, "network view not found")

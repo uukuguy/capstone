@@ -13,6 +13,7 @@ from capability_agent.application.runner import ApplicationRequest
 from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 from capstone_agent.progress import render_progress
 from capstone_agent.network_view import normalize_network_view
+from capstone_agent.network_diagram import normalize_network_projection
 
 
 class _IncrementalApplication(Protocol):
@@ -81,6 +82,7 @@ def serve_application(
     sequence = 0
     expected_input = 2
     admitted: set[str] = set()
+    last_diagram_ref: str | None = None
 
     def emit(kind: str, payload: dict[str, object]) -> None:
         nonlocal sequence
@@ -90,6 +92,7 @@ def serve_application(
         target.flush()
 
     def observe(event: Mapping[str, object]) -> None:
+        nonlocal last_diagram_ref
         if event.get("type") == "application_turn_completed":
             result_refs = event.get("result_refs", [])
             evidence_refs = event.get("evidence_refs", [])
@@ -108,8 +111,20 @@ def serve_application(
                 try:
                     projection = prepared.network_reader(ordinal)
                     if projection is not None:
-                        view = normalize_network_view(projection)
-                        emit("network_view", {"ordinal": ordinal, "view": view})
+                        if projection.get("schema") == "capstone-network-view/2.0":
+                            view = normalize_network_projection(
+                                projection, admitted_refs=tuple(
+                                    ref for ref in result_refs if isinstance(ref, str)
+                                ) if isinstance(result_refs, list) else (),
+                            )
+                            diagram = view["diagram"]
+                            if diagram["ref"] != last_diagram_ref:
+                                emit("network_diagram", {"diagram": diagram})
+                                last_diagram_ref = diagram["ref"]
+                            emit("network_layer", {"ordinal": ordinal, "layer": view["layer"]})
+                        else:
+                            view = normalize_network_view(projection)
+                            emit("network_view", {"ordinal": ordinal, "view": view})
                     else:
                         emit("network_view_unavailable", {"ordinal": ordinal})
                 except Exception:

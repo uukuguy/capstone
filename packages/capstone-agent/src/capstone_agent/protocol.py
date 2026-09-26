@@ -9,7 +9,7 @@ from typing import Any
 
 
 SCHEMA = "capstone-worker/1.0"
-MAX_FRAME_BYTES = 1_000_000
+MAX_FRAME_BYTES = 2 * 1024 * 1024 + 65_536
 _SESSION_ID = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _FIELDS = frozenset({"schema", "session_id", "sequence", "kind", "payload"})
 _PAYLOAD_FIELDS = {
@@ -25,6 +25,9 @@ _PAYLOAD_FIELDS = {
     "evidence_result": frozenset({"ref", "value"}),
     "network_view": frozenset({"ordinal", "view"}),
     "network_view_unavailable": frozenset({"ordinal"}),
+    "network_diagram": frozenset({"diagram"}),
+    "network_layer": frozenset({"ordinal", "layer"}),
+    "network_layer_unavailable": frozenset({"ordinal"}),
 }
 _REQUIRED_PAYLOAD_FIELDS = {
     "open": frozenset({"application_id", "mode"}),
@@ -38,6 +41,9 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
     "network_view": _PAYLOAD_FIELDS["network_view"],
     "network_view_unavailable": _PAYLOAD_FIELDS["network_view_unavailable"],
+    "network_diagram": _PAYLOAD_FIELDS["network_diagram"],
+    "network_layer": _PAYLOAD_FIELDS["network_layer"],
+    "network_layer_unavailable": _PAYLOAD_FIELDS["network_layer_unavailable"],
 }
 
 
@@ -85,6 +91,31 @@ class Frame:
             type(self.payload["ordinal"]) is not int or not 1 <= self.payload["ordinal"] <= 3
         ):
             raise ProtocolError("network view unavailable ordinal is invalid")
+        if self.kind == "network_diagram":
+            from capstone_agent.network_diagram import normalize_network_diagram
+
+            try:
+                normalize_network_diagram(self.payload["diagram"])
+            except ValueError:
+                raise ProtocolError("network diagram payload is invalid") from None
+        if self.kind == "network_layer" and (
+            type(self.payload["ordinal"]) is not int
+            or not 1 <= self.payload["ordinal"] <= 3
+            or not isinstance(self.payload["layer"], dict)
+            or set(self.payload["layer"]) != {
+                "schema", "ordinal", "diagram_ref", "model_revision",
+                "focus_ids", "next_focus_ids", "overlay",
+            }
+            or self.payload["layer"].get("schema") != "capstone-network-layer/1.0"
+            or self.payload["layer"].get("ordinal") != self.payload["ordinal"]
+            or not isinstance(self.payload["layer"].get("diagram_ref"), str)
+            or not isinstance(self.payload["layer"].get("model_revision"), str)
+        ):
+            raise ProtocolError("network layer payload is invalid")
+        if self.kind == "network_layer_unavailable" and (
+            type(self.payload["ordinal"]) is not int or not 1 <= self.payload["ordinal"] <= 3
+        ):
+            raise ProtocolError("network layer unavailable ordinal is invalid")
         try:
             json.dumps(self.payload, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):
