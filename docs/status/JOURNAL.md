@@ -1005,3 +1005,4 @@ _Recovered pre-merge mainline entries._
 - 23:28 移除公开报告中的本地文件链接目标，避免浏览器暴露运行目录；工件聚焦测试通过 [f0eeee4]。
 - 23:29 完成三栏操作台、逐轮提交与证据报告视图；真实 PyPSA 浏览器三轮完成，移动端无横向溢出 [2983f58]。
 - 23:58 打包同镜像 API/worker、Compose 和 Vercel 配置；排除本地凭据并完成容器双案例验证 [e8eabd3]。
+- 23:59 完成本地、Cloud Run、Railway、Vercel 双语操作文档与恢复交接，明确部署和 Provider 验收边界 [0d655de]。
