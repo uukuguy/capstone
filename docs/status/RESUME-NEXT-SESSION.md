@@ -1,23 +1,22 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 02:40 CST. Active design review, not a final handoff.
+> Updated: 2026-09-27 03:47 CST. Final integration and verification are in progress.
 
-## Immediate context
+## Completed direction
 
-- User rejected the SciGRID 50-bus preview and requested a professional diagram that persists across non-grid steps. They chose the complete geographic topology and approved the authority-backed persistent-view design.
-- Verified the installed SciGRID-DE model contains 585 buses, 852 lines, 96 transformers, and finite coordinates for all buses; the current implementation sorts IDs and takes only the first 50 buses. Verified IEEE-39 has 39 buses, 35 lines, 11 transformers, and schematic bus coordinates.
-- New design spec: `docs/superpowers/specs/2026-09-27-authoritative-network-diagrams-design.md` (commit `ee835d7`). It supersedes the previous bounded-preview choice. The existing model-facing 50-bus capability stays bounded; an operator-only authority projection will supply the complete diagram.
-- User added clickable completed steps and retention of each case's latest execution state when switching cases. The App currently clears state on case selection and locks the catalog during active runs; the spec now requires per-case latest-session restoration and background continuation.
-- The revised written spec review is pending under the `brainstorming` skill. After approval, use `writing-plans` to create an implementation plan, then execute focused red-green tests and implement. Do not modify application code before this review response.
+- The user approved complete authority-backed network diagrams that remain visible across steps, completed-step selection, and each case's latest run state. Design and plan are recorded in `docs/superpowers/specs/2026-09-27-authoritative-network-diagrams-design.md` and `docs/superpowers/plans/2026-09-27-authoritative-network-diagrams.md`.
+- Grid and PyPSA authorities, persistent base/layer events, and application adapters have been committed in `504eb20`, `ca33b7b`, and `fbab31c`.
+- Pending App work includes a generated power-science AI intro, full SciGRID-DE/IEEE-39 views, per-case state, completed-step navigation, automatic completion, and the completed report beneath the central timeline. The intro illustration retains its original content, uses a flat outer frame, and aligns with the analysis content. The two start choices are "逐步执行" and "自动完成"; once all steps finish, only "生成报告" remains.
+- The private `operator.diagram.get` contract was moved out of the model-facing capability directory. Its schema remains validated and is included in the wheel.
 
-## Existing product baseline
+## Verification and remaining work
 
-- Local Compose API/worker and Vite App are running. The current light App has manual and automatic three-turn execution, per-step bounded graph views, pan/zoom, task focus, and evidence-gated numeric coloring.
-- Backend uses one API/worker image for local, Cloud Run, and Railway; Vercel serves the App. User requires local/cloud parity. Five cases were previously completed through the browser, but that validation predates the new diagram design.
-- The earlier handoff and design are historical: `docs/superpowers/specs/2026-09-27-operator-workspace-network-design.md`. No broad test rerun is warranted merely for the spec.
+- Focused App and simulator tests, TypeScript check, production App build, `make doctor`, `make test`, and `make test-e2e` passed during implementation. Actual SciGRID-DE and IEEE-39 diagrams were inspected against authority data; the latest presentation was checked in the local browser.
+- `make validate` stops at the protected-path gate because the simulator package has authorized changes and its stored tree digest predates them. Commit the task-owned source, update only the simulator tree digest in `configs/runtime/application-instantiation-protected-paths.json`, then rerun `make validate`.
+- Rebuild the local API/worker image with the relocated private contract and smoke-test the real entry point. Refresh `docs/status/CURRENT-STATE.md` and this checkpoint with final results, append the journal, and commit task-owned paths only.
 
 ## Preserve
 
 - `.codex/config.toml` is an unrelated staged user change. Never commit or reset it.
 - Ignored `deploy/local.env`, `.grid-agent/`, `.capstone-agent/`, `runs/`, and container volumes hold local state; do not delete or expose them.
-- Do not run billed provider validation or deploy to cloud without appropriate authorization.
+- Do not run billed provider validation or deploy to cloud without authorization.

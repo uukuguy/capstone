@@ -2,8 +2,8 @@ import type {
   Catalog, CommittedTurn, CreatedSession, NetworkView, SessionEvent, SessionStatus,
 } from './types'
 
-const MAX_RESPONSE_BYTES = 2_100_000
-const MAX_EVENT_BYTES = 1_100_000
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
+const MAX_EVENT_BYTES = 2 * 1024 * 1024 + 128 * 1024
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {

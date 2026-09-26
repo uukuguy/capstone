@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { layoutNetwork, usesModelCoordinates } from './networkLayout'
-import type { NetworkView } from './types'
-import { sampleView } from './networkFixture'
+import type { LegacyNetworkView } from './types'
+import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network layout', () => {
   it('places all buses deterministically within a bounded schematic canvas', () => {
@@ -14,7 +14,7 @@ describe('network layout', () => {
   })
 
   it('preserves relative positions from authority coordinates without claiming geographic accuracy', () => {
-    const geographic: NetworkView = {
+    const geographic: LegacyNetworkView = {
       ...sampleView, coordinate_status: 'provided-unverified',
       buses: [
         { id: 'west', label: 'West', x: 10, y: 20 },
@@ -30,7 +30,7 @@ describe('network layout', () => {
   })
 
   it('uses a labelled schematic when provided positions would collapse a large preview', () => {
-    const crowded: NetworkView = {
+    const crowded: LegacyNetworkView = {
       ...sampleView, coordinate_status: 'provided-unverified',
       buses: [...Array.from({ length: 49 }, (_, index) => ({
         id: String(index), label: String(index), x: index / 100, y: index / 100,
@@ -42,5 +42,26 @@ describe('network layout', () => {
     const close = positioned.filter((bus) => Math.hypot(bus.x - positioned[0].x,
       bus.y - positioned[0].y) < 40)
     expect(close.length).toBeLessThan(10)
+  })
+
+  it('keeps authority geographic coordinates for complete diagrams', () => {
+    const positioned = layoutNetwork(sampleDiagramView.diagram)
+    expect(positioned).toHaveLength(sampleDiagramView.diagram.buses.length)
+    expect(usesModelCoordinates(sampleDiagramView.diagram)).toBe(true)
+    expect(positioned[0].x).toBeLessThan(positioned[1].x)
+    expect(positioned[0].y).toBeLessThan(positioned[1].y)
+  })
+
+  it('keeps all 585 geographic buses even at dense overview scale', () => {
+    const buses = Array.from({ length: 585 }, (_, index) => ({
+      id: `bus-${index}`, label: `Bus ${index}`, x: 6 + index % 39 * 0.1,
+      y: 48 + Math.floor(index / 39) * 0.1, vn_kv: 220,
+    }))
+    const diagram = { ...sampleDiagramView.diagram, buses, branches: [] }
+    const positioned = layoutNetwork(diagram)
+    expect(positioned).toHaveLength(585)
+    expect(usesModelCoordinates(diagram)).toBe(true)
+    expect(positioned[0].x).toBeLessThan(positioned[38].x)
+    expect(positioned[0].y).toBeGreaterThan(positioned[546].y)
   })
 })

@@ -229,8 +229,13 @@ available. See the [runbook](docs/RUNBOOK.md).
 The independent [operator App](packages/capstone-app/) presents registered
 pandapower and PyPSA cases, manual or automatic three-turn execution, committed
 answers, current-run evidence, and the private report. A light operator workspace
-shows a bounded, interactive network diagram from the registered authority, with
-step focus and partial numeric coloring only for admitted current-run results.
+introduces Capstone beneath a generated power-science AI illustration. Each case
+keeps its latest session when switching cases; completed steps can be reopened.
+The completed report appears beneath the central analysis timeline; the right
+panel keeps run status and admitted evidence.
+The registered authority supplies a complete, persistent network diagram:
+geographic SciGRID-DE or schematic IEEE-39, with pan/zoom, step focus, and
+partial numeric coloring only for admitted current-run results.
 It runs locally with
 `make setup-capstone-app && make capstone-app-dev`; the hosted API and worker
 must also be running. The App keeps the operator token in tab memory and makes

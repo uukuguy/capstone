@@ -4,6 +4,8 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal, NoReturn
 
@@ -146,13 +148,23 @@ def dispatch(
     try:
         if request.capability not in EXECUTABLE_CAPABILITIES:
             raise _unsupported_capability(request.capability)
-        contract = _require_contract(active_services.capability_registry, request.capability)
+        contract = (
+            _operator_diagram_contract()
+            if request.capability == "operator.diagram.get"
+            else _require_contract(active_services.capability_registry, request.capability)
+        )
         _validate_arguments(contract, request.arguments)
         result = _dispatch(request, SimulatorWorkspace(workspace_path), active_services)
         _validate_result(contract, result)
     except _OperationFailure as exc:
         return GridCapabilityResponse(request_id=request.request_id, ok=False, error=exc.error)
     return GridCapabilityResponse(request_id=request.request_id, ok=True, result=result)
+
+
+@lru_cache(maxsize=1)
+def _operator_diagram_contract() -> CapabilityContract:
+    resource = files("grid_simulator").joinpath("operator_diagram_contract.json")
+    return CapabilityContract.model_validate_json(resource.read_text(encoding="utf-8"))
 
 
 def _dispatch(

@@ -14,6 +14,7 @@ def test_catalog_lists_only_registered_runnable_three_turn_cases() -> None:
     assert catalog["schema"] == "capstone-catalog/1.0"
     by_id = {app["application_id"]: app for app in catalog["applications"]}
     assert set(by_id) == {"pandapower-static-analysis", "pypsa-business-cases"}
+    assert by_id["pandapower-static-analysis"]["title"] == "pandapower 电网静态分析"
     grid = {case["case_id"]: case for case in by_id["pandapower-static-analysis"]["cases"]}
     pypsa = {case["case_id"]: case for case in by_id["pypsa-business-cases"]["cases"]}
     assert set(grid) == {"pandapower-scripted-task", "pandapower-scripted-test"}

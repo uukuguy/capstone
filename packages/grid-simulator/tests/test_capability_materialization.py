@@ -35,7 +35,7 @@ def test_materialization_references_only_live_contracts_operations_and_creators(
     referenced_operations = {item for row in rows for item in row["operations"]}
     referenced_creators = {item for row in rows for item in row["creators"]}
 
-    assert referenced_capabilities <= contracts == EXECUTABLE_CAPABILITIES
+    assert referenced_capabilities <= contracts == EXECUTABLE_CAPABILITIES - {"operator.diagram.get"}
     assert referenced_operations == operations
     assert referenced_creators <= creators
 

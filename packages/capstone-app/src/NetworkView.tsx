@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react'
 import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { PositionedBus } from './networkLayout'
-import type { NetworkView as NetworkViewData } from './types'
+import type { LegacyNetworkView, NetworkDiagram, NetworkView as NetworkViewData } from './types'
 
 type Camera = { x: number; y: number; width: number; height: number }
 const FULL: Camera = { x: 0, y: 0, width: 1000, height: 600 }
 
-function taskCamera(view: NetworkViewData, buses: PositionedBus[], focusIds: string[]): Camera {
+function taskCamera(view: LegacyNetworkView | NetworkDiagram, buses: PositionedBus[], focusIds: string[]): Camera {
   const byId = new Map(buses.map((bus) => [bus.id, bus]))
   const branchById = new Map(view.branches.map((branch) => [branch.id, branch]))
   const points = focusIds.flatMap((id) => {
@@ -45,17 +45,23 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
   const [camera, setCamera] = useState<Camera>(FULL)
   const [hovered, setHovered] = useState<string | null>(null)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
-  const nodes = useMemo(() => view ? layoutNetwork(view) : [], [view])
-  const modelCoordinates = useMemo(() => view ? usesModelCoordinates(view) : false, [view])
+  const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view
+  const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
+  const viewIdentity = view?.schema === 'capstone-network-view/2.0'
+    ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`
+    : view ? `${view.model.revision}:${view.ordinal}:${view.focus_ids.join(',')}:${view.next_focus_ids.join(',')}` : 'empty'
+  const nodes = useMemo(() => geometry ? layoutNetwork(geometry) : [], [geometry])
+  const modelCoordinates = useMemo(() => geometry ? usesModelCoordinates(geometry) : false, [geometry])
   const byId = useMemo(() => new Map(nodes.map((bus) => [bus.id, bus])), [nodes])
-  const values = useMemo(() => new Map(view?.overlay?.values.map((item) => [item.id, item.value]) || []), [view])
-  const focusIds = useMemo(() => view ? nextTask ? view.next_focus_ids : view.focus_ids : [], [view, nextTask])
-  const focusBuses = useMemo(() => new Set(view?.branches.filter((branch) =>
-    focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [view, focusIds])
+  const values = useMemo(() => new Map(layer?.overlay?.values.map((item) => [item.id, item.value]) || []), [layer])
+  const focusIds = useMemo(() => layer ? nextTask ? layer.next_focus_ids : layer.focus_ids : [], [layer, nextTask])
+  const focusBuses = useMemo(() => new Set(geometry?.branches.filter((branch) =>
+    focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [geometry, focusIds])
 
   useEffect(() => {
-    setCamera(view ? taskCamera(view, nodes, focusIds) : FULL)
-  }, [focusKey, view, nodes, focusIds])
+    setCamera(geometry ? taskCamera(geometry, nodes, focusIds) : FULL)
+    // Focus changes on step/execution transitions or on arrival of a different diagram.
+  }, [focusKey, viewIdentity])
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {
@@ -104,23 +110,27 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
     event.preventDefault()
   }
 
-  const colored = view?.overlay?.values.length || 0
+  const colored = layer?.overlay?.values.length || 0
   const hoveredValue = hovered === null ? undefined : values.get(hovered)
-  const denominator = view?.overlay?.metric === 'voltage_pu'
-    ? view.buses.length : view?.branches.filter((branch) => branch.kind === 'line').length || 0
+  const denominator = layer?.overlay?.metric === 'voltage_pu'
+    ? geometry?.buses.length || 0 : geometry?.branches.filter((branch) => branch.kind === 'line').length || 0
+  const dense = nodes.length > 100
+  const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">MODEL / CURRENT RUN</span>
       <h2 id="network-title">电网视图</h2></div><span className="network-model">{modelName}</span></div>
     {view ? <>
-      <div className="network-meta"><span>模型结构 · {view.model.source}</span>
-        <span>{modelCoordinates ? '模型坐标 · 未经地理校验'
-          : view.coordinate_status === 'provided-unverified' ? '示意布局 · 模型坐标过密' : '示意布局'}</span></div>
+      <div className="network-meta"><span>模型结构 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
+        <span>{geometry!.schema === 'capstone-network-diagram/1.0'
+          ? geometry!.coordinate_system === 'geographic' ? '地理拓扑 · 模型坐标' : modelCoordinates ? '电气示意 · 模型坐标' : '电气示意布局'
+          : modelCoordinates ? '模型坐标 · 未经地理校验'
+            : geometry!.coordinate_status === 'provided-unverified' ? '示意布局 · 模型坐标过密' : '示意布局'}</span></div>
       <div className="network-toolbar" aria-label="电网图操作">
         <button type="button" onClick={() => zoom(0.8)} aria-label="放大">＋</button>
         <button type="button" onClick={() => zoom(1.25)} aria-label="缩小">－</button>
         <span className="network-toolbar-divider" />
         <button type="button" onClick={() => setCamera(FULL)}>适配全图</button>
-        <button type="button" onClick={() => setCamera(taskCamera(view, nodes, focusIds))}>回到当前任务</button>
+        <button type="button" onClick={() => setCamera(taskCamera(geometry!, nodes, focusIds))}>回到当前任务</button>
       </div>
       {nextTask && <div className="network-focus-status">{focusIds.length
         ? '正在对焦下一步已知目标' : '下一步暂无可定位元件，显示全图范围'}</div>}
@@ -135,25 +145,31 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
           </pattern></defs>
           <rect x="-500" y="-300" width="2000" height="1200" fill="white" />
           <rect x="-500" y="-300" width="2000" height="1200" fill="url(#network-grid)" />
-          {view.branches.map((branch) => {
+          {geometry!.branches.map((branch) => {
             const from = byId.get(branch.from_bus), to = byId.get(branch.to_bus)
             if (!from || !to) return null
             const value = values.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
             const color = value === undefined ? highlighted ? '#187b78' :
-              branch.kind === 'link' ? '#718ca0' : '#aab9b9'
-              : valueColor(view.overlay!.metric, value)
+              branch.kind === 'link' ? '#718ca0' : '#829c98'
+              : valueColor(layer!.overlay!.metric, value)
+            const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
+            const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
               onMouseLeave={() => setHovered(null)}>
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke="transparent" strokeWidth="20" />
+                stroke="transparent" strokeWidth={dense ? 7 : 20} />
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke={color} strokeWidth={highlighted ? 7 : value === undefined ? 3 : 5}
+                stroke={color} strokeWidth={highlighted ? dense ? 3 : 6 : dense ? 1.5 : value === undefined ? 2.5 : 4}
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
-              {highlighted && <text x={(from.x + to.x) / 2 + 7} y={(from.y + to.y) / 2 - 9}
+              {transformer && <g className="network-transformer-symbol" aria-hidden="true">
+                <circle cx={centerX - (dense ? 2.3 : 4)} cy={centerY} r={dense ? 2.7 : 4.5} />
+                <circle cx={centerX + (dense ? 2.3 : 4)} cy={centerY} r={dense ? 2.7 : 4.5} />
+              </g>}
+              {highlighted && <text x={centerX + 7} y={centerY - 9}
                 className="network-branch-label">{branch.label}</text>}
-              <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${view.overlay!.unit}`}</title>
+              <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
           {nodes.map((bus) => {
@@ -161,29 +177,35 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
             const highlighted = focusIds.includes(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
-              <circle cx={bus.x} cy={bus.y} r={highlighted ? 11 : 8}
-                fill={value === undefined ? '#ffffff' : valueColor(view.overlay!.metric, value)}
-                stroke={highlighted ? '#0d7771' : '#344c53'} strokeWidth={highlighted ? 3 : 2} />
-              {(nodes.length <= 12 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
+              <circle cx={bus.x} cy={bus.y} r={highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5}
+                fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value)}
+                stroke={highlighted ? '#0d7771' : '#344c53'} strokeWidth={highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5} />
+              {(nodes.length <= 25 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13} y={bus.y - 11} className="network-node-label">{bus.label}</text>}
-              <title>{bus.label}{value === undefined ? '' : ` · ${value.toFixed(3)} ${view.overlay!.unit}`}</title>
+              <title>{bus.label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
         </svg>
+        {geometry!.schema === 'capstone-network-diagram/1.0' && geometry!.coordinate_system === 'geographic' &&
+          <span className="network-north" aria-hidden="true">N ↑</span>}
         <span className="network-canvas-hint">拖动平移 · 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
       </div>
       <div className="network-footer">
-        <div className="network-legend"><span className="legend-line" /> 线路 <span className="legend-link" /> Link
-          <span className="legend-focus" /> 当前任务</div>
-        {view.overlay ? <div className="network-overlay-note">
-          <span className="overlay-gradient" /><strong>{view.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {view.overlay.unit}</strong>
-          <span>{view.overlay.metric === 'loading_percent' ? '色阶 0–120%' : '色阶 接近 1.0 → 偏离 1.0'}</span>
-          <span>仅对 {colored} / {denominator} 条有结果的{view.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
+        <div className="network-legend"><span className="legend-bus" /> 母线
+          {branchKinds.has('line') && <><span className="legend-line" /> 线路</>}
+          {branchKinds.has('link') && <><span className="legend-link" /> 直流连接</>}
+          {[...branchKinds].some((kind) => ['transformer', 'trafo', 'trafo3w'].includes(kind)) &&
+            <><span className="legend-transformer">◯◯</span> 变压器</>}
+          <span className="legend-focus" /> 任务定位</div>
+        {layer!.overlay ? <div className="network-overlay-note">
+          <span className="overlay-gradient" /><strong>{layer!.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {layer!.overlay.unit}</strong>
+          <span>{layer!.overlay.metric === 'loading_percent' ? '色阶 0–120%' : '色阶 接近 1.0 → 偏离 1.0'}</span>
+          <span>仅对 {colored} / {denominator} 条有结果的{layer!.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
         </div> : <span className="network-no-overlay">当前步骤暂无逐元件数值</span>}
-        {(view.omitted.buses > 0 || view.omitted.branches > 0) &&
+        {view.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&
           <span className="network-omitted">预览范围：省略 {view.omitted.buses} 个母线、{view.omitted.branches} 条支路</span>}
         {hovered && <span className="network-hover-id">{hovered}{hoveredValue === undefined ? ''
-          : ` · ${hoveredValue.toFixed(view.overlay?.metric === 'voltage_pu' ? 3 : 1)} ${view.overlay?.unit}`}</span>}
+          : ` · ${hoveredValue.toFixed(layer!.overlay?.metric === 'voltage_pu' ? 3 : 1)} ${layer!.overlay?.unit}`}</span>}
       </div>
   </> : <div className="network-empty"><span aria-hidden="true">◇</span>
       <strong>{unavailable ? '本轮电网视图暂不可用' : '运行首步后显示登记模型拓扑'}</strong>

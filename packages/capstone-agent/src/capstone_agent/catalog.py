@@ -10,7 +10,7 @@ from capstone_agent.session import WorkerRegistry
 
 
 _APP_TITLES = {
-    "pandapower-static-analysis": "电网静态分析",
+    "pandapower-static-analysis": "pandapower 电网静态分析",
     "pypsa-business-cases": "PyPSA 业务案例",
 }
 _GRID_CASES = {

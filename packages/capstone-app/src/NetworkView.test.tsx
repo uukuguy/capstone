@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
-import { sampleView } from './networkFixture'
+import { sampleDiagramView, sampleView } from './networkFixture'
 
 afterEach(cleanup)
 
@@ -51,5 +51,24 @@ describe('operator network canvas', () => {
     rerender(<NetworkView view={view} modelName="IEEE-39" focusKey="executing" nextTask />)
     expect(canvas.getAttribute('viewBox')).not.toBe(before)
     expect(screen.getByText('正在对焦下一步已知目标')).toBeTruthy()
+  })
+
+  it('renders the authority geography with transformer symbols and only applicable legend keys', () => {
+    render(<NetworkView view={sampleDiagramView} modelName="SciGRID" focusKey="turn-1" />)
+    expect(screen.getByText(/3 母线 \/ 2 支路/)).toBeTruthy()
+    expect(screen.getByText(/地理拓扑 · 模型坐标/)).toBeTruthy()
+    expect(document.querySelectorAll('.network-transformer-symbol circle')).toHaveLength(2)
+    expect(screen.getByText(/变压器/)).toBeTruthy()
+    expect(screen.queryByText('直流连接')).toBeNull()
+    expect(document.querySelector('.network-north')).toBeTruthy()
+  })
+
+  it('preserves manual camera movement while the same diagram receives a neutral layer', () => {
+    const { rerender } = render(<NetworkView view={sampleDiagramView} modelName="SciGRID" focusKey="turn-1" />)
+    const canvas = screen.getByRole('img', { name: '电网拓扑' })
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    const manual = canvas.getAttribute('viewBox')
+    rerender(<NetworkView view={{ ...sampleDiagramView }} modelName="SciGRID" focusKey="turn-1" />)
+    expect(canvas.getAttribute('viewBox')).toBe(manual)
   })
 })

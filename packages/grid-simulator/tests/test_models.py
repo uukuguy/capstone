@@ -98,3 +98,6 @@ def test_operator_diagram_uses_complete_ieee39_schematic_from_gridctl(grid, cont
     assert "operator.diagram.get" not in {
         item["id"] for item in described["executable_capabilities"]
     }
+    assert "operator.diagram.get" not in {
+        contract.id for contract in grid.services.capability_registry.list()
+    }

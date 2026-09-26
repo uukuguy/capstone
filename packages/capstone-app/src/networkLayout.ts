@@ -1,13 +1,15 @@
-import type { NetworkView } from './types'
+import type { LegacyNetworkView, NetworkDiagram } from './types'
 
-export type PositionedBus = NetworkView['buses'][number] & { x: number; y: number }
+type Geometry = LegacyNetworkView | NetworkDiagram
+export type PositionedBus = Geometry['buses'][number] & { x: number; y: number }
 
 const WIDTH = 1000
 const HEIGHT = 600
 
-function providedLayout(view: NetworkView): PositionedBus[] | null {
+function providedLayout(view: Geometry): PositionedBus[] | null {
   const buses = view.buses
-  const coordinated = view.coordinate_status === 'provided-unverified' &&
+  const coordinated = (view.schema === 'capstone-network-diagram/1.0' ||
+    view.coordinate_status === 'provided-unverified') &&
     buses.every((bus) => bus.x !== null && bus.y !== null &&
       Number.isFinite(bus.x) && Number.isFinite(bus.y))
   if (!coordinated) return null
@@ -22,7 +24,7 @@ function providedLayout(view: NetworkView): PositionedBus[] | null {
     x: WIDTH / 2 + ((bus.x as number) - (minX + maxX) / 2) * scale,
     y: HEIGHT / 2 - ((bus.y as number) - (minY + maxY) / 2) * scale,
   }))
-  if (buses.length > 12) {
+  if (view.schema === 'capstone-network-view/1.0' && buses.length > 12) {
     const crowded = positioned.filter((bus, index) => positioned.some((other, otherIndex) =>
       index !== otherIndex && Math.hypot(bus.x - other.x, bus.y - other.y) < 20)).length
     if (crowded > buses.length / 4) return null
@@ -30,11 +32,11 @@ function providedLayout(view: NetworkView): PositionedBus[] | null {
   return positioned
 }
 
-export function usesModelCoordinates(view: NetworkView): boolean {
+export function usesModelCoordinates(view: Geometry): boolean {
   return providedLayout(view) !== null
 }
 
-export function layoutNetwork(view: NetworkView): PositionedBus[] {
+export function layoutNetwork(view: Geometry): PositionedBus[] {
   const buses = view.buses
   const provided = providedLayout(view)
   if (provided) return provided

@@ -214,7 +214,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 .status-led.ready, .status-led.completed { background: var(--accent); box-shadow: 0 0 0 4px #407f7040; }
 .status-led.executing, .status-led.closing, .status-led.pending { background: #dbbc73; }
 .status-led.failed, .status-led.interrupted { background: #dc9789; }
-.detail-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #294044;
+.detail-tabs { display: grid; grid-template-columns: repeat(2, 1fr); border-bottom: 1px solid #294044;
   margin: 0 21px; }
 .detail-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent;
   color: #8ea6a3; padding: 12px 3px 13px; font-size: 11px; }
@@ -285,7 +285,7 @@ button.reference-chip:hover { background: #235043; color: white; }
   .catalog-panel { padding: 22px 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
   .panel-intro { margin-bottom: 16px; }
   .application-list { max-height: 268px; overflow: auto; gap: 15px; }
-  .case-list { grid-template-columns: repeat(2, minmax(180px, 1fr)); overflow-x: auto; }
+  .case-list { grid-template-columns: minmax(0, 1fr); overflow-x: visible; }
   .catalog-footnote { display: none; }
   .run-panel { padding: 25px 20px 43px; }
   .run-title-row { padding-top: 30px; }

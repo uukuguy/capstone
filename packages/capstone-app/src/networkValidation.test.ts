@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { parseNetworkView } from './networkValidation'
-import { sampleView } from './networkFixture'
+import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network projection at the browser boundary', () => {
   it('accepts a bounded view of the committed step', () => {
     expect(parseNetworkView(sampleView, 1, [])).toEqual(sampleView)
+  })
+
+  it('accepts the complete authority diagram and its current-turn layer', () => {
+    expect(parseNetworkView(sampleDiagramView, 1, [])).toEqual(sampleDiagramView)
+    const foreign = { ...sampleDiagramView, layer: { ...sampleDiagramView.layer,
+      diagram_ref: `diagram:sha256:${'c'.repeat(64)}` } }
+    expect(parseNetworkView(foreign, 1, [])).toBeNull()
   })
 
   it('rejects a foreign endpoint and nonfinite coordinates', () => {

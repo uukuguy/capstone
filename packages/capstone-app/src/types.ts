@@ -56,7 +56,7 @@ export type SessionEvent = {
   payload: Record<string, unknown>
 }
 
-export type NetworkView = {
+export type LegacyNetworkView = {
   schema: 'capstone-network-view/1.0'
   ordinal: number
   model: { id: string; revision: string; source: string }
@@ -74,3 +74,33 @@ export type NetworkView = {
     values: { id: string; value: number }[]
   }
 }
+
+export type NetworkDiagram = {
+  schema: 'capstone-network-diagram/1.0'
+  model: { id: string; revision: string; source: string }
+  coordinate_system: 'geographic' | 'schematic'
+  buses: { id: string; label: string; x: number | null; y: number | null; vn_kv: number | null }[]
+  branches: { id: string; kind: 'line' | 'link' | 'transformer' | 'trafo' | 'trafo3w';
+    label: string; from_bus: string; to_bus: string }[]
+  fingerprint: string
+  ref: string
+}
+
+export type NetworkLayer = {
+  schema: 'capstone-network-layer/1.0'
+  ordinal: number
+  diagram_ref: string
+  model_revision: string
+  focus_ids: string[]
+  next_focus_ids: string[]
+  overlay: LegacyNetworkView['overlay']
+}
+
+export type DiagramNetworkView = {
+  schema: 'capstone-network-view/2.0'
+  ordinal: number
+  diagram: NetworkDiagram
+  layer: NetworkLayer
+}
+
+export type NetworkView = LegacyNetworkView | DiagramNetworkView

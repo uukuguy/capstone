@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
@@ -7,7 +7,7 @@ import { parseNetworkView } from './networkValidation'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkView as NetworkViewData, SessionStatus } from './types'
 
 type Selection = { applicationId: string; caseId: string }
-type DetailTab = 'overview' | 'report' | 'evidence'
+type DetailTab = 'overview' | 'evidence'
 type Props = { clientFactory?: (token: string) => CapstoneClient }
 
 const stateLabel: Record<SessionStatus['state'], string> = {
@@ -58,8 +58,8 @@ function AccessGate({ onConnect, pending, error }: {
   </main>
 }
 
-function CatalogPanel({ catalog, selection, onSelect, locked }: {
-  catalog: Catalog; selection: Selection | null; onSelect: (value: Selection) => void; locked: boolean
+function CatalogPanel({ catalog, selection, onSelect }: {
+  catalog: Catalog; selection: Selection | null; onSelect: (value: Selection) => void
 }) {
   const total = catalog.applications.reduce((count, app) => count + app.cases.length, 0)
   return <aside className="catalog-panel" aria-label="案例目录">
@@ -72,7 +72,7 @@ function CatalogPanel({ catalog, selection, onSelect, locked }: {
         <div className="case-list">{app.cases.map((caseCard: CaseCard) => {
           const active = selection?.applicationId === app.application_id && selection.caseId === caseCard.case_id
           return <button key={caseCard.case_id} className={`case-card ${active ? 'is-active' : ''}`}
-            disabled={locked} aria-current={active ? 'true' : undefined}
+            aria-current={active ? 'true' : undefined}
             onClick={() => onSelect({ applicationId: app.application_id, caseId: caseCard.case_id })}>
             <span className="case-card-top"><span className="case-card-title">{caseCard.title}</span><span aria-hidden="true">↗</span></span>
             <span className="case-card-summary">{caseCard.summary}</span>
@@ -106,10 +106,29 @@ function AnswerCard({ turn, onEvidence }: {
   </div>
 }
 
+function CapstoneIntro() {
+  return <section className="capstone-intro" aria-label="CAPSTONE 框架介绍">
+      <div className="capstone-intro-art">
+        <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
+        <div className="capstone-intro-overlay">
+          <span className="capstone-intro-kicker">电力科学AI / PHYSICS-DRIVEN AI</span>
+          <strong>从专业仿真<br />到智能推演</strong>
+          <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
+          <div className="capstone-intro-disciplines" aria-label="电力科学AI模型方向">
+            <span><b>神经算子</b>DeepONet · FNO</span>
+            <span><b>动力学模型</b>Neural-DAE · Koopman</span>
+            <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
+          </div>
+        </div>
+      </div>
+      <p>CAPSTONE 为电力科学 AI 提供应用底座：把 pandapower、PyPSA 等专业框架封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
+    </section>
+}
+
 function RunPanel({ app, caseCard, status, turns, progress, actionPending, automatic, onStart,
                     onSubmit, onClose, onAuto, onStopAuto, onEvidence,
                     networkView, networkFocusKey, networkUnavailable, nextNetworkTask,
-                    selectedStep, onSelectStep }: {
+                    selectedStep, onSelectStep, report, result }: {
   app: ApplicationCard; caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
   automatic: boolean; onAuto: () => void; onStopAuto: () => void;
@@ -117,7 +136,8 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
   onEvidence: (ref: string) => void
   networkView: NetworkViewData | null; networkFocusKey: string;
   networkUnavailable: boolean; nextNetworkTask: boolean;
-  selectedStep: number | null; onSelectStep: (ordinal: number) => void
+  selectedStep: number | null; onSelectStep: (ordinal: number | null) => void
+  report: string | null; result: unknown
 }) {
   const next = (status?.completed_turns ?? 0) + 1
   return <main className="run-panel">
@@ -136,7 +156,9 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
     <NetworkView view={networkView} modelName={caseCard.model_origin} focusKey={networkFocusKey}
       unavailable={networkUnavailable} nextTask={nextNetworkTask} />
     <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
-      <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div>
+      <div className="timeline-heading-actions">{selectedStep !== null &&
+        <button type="button" className="timeline-latest" onClick={() => onSelectStep(null)}>回到最新步骤</button>}
+        <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div></div>
     <ol className="timeline">
       {caseCard.instructions.map((instruction, index) => {
         const ordinal = index + 1
@@ -148,7 +170,10 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
             aria-label={`查看指令 ${ordinal} 的电网`} aria-pressed={selectedStep === ordinal}
             onClick={() => onSelectStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
             : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
-          <div className="timeline-content"><div className="timeline-item-head"><strong>指令 {ordinal}</strong>
+          <div className="timeline-content"><div className="timeline-item-head">{answer
+            ? <button type="button" className="timeline-title" aria-pressed={selectedStep === ordinal}
+                onClick={() => onSelectStep(ordinal)}>指令 {ordinal}</button>
+            : <strong>指令 {ordinal}</strong>}
             <span>{answer ? '已完成' : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'}</span></div>
             <p className="instruction-text">{instruction}</p>
             {answer && <AnswerCard turn={answer} onEvidence={onEvidence} />}
@@ -158,24 +183,30 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
       })}
     </ol>
     <div className="run-action-bar">
-      {!status && <><div><strong>准备开始</strong><span>启动运行后，逐条确认并提交案例指令。</span></div>
-        <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
-          <button className="primary-button" onClick={onStart} disabled={actionPending}>启动本轮分析 <span aria-hidden="true">↗</span></button></div></>}
+      {!status && <><div><strong>准备开始</strong><span>选择逐步执行，或自动完成全部指令。</span></div>
+        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>逐步执行</button>
+          <button className="primary-button" onClick={onAuto} disabled={actionPending}>自动完成 <span aria-hidden="true">↗</span></button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
         <span>{automatic ? '自动执行会等待本轮回答后继续。' : '可逐步提交，或由系统自动完成剩余步骤。'}</span></div>
-        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
-          <button className="primary-button" onClick={onSubmit} disabled={actionPending}>提交指令 {next} <span aria-hidden="true">↗</span></button></div>}</>}
+        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button>
+          <button className="primary-button" onClick={onAuto} disabled={actionPending}>自动完成 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'executing' && <div className="working-line"><span className="spinner" />{progress || '正在执行当前指令…'}</div>}
       {status?.state === 'ready' && next > caseCard.instructions.length && <><div><strong>全部指令已完成</strong>
         <span>结束本轮后生成最终结果与报告。</span></div>
-        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
-          <button className="primary-button" onClick={onClose} disabled={actionPending}>完成并生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
+        {!automatic && <div className="action-buttons"><button className="primary-button" onClick={onClose} disabled={actionPending}>生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
-      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong><small>报告与证据可在右侧查看。</small></div></div>}
+      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
+        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
       {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message"><strong>{stateLabel[status.state]}</strong><span>已提交的回答仍可查看。</span></div>}
       {automatic && <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
+    {report && <section className="run-report" aria-label="本轮分析报告">
+      <div className="timeline-heading"><div><span className="eyebrow">CURRENT RUN / REPORT</span><h2>本轮分析报告</h2></div></div>
+      <div className="run-report-paper"><ReportDocument report={report} />
+        {result !== null && <details className="result-details"><summary>查看结构化结果</summary>
+          <pre>{JSON.stringify(result, null, 2)}</pre></details>}</div>
+    </section>}
   </main>
 }
 
@@ -190,10 +221,10 @@ function ReportDocument({ report }: { report: string }) {
   })}</article>
 }
 
-function DetailPanel({ status, caseCard, turns, report, result, tab, onTab,
+function DetailPanel({ status, caseCard, turns, tab, onTab,
                        evidenceRef, evidence, evidencePending }: {
   status: SessionStatus | null; caseCard: CaseCard; turns: Record<number, CommittedTurn>;
-  report: string | null; result: unknown; tab: DetailTab; onTab: (tab: DetailTab) => void;
+  tab: DetailTab; onTab: (tab: DetailTab) => void;
   evidenceRef: string | null; evidence: unknown; evidencePending: boolean
 }) {
   const refs = Object.values(turns).flatMap((turn) => turn.evidence_refs)
@@ -203,7 +234,7 @@ function DetailPanel({ status, caseCard, turns, report, result, tab, onTab,
       <span className={`status-led ${status?.state || 'idle'}`} />
     </div>
     <div className="detail-tabs" role="tablist" aria-label="详情视图">
-      {([['overview', '概览'], ['report', '报告'], ['evidence', '证据']] as const).map(([value, label]) =>
+      {([['overview', '概览'], ['evidence', '证据']] as const).map(([value, label]) =>
         <button key={value} role="tab" aria-selected={tab === value} onClick={() => onTab(value)}>{label}</button>)}
     </div>
     {tab === 'overview' && <div className="detail-body">
@@ -218,13 +249,6 @@ function DetailPanel({ status, caseCard, turns, report, result, tab, onTab,
       <div className="detail-section"><span className="detail-label">证据边界</span>
         <p>此处仅显示当前运行已提交回答关联的证据引用。选择证据可查看受限投影。</p></div>
     </div>}
-    {tab === 'report' && <div className="detail-body report-body">
-      {report ? <><div className="detail-label">本轮分析报告</div><ReportDocument report={report} />
-        {result !== null && <details className="result-details"><summary>查看结构化结果</summary>
-          <pre>{JSON.stringify(result, null, 2)}</pre></details>}</>
-        : <div className="empty-detail"><span className="empty-symbol">▤</span><strong>报告尚未生成</strong>
-          <p>完成全部指令并结束运行后，报告将在这里出现。</p></div>}
-    </div>}
     {tab === 'evidence' && <div className="detail-body">
       {evidenceRef ? <><div className="detail-label">证据投影</div><code className="evidence-ref">{evidenceRef}</code>
         {evidencePending ? <div className="working-line"><span className="spinner" />正在读取…</div>
@@ -237,12 +261,10 @@ function DetailPanel({ status, caseCard, turns, report, result, tab, onTab,
   </aside>
 }
 
-export default function App({ clientFactory = (token) => new CapstoneClient(
-  import.meta.env.VITE_API_ORIGIN || '', token,
-) }: Props) {
-  const [client, setClient] = useState<CapstoneClient | null>(null)
-  const [catalog, setCatalog] = useState<Catalog | null>(null)
-  const [selection, setSelection] = useState<Selection | null>(null)
+function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
+  client: CapstoneClient; app: ApplicationCard; caseCard: CaseCard;
+  visible: boolean; onInvalidToken: (message: string) => void
+}) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [status, setStatus] = useState<SessionStatus | null>(null)
   const [turns, setTurns] = useState<Record<number, CommittedTurn>>({})
@@ -262,10 +284,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   const autoController = useRef<AbortController | null>(null)
   const automaticKeys = useRef(new Map<string, string>())
 
-  const selected = useMemo(() => {
-    const app = catalog?.applications.find((item) => item.application_id === selection?.applicationId)
-    return { app, caseCard: app?.cases.find((item) => item.case_id === selection?.caseId) }
-  }, [catalog, selection])
+  useEffect(() => () => autoController.current?.abort(), [])
 
   function stopAutomatic() {
     autoController.current?.abort()
@@ -278,23 +297,6 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
     setNetworkViews({}); setUnavailableViews([]); setSelectedStep(null)
-  }
-
-  async function connect(token: string) {
-    setPending(true); setError(null)
-    try {
-      const nextClient = clientFactory(token)
-      const nextCatalog = await nextClient.catalog()
-      if (nextCatalog.schema !== 'capstone-catalog/1.0' || !nextCatalog.applications.length) {
-        throw new Error('案例目录不可用')
-      }
-      const firstApp = nextCatalog.applications.find((item) => item.cases.length)
-      if (!firstApp) throw new Error('没有可运行的案例')
-      setCatalog(nextCatalog); setClient(nextClient)
-      setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '连接失败')
-    } finally { setPending(false) }
   }
 
   useEffect(() => {
@@ -328,7 +330,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
                 completed_turns: answer.ordinal, accepted_turns: answer.ordinal })
               setProgress(null)
               setSelectedStep(null)
-            } else if (event.event === 'network_view') {
+            } else if (event.event === 'network_view' || event.event === 'network_layer') {
               const ordinal = event.payload.ordinal
               if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
                 try {
@@ -346,7 +348,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
                   setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
                 }
               }
-            } else if (event.event === 'network_view_unavailable') {
+            } else if (event.event === 'network_view_unavailable' || event.event === 'network_layer_unavailable') {
               const ordinal = event.payload.ordinal
               if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
                 setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
@@ -369,8 +371,8 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
         } catch (cause) {
           if (controller.signal.aborted) return
           if (cause instanceof ApiError && cause.status === 401) {
-            setClient(null); setCatalog(null); clearRun()
-            setError(cause.message)
+            clearRun()
+            onInvalidToken(cause.message)
             return
           }
           setError('事件连接暂时中断，正在恢复…')
@@ -383,10 +385,10 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   }, [client, sessionId])
 
   async function start() {
-    if (!client || !selected.app || !selected.caseCard) return
+    if (!client || !app || !caseCard) return
     setPending(true); setError(null); clearRun()
     try {
-      const created = await client.createSession(selected.app.application_id, selected.caseCard.case_id)
+      const created = await client.createSession(app.application_id, caseCard.case_id)
       setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
       setSessionId(created.session_id)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '启动失败') }
@@ -394,15 +396,15 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   }
 
   function startAutomatic() {
-    if (!client || !selected.app || !selected.caseCard || autoController.current) return
+    if (!client || !app || !caseCard || autoController.current) return
     const existingSessionId = sessionId
     if (!existingSessionId) clearRun()
     const controller = new AbortController()
     autoController.current = controller
     setAutomatic(true); setError(null)
     void runAutomaticSession(
-      client, selected.app.application_id, selected.caseCard.case_id,
-      selected.caseCard.instructions, existingSessionId, controller.signal, automaticKeys.current,
+      client, app.application_id, caseCard.case_id,
+      caseCard.instructions, existingSessionId, controller.signal, automaticKeys.current,
       (created) => {
         setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
         setSessionId(created.session_id)
@@ -429,9 +431,9 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   }
 
   async function submit() {
-    if (!client || !sessionId || !selected.caseCard || !status) return
+    if (!client || !sessionId || !caseCard || !status) return
     const ordinal = status.completed_turns + 1
-    const instruction = selected.caseCard.instructions[ordinal - 1]
+    const instruction = caseCard.instructions[ordinal - 1]
     if (!instruction) return
     setPending(true); setError(null)
     try {
@@ -461,38 +463,84 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     finally { setEvidencePending(false) }
   }
 
-  function disconnect() {
-    clearRun(); setClient(null); setCatalog(null); setSelection(null); setError(null)
-  }
-
   const displayedOrdinal = selectedStep ?? status?.completed_turns ?? 0
-  const networkView = displayedOrdinal > 0 ? networkViews[displayedOrdinal] ?? null : null
+  const exactNetworkView = displayedOrdinal > 0 ? networkViews[displayedOrdinal] ?? null : null
+  const previousOrdinal = Object.keys(networkViews).map(Number).filter((ordinal) => ordinal < displayedOrdinal)
+    .sort((a, b) => b - a)[0]
+  const previousNetworkView = previousOrdinal === undefined ? null : networkViews[previousOrdinal]
+  const networkView: NetworkViewData | null = exactNetworkView || (previousNetworkView?.schema === 'capstone-network-view/2.0'
+    ? { ...previousNetworkView, ordinal: displayedOrdinal,
+      layer: { ...previousNetworkView.layer, ordinal: displayedOrdinal, focus_ids: [], next_focus_ids: [], overlay: null } }
+    : previousNetworkView ? { ...previousNetworkView, ordinal: displayedOrdinal,
+      focus_ids: [], next_focus_ids: [], overlay: null } : null)
   const networkFocusKey = `${sessionId ?? 'idle'}:${displayedOrdinal}:${status?.state ?? 'new'}`
   const nextNetworkTask = selectedStep === null && status?.state === 'executing' && displayedOrdinal > 0
-  const networkUnavailable = displayedOrdinal > 0 && unavailableViews.includes(displayedOrdinal)
+  const networkUnavailable = displayedOrdinal > 0 && unavailableViews.includes(displayedOrdinal) && !networkView
+
+  return <div style={{ display: visible ? 'contents' : 'none' }}>
+    <div className="workspace-center">
+      {error && <div className="workspace-alert" role="alert">{error}</div>}
+      <CapstoneIntro />
+      <RunPanel app={app} caseCard={caseCard} status={status}
+        turns={turns} progress={progress} actionPending={pending} automatic={automatic}
+        networkView={networkView} networkFocusKey={networkFocusKey}
+        networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
+        selectedStep={selectedStep} onSelectStep={setSelectedStep}
+        report={report} result={result}
+        onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
+        onAuto={startAutomatic} onStopAuto={stopAutomatic}
+        onEvidence={(ref) => void showEvidence(ref)} />
+    </div>
+    <DetailPanel status={status} caseCard={caseCard} turns={turns}
+      tab={tab} onTab={setTab}
+      evidenceRef={evidenceRef} evidence={evidence} evidencePending={evidencePending} />
+  </div>
+}
+
+export default function App({ clientFactory = (token) => new CapstoneClient(
+  import.meta.env.VITE_API_ORIGIN || '', token,
+) }: Props) {
+  const [client, setClient] = useState<CapstoneClient | null>(null)
+  const [catalog, setCatalog] = useState<Catalog | null>(null)
+  const [selection, setSelection] = useState<Selection | null>(null)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function connect(token: string) {
+    setPending(true); setError(null)
+    try {
+      const nextClient = clientFactory(token)
+      const nextCatalog = await nextClient.catalog()
+      if (nextCatalog.schema !== 'capstone-catalog/1.0' || !nextCatalog.applications.length) {
+        throw new Error('案例目录不可用')
+      }
+      const firstApp = nextCatalog.applications.find((item) => item.cases.length)
+      if (!firstApp) throw new Error('没有可运行的案例')
+      setCatalog(nextCatalog); setClient(nextClient)
+      setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '连接失败')
+    } finally { setPending(false) }
+  }
+
+  function disconnect(message: string | null = null) {
+    setClient(null); setCatalog(null); setSelection(null); setError(message)
+  }
 
   return <div className="app-shell">
-    <PageHeader connected={!!client} onDisconnect={disconnect} />
-    {!client || !catalog || !selected.app || !selected.caseCard ?
+    <PageHeader connected={!!client} onDisconnect={() => disconnect()} />
+    {!client || !catalog || !selection ?
       <AccessGate onConnect={connect} pending={pending} error={error} /> :
       <div className="workspace">
-        <CatalogPanel catalog={catalog} selection={selection} locked={!!status &&
-          !['completed', 'failed', 'interrupted'].includes(status.state)}
-          onSelect={(value) => { clearRun(); setSelection(value); setError(null) }} />
-        <div className="workspace-center">
-          {error && <div className="workspace-alert" role="alert">{error}</div>}
-          <RunPanel app={selected.app} caseCard={selected.caseCard} status={status}
-            turns={turns} progress={progress} actionPending={pending} automatic={automatic}
-            networkView={networkView} networkFocusKey={networkFocusKey}
-            networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
-            selectedStep={selectedStep} onSelectStep={setSelectedStep}
-            onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
-            onAuto={startAutomatic} onStopAuto={stopAutomatic}
-            onEvidence={(ref) => void showEvidence(ref)} />
-        </div>
-        <DetailPanel status={status} caseCard={selected.caseCard} turns={turns}
-          report={report} result={result} tab={tab} onTab={setTab}
-          evidenceRef={evidenceRef} evidence={evidence} evidencePending={evidencePending} />
+        <CatalogPanel catalog={catalog} selection={selection}
+          onSelect={setSelection} />
+        {catalog.applications.flatMap((app) => app.cases.map((caseCard) =>
+          <CaseWorkspace key={`${app.application_id}:${caseCard.case_id}`}
+            client={client} app={app} caseCard={caseCard}
+            visible={selection.applicationId === app.application_id &&
+              selection.caseId === caseCard.case_id}
+            onInvalidToken={disconnect} />,
+        ))}
       </div>}
   </div>
 }
