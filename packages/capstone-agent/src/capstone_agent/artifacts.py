@@ -123,7 +123,10 @@ class ArtifactService:
         if session is None or session.run_id is None:
             raise ValueError("current run is unavailable")
         resolved = path.resolve()
-        run_dir = (self.runs_root / session.run_id).resolve()
+        application_root = (self.runs_root / "pypsa"
+                            if session.application_id == "pypsa-business-cases"
+                            else self.runs_root)
+        run_dir = (application_root / session.run_id).resolve()
         if not resolved.is_relative_to(run_dir) or not resolved.is_file():
             raise ValueError("report is outside current run")
         with resolved.open("rb") as stream:

@@ -69,3 +69,19 @@ def test_report_path_must_stay_inside_current_run(ledger: Ledger, tmp_path: Path
         service.save_report(session.session_id, outside)
     service.save_report(session.session_id, report)
     assert service.read_report(session.session_id) == "# Current run\n"
+
+
+def test_pypsa_report_uses_registered_application_run_directory(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    session = ledger.create_session("pypsa-business-cases", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("worker-one", 30)
+    assert claim is not None
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-pypsa-report"}))
+    report = tmp_path / "pypsa" / "run-pypsa-report" / "output" / "report.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("# PyPSA report\n", encoding="utf-8")
+    service = ArtifactService(ledger, MemoryObjectStore(), tmp_path)
+    service.save_report(session.session_id, report)
+    assert service.read_report(session.session_id) == "# PyPSA report\n"
