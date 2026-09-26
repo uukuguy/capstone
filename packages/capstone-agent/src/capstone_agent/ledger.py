@@ -126,6 +126,10 @@ class Ledger:
                 if statement.strip():
                     connection.execute(statement)
 
+    def ping(self) -> bool:
+        with self._connect() as connection:
+            return connection.execute("SELECT 1").fetchone() is not None
+
     def create_session(
         self, application_id: str, mode: str, case_id: str | None,
         provider: str | None, model: str | None,

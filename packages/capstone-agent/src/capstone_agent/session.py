@@ -49,6 +49,10 @@ class WorkerRegistry:
             raise ValueError("worker registration is duplicated")
         self._specs = {spec.application_id: spec for spec in specs}
 
+    @property
+    def specs(self) -> tuple[WorkerSpec, ...]:
+        return tuple(self._specs.values())
+
     def resolve(self, application_id: str) -> WorkerSpec:
         try:
             return self._specs[application_id]
