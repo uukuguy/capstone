@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
+import { runAutomaticSession } from './autoRun'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, SessionStatus } from './types'
 
 type Selection = { applicationId: string; caseId: string }
@@ -103,10 +104,11 @@ function AnswerCard({ turn, onEvidence }: {
   </div>
 }
 
-function RunPanel({ app, caseCard, status, turns, progress, actionPending, onStart,
-                    onSubmit, onClose, onEvidence }: {
+function RunPanel({ app, caseCard, status, turns, progress, actionPending, automatic, onStart,
+                    onSubmit, onClose, onAuto, onStopAuto, onEvidence }: {
   app: ApplicationCard; caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
+  automatic: boolean; onAuto: () => void; onStopAuto: () => void;
   onStart: () => void; onSubmit: () => void; onClose: () => void;
   onEvidence: (ref: string) => void
 }) {
@@ -145,17 +147,22 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, onSta
     </ol>
     <div className="run-action-bar">
       {!status && <><div><strong>准备开始</strong><span>启动运行后，逐条确认并提交案例指令。</span></div>
-        <button className="primary-button" onClick={onStart} disabled={actionPending}>启动本轮分析 <span aria-hidden="true">↗</span></button></>}
+        <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="primary-button" onClick={onStart} disabled={actionPending}>启动本轮分析 <span aria-hidden="true">↗</span></button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
-        <span>提交后等待本轮回答，后续步骤不会自动执行。</span></div>
-        <button className="primary-button" onClick={onSubmit} disabled={actionPending}>提交指令 {next} <span aria-hidden="true">↗</span></button></>}
+        <span>{automatic ? '自动执行会等待本轮回答后继续。' : '可逐步提交，或由系统自动完成剩余步骤。'}</span></div>
+        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="primary-button" onClick={onSubmit} disabled={actionPending}>提交指令 {next} <span aria-hidden="true">↗</span></button></div>}</>}
+      {status?.state === 'executing' && <div className="working-line"><span className="spinner" />{progress || '正在执行当前指令…'}</div>}
       {status?.state === 'ready' && next > caseCard.instructions.length && <><div><strong>全部指令已完成</strong>
         <span>结束本轮后生成最终结果与报告。</span></div>
-        <button className="primary-button" onClick={onClose} disabled={actionPending}>完成并生成报告 <span aria-hidden="true">↗</span></button></>}
+        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="primary-button" onClick={onClose} disabled={actionPending}>完成并生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
       {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong><small>报告与证据可在右侧查看。</small></div></div>}
       {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message"><strong>{stateLabel[status.state]}</strong><span>已提交的回答仍可查看。</span></div>}
+      {automatic && <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
   </main>
 }
@@ -236,13 +243,23 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   const [evidencePending, setEvidencePending] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [automatic, setAutomatic] = useState(false)
+  const autoController = useRef<AbortController | null>(null)
+  const automaticKeys = useRef(new Map<string, string>())
 
   const selected = useMemo(() => {
     const app = catalog?.applications.find((item) => item.application_id === selection?.applicationId)
     return { app, caseCard: app?.cases.find((item) => item.case_id === selection?.caseId) }
   }, [catalog, selection])
 
+  function stopAutomatic() {
+    autoController.current?.abort()
+    autoController.current = null
+    setAutomatic(false)
+  }
+
   function clearRun() {
+    stopAutomatic()
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
   }
@@ -334,6 +351,41 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     finally { setPending(false) }
   }
 
+  function startAutomatic() {
+    if (!client || !selected.app || !selected.caseCard || autoController.current) return
+    const existingSessionId = sessionId
+    if (!existingSessionId) clearRun()
+    const controller = new AbortController()
+    autoController.current = controller
+    setAutomatic(true); setError(null)
+    void runAutomaticSession(
+      client, selected.app.application_id, selected.caseCard.case_id,
+      selected.caseCard.instructions, existingSessionId, controller.signal, automaticKeys.current,
+      (created) => {
+        setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
+        setSessionId(created.session_id)
+      },
+      (current) => setStatus((before) => before && before.session_id === current.session_id &&
+        (before.completed_turns > current.completed_turns || before.accepted_turns > current.accepted_turns)
+        ? before : current),
+    ).then(async (sid) => {
+      if (controller.signal.aborted || !autoController.current) return
+      const current = await client.status(sid)
+      if (current.state === 'completed') {
+        const outcomes = await Promise.allSettled([client.report(sid), client.result(sid)])
+        if (outcomes[0].status === 'fulfilled') setReport(outcomes[0].value)
+        if (outcomes[1].status === 'fulfilled') setResult(outcomes[1].value)
+      }
+    }).catch((cause) => {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '自动执行失败')
+    }).finally(() => {
+      if (autoController.current === controller) {
+        autoController.current = null
+        setAutomatic(false)
+      }
+    })
+  }
+
   async function submit() {
     if (!client || !sessionId || !selected.caseCard || !status) return
     const ordinal = status.completed_turns + 1
@@ -382,8 +434,9 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
         <div className="workspace-center">
           {error && <div className="workspace-alert" role="alert">{error}</div>}
           <RunPanel app={selected.app} caseCard={selected.caseCard} status={status}
-            turns={turns} progress={progress} actionPending={pending}
+            turns={turns} progress={progress} actionPending={pending} automatic={automatic}
             onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
+            onAuto={startAutomatic} onStopAuto={stopAutomatic}
             onEvidence={(ref) => void showEvidence(ref)} />
         </div>
         <DetailPanel status={status} caseCard={selected.caseCard} turns={turns}

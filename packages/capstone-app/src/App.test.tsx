@@ -63,4 +63,19 @@ describe('operator workflow', () => {
       'session-one', '打开模型。', expect.any(String),
     ))
   })
+
+  it('starts automatic completion and allows stopping future steps', async () => {
+    const { client, createSession, submitTurn } = mockClient()
+    render(<App clientFactory={() => client} />)
+    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(
+      'session-one', '打开模型。', expect.any(String),
+    ))
+    fireEvent.click(screen.getByRole('button', { name: '停止自动执行' }))
+    expect(screen.queryByRole('button', { name: '停止自动执行' })).toBeNull()
+  })
 })
