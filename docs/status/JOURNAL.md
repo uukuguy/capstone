@@ -961,3 +961,5 @@ _Recovered pre-merge mainline entries._
 - 00:58 Verified the regional two-scenario case, official SciGRID-DE dispatch, and AC/DC topology case; `make doctor`, `make test`, `make test-e2e`, `make validate`, `make test-packages`, `make check-types`, and the main grid CLI envelope passed (uncommitted working tree).
 - 01:14 Re-ran the complete doctor, test, E2E (37/37), validation (24/24), type, and clean-wheel package gates after tightening official-model structural validation; all passed in the main checkout (uncommitted working tree).
 - 08:58 Fresh main-checkout doctor, test, E2E (37/37), validation (24/24), package, type, and grid CLI gates passed; all six official assets verified.
+- 09:00 Committed verified PyPSA model library, three scripted business cases, contracts, and documentation on main [63ccb11].
+- 09:00 Refreshed live recovery checkpoint after model-library integration; staged user configuration remains excluded.
