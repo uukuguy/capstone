@@ -10,7 +10,7 @@ import psycopg
 import pytest
 
 from capstone_agent.artifacts import ArtifactService, MemoryObjectStore
-from capstone_agent.host_worker import run_claimed_session
+from capstone_agent.host_worker import run_claimed_session, serve_forever
 from capstone_agent.ledger import Ledger
 from capstone_agent.session import WorkerRegistry, WorkerSpec
 
@@ -101,3 +101,22 @@ def test_worker_runs_sequential_commands_for_cross_connection_reader(
     assert artifacts.read_evidence(record.session_id, "evidence:current") == {
         "ref": "evidence:current"
     }
+
+
+def test_worker_loop_claims_new_sessions_and_stops_cleanly(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    artifacts = ArtifactService(ledger, MemoryObjectStore(), tmp_path / "runs")
+    stop = threading.Event()
+    thread = threading.Thread(target=serve_forever, args=(ledger, registry, artifacts),
+                              kwargs={"stop_event": stop, "poll_seconds": 0.01,
+                                      "max_sessions": 2}, daemon=True)
+    thread.start()
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    _wait(ledger, session.session_id, "ready")
+    ledger.accept_close(session.session_id, "close-key")
+    _wait(ledger, session.session_id, "completed")
+    stop.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()

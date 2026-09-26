@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
 import time
 from pathlib import Path
 
@@ -60,6 +62,11 @@ def run_claimed_session(
                         _LOG.warning("Capstone artifact unavailable for session %s",
                                      claim.session_id)
                 current = ledger.get_session(claim.session_id)
+                if current is not None and current.state == "completed" and not any(
+                    event.kind == "completed" for event in session.events
+                ):
+                    time.sleep(poll_seconds)
+                    continue
                 if current is None or current.state in {"completed", "failed", "interrupted"}:
                     return
                 if session.failure_code is not None:
@@ -78,3 +85,38 @@ def run_claimed_session(
                 time.sleep(poll_seconds)
     except Exception:
         ledger.mark_failed(claim.session_id, token, "host_worker_failed")
+
+
+def serve_forever(
+    ledger: Ledger, registry: WorkerRegistry, artifacts: ArtifactService,
+    *, max_sessions: int = 8, poll_seconds: float = 0.25,
+    lease_seconds: int = 30, stop_event: threading.Event | None = None,
+) -> None:
+    """Claim bounded independent sessions without relying on API affinity."""
+    if max_sessions < 1 or poll_seconds <= 0:
+        raise ValueError("worker capacity or poll interval is invalid")
+    stop = stop_event or threading.Event()
+    active: dict[str, threading.Thread] = {}
+    worker_id = f"worker-{os.getpid()}"
+    while not stop.is_set():
+        for session_id, thread in tuple(active.items()):
+            if not thread.is_alive():
+                thread.join()
+                del active[session_id]
+        ledger.mark_interrupted_stale()
+        while len(active) < max_sessions:
+            claim = ledger.claim_pending(worker_id, lease_seconds)
+            if claim is None:
+                break
+            thread = threading.Thread(
+                target=run_claimed_session,
+                args=(ledger, registry, claim),
+                kwargs={"artifacts": artifacts, "poll_seconds": poll_seconds,
+                        "lease_seconds": lease_seconds},
+                daemon=True, name=f"capstone-{claim.session_id}",
+            )
+            active[claim.session_id] = thread
+            thread.start()
+        stop.wait(poll_seconds)
+    for thread in active.values():
+        thread.join(timeout=2)

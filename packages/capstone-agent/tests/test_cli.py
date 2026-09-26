@@ -166,3 +166,16 @@ def test_chat_summarizes_evidence_references(tmp_path: Path) -> None:
     ) == 0
     assert "结果 1 项、证据 1 项" in output.getvalue()
     assert "sha256:" not in output.getvalue()
+
+
+@pytest.mark.parametrize("command", ["serve-hosted", "work-hosted"])
+def test_hosted_commands_fail_safely_without_explicit_bindings(
+    command: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("CAPSTONE_OPERATOR_TOKEN", "private-secret-token")
+    errors = io.StringIO()
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    assert main([command], registry=registry, error_stream=errors) == 1
+    assert "ValueError" in errors.getvalue()
+    assert "private-secret-token" not in errors.getvalue()

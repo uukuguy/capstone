@@ -150,6 +150,7 @@ class Ledger:
 
     def initialize(self) -> None:
         with self._connect() as connection:
+            connection.execute("SELECT pg_advisory_xact_lock(152695101)")
             for statement in _SCHEMA.split(";\n"):
                 if statement.strip():
                     connection.execute(statement)

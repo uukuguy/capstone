@@ -148,6 +148,8 @@ def main(
     serve = commands.add_parser("serve", help="Start the local HTTP/SSE service")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8766)
+    commands.add_parser("serve-hosted", help="Start the portable PostgreSQL-backed API")
+    commands.add_parser("work-hosted", help="Run registered sessions from the command ledger")
     args = parser.parse_args(argv)
     selected_registry = registry or build_registry()
     source = input_stream or sys.stdin
@@ -159,7 +161,7 @@ def main(
         elif args.command == "chat":
             _chat(args.application, args.mode, args.case, args.provider, args.model,
                   selected_registry, source, output, errors)
-        else:
+        elif args.command == "serve":
             if args.host not in {"127.0.0.1", "localhost", "::1"}:
                 raise ValueError("server must bind to loopback")
             import uvicorn
@@ -170,6 +172,29 @@ def main(
                   file=errors, flush=True)
             uvicorn.run(create_app(selected_registry, operator_token=token),
                         host=args.host, port=args.port, log_config=None, access_log=False)
+        else:
+            from capstone_agent.host_api import create_host_app
+            from capstone_agent.host_worker import serve_forever
+            from capstone_agent.hosting import build_artifacts, load_host_settings
+            from capstone_agent.ledger import Ledger
+
+            settings = load_host_settings(os.environ)
+            ledger = Ledger(settings.database_url)
+            ledger.initialize()
+            artifacts = build_artifacts(settings, ledger)
+            if args.command == "serve-hosted":
+                import uvicorn
+
+                app = create_host_app(
+                    ledger, selected_registry, operator_token=settings.operator_token,
+                    allowed_hosts=set(settings.allowed_hosts),
+                    allowed_origins=set(settings.allowed_origins),
+                    artifacts=artifacts,
+                )
+                uvicorn.run(app, host=settings.bind_host, port=settings.port,
+                            log_config=None, access_log=False)
+            else:
+                serve_forever(ledger, selected_registry, artifacts)
     except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
         print(f"capstone-agent error: {type(exc).__name__}", file=errors, flush=True)
         return 1
