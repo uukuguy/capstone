@@ -12,6 +12,8 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from pypsa_model_authority import model_library
+
 if TYPE_CHECKING:
     import pypsa  # pyright: ignore[reportMissingImports] -- authority venv
 
@@ -106,6 +108,24 @@ class ModelStore:
 
     def load_model(self, reference: str) -> dict[str, object]:
         document = self.load(reference, "model")
+        if document.get("schema") == "pypsa-model-revision/1.1":
+            catalog_id = document.get("catalog_id")
+            if (
+                document.get("source_kind") != "official-pypsa-netcdf"
+                or not isinstance(catalog_id, str)
+                or document.get("pypsa_version") != version("pypsa")
+                or document.get("parent_ref") is not None
+                or document.get("edits") != []
+            ):
+                raise ModelStoreError("official model revision is invalid")
+            try:
+                entry = model_library.get_official_example(catalog_id)
+                if document.get("source_sha256") != entry.sha256 or document.get("source_size_bytes") != entry.size_bytes:
+                    raise ModelStoreError("official model source identity differs")
+                model_library.verified_asset_path(catalog_id)
+            except model_library.ModelLibraryError as exc:
+                raise ModelStoreError("official model asset is unavailable or changed") from exc
+            return document
         components = document.get("components")
         if not isinstance(components, dict) or document.get("component_digest") != hashlib.sha256(
             canonical_bytes(components)
@@ -130,6 +150,18 @@ class ModelStore:
 def network_from_revision(document: Mapping[str, object]) -> pypsa.Network:
     import pandas as pd
     import pypsa  # pyright: ignore[reportMissingImports] -- authority venv
+
+    if document.get("schema") == "pypsa-model-revision/1.1":
+        catalog_id = document.get("catalog_id")
+        if not isinstance(catalog_id, str):
+            raise ModelStoreError("official model catalog identity is invalid")
+        try:
+            entry = model_library.get_official_example(catalog_id)
+            if document.get("source_sha256") != entry.sha256 or document.get("source_size_bytes") != entry.size_bytes:
+                raise ModelStoreError("official model source identity differs")
+            return pypsa.Network(model_library.verified_asset_path(catalog_id))
+        except model_library.ModelLibraryError as exc:
+            raise ModelStoreError("official model asset is unavailable or changed") from exc
 
     components = document.get("components")
     snapshots = document.get("snapshots")

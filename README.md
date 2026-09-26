@@ -182,6 +182,17 @@ remains bound to pandapower.
 The registered six-bus regional fixture checks multi-load, renewable availability,
 and three-snapshot dispatch through the existing modeling and operations path.
 
+The PyPSA model library now registers 15 project models plus all six Network
+examples from pinned PyPSA 1.3.0. Official assets are installed explicitly with
+`make install-pypsa-models` and checked against pinned SHA-256 digests; agent
+runs never download them. Use `make list-pypsa-models`, `make list-pypsa-cases`,
+and `make run-pypsa-case CASE=scigrid-dispatch` for the local scripted-agent
+workflow. Runnable cases include regional demand stress, SciGRID-DE dispatch,
+and AC/DC topology inspection; four further cases are catalog-only pending
+registered analysis workflows. The run writes a bounded presentation and
+current-run evidence under `runs/pypsa-cases/`. See the [runbook](docs/RUNBOOK.md)
+and [business case design](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md).
+
 `make test` is the provider-free unit gate: it runs the eleven Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked

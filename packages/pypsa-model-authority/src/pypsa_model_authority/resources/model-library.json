@@ -1,0 +1,13 @@
+{
+  "schema": "capstone-pypsa-model-library/1.0",
+  "pypsa_version": "1.3.0",
+  "source": "https://docs.pypsa.org/latest/api/other/api-examples/",
+  "official_examples": [
+    {"catalog_id": "pypsa-example/ac_dc_meshed", "display_name": "AC-DC Meshed", "upstream_function": "ac_dc_meshed", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/ac_dc_meshed.nc", "size_bytes": 109290, "sha256": "a976648b7a8f2b11c17435606730304ce7627b7950ff6c12c2125b83bf11ab3d", "business_theme": "AC/DC interconnection"},
+    {"catalog_id": "pypsa-example/storage_hvdc", "display_name": "Storage-HVDC", "upstream_function": "storage_hvdc", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/storage_hvdc.nc", "size_bytes": 130077, "sha256": "ea7b6a86f7d27b9f54f869d543a4f29ea0123e859760f89c25b92910daadd299", "business_theme": "storage and power transfer"},
+    {"catalog_id": "pypsa-example/scigrid_de", "display_name": "SciGrid-DE", "upstream_function": "scigrid_de", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/scigrid_de.nc", "size_bytes": 1530579, "sha256": "4f4f38868fc9898db6dc81dc5308b77a00c19e4c2099310f1152093c8f602919", "business_theme": "regional grid operation"},
+    {"catalog_id": "pypsa-example/model_energy", "display_name": "Model-Energy", "upstream_function": "model_energy", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/model_energy.nc", "size_bytes": 156931, "sha256": "11d35d6a19e2fe5841c2aa80219220d79e99edebce90db50253cfeb4d39cadc9", "business_theme": "capacity mix planning"},
+    {"catalog_id": "pypsa-example/stochastic_network", "display_name": "Stochastic-Network", "upstream_function": "stochastic_network", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/stochastic_network.nc", "size_bytes": 122861, "sha256": "dd1da43e4391531577f739b5cee29cac90e825dd903980c7e1497b1faf8a13fb", "business_theme": "investment under uncertainty"},
+    {"catalog_id": "pypsa-example/carbon_management", "display_name": "Carbon Management", "upstream_function": "carbon_management", "source_url": "https://data.pypsa.org/networks/examples/v1.3.0/carbon_management.nc", "size_bytes": 38358898, "sha256": "7b1a0e7b37e7861c315ea6b248416d3ac1c9762f433d55a944c4f20208e3495e", "business_theme": "sector and carbon system inspection"}
+  ]
+}

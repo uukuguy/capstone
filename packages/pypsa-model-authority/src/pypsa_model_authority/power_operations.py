@@ -149,8 +149,32 @@ def execute_operation(
         "condition": condition,
         "objective_kind": objective_kind,
         "objective": _finite(network.objective),
-        "generator_dispatch_mw": _series_by_component(network.generators_t.p),
     }
+    if len(network.generators) <= 50:
+        details["generator_dispatch_mw"] = _series_by_component(network.generators_t.p)
+    else:
+        dispatch = network.generators_t.p
+        carriers = sorted({str(value) or "unspecified" for value in network.generators.carrier})
+        if len(carriers) > 30:
+            raise OperationError("invalid_solver_result", "registered network has too many carrier groups for bounded output")
+        details["generator_count"] = len(network.generators)
+        details["generation_by_carrier_mw"] = {
+            carrier: [_finite(value) for value in dispatch.loc[:, [
+                name for name in network.generators.index
+                if (str(network.generators.at[name, "carrier"]) or "unspecified") == carrier
+            ]].sum(axis=1).tolist()]
+            for carrier in carriers
+        }
+        details["total_generation_mw"] = [_finite(value) for value in dispatch.sum(axis=1).tolist()]
+        if len(network.lines):
+            ratings = network.lines.s_nom.astype(float)
+            flows = network.lines_t.p0.abs().div(ratings.where(ratings > 0), axis=1)
+            maxima = flows.max(axis=0).sort_values(ascending=False).head(10)
+            details["top_line_loading"] = [
+                {"line_id": str(name), "max_loading_pct": _finite(value * 100)}
+                for name, value in maxima.items() if math.isfinite(float(value))
+            ]
+            details["omitted_line_count"] = max(0, len(network.lines) - 10)
     if capability == "operations.commitment":
         details["commitment_status"] = {
             name: [int(round(value)) for value in values]

@@ -65,6 +65,24 @@ inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/contex
 
 `make validate` 使用当前保护配置 `configs/runtime/application-instantiation-protected-paths.json` 检查已提交路径摘要与工作树清洁性。历史 Workstream C closure 的保护记录保留为当时证明，不能替代当前发布基线。
 
+## PyPSA 电网模型库与本地案例
+
+PyPSA 1.3.0 的六个官方 Network 示例与 15 个项目模型一起登记在模型库中。官方 NetCDF 只通过操作者命令下载，逐项核对固定文件大小和 SHA-256，保存于 Git 忽略的 `.grid-agent/runtime/pypsa-models/`。若要使用只读容器目录，可设置 `CAPSTONE_PYPSA_MODEL_LIBRARY_DIR` 指向已安装且校验过的资产目录。缺失或被改动的资产不能被 `model.open` 使用；案例运行中不会联网下载。
+
+```sh
+make setup-pypsa
+make list-pypsa-models
+make install-pypsa-models
+make list-pypsa-cases
+make run-pypsa-case CASE=regional-demand-stress
+make run-pypsa-case CASE=ac-dc-interconnection
+make run-pypsa-case CASE=scigrid-dispatch
+```
+
+案例清单位于 `validation/pypsa-cases/cases.json`。`runnable` 表示已登记并通过本地应用链路的流程；`catalog-only` 表示模型已入库但相应的规划、储能价值或跨部门分析仍缺受控能力。`validation/pypsa_cases.py` 使用确定性脚本 Provider 验证 `AgentApplication`、两个 Domain Pack、授权模型交接、PyPSA 求解器和当前运行证据。它不检验真实 LLM 的问题理解和工具选择，也不代替需凭据且可能计费的 Provider 验证。
+
+每次 `run-pypsa-case` 的 stdout 为案例展示 JSON；完整副本写入 `runs/pypsa-cases/<run_id>/presentation.json`。其中包含模型来源与校验值、答案、情景、求解状态、带单位说明的目标或比较、受限拓扑、可追溯的答案/结果/证据引用。SciGRID-DE 只提供前 50 个母线及它们之间的分支预览，并明确给出省略数量。拓扑本身不代表求解后的潮流覆盖层；线路高负载列表来自独立的调度结果。官方示例的数据与假设需要结合原项目说明解释，不能用作运行许可。可参阅[模型库与案例设计](superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md)。
+
 ## 主路径：执行自然语言分析问题
 
 评测和人工验证智能体的自然语言理解、实体识别与多次工具编排时，使用 `make run-llm`。这是产品主路径：Pi/LLM 负责理解请求并组合发布的 pandapower domain tools，`gridctl` 负责所有确定性计算与证据。

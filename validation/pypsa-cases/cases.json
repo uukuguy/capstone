@@ -1,0 +1,79 @@
+{
+  "schema": "capstone-pypsa-business-cases/1.0",
+  "cases": [
+    {
+      "id": "regional-demand-stress",
+      "title": "区域负荷增长情景",
+      "audience": "配电与区域运行分析员",
+      "question": "将区域网络 central-demand 在三个时段的负荷各增加 10 MW，比较基准与增长情景的固定容量调度、运行成本和可行性。",
+      "model_id": "regional-six-bus",
+      "status": "runnable",
+      "workflow": ["model.open", "model.inspect", "model.topology", "operations.dispatch", "model.derive_series", "operations.dispatch"],
+      "scenario": {"load_id": "central-demand", "baseline_mw": [20, 25, 30], "variant_mw": [30, 35, 40]},
+      "presentation": ["model_provenance", "scenario", "solver_status", "objective_comparison", "generation", "topology", "evidence"],
+      "limitations": ["合成区域网络；结果用于方法演示，不能代表真实电网运行决策。"]
+    },
+    {
+      "id": "scigrid-dispatch",
+      "title": "德国输电网日内调度概览",
+      "audience": "输电网规划与运行分析员",
+      "question": "对已登记的 SciGRID-DE 示例网络求解各时段固定容量调度，报告求解状态、发电结构和线路负载率较高的线路，并说明数据与优化目标的边界。",
+      "model_id": "pypsa-example/scigrid_de",
+      "status": "runnable",
+      "workflow": ["model.open", "model.inspect", "model.topology", "operations.dispatch"],
+      "presentation": ["model_provenance", "solver_status", "objective", "generation_by_carrier", "top_line_loading", "topology", "evidence"],
+      "limitations": ["官方示例网络及其输入假设；线性最优调度不构成实时安全校核或运行许可。"]
+    },
+    {
+      "id": "ac-dc-interconnection",
+      "title": "AC/DC 跨区互联结构核查",
+      "audience": "互联规划分析员",
+      "question": "识别 AC/DC 示例网络中的母线、交流线路和直流链路，说明网络连接关系和后续潮流研究需要的条件。",
+      "model_id": "pypsa-example/ac_dc_meshed",
+      "status": "runnable",
+      "workflow": ["model.open", "model.inspect", "model.topology"],
+      "presentation": ["model_provenance", "component_counts", "topology", "evidence"],
+      "limitations": ["结构核查不代表潮流或容量可行性结论。"]
+    },
+    {
+      "id": "storage-hvdc-value",
+      "title": "储能与直流输电价值分析",
+      "audience": "灵活性资源规划员",
+      "question": "比较储能与 HVDC 对本地发电和系统成本的影响，并核对储能状态和输电限额。",
+      "model_id": "pypsa-example/storage_hvdc",
+      "status": "catalog-only",
+      "required_next_capabilities": ["bounded storage state and HVDC flow projection", "registered comparison scenario"],
+      "limitations": ["当前仅可做模型结构核查；价值结论需要受控情景与结果投影。"]
+    },
+    {
+      "id": "energy-capacity-mix",
+      "title": "电源容量结构与成本",
+      "audience": "能源系统规划员",
+      "question": "解释示例模型的容量组合、投资成本与运行成本。",
+      "model_id": "pypsa-example/model_energy",
+      "status": "catalog-only",
+      "required_next_capabilities": ["registered capacity planning formulation", "bounded cost breakdown"],
+      "limitations": ["不能把一般调度目标误当成投资总成本。"]
+    },
+    {
+      "id": "stochastic-investment",
+      "title": "不确定需求下的共同投资",
+      "audience": "发电投资规划员",
+      "question": "比较情景下共同装机决策、预期成本和各情景运行结果。",
+      "model_id": "pypsa-example/stochastic_network",
+      "status": "catalog-only",
+      "required_next_capabilities": ["registered stochastic planning formulation", "scenario probability and dispatch projection"],
+      "limitations": ["必须保留情景权重，不能把各情景输出直接相加。"]
+    },
+    {
+      "id": "carbon-system-inventory",
+      "title": "电氢碳系统资产清单",
+      "audience": "跨部门能源规划员",
+      "question": "识别电力、氢能和碳管理组成部分，为后续分析定义范围。",
+      "model_id": "pypsa-example/carbon_management",
+      "status": "catalog-only",
+      "required_next_capabilities": ["carrier-filtered topology and asset summaries"],
+      "limitations": ["初期仅做有界清单；不提供全网交互式重优化。"]
+    }
+  ]
+}

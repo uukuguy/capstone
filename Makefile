@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime
+.PHONY: help setup setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -22,6 +22,10 @@ help:
 	@echo "  make test-inventory-domain   Test the inventory Domain Pack SPI"
 	@echo "  make test-inventory-pi       Test unchanged generic Pi with inventory tools"
 	@echo "  make test-inventory          Run all inventory reference-domain tests"
+	@echo "  make list-pypsa-models       List registered PyPSA model assets and install state"
+	@echo "  make install-pypsa-models    Install all six checked PyPSA example Networks"
+	@echo "  make list-pypsa-cases        List local PyPSA business cases"
+	@echo "  make run-pypsa-case CASE=...  Run one scripted local PyPSA agent case"
 	@echo "  make test-e2e              Run offline CLI and scripted Pi-to-gridctl scenarios"
 	@echo "  make validate              Run deterministic WP-A validation"
 	@echo "  make validate-application  Run provider-free generic application instantiation validation"
@@ -41,6 +45,18 @@ setup-pypsa:
 	uv sync --project packages/pypsa-sector-coupling-domain-pack
 	uv sync --project packages/pypsa-capacity-planning-domain-pack
 	uv sync --project packages/pypsa-power-operations-domain-pack
+
+list-pypsa-models:
+	uv run --project packages/pypsa-sector-coupling-domain-pack python -m pypsa_model_authority.model_library list
+
+install-pypsa-models:
+	uv run --project packages/pypsa-sector-coupling-domain-pack python -m pypsa_model_authority.model_library install --all
+
+list-pypsa-cases:
+	uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py list
+
+run-pypsa-case:
+	uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py run "$(CASE)"
 
 setup-tools:
 	npm ci --prefix packages/pi-capability-tools
@@ -142,6 +158,7 @@ test-pypsa:
 	uv run --project packages/pypsa-sector-coupling-domain-pack pytest packages/pypsa-model-authority/tests packages/pypsa-network-modeling-domain-pack/tests packages/pypsa-sector-coupling-domain-pack/tests -q
 	uv run --project packages/pypsa-capacity-planning-domain-pack pytest packages/pypsa-capacity-planning-domain-pack/tests -q
 	uv run --project packages/pypsa-power-operations-domain-pack pytest packages/pypsa-power-operations-domain-pack/tests -q
+	uv run --project packages/pypsa-power-operations-domain-pack pytest validation/test_pypsa_cases.py -q
 
 # Stable provider-free entry for authors copying the inventory Domain Pack pattern.
 test-domain-pack-conformance: check-package-boundaries

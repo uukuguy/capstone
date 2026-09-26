@@ -900,3 +900,64 @@ _Recovered pre-merge mainline entries._
 - 18:07 拆出固定进程传输模块，缩小工具装配改动范围并保留现有协议行为 [76d68fb]。
 - 18:39 显示各入口请求捕获状态并拒绝缺项通道，便于诊断且避免静默失效 [374c75c]。
 - 18:39 增加同源收敛结果事实卡与真实重复调用基线，明确缓存决策所缺的测量 [2b89b0e]。
+
+## 2026-09-23
+
+- 15:31 归档评审研究、已完成指南计划和交接快照，澄清后续状态并保存文档 [29688ec]。
+
+## 2026-09-25
+
+- 16:44 设计 PyPSA 四包与多绑定引用交接，确定后续分阶段实现边界 [930f18a]。
+- 16:51 规划多绑定应用七项验收任务，明确 PyPSA 建模及后续三包的实施顺序 [a20b342]。
+- 16:52 更新结构状态与决策索引，使恢复入口指向已批准的 PyPSA 多包方案 [ef587d2]。
+- 16:55 保存最终交接文件，确保下次从多绑定 Task 1 和既定四包顺序恢复 [338d5c7]。
+- 17:11 Enabled multiple complete application bindings with isolated preparation and cleanup [b279967].
+- 17:19 Composed collision-checked tools and guides across prepared bindings [eb0f7f5].
+- 17:28 Added validated multi-binding runtime descriptor v1.1 while preserving single-binding v1 [bd8a25b].
+- 17:39 Routed v1.1 Pi tools and guides per binding with one shared core registration [357197a].
+- 17:50 Launched multi-binding Pi from one core v1.1 descriptor while preserving single-binding v1 [a97ba5d].
+- 17:59 Aggregated per-binding answer admission with owner-scoped evidence and conservative assurance [122bef7].
+- 18:01 Removed repeated tamper assertions while retaining evaluator isolation coverage [cfef7ef].
+- 18:15 Repeating identical AC power flow in turn two hits pre-existing state record collision; acceptance uses another real gridctl capability.
+- 18:16 Added real two-binding acceptance, managed Pi startup proof, and aligned product docs [32788b4].
+- 18:21 Exercised owned claims through the public controller seam without patching production routing [9f470d4].
+- 18:25 Separated output-cap assertion from Node startup timeout to stabilize the test gate [541e34e].
+- 18:29 Sequential make test passed after the focused timeout fix.
+- 18:31 Sequential make test-e2e passed all 37 cases with real application paths.
+- 18:32 Updated protected inventory tree digest; protected-path check passed [f004823].
+- 18:34 Sequential make validate passed offline, scripted core/full suites, and 24/24 capability coverage.
+- 18:35 make test-packages passed six Python distributions, two npm tarballs, and installed smoke checks.
+- 18:39 Fast-forward integrated all accepted multi-binding commits into main [f004823]; main make doctor passed.
+- 18:41 Main grid-agent CLI produced the exact two-field envelope; first run failed before recorded events, retry succeeded with current-run evidence.
+- 18:43 Audited existing Kernel application suite: 333 cases passed in 1.43 seconds; test count alone is not the gate cost.
+- 18:46 Trimmed duplicate portable-ID matrices in existing tests; 316 Kernel application cases passed [e4c131f].
+- 18:49 Planned the pinned PyPSA authority, modeling Pack, and typed handoff sequence before implementation [eda991b].
+- 19:02 Added registered PyPSA model authority with immutable revisions and real Network calls; four focused tests passed [079dfca].
+- 19:14 Added complete PyPSA modeling Pack with real authority execution and one-turn application acceptance; six focused tests passed [03a0b53].
+- 19:52 Added policy-granted, replayable cross-binding reference handoffs so PyPSA model revisions cross only verified boundaries [cc7f3c3].
+- 19:53 Added PyPSA package gates, installed receiver smoke, and coverage docs to verify deployable modeling boundaries [a70ccff].
+- 19:56 Fast-forward integrated PyPSA modeling and handoff into main; main doctor, setup-pypsa, and exact grid CLI envelope passed [a70ccff].
+- 19:59 Planned PyPSA solver authority and Operations Pack to publish dispatch, commitment, security, and AC validation through verified receipts [49cf155].
+- 20:41 Added and integrated PyPSA Operations Pack with receipt-gated solvers and target evidence; nine-wheel smoke and offline gates passed [a8dfd8c].
+- 20:46 Trimmed repeated credential and segment-race tests to preserve distinct boundaries; 549 Kernel tests pass [6f9f73c].
+- 20:46 Updated approved PyPSA design status to reflect integrated modeling and operations without overstating remaining Packs [f900043].
+- 20:52 Planned a registered capacity-expansion release with explicit deferred planning features and receipt-gated evidence [04c2267].
+- 21:05 Added receipt-gated PyPSA capacity planning with real solver evidence and clean-wheel installation proof [dee22f4].
+- 21:09 Planned a registered electricity-to-hydrogen solve with bounded carrier semantics and target-owned evidence [586a386].
+- 21:49 Added Sector Coupling Pack with receipt-gated electricity-to-hydrogen evidence; full offline and wheel gates passed [597b7b3].
+- 21:51 Fast-forward integrated all four PyPSA Packs into main; setup, doctor, and actual grid CLI two-field output passed [597b7b3].
+- 22:07 Planned a bounded heat-pump balance to extend Sector Coupling without new model-controlled devices [bea4468].
+- 22:14 Tracked remaining bounded PyPSA workflows across all four Packs so completion has explicit evidence gates [b14a0d7].
+- 22:14 Published Sector heat, storage, and multiport workflows with registered solver evidence and handoff contracts [32c4155].
+- 22:24 Published joint, multi-period, stochastic, and MGA planning workflows with distinct objective meanings and registered evidence [c6b0c06].
+- 22:39 Published rolling dispatch, congested OPF, typed snapshot derivation, and validation through bounded PyPSA contracts [c10057c].
+- 23:01 Registered a regional grid and temperature-derived COP to verify broader model scope and honest heat claims [6f42c85].
+- 23:16 Fast-forward integrated the complete PyPSA worklist into main; final offline, E2E, validation, and clean-wheel gates passed [6f42c85].
+- 23:20 Closed the verified four-Pack worklist after main entrypoint and documentation checks passed [f976b58].
+
+## 2026-09-26
+
+- 00:58 Registered and locally installed all six pinned PyPSA 1.3.0 example Networks alongside 15 project models; all six opened and inspected, and three business cases reached current-run application evidence (uncommitted working tree).
+- 00:58 Verified the regional two-scenario case, official SciGRID-DE dispatch, and AC/DC topology case; `make doctor`, `make test`, `make test-e2e`, `make validate`, `make test-packages`, `make check-types`, and the main grid CLI envelope passed (uncommitted working tree).
+- 01:14 Re-ran the complete doctor, test, E2E (37/37), validation (24/24), type, and clean-wheel package gates after tightening official-model structural validation; all passed in the main checkout (uncommitted working tree).
+- 08:58 Fresh main-checkout doctor, test, E2E (37/37), validation (24/24), package, type, and grid CLI gates passed; all six official assets verified.

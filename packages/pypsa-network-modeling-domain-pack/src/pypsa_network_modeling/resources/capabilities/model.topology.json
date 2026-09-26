@@ -1,0 +1,25 @@
+{
+  "id": "model.topology",
+  "tool_name": "pypsa_model_topology",
+  "availability": "published",
+  "context_effect": {
+    "requires_state": ["pypsa-model.revision"],
+    "consumes_state": ["pypsa-model.revision"],
+    "produces_state": ["pypsa-model.topology"],
+    "invalidates_state": [],
+    "result_kind": "pypsa-model.topology",
+    "projector": "pypsa-model-revision-v1"
+  },
+  "purpose": "Return a bounded bus, line, link, and transformer topology view of one current-run registered model revision.",
+  "applies_to": ["registered PyPSA networks"],
+  "not_for": ["raw Network access", "complete large-network export", "solver outcomes"],
+  "input_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["model_ref"],
+    "properties": {"model_ref": {"type": "string", "minLength": 1}}
+  },
+  "requires": ["current-run model_ref"],
+  "produces": ["at most 50 buses, 50 lines, 50 links, and 50 transformers", "omitted counts", "coordinate status", "result_ref", "current-run evidence"],
+  "common_next": ["model.inspect", "model.validate"],
+  "recovery": {"invalid_model_ref": ["Open a registered model in the current run."]}
+}
