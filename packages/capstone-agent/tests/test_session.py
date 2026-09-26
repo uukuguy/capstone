@@ -38,7 +38,10 @@ for line in sys.stdin:
              "result_refs": [], "evidence_refs": []})
     elif frame["kind"] == "close":
         send("completed", {"run_id": "run-fixture", "result": {"turns": turns}})
-        break
+    elif frame["kind"] == "evidence":
+        ref = frame["payload"]["ref"]
+        send("evidence_result", {"ref": ref,
+             "value": {"ref": ref} if ref == "evidence:current" else None})
 ''', encoding="utf-8")
     return (sys.executable, "-u", str(script))
 
@@ -50,13 +53,16 @@ def test_session_waits_for_each_committed_answer_in_one_worker(tmp_path: Path) -
 
     with WorkerSession(registry.resolve("fixture-app"), mode="scripted-demo") as session:
         assert session.run_id == "run-fixture"
+        assert session.next_event(after=0).kind == "ready"
         first = session.submit_and_wait("first")
         assert first.payload["answer_output"] == "FIRST"
         second = session.submit_and_wait("second")
         assert second.payload["answer_output"] == "SECOND"
         completed = session.close()
         assert completed.payload["result"] == {"turns": ["first", "second"]}
-        assert [event.sequence for event in session.events] == [1, 2, 3, 4]
+        assert session.read_evidence("evidence:current") == {"ref": "evidence:current"}
+        assert session.read_evidence("evidence:foreign") is None
+        assert [event.sequence for event in session.events] == [1, 2, 3, 4, 5, 6]
 
 
 def test_session_rejects_second_turn_while_first_is_active(tmp_path: Path) -> None:
@@ -66,4 +72,5 @@ def test_session_rejects_second_turn_while_first_is_active(tmp_path: Path) -> No
         with pytest.raises(RuntimeError, match="active"):
             session.submit("second")
         assert session.wait_for("answer_committed").payload["answer_output"] == "FIRST"
-        session.close()
+        session.request_close()
+        assert session.wait_for("completed").kind == "completed"

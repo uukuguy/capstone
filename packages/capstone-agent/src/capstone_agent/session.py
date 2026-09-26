@@ -80,6 +80,16 @@ class WorkerSession:
         with self._condition:
             return self._busy
 
+    @property
+    def accepted(self) -> int:
+        with self._condition:
+            return self._accepted
+
+    @property
+    def closed(self) -> bool:
+        with self._condition:
+            return self._closed
+
     def __enter__(self) -> WorkerSession:
         if self._process is not None:
             raise RuntimeError("worker session is already open")
@@ -149,11 +159,23 @@ class WorkerSession:
         return answer
 
     def close(self) -> Frame:
-        if self._closed:
-            return self.wait_for("completed")
-        self._closed = True
-        self._send("close", {})
+        self.request_close()
         return self.wait_for("completed")
+
+    def request_close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            self._send("close", {})
+
+    def read_evidence(self, reference: str) -> object | None:
+        if not isinstance(reference, str) or not reference or len(reference) > 2048:
+            raise ValueError("evidence reference is invalid")
+        after = self.events[-1].sequence if self.events else 0
+        self._send("evidence", {"ref": reference})
+        response = self.wait_for("evidence_result", after=after)
+        if response.payload.get("ref") != reference:
+            raise RuntimeError("worker evidence identity is invalid")
+        return response.payload.get("value")
 
     def wait_for(self, kind: str, *, after: int = 0) -> Frame:
         deadline = time.monotonic() + self.timeout
@@ -167,6 +189,20 @@ class WorkerSession:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("worker response timed out")
+                self._condition.wait(remaining)
+
+    def next_event(self, *, after: int, timeout: float | None = None) -> Frame | None:
+        deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
+        with self._condition:
+            while True:
+                for event in self._events:
+                    if event.sequence > after:
+                        return event
+                if self._failure is not None:
+                    raise RuntimeError(self._failure)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
                 self._condition.wait(remaining)
 
     def _send(self, kind: str, payload: dict[str, object]) -> None:
