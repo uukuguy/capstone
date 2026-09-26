@@ -43,6 +43,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .secondary-button:hover:not(:disabled) { background: #eef7f3; border-color: #4a9b8a; }
 .secondary-button:disabled { opacity: .52; }
 .action-buttons { display: flex !important; flex-direction: row; align-items: center; gap: 9px; }
+.action-buttons .auto-button { min-width: 0; width: auto; padding: 0 16px; justify-content: center; }
 
 .catalog-panel, .detail-panel { background: #f8faf9; }
 .catalog-panel, .detail-panel { border-color: #dce6e2; }
@@ -79,8 +80,8 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   padding-bottom: clamp(42px, 4vw, 52px);
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
   background: linear-gradient(90deg, #eef3f1f2 0%, #eef3f1d1 65%, #eef3f100 100%); }
-.capstone-intro-kicker { color: #376e69; font: 700 10px "SFMono-Regular", Consolas, monospace;
-  letter-spacing: .13em; margin-bottom: 12px; }
+.capstone-intro-kicker { color: #376e69; font-size: 11px; font-weight: 700;
+  letter-spacing: .01em; margin-bottom: 12px; }
 .capstone-intro-overlay strong { color: #173b3c; font-size: clamp(19px, 2vw, 29px);
   line-height: 1.22; letter-spacing: -.04em; margin-bottom: 15px; }
 .capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
@@ -109,6 +110,10 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .timeline-heading { margin-top: 34px; border-color: #d4e1db; }
 .timeline-count { color: #517a70; font-size: 12px; }
 .timeline-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 11px; }
+.timeline-reset { border: 1px solid #c5d9d1; border-radius: 3px; background: transparent;
+  padding: 6px 10px; color: #436b63; font-size: 12px; font-weight: 650; cursor: pointer; }
+.timeline-reset:hover:not(:disabled) { border-color: #7baea0; background: #edf6f1; color: #176f62; }
+.timeline-reset:disabled { opacity: .5; cursor: default; }
 .timeline-latest, .timeline-title { border: 0; background: transparent; color: #176f62; font-weight: 700; }
 .timeline-latest { padding: 5px 0; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .timeline-title { padding: 2px 0; font-size: 15px; text-align: left; }
@@ -180,6 +185,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   border-radius: 0; box-shadow: none; overflow: hidden; }
 .network-head { display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 15px 20px 10px; }
+.network-head-context { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.network-step { color: #16796d; border: 1px solid #b7d8cc; background: #ecf7f2;
+  border-radius: 3px; padding: 6px 9px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .network-head h2 { margin: 7px 0 0; color: #19383b; font-size: 21px; font-weight: 690; }
 .network-model { color: #43665f; background: #edf5f0; border: 1px solid #d4e7d9;
   border-radius: 4px; padding: 6px 9px; font-size: 12px; text-align: right; }
@@ -253,6 +261,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .capstone-intro > p { padding: 15px 17px 17px; font-size: 13px; }
   .run-panel { padding-left: 17px; padding-right: 17px; }
   .network-head { padding: 18px 17px 12px; }
+  .network-head-context { flex-direction: column; align-items: flex-end; }
   .network-meta { padding: 0 17px 12px; flex-wrap: wrap; }
   .network-toolbar { flex-wrap: wrap; padding: 7px; }
   .network-toolbar button { font-size: 12px; }
@@ -260,4 +269,5 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .network-footer { padding: 13px 15px; }
   .action-buttons { width: 100%; flex-wrap: wrap; }
   .action-buttons > button { flex: 1; }
+  .action-buttons .auto-button { flex: 0 0 auto; width: auto; }
 }

@@ -136,7 +136,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">MODEL / {view ? 'CURRENT RUN' : 'CASE PREVIEW'}</span>
-      <h2 id="network-title">电网拓扑图</h2></div><span className="network-model">{modelName}</span></div>
+      <h2 id="network-title">电网拓扑图</h2></div><div className="network-head-context">
+        {view && <span className="network-step">指令 {view.ordinal}</span>}
+        <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
       <div className="network-meta"><span>模型结构 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
         <span>{geometry!.schema === 'capstone-network-diagram/1.0'

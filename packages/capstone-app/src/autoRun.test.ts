@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { nextAutomaticAction, runAutomaticSession } from './autoRun'
 import type { SessionStatus } from './types'
 
@@ -30,6 +30,38 @@ describe('automatic run decisions', () => {
 })
 
 describe('automatic session coordinator', () => {
+  it('waits for each completed step to be presented before submitting the next one', async () => {
+    const submitted: number[] = []
+    const presented: number[] = []
+    let releaseFirst: (() => void) | undefined
+    const firstPresentation = new Promise<void>((resolve) => { releaseFirst = resolve })
+    let completed = 0
+    let closed = false
+    const controller = new AbortController()
+    const client = {
+      createSession: async () => ({ session_id: 'session-one', run_id: null,
+        application_id: 'pypsa-business-cases', state: 'pending' as const }),
+      status: async () => ({ ...ready, state: closed ? 'completed' as const : 'ready' as const,
+        accepted_turns: completed, completed_turns: completed }),
+      submitTurn: async (_sid: string, _instruction: string, _key: string) => {
+        submitted.push(++completed)
+      },
+      close: async () => { closed = true },
+    }
+    const run = runAutomaticSession(client, 'pypsa-business-cases', 'regional-demand-stress',
+      ['第一步', '第二步'], null, controller.signal, new Map(), () => {}, () => {},
+      async () => {}, async (_sid, ordinal) => {
+        presented.push(ordinal)
+        if (ordinal === 1) await firstPresentation
+      })
+    await vi.waitFor(() => expect(presented).toEqual([1]))
+    expect(submitted).toEqual([1])
+    releaseFirst?.()
+    await run
+    expect(submitted).toEqual([1, 2])
+    expect(presented).toEqual([1, 2])
+  })
+
   it('submits three registered instructions sequentially and closes once', async () => {
     const submitted: string[] = []
     const keys: string[] = []

@@ -1,4 +1,5 @@
 import type { CreatedSession, SessionStatus } from './types'
+import { commandKey } from './commandKey'
 
 export type AutomaticAction = 'start' | 'wait' | 'close' | 'done' | { submit: number }
 
@@ -40,8 +41,10 @@ export async function runAutomaticSession(
   onCreated: (created: CreatedSession) => void,
   onStatus: (status: SessionStatus) => void,
   wait: (signal: AbortSignal) => Promise<void> = waitForNextPoll,
+  onStepCommitted: (sessionId: string, ordinal: number, signal: AbortSignal) => Promise<void> = async () => {},
 ): Promise<string> {
   let sessionId = initialSessionId
+  let presentedTurns: number | null = initialSessionId ? null : 0
   if (!sessionId) {
     const created = await client.createSession(applicationId, caseId)
     sessionId = created.session_id
@@ -51,6 +54,14 @@ export async function runAutomaticSession(
     const status = await client.status(sessionId)
     if (signal.aborted) return sessionId
     onStatus(status)
+    let nextToPresent = presentedTurns === null ? status.completed_turns : presentedTurns
+    while (nextToPresent < status.completed_turns) {
+      const ordinal = nextToPresent + 1
+      await onStepCommitted(sessionId, ordinal, signal)
+      if (signal.aborted) return sessionId
+      nextToPresent = ordinal
+    }
+    presentedTurns = nextToPresent
     const action = nextAutomaticAction(status, instructions.length)
     if (action === 'done') return sessionId
     if (action === 'wait') {
@@ -62,7 +73,7 @@ export async function runAutomaticSession(
     const keyId = `${sessionId}:${commandId}`
     let key = keys.get(keyId)
     if (!key) {
-      key = crypto.randomUUID()
+      key = commandKey()
       keys.set(keyId, key)
     }
     if (action === 'close') {

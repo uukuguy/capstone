@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 05:20 CST. Public demo opens directly; completed-run reset, layout, and line coloring have focused local verification.
+> Updated: 2026-09-27 05:42 CST. Public demo opens directly; step-by-step network refresh and the latest presentation fixes have focused local verification.
 
 ## Current result
 
@@ -9,7 +9,8 @@
 - The network view has a thin flat border and a shorter canvas, preserving the complete topology while exposing the analysis timeline sooner. The original hero art content remains unchanged. The central report and existing current-run evidence behavior remain in place.
 - Local Compose enables a public demonstration credential issued by the API, separate from the private operator token and limited to registered scripted cases. The App obtains it on each load and enters directly; unavailable service shows a retry action. The diagram title is “电网拓扑图”; schematic buses use busbars, geographic buses use location points, and zoom needs Shift + wheel.
 - At browser 100% zoom, the desktop App uses a compact presentation density calibrated against the user's 03:43–03:44 screenshots, restoring a centered workspace with outer margins and the original light-theme font values. Mobile width retains normal density.
-- A completed case offers 「再次分析」, which returns that case to its initial manual/automatic choice without starting a run. The right detail column now extends with the long report like the left column. The hero's `CAPABILITY / EVIDENCE / CONTROL` line sits at the image's lower left; the remaining text has clearer vertical groups and uses the Chinese-only 「电力科学 AI」 theme. The header has no decorative link-like label. Line loading uses a clearly labeled within-run relative scale; returned lines use warm shades with the highest shown deepest red, without implying overload. Sidebar eyebrows read `CASE LIBRARY` and `CURRENT RUN`; redundant case-card registration text is removed.
+- A completed case has a restrained 「重置案例」 control beside the timeline heading, returning that case to its initial manual/automatic choice without starting a run. The right detail column extends with the long report like the left column. The hero's `CAPABILITY / EVIDENCE / CONTROL` line sits at the image's lower left; its theme reads 「电力科学AI」 without artificial spacing. Hero art text opts out of browser translation, which previously inserted duplicate labels and crowded the overlay. The header has no decorative link-like label. Line loading uses a clearly labeled within-run relative scale; returned lines use warm shades with the highest shown deepest red, without implying overload. Sidebar eyebrows read `CASE LIBRARY` and `CURRENT RUN`; redundant case-card registration text is removed.
+- The compact 「自动完成」 primary control appears before manual execution and centers its text. Automatic execution waits for each committed step's network view or explicit unavailable outcome before advancing, with a 12-second fallback for missing optional events and a brief visible interval. Network headings show the current instruction number. Command keys use Web Crypto randomness on the LAN HTTP page, where `crypto.randomUUID` is unavailable.
 
 ## Verification
 
@@ -19,6 +20,7 @@
 - For the latest UI fixes, 25 focused App/network tests, the production App build, `make doctor`, and `git diff --check` passed. In the live browser, refresh returned directly to the workspace, a completed scripted run exposed 「再次分析」, the next click produced a distinct run ID, and the long report kept the left, center, and right columns aligned to the same bottom. Desktop and 390px hero measurements confirmed the image footer does not overlap the model list; no full repository gate was rerun.
 - After removing the login screen, 25 focused App/network tests and the production build passed. A live browser refresh showed `CASE LIBRARY`, no credential form, equal sidebar widths, and no horizontal overflow. Deployment instructions now describe automatic public demo entry.
 - For a phone on the same LAN, a separate Vite process can bind the computer's LAN IP on port 5174 while its development proxy keeps the API on loopback. The LAN page, demonstration credential endpoint, authenticated catalog, and 390px layout were checked locally at `192.168.2.24:5174`; the temporary Vite process was left running for the user to try.
+- The latest App focused tests, production build, and browser check passed. A real LAN browser run showed network step labels 1, 2, then 3 as automatic completion advanced; the hero text stayed untranslated, and the centered auto button was compact. Full repository tests were not repeated for this App change.
 
 ## Preserve
 

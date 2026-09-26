@@ -13,6 +13,7 @@ describe('operator network canvas', () => {
     } }
     render(<NetworkView view={view} modelName="IEEE-39" focusKey="turn-1" />)
     expect(screen.getByRole('heading', { name: '电网拓扑图' })).toBeTruthy()
+    expect(screen.getByText('指令 1')).toBeTruthy()
     expect(screen.getByText(/模型结构 · gridctl/)).toBeTruthy()
     expect(screen.getByText('仅对 1 / 2 条有结果的线路着色')).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()

@@ -35,6 +35,10 @@ function mockClient(eventFlow?: (_id: string, _after: number,
     catalog: vi.fn().mockResolvedValue(catalog),
     createSession,
     submitTurn,
+    turn: vi.fn().mockImplementation(async (_sid: string, ordinal: number) => ({
+      ordinal, turn_id: `turn-${ordinal}`, answer_output: `回答 ${ordinal}`,
+      answer_ref: `answer:${ordinal}`, result_refs: [], evidence_refs: [],
+    })),
     network: vi.fn().mockResolvedValue(sampleView),
     caseDiagram: vi.fn().mockResolvedValue(sampleDiagramView.diagram),
     close: vi.fn().mockResolvedValue({ session_id: 'session-one', state: 'closing' }),
@@ -168,8 +172,14 @@ describe('operator workflow', () => {
     const createSession = vi.fn().mockResolvedValue({ session_id: 'session-a', run_id: 'run-a',
       application_id: 'pypsa-business-cases', state: 'ready' })
     const submitTurn = vi.fn().mockImplementation(async () => { completed += 1 })
+    const network = vi.fn().mockImplementation(async (_sid: string, ordinal: number) => ({ ...sampleView, ordinal }))
     const client = {
       catalog: vi.fn().mockResolvedValue(twoCases), createSession, submitTurn,
+      turn: vi.fn().mockImplementation(async (_sid: string, ordinal: number) => ({
+        ordinal, turn_id: `turn-${ordinal}`, answer_output: `回答 ${ordinal}`,
+        answer_ref: `answer:${ordinal}`, result_refs: [], evidence_refs: [],
+      })),
+      network,
       caseDiagram: vi.fn().mockResolvedValue(sampleDiagramView.diagram),
       status: vi.fn().mockImplementation(async () => ({ session_id: 'session-a', run_id: 'run-a',
         application_id: 'pypsa-business-cases', state: closed ? 'completed' : 'ready', error_code: null,
@@ -177,16 +187,33 @@ describe('operator workflow', () => {
       close: vi.fn().mockImplementation(async () => { closed = true }),
       report: vi.fn().mockResolvedValue('报告'), result: vi.fn().mockResolvedValue({}),
       events: async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
-        await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+        let emitted = 0
+        while (!signal.aborted) {
+          if (completed > emitted) {
+            const ordinal = ++emitted
+            yield { schema: 'capstone-session-event/1.0', session_id: 'session-a',
+              sequence: ordinal * 2 - 1, event: 'answer_committed', payload: {
+                ordinal, turn_id: `turn-${ordinal}`, answer_output: `回答 ${ordinal}`,
+                answer_ref: `answer:${ordinal}`, result_refs: [], evidence_refs: [],
+              } }
+            yield { schema: 'capstone-session-event/1.0', session_id: 'session-a',
+              sequence: ordinal * 2, event: 'network_view', payload: { ordinal } }
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+          }
+        }
       },
     } as unknown as CapstoneClient
     render(<App clientFactory={() => client} />)
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('MODEL / CURRENT RUN')).toBeTruthy()
+    expect(network).toHaveBeenCalledWith('session-a', 1)
+    expect(submitTurn).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
     await screen.findByRole('heading', { name: '案例 B', level: 1 })
-    await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(2), { timeout: 3000 })
     fireEvent.click(screen.getByRole('button', { name: /区域负荷增长情景/ }))
     expect(createSession).toHaveBeenCalledTimes(1)
   })
@@ -224,7 +251,8 @@ describe('operator workflow', () => {
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByRole('region', { name: '本轮分析报告' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '再次分析' }))
+    expect(screen.queryByRole('button', { name: '再次分析' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '重置案例' }))
     expect(createSession).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('region', { name: '本轮分析报告' })).toBeNull()
     expect(screen.getByRole('button', { name: '执行指令 1' })).toBeTruthy()
@@ -258,8 +286,8 @@ describe('operator workflow', () => {
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByText('pandapower')).toBeTruthy()
     expect(screen.getByText('PyPSA')).toBeTruthy()
-    expect(screen.getByText(/CAPSTONE 为电力科学 AI 提供应用底座/)).toBeTruthy()
-    expect(screen.getByText('电力科学 AI')).toBeTruthy()
+    expect(screen.getByText(/CAPSTONE 为电力科学AI提供应用底座/)).toBeTruthy()
+    expect(screen.getByText('电力科学AI')).toBeTruthy()
     expect(screen.getByText(/DeepONet.*FNO/)).toBeTruthy()
     expect(screen.getByText(/Neural-DAE.*Koopman/)).toBeTruthy()
     expect(screen.getByText(/GraphGPS.*PI-GNN/)).toBeTruthy()
@@ -267,7 +295,7 @@ describe('operator workflow', () => {
     const manual = screen.getByRole('button', { name: '执行指令 1' })
     expect(automatic.className).toContain('primary-button')
     expect(manual.className).toContain('secondary-button')
-    expect(manual.compareDocumentPosition(automatic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(automatic.compareDocumentPosition(manual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(

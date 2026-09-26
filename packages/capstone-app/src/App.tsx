@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
+import { commandKey } from './commandKey'
 import { NetworkView } from './NetworkView'
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
@@ -78,10 +79,10 @@ function AnswerCard({ turn, onEvidence }: {
 
 function CapstoneIntro() {
   return <section className="capstone-intro" aria-label="CAPSTONE 框架介绍">
-      <div className="capstone-intro-art">
+      <div className="capstone-intro-art notranslate" translate="no">
         <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
         <div className="capstone-intro-overlay">
-          <span className="capstone-intro-kicker">电力科学 AI</span>
+          <span className="capstone-intro-kicker">电力科学AI</span>
           <strong>从专业仿真<br />到智能推演</strong>
           <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
           <div className="capstone-intro-disciplines" aria-label="电力科学AI模型方向">
@@ -92,7 +93,7 @@ function CapstoneIntro() {
         </div>
         <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
       </div>
-      <p>CAPSTONE 为电力科学 AI 提供应用底座：把 pandapower、PyPSA 等专业框架封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
+      <p>CAPSTONE 为电力科学AI提供应用底座：把 pandapower、PyPSA 等专业框架封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
     </section>
 }
 
@@ -127,7 +128,10 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
       unavailable={networkUnavailable} previewUnavailable={previewUnavailable}
       nextTask={nextNetworkTask} />
     <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
-      <div className="timeline-heading-actions">{selectedStep !== null &&
+      <div className="timeline-heading-actions">{(status?.state === 'completed' || status?.state === 'failed' ||
+        status?.state === 'interrupted') &&
+        <button type="button" className="timeline-reset" onClick={onRestart}
+          disabled={actionPending}>重置案例</button>}{selectedStep !== null &&
         <button type="button" className="timeline-latest" onClick={() => onSelectStep(null)}>回到最新步骤</button>}
         <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div></div>
     <ol className="timeline">
@@ -155,21 +159,20 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
     </ol>
     <div className="run-action-bar">
       {!status && <><div><strong>准备开始</strong><span>执行首条指令，或自动完成全部指令。</span></div>
-        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button>
-          <button className="primary-button" onClick={onAuto} disabled={actionPending}>自动完成 <span aria-hidden="true">↗</span></button></div></>}
+        <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
         <span>{automatic ? '自动执行会等待本轮回答后继续。' : '可逐步提交，或由系统自动完成剩余步骤。'}</span></div>
-        {!automatic && <div className="action-buttons"><button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button>
-          <button className="primary-button" onClick={onAuto} disabled={actionPending}>自动完成 <span aria-hidden="true">↗</span></button></div>}</>}
+        {!automatic && <div className="action-buttons"><button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button>
+          <button className="secondary-button" onClick={onSubmit} disabled={actionPending}>执行指令 {next}</button></div>}</>}
       {status?.state === 'executing' && <div className="working-line"><span className="spinner" />{progress || '正在执行当前指令…'}</div>}
       {status?.state === 'ready' && next > caseCard.instructions.length && <><div><strong>全部指令已完成</strong>
         <span>结束本轮后生成最终结果与报告。</span></div>
         {!automatic && <div className="action-buttons"><button className="primary-button" onClick={onClose} disabled={actionPending}>生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
-      {status?.state === 'completed' && <><div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
-        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>
-        <button type="button" className="primary-button" onClick={onRestart} disabled={actionPending}>再次分析 <span aria-hidden="true">↗</span></button></>}
+      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
+        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
       {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message"><strong>{stateLabel[status.state]}</strong><span>已提交的回答仍可查看。</span></div>}
       {automatic && <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
@@ -257,6 +260,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [automatic, setAutomatic] = useState(false)
   const autoController = useRef<AbortController | null>(null)
   const automaticKeys = useRef(new Map<string, string>())
+  const networkOutcomes = useRef(new Set<string>())
+  const networkWaiters = useRef(new Map<string, () => void>())
 
   useEffect(() => () => autoController.current?.abort(), [])
 
@@ -284,9 +289,32 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 
   function clearRun() {
     stopAutomatic()
+    networkOutcomes.current.clear()
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
     setNetworkViews({}); setUnavailableViews([]); setSelectedStep(null)
+  }
+
+  function settleNetwork(sid: string, ordinal: number) {
+    const key = `${sid}:${ordinal}`
+    networkOutcomes.current.add(key)
+    networkWaiters.current.get(key)?.()
+  }
+
+  function waitForNetwork(sid: string, ordinal: number, signal: AbortSignal): Promise<void> {
+    const key = `${sid}:${ordinal}`
+    if (signal.aborted || networkOutcomes.current.has(key)) return Promise.resolve()
+    return new Promise((resolve) => {
+      const timer = setTimeout(finish, 12000)
+      function finish() {
+        clearTimeout(timer)
+        signal.removeEventListener('abort', finish)
+        networkWaiters.current.delete(key)
+        resolve()
+      }
+      networkWaiters.current.set(key, finish)
+      signal.addEventListener('abort', finish, { once: true })
+    })
   }
 
   useEffect(() => {
@@ -338,11 +366,13 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
                   // A missing optional view cannot veto the committed answer.
                   setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
                 }
+                settleNetwork(sid, Number(ordinal))
               }
             } else if (event.event === 'network_view_unavailable' || event.event === 'network_layer_unavailable') {
               const ordinal = event.payload.ordinal
               if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
                 setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
+                settleNetwork(sid, Number(ordinal))
               }
             } else if (event.event === 'completed') {
               setStatus((before) => before && { ...before, state: 'completed' })
@@ -394,11 +424,18 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         await new Promise((resolve) => setTimeout(resolve, 400))
       }
       if (!ready) throw new Error('等待当前运行超时')
-      await client.submitTurn(created.session_id, caseCard.instructions[0], crypto.randomUUID())
+      await client.submitTurn(created.session_id, caseCard.instructions[0], commandKey())
       setStatus((before) => before && before.completed_turns === 0
         ? { ...before, state: 'executing', accepted_turns: 1 } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '启动失败') }
     finally { setPending(false) }
+  }
+
+  async function presentCommittedStep(sid: string, ordinal: number, signal: AbortSignal) {
+    await waitForNetwork(sid, ordinal, signal)
+    if (signal.aborted) return
+    setSelectedStep(null)
+    await new Promise((resolve) => setTimeout(resolve, 800))
   }
 
   function startAutomatic() {
@@ -418,6 +455,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
       (current) => setStatus((before) => before && before.session_id === current.session_id &&
         (before.completed_turns > current.completed_turns || before.accepted_turns > current.accepted_turns)
         ? before : current),
+      undefined,
+      presentCommittedStep,
     ).then(async (sid) => {
       if (controller.signal.aborted || !autoController.current) return
       const current = await client.status(sid)
@@ -443,7 +482,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     if (!instruction) return
     setPending(true); setError(null)
     try {
-      await client.submitTurn(sessionId, instruction, crypto.randomUUID())
+      await client.submitTurn(sessionId, instruction, commandKey())
       setStatus((before) => before && before.completed_turns < ordinal
         ? { ...before, state: 'executing', accepted_turns: ordinal } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '提交失败') }
@@ -454,7 +493,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     if (!client || !sessionId) return
     setPending(true); setError(null)
     try {
-      await client.close(sessionId, crypto.randomUUID())
+      await client.close(sessionId, commandKey())
       setStatus((before) => before && before.state !== 'completed'
         ? { ...before, state: 'closing' } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '结束失败') }
