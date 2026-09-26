@@ -7,6 +7,7 @@ name = "grid-agent"
 version = "1.0.1"
 requires-python = ">=3.12"
 dependencies = [
+  "capstone-agent==0.1.0",
   "capability-agent-kernel==0.1.0",
   "pandapower-domain-pack==0.1.0",
   "fastapi>=0.139,<1",
@@ -32,5 +33,6 @@ dev = [
 packages = ["src/grid_agent"]
 
 [tool.uv.sources]
+capstone-agent = { path = "../capstone-agent", editable = true }
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
 pandapower-domain-pack = { path = "../pandapower-domain-pack", editable = true }

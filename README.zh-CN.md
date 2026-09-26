@@ -76,14 +76,16 @@ LLM 只能选择已登记的语义工具，不能获得 shell、任意 Python、
 
 Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些可复用接缝来组装领域包。下方的 pandapower 包构成首个正式应用；`inventory-domain-pack` 仍是 conformance 基础设施，而非已选定的第二个生产领域。
 
-仓库现在包含十一个可独立构建的 Python 发行包和两个 Pi npm 包。其中四个发行包组装 grid 产品，两个构成只读 inventory 参考域，另五个提供 PyPSA 模型权威、网络建模、运行计算、容量规划与行业耦合 Pack：
+仓库包含十三个可独立构建的 Python 发行包和两个 Pi npm 包。`capstone-agent` 承载已登记应用；`grid-agent` 保留 pandapower 兼容 CLI，`pypsa-agent` 拥有 PyPSA 应用绑定。其余发行包提供 Kernel、权威系统、Domain Pack 与 inventory 参考域：
 
 | 发行包 | 职责 |
 | --- | --- |
 | `capability-agent-kernel` | 领域无关的 manifest、contract、executor、projection、authority、tool-catalog、guide、trajectory 与 composition 接口 |
+| `capstone-agent` | 中性会话宿主、持久工作进程协议、无头与交互式 CLI、本地 HTTP/SSE 适配器 |
 | `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和模拟器证据 |
 | `pandapower-domain-pack` | pandapower 静态分析领域 Profile、策略、指南、能力契约、资源所有权和兼容适配器 |
 | `grid-agent` | CLI、Provider/Pi 运行时初始化、认证、连续分析、报告、工作台服务和最终 JSON 答案封装 |
+| `pypsa-agent` | 已登记 PyPSA 应用 Profile、双绑定装配与应用工作进程 |
 | `inventory-reference-service` | `inventoryctl`、已登记只读目录、严格的 `inventory-capability/1.0` 和内容寻址 inventory 工件 |
 | `inventory-domain-pack` | 仅基于公共内核 SPI 的 inventory Profile、策略、指南、契约、执行器、投影器和当前运行工件权威 |
 | `pypsa-model-authority` | 已登记 PyPSA 模型目录、不可变修订、受限建模操作及当前运行结果和证据引用 |
@@ -94,7 +96,7 @@ Capstone 通过 Kernel、能力传输、当前运行权威和应用组合这些�
 | `@capability-agent/pi-tools` | 通用的描述符驱动 Pi 能力请求传输与请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 保留现有 `grid_*` 工具和指南行为的 grid 兼容 Pi 扩展包装 |
 
-源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建十一个 Python wheel 与两个 npm tarball，在仓库外隔离安装并执行冒烟检查，确保不会从源码路径导入。grid／参考包和 PyPSA 包使用不同 Python 环境，因为两套已固定的仿真依赖要求不同的 pandas 主版本：
+源码开发模式使用各包 manifest 中固定的本地 path 依赖。安装验证模式会构建十三个 Python wheel 与两个 npm tarball，在仓库外隔离安装并执行冒烟检查，确保不会从源码路径导入。grid／参考包和 PyPSA 包使用不同 Python 环境，因为两套已固定的仿真依赖要求不同的 pandas 主版本：
 
 ```sh
 make test-packages
@@ -109,9 +111,9 @@ PyPSA 建模 Pack 提供已登记模型的打开、按类型修改单值或逐�
 
 PyPSA 电网模型库现登记 15 个项目模型和固定版本 PyPSA 1.3.0 的全部六个 Network 示例。官方资产由 `make install-pypsa-models` 显式安装并核对固定 SHA-256；智能体运行时不会下载。使用 `make list-pypsa-models`、`make list-pypsa-cases` 和 `make run-pypsa-case CASE=scigrid-dispatch` 执行本地脚本智能体验收。当前可运行案例为区域负荷增长、SciGRID-DE 调度和 AC/DC 拓扑检查；另四个案例仍是目录项，等待登记所需的分析流程。每次运行在 `runs/pypsa-cases/` 下保存受限展示结果和本轮证据。三个可运行案例各有供 App 使用的结构化介绍字段和对应 Markdown 文章，说明业务任务、框架支持、智能体交互变化、专业价值与边界，并提供统一 App 演示用的有序指令列表。使用 `make run-pypsa-case CASE=regional-demand-stress DEMO=1` 可本地执行三回合演示；默认入口仍执行单条固定问题。三个案例均通过脚本多回合验收，开放式 LLM 自主规划仍待验证。详见[运行指南](docs/RUNBOOK.md)与[案例设计](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md)。
 
-本地 Capstone 统一客户端使用一份包含应用 ID 和有序指令的 JSON 请求，分别在固定依赖的工作进程中运行 pandapower 静态分析应用和 PyPSA 业务案例应用。可用 `make capstone-client REQUEST=validation/client/pandapower-scripted-task.json` 或 `make capstone-client REQUEST=validation/client/pypsa-regional-demo.json` 运行不调用 Provider 的示例。客户端在 stdout 返回单个 `capstone-client-result/1.0` JSON 对象，其中保留所选应用已准入的结果；启动、回合和能力调用进度实时写入 stderr，格式为 `capstone-client-progress/1.0` JSON 行，pandapower Provider 的诊断信息也在 stderr。pandapower 也支持正式的 Provider 路径，该路径可能计费。详见[运行指南](docs/RUNBOOK.md)。
+中性 `capstone-agent` 为两个已登记应用分别在独立 Python 环境中保持一个持久会话。`make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json` 和 `make capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json` 执行无需 Provider 的三回合演示，并在 stdout 输出单个最终 JSON 对象；另两个 PyPSA 请求见 `validation/client/pypsa-scigrid-demo.json` 和 `validation/client/pypsa-ac-dc-demo.json`。`make capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo CASE=pandapower-scripted-task` 逐条接收指令，展示每轮已提交答案和进度。`make capstone-agent-serve` 为后续 App 提供令牌保护的本地 HTTP 会话、SSE 事件、结果和经权威验证的证据。两个应用均有 Provider 路径；真实 Provider 行为尚未验收，且可能计费。旧的 `make capstone-client` 命令仍可使用。详见[运行指南](docs/RUNBOOK.md)。
 
-`make test` 是不使用 Provider 的单元门禁：分别运行十一个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
+`make test` 是不使用 Provider 的单元门禁：分别运行十三个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。
 

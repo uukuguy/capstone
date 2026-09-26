@@ -24,6 +24,17 @@ _PAYLOAD_FIELDS = {
     "failed": frozenset({"code"}),
     "evidence_result": frozenset({"ref", "value"}),
 }
+_REQUIRED_PAYLOAD_FIELDS = {
+    "open": frozenset({"application_id", "mode"}),
+    "turn": _PAYLOAD_FIELDS["turn"],
+    "evidence": _PAYLOAD_FIELDS["evidence"],
+    "ready": _PAYLOAD_FIELDS["ready"],
+    "progress": frozenset({"event", "message"}),
+    "answer_committed": _PAYLOAD_FIELDS["answer_committed"],
+    "completed": _PAYLOAD_FIELDS["completed"],
+    "failed": _PAYLOAD_FIELDS["failed"],
+    "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
+}
 
 
 class ProtocolError(ValueError):
@@ -45,6 +56,18 @@ class Frame:
         fields = _PAYLOAD_FIELDS.get(self.kind) if isinstance(self.kind, str) else None
         if fields is None or not isinstance(self.payload, dict) or set(self.payload) - fields:
             raise ProtocolError("frame kind or payload is invalid")
+        if _REQUIRED_PAYLOAD_FIELDS.get(self.kind, frozenset()) - self.payload.keys():
+            raise ProtocolError("frame payload is incomplete")
+        if self.kind == "answer_committed" and (
+            type(self.payload["ordinal"]) is not int or self.payload["ordinal"] < 1
+            or not isinstance(self.payload["turn_id"], str)
+            or not isinstance(self.payload["answer_output"], str)
+            or not isinstance(self.payload["answer_ref"], str)
+            or any(not isinstance(self.payload[key], list)
+                   or any(not isinstance(ref, str) for ref in self.payload[key])
+                   for key in ("result_refs", "evidence_refs"))
+        ):
+            raise ProtocolError("committed answer payload is invalid")
         try:
             json.dumps(self.payload, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):

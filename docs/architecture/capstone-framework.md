@@ -293,16 +293,18 @@ Python environments: the pinned pandapower and PyPSA releases require
 different pandas major versions. The installed proofs compose two PyPSA
 bindings, not a pandapower/PyPSA application in one interpreter.
 
-The local `tools/capstone_client.py` is a unified application-level client over
-those separate environments. Its closed `capstone-client-request/1.0` contract
-selects `pandapower-static-analysis` or `pypsa-business-cases` and carries an
-ordered instruction list. It launches only the registered worker command for
-that application, then wraps the worker's already-admitted output in
-`capstone-client-result/1.0`. The pandapower route supports its formal
-Provider-backed application and registered provider-free scripted cases; the
-PyPSA route currently supports registered provider-free business cases.
-The client is a local process router, not dynamic Pack discovery or a common
-Python environment. It does not give the model subprocess or file capabilities.
+The neutral `capstone-agent` owns a persistent session lifecycle and three
+adapters: headless JSON request, interactive terminal, and loopback HTTP/SSE.
+It selects only source-registered application workers through a bounded,
+sequenced JSONL protocol. CLI and HTTP use the same `WorkerSession` API;
+application workers own Profile assembly, Domain Pack selection, and the
+current-run authority. The `grid-agent` compatibility entry remains the
+pandapower adapter; `pypsa-agent` owns the PyPSA two-binding application.
+Scripted demos and Provider routes share the Kernel's incremental turn runner.
+Only the selected worker can read its admitted result/evidence references.
+The legacy `tools/capstone_client.py` request command remains available. No
+adapter performs dynamic Pack discovery or gives the model subprocess or file
+capabilities.
 
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, cross-domain conflict resolution, or a chosen

@@ -35,27 +35,38 @@ class _TurnInput(BaseModel):
 
 
 class _SessionManager:
-    def __init__(self, registry: WorkerRegistry) -> None:
+    def __init__(self, registry: WorkerRegistry, max_sessions: int) -> None:
         self.registry = registry
+        self.max_sessions = max_sessions
         self._sessions: dict[str, WorkerSession] = {}
         self._lock = threading.RLock()
+        self._starting = 0
 
     def create(self, values: _CreateSession) -> WorkerSession:
         try:
             spec = self.registry.resolve(values.application_id)
         except ValueError:
             raise HTTPException(404, "application is not registered") from None
-        session = WorkerSession(
-            spec, mode=values.mode, case_id=values.case_id,
-            provider=values.provider, model=values.model,
-        )
+        try:
+            session = WorkerSession(
+                spec, mode=values.mode, case_id=values.case_id,
+                provider=values.provider, model=values.model,
+            )
+        except ValueError:
+            raise HTTPException(422, "application mode or case is invalid") from None
+        with self._lock:
+            if len(self._sessions) + self._starting >= self.max_sessions:
+                raise HTTPException(429, "session capacity reached")
+            self._starting += 1
         try:
             session.__enter__()
         except Exception:
-            session.__exit__(None, None, None)
             raise HTTPException(502, "application worker could not start") from None
-        with self._lock:
-            self._sessions[session.session_id] = session
+        finally:
+            with self._lock:
+                self._starting -= 1
+                if session.run_id is not None:
+                    self._sessions[session.session_id] = session
         return session
 
     def get(self, session_id: str) -> WorkerSession:
@@ -76,12 +87,15 @@ class _SessionManager:
                 pass
 
 
-def create_app(registry: WorkerRegistry, *, operator_token: str) -> FastAPI:
+def create_app(registry: WorkerRegistry, *, operator_token: str,
+               max_sessions: int = 32) -> FastAPI:
     """Create a local authenticated service without importing Domain Packs."""
 
     if not isinstance(operator_token, str) or len(operator_token) < 8:
         raise ValueError("operator token is invalid")
-    manager = _SessionManager(registry)
+    if max_sessions < 1:
+        raise ValueError("session capacity is invalid")
+    manager = _SessionManager(registry, max_sessions)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -142,11 +156,12 @@ def create_app(registry: WorkerRegistry, *, operator_token: str) -> FastAPI:
         events = session.events
         kinds = {event.kind for event in events}
         state = ("completed" if "completed" in kinds else
-                 "failed" if "failed" in kinds else
+                 "failed" if session.failure_code is not None else
                  "closing" if session.closed else
                  "executing" if session.busy else "ready")
         return {"session_id": session_id, "run_id": session.run_id,
                 "application_id": session.spec.application_id, "state": state,
+                "error_code": session.failure_code,
                 "accepted_turns": session.accepted,
                 "completed_turns": sum(event.kind == "answer_committed" for event in events)}
 

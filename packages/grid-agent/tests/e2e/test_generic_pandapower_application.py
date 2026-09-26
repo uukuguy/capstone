@@ -21,6 +21,29 @@ from validation.run import (
 ROOT = Path(__file__).resolve().parents[4]
 
 
+def test_scripted_pandapower_case_accepts_live_turn_source(tmp_path: Path) -> None:
+    case = json.loads((ROOT / "validation/application/pandapower-scripted-task.json").read_text())
+    case["run_id"] = "live-panda-run"
+    expected = [question["text"] for question in case["questions"]]
+    observed: list[dict[str, object]] = []
+
+    def instructions():
+        yield expected[0]
+        assert any(event.get("type") == "application_turn_completed" for event in observed)
+        yield from expected[1:]
+
+    execution = execute_application_case(
+        case, runs_root=tmp_path / "runs", timeout_seconds=17.0,
+        instruction_source=instructions(),
+        on_semantic_event=lambda event: observed.append(dict(event)),
+    )
+
+    assert execution.outcome.status == "completed", execution.outcome.error
+    assert execution.outcome.completed_questions == len(expected)
+    assert [event["ordinal"] for event in observed
+            if event.get("type") == "application_turn_completed"] == [1, 2, 3]
+
+
 @pytest.mark.parametrize(
     "case_name",
     ("pandapower-scripted-task.json", "pandapower-scripted-test.json"),

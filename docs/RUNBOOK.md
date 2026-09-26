@@ -22,14 +22,16 @@ make doctor
 
 ## 包模式与安装验证
 
-本仓库现在包含十一个 Python 发行包和两个 Pi npm 包；四个组成 grid 产品，两个构成参考域，另五个组成 PyPSA 模型权威与能力包：
+本仓库包含十三个 Python 发行包和两个 Pi npm 包；新增中性会话宿主 `capstone-agent` 和 PyPSA 应用包 `pypsa-agent`：
 
 | 发行包 | 资源所有权 |
 | --- | --- |
 | `capability-agent-kernel` | 领域无关的 Profile、契约源、执行器、投影、authority、工具目录、指南、轨迹和组合接口 |
+| `capstone-agent` | 中性持久会话、无头与交互式 CLI、本地 HTTP/SSE 服务 |
 | `grid-simulator` | `gridctl`、已登记 pandapower 网络、确定性计算、结果数据集和证据 |
 | `pandapower-domain-pack` | pandapower 静态分析 Profile、能力契约、系统策略、指南、资源定位和兼容适配器 |
 | `grid-agent` | CLI、Provider/Pi 运行时、认证、连续分析、报告、工作台服务和 stdout 答案封装 |
+| `pypsa-agent` | PyPSA 双绑定应用 Profile 与独立工作进程 |
 | `inventory-reference-service` | `inventoryctl`、已登记只读 catalog、`inventory-capability/1.0` 与内容寻址业务工件 |
 | `inventory-domain-pack` | 只依赖公共 Kernel SPI 与 reference service 的 inventory Profile、策略、指南、执行器、投影和 authority |
 | `pypsa-model-authority` | 已登记模型、不可变修订、固定求解和当前运行证据 |
@@ -40,7 +42,7 @@ make doctor
 | `@capability-agent/pi-tools` | 通用 Pi 能力请求构造、描述符校验、相关性检查和模型请求捕获 |
 | `@grid-static-analysis/pi-grid-tools` | 当前 grid 产品的 Pi 扩展入口，保留 `grid_*` 工具名与 `grid_guide_open` |
 
-源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建十一个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
+源码开发模式使用 `pyproject.toml` 与 `package.json` 中的本地 path 依赖。安装验证模式使用仓库外临时目录：先构建十三个 Python wheel 与两个 npm tarball，再安装到干净 venv/npm 项目并执行 smoke 检查，确保兼容导入不会依赖源码路径。
 
 ```sh
 make test-packages
@@ -67,18 +69,23 @@ inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/contex
 
 ## Capstone 统一客户端
 
-统一的本地客户端读取 `capstone-client-request/1.0` JSON，按受信任的 `application_id` 选择应用工作进程，并把有序 `instructions` 提交给该应用。它不向模型发布进程、文件或原始网络操作能力。pandapower 与 PyPSA 保持平行的 Domain Pack 和独立 Python 依赖环境；客户端只负责应用选择、输入交付及 `capstone-client-result/1.0` 输出封装。封装里的 `result` 保留所选应用原有的领域契约，不能把两者的数值字段强行解释为同一模型。
+`capstone-agent` 按受信任的 `application_id` 选择持久应用工作进程；pandapower 与 PyPSA 保持平行的 Domain Pack 和独立 Python 环境。中性宿主负责会话、指令、进度、已提交答案和证据读取，应用工作进程负责 Profile 装配及所选 authority。工作进程使用带会话 ID、序号和大小限制的 JSONL 协议；请求不能指定任意命令或路径，也不向模型开放进程、文件或原始网络操作。
 
 ```sh
-make capstone-client REQUEST=validation/client/pandapower-scripted-task.json
-make capstone-client REQUEST=validation/client/pypsa-regional-demo.json
+make setup-capstone
+make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
+make capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json
+make capstone-agent-run REQUEST=validation/client/pypsa-scigrid-demo.json
+make capstone-agent-run REQUEST=validation/client/pypsa-ac-dc-demo.json
+make capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo CASE=pandapower-scripted-task
+make capstone-agent-serve CAPSTONE_PORT=8766
 ```
 
-这两个示例均为无需 Provider 凭据的三回合脚本演示。第一条运行现有 pandapower 正式 `ApplicationProfile`、真实 `gridctl` 及当前运行证据；第二条运行 PyPSA 两个 Pack、模型引用交接和三回合案例展示。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与登记的 `case_id`。PyPSA 只接收与案例清单完全一致的指令列表；pandapower 脚本演示只接收 `validation/application/` 中登记的任务及其原始指令。命令 stdout 仅有一个 JSON 对象，含 `application_id`、`run_id`、`status` 和原应用 `result`；运行工件分别留在各自的 `runs/` 工作区。
+前两个 `run` 示例均为无需 Provider 凭据的三回合脚本演示。第一条运行 pandapower 正式 Profile、真实 `gridctl` 和当前运行证据；第二条运行 PyPSA 双绑定、授权模型引用交接和三回合案例。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与已登记 `case_id`。脚本演示严格核对该案例的指令顺序。无头命令 stdout 仅有一个最终 JSON 对象；每轮进度和答案写入 stderr。交互命令在同一会话中逐条接收指令并立即显示已提交答案。
 
-运行期间 stderr 实时输出 `capstone-client-progress/1.0` JSON 行：客户端启动和完成、脚本案例每轮开始以及能力调用开始和完成。每行包含 `application_id`、`event` 和可直接显示的 `message`；回合事件另带 `ordinal`/`total`，能力事件另带 `capability`，运行开始后带 `run_id`。App 可按 schema 解析这些事件并更新进度；stdout 仍只保留最终结果对象。正式 pandapower Provider 路径沿用现有运行时的 stderr 诊断，因此该路径还可能输出非 JSON 诊断行。
+HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状态中创建权限为 0600 的操作者令牌。App 以 `Authorization: Bearer <token>` 调用 `POST /api/v1/sessions` 创建会话，向 `/api/v1/sessions/{id}/turns` 逐条提交指令，以 `GET /api/v1/sessions/{id}/events?after=<sequence>` 接收可按序号恢复的 SSE。`POST /api/v1/sessions/{id}/close` 完成会话；`GET /api/v1/sessions/{id}/turns/{ordinal}`、`/result` 和 `/evidence?ref=<reference>` 分别读取已提交答案、最终组合结果及经当前运行 authority 验证的证据。状态接口返回安全的 `error_code`；服务最多保留 32 个会话，达到上限返回 429，重启后会话不会恢复。服务拒绝非本机 Host、跨源 Origin、无令牌和未登记案例。旧的 `make capstone-client REQUEST=...` 仍为兼容入口。
 
-pandapower 还可在相同请求格式下使用 `mode: "provider"`，省略 `case_id`，提交自由文本指令列表，并通过现有 `grid-agent analysis-generic` 路径运行。Provider 与模型配置仍由原运行时解析；此路径可能产生费用，本地脚本演示不会调用它。PyPSA 的开放式 LLM 工具规划和正式通用 CLI 注册仍待验收，统一客户端目前只为其开放登记案例的脚本演示。客户端只路由上述两个显式应用，不进行动态插件发现。
+两个应用均登记了 `mode: "provider"` 的自由文本路径，复用已有 Kernel/Pi 运行机制；可选 `provider` 和 `model` 仍按原运行时配置解析。真实 Provider 请求可能计费，本轮未执行计费验收；本地脚本演示不调用它。中性宿主只路由两个显式应用，不进行动态插件发现。
 
 ## PyPSA 电网模型库与本地案例
 
@@ -101,7 +108,7 @@ make run-pypsa-case CASE=ac-dc-interconnection DEMO=1
 
 三个 `runnable` 条目各带 `introduction` 结构化字段，供 App 展示案例摘要、业务问题、PyPSA 框架支持、智能体交互变化、专业与框架价值、解读边界。`introduction.markdown` 指向同目录下的完整介绍：[区域负荷增长](../validation/pypsa-cases/introductions/regional-demand-stress.md)、[SciGRID-DE 调度](../validation/pypsa-cases/introductions/scigrid-dispatch.md)、[AC/DC 互联核查](../validation/pypsa-cases/introductions/ac-dc-interconnection.md)。介绍是静态案例说明，不含某次求解的数值结论；App 应从该次运行的展示 JSON 读取实际结果与证据。当前交互为选择已登记案例、由确定性脚本走完语义能力流程，尚未验收开放式 LLM 自主规划。
 
-每个介绍另有 `current_user_input` 与按顺序排列的 `demo_instructions`。默认 `run-pypsa-case` 仍把案例清单中的单条固定 `question` 交给应用；`DEMO=1` 则在同一次 `ApplicationRequest.questions` 中提交三条登记指令，复用同一模型修订与应用运行。也可用 `INSTRUCTIONS=path` 提交每行一条指令的文本文件；脚本仅接受与该案例登记列表完全一致的内容。三个案例已在本地用确定性 Provider 完成多回合验收，展示 JSON 的 `turns` 按序提供指令、已提交答案及逐回合结果/证据引用；区域负荷比较还给出两次求解各自的结果引用。统一客户端应选择受信任的 Application Profile，再通过相同的 Kernel 请求契约提交指令。模型和计算仍由平行的 Domain Pack 及其 authority 管理；当前 CLI 的受信任注册表尚未登记 PyPSA 应用，真实 LLM 对这些指令的理解与工具选择也尚未验收。
+每个介绍另有 `current_user_input` 与按顺序排列的 `demo_instructions`。默认 `run-pypsa-case` 仍把案例清单中的单条固定 `question` 交给应用；`DEMO=1` 则在同一次 `ApplicationRequest.questions` 中提交三条登记指令，复用同一模型修订与应用运行。也可用 `INSTRUCTIONS=path` 提交每行一条指令的文本文件；脚本仅接受与该案例登记列表完全一致的内容。三个案例已在本地用确定性 Provider 完成多回合验收，展示 JSON 的 `turns` 按序提供指令、已提交答案及逐回合结果/证据引用；区域负荷比较还给出两次求解各自的结果引用。`pypsa-agent` 已登记正式双绑定 Application Profile；`capstone-agent` 逐条提交指令并返回本轮答案与证据。真实 LLM 对这些指令的理解与工具选择尚未验收。
 
 每次 `run-pypsa-case` 的 stdout 为案例展示 JSON；完整副本写入 `runs/pypsa-cases/<run_id>/presentation.json`。其中包含模型来源与校验值、逐回合答案、情景、求解状态、带单位说明的目标或比较、受限拓扑、可追溯的答案/结果/证据引用。SciGRID-DE 只提供前 50 个母线及它们之间的分支预览，并明确给出省略数量。拓扑本身不代表求解后的潮流覆盖层；线路高负载列表来自独立的调度结果。官方示例的数据与假设需要结合原项目说明解释，不能用作运行许可。可参阅[模型库与案例设计](superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md)。
 
@@ -308,7 +315,7 @@ make test-inventory
 make test-packages
 ```
 
-`make test` 是完整离线单元入口：分别运行十一个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算、容量规划和行业耦合 Pack。`make test-packages` 构建并安装干净发行工件，验证十一个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
+`make test` 是完整离线单元入口：分别运行十三个 Python 包、两个 Pi 包、workbench 与 verification-target 自检；其中 grid-agent 单元命令显式排除 E2E，`make test-e2e` 保持为离线命令行和脚本化 Pi → gridctl 的集成层。`make test-inventory` 运行 reference service、Domain Pack 和 unchanged generic Pi transport，避免在 domain 子目标重复 transport 测试。`make test-pypsa` 聚焦 PyPSA authority、建模、运行计算、容量规划和行业耦合 Pack。`make test-packages` 构建并安装干净发行工件，验证十三个 Python distribution 与两个 Pi npm 包的源码路径隔离和兼容入口。`make setup` 同步 agent/simulator/Capstone/PyPSA/tools/workbench；inventory 测试通过各自 `uv run` 按需创建环境。
 
 `make check-types` 使用锁定的 pyright 1.1.408，standard 模式、Python 3.12 最低版本，覆盖全部生产 `src` 树，并运行 workbench check。Kernel `output.py` 保留 3 个局部 Pydantic schema-attribute override，以维持现有公开 wire 属性；这不是整包忽略。`make check-fast` 为边界、类型和单元层，`make check-integration` 为 E2E 与两项 provider-free validation，`make check-release` 再加入 package 与 source-setup 检查。所有这些 gate 不调用 provider 或使用付费凭据。
 

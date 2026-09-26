@@ -1,6 +1,8 @@
 {
   "include": [
     "packages/capability-agent-kernel/src",
+    "packages/capstone-agent/src",
+    "packages/pypsa-agent/src",
     "packages/pandapower-domain-pack/src",
     "packages/inventory-domain-pack/src",
     "packages/grid-agent/src",
@@ -14,6 +16,8 @@
   ],
   "extraPaths": [
     "packages/capability-agent-kernel/src",
+    "packages/capstone-agent/src",
+    "packages/pypsa-agent/src",
     "packages/pandapower-domain-pack/src",
     "packages/inventory-domain-pack/src",
     "packages/grid-agent/src",

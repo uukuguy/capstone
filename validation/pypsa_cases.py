@@ -77,12 +77,15 @@ class CaseProvider:
 
     def __init__(self, case: dict[str, Any], request: ApplicationRequest, prepared: Any,
                  catalog: Any, handoff: ReferenceHandoffService,
-                 on_progress: Callable[[dict[str, object]], None] | None = None) -> None:
+                 on_progress: Callable[[dict[str, object]], None] | None = None,
+                 demo: bool | None = None) -> None:
         self.case = case
         self.request = request
         self.prepared = prepared
         self.handoff = handoff
         self.on_progress = on_progress
+        self.demo = len(request.questions) > 1 if demo is None else demo
+        self.total = len(case["introduction"]["demo_instructions"]) if self.demo else 1
         self.tools = {
             (tool.key.binding_id, tool.key.capability_id): tool
             for tool in catalog.domain_tools
@@ -102,9 +105,9 @@ class CaseProvider:
 
     def _report_capability_started(self, capability: str) -> None:
         _notify_progress(self.on_progress, {"event": "capability_started", "ordinal": self._turn_index,
-                          "total": len(self.request.questions), "capability": capability,
+                          "total": self.total, "capability": capability,
                           "run_id": self.request.run_id,
-                          "message": f"第 {self._turn_index}/{len(self.request.questions)} 轮：开始 {capability}"})
+                          "message": f"第 {self._turn_index}/{self.total} 轮：开始 {capability}"})
 
     def _invoke(self, binding_id: str, capability: str, arguments: dict[str, object],
                 on_semantic_event: Any, turn_id: str, *, target_result: dict[str, Any] | None = None,
@@ -141,14 +144,14 @@ class CaseProvider:
         self.results[capability] = result
         if self.on_progress is not None:
             _notify_progress(self.on_progress, {"event": "capability_completed", "ordinal": self._turn_index,
-                              "total": len(self.request.questions), "capability": capability,
+                              "total": self.total, "capability": capability,
                               "run_id": self.request.run_id,
-                              "message": f"第 {self._turn_index}/{len(self.request.questions)} 轮：完成 {capability}"})
+                              "message": f"第 {self._turn_index}/{self.total} 轮：完成 {capability}"})
         return result
 
     def prompt_and_wait(self, question: str, *, on_semantic_event: Any,
                         correlation_id: str, on_heartbeat: Any) -> str:
-        demo = len(self.request.questions) > 1
+        demo = self.demo
         if demo:
             instructions = self.case["introduction"]["demo_instructions"]
             if self._turn_index >= len(instructions) or question != instructions[self._turn_index]:
@@ -161,9 +164,9 @@ class CaseProvider:
         self._turn_index += 1
         if self.on_progress is not None:
             _notify_progress(self.on_progress, {"event": "turn_started", "ordinal": self._turn_index,
-                              "total": len(self.request.questions), "instruction": question,
+                              "total": self.total, "instruction": question,
                               "run_id": self.request.run_id,
-                              "message": f"开始第 {self._turn_index}/{len(self.request.questions)} 轮：{question}"})
+                              "message": f"开始第 {self._turn_index}/{self.total} 轮：{question}"})
         on_heartbeat()
         for capability in workflow:
             if capability == "model.open":

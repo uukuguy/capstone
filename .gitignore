@@ -34,6 +34,7 @@ packages/rust/**/target/
 /paper-full/
 /outputs/
 /.grid-agent/
+/.capstone-agent/
 /runs/
 /logs/
 

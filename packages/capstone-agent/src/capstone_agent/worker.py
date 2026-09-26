@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import BinaryIO, Protocol
 
@@ -13,7 +14,7 @@ from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 
 
 class _IncrementalApplication(Protocol):
-    def run_stream(self, request: ApplicationRequest, instructions: object) -> object: ...
+    def run_stream(self, request: ApplicationRequest, instructions: Iterable[str]) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +22,42 @@ class PreparedWorker:
     application: _IncrementalApplication
     run_id: str
     evidence_reader: Callable[[str], object | None]
+
+
+def read_verified_reference(prepared: object, reference: str) -> object | None:
+    """Return one authority-verified, bounded document from this run."""
+
+    bindings = getattr(prepared, "bindings", None)
+    if not isinstance(bindings, Mapping):
+        return None
+    method_name = (
+        "verify_evidence" if reference.startswith(("evidence:", "pypsa-evidence:"))
+        else "verify_result" if reference.startswith(("result:", "pypsa-result:"))
+        else None
+    )
+    if method_name is None:
+        return None
+    for binding in bindings.values():
+        authority = getattr(getattr(binding, "runtime", None), "authority", None)
+        verify = getattr(authority, method_name, None)
+        if not callable(verify):
+            continue
+        try:
+            verified = verify(reference)
+        except Exception:
+            continue
+        if getattr(verified, "reference", None) != reference:
+            continue
+        document = getattr(verified, "document", None)
+        try:
+            encoded = json.dumps(document, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        except (TypeError, ValueError):
+            return None
+        if len(encoded) > 65_536:
+            return {"reference": reference, "status": "bounded",
+                    "size_bytes": len(encoded)}
+        return document
+    return None
 
 
 def serve_application(
@@ -115,7 +152,10 @@ def serve_application(
         )
         if getattr(outcome, "status", None) != "completed":
             raise RuntimeError("application did not complete")
-        emit("completed", {"run_id": prepared.run_id, "result": getattr(outcome, "rendered", None)})
+        rendered = getattr(outcome, "rendered", None)
+        if isinstance(rendered, str):
+            rendered = json.loads(rendered)
+        emit("completed", {"run_id": prepared.run_id, "result": rendered})
         while frame := next_frame():
             if frame.kind != "evidence":
                 raise ProtocolError("completed worker accepts only evidence reads")

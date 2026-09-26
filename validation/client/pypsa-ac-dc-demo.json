@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-client-request/1.0",
+  "application_id": "pypsa-business-cases",
+  "mode": "scripted-demo",
+  "case_id": "ac-dc-interconnection",
+  "instructions": [
+    "打开已登记的 AC/DC 示例网络，核对来源、AC/DC 母线以及 Line 和 Link 组件数量。",
+    "沿用这个模型，按端点母线的 AC/DC 类型说明 Line 与 Link 组件的连接，并标明拓扑预览的范围。",
+    "基于已核查的结构，说明后续潮流研究还需要哪些工况与约束；不要把连接关系说成功率流或输电能力结论。"
+  ]
+}

@@ -25,6 +25,7 @@ python3 tools/check_package_boundaries.py
 python3 tools/check_protected_paths.py
 
 uv build --project packages/capability-agent-kernel --out-dir "$artifact_dir"
+uv build --project packages/capstone-agent --out-dir "$artifact_dir"
 uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/inventory-reference-service --out-dir "$artifact_dir"
@@ -35,6 +36,7 @@ uv build --project packages/pypsa-power-operations-domain-pack --out-dir "$artif
 uv build --project packages/pypsa-capacity-planning-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/pypsa-sector-coupling-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/grid-agent --out-dir "$artifact_dir"
+uv build --project packages/pypsa-agent --out-dir "$artifact_dir"
 npm pack --prefix packages/pi-capability-tools ./packages/pi-capability-tools --pack-destination "$artifact_dir" >/dev/null
 cp packages/pi-grid-tools/package.json "$grid_pack_dir/package.json"
 cp -R packages/pi-grid-tools/src "$grid_pack_dir/src"
@@ -56,6 +58,7 @@ npm pack --prefix "$grid_pack_dir" "$grid_pack_dir" --pack-destination "$artifac
 
 python_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl
+  "$artifact_dir"/capstone_agent-*.whl
   "$artifact_dir"/grid_simulator-*.whl
   "$artifact_dir"/pandapower_domain_pack-*.whl
   "$artifact_dir"/inventory_reference_service-*.whl
@@ -64,15 +67,17 @@ python_wheels=(
 )
 pypsa_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl
+  "$artifact_dir"/capstone_agent-*.whl
   "$artifact_dir"/pypsa_model_authority-*.whl
   "$artifact_dir"/pypsa_network_modeling_domain_pack-*.whl
   "$artifact_dir"/pypsa_power_operations_domain_pack-*.whl
   "$artifact_dir"/pypsa_capacity_planning_domain_pack-*.whl
   "$artifact_dir"/pypsa_sector_coupling_domain_pack-*.whl
+  "$artifact_dir"/pypsa_agent-*.whl
 )
 
-if [ "${#python_wheels[@]}" -ne 6 ] || [ "${#pypsa_wheels[@]}" -ne 6 ]; then
-  echo "expected six grid/reference and six PyPSA wheel inputs" >&2
+if [ "${#python_wheels[@]}" -ne 7 ] || [ "${#pypsa_wheels[@]}" -ne 8 ]; then
+  echo "expected seven grid/reference and eight PyPSA wheel inputs" >&2
   exit 1
 fi
 for wheel in "${python_wheels[@]}" "${pypsa_wheels[@]}"; do
@@ -86,6 +91,8 @@ uv venv "$venv_dir" >/dev/null
 uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
 uv venv "$pypsa_venv_dir" >/dev/null
 uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
+"$venv_dir/bin/python" -c 'import capstone_agent.application, grid_agent.application.composition'
+"$pypsa_venv_dir/bin/python" -c 'from pypsa_agent.registry import build_trusted_application_registry; assert build_trusted_application_registry().resolve("pypsa-business-cases")'
 
 smoke_file="$run_dir/installed_smoke.py"
 cp packages/grid-agent/tests/contract/installed_smoke.py "$smoke_file"

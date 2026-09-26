@@ -24,6 +24,7 @@ from capability_agent.application import (
     ApplicationInvocationProjector,
     ApplicationProfile,
     ApplicationOutcome,
+    ApplicationRequest,
     CredentialScope,
     ApplicationWorkspace,
     DomainRegistry,
@@ -481,6 +482,9 @@ def execute_application_case(
     runs_root: Path,
     timeout_seconds: float = 60.0,
     on_progress: Callable[[dict[str, object]], None] | None = None,
+    instruction_source: Iterable[str] | None = None,
+    on_semantic_event: Callable[[Mapping[str, object]], None] | None = None,
+    on_prepared: Callable[[object], None] | None = None,
 ) -> ApplicationExecution:
     """Run one JSON scripted case through the generic application entry point."""
 
@@ -523,6 +527,8 @@ def execute_application_case(
         workspace=workspace.root,
         credentials=_EmptyApplicationCredentialBroker(),
     )
+    if on_prepared is not None:
+        on_prepared(prepared)
     binding = prepared.bindings["grid"]
     adapter = binding.binding.profile.state_adapter
     schema_id = getattr(adapter, "schema_id", None)
@@ -539,7 +545,7 @@ def execute_application_case(
             "input": {
                 "application_id": application_id,
                 "case_id": document["case_id"],
-                "questions": list(questions),
+                "questions": [] if instruction_source is not None else list(questions),
             },
             "runtime": {
                 "mode": "application-instantiation",
@@ -581,13 +587,26 @@ def execute_application_case(
         turn_controller=controller,
         projector=projector,
         catalog=catalog,
+        semantic_event_observer=on_semantic_event,
     )
-    outcome = run_generic_application(
-        application_id,
-        questions,
-        application=application,
-        run_id=run_id,
-    )
+    if instruction_source is None:
+        outcome = run_generic_application(
+            application_id, questions, application=application, run_id=run_id,
+        )
+    else:
+        def checked_instructions() -> Iterable[str]:
+            count = 0
+            for instruction in instruction_source:
+                if count >= len(questions) or instruction != questions[count]:
+                    raise ValueError("scripted application instruction order changed")
+                count += 1
+                yield instruction
+            if count != len(questions):
+                raise ValueError("scripted application instructions are incomplete")
+
+        outcome = application.run_stream(
+            ApplicationRequest(application_id, (), run_id), checked_instructions(),
+        )
     return ApplicationExecution(
         case=document,
         outcome=outcome,

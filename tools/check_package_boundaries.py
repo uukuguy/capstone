@@ -11,6 +11,15 @@ from pathlib import Path
 
 
 FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
+    "packages/capstone-agent/src": (
+        "grid_agent", "grid_simulator", "pandapower_domain", "pandapower",
+        "pypsa_agent", "pypsa_model_authority", "pypsa_network_modeling",
+        "pypsa_power_operations", "pypsa", "inventory_domain",
+    ),
+    "packages/pypsa-agent/src": (
+        "grid_agent", "grid_simulator", "pandapower_domain", "pandapower",
+        "inventory_domain",
+    ),
     "packages/capability-agent-kernel/src": (
         "grid_agent",
         "grid_simulator",
@@ -126,6 +135,8 @@ EXACT_FORBIDDEN_IMPORTS_BY_SOURCE_ROOT = {
 }
 SOURCE_PATH_LITERAL_ROOTS = (
     "packages/capability-agent-kernel/src",
+    "packages/capstone-agent/src",
+    "packages/pypsa-agent/src",
     "packages/pandapower-domain-pack/src",
     "packages/inventory-reference-service/src",
     "packages/inventory-domain-pack/src",
@@ -142,8 +153,12 @@ GENERIC_SEMANTIC_LITERAL_SOURCE_ROOTS = (
     "packages/capability-agent-kernel/src/capability_agent",
 )
 FORBIDDEN_DEPENDENCIES_BY_PACKAGE_ROOT = {
-    Path("packages/capability-agent-kernel"): ("grid-agent",),
-    Path("packages/pandapower-domain-pack"): ("grid-agent",),
+    Path("packages/capability-agent-kernel"): ("grid-agent", "capstone-agent", "pypsa-agent"),
+    Path("packages/capstone-agent"): (
+        "grid-agent", "pypsa-agent", "pandapower-domain-pack",
+        "pypsa-network-modeling-domain-pack", "pypsa-power-operations-domain-pack",
+    ),
+    Path("packages/pandapower-domain-pack"): ("grid-agent", "capstone-agent", "pypsa-agent"),
     Path("packages/inventory-reference-service"): (
         "capability-agent-kernel",
         "inventory-domain-pack",

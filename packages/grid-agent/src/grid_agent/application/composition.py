@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Protocol, cast
+
+from capstone_agent.application import build_application
 
 from capability_agent.application import (
     AgentApplication,
@@ -21,9 +22,6 @@ from capability_agent.application import (
 from capability_agent.application.errors import ApplicationConfigurationError
 from capability_agent.application.composition import CredentialBroker
 from capability_agent.application.profile import ApplicationProfile
-from capability_agent.application.profile import CredentialScope
-from capability_agent.domain.provisioning import CredentialLease
-from capability_agent.application.registry import DomainRegistry
 from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.application.runtime_protocols import (
     PreparedApplicationRuntime,
@@ -40,20 +38,6 @@ from grid_agent.application.registry import (
     build_trusted_application_registry,
 )
 from grid_agent.application.paths import ProjectPaths
-
-
-class _EmptyCredentialBroker:
-    """Issue only the empty lease declared by the first application binding."""
-
-    def issue(
-        self, *, binding_id: str, scope: CredentialScope
-    ) -> CredentialLease:
-        del binding_id
-        scope_id = getattr(scope, "scope_id", None)
-        credential_names = getattr(scope, "credential_names", ())
-        if tuple(credential_names) != ():
-            raise ValueError("generic composition only supports empty credentials")
-        return cast(CredentialLease, SimpleNamespace(scope_id=scope_id, credentials={}))
 
 
 def build_generic_application(
@@ -81,74 +65,16 @@ def build_generic_application(
     explicit Domain Pack binding and never selects a domain by inference.
     """
 
-    provider_name = provider if isinstance(provider, str) else None
-    selected_provider: ProviderSession | LegacyPromptSession | None
-    if provider_name is not None:
-        selected_provider = None
-    else:
-        if isinstance(provider, str):
-            raise AssertionError("provider selection must already be resolved")
-        selected_provider = provider
-    model_name = application_options.pop("model", None)
-    if model_name is not None and not isinstance(model_name, str):
-        raise TypeError("model must be text")
-    if provider_name is not None or model_name is not None:
-        if cli_options is not None and not isinstance(cli_options, CliLLMOptions):
-            raise TypeError("cli_options must be a CliLLMOptions value")
-        cli_options = CliLLMOptions(
-            provider=provider_name,
-            model=model_name,
-            base_url=cli_options.base_url if cli_options is not None else None,
-            api_key_env=cli_options.api_key_env if cli_options is not None else None,
-            timeout_seconds=(
-                cli_options.timeout_seconds if cli_options is not None else None
-            ),
-            max_retries=cli_options.max_retries if cli_options is not None else None,
-        )
-
-    selected_registry = registry or build_trusted_application_registry()
-    profile = selected_registry.resolve(application_id, version)
-    selected_workspace = workspace
-    if selected_workspace is None and prepared_application is None:
-        root = workspace_root or Path.cwd() / "runs"
-        binding_ids = tuple(binding.binding_id for binding in profile.domains)
-        selected_workspace = ApplicationWorkspace.create(
-            root,
-            run_id=run_id,
-            binding_ids=binding_ids,
-        )
-    prepared = prepared_application
-    if prepared is None:
-        if selected_workspace is None:
-            raise ValueError("workspace is required to prepare a generic application")
-        prepared = prepare_application(
-            profile,
-            registry=_domain_registry(profile),
-            workspace=selected_workspace.root,
-            credentials=credentials if credentials is not None else _EmptyCredentialBroker(),
-        )
-
-    if (
-        runtime_host is None
-        and selected_provider is None
-        and provider_factory is None
-        and provider_catalog is not None
-        and application_options.get("runtime_paths") is None
-    ):
-        runtime_host = _build_runtime_host(
-            profile,
-            environment,
-        )
-    return AgentApplication(
-        profile=profile,
-        prepared_application=prepared,
-        provider=selected_provider,
-        provider_factory=provider_factory,
-        provider_catalog=provider_catalog,
-        workspace=selected_workspace,
-        cli_options=cli_options,
-        environment=environment,
-        runtime_host=runtime_host,
+    return build_application(
+        application_id, version=version,
+        registry=registry or build_trusted_application_registry(),
+        prepared_application=prepared_application,
+        provider=provider, provider_factory=provider_factory,
+        credentials=credentials, workspace=workspace,
+        workspace_root=workspace_root, run_id=run_id,
+        provider_catalog=provider_catalog, cli_options=cli_options,
+        environment=environment, runtime_host=runtime_host,
+        runtime_host_factory=_build_runtime_host,
         **application_options,
     )
 
@@ -256,18 +182,6 @@ def _runtime_host_dependencies() -> tuple[type, type, type]:
     from grid_agent.runtime.locator import PiRuntimeLocator
 
     return PiExtensionLocator, PiRuntimeLock, PiRuntimeLocator
-
-
-def _domain_registry(profile: ApplicationProfile) -> DomainRegistry:
-    registry = DomainRegistry()
-    for binding in profile.domains:
-        manifest = binding.profile.manifest
-        registry.register(
-            manifest.domain_id,
-            manifest.version,
-            lambda profile=binding.profile: profile,
-        )
-    return registry
 
 
 __all__ = [

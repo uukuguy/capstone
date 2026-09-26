@@ -37,3 +37,11 @@ def test_worker_frame_rejects_unknown_or_unsequenced_input(
 def test_worker_frame_rejects_oversized_line() -> None:
     with pytest.raises(ProtocolError, match="size"):
         Frame.from_line(b"x" * 1_000_001)
+
+
+def test_worker_frame_rejects_incomplete_committed_answer() -> None:
+    with pytest.raises(ProtocolError):
+        Frame("session-1", 1, "answer_committed", {
+            "ordinal": 1, "answer_output": "done", "result_refs": [],
+            "evidence_refs": [],
+        })

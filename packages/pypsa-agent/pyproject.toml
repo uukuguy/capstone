@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pypsa-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "capstone-agent==0.1.0",
+  "capability-agent-kernel==0.1.0",
+  "pypsa-network-modeling-domain-pack==0.1.0",
+  "pypsa-power-operations-domain-pack==0.1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=9,<10"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pypsa_agent"]
+
+[tool.uv.sources]
+capstone-agent = { path = "../capstone-agent", editable = true }
+capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+pypsa-model-authority = { path = "../pypsa-model-authority", editable = true }
+pypsa-network-modeling-domain-pack = { path = "../pypsa-network-modeling-domain-pack", editable = true }
+pypsa-power-operations-domain-pack = { path = "../pypsa-power-operations-domain-pack", editable = true }

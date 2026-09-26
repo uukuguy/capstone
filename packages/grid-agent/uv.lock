@@ -63,6 +63,29 @@ requires-dist = [
 dev = [{ name = "pytest", specifier = ">=9,<10" }]
 
 [[package]]
+name = "capstone-agent"
+version = "0.1.0"
+source = { editable = "../capstone-agent" }
+dependencies = [
+    { name = "capability-agent-kernel" },
+    { name = "fastapi" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "fastapi", specifier = ">=0.139,<1" },
+    { name = "uvicorn", specifier = ">=0.51,<1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "pytest", specifier = ">=9,<10" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -243,6 +266,7 @@ version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "capability-agent-kernel" },
+    { name = "capstone-agent" },
     { name = "fastapi" },
     { name = "filelock" },
     { name = "pandapower-domain-pack" },
@@ -263,6 +287,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "capstone-agent", editable = "../capstone-agent" },
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "filelock", specifier = ">=3.20,<4" },
     { name = "pandapower-domain-pack", editable = "../pandapower-domain-pack" },

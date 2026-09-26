@@ -128,17 +128,20 @@ The pandapower packages below form the first formal application;
 `inventory-domain-pack` remains conformance infrastructure, not a selected
 second production domain.
 
-The repository now contains eleven independently buildable Python distributions
-and two Pi npm packages. Four distributions assemble the grid product; two form
-the read-only inventory reference domain; five provide the PyPSA model
-authority, Network Modeling, Power Operations, Capacity Planning, and Sector Coupling Packs:
+The repository contains thirteen independently buildable Python distributions
+and two Pi npm packages. `capstone-agent` hosts registered applications;
+`grid-agent` remains the pandapower compatibility CLI, while `pypsa-agent`
+owns the PyPSA application binding. The other distributions provide the Kernel,
+authorities, Domain Packs, and inventory reference domain:
 
 | Distribution | Responsibility |
 | --- | --- |
 | `capability-agent-kernel` | Domain-neutral manifest, contract, executor, projection, authority, tool-catalog, guide, trajectory, and composition interfaces |
+| `capstone-agent` | Neutral session host, persistent worker protocol, headless and interactive CLI, and local HTTP/SSE adapter |
 | `grid-simulator` | `gridctl`, registered pandapower networks, deterministic calculations, result datasets, and simulator evidence |
 | `pandapower-domain-pack` | Pandapower static-analysis domain profile, policy, guides, capability contracts, resource ownership, and compatibility adapters |
 | `grid-agent` | CLI, provider/Pi runtime setup, authentication, continuous analysis, reporting, workbench service, and final JSON answer envelope |
+| `pypsa-agent` | Registered PyPSA application profile, two-binding assembly, and application worker |
 | `inventory-reference-service` | `inventoryctl`, a registered read-only catalog, strict `inventory-capability/1.0`, and content-addressed inventory artifacts |
 | `inventory-domain-pack` | Inventory profile, policy, guides, contracts, executor, projectors, and current-run artifact authority built only on the public kernel SPI |
 | `pypsa-model-authority` | Registered PyPSA model catalog, immutable revisions, bounded model operations, and current-run result/evidence references |
@@ -150,7 +153,7 @@ authority, Network Modeling, Power Operations, Capacity Planning, and Sector Cou
 | `@grid-static-analysis/pi-grid-tools` | Grid-compatible Pi extension wrapper that preserves existing `grid_*` tools and guide behavior |
 
 Source-mode development uses the local path dependencies pinned in the package
-manifests. Install-mode verification builds all eleven Python wheels plus both npm
+manifests. Install-mode verification builds all thirteen Python wheels plus both npm
 tarballs, installs them outside the repository, and runs smoke checks without
 importing from source paths. The grid/reference wheels and the PyPSA wheels use
 separate Python environments because their pinned simulator dependencies
@@ -199,20 +202,23 @@ executes one fixed question. Scripted multi-turn acceptance has passed for all
 three cases; open-ended LLM planning remains unverified. See the [runbook](docs/RUNBOOK.md)
 and [business case design](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md).
 
-The local Capstone client accepts one JSON request with an application ID and
-ordered instructions. It runs both the pandapower static-analysis application
-and the PyPSA business-case application through their separately pinned worker
-environments. Try the provider-free examples with
-`make capstone-client REQUEST=validation/client/pandapower-scripted-task.json`
-or `make capstone-client REQUEST=validation/client/pypsa-regional-demo.json`.
-The client returns one `capstone-client-result/1.0` JSON object with the
-selected application's admitted result on stdout. Live start, turn, and
-capability progress is written to stderr as `capstone-client-progress/1.0`
-JSON lines; pandapower Provider diagnostics also appear there. Pandapower also
-supports its formal Provider-backed route; running that route may be billed.
-See the [runbook](docs/RUNBOOK.md).
+The neutral `capstone-agent` hosts a persistent session for either registered
+application in its own Python environment. `make capstone-agent-run
+REQUEST=validation/client/pandapower-scripted-task.json` and `make
+capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json` run
+provider-free three-turn demos and print one final JSON object. `make
+capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo
+CASE=pandapower-scripted-task` accepts one
+instruction at a time and displays each committed answer and progress. `make
+capstone-agent-serve` exposes token-protected loopback HTTP sessions, ordered
+turns, SSE events, results, and authority-verified evidence for a future App.
+The other PyPSA demo requests are `validation/client/pypsa-scigrid-demo.json`
+and `validation/client/pypsa-ac-dc-demo.json`.
+Both applications also have Provider routes; live Provider behavior remains
+unverified and may be billed. The older `make capstone-client` command remains
+available. See the [runbook](docs/RUNBOOK.md).
 
-`make test` is the provider-free unit gate: it runs the eleven Python packages,
+`make test` is the provider-free unit gate: it runs the thirteen Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked
 pyright 1.1.408 in standard mode (Python 3.12 minimum) across all production
