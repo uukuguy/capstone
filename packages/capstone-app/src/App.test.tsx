@@ -311,7 +311,7 @@ describe('operator workflow', () => {
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByText('pandapower')).toBeTruthy()
     expect(screen.getByText('PyPSA')).toBeTruthy()
-    expect(screen.getByText(/CAPSTONE 为电力科学AI提供应用底座/)).toBeTruthy()
+    expect(screen.getByText(/CAPSTONE 为电网科学AI提供应用底座/)).toBeTruthy()
     expect(screen.getByText(/SCIENTIFIC AI FOR THE GRID/)).toBeTruthy()
     expect(screen.getByText(/DeepONet.*FNO/)).toBeTruthy()
     expect(screen.getByText(/Neural-DAE.*Koopman/)).toBeTruthy()
