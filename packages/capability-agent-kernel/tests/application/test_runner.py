@@ -1925,6 +1925,15 @@ def test_default_provider_emits_safe_resolution_before_transport_start(
         }
     ]
     assert "test-secret-must-not-observe" not in repr(observed)
+    application.report_publisher = SimpleNamespace(render=lambda **values: values["runtime"])
+    assert application._render_report(
+        request=ApplicationRequest(
+            application_id="fixture-app", questions=("q",), run_id="resolved-run"
+        ),
+        workspace=workspace, store=None,
+        core=SimpleNamespace(model_dump=lambda **_: {}), completed_answers=(),
+        prepared=SimpleNamespace(bindings={}),
+    ) == {"provider": "alpha", "model": "alpha-model"}
 
 
 def test_cleanup_continues_reverse_order_after_baseexception() -> None:

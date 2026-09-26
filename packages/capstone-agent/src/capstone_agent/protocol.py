@@ -20,7 +20,7 @@ _PAYLOAD_FIELDS = {
     "ready": frozenset({"run_id"}),
     "progress": frozenset({"event", "message", "ordinal", "total", "capability", "run_id"}),
     "answer_committed": frozenset({"ordinal", "turn_id", "answer_output", "answer_ref", "result_refs", "evidence_refs"}),
-    "completed": frozenset({"run_id", "result"}),
+    "completed": frozenset({"run_id", "result", "report_path"}),
     "failed": frozenset({"code"}),
     "evidence_result": frozenset({"ref", "value"}),
 }
@@ -31,7 +31,7 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "ready": _PAYLOAD_FIELDS["ready"],
     "progress": frozenset({"event", "message"}),
     "answer_committed": _PAYLOAD_FIELDS["answer_committed"],
-    "completed": _PAYLOAD_FIELDS["completed"],
+    "completed": frozenset({"run_id", "result"}),
     "failed": _PAYLOAD_FIELDS["failed"],
     "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
 }

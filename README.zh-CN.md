@@ -165,8 +165,8 @@ make validate-application
 前置条件为 Python 3.12+、Node.js 22.19+、`uv` 和 `npm`。Provider 支持的分析还需要配置相应的 LLM 凭据；离线冒烟检查不需要 Provider。
 
 ```sh
-git clone https://github.com/uukuguy/grid-static-analysis.git
-cd grid-static-analysis
+git clone https://github.com/uukuguy/capstone.git
+cd capstone
 make setup
 make doctor
 ```

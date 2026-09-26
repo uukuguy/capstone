@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from hashlib import sha256
+import json
+import re
 
 from capability_agent.application.workspace import ApplicationWorkspace
-from grid_agent.analysis.models import AnalysisContext, DomainState, InputRecord, RuntimeRecord, TurnRecord
+from grid_agent.analysis.models import AnalysisContext, DomainState, EvidenceRecord, InputRecord, RuntimeRecord, TurnRecord
 from grid_agent.analysis.report import render_analysis_report
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
@@ -59,11 +61,18 @@ class PandapowerApplicationReportShell:
             context=context,
             core=core,
             workspace=report_workspace,
+            runtime=runtime,
         )
         report = render_analysis_report(
             context=report_context,
             workspace=report_workspace,
             environment=_environment(context, runtime),
+        )
+        # The legacy renderer links from the run root; generic reports live in output/.
+        report = re.sub(
+            r"(\]\()((?:core|turns|domains|input|tool-results|evidence)/[^)\s]+)(\))",
+            r"\1../\2\3",
+            report,
         )
         if self._submission_checkpoint_unavailable:
             report += "\n## Submission checkpoint diagnostic\n\n- Submission checkpoint unavailable; report processing continued.\n"
@@ -108,11 +117,17 @@ def _analysis_context(
     context: object | None,
     core: Mapping[str, object] | None,
     workspace: AnalysisWorkspace,
+    runtime: Mapping[str, object] | None,
 ) -> AnalysisContext:
     generic_core = getattr(context, "core", None)
     turns = getattr(generic_core, "turns", ())
     input_payload = getattr(generic_core, "input", {})
-    runtime_payload = getattr(generic_core, "runtime", {})
+    runtime_payload = dict(getattr(generic_core, "runtime", {}))
+    if isinstance(runtime, Mapping):
+        runtime_payload.update({
+            key: value for key, value in runtime.items()
+            if key in {"provider", "model"} and isinstance(value, str) and value
+        })
     run_id = str(getattr(context, "run_id", (core or {}).get("run_id", "run")))
     status = str(getattr(context, "status", "running"))
     if status != "initializing" and status != "running" and status != "completed" and status != "failed":
@@ -140,8 +155,47 @@ def _analysis_context(
             pandapower_version=_text_mapping_value(runtime_payload, "pandapower_version", "3.4.0"),
         ),
         turns=report_turns,
+        evidence=_admitted_evidence(report_turns, workspace),
         domain_state=_domain_state(context),
     )
+
+
+def _admitted_evidence(
+    turns: list[TurnRecord], workspace: AnalysisWorkspace,
+) -> dict[str, EvidenceRecord]:
+    """Project only committed references whose run-local authority files verify."""
+    directory = workspace.root_path / "domains" / "grid" / "evidence"
+    records: dict[str, EvidenceRecord] = {}
+    for turn in turns:
+        for reference in turn.produced_refs:
+            match = re.fullmatch(r"evidence:sha256:([0-9a-f]{64})", reference)
+            if match is None or reference in records:
+                continue
+            digest = match.group(1)
+            for subdirectory, prefix in (("analysis", "analysis-evidence"),
+                                         ("network-facts", "network-fact")):
+                path = directory / subdirectory / f"{prefix}-{digest}.json"
+                if not path.is_file() or not path.resolve().is_relative_to(workspace.root_path.resolve()):
+                    continue
+                raw = path.read_bytes()
+                if sha256(raw).hexdigest() != digest:
+                    continue
+                try:
+                    document = json.loads(raw)
+                except ValueError:
+                    continue
+                if not isinstance(document, dict):
+                    continue
+                records[reference] = EvidenceRecord(
+                    evidence_ref=reference, turn_id=turn.turn_id,
+                    capability=document.get("capability_id") if isinstance(document.get("capability_id"), str) else None,
+                    path=str(path.relative_to(workspace.root_path)),
+                    kind=str(document.get("evidence_type", "simulator")),
+                    refs=[document["result_ref"]] if isinstance(document.get("result_ref"), str) else [],
+                    summary=document,
+                )
+                break
+    return records
 
 
 def _turn_record(

@@ -331,8 +331,8 @@ analysis additionally needs a supported LLM credential; offline smoke checks do
 not.
 
 ```sh
-git clone https://github.com/uukuguy/grid-static-analysis.git
-cd grid-static-analysis
+git clone https://github.com/uukuguy/capstone.git
+cd capstone
 make setup
 make doctor
 ```

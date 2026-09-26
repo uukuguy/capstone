@@ -985,3 +985,8 @@ _Recovered pre-merge mainline entries._
 - 18:14 Isolated scripted Pi E2E runtimes after a test wrapper broke local `make analysis`; rebuilt Pi and passed offline gates [65c31d6].
 - 19:17 Added plain-text `INSTRUCTIONS` to Capstone headless runs so real task files need no JSON wrapper [6309121].
 - 19:28 Superseded dual-input Capstone CLI with two pandapower analysis JSON requests matching existing task and test lists [fcb8e3e].
+- 20:56 统一客户端终端使用摘要、工具完成事件和最终报告路径；管道 stdout 保持单 JSON，交互模式隐藏长引用（未提交）。
+- 20:56 Capstone 报告解析实际模型配置并链接本次准入证据；脚本实跑 3/3、13 个本地链接有效，doctor/test/E2E/validate 通过（未提交）。
+- 21:21 Renamed the project root to capstone with a legacy link; repaired Codex trust and worktree paths; doctor passed.
+- 21:22 Main-checkout Capstone scripted entrypoint completed 3/3 turns from the new root with a single captured JSON result.
+- 21:41 重新同步开发依赖并安装托管 Pi；doctor 通过，pandapower/PyPSA 脚本入口各完成 3/3，stdout 均为单 JSON。

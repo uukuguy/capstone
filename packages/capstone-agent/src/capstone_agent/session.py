@@ -23,7 +23,7 @@ _SCRIPTED_ENV_NAMES = frozenset({
 
 def _worker_environment(source: Mapping[str, str], mode: str) -> dict[str, str]:
     if mode == "provider":
-        return dict(source)
+        return {name: value for name, value in source.items() if name != "VIRTUAL_ENV"}
     return {name: value for name, value in source.items() if name in _SCRIPTED_ENV_NAMES}
 
 

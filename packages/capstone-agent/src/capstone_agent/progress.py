@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 
-_SECRET_KEYS = ("key", "token", "secret", "authorization", "password")
+_REFERENCE = re.compile(r"\b[a-z][a-z0-9_-]*:(?:[a-z0-9_.-]+:)?sha256:[0-9a-f]{64}\b|\b[0-9a-f]{64}\b")
+_INPUT_FIELDS = ("model_id", "model", "network", "dataset", "operation", "case_id", "element", "index", "limit")
+_RESULT_FIELDS = ("model", "dataset", "operation", "status", "converged", "row_count", "returned_row_count", "total_active_loss")
 _SECRET_TEXT = (
     re.compile(r"\bAuthorization\s*:\s*Bearer\s+[^\s,;，；。)）]+", re.IGNORECASE),
     re.compile(
@@ -26,29 +26,33 @@ def _redact_text(value: str) -> str:
 
 
 def _summary(value: object, limit: int = 200) -> str:
-    compact = " ".join(_redact_text(str(value)).split())
+    compact = " ".join(_REFERENCE.sub("[引用]", _redact_text(str(value))).split())
     return compact if len(compact) <= limit else compact[:limit] + "…"
 
 
-def _redact(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {
-            str(key): "[REDACTED]" if any(part in str(key).lower() for part in _SECRET_KEYS)
-            else _redact(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [_redact(item) for item in value]
-    if isinstance(value, str):
-        return _redact_text(value)
-    return value
-
-
-def _detail(value: object) -> str:
-    try:
-        return _summary(json.dumps(_redact(value), ensure_ascii=False, allow_nan=False))
-    except (TypeError, ValueError):
-        return "[unavailable]"
+def _detail(value: object, fields: tuple[str, ...]) -> str:
+    if not isinstance(value, Mapping):
+        return "已记录"
+    details: list[str] = []
+    for key in fields:
+        item = value.get(key)
+        if isinstance(item, bool | int | float) or isinstance(item, str) and item and len(item) <= 64:
+            details.append(f"{key}={_summary(item, 64)}")
+        elif key == "total_active_loss" and isinstance(item, Mapping):
+            amount = item.get("value")
+            unit = item.get("unit")
+            if isinstance(amount, int | float) and isinstance(unit, str):
+                details.append(f"total_active_loss={amount:.4g} {unit}")
+        if len(details) == 3:
+            break
+    counts = value.get("counts")
+    if len(details) < 3 and isinstance(counts, Mapping):
+        for name, count in counts.items():
+            if isinstance(name, str) and re.fullmatch(r"[a-z_]{1,24}", name) and type(count) is int:
+                details.append(f"{name}={count}")
+            if len(details) == 3:
+                break
+    return "，".join(details) if details else "已记录"
 
 
 def render_progress(event: Mapping[str, object]) -> str:
@@ -61,11 +65,17 @@ def render_progress(event: Mapping[str, object]) -> str:
     if kind == "tool_execution_start":
         name = _summary(event.get("toolName", event.get("capability", "unknown")))
         args = event.get("args", event.get("arguments", {}))
-        return f"工具开始: {name} 输入: {_detail(args)}"
-    if kind == "tool_execution_end":
+        return f"工具开始: {name} 输入: {_detail(args, _INPUT_FIELDS)}"
+    if kind in {"tool_execution_end", "tool_result"}:
         name = _summary(event.get("toolName", event.get("capability", "unknown")))
-        status = "失败" if event.get("isError") else "完成"
-        return f"工具{status}: {name} 输出: {_detail(event.get('result', {}))}"
+        status = "失败" if event.get("isError") or event.get("ok") is False else "完成"
+        return f"工具{status}: {name} 结果: {_detail(event.get('result', {}), _RESULT_FIELDS)}"
+    if kind == "prompt_ack" or kind == "response" and event.get("command") == "prompt":
+        return "模型请求已接收" if event.get("success") is not False else "模型请求失败"
+    if kind == "assistant_message":
+        output = event.get("text")
+        if isinstance(output, str) and output.strip():
+            return f"模型输出: {_summary(output, 160)}"
     if kind == "application_report_checkpoint":
         return (
             f"报告已刷新（已完成 {event.get('completed_questions', '?')} 题）："

@@ -106,3 +106,63 @@ def test_headless_cli_streams_worker_progress_to_stderr(tmp_path: Path) -> None:
     assert main(["run", "--request", str(request)], registry=registry,
                 output_stream=io.StringIO(), error_stream=errors) == 0
     assert "Working on current turn" in errors.getvalue()
+
+
+def test_headless_cli_prints_final_report_path(tmp_path: Path) -> None:
+    command = _worker(tmp_path)
+    script = Path(command[-1])
+    source = script.read_text(encoding="utf-8")
+    script.write_text(source.replace(
+        '"result": {"turns": turns}',
+        '"result": {"turns": turns}, "report_path": "/tmp/run-fixture/output/report.md"',
+    ), encoding="utf-8")
+    registry = WorkerRegistry((WorkerSpec("fixture-app", command),))
+    request = tmp_path / "request.json"
+    request.write_text(json.dumps({
+        "schema": "capstone-client-request/1.0", "application_id": "fixture-app",
+        "mode": "scripted-demo", "instructions": ["first"],
+    }), encoding="utf-8")
+    errors = io.StringIO()
+    assert main(["run", "--request", str(request)], registry=registry,
+                output_stream=io.StringIO(), error_stream=errors) == 0
+    assert errors.getvalue().splitlines()[-1] == "报告文件：/tmp/run-fixture/output/report.md"
+
+
+def test_headless_cli_uses_human_output_on_terminal(tmp_path: Path) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    request = tmp_path / "request.json"
+    request.write_text(json.dumps({
+        "schema": "capstone-client-request/1.0", "application_id": "fixture-app",
+        "mode": "scripted-demo", "instructions": ["first"],
+    }), encoding="utf-8")
+
+    class Terminal(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    output, errors = Terminal(), io.StringIO()
+    assert main(["run", "--request", str(request)], registry=registry,
+                output_stream=output, error_stream=errors) == 0
+    assert "capstone-client-result/1.0" not in output.getvalue()
+    assert "answer:sha256:" not in output.getvalue()
+    assert "运行完成" in output.getvalue()
+
+
+def test_chat_summarizes_evidence_references(tmp_path: Path) -> None:
+    command = _worker(tmp_path)
+    script = Path(command[-1])
+    source = script.read_text(encoding="utf-8")
+    script.write_text(source.replace(
+        '"result_refs": [], "evidence_refs": []',
+        '"result_refs": ["result:sha256:' + 'a' * 64 + '"], '
+        '"evidence_refs": ["evidence:sha256:' + 'b' * 64 + '"]',
+    ), encoding="utf-8")
+    registry = WorkerRegistry((WorkerSpec("fixture-app", command),))
+    output = io.StringIO()
+    assert main(
+        ["chat", "--application", "fixture-app", "--mode", "scripted-demo"],
+        registry=registry, input_stream=io.StringIO("first\n/exit\n"),
+        output_stream=output, error_stream=io.StringIO(),
+    ) == 0
+    assert "结果 1 项、证据 1 项" in output.getvalue()
+    assert "sha256:" not in output.getvalue()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass
+from pathlib import Path
 
 from capstone_agent.protocol import Frame
 from capstone_agent.worker import PreparedWorker, serve_application
@@ -11,6 +12,7 @@ from capstone_agent.worker import PreparedWorker, serve_application
 class FakeOutcome:
     status: str
     rendered: object
+    report_path: Path | None = None
 
 
 class FakeApplication:
@@ -33,7 +35,8 @@ class FakeApplication:
                 "answer_output": instruction.upper(), "answer_ref": f"answer:{ordinal}",
                 "result_refs": [], "evidence_refs": ["evidence:current"],
             })
-        return FakeOutcome("completed", {"questions": self.questions})
+        return FakeOutcome("completed", {"questions": self.questions},
+                           Path("runs/run-fixture/output/report.md"))
 
 
 def test_worker_processes_turns_then_serves_run_scoped_evidence() -> None:
@@ -66,5 +69,6 @@ def test_worker_processes_turns_then_serves_run_scoped_evidence() -> None:
     assert "fixture_tool" in frames[1].payload["message"]
     assert "report.md" in frames[2].payload["message"]
     assert frames[7].payload["result"] == {"questions": ["first", "second"]}
+    assert frames[7].payload["report_path"] == "runs/run-fixture/output/report.md"
     assert frames[8].payload["value"] == {"ref": "evidence:current"}
     assert frames[9].payload["value"] is None

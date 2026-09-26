@@ -158,7 +158,11 @@ def serve_application(
         rendered = getattr(outcome, "rendered", None)
         if isinstance(rendered, str):
             rendered = json.loads(rendered)
-        emit("completed", {"run_id": prepared.run_id, "result": rendered})
+        report_path = getattr(outcome, "report_path", None)
+        completed = {"run_id": prepared.run_id, "result": rendered}
+        if report_path is not None:
+            completed["report_path"] = str(report_path)
+        emit("completed", completed)
         while frame := next_frame():
             if frame.kind != "evidence":
                 raise ProtocolError("completed worker accepts only evidence reads")

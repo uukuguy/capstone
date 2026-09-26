@@ -493,6 +493,7 @@ class AgentApplication:
         self.lifecycle_hooks = dict(lifecycle_hooks or {})
         self.application_preparer = application_preparer
         self.cli_options = cli_options or CliLLMOptions()
+        self._resolved_runtime: dict[str, str] | None = None
         self.environment = None if environment is None else dict(environment)
         self.runtime_host = runtime_host
         self.runtime_paths = runtime_paths
@@ -1051,6 +1052,10 @@ class AgentApplication:
             workspace=workspace,
             controller=controller,
         )
+        self._resolved_runtime = {
+            "provider": resolved.config.provider,
+            "model": resolved.config.model,
+        }
         self._observe_semantic_event({
             "type": "application_provider_resolved",
             "run_id": request.run_id or getattr(workspace, "run_id", ""),
@@ -1511,7 +1516,7 @@ class AgentApplication:
             core=core.model_dump(mode="json"),
             domains={},
             workspace=workspace,
-            runtime={
+            runtime=self._resolved_runtime or {
                 "provider": self.cli_options.provider,
                 "model": self.cli_options.model,
             },

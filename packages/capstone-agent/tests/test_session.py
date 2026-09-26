@@ -18,6 +18,14 @@ def test_scripted_worker_environment_excludes_provider_secrets() -> None:
     assert _worker_environment(source, "provider") == source
 
 
+def test_provider_worker_environment_drops_parent_virtual_environment() -> None:
+    source = {"PATH": "/bin", "VIRTUAL_ENV": "/host/.venv",
+              "OPENAI_API_KEY": "secret"}
+    assert _worker_environment(source, "provider") == {
+        "PATH": "/bin", "OPENAI_API_KEY": "secret",
+    }
+
+
 def test_failed_worker_start_terminates_its_process(tmp_path: Path) -> None:
     script = tmp_path / "unready.py"
     script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")

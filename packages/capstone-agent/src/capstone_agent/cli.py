@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -42,24 +43,32 @@ def _run(request_path: Path, registry: WorkerRegistry, output: TextIO, errors: T
     values = _request(request_path)
     application_id = values["application_id"]
     spec = registry.resolve(application_id)
+    started_at = time.monotonic()
     with WorkerSession(
         spec, mode=values.get("mode", "provider"),
         case_id=values.get("case_id"), provider=values.get("provider"),
         model=values.get("model"),
-        on_event=lambda event: _print_progress(event, errors),
+        on_event=lambda event: _print_progress(event, errors, started_at),
     ) as session:
         print(f"Capstone run {session.run_id} started", file=errors, flush=True)
         for ordinal, instruction in enumerate(values["instructions"], start=1):
             answer = session.submit_and_wait(instruction)
             print(f"Turn {ordinal}: {answer.payload['answer_output']}", file=errors, flush=True)
         completed = session.close()
+        report_path = completed.payload.get("report_path")
         result = completed.payload["result"]
         if isinstance(result, str):
             result = json.loads(result)
-        print(json.dumps({
-            "schema": RESULT_SCHEMA, "application_id": application_id,
-            "run_id": session.run_id, "status": "completed", "result": result,
-        }, ensure_ascii=False), file=output, flush=True)
+        if output.isatty():
+            print(f"运行完成：{session.run_id}（已完成 {len(values['instructions'])} 题）",
+                  file=output, flush=True)
+        else:
+            print(json.dumps({
+                "schema": RESULT_SCHEMA, "application_id": application_id,
+                "run_id": session.run_id, "status": "completed", "result": result,
+            }, ensure_ascii=False), file=output, flush=True)
+        if isinstance(report_path, str) and report_path:
+            print(f"报告文件：{report_path}", file=errors, flush=True)
 
 
 def _chat(
@@ -67,10 +76,11 @@ def _chat(
     provider: str | None, model: str | None, registry: WorkerRegistry,
     source: TextIO, output: TextIO, errors: TextIO,
 ) -> None:
+    started_at = time.monotonic()
     with WorkerSession(
         registry.resolve(application_id), mode=mode, case_id=case_id,
         provider=provider, model=model,
-        on_event=lambda event: _print_progress(event, errors),
+        on_event=lambda event: _print_progress(event, errors, started_at),
     ) as session:
         print(f"Capstone session {session.run_id} ready; /exit ends this run.",
               file=errors, flush=True)
@@ -83,21 +93,25 @@ def _chat(
                 continue
             answer = session.submit_and_wait(instruction.rstrip("\r\n"))
             print(answer.payload["answer_output"], file=output, flush=True)
-            refs = [*answer.payload.get("result_refs", []),
-                    *answer.payload.get("evidence_refs", [])]
-            if refs:
-                print("Evidence: " + ", ".join(refs), file=output, flush=True)
-        session.close()
+            result_count = len(answer.payload.get("result_refs", []))
+            evidence_count = len(answer.payload.get("evidence_refs", []))
+            if result_count or evidence_count:
+                print(f"引用：结果 {result_count} 项、证据 {evidence_count} 项；详见报告",
+                      file=output, flush=True)
+        completed = session.close()
+        report_path = completed.payload.get("report_path")
         print(f"Capstone run {session.run_id} completed.", file=errors, flush=True)
+        if isinstance(report_path, str) and report_path:
+            print(f"报告文件：{report_path}", file=errors, flush=True)
 
 
-def _print_progress(event: object, errors: TextIO) -> None:
+def _print_progress(event: object, errors: TextIO, started_at: float) -> None:
     if getattr(event, "kind", None) != "progress":
         return
     payload = getattr(event, "payload", {})
     message = payload.get("message") if isinstance(payload, dict) else None
     if isinstance(message, str) and message:
-        print(message, file=errors, flush=True)
+        print(f"[{time.monotonic() - started_at:6.1f}s] {message}", file=errors, flush=True)
 
 
 def _operator_token(root: Path) -> str:
