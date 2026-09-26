@@ -136,5 +136,8 @@ def test_registered_regional_network_dispatches_across_three_snapshots(tmp_path)
     )
     assert result["condition"] == "optimal"
     assert [sum(values[index] for values in result["generator_dispatch_mw"].values()) for index in range(3)] == pytest.approx([40.0, 50.0, 55.0])
+    assert result["top_line_loading"]
+    assert all(item["max_loading_pct"] >= 0 for item in result["top_line_loading"])
+    assert result["omitted_line_count"] == 0
     assert result["objective"] > 0
     assert ModelStore(target, run_id="regional-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]

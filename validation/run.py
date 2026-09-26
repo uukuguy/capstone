@@ -144,6 +144,10 @@ class ScriptedApplicationTransport:
     def current_evidence_refs(self) -> tuple[str, ...]:
         return self._current_evidence_refs
 
+    @property
+    def current_context_ref(self) -> str | None:
+        return self._context_ref
+
     def start(self) -> None:
         self.started = True
 
@@ -485,6 +489,7 @@ def execute_application_case(
     instruction_source: Iterable[str] | None = None,
     on_semantic_event: Callable[[Mapping[str, object]], None] | None = None,
     on_prepared: Callable[[object], None] | None = None,
+    on_transport: Callable[[ScriptedApplicationTransport], None] | None = None,
 ) -> ApplicationExecution:
     """Run one JSON scripted case through the generic application entry point."""
 
@@ -565,6 +570,8 @@ def execute_application_case(
         catalog=catalog,
         on_progress=on_progress,
     )
+    if on_transport is not None:
+        on_transport(transport)
     projector = ApplicationInvocationProjector(
         store=store,
         catalog=catalog,

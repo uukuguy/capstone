@@ -11,6 +11,7 @@ from capstone_agent.worker import PreparedWorker, read_verified_reference, serve
 from capability_agent.runtime.catalog import ProviderCatalog
 
 from grid_agent.application.composition import build_generic_application
+from grid_agent.network_view import build_grid_network_view
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -24,6 +25,7 @@ class _ScriptedCaseApplication:
         self.observer = observer
         self.execution: Any = None
         self.prepared: Any = None
+        self.transport: Any = None
 
     def run_stream(self, request, instructions):
         from validation.run import execute_application_case
@@ -39,6 +41,7 @@ class _ScriptedCaseApplication:
             instruction_source=instructions, on_semantic_event=self.observer,
             on_progress=progress,
             on_prepared=lambda prepared: setattr(self, "prepared", prepared),
+            on_transport=lambda transport: setattr(self, "transport", transport),
         )
         self.execution = execution
         return execution.outcome
@@ -67,7 +70,18 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
                 if prepared is not None else None
             )
 
-        return PreparedWorker(application, run_id, evidence)
+        def network(ordinal: int) -> dict[str, object] | None:
+            prepared = application.prepared
+            transport = application.transport
+            if prepared is None or transport is None or transport.current_context_ref is None:
+                return None
+            executor = prepared.bindings["grid"].endpoint.executor
+            return build_grid_network_view(
+                executor, transport.current_context_ref, ordinal, case_id,
+                transport.current_result_refs, transport.calls,
+            )
+
+        return PreparedWorker(application, run_id, evidence, network)
     if mode != "provider" or values.get("case_id") is not None:
         raise ValueError("pandapower worker mode is invalid")
     provider = values.get("provider")

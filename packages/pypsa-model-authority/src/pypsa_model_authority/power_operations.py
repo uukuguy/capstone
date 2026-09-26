@@ -166,15 +166,15 @@ def execute_operation(
             for carrier in carriers
         }
         details["total_generation_mw"] = [_finite(value) for value in dispatch.sum(axis=1).tolist()]
-        if len(network.lines):
-            ratings = network.lines.s_nom.astype(float)
-            flows = network.lines_t.p0.abs().div(ratings.where(ratings > 0), axis=1)
-            maxima = flows.max(axis=0).sort_values(ascending=False).head(10)
-            details["top_line_loading"] = [
-                {"line_id": str(name), "max_loading_pct": _finite(value * 100)}
-                for name, value in maxima.items() if math.isfinite(float(value))
-            ]
-            details["omitted_line_count"] = max(0, len(network.lines) - 10)
+    if capability == "operations.dispatch" and len(network.lines):
+        ratings = network.lines.s_nom.astype(float)
+        flows = network.lines_t.p0.abs().div(ratings.where(ratings > 0), axis=1)
+        maxima = flows.max(axis=0).sort_values(ascending=False).head(10)
+        details["top_line_loading"] = [
+            {"line_id": str(name), "max_loading_pct": _finite(value * 100)}
+            for name, value in maxima.items() if math.isfinite(float(value))
+        ]
+        details["omitted_line_count"] = max(0, len(network.lines) - 10)
     if capability == "operations.commitment":
         details["commitment_status"] = {
             name: [int(round(value)) for value in values]
