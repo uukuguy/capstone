@@ -1,4 +1,4 @@
-import type { NetworkView } from './types'
+import type { NetworkDiagram, NetworkView } from './types'
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -119,4 +119,17 @@ export function parseNetworkView(raw: unknown, ordinal: number, admittedRefs: st
     }
   }
   return raw as NetworkView
+}
+
+export function parseNetworkDiagram(raw: unknown): NetworkDiagram | null {
+  if (!record(raw) || raw.schema !== 'capstone-network-diagram/1.0' ||
+      !record(raw.model) || !text(raw.model.revision)) return null
+  const layer = {
+    schema: 'capstone-network-layer/1.0', ordinal: 1,
+    diagram_ref: raw.ref, model_revision: raw.model.revision,
+    focus_ids: [], next_focus_ids: [], overlay: null,
+  }
+  const view = parseNetworkView({ schema: 'capstone-network-view/2.0', ordinal: 1,
+    diagram: raw, layer }, 1, [])
+  return view?.schema === 'capstone-network-view/2.0' ? view.diagram : null
 }

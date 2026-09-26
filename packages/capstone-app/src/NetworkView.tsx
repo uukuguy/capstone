@@ -38,18 +38,23 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number): st
   return `hsl(${Math.round(178 - Math.min(1, Math.max(0, value) / 120) * 166)} 68% 40%)`
 }
 
-export function NetworkView({ view, modelName, focusKey, nextTask = false, unavailable = false }: {
-  view: NetworkViewData | null; modelName: string; focusKey: string
-  nextTask?: boolean; unavailable?: boolean
+export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
+                              nextTask = false, unavailable = false,
+                              previewUnavailable = false }: {
+  view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
+  modelName: string; focusKey: string
+  nextTask?: boolean;
+  unavailable?: boolean; previewUnavailable?: boolean
 }) {
   const [camera, setCamera] = useState<Camera>(FULL)
   const [hovered, setHovered] = useState<string | null>(null)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
-  const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view
+  const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
   const viewIdentity = view?.schema === 'capstone-network-view/2.0'
     ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`
-    : view ? `${view.model.revision}:${view.ordinal}:${view.focus_ids.join(',')}:${view.next_focus_ids.join(',')}` : 'empty'
+    : view ? `${view.model.revision}:${view.ordinal}:${view.focus_ids.join(',')}:${view.next_focus_ids.join(',')}`
+      : previewDiagram?.ref || 'empty'
   const nodes = useMemo(() => geometry ? layoutNetwork(geometry) : [], [geometry])
   const modelCoordinates = useMemo(() => geometry ? usesModelCoordinates(geometry) : false, [geometry])
   const byId = useMemo(() => new Map(nodes.map((bus) => [bus.id, bus])), [nodes])
@@ -117,9 +122,9 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
   const dense = nodes.length > 100
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
-    <div className="network-head"><div><span className="eyebrow">MODEL / CURRENT RUN</span>
+    <div className="network-head"><div><span className="eyebrow">MODEL / {view ? 'CURRENT RUN' : 'CASE PREVIEW'}</span>
       <h2 id="network-title">电网视图</h2></div><span className="network-model">{modelName}</span></div>
-    {view ? <>
+    {geometry ? <>
       <div className="network-meta"><span>模型结构 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
         <span>{geometry!.schema === 'capstone-network-diagram/1.0'
           ? geometry!.coordinate_system === 'geographic' ? '地理拓扑 · 模型坐标' : modelCoordinates ? '电气示意 · 模型坐标' : '电气示意布局'
@@ -197,19 +202,21 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
           {[...branchKinds].some((kind) => ['transformer', 'trafo', 'trafo3w'].includes(kind)) &&
             <><span className="legend-transformer">◯◯</span> 变压器</>}
           <span className="legend-focus" /> 任务定位</div>
-        {layer!.overlay ? <div className="network-overlay-note">
+        {layer?.overlay ? <div className="network-overlay-note">
           <span className="overlay-gradient" /><strong>{layer!.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {layer!.overlay.unit}</strong>
           <span>{layer!.overlay.metric === 'loading_percent' ? '色阶 0–120%' : '色阶 接近 1.0 → 偏离 1.0'}</span>
           <span>仅对 {colored} / {denominator} 条有结果的{layer!.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
-        </div> : <span className="network-no-overlay">当前步骤暂无逐元件数值</span>}
-        {view.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&
+        </div> : <span className="network-no-overlay">{view ? '当前步骤暂无逐元件数值' : '案例底图 · 尚无运行数值'}</span>}
+        {view?.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&
           <span className="network-omitted">预览范围：省略 {view.omitted.buses} 个母线、{view.omitted.branches} 条支路</span>}
         {hovered && <span className="network-hover-id">{hovered}{hoveredValue === undefined ? ''
           : ` · ${hoveredValue.toFixed(layer!.overlay?.metric === 'voltage_pu' ? 3 : 1)} ${layer!.overlay?.unit}`}</span>}
       </div>
   </> : <div className="network-empty"><span aria-hidden="true">◇</span>
-      <strong>{unavailable ? '本轮电网视图暂不可用' : '运行首步后显示登记模型拓扑'}</strong>
+      <strong>{unavailable ? '本轮电网视图暂不可用'
+        : previewUnavailable ? '案例电网暂不可用' : '正在读取案例电网…'}</strong>
       <p>{unavailable ? '当前运行没有可验证的模型投影；已提交回答仍可查看。'
-        : `模型：${modelName}。图中仅显示权威系统返回的受限结构。`}</p></div>}
+        : previewUnavailable ? '登记模型的底图未能读取，请稍后重新打开案例。'
+          : `模型：${modelName}。正在加载权威系统返回的完整拓扑。`}</p></div>}
   </section>
 }

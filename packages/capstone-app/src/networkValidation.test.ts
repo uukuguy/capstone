@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseNetworkView } from './networkValidation'
+import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network projection at the browser boundary', () => {
+  it('accepts only a bounded standalone case diagram', () => {
+    expect(parseNetworkDiagram(sampleDiagramView.diagram)).toEqual(sampleDiagramView.diagram)
+    expect(parseNetworkDiagram({ ...sampleDiagramView.diagram, branches: [
+      { ...sampleDiagramView.diagram.branches[0], to_bus: 'foreign' },
+    ] })).toBeNull()
+  })
   it('accepts a bounded view of the committed step', () => {
     expect(parseNetworkView(sampleView, 1, [])).toEqual(sampleView)
   })

@@ -1,5 +1,5 @@
 import type {
-  Catalog, CommittedTurn, CreatedSession, NetworkView, SessionEvent, SessionStatus,
+  Catalog, CommittedTurn, CreatedSession, NetworkDiagram, NetworkView, SessionEvent, SessionStatus,
 } from './types'
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
@@ -69,6 +69,10 @@ export class CapstoneClient {
 
   catalog(): Promise<Catalog> {
     return this.json('/api/v1/catalog')
+  }
+
+  caseDiagram(applicationId: string, caseId: string): Promise<NetworkDiagram> {
+    return this.json(`/api/v1/cases/${encodeURIComponent(applicationId)}/${encodeURIComponent(caseId)}/diagram`)
   }
 
   createSession(applicationId: string, caseId: string): Promise<CreatedSession> {

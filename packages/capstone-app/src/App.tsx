@@ -3,8 +3,9 @@ import type { FormEvent, ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
 import { NetworkView } from './NetworkView'
-import { parseNetworkView } from './networkValidation'
-import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkView as NetworkViewData, SessionStatus } from './types'
+import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
+import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
+  NetworkView as NetworkViewData, SessionStatus } from './types'
 
 type Selection = { applicationId: string; caseId: string }
 type DetailTab = 'overview' | 'evidence'
@@ -125,36 +126,36 @@ function CapstoneIntro() {
     </section>
 }
 
-function RunPanel({ app, caseCard, status, turns, progress, actionPending, automatic, onStart,
+function RunPanel({ caseCard, status, turns, progress, actionPending, automatic, onStart,
                     onSubmit, onClose, onAuto, onStopAuto, onEvidence,
-                    networkView, networkFocusKey, networkUnavailable, nextNetworkTask,
+                    networkView, previewDiagram, previewUnavailable,
+                    networkFocusKey, networkUnavailable, nextNetworkTask,
                     selectedStep, onSelectStep, report, result }: {
-  app: ApplicationCard; caseCard: CaseCard; status: SessionStatus | null;
+  caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
   automatic: boolean; onAuto: () => void; onStopAuto: () => void;
   onStart: () => void; onSubmit: () => void; onClose: () => void;
   onEvidence: (ref: string) => void
-  networkView: NetworkViewData | null; networkFocusKey: string;
+  networkView: NetworkViewData | null; previewDiagram: NetworkDiagram | null;
+  previewUnavailable: boolean; networkFocusKey: string;
   networkUnavailable: boolean; nextNetworkTask: boolean;
   selectedStep: number | null; onSelectStep: (ordinal: number | null) => void
   report: string | null; result: unknown
 }) {
   const next = (status?.completed_turns ?? 0) + 1
   return <main className="run-panel">
-    <div className="run-breadcrumb"><span>案例分析</span><span className="breadcrumb-separator">/</span>
-      <span>{app.title}</span><span className="breadcrumb-separator">/</span><strong>{caseCard.title}</strong></div>
     <div className="run-title-row"><div>
       <span className="eyebrow">REGISTERED ANALYSIS / 0{caseCard.instructions.length} STEPS</span>
       <h1>{caseCard.title}</h1><p className="run-summary">{caseCard.summary}</p>
     </div><div className="run-title-glyph" aria-hidden="true"><Mark /></div></div>
     <div className="context-strip">
-      <Fact label="模型来源">{caseCard.model_origin}</Fact>
+      <Fact label="电网模型">{caseCard.model_origin}</Fact>
       <Fact label="情景假设">{caseCard.scenario_assumption}</Fact>
     </div>
-    <div className="boundary-note"><span className="boundary-icon" aria-hidden="true">i</span>
-      <div><strong>解释边界</strong><p>{caseCard.interpretation_boundary}</p></div></div>
-    <NetworkView view={networkView} modelName={caseCard.model_origin} focusKey={networkFocusKey}
-      unavailable={networkUnavailable} nextTask={nextNetworkTask} />
+    <NetworkView view={networkView} previewDiagram={previewDiagram}
+      modelName={caseCard.model_origin} focusKey={networkFocusKey}
+      unavailable={networkUnavailable} previewUnavailable={previewUnavailable}
+      nextTask={nextNetworkTask} />
     <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
       <div className="timeline-heading-actions">{selectedStep !== null &&
         <button type="button" className="timeline-latest" onClick={() => onSelectStep(null)}>回到最新步骤</button>}
@@ -183,8 +184,8 @@ function RunPanel({ app, caseCard, status, turns, progress, actionPending, autom
       })}
     </ol>
     <div className="run-action-bar">
-      {!status && <><div><strong>准备开始</strong><span>选择逐步执行，或自动完成全部指令。</span></div>
-        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>逐步执行</button>
+      {!status && <><div><strong>准备开始</strong><span>执行首条指令，或自动完成全部指令。</span></div>
+        <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button>
           <button className="primary-button" onClick={onAuto} disabled={actionPending}>自动完成 <span aria-hidden="true">↗</span></button></div></>}
       {status?.state === 'pending' && <div className="working-line"><span className="spinner" />正在准备当前运行…</div>}
       {status?.state === 'ready' && next <= caseCard.instructions.length && <><div><strong>指令 {next} 已就绪</strong>
@@ -276,6 +277,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [evidence, setEvidence] = useState<unknown>(null)
   const [evidencePending, setEvidencePending] = useState(false)
   const [networkViews, setNetworkViews] = useState<Record<number, NetworkViewData>>({})
+  const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
+  const [previewUnavailable, setPreviewUnavailable] = useState(false)
   const [unavailableViews, setUnavailableViews] = useState<number[]>([])
   const [selectedStep, setSelectedStep] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
@@ -285,6 +288,22 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const automaticKeys = useRef(new Map<string, string>())
 
   useEffect(() => () => autoController.current?.abort(), [])
+
+  useEffect(() => {
+    if (!visible || previewDiagram) return
+    let cancelled = false
+    void client.caseDiagram(app.application_id, caseCard.case_id).then((raw) => {
+      if (cancelled) return
+      const diagram = parseNetworkDiagram(raw)
+      if (diagram) setPreviewDiagram(diagram)
+      else setPreviewUnavailable(true)
+    }).catch((cause) => {
+      if (cancelled) return
+      if (cause instanceof ApiError && cause.status === 401) onInvalidToken(cause.message)
+      else setPreviewUnavailable(true)
+    })
+    return () => { cancelled = true }
+  }, [visible, previewDiagram, client, app.application_id, caseCard.case_id, onInvalidToken])
 
   function stopAutomatic() {
     autoController.current?.abort()
@@ -318,7 +337,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
             if (controller.signal.aborted) return
             cursor = event.sequence
             if (event.event === 'ready') {
-              setStatus((before) => before && { ...before, state: 'ready',
+              setStatus((before) => before && { ...before,
+                state: before.accepted_turns > before.completed_turns ? before.state : 'ready',
                 run_id: typeof event.payload.run_id === 'string' ? event.payload.run_id : before.run_id })
             } else if (event.event === 'progress') {
               setProgress(typeof event.payload.message === 'string' ? event.payload.message : null)
@@ -391,6 +411,21 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
       const created = await client.createSession(app.application_id, caseCard.case_id)
       setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
       setSessionId(created.session_id)
+      let ready: SessionStatus | null = null
+      for (let attempt = 0; attempt < 150; attempt += 1) {
+        const current = await client.status(created.session_id)
+        setStatus((before) => before && before.session_id === current.session_id &&
+          before.completed_turns > current.completed_turns ? before : current)
+        if (current.state === 'ready') { ready = current; break }
+        if (current.state === 'failed' || current.state === 'interrupted') {
+          throw new Error('当前运行未能启动')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
+      if (!ready) throw new Error('等待当前运行超时')
+      await client.submitTurn(created.session_id, caseCard.instructions[0], crypto.randomUUID())
+      setStatus((before) => before && before.completed_turns === 0
+        ? { ...before, state: 'executing', accepted_turns: 1 } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '启动失败') }
     finally { setPending(false) }
   }
@@ -480,10 +515,13 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   return <div style={{ display: visible ? 'contents' : 'none' }}>
     <div className="workspace-center">
       {error && <div className="workspace-alert" role="alert">{error}</div>}
+      <div className="run-breadcrumb intro-breadcrumb"><span>案例分析</span><span className="breadcrumb-separator">/</span>
+        <span>{app.title}</span><span className="breadcrumb-separator">/</span><strong>{caseCard.title}</strong></div>
       <CapstoneIntro />
-      <RunPanel app={app} caseCard={caseCard} status={status}
+      <RunPanel caseCard={caseCard} status={status}
         turns={turns} progress={progress} actionPending={pending} automatic={automatic}
-        networkView={networkView} networkFocusKey={networkFocusKey}
+        networkView={networkView} previewDiagram={previewDiagram}
+        previewUnavailable={previewUnavailable} networkFocusKey={networkFocusKey}
         networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
         selectedStep={selectedStep} onSelectStep={setSelectedStep}
         report={report} result={result}

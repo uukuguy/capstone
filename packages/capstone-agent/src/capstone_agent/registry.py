@@ -23,11 +23,15 @@ def build_registry(repo_root: Path | None = None) -> WorkerRegistry:
             ("uv", "run", "--project", str(root / "packages/grid-agent"),
              "python", "-m", "grid_agent.worker"),
             cwd=root, scripted_cases=PANDAPOWER_DEMOS,
+            preview_command=("uv", "run", "--project", str(root / "packages/grid-agent"),
+                             "python", "-m", "grid_agent.case_preview"),
         ),
         WorkerSpec(
             "pypsa-business-cases",
             ("uv", "run", "--project", str(root / "packages/pypsa-agent"),
              "python", "-m", "pypsa_agent.worker"),
             cwd=root, scripted_cases=PYPSA_DEMOS,
+            preview_command=("uv", "run", "--project", str(root / "packages/pypsa-agent"),
+                             "python", "-m", "pypsa_agent.case_preview"),
         ),
     ))

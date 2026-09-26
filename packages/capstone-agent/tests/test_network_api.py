@@ -59,3 +59,30 @@ def test_network_route_reconstructs_historical_layer_without_repeating_base() ->
         assert first.json()["layer"]["ordinal"] == 1
         assert second.json()["layer"]["ordinal"] == 2
         assert client.get(route, params={"ordinal": 3}, headers=headers).status_code == 404
+
+
+def test_registered_case_diagram_is_available_without_creating_a_run() -> None:
+    root = Path(__file__).resolve().parents[3]
+    registry = WorkerRegistry((WorkerSpec("pandapower-static-analysis", ("unused",),
+                                  scripted_cases=("pandapower-scripted-task",)),))
+    ledger = StoredNetworkLedger()
+    diagram = normalize_network_projection(projection(), admitted_refs=())["diagram"]
+    calls = []
+
+    def load(spec, case_id):
+        calls.append((spec.application_id, case_id))
+        return diagram
+
+    app = create_host_app(ledger, registry, operator_token="hosted-secret",
+                          allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+                          repo_root=root, preview_loader=load)
+    route = "/api/v1/cases/pandapower-static-analysis/pandapower-scripted-task/diagram"
+    with TestClient(app, base_url="http://localhost") as client:
+        assert client.get(route).status_code == 401
+        headers = {"Authorization": "Bearer hosted-secret"}
+        first = client.get(route, headers=headers)
+        second = client.get(route, headers=headers)
+        assert first.status_code == second.status_code == 200
+        assert first.json() == diagram
+        assert len(calls) == 1
+        assert client.get(route.replace("pandapower-scripted-task", "foreign"), headers=headers).status_code == 404

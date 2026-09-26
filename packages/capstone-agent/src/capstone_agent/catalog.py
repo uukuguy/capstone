@@ -32,7 +32,7 @@ def _grid_case(root: Path, case_id: str) -> dict[str, Any]:
     title, summary = _GRID_CASES[case_id]
     return {
         "case_id": case_id, "title": title, "summary": summary,
-        "model_origin": "项目登记的 IEEE-39 pandapower 网络",
+        "model_origin": "IEEE-39",
         "scenario_assumption": "按案例固定指令和登记模型进行本轮计算。",
         "interpretation_boundary": _GRID_BOUNDARY,
         "instructions": instructions,

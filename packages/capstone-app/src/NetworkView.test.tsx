@@ -35,7 +35,7 @@ describe('operator network canvas', () => {
 
   it('keeps a clear pending state before a current-run model opens', () => {
     render(<NetworkView view={null} modelName="IEEE-39" focusKey="pending" />)
-    expect(screen.getByText('运行首步后显示登记模型拓扑')).toBeTruthy()
+    expect(screen.getByText('正在读取案例电网…')).toBeTruthy()
   })
 
   it('shows an unavailable state for an invalid or missing current-run projection', () => {

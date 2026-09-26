@@ -33,6 +33,7 @@ function mockClient(eventFlow?: (_id: string, _after: number,
     createSession,
     submitTurn,
     network: vi.fn().mockResolvedValue(sampleView),
+    caseDiagram: vi.fn().mockResolvedValue(sampleDiagramView.diagram),
     close: vi.fn().mockResolvedValue({ session_id: 'session-one', state: 'closing' }),
     status: vi.fn().mockResolvedValue({
       session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
@@ -48,6 +49,28 @@ function mockClient(eventFlow?: (_id: string, _after: number,
 }
 
 describe('operator workflow', () => {
+  it('retries an unavailable case diagram only after reopening that case', async () => {
+    const twoCases: Catalog = { ...catalog, applications: [{ ...catalog.applications[0],
+      cases: [...catalog.applications[0].cases, {
+        ...catalog.applications[0].cases[0], case_id: 'case-b', title: '案例 B',
+      }],
+    }] }
+    const client = {
+      ...mockClient().client,
+      catalog: vi.fn().mockResolvedValue(twoCases),
+      caseDiagram: vi.fn().mockRejectedValue(new Error('preview unavailable')),
+    } as unknown as CapstoneClient
+    render(<App clientFactory={() => client} />)
+    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    expect(await screen.findByText('案例电网暂不可用')).toBeTruthy()
+    expect(client.caseDiagram).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
+    expect(await screen.findByRole('heading', { name: '案例 B', level: 1 })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /区域负荷增长情景/ }))
+    await waitFor(() => expect(client.caseDiagram).toHaveBeenCalledTimes(3))
+  })
+
   it('restores the latest session and selected completed step after switching cases', async () => {
     const twoCases: Catalog = { ...catalog, applications: [{ ...catalog.applications[0],
       cases: [...catalog.applications[0].cases, {
@@ -63,6 +86,7 @@ describe('operator workflow', () => {
         application_id: 'pypsa-business-cases', state: 'ready', error_code: null,
         accepted_turns: 1, completed_turns: 1 }),
       network: vi.fn().mockResolvedValue(sampleView),
+      caseDiagram: vi.fn().mockResolvedValue(sampleDiagramView.diagram),
       events: async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
         yield { schema: 'capstone-session-event/1.0', session_id: 'session-a', sequence: 1,
           event: 'ready', payload: { run_id: 'run-a' } }
@@ -78,7 +102,7 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已打开模型。')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '查看指令 1 的电网' }))
     fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
@@ -102,6 +126,7 @@ describe('operator workflow', () => {
     const submitTurn = vi.fn().mockImplementation(async () => { completed += 1 })
     const client = {
       catalog: vi.fn().mockResolvedValue(twoCases), createSession, submitTurn,
+      caseDiagram: vi.fn().mockResolvedValue(sampleDiagramView.diagram),
       status: vi.fn().mockImplementation(async () => ({ session_id: 'session-a', run_id: 'run-a',
         application_id: 'pypsa-business-cases', state: closed ? 'completed' : 'ready', error_code: null,
         accepted_turns: completed, completed_turns: completed })),
@@ -138,7 +163,7 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     const report = await screen.findByRole('region', { name: '本轮分析报告' })
     expect(report.textContent).toContain('分析已完成。')
     expect(container.querySelector('.workspace-center')?.contains(report)).toBe(true)
@@ -146,23 +171,24 @@ describe('operator workflow', () => {
     expect(screen.queryByRole('tab', { name: '报告' })).toBeNull()
   })
 
-  it('requires explicit token, session start, and each ordered turn action', async () => {
+  it('shows the case network before a run and starts the first manual turn with one click', async () => {
     const { client, createSession, submitTurn } = mockClient()
     render(<App clientFactory={() => client} />)
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     expect(await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })).toBeTruthy()
-    expect(screen.getByText('成本仅为模型目标值。')).toBeTruthy()
+    expect(await screen.findByText(/3 母线 \/ 2 支路/)).toBeTruthy()
+    expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
+    expect(screen.queryByText('成本仅为模型目标值。')).toBeNull()
     expect(createSession).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledWith(
       'pypsa-business-cases', 'regional-demand-stress',
     ))
-    expect(submitTurn).not.toHaveBeenCalled()
-    fireEvent.click(await screen.findByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledWith(
       'session-one', '打开模型。', expect.any(String),
     ))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '执行指令 1' })).toBeNull())
   })
 
   it('starts automatic completion and allows stopping future steps', async () => {
@@ -180,7 +206,7 @@ describe('operator workflow', () => {
     expect(screen.getByText(/Neural-DAE.*Koopman/)).toBeTruthy()
     expect(screen.getByText(/GraphGPS.*PI-GNN/)).toBeTruthy()
     const automatic = screen.getByRole('button', { name: '自动完成' })
-    const manual = screen.getByRole('button', { name: '逐步执行' })
+    const manual = screen.getByRole('button', { name: '执行指令 1' })
     expect(automatic.className).toContain('primary-button')
     expect(manual.className).toContain('secondary-button')
     expect(manual.compareDocumentPosition(automatic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -209,7 +235,7 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByRole('button', { name: '生成报告' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '自动完成' })).toBeNull()
   })
@@ -232,7 +258,7 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(network).toHaveBeenCalledWith('session-one', 1))
     expect(await screen.findByRole('img', { name: '电网拓扑' })).toBeTruthy()
   })
@@ -259,7 +285,7 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已分析情景。')).toBeTruthy()
     expect(await screen.findByText(/3 母线 \/ 2 支路/)).toBeTruthy()
     expect(screen.getByText('当前步骤暂无逐元件数值')).toBeTruthy()
@@ -285,8 +311,8 @@ describe('operator workflow', () => {
     fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
     fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '逐步执行' }))
-    expect(await screen.findByText('本轮电网视图暂不可用')).toBeTruthy()
-    expect(screen.getByText('已打开模型。')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
+    expect(await screen.findByText('已打开模型。')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
   })
 })

@@ -64,4 +64,14 @@ describe('CapstoneClient', () => {
     expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization)
       .toBe('Bearer private-token')
   })
+
+  it('requests a registered case diagram before a session exists', async () => {
+    const diagram = { schema: 'capstone-network-diagram/1.0', buses: [], branches: [] }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(diagram)))
+    const client = new CapstoneClient('', 'private-token', fetcher)
+    await expect(client.caseDiagram('pypsa-business-cases', 'scigrid-dispatch')).resolves.toEqual(diagram)
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/cases/pypsa-business-cases/scigrid-dispatch/diagram')
+    expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization)
+      .toBe('Bearer private-token')
+  })
 })

@@ -35,10 +35,14 @@ class WorkerSpec:
     cwd: Path | None = None
     environment: Mapping[str, str] | None = None
     scripted_cases: tuple[str, ...] | None = None
+    preview_command: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not self.application_id or not self.command or any(not part for part in self.command):
             raise ValueError("worker registration is invalid")
+        if self.preview_command is not None and (not self.preview_command or
+                any(not part for part in self.preview_command)):
+            raise ValueError("preview registration is invalid")
 
 
 class WorkerRegistry:

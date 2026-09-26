@@ -1,22 +1,20 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 03:47 CST. Final integration and verification are in progress.
+> Updated: 2026-09-27 04:17 CST. The operator App changes have passed local gates.
 
-## Completed direction
+## Current result
 
-- The user approved complete authority-backed network diagrams that remain visible across steps, completed-step selection, and each case's latest run state. Design and plan are recorded in `docs/superpowers/specs/2026-09-27-authoritative-network-diagrams-design.md` and `docs/superpowers/plans/2026-09-27-authoritative-network-diagrams.md`.
-- Grid and PyPSA authorities, persistent base/layer events, and application adapters have been committed in `504eb20`, `ca33b7b`, and `fbab31c`.
-- Pending App work includes a generated power-science AI intro, full SciGRID-DE/IEEE-39 views, per-case state, completed-step navigation, automatic completion, and the completed report beneath the central timeline. The intro illustration retains its original content, uses a flat outer frame, and aligns with the analysis content. The two start choices are "逐步执行" and "自动完成"; once all steps finish, only "生成报告" remains.
-- The private `operator.diagram.get` contract was moved out of the model-facing capability directory. Its schema remains validated and is included in the wheel.
+- Selecting a registered case shows its complete grid before a run. The API prewarms and caches authority-backed diagrams; the authenticated preview endpoint creates no session or run evidence. The case workspace retains its latest run and completed-step selection when another case is opened.
+- The first manual click creates the session and submits instruction 1. Automatic completion remains the primary action. The fixed interpretation-boundary box is removed; the model label and IEEE-39 text are shorter; the breadcrumb is above the original hero image; the hero caption is smaller.
+- The network view has a thin flat border and a shorter canvas, preserving the complete topology while exposing the analysis timeline sooner. The original hero art content remains unchanged. The central report and existing current-run evidence behavior remain in place.
 
-## Verification and remaining work
+## Verification
 
-- Focused App and simulator tests, TypeScript check, production App build, `make doctor`, `make test`, and `make test-e2e` passed during implementation. Actual SciGRID-DE and IEEE-39 diagrams were inspected against authority data; the latest presentation was checked in the local browser.
-- `make validate` stops at the protected-path gate because the simulator package has authorized changes and its stored tree digest predates them. Commit the task-owned source, update only the simulator tree digest in `configs/runtime/application-instantiation-protected-paths.json`, then rerun `make validate`.
-- Rebuild the local API/worker image with the relocated private contract and smoke-test the real entry point. Refresh `docs/status/CURRENT-STATE.md` and this checkpoint with final results, append the journal, and commit task-owned paths only.
+- All five registered authority preview CLIs returned complete diagrams. The local API image was rebuilt, the API container restarted without replacing the active worker container, and authenticated API calls returned IEEE-39, SciGRID-DE, and AC/DC preview diagrams.
+- Focused App and API tests, the App production build, `make doctor`, `make test`, `make test-e2e`, `make validate`, and `git diff --check` passed. A real browser layout inspection used the authority-returned AC/DC diagram; its saved screenshot is `output/case-preview-layout.png`.
 
 ## Preserve
 
-- `.codex/config.toml` is an unrelated staged user change. Never commit or reset it.
-- Ignored `deploy/local.env`, `.grid-agent/`, `.capstone-agent/`, `runs/`, and container volumes hold local state; do not delete or expose them.
-- Do not run billed provider validation or deploy to cloud without authorization.
+- `.codex/config.toml` is an unrelated staged user change. Do not commit or reset it.
+- Ignored `deploy/local.env`, `.grid-agent/`, `.capstone-agent/`, `runs/`, `output/`, and container volumes hold local state or artifacts; do not delete or expose them.
+- Cloud Run, Railway, and Vercel have not been deployed. Provider validation has not been run.

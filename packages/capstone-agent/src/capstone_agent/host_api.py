@@ -6,17 +6,20 @@ import asyncio
 import hmac
 import json
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from collections.abc import Callable
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
+from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
-from capstone_agent.session import WorkerRegistry, WorkerSession
+from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
 
 
 def _status(record: SessionRecord) -> dict[str, object]:
@@ -34,11 +37,28 @@ def create_host_app(
     allowed_hosts: set[str], allowed_origins: set[str],
     repo_root: Path | None = None,
     artifacts: ArtifactService | None = None,
+    preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
     catalog = build_catalog(registry, repo_root or Path(__file__).resolve().parents[4])
-    app = FastAPI(title="capstone-agent", docs_url=None, redoc_url=None, openapi_url=None)
+    diagram_cases = {
+        (application["application_id"], case["case_id"]): registry.resolve(application["application_id"])
+        for application in catalog["applications"] for case in application["cases"]
+        if preview_loader is not None or registry.resolve(application["application_id"]).preview_command
+    }
+    diagrams = CaseDiagramCache(diagram_cases, preview_loader or load_case_diagram)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        diagrams.prewarm()
+        try:
+            yield
+        finally:
+            diagrams.close()
+
+    app = FastAPI(title="capstone-agent", docs_url=None, redoc_url=None,
+                  openapi_url=None, lifespan=lifespan)
 
     @app.middleware("http")
     async def access(request: Request, call_next):
@@ -86,6 +106,15 @@ def create_host_app(
     @app.get("/api/v1/catalog")
     def get_catalog():
         return catalog
+
+    @app.get("/api/v1/cases/{application_id}/{case_id}/diagram")
+    def get_case_diagram(application_id: str, case_id: str):
+        try:
+            return diagrams.get(application_id, case_id)
+        except KeyError:
+            raise HTTPException(404, "case diagram is not registered") from None
+        except Exception:
+            raise HTTPException(503, "case diagram is unavailable") from None
 
     @app.post("/api/v1/sessions", status_code=201)
     def create_session(values: _CreateSession):
