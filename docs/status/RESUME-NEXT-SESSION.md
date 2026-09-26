@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 17:48 CST. Live checkpoint after model-policy and observability fixes on `main`.
+> Updated: 2026-09-26 18:14 CST. Live checkpoint after repairing the managed Pi runtime on `main`.
 
 ## TL;DR
 
@@ -10,6 +10,7 @@
 - 新的中性 `capstone-agent` 通过同一持久会话接口支持无头、交互式和 loopback HTTP/SSE。pandapower 与 PyPSA 各有已登记的独立工作进程；`grid-agent` 保留原有兼容入口。
 - 两个应用的 Provider 路径已装配，实际计费 Provider 调用尚未验收。三个 PyPSA 案例及 pandapower 样例均已通过新无头入口的三回合执行；真实 pandapower HTTP 会话、逐轮答案和权威验证证据已验收。
 - DeepSeek 的旧静态模型白名单已移除，仓库本地 `.env` 中的 `deepseek-flash` 通过离线配置预检；`make analysis` 在配置失败时不再留下空运行目录。新宿主显示工具事件与报告检查点路径，通用报告列出结果和证据引用。
+- 本地 `make analysis` 的一次失败定位到托管 Pi 启动文件被端到端测试替换，且测试脚本缺失；已用锁定源码重建 Pi，并把相关测试移入临时项目，避免再次改写主工作区运行时。
 
 ## Where things stand
 
@@ -23,6 +24,7 @@
 - 工作区仍有用户已暂存的 `.codex/config.toml`；不要把它混入任务提交。
 - 新宿主依赖 `packages/capstone-agent/.venv`、`packages/pypsa-agent/.venv` 两个忽略的本地环境；`make setup-capstone` 可重建。最终 `make doctor`、`make test`、`make test-e2e`（grid 38/38、Capstone 3/3）、`make validate`（24/24）、`make test-packages` 和 `make check-types` 均已通过。
 - 本轮配置/进度/报告修复提交为 `f8c4657`；`make doctor`、单元测试各目标、`make test-e2e`（grid 38/38、Capstone 3/3）、`make validate`（24/24）、`make check-types`、文档链接与符号链接检查通过。真实 DeepSeek 请求未执行，因此 `make analysis` 尚未做计费路径复验。
+- Pi 运行时测试隔离提交为 `65c31d6`；恢复后以及完整测试结束后，真实托管 Pi 均可通过离线 RPC `get_state` 载入 `deepseek-flash`。`make doctor`、`make test`、`make test-e2e`（grid 39/39、Capstone 3/3）、`make validate`（24/24）通过；完整七条指令的真实 Provider 调用尚未重跑。
 - `.worktrees/pypsa-operations` 留有忽略的本地运行环境，不要为了清理而删除。
 - 官方 NetCDF 保存在忽略的 `.grid-agent/runtime/pypsa-models/`，运行证据和展示 JSON 保存在忽略的 `runs/pypsa-cases/<run_id>/`。这些本地资产与用户数据都不要为了清理工作区而删除。
 
