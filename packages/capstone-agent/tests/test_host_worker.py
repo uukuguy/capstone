@@ -120,3 +120,27 @@ def test_worker_loop_claims_new_sessions_and_stops_cleanly(
     stop.set()
     thread.join(timeout=5)
     assert not thread.is_alive()
+
+
+def test_completed_state_publishes_report_after_artifact_is_stored(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    class SlowStore(MemoryObjectStore):
+        def put(self, key: str, content: bytes, mime: str) -> None:
+            if mime.startswith("text/markdown"):
+                time.sleep(0.2)
+            super().put(key, content, mime)
+
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    artifacts = ArtifactService(ledger, SlowStore(), tmp_path / "runs")
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("worker-test", 30)
+    assert claim is not None
+    thread = threading.Thread(target=run_claimed_session, args=(ledger, registry, claim),
+                              kwargs={"poll_seconds": 0.01, "artifacts": artifacts}, daemon=True)
+    thread.start()
+    _wait(ledger, session.session_id, "ready")
+    ledger.accept_close(session.session_id, "close-key")
+    _wait(ledger, session.session_id, "completed")
+    assert artifacts.read_report(session.session_id) == "# Run report\n"
+    thread.join(timeout=5)

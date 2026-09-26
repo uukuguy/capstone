@@ -25,13 +25,24 @@ def run_claimed_session(
     token = claim.lease_token
     if token is None:
         raise ValueError("claimed session has no lease")
+
+    def persist(frame):
+        if frame.kind == "completed" and artifacts is not None:
+            path = frame.payload.get("report_path")
+            if isinstance(path, str) and path:
+                try:
+                    artifacts.save_report(claim.session_id, Path(path))
+                except Exception:
+                    _LOG.warning("Capstone report unavailable for session %s", claim.session_id)
+        ledger.append_event(claim.session_id, token, frame)
+
     try:
         spec = registry.resolve(claim.application_id)
         with WorkerSession(
             spec, mode=claim.mode, case_id=claim.case_id,
             provider=claim.provider, model=claim.model,
             session_id=claim.session_id,
-            persist_event=lambda frame: ledger.append_event(claim.session_id, token, frame),
+            persist_event=persist,
         ) as session:
             last_renewal = time.monotonic()
             observed_sequence = 0
@@ -54,10 +65,6 @@ def run_claimed_session(
                                 projection = session.read_evidence(ref)
                                 if projection is not None:
                                     artifacts.save_evidence(claim.session_id, ref, projection)
-                        elif event.kind == "completed":
-                            path = event.payload.get("report_path")
-                            if isinstance(path, str) and path:
-                                artifacts.save_report(claim.session_id, Path(path))
                     except Exception:
                         _LOG.warning("Capstone artifact unavailable for session %s",
                                      claim.session_id)
