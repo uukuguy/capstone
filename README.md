@@ -227,8 +227,11 @@ available. See the [runbook](docs/RUNBOOK.md).
 ## Operator App and portable hosting
 
 The independent [operator App](packages/capstone-app/) presents registered
-pandapower and PyPSA cases, explicit three-turn execution, committed answers,
-current-run evidence, and the private report. It runs locally with
+pandapower and PyPSA cases, manual or automatic three-turn execution, committed
+answers, current-run evidence, and the private report. A light operator workspace
+shows a bounded, interactive network diagram from the registered authority, with
+step focus and partial numeric coloring only for admitted current-run results.
+It runs locally with
 `make setup-capstone-app && make capstone-app-dev`; the hosted API and worker
 must also be running. The App keeps the operator token in tab memory and makes
 no Provider request when browsing or starting a scripted case.

@@ -115,7 +115,7 @@ PyPSA 电网模型库现登记 15 个项目模型和固定版本 PyPSA 1.3.0 的
 
 ## 操作 App 与可移植部署
 
-独立的[操作 App](packages/capstone-app/) 展示已登记的 pandapower 与 PyPSA 案例、显式三轮执行、已提交答案、当前运行证据和私有报告。本地先启动 hosted API 与 worker，再执行 `make setup-capstone-app && make capstone-app-dev`。访问令牌只保留在当前浏览器标签页内存中；浏览或启动脚本案例不会调用 Provider。
+独立的[操作 App](packages/capstone-app/) 展示已登记的 pandapower 与 PyPSA 案例、手动或自动三轮执行、已提交答案、当前运行证据和私有报告。浅色工作台从登记权威系统取得受限电网图，提供图面操控、步骤对焦，并仅对本轮准入结果支持的元件作局部数值着色。本地先启动 hosted API 与 worker，再执行 `make setup-capstone-app && make capstone-app-dev`。访问令牌只保留在当前浏览器标签页内存中；浏览或启动脚本案例不会调用 Provider。
 
 同一[后端镜像](Dockerfile)以 API 或 worker 角色运行，共享 PostgreSQL 账本与私有工件存储。本地 [Compose](compose.yaml) 使用 PostgreSQL 和兼容 S3 的 RustFS；[Cloud Run](deploy/cloud-run/) 使用服务、worker pool 与 GCS；[Railway](deploy/railway/) 使用两个服务及其兼容 S3 的 bucket。Vercel 仅构建静态 App，以 `VITE_API_ORIGIN` 指向所选公共 API。环境变量和操作命令见[运行指南](docs/RUNBOOK.md#hosted-app-and-deployment)。实际云部署与真实 Provider 验证是独立操作。
 
