@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 15:34 CST. Multimode host implementation verified on `main`.
+> Updated: 2026-09-26 17:48 CST. Live checkpoint after model-policy and observability fixes on `main`.
 
 ## TL;DR
 
@@ -9,6 +9,7 @@
 - 三个可运行案例已有双格式专业介绍：案例清单提供 App 可读的结构化字段，独立 Markdown 说明业务问题、PyPSA 框架支持、智能体交互变化、价值和结论边界。
 - 新的中性 `capstone-agent` 通过同一持久会话接口支持无头、交互式和 loopback HTTP/SSE。pandapower 与 PyPSA 各有已登记的独立工作进程；`grid-agent` 保留原有兼容入口。
 - 两个应用的 Provider 路径已装配，实际计费 Provider 调用尚未验收。三个 PyPSA 案例及 pandapower 样例均已通过新无头入口的三回合执行；真实 pandapower HTTP 会话、逐轮答案和权威验证证据已验收。
+- DeepSeek 的旧静态模型白名单已移除，仓库本地 `.env` 中的 `deepseek-flash` 通过离线配置预检；`make analysis` 在配置失败时不再留下空运行目录。新宿主显示工具事件与报告检查点路径，通用报告列出结果和证据引用。
 
 ## Where things stand
 
@@ -21,6 +22,7 @@
 - 流式进度修复通过客户端聚焦测试 15/15、PyPSA 案例 7/7、实际双应用流式检查、`make doctor`、`make test`、`make test-e2e` 37/37、`make validate` 24/24 和文档链接/符号链接检查。进度输出失败不再阻断案例答案。
 - 工作区仍有用户已暂存的 `.codex/config.toml`；不要把它混入任务提交。
 - 新宿主依赖 `packages/capstone-agent/.venv`、`packages/pypsa-agent/.venv` 两个忽略的本地环境；`make setup-capstone` 可重建。最终 `make doctor`、`make test`、`make test-e2e`（grid 38/38、Capstone 3/3）、`make validate`（24/24）、`make test-packages` 和 `make check-types` 均已通过。
+- 本轮配置/进度/报告修复提交为 `f8c4657`；`make doctor`、单元测试各目标、`make test-e2e`（grid 38/38、Capstone 3/3）、`make validate`（24/24）、`make check-types`、文档链接与符号链接检查通过。真实 DeepSeek 请求未执行，因此 `make analysis` 尚未做计费路径复验。
 - `.worktrees/pypsa-operations` 留有忽略的本地运行环境，不要为了清理而删除。
 - 官方 NetCDF 保存在忽略的 `.grid-agent/runtime/pypsa-models/`，运行证据和展示 JSON 保存在忽略的 `runs/pypsa-cases/<run_id>/`。这些本地资产与用户数据都不要为了清理工作区而删除。
 
@@ -34,11 +36,12 @@
 - `tools/capstone_client.py` 用闭合请求契约选择受信任的应用工作进程，`validation/client/` 提供两个无 Provider 的样例。pandapower 脚本样例使用正式应用 Profile 和 `gridctl`，PyPSA 样例复用当前案例运行器；统一封装保留各自领域结果。
 - 客户端和两个脚本工作进程的 `capstone-client-progress/1.0` 事件经 stderr 实时输出；PyPSA 调度事件在实际求解前发出，事件不携带工具参数或计算结果。
 - `capstone-agent` 新增 `run`、`chat` 和 `serve`，共享持久会话及有界 JSONL 协议。两个应用工作进程逐轮提交答案，HTTP/SSE 可按序号读取事件和本轮 authority 验证的结果/证据；脚本演示工作进程过滤 Provider 密钥环境变量。
+- 中性工作进程把已有的语义工具事件与报告检查点转为带脱敏的进度消息；最终通用报告纳入本轮证据引用。脚本演示的答案仍是模型替身文本；PyPSA 通用报告尚没有 pandapower 原生连续分析报告的逐回合专业叙述。
 - 已保存的官方案例结果可查看 `runs/pypsa-cases/pypsa-case-7959da36a5044753/presentation.json`（SciGRID-DE）与 `runs/pypsa-cases/pypsa-case-544d2329350449c0/presentation.json`（AC/DC）。区域负荷案例的自动验收见 `validation/test_pypsa_cases.py`。
 
 ## Next steps
 
-1. 后续 Web 页面消费服务端的运行、逐回合答案和证据接口；本地服务目前依赖仓库工作区与各应用的独立 Python 环境。
+1. 后续 Web 页面消费服务端的运行、逐回合答案和证据接口；本地服务目前依赖仓库工作区与各应用的独立 Python 环境。若要求与 pandapower 原生报告同等深度，需要在中性报告层按逐回合已验证轨迹组织内容，并让 PyPSA Pack 提供业务叙述。
 2. 四个仅入库案例只有取得受控验收后才升级为可运行；真实计费 Provider 路径需另行授权验收。
 3. 用户已暂存的 `.codex/config.toml` 属于独立工作，保持原状。
 

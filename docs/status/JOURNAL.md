@@ -980,3 +980,4 @@ _Recovered pre-merge mainline entries._
 - 14:35 Added neutral persistent worker protocol with ordered frames and admitted evidence reads for shared CLI/HTTP sessions [f324dbc].
 - 14:40 Added loopback token-gated HTTP/SSE session adapter with turn, result, and evidence routes [a1f9d91].
 - 15:34 Added neutral multimode Capstone sessions and registered domain workers so App turns share verified evidence [93cf39a].
+- 17:48 Removed stale DeepSeek model allowlist and surfaced Capstone tool progress, report paths, and evidence references [f8c4657].
