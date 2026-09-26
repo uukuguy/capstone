@@ -93,7 +93,7 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
-独立的 `packages/capstone-app/` 是公开演示操作台，当前只开放已登记的三轮脚本案例。顶部电力科学AI主题图展示专业框架与科学计算模型，图下短文介绍 CAPSTONE 的领域能力与运行机制。目录浏览和打开案例不调用 Provider；选择案例即显示登记模型全图。点击「执行指令 1」会创建会话并直接提交首条指令，后续可逐条提交，也可点击「自动完成」让同一会话按序提交剩余指令、等待每轮已提交答案并结束运行。「停止自动执行」只停止后续步骤，已接受的当前指令会正常完成。切换案例时，当前标签页保留各案例最近一次会话、完成步骤选择和仍在运行的自动流程；完成后点击「再次分析」会为该案例自动创建新运行，不改变其他案例的当前状态。报告生成后显示在中栏分析流程底部；右栏查看运行状态与当前运行准入证据。演示登录成功后当前标签页只保存连接标志；刷新时重新向 API 领取演示凭证并恢复工作台，不持久化凭证。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
+独立的 `packages/capstone-app/` 是公开演示操作台，当前只开放已登记的三轮脚本案例。顶部电力科学AI主题图展示专业框架与科学计算模型，图下短文介绍 CAPSTONE 的领域能力与运行机制。目录浏览和打开案例不调用 Provider；选择案例即显示登记模型全图。点击「执行指令 1」会创建会话并直接提交首条指令，后续可逐条提交，也可点击「自动完成」让同一会话按序提交剩余指令、等待每轮已提交答案并结束运行。「停止自动执行」只停止后续步骤，已接受的当前指令会正常完成。切换案例时，当前标签页保留各案例最近一次会话、完成步骤选择和仍在运行的自动流程；完成后点击「再次分析」使该案例回到初始状态，用户可以重新选择逐步执行或自动完成，不改变其他案例的当前状态。报告生成后显示在中栏分析流程底部；右栏查看运行状态与当前运行准入证据。页面加载与刷新时自动向 API 领取演示凭证并进入工作台，不持久化凭证。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
 
 API 启动时预热已登记案例的权威模型图，已认证的 `GET /api/v1/cases/{application_id}/{case_id}/diagram` 直接返回经过边界校验的完整底图，不创建运行或证据。运行中的 worker 仍从该次运行登记的 `gridctl` 或 PyPSA authority 读取完整元件和坐标，将底图与逐步骤图层分别写入持久事件；API 通过已认证的 `GET /api/v1/sessions/{id}/network?ordinal=N` 重建指定步骤的投影，并以当前运行视图覆盖案例预览。SciGRID-DE 使用模型地理坐标展示全部 585 个母线、852 条线路和 96 台变压器；IEEE-39 使用模型电气示意坐标展示 39 个母线、35 条线路和 11 台变压器。非电网步骤继续显示同一底图，图层数值回到中性；完成步骤可点击回看，执行任务时重新对焦。白底拓扑图支持拖动平移、Shift + 滚轮或按钮缩放、适配全图和回到任务；普通滚轮滚动页面。电气示意图用短母线符号，地理拓扑图用位置点；图例仅列实际存在的元件类型。线路负载率着色仅覆盖同修订、同本轮已准入的逐元件结果；本轮已返回线路中的最高值显示为红色，图例标明这是相对色阶以及实际数值范围，不代表越限。缺失的元件保持中性色。没有可验证底图时显示不可用状态，不影响已提交答案。模型面对的 PyPSA `model.topology` 仍只返回至多 50 个母线；完整底图只供操作视图使用。
 
@@ -109,11 +109,11 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
-在浏览器打开 `http://127.0.0.1:5173`；本地 Compose 默认启用公开演示模式，登录框自动填入服务端提供的演示凭证，点击「连接工作台」即可。该凭证只允许已登记的脚本案例；Provider 模式仍需私有 `CAPSTONE_OPERATOR_TOKEN`。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+在浏览器打开 `http://127.0.0.1:5173`；本地 Compose 默认启用公开演示模式，页面会自动获取服务端提供的演示凭证并进入工作台。该凭证只允许已登记的脚本案例；Provider 模式仍需私有 `CAPSTONE_OPERATOR_TOKEN`。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、命令幂等键与事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 
-云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway + Vercel](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 Web 与后台 worker、PostgreSQL 和私有 S3 bucket。两个后端角色须使用同一镜像 digest 和同一账本/工件配置。Vercel 项目根目录为 `packages/capstone-app`；构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，演示凭证由服务端发放并自动填入登录框；关闭该开关后仍可用私有操作员令牌。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
+云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway + Vercel](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 Web 与后台 worker、PostgreSQL 和私有 S3 bucket。两个后端角色须使用同一镜像 digest 和同一账本/工件配置。Vercel 项目根目录为 `packages/capstone-app`；构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，演示凭证由服务端发放，App 自动进入工作台；关闭该开关时公开演示 App 显示连接失败与重试，私有操作员令牌仍可通过 API 使用。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
 
 ## PyPSA 电网模型库与本地案例
 

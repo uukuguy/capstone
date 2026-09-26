@@ -38,7 +38,8 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
   }
   const relative = loadingRange?.max === loadingRange?.min ? 1
     : loadingRange ? (value - loadingRange.min) / (loadingRange.max - loadingRange.min) : 0
-  return `hsl(${Math.round(178 - Math.min(1, Math.max(0, relative)) * 166)} 68% 40%)`
+  const intensity = Math.min(1, Math.max(0, relative))
+  return `hsl(${Math.round(14 - intensity * 10)} 68% ${Math.round(54 - intensity * 16)}%)`
 }
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
@@ -185,7 +186,8 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                 <circle cx={centerX + (dense ? 2.3 : 4)} cy={centerY} r={dense ? 2.7 : 4.5} />
               </g>}
               {highlighted && <text x={centerX + 7} y={centerY - 9}
-                className="network-branch-label">{branch.label}</text>}
+                className="network-branch-label"
+                style={value === undefined ? undefined : { fill: color }}>{branch.label}</text>}
               <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
@@ -225,7 +227,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
         {layer?.overlay ? <div className="network-overlay-note">
           <span className="overlay-gradient" /><strong>{layer!.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {layer!.overlay.unit}</strong>
           <span>{layer!.overlay.metric === 'loading_percent' && loadingRange
-            ? `本轮相对色阶 ${loadingRange.min.toFixed(1)}–${loadingRange.max.toFixed(1)}% · 红色为本轮最高值，不代表越限`
+            ? `本轮相对色阶 ${loadingRange.min.toFixed(1)}–${loadingRange.max.toFixed(1)}% · 深红为本轮最高值，不代表越限`
             : layer!.overlay.metric === 'loading_percent' ? '暂无可比较的线路负载率' : '色阶 接近 1.0 → 偏离 1.0'}</span>
           <span>仅对 {colored} / {denominator} 条有结果的{layer!.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
         </div> : <span className="network-no-overlay">{view ? '当前步骤暂无逐元件数值' : '案例底图 · 尚无运行数值'}</span>}

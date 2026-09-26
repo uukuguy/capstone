@@ -44,7 +44,7 @@ describe('operator network canvas', () => {
     expect(screen.getByText(/Shift \+ 滚轮缩放/)).toBeTruthy()
   })
 
-  it('colors the highest returned line loading red and labels the observed range', () => {
+  it('uses warm shades for all returned line loadings and darkest red for the highest', () => {
     const view = { ...sampleView, focus_ids: [], overlay: {
       metric: 'loading_percent' as const, unit: '%' as const, source_ref: 'result:current',
       values: [{ id: 'line:11', value: 42 }, { id: 'line:12', value: 73 }],
@@ -54,7 +54,11 @@ describe('operator network canvas', () => {
       group.querySelector('title')?.textContent?.startsWith('Line '))
     const high = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('Line 12'))
       ?.querySelectorAll('line')[1]?.getAttribute('stroke')
-    expect(high).toMatch(/^hsl\((?:[0-2]?\d) /)
+    const low = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('Line 11'))
+      ?.querySelectorAll('line')[1]?.getAttribute('stroke')
+    const hue = (color: string | null | undefined) => Number(color?.match(/^hsl\((\d+) /)?.[1])
+    expect(hue(low)).toBeLessThanOrEqual(18)
+    expect(hue(high)).toBeLessThan(hue(low))
     expect(screen.getByText(/本轮相对色阶 42\.0–73\.0%/)).toBeTruthy()
   })
 

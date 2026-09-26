@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
 import { NetworkView } from './NetworkView'
@@ -10,13 +10,7 @@ import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
 type Selection = { applicationId: string; caseId: string }
 type DetailTab = 'overview' | 'evidence'
 type Props = { clientFactory?: (token: string) => CapstoneClient }
-const DEMO_SESSION_KEY = 'capstone-demo-connected'
-
-function shouldRestoreDemo(): boolean {
-  const saved = sessionStorage.getItem(DEMO_SESSION_KEY)
-  if (saved !== null) return saved === '1'
-  return (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'reload'
-}
+const defaultClientFactory = (token: string) => new CapstoneClient(import.meta.env.VITE_API_ORIGIN || '', token)
 
 const stateLabel: Record<SessionStatus['state'], string> = {
   pending: '等待工作进程', ready: '等待指令', executing: '分析中', closing: '整理结果中',
@@ -27,53 +21,11 @@ function Mark() {
   return <span className="mark" aria-hidden="true"><i /><i /><i /><i /></span>
 }
 
-function PageHeader({ connected, onDisconnect }: { connected: boolean; onDisconnect: () => void }) {
+function PageHeader() {
   return <header className="topbar">
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
       <span className="brand-subtitle">分析工作台</span></div>
-    <div className="topbar-right">
-      {connected && <button className="text-button" onClick={onDisconnect}>断开连接</button>}</div>
   </header>
-}
-
-function AccessGate({ onConnect, pending, error }: {
-  onConnect: (token: string, demo: boolean) => Promise<void>; pending: boolean; error: string | null
-}) {
-  const [value, setValue] = useState('')
-  const [demoToken, setDemoToken] = useState('')
-  useEffect(() => {
-    let active = true
-    const client = new CapstoneClient(import.meta.env.VITE_API_ORIGIN || '', '')
-    void client.demoCredential().then((token) => {
-      if (active) { setDemoToken(token); setValue((current) => current || token) }
-    }).catch(() => {})
-    return () => { active = false }
-  }, [])
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    if (!value.trim()) return
-    void onConnect(value.trim(), !!demoToken && value.trim() === demoToken).then(() => setValue(''))
-  }
-  return <main className="access-shell">
-    <div className="access-grid" aria-hidden="true" />
-    <section className="access-card" aria-labelledby="access-title">
-      <div className="eyebrow"><span className="eyebrow-line" /> OPERATOR ACCESS</div>
-      <h1 id="access-title">进入分析工作台</h1>
-      <p>选择已登记的应用案例，逐轮查看答案、报告与本次运行证据。</p>
-      <form onSubmit={submit}>
-        <label htmlFor="operator-token">访问凭证</label>
-        <input id="operator-token" type="password" autoComplete="off" value={value}
-          onChange={(event) => setValue(event.target.value)} placeholder="等待演示凭证自动填入，或输入访问凭证" />
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary-button access-submit" disabled={pending || !value.trim()}>
-          {pending ? '正在连接…' : '连接工作台'} <span aria-hidden="true">↗</span>
-        </button>
-      </form>
-      <div className="access-note"><span className="pulse-dot" />
-        {demoToken ? '演示凭证已自动填入，点击连接即可体验' : '凭证仅保留在当前标签页内存中'}</div>
-    </section>
-    <div className="access-aside" aria-hidden="true"><Mark /><div>CAPABILITY / EVIDENCE / CONTROL</div></div>
-  </main>
 }
 
 function CatalogPanel({ catalog, selection, onSelect }: {
@@ -81,7 +33,7 @@ function CatalogPanel({ catalog, selection, onSelect }: {
 }) {
   const total = catalog.applications.reduce((count, app) => count + app.cases.length, 0)
   return <aside className="catalog-panel" aria-label="案例目录">
-    <div className="section-heading"><div><span className="eyebrow">WORKSPACE / 01</span><h2>案例库</h2></div>
+    <div className="section-heading"><div><span className="eyebrow">CASE LIBRARY</span><h2>案例库</h2></div>
       <span className="count-pill">{String(total).padStart(2, '0')}</span></div>
     <p className="panel-intro">从已登记的分析任务开始，每一步都保留在同一运行中。</p>
     <div className="application-list">
@@ -94,7 +46,7 @@ function CatalogPanel({ catalog, selection, onSelect }: {
             onClick={() => onSelect({ applicationId: app.application_id, caseId: caseCard.case_id })}>
             <span className="case-card-top"><span className="case-card-title">{caseCard.title}</span><span aria-hidden="true">↗</span></span>
             <span className="case-card-summary">{caseCard.summary}</span>
-            <span className="case-card-footer"><span>03 个步骤</span><span>已登记案例</span></span>
+            <span className="case-card-footer"><span>03 个步骤</span></span>
           </button>
         })}</div>
       </section>)}</div>
@@ -250,7 +202,7 @@ function DetailPanel({ status, caseCard, turns, tab, onTab,
   const refs = Object.values(turns).flatMap((turn) => turn.evidence_refs)
   const uniqueRefs = [...new Set(refs)]
   return <aside className="detail-panel" aria-label="运行详情">
-    <div className="section-heading"><div><span className="eyebrow">CURRENT RUN / 02</span><h2>运行详情</h2></div>
+    <div className="section-heading"><div><span className="eyebrow">CURRENT RUN</span><h2>运行详情</h2></div>
       <span className={`status-led ${status?.state || 'idle'}`} />
     </div>
     <div className="detail-tabs" role="tablist" aria-label="详情视图">
@@ -449,9 +401,9 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     finally { setPending(false) }
   }
 
-  function startAutomatic(newRun = false) {
+  function startAutomatic() {
     if (!client || !app || !caseCard || autoController.current) return
-    const existingSessionId = newRun ? null : sessionId
+    const existingSessionId = sessionId
     if (!existingSessionId) clearRun()
     const controller = new AbortController()
     autoController.current = controller
@@ -545,7 +497,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         selectedStep={selectedStep} onSelectStep={setSelectedStep}
         report={report} result={result}
         onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
-        onAuto={() => startAutomatic()} onRestart={() => startAutomatic(true)} onStopAuto={stopAutomatic}
+        onAuto={startAutomatic} onRestart={clearRun} onStopAuto={stopAutomatic}
         onEvidence={(ref) => void showEvidence(ref)} />
     </div>
     <DetailPanel status={status} caseCard={caseCard} turns={turns}
@@ -554,31 +506,21 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   </div>
 }
 
-export default function App({ clientFactory = (token) => new CapstoneClient(
-  import.meta.env.VITE_API_ORIGIN || '', token,
-) }: Props) {
+export default function App({ clientFactory = defaultClientFactory }: Props) {
   const [client, setClient] = useState<CapstoneClient | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
-  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [restoring, setRestoring] = useState(shouldRestoreDemo)
+  const [loading, setLoading] = useState(true)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (!restoring) return
     let active = true
+    setLoading(true)
+    setError(null)
     const bootstrap = new CapstoneClient(import.meta.env.VITE_API_ORIGIN || '', '')
-    void bootstrap.demoCredential().then((token) => {
-      if (active) return connect(token, true)
-    }).catch(() => {
-      if (active) { sessionStorage.setItem(DEMO_SESSION_KEY, '0'); setRestoring(false) }
-    })
-    return () => { active = false }
-  }, [])
-
-  async function connect(token: string, demo = false) {
-    setPending(true); setError(null)
-    try {
+    void (async () => {
+      const token = await bootstrap.demoCredential()
       const nextClient = clientFactory(token)
       const nextCatalog = await nextClient.catalog()
       if (nextCatalog.schema !== 'capstone-catalog/1.0' || !nextCatalog.applications.length) {
@@ -586,27 +528,29 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
       }
       const firstApp = nextCatalog.applications.find((item) => item.cases.length)
       if (!firstApp) throw new Error('没有可运行的案例')
+      if (!active) return
       setCatalog(nextCatalog); setClient(nextClient)
       setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
-      if (demo) sessionStorage.setItem(DEMO_SESSION_KEY, '1')
-      else sessionStorage.setItem(DEMO_SESSION_KEY, '0')
-    } catch (cause) {
-      sessionStorage.setItem(DEMO_SESSION_KEY, '0')
-      setError(cause instanceof Error ? cause.message : '连接失败')
-    } finally { setPending(false); setRestoring(false) }
-  }
+    })().catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : '连接失败')
+    }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [clientFactory, attempt])
 
-  function disconnect(message: string | null = null) {
-    sessionStorage.setItem(DEMO_SESSION_KEY, '0')
+  function invalidate(message: string) {
     setClient(null); setCatalog(null); setSelection(null); setError(message)
   }
 
   return <div className="app-shell">
-    <PageHeader connected={!!client} onDisconnect={() => disconnect()} />
+    <PageHeader />
     {!client || !catalog || !selection ?
-      restoring ? <main className="access-shell"><section className="access-card">
-        <h1>正在恢复分析工作台…</h1></section></main>
-        : <AccessGate onConnect={connect} pending={pending} error={error} /> :
+      <main className="connection-state" aria-live="polite">
+        {loading ? <strong>正在打开分析工作台…</strong> : <>
+          <strong>演示服务暂时无法连接</strong>
+          <p role="alert">{error || '请稍后重试。'}</p>
+          <button className="primary-button" onClick={() => setAttempt((value) => value + 1)}>重试连接</button>
+        </>}
+      </main> :
       <div className="workspace">
         <CatalogPanel catalog={catalog} selection={selection}
           onSelect={setSelection} />
@@ -615,7 +559,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
             client={client} app={app} caseCard={caseCard}
             visible={selection.applicationId === app.application_id &&
               selection.caseId === caseCard.case_id}
-            onInvalidToken={disconnect} />,
+            onInvalidToken={invalidate} />,
         ))}
       </div>}
   </div>

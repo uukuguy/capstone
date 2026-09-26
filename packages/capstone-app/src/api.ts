@@ -55,7 +55,7 @@ export class CapstoneClient {
       },
     })
     if (!response.ok) {
-      if (response.status === 401) throw new ApiError(401, '访问凭证无效，请重新输入。')
+      if (response.status === 401) throw new ApiError(401, '演示连接已失效，请重试连接。')
       if (response.status === 409) throw new ApiError(409, '当前运行状态暂不接受该操作。')
       throw new ApiError(response.status, `服务请求失败（${response.status}）。`)
     }

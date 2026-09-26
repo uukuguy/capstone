@@ -238,8 +238,9 @@ geographic SciGRID-DE or schematic IEEE-39, with pan/zoom, step focus, and
 partial numeric coloring only for admitted current-run results.
 It runs locally with
 `make setup-capstone-app && make capstone-app-dev`; the hosted API and worker
-must also be running. The App keeps the operator token in tab memory and makes
-no Provider request when browsing or starting a scripted case.
+must also be running. In public demo mode, the App obtains a scoped credential
+from the API on each load and opens without a login step. Browsing or starting
+a scripted case makes no Provider request.
 
 One [backend image](Dockerfile) runs either the API or worker role against the
 same PostgreSQL ledger and private artifact store. Local [Compose](compose.yaml)

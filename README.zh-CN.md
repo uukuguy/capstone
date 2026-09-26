@@ -115,7 +115,7 @@ PyPSA 电网模型库现登记 15 个项目模型和固定版本 PyPSA 1.3.0 的
 
 ## 操作 App 与可移植部署
 
-独立的[操作 App](packages/capstone-app/) 展示已登记的 pandapower 与 PyPSA 案例、手动或自动三轮执行、已提交答案、当前运行证据和私有报告。浅色工作台以生成的电力科学AI主题图介绍 CAPSTONE；切换案例时保留各自最近一次运行，已完成步骤可重新查看。完整报告显示在中栏分析流程下方，右栏保留运行状态和准入证据。登记权威系统提供每案例常驻的完整电网图：SciGRID-DE 地理拓扑或 IEEE-39 电气示意图，支持平移缩放、步骤对焦，并仅对本轮准入结果支持的元件作局部数值着色。本地先启动 hosted API 与 worker，再执行 `make setup-capstone-app && make capstone-app-dev`。访问令牌只保留在当前浏览器标签页内存中；浏览或启动脚本案例不会调用 Provider。
+独立的[操作 App](packages/capstone-app/) 展示已登记的 pandapower 与 PyPSA 案例、手动或自动三轮执行、已提交答案、当前运行证据和私有报告。浅色工作台以生成的电力科学AI主题图介绍 CAPSTONE；切换案例时保留各自最近一次运行，已完成步骤可重新查看。完整报告显示在中栏分析流程下方，右栏保留运行状态和准入证据。登记权威系统提供每案例常驻的完整电网图：SciGRID-DE 地理拓扑或 IEEE-39 电气示意图，支持平移缩放、步骤对焦，并仅对本轮准入结果支持的元件作局部数值着色。本地先启动 hosted API 与 worker，再执行 `make setup-capstone-app && make capstone-app-dev`。公开演示模式下，App 每次加载都从 API 获取受限凭证并直接进入工作台；浏览或启动脚本案例不会调用 Provider。
 
 同一[后端镜像](Dockerfile)以 API 或 worker 角色运行，共享 PostgreSQL 账本与私有工件存储。本地 [Compose](compose.yaml) 使用 PostgreSQL 和兼容 S3 的 RustFS；[Cloud Run](deploy/cloud-run/) 使用服务、worker pool 与 GCS；[Railway](deploy/railway/) 使用两个服务及其兼容 S3 的 bucket。Vercel 仅构建静态 App，以 `VITE_API_ORIGIN` 指向所选公共 API。环境变量和操作命令见[运行指南](docs/RUNBOOK.md#hosted-app-and-deployment)。实际云部署与真实 Provider 验证是独立操作。
 

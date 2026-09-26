@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 import type { CapstoneClient } from './api'
 import type { Catalog, SessionEvent } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); sessionStorage.clear() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+  new Response(JSON.stringify({ token: 'public-demo-token-with-enough-length' })),
+))))
 
 const catalog: Catalog = {
   schema: 'capstone-catalog/1.0',
@@ -49,26 +52,23 @@ function mockClient(eventFlow?: (_id: string, _after: number,
 }
 
 describe('operator workflow', () => {
-  it('fills the demo credential supplied by the API on the access screen', async () => {
+  it('opens the demo workspace automatically without a login screen', async () => {
     const token = 'public-demo-token-with-enough-length'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ token }))))
     const { client } = mockClient()
-    render(<App clientFactory={() => client} />)
-    expect(screen.getByText('CAPABILITY / EVIDENCE / CONTROL')).toBeTruthy()
-    const input = screen.getByLabelText('访问凭证') as HTMLInputElement
-    await waitFor(() => expect(input.value).toBe(token))
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    const factory = vi.fn(() => client)
+    render(<App clientFactory={factory} />)
+    expect(screen.queryByLabelText('访问凭证')).toBeNull()
     expect(await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })).toBeTruthy()
+    expect(screen.getByText('CAPABILITY / EVIDENCE / CONTROL')).toBeTruthy()
+    expect(screen.getByText('CASE LIBRARY')).toBeTruthy()
+    expect(screen.queryByText('已登记案例')).toBeNull()
+    expect(factory).toHaveBeenCalledWith(token)
   })
 
-  it('restores demo access after a page reload without showing the login form', async () => {
-    const token = 'public-demo-token-with-enough-length'
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ token }))))
+  it('opens the demo workspace again after a page reload', async () => {
     const { client } = mockClient()
     const factory = vi.fn(() => client)
     const first = render(<App clientFactory={factory} />)
-    await waitFor(() => expect((screen.getByLabelText('访问凭证') as HTMLInputElement).value).toBe(token))
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     first.unmount()
     render(<App clientFactory={factory} />)
@@ -77,33 +77,24 @@ describe('operator workflow', () => {
     expect(factory).toHaveBeenCalledTimes(2)
   })
 
-  it('restores an already connected demo tab on reload before the session marker existed', async () => {
-    const token = 'public-demo-token-with-enough-length'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ token }))))
-    vi.spyOn(performance, 'getEntriesByType').mockReturnValue(
-      [{ type: 'reload' }] as unknown as PerformanceEntry[],
-    )
+  it('opens the demo workspace on the first navigation', async () => {
     const { client } = mockClient()
     render(<App clientFactory={() => client} />)
     expect(screen.queryByLabelText('访问凭证')).toBeNull()
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
   })
 
-  it('keeps the login screen after an explicit disconnect and reload', async () => {
-    const token = 'public-demo-token-with-enough-length'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ token }))))
-    const { client } = mockClient()
-    const first = render(<App clientFactory={() => client} />)
-    await waitFor(() => expect((screen.getByLabelText('访问凭证') as HTMLInputElement).value).toBe(token))
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
-    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
-    fireEvent.click(screen.getByRole('button', { name: '断开连接' }))
-    first.unmount()
-    vi.spyOn(performance, 'getEntriesByType').mockReturnValue(
-      [{ type: 'reload' }] as unknown as PerformanceEntry[],
+  it('offers retry without asking for a credential when the demo service is unavailable', async () => {
+    const fetch = vi.fn().mockRejectedValueOnce(new Error('暂时不可用')).mockResolvedValue(
+      new Response(JSON.stringify({ token: 'public-demo-token-with-enough-length' })),
     )
+    vi.stubGlobal('fetch', fetch)
+    const { client } = mockClient()
     render(<App clientFactory={() => client} />)
-    expect(screen.getByLabelText('访问凭证')).toBeTruthy()
+    expect(screen.queryByLabelText('访问凭证')).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: '重试连接' }))
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 
   it('retries an unavailable case diagram only after reopening that case', async () => {
@@ -118,8 +109,6 @@ describe('operator workflow', () => {
       caseDiagram: vi.fn().mockRejectedValue(new Error('preview unavailable')),
     } as unknown as CapstoneClient
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     expect(await screen.findByText('案例电网暂不可用')).toBeTruthy()
     expect(client.caseDiagram).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
@@ -156,8 +145,6 @@ describe('operator workflow', () => {
       },
     } as unknown as CapstoneClient
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已打开模型。')).toBeTruthy()
@@ -194,8 +181,6 @@ describe('operator workflow', () => {
       },
     } as unknown as CapstoneClient
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
@@ -217,8 +202,6 @@ describe('operator workflow', () => {
       result: vi.fn().mockResolvedValue({ completed: true }),
     })
     const { container } = render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     const report = await screen.findByRole('region', { name: '本轮分析报告' })
@@ -228,7 +211,7 @@ describe('operator workflow', () => {
     expect(screen.queryByRole('tab', { name: '报告' })).toBeNull()
   })
 
-  it('starts a fresh automatic run for the same case after completion', async () => {
+  it('returns a completed case to its initial manual or automatic choice', async () => {
     const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
       yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
         sequence: 1, event: 'completed', payload: {} }
@@ -238,21 +221,21 @@ describe('operator workflow', () => {
     Object.assign(client, { report: vi.fn().mockResolvedValue('# 本轮报告'),
       result: vi.fn().mockResolvedValue({ completed: true }) })
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByRole('region', { name: '本轮分析报告' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '再次分析' }))
-    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2))
+    expect(createSession).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('region', { name: '本轮分析报告' })).toBeNull()
+    expect(screen.getByRole('button', { name: '执行指令 1' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '自动完成' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2))
   })
 
   it('shows the case network before a run and starts the first manual turn with one click', async () => {
     const { client, createSession, submitTurn } = mockClient()
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     expect(await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })).toBeTruthy()
     expect(await screen.findByText(/3 母线 \/ 2 支路/)).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
@@ -271,8 +254,6 @@ describe('operator workflow', () => {
   it('starts automatic completion and allows stopping future steps', async () => {
     const { client, createSession, submitTurn } = mockClient()
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByText('pandapower')).toBeTruthy()
@@ -309,8 +290,6 @@ describe('operator workflow', () => {
     }
     const { client } = mockClient(flow)
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByRole('button', { name: '生成报告' })).toBeTruthy()
@@ -332,8 +311,6 @@ describe('operator workflow', () => {
     }
     const { client, network } = mockClient(flow)
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(network).toHaveBeenCalledWith('session-one', 1))
@@ -359,8 +336,6 @@ describe('operator workflow', () => {
     const { client, network } = mockClient(flow)
     network.mockResolvedValue(sampleDiagramView)
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已分析情景。')).toBeTruthy()
@@ -385,8 +360,6 @@ describe('operator workflow', () => {
     }
     const { client } = mockClient(flow)
     render(<App clientFactory={() => client} />)
-    fireEvent.change(screen.getByLabelText('访问凭证'), { target: { value: 'private-token' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已打开模型。')).toBeTruthy()
