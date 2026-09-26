@@ -983,3 +983,4 @@ _Recovered pre-merge mainline entries._
 - 17:48 Removed stale DeepSeek model allowlist and surfaced Capstone tool progress, report paths, and evidence references [f8c4657].
 - 17:49 Recorded verified model-policy and observability recovery checkpoint for reliable session resume [166167b].
 - 18:14 Isolated scripted Pi E2E runtimes after a test wrapper broke local `make analysis`; rebuilt Pi and passed offline gates [65c31d6].
+- 19:17 Added plain-text `INSTRUCTIONS` to Capstone headless runs so real task files need no JSON wrapper [6309121].
