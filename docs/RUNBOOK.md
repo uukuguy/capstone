@@ -91,6 +91,28 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 两个应用均登记了 `mode: "provider"` 的自由文本路径，复用已有 Kernel/Pi 运行机制；可选 `provider` 和 `model` 仍按原运行时配置解析。真实 Provider 请求可能计费，本轮未执行计费验收；本地脚本演示不调用它。中性宿主只路由两个显式应用，不进行动态插件发现。
 
+## Hosted App and deployment
+
+独立的 `packages/capstone-app/` 是内部单人操作台，当前只开放已登记的三轮脚本案例。目录浏览和启动案例不调用 Provider；每条指令由操作者单独提交。访问令牌只保留在当前标签页内存中。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
+
+本地使用一个后端镜像的 `api`、`worker` 两个角色，以及 PostgreSQL 和兼容 S3 的 RustFS：
+
+```sh
+cp deploy/local.env.example deploy/local.env
+# 编辑 Git 忽略的 deploy/local.env，替换全部示例值。
+docker compose --env-file deploy/local.env config --quiet
+docker compose --env-file deploy/local.env up --build -d
+curl -fsS http://127.0.0.1:8767/health/ready
+make setup-capstone-app
+make capstone-app-dev
+```
+
+在浏览器打开 `http://127.0.0.1:5173`，从 `deploy/local.env` 读取自己的 `CAPSTONE_OPERATOR_TOKEN` 并在页面输入。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+
+镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、命令幂等键与事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
+
+云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway + Vercel](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 Web 与后台 worker、PostgreSQL 和私有 S3 bucket。两个后端角色须使用同一镜像 digest 和同一账本/工件配置。Vercel 项目根目录为 `packages/capstone-app`；构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
+
 ## PyPSA 电网模型库与本地案例
 
 PyPSA 1.3.0 的六个官方 Network 示例与 15 个项目模型一起登记在模型库中。官方 NetCDF 只通过操作者命令下载，逐项核对固定文件大小和 SHA-256，保存于 Git 忽略的 `.grid-agent/runtime/pypsa-models/`。若要使用只读容器目录，可设置 `CAPSTONE_PYPSA_MODEL_LIBRARY_DIR` 指向已安装且校验过的资产目录。缺失或被改动的资产不能被 `model.open` 使用；案例运行中不会联网下载。

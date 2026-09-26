@@ -217,15 +217,33 @@ instruction at a time and displays each committed answer and progress. Headless
 runs also show tool events and report checkpoint paths on stderr; the report is
 saved as `output/report.md` under the run directory. `make
 capstone-agent-serve` exposes token-protected loopback HTTP sessions, ordered
-turns, SSE events, results, and authority-verified evidence for a future App.
+turns, SSE events, results, and authority-verified evidence.
 The other PyPSA demo requests are `validation/client/pypsa-scigrid-demo.json`
 and `validation/client/pypsa-ac-dc-demo.json`.
 Both applications also have Provider routes; live Provider behavior remains
 unverified and may be billed. The older `make capstone-client` command remains
 available. See the [runbook](docs/RUNBOOK.md).
 
+## Operator App and portable hosting
+
+The independent [operator App](packages/capstone-app/) presents registered
+pandapower and PyPSA cases, explicit three-turn execution, committed answers,
+current-run evidence, and the private report. It runs locally with
+`make setup-capstone-app && make capstone-app-dev`; the hosted API and worker
+must also be running. The App keeps the operator token in tab memory and makes
+no Provider request when browsing or starting a scripted case.
+
+One [backend image](Dockerfile) runs either the API or worker role against the
+same PostgreSQL ledger and private artifact store. Local [Compose](compose.yaml)
+uses PostgreSQL and S3-compatible RustFS. [Cloud Run](deploy/cloud-run/) uses a
+service, worker pool, and GCS; [Railway](deploy/railway/) uses two services and
+its S3-compatible bucket. Vercel builds only the static App with
+`VITE_API_ORIGIN` set to the selected public API origin. The [runbook](docs/RUNBOOK.md#hosted-app-and-deployment)
+has the setup commands and required environment bindings. Cloud deployment and
+live Provider validation are separate operations.
+
 `make test` is the provider-free unit gate: it runs the thirteen Python packages,
-both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
+both Pi packages, the operator App, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked
 pyright 1.1.408 in standard mode (Python 3.12 minimum) across all production
 `src` trees plus the workbench check; three localized Pydantic schema-attribute
