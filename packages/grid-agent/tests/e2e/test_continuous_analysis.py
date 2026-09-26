@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 import subprocess
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -15,7 +15,6 @@ import pytest
 from grid_agent.analysis.models import AnalysisContext
 from grid_agent.analysis.store import AnalysisContextStore
 from grid_agent.contracts import AnswerEnvelope
-from grid_agent.runtime.lock import PiRuntimeLock
 from grid_agent.trajectory.reader import RunEventReader
 
 
@@ -44,7 +43,7 @@ class ScriptedAnalysis:
                 "uv",
                 "run",
                 "--project",
-                "packages/grid-agent",
+                str(ROOT / "packages/grid-agent"),
                 "grid-agent",
                 "analysis",
                 "--instructions",
@@ -66,27 +65,19 @@ class ScriptedAnalysis:
 
 
 @pytest.fixture
-def scripted_analysis(tmp_path: Path) -> Generator[ScriptedAnalysis, None, None]:
-    artifact_root = ROOT / "runs" / f"task12-continuous-{tmp_path.name}"
-    shutil.rmtree(artifact_root, ignore_errors=True)
+def scripted_analysis(
+    tmp_path: Path, scripted_project: Callable[[Path], Path]
+) -> Generator[ScriptedAnalysis, None, None]:
     pi_path = tmp_path / "scripted-continuous-pi.py"
     pi_path.write_text(_SCRIPTED_PI, encoding="utf-8")
     pi_path.chmod(0o755)
-    cli = ROOT / ".grid-agent/runtime/pi/source" / PiRuntimeLock.load(ROOT / "configs/runtime/pi-runtime.lock.json").executable
-    original = cli.read_bytes()
-    scripted_path = cli.with_name("grid-agent-scripted-pi.py")
-    scripted_path.write_bytes(pi_path.read_bytes())
-    cli.write_text(
-        'import { spawnSync } from "node:child_process";\n'
-        'const result = spawnSync(process.env.PYTHON ?? "python3", [new URL("./grid-agent-scripted-pi.py", import.meta.url).pathname, ...process.argv.slice(2)], { stdio: "inherit" });\n'
-        'process.exit(result.status ?? 1);\n',
-        encoding="utf-8",
-    )
-    try:
-        yield ScriptedAnalysis(project_root=ROOT, pi_path=pi_path, artifact_root=artifact_root, tmp_path=tmp_path)
-    finally:
-        cli.write_bytes(original)
-        scripted_path.unlink(missing_ok=True)
+    project_root = scripted_project(pi_path)
+    artifact_root = project_root / "runs" / f"task12-continuous-{tmp_path.name}"
+    yield ScriptedAnalysis(project_root=project_root, pi_path=pi_path, artifact_root=artifact_root, tmp_path=tmp_path)
+
+
+def test_scripted_analysis_uses_isolated_runtime(scripted_analysis: ScriptedAnalysis) -> None:
+    assert scripted_analysis.project_root != ROOT
 
 
 def test_continuous_analysis_generalizes_active_model_constraints_and_result_reuse(
@@ -248,7 +239,7 @@ def test_scripted_analysis_writes_replayable_native_trajectory(
         assert "provider_payload" not in request
         assert "test-only-secret" not in json.dumps(request)
         ack = json.loads(
-            next((ROOT / ".grid-agent/trajectory-acks" / root.name).glob("*.committed.json")).read_text(
+            next((scripted_analysis.project_root / ".grid-agent/trajectory-acks" / root.name).glob("*.committed.json")).read_text(
                 encoding="utf-8"
             )
         )

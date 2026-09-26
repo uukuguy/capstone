@@ -4,16 +4,18 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from grid_agent.contracts import AnswerEnvelope
-from grid_agent.runtime.lock import PiRuntimeLock
 
 
 ROOT = Path(__file__).resolve().parents[4]
 
 
-def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_outputs(tmp_path: Path) -> None:
+def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_outputs(
+    tmp_path: Path, scripted_project: Callable[[Path], Path]
+) -> None:
     question_id = "semantic-pi-line-11-e2e"
     runs_path = ROOT / "runs" / question_id
     shutil.rmtree(runs_path, ignore_errors=True)
@@ -125,10 +127,6 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         encoding="utf-8",
     )
     pi.chmod(0o755)
-    managed_cli = ROOT / ".grid-agent/runtime/pi/source" / PiRuntimeLock.load(ROOT / "configs/runtime/pi-runtime.lock.json").executable
-    original_cli = managed_cli.read_bytes()
-    managed_script = managed_cli.with_name("grid-agent-scripted-pi.py")
-
     try:
         completed = subprocess.run(
             [
@@ -191,25 +189,19 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
 
         questions = tmp_path / "questions.txt"
         questions.write_text("IEEE-39节点系统中线路11连接哪两个母线?\n", encoding="utf-8")
-        managed_script.write_bytes(pi.read_bytes())
-        managed_cli.write_text(
-            'import { spawnSync } from "node:child_process";\n'
-            'const result = spawnSync(process.env.PYTHON ?? "python3", [new URL("./grid-agent-scripted-pi.py", import.meta.url).pathname, ...process.argv.slice(2)], { stdio: "inherit" });\n'
-            'process.exit(result.status ?? 1);\n',
-            encoding="utf-8",
-        )
+        project_root = scripted_project(pi)
         report = subprocess.run(
             [
                 "uv",
                 "run",
                 "--project",
-                "packages/grid-agent",
+                str(ROOT / "packages/grid-agent"),
                 "grid-agent",
                 "report",
                 "--questions",
                 str(questions),
             ],
-            cwd=ROOT,
+            cwd=project_root,
             env={
                 **os.environ,
                 "GRID_AGENT_PI_COMMAND": str(pi),
@@ -225,8 +217,8 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         assert report.returncode == 0, report.stderr
         assert "model request capture: enabled" in report.stderr
         report_envelope = AnswerEnvelope.model_validate_json(report.stdout)
-        report_root = ROOT / "runs" / report_envelope.question_id
-        report_path = ROOT / report_envelope.answer_output
+        report_root = project_root / "runs" / report_envelope.question_id
+        report_path = project_root / report_envelope.answer_output
         report_text = report_path.read_text(encoding="utf-8")
         assert "线路11连接母线6与11。" in report_text
         jsonl_records = [json.loads(line) for line in (report_root / "output/answers.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -266,7 +258,7 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         assert "provider_payload" not in report_request
         assert "test-only-secret" not in json.dumps(report_request, ensure_ascii=False)
         report_ack = json.loads(
-            next((ROOT / ".grid-agent/trajectory-acks" / report_envelope.question_id).glob("*.committed.json")).read_text(
+            next((project_root / ".grid-agent/trajectory-acks" / report_envelope.question_id).glob("*.committed.json")).read_text(
                 encoding="utf-8"
             )
         )
@@ -274,6 +266,4 @@ def test_scripted_pi_non_blocking_audit_keeps_topology_answer_in_run_and_batch_o
         assert report_ack["status"] == "committed"
         shutil.rmtree(report_root, ignore_errors=True)
     finally:
-        managed_cli.write_bytes(original_cli)
-        managed_script.unlink(missing_ok=True)
         shutil.rmtree(runs_path, ignore_errors=True)
