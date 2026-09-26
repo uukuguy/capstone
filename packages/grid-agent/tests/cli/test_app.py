@@ -697,6 +697,19 @@ def test_analysis_cli_emits_one_envelope_and_uses_self_contained_paths(
     assert (analysis_root / "context/analysis-context.json").is_file()
 
 
+def test_analysis_rejects_provider_configuration_before_creating_a_run(
+    cli_harness: tuple[CliRunner, Path],
+) -> None:
+    runner, instructions = cli_harness
+    result = runner.invoke(
+        app, ["analysis", "--instructions", str(instructions), "--provider", "unknown"]
+    )
+
+    assert result.exit_code == 1
+    assert "unknown provider 'unknown'" in result.stderr
+    assert not (instructions.parent / "runs").exists()
+
+
 def test_failed_analysis_envelope_points_to_partial_report(
     cli_harness: tuple[CliRunner, Path],
     monkeypatch: pytest.MonkeyPatch,

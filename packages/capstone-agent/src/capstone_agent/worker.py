@@ -11,6 +11,7 @@ from typing import BinaryIO, Protocol
 from capability_agent.application.runner import ApplicationRequest
 
 from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
+from capstone_agent.progress import render_progress
 
 
 class _IncrementalApplication(Protocol):
@@ -100,10 +101,12 @@ def serve_application(
                 "evidence_refs": evidence_refs,
             })
         else:
-            emit("progress", {
-                "event": str(event.get("type", "progress")),
-                "message": str(event.get("message", "")),
-            })
+            message = render_progress(event)
+            if message:
+                emit("progress", {
+                    "event": str(event.get("type", "progress")),
+                    "message": message,
+                })
 
     def next_frame() -> Frame | None:
         nonlocal expected_input

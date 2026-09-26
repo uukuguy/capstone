@@ -371,8 +371,6 @@ def _execute_analysis(
     profile = build_pandapower_profile()
     project_paths = ProjectPaths.from_root(Path.cwd())
     root = _resolve_artifact_root(project_paths.root, artifact_root)
-    workspace = AnalysisWorkspace.create(root)
-    copied_instructions = workspace.copy_instructions(instructions)
     instruction_items = load_questions(instructions)
     runtime_env = _runtime_environment(project_paths.root)
     auth_store = ProjectAuthStore.from_pi_agent_dir(project_paths.pi_agent_dir)
@@ -383,6 +381,8 @@ def _execute_analysis(
         env_file=project_paths.root / ".env",
         oauth_configured=lambda profile: auth_store.status(profile).configured,
     )
+    workspace = AnalysisWorkspace.create(root)
+    copied_instructions = workspace.copy_instructions(instructions)
     runtime_lock = PiRuntimeLock.load(project_paths.runtime_lock)
     command = PiRuntimeInstaller(runtime_lock, project_paths.pi_runtime_dir).ensure()
     _install_gridctl(workspace)

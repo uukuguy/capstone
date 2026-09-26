@@ -1498,7 +1498,7 @@ class AgentApplication:
         references = tuple(
             ref
             for answer in completed_answers
-            for ref in answer.result_refs
+            for ref in (*answer.result_refs, *getattr(answer, "evidence_refs", ()))
         )
         return self.report_publisher.render(
             questions=request.questions,

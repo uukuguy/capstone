@@ -81,7 +81,7 @@ make capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-de
 make capstone-agent-serve CAPSTONE_PORT=8766
 ```
 
-前两个 `run` 示例均为无需 Provider 凭据的三回合脚本演示。第一条运行 pandapower 正式 Profile、真实 `gridctl` 和当前运行证据；第二条运行 PyPSA 双绑定、授权模型引用交接和三回合案例。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与已登记 `case_id`。脚本演示严格核对该案例的指令顺序。无头命令 stdout 仅有一个最终 JSON 对象；每轮进度和答案写入 stderr。交互命令在同一会话中逐条接收指令并立即显示已提交答案。
+前两个 `run` 示例均为无需 Provider 凭据的三回合脚本演示。第一条运行 pandapower 正式 Profile、真实 `gridctl` 和当前运行证据；第二条运行 PyPSA 双绑定、授权模型引用交接和三回合案例。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与已登记 `case_id`。脚本演示严格核对该案例的指令顺序。无头命令 stdout 仅有一个最终 JSON 对象；每轮进度、工具事件、报告检查点路径和答案写入 stderr。交互命令在同一会话中逐条接收指令并立即显示已提交答案。最终报告位于所显示运行目录的 `output/report.md`，最终 JSON 的 `result.core.report_ref` 给出已登记的报告工件引用；通用报告汇总已提交答案及其结果与证据引用。脚本演示的回答由确定性模型替身产生，不应当作真实 LLM 的分析叙述。
 
 HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状态中创建权限为 0600 的操作者令牌。App 以 `Authorization: Bearer <token>` 调用 `POST /api/v1/sessions` 创建会话，向 `/api/v1/sessions/{id}/turns` 逐条提交指令，以 `GET /api/v1/sessions/{id}/events?after=<sequence>` 接收可按序号恢复的 SSE。`POST /api/v1/sessions/{id}/close` 完成会话；`GET /api/v1/sessions/{id}/turns/{ordinal}`、`/result` 和 `/evidence?ref=<reference>` 分别读取已提交答案、最终组合结果及经当前运行 authority 验证的证据。状态接口返回安全的 `error_code`；服务最多保留 32 个会话，达到上限返回 429，重启后会话不会恢复。服务拒绝非本机 Host、跨源 Origin、无令牌和未登记案例。旧的 `make capstone-client REQUEST=...` 仍为兼容入口。
 
@@ -236,7 +236,7 @@ cp .env.example .env
 
 可选的非密钥参数也写在 `.env`：`GRID_AGENT_LLM_MODEL`、`GRID_AGENT_LLM_BASE_URL`、`GRID_AGENT_LLM_TIMEOUT_SECONDS` 与 `GRID_AGENT_LLM_MAX_RETRIES`。后两项分别是单次 provider 请求的秒数和重试次数（`0` 禁用重试）；每次 `make run-llm` 都会写入项目私有的 Pi `settings.json`，同时作用于 Pi 的 HTTP 空闲时限、SDK 请求时限和自动重试。命令行参数优先于 `.env`，进程环境变量优先于 `.env`。支持的 provider 与默认密钥变量为：`openai`/`OPENAI_API_KEY`、`openrouter`/`OPENROUTER_API_KEY`、`deepseek`/`DEEPSEEK_API_KEY`、`minimax`/`MINIMAX_API_KEY`。`openai-codex` 使用 Pi OAuth，而不是 API key。
 
-DeepSeek 官方 OpenAI API 的 V4 model 参数为 `deepseek-v4-flash` 或 `deepseek-v4-pro`，不要填发行日期后缀；项目会在启动 Pi 前拒绝其他 DeepSeek model id。
+DeepSeek 模型名以其[官方模型列表](https://api-docs.deepseek.com/api/list-models/)为准；项目只校验非空模型名，不维护 DeepSeek 模型白名单。当前官方模型列表包含 `deepseek-flash` 与 `deepseek-v4-pro`。Pi 对尚未收录的显式模型名使用自定义模型 ID，最终是否可用由 DeepSeek API 验证。
 
 Pi 运行时按以下顺序发现：`GRID_AGENT_PI_COMMAND`、项目托管版本、`PATH` 中的 `pi`。因此 Pi 已在 `PATH` 时无需配置 `GRID_AGENT_PI_COMMAND`；否则可在 `.env` 设置该绝对路径，或在仓库根目录执行 `make install-pi` 安装本项目锁定版本到 `.grid-agent/runtime/pi`。模型密钥会仅在启动 Pi 子进程时通过环境变量传递，不写入 `.grid-agent/auth/pi` 的配置文件或命令行。
 

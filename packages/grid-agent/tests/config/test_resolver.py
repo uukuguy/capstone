@@ -55,13 +55,14 @@ def test_minimax_uses_own_key_and_transport(catalog: ProviderCatalog) -> None:
     assert resolved.config.compatibility_profile == "anthropic-messages"
 
 
-def test_deepseek_rejects_non_api_model_version_suffix(catalog: ProviderCatalog) -> None:
-    with pytest.raises(ConfigurationError, match="deepseek-v4-flash, deepseek-v4-pro"):
-        resolve_llm(
-            catalog=catalog,
-            cli=CliLLMOptions(provider="deepseek", model="deepseek-v4-flash-0731"),
-            environ={"DEEPSEEK_API_KEY": "secret"},
-        )
+def test_deepseek_accepts_current_provider_model_id(catalog: ProviderCatalog) -> None:
+    resolved = resolve_llm(
+        catalog=catalog,
+        cli=CliLLMOptions(provider="deepseek", model="deepseek-flash"),
+        environ={"DEEPSEEK_API_KEY": "secret"},
+    )
+
+    assert resolved.config.model == "deepseek-flash"
 
 
 @pytest.mark.parametrize(
@@ -112,7 +113,7 @@ def test_api_key_provider_defaults_are_fieldwise(
     assert resolved.config.pi_provider == pi_provider
     assert resolved.config.compatibility_profile == compatibility_profile
     assert resolved.config.supports_tools is True
-    assert resolved.config.descriptor_version == "2026-08-11.deepseek-v4-model-ids"
+    assert resolved.config.descriptor_version == "2026-09-26.deepseek-model-id-policy"
     assert resolved.config.field_sources["model"] == "default"
     assert resolved.config.field_sources["credential_reference"] == "default"
 

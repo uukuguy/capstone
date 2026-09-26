@@ -209,7 +209,9 @@ capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json` run
 provider-free three-turn demos and print one final JSON object. `make
 capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo
 CASE=pandapower-scripted-task` accepts one
-instruction at a time and displays each committed answer and progress. `make
+instruction at a time and displays each committed answer and progress. Headless
+runs also show tool events and report checkpoint paths on stderr; the report is
+saved as `output/report.md` under the run directory. `make
 capstone-agent-serve` exposes token-protected loopback HTTP sessions, ordered
 turns, SSE events, results, and authority-verified evidence for a future App.
 The other PyPSA demo requests are `validation/client/pypsa-scigrid-demo.json`

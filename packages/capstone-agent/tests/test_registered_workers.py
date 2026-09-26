@@ -52,6 +52,9 @@ def test_pypsa_scripted_worker_commits_three_live_turns() -> None:
         assert any(answer.payload["evidence_refs"] for answer in answers)
         assert outcome.payload["result"]["schema"] == "capability-agent-output/1.0"
         assert set(outcome.payload["result"]["domains"]) == {"source", "operations"}
+        report = (ROOT / "runs/capstone-agent/pypsa" / session.run_id
+                  / "output/report.md").read_text(encoding="utf-8")
+        assert evidence_ref in report
 
 
 def test_http_session_uses_real_pandapower_worker_and_evidence() -> None:

@@ -22,6 +22,11 @@ class FakeApplication:
         assert request.questions == ()
         for ordinal, instruction in enumerate(instructions, start=1):
             self.questions.append(instruction)
+            self.observer({"type": "tool_execution_start", "toolName": "fixture_tool",
+                           "args": {"instruction": instruction}})
+            self.observer({"type": "application_report_checkpoint",
+                           "completed_questions": ordinal, "total_questions": 2,
+                           "report_path": "runs/run-fixture/output/report.md"})
             self.observer({
                 "type": "application_turn_completed", "ordinal": ordinal,
                 "turn_id": f"run-fixture-t{ordinal:03d}",
@@ -54,9 +59,12 @@ def test_worker_processes_turns_then_serves_run_scoped_evidence() -> None:
     frames = [Frame.from_line(line, expected_sequence=index)
               for index, line in enumerate(output.getvalue().splitlines(keepends=True), start=1)]
     assert [frame.kind for frame in frames] == [
-        "ready", "answer_committed", "answer_committed", "completed",
+        "ready", "progress", "progress", "answer_committed",
+        "progress", "progress", "answer_committed", "completed",
         "evidence_result", "evidence_result",
     ]
-    assert frames[3].payload["result"] == {"questions": ["first", "second"]}
-    assert frames[4].payload["value"] == {"ref": "evidence:current"}
-    assert frames[5].payload["value"] is None
+    assert "fixture_tool" in frames[1].payload["message"]
+    assert "report.md" in frames[2].payload["message"]
+    assert frames[7].payload["result"] == {"questions": ["first", "second"]}
+    assert frames[8].payload["value"] == {"ref": "evidence:current"}
+    assert frames[9].payload["value"] is None
