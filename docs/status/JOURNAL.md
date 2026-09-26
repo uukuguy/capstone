@@ -991,3 +991,4 @@ _Recovered pre-merge mainline entries._
 - 21:22 Main-checkout Capstone scripted entrypoint completed 3/3 turns from the new root with a single captured JSON result.
 - 21:41 重新同步开发依赖并安装托管 Pi；doctor 通过，pandapower/PyPSA 脚本入口各完成 3/3，stdout 均为单 JSON。
 - 21:55 提交 Capstone 进度、报告证据和双语路径更新，收束未提交任务改动 [63e426b]。
+- 21:55 更新活动检查点，记录已验证环境与剩余 Provider 验收边界 [ccaf07d]。
