@@ -1,4 +1,4 @@
-"""Pandapower authority-backed operator network projection."""
+"""Pandapower authority-backed operator diagram and admitted step layer."""
 
 from __future__ import annotations
 
@@ -11,70 +11,24 @@ class NetworkExecutor(Protocol):
     def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]: ...
 
 
-def _dataset_rows(
-    executor: NetworkExecutor, context_ref: str, dataset: str,
-    fields: list[str], limit: int,
-) -> tuple[list[dict[str, object]], int, str]:
-    rows: list[dict[str, object]] = []
-    offset = 0
-    revision: str | None = None
-    row_count: int | None = None
-    while len(rows) < limit:
-        page = executor.invoke("model.dataset.query", {
-            "context_ref": context_ref, "dataset": dataset, "select": fields,
-            "sort": {"field": "index", "direction": "ascending"},
-            "offset": offset, "limit": min(50, limit - len(rows)),
-        })
-        if page.get("context_ref") != context_ref or page.get("dataset") != dataset:
-            raise ValueError("network page differs from the opened model")
-        current_revision = page.get("revision_ref")
-        count = page.get("row_count")
-        selected = page.get("rows")
-        if (not isinstance(current_revision, str) or not current_revision
-                or type(count) is not int or count < 0 or not isinstance(selected, list)
-                or any(not isinstance(item, dict) for item in selected)):
-            raise ValueError("network page is invalid")
-        if revision is not None and revision != current_revision:
-            raise ValueError("network revision changed between pages")
-        if row_count is not None and row_count != count:
-            raise ValueError("network row count changed between pages")
-        revision, row_count = current_revision, count
-        rows.extend(selected)
-        next_offset = page.get("next_offset")
-        if next_offset is None:
-            break
-        if type(next_offset) is not int or next_offset <= offset:
-            raise ValueError("network pagination is invalid")
-        offset = next_offset
-    assert revision is not None and row_count is not None
-    return rows[:limit], row_count, revision
-
-
 def build_grid_network_view(
     executor: NetworkExecutor, context_ref: str, ordinal: int, case_id: str,
     committed_refs: Sequence[str], calls: Sequence[Mapping[str, object]],
 ) -> dict[str, Any]:
     if case_id not in {"pandapower-scripted-task", "pandapower-scripted-test"}:
         raise ValueError("network view case is not registered")
-    bus_rows, bus_count, revision = _dataset_rows(
-        executor, context_ref, "network.buses", ["index", "name"], 50,
-    )
-    branch_rows, branch_count, branch_revision = _dataset_rows(
-        executor, context_ref, "network.branches",
-        ["index", "kind", "name", "from_bus_index", "to_bus_index"], 100,
-    )
-    if revision != branch_revision:
-        raise ValueError("network datasets have different revisions")
-    buses = [{"id": str(row["index"]), "label": str(row["name"]), "x": None, "y": None}
-             for row in bus_rows]
-    bus_ids = {bus["id"] for bus in buses}
-    branches = [{
-        "id": f"{row['kind']}:{row['index']}", "kind": str(row["kind"]),
-        "label": str(row["name"]), "from_bus": str(row["from_bus_index"]),
-        "to_bus": str(row["to_bus_index"]),
-    } for row in branch_rows if str(row["from_bus_index"]) in bus_ids
-        and str(row["to_bus_index"]) in bus_ids]
-    branch_ids = {branch["id"] for branch in branches}
+    topology = executor.invoke("operator.diagram.get", {"context_ref": context_ref})
+    if topology.get("context_ref") != context_ref:
+        raise ValueError("network diagram belongs to another context")
+    revision = topology.get("revision_ref")
+    buses = topology.get("buses")
+    branches = topology.get("branches")
+    if not isinstance(revision, str) or not isinstance(buses, list) or not isinstance(branches, list):
+        raise ValueError("network diagram is invalid")
+    branch_ids = {
+        branch["id"] for branch in branches
+        if isinstance(branch, Mapping) and isinstance(branch.get("id"), str)
+    }
     focus_id = (
         "line:11" if case_id == "pandapower-scripted-task" and ordinal == 1
         else "line:17" if case_id == "pandapower-scripted-test" and ordinal in {2, 3}
@@ -114,11 +68,12 @@ def build_grid_network_view(
                 focus = [item["id"] for item in values[:3]]
             break
     return {
-        "schema": "capstone-network-view/1.0", "ordinal": ordinal,
-        "model": {"id": "ieee39", "revision": revision, "source": "gridctl"},
-        "coordinate_status": "schematic-required",
-        "buses": buses, "branches": branches,
-        "omitted": {"buses": max(0, bus_count - len(buses)),
-                    "branches": max(0, branch_count - len(branches))},
-        "focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay,
+        "schema": "capstone-network-view/2.0", "ordinal": ordinal,
+        "diagram": {
+            "schema": "capstone-network-diagram/1.0",
+            "model": {"id": "ieee39", "revision": revision, "source": "gridctl"},
+            "coordinate_system": topology.get("coordinate_system"),
+            "buses": buses, "branches": branches,
+        },
+        "layer": {"focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay},
     }

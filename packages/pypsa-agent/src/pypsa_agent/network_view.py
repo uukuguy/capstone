@@ -1,4 +1,4 @@
-"""PyPSA authority-backed operator network projection."""
+"""PyPSA authority-backed operator diagram and admitted step layer."""
 
 from __future__ import annotations
 
@@ -7,56 +7,37 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
 
-class TopologyExecutor(Protocol):
+class DiagramExecutor(Protocol):
     def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]: ...
 
 
 def build_pypsa_network_view(
-    executor: TopologyExecutor, model_ref: str, model_id: str, ordinal: int,
+    executor: DiagramExecutor, model_ref: str, model_id: str, ordinal: int,
     case_id: str, dispatch: Mapping[str, object] | None,
     committed_refs: Sequence[str],
 ) -> dict[str, Any]:
     if case_id not in {"regional-demand-stress", "scigrid-dispatch", "ac-dc-interconnection"}:
         raise ValueError("PyPSA network view case is not registered")
-    topology = executor.invoke("model.topology", {"model_ref": model_ref})
+    topology = executor.invoke("operator.diagram", {"model_ref": model_ref})
     if topology.get("model_ref") != model_ref:
-        raise ValueError("PyPSA topology belongs to another revision")
-    raw_buses = topology.get("buses")
-    if not isinstance(raw_buses, list):
-        raise ValueError("PyPSA topology has no bus list")
-    buses = [{
-        "id": str(bus["id"]), "label": str(bus["id"]),
-        "x": bus.get("x"), "y": bus.get("y"),
-    } for bus in raw_buses if isinstance(bus, Mapping)]
-    bus_ids = {bus["id"] for bus in buses}
-    branches = []
-    for kind, key in (("line", "lines"), ("link", "links"), ("transformer", "transformers")):
-        raw_branches = topology.get(key)
-        if not isinstance(raw_branches, list):
-            raise ValueError("PyPSA topology branch list is invalid")
-        for raw in raw_branches:
-            if not isinstance(raw, Mapping):
-                raise ValueError("PyPSA topology branch is invalid")
-            source = str(raw["from_bus"])
-            target = str(raw["to_bus"])
-            if source in bus_ids and target in bus_ids:
-                branches.append({"id": f"{kind}:{raw['id']}", "kind": kind,
-                                 "label": str(raw["id"]),
-                                 "from_bus": source, "to_bus": target})
-    omitted_counts = topology.get("omitted_counts")
-    if not isinstance(omitted_counts, Mapping):
-        raise ValueError("PyPSA topology omission counts are invalid")
-    omitted_branches = sum(int(omitted_counts[key]) for key in
-                           ("lines", "links", "transformers"))
-    if len(branches) > 100:
-        omitted_branches += len(branches) - 100
-        branches = branches[:100]
-    visible_ids = {branch["id"] for branch in branches}
+        raise ValueError("PyPSA diagram belongs to another revision")
+    buses = topology.get("buses")
+    branches = topology.get("branches")
+    if not isinstance(buses, list) or not isinstance(branches, list):
+        raise ValueError("PyPSA diagram is invalid")
+    visible_ids = {
+        branch["id"] for branch in branches
+        if isinstance(branch, Mapping) and isinstance(branch.get("id"), str)
+    }
+    links = [
+        branch["id"] for branch in branches
+        if isinstance(branch, Mapping) and branch.get("kind") == "link"
+        and isinstance(branch.get("id"), str)
+    ]
     focus: list[str] = []
     if case_id == "ac-dc-interconnection" and ordinal == 2:
-        focus = [branch["id"] for branch in branches if branch["kind"] == "link"][:20]
-    next_focus = ([branch["id"] for branch in branches if branch["kind"] == "link"][:20]
-                  if case_id == "ac-dc-interconnection" and ordinal == 1 else [])
+        focus = links[:20]
+    next_focus = links[:20] if case_id == "ac-dc-interconnection" and ordinal == 1 else []
     overlay = None
     if ordinal == 3 and isinstance(dispatch, Mapping):
         ref = dispatch.get("result_ref")
@@ -77,11 +58,12 @@ def build_pypsa_network_view(
                            "source_ref": ref, "values": values}
                 focus = [item["id"] for item in values[:3]]
     return {
-        "schema": "capstone-network-view/1.0", "ordinal": ordinal,
-        "model": {"id": model_id, "revision": model_ref, "source": "pypsamodelctl"},
-        "coordinate_status": topology["coordinate_status"],
-        "buses": buses, "branches": branches,
-        "omitted": {"buses": int(omitted_counts["buses"]),
-                    "branches": omitted_branches},
-        "focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay,
+        "schema": "capstone-network-view/2.0", "ordinal": ordinal,
+        "diagram": {
+            "schema": "capstone-network-diagram/1.0",
+            "model": {"id": model_id, "revision": model_ref, "source": "pypsamodelctl"},
+            "coordinate_system": topology.get("coordinate_system"),
+            "buses": buses, "branches": branches,
+        },
+        "layer": {"focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay},
     }

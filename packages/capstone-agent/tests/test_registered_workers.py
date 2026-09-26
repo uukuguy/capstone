@@ -22,15 +22,19 @@ def test_pandapower_scripted_worker_commits_three_live_turns() -> None:
     with WorkerSession(spec, mode="scripted-demo", case_id="pandapower-scripted-task",
                        timeout=120.0) as session:
         answers = []
-        views = []
+        layers = []
         for instruction in instructions:
             answer = session.submit_and_wait(instruction)
             answers.append(answer)
-            views.append(session.wait_for("network_view", after=answer.sequence).payload["view"])
-        assert [view["ordinal"] for view in views] == [1, 2, 3]
-        assert len(views[0]["buses"]) == 39
-        assert any(branch["id"] == "line:11" for branch in views[0]["branches"])
-        assert views[2]["overlay"]["metric"] == "loading_percent"
+            layers.append(session.wait_for("network_layer", after=answer.sequence).payload["layer"])
+        diagrams = [event.payload["diagram"] for event in session.events
+                    if event.kind == "network_diagram"]
+        assert [layer["ordinal"] for layer in layers] == [1, 2, 3]
+        assert len(diagrams) == 1
+        assert len(diagrams[0]["buses"]) == 39
+        assert len(diagrams[0]["branches"]) == 46
+        assert any(branch["id"] == "line:11" for branch in diagrams[0]["branches"])
+        assert layers[2]["overlay"]["metric"] == "loading_percent"
         outcome = session.close()
         assert [answer.payload["ordinal"] for answer in answers] == [1, 2, 3]
         assert all(answer.payload["answer_ref"] for answer in answers)
@@ -52,14 +56,16 @@ def test_pypsa_scripted_worker_commits_three_live_turns() -> None:
     with WorkerSession(spec, mode="scripted-demo", case_id=case["id"],
                        timeout=180.0) as session:
         answers = []
-        views = []
+        layers = []
         for instruction in instructions:
             answer = session.submit_and_wait(instruction)
             answers.append(answer)
-            views.append(session.wait_for("network_view", after=answer.sequence).payload["view"])
-        assert [view["ordinal"] for view in views] == [1, 2, 3]
-        assert len(views[0]["buses"]) == 6
-        assert views[2]["overlay"] is not None
+            layers.append(session.wait_for("network_layer", after=answer.sequence).payload["layer"])
+        diagrams = [event.payload["diagram"] for event in session.events
+                    if event.kind == "network_diagram"]
+        assert [layer["ordinal"] for layer in layers] == [1, 2, 3]
+        assert len(diagrams[0]["buses"]) == 6
+        assert layers[2]["overlay"] is not None
         evidence_ref = next(
             ref for answer in answers for ref in answer.payload["evidence_refs"]
         )
