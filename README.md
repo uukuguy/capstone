@@ -192,7 +192,9 @@ and AC/DC topology inspection; four further cases are catalog-only pending
 registered analysis workflows. The run writes a bounded presentation and
 current-run evidence under `runs/pypsa-cases/`. Each runnable case has structured
 App introduction fields and a linked Markdown article covering the business
-task, framework support, agent interaction, value, and limits. See the [runbook](docs/RUNBOOK.md)
+task, framework support, agent interaction, value, and limits. Each also includes
+an ordered instruction list for a future unified App demo; the current local
+runner still executes one fixed question per case. See the [runbook](docs/RUNBOOK.md)
 and [business case design](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md).
 
 `make test` is the provider-free unit gate: it runs the eleven Python packages,

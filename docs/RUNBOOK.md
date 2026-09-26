@@ -83,6 +83,8 @@ make run-pypsa-case CASE=scigrid-dispatch
 
 三个 `runnable` 条目各带 `introduction` 结构化字段，供 App 展示案例摘要、业务问题、PyPSA 框架支持、智能体交互变化、专业与框架价值、解读边界。`introduction.markdown` 指向同目录下的完整介绍：[区域负荷增长](../validation/pypsa-cases/introductions/regional-demand-stress.md)、[SciGRID-DE 调度](../validation/pypsa-cases/introductions/scigrid-dispatch.md)、[AC/DC 互联核查](../validation/pypsa-cases/introductions/ac-dc-interconnection.md)。介绍是静态案例说明，不含某次求解的数值结论；App 应从该次运行的展示 JSON 读取实际结果与证据。当前交互为选择已登记案例、由确定性脚本走完语义能力流程，尚未验收开放式 LLM 自主规划。
 
+每个介绍另有 `current_user_input` 与按顺序排列的 `demo_instructions`。本地 `run-pypsa-case` 目前只接收案例 ID，随后将清单中的单条固定 `question` 交给应用；`demo_instructions` 是为 App 准备的连续任务输入示例，尚未作为 PyPSA 多回合流程验收。统一客户端应选择受信任的 Application Profile，再通过通用 `ApplicationRequest.questions` 在同一次运行中依序提交指令；自动演示也使用同一份列表。模型修订、结果与证据由所选 Domain Pack 和 authority 准入，客户端不直接驱动原始 PyPSA 或 pandapower 对象。当前脚本不能据此宣称自然语言理解或跨回合工具规划已通过。
+
 每次 `run-pypsa-case` 的 stdout 为案例展示 JSON；完整副本写入 `runs/pypsa-cases/<run_id>/presentation.json`。其中包含模型来源与校验值、答案、情景、求解状态、带单位说明的目标或比较、受限拓扑、可追溯的答案/结果/证据引用。SciGRID-DE 只提供前 50 个母线及它们之间的分支预览，并明确给出省略数量。拓扑本身不代表求解后的潮流覆盖层；线路高负载列表来自独立的调度结果。官方示例的数据与假设需要结合原项目说明解释，不能用作运行许可。可参阅[模型库与案例设计](superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md)。
 
 ## 主路径：执行自然语言分析问题

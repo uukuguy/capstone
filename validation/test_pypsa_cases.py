@@ -28,7 +28,7 @@ def test_case_catalog_distinguishes_runnable_from_catalog_only() -> None:
 def test_runnable_case_introductions_match_markdown() -> None:
     introductions_root = (cases_path.parent / "introductions").resolve()
     expected_fields = {
-        "summary", "business_problem", "completed_work", "framework_support",
+        "summary", "current_user_input", "demo_instructions", "business_problem", "completed_work", "framework_support",
         "interaction_change", "agent_mechanism", "professional_value",
         "framework_value", "interpretation_boundary", "validation_scope", "markdown",
     }
@@ -42,12 +42,17 @@ def test_runnable_case_introductions_match_markdown() -> None:
         markdown = path.read_text(encoding="utf-8")
         assert markdown.startswith(f"# {case['title']}\n")
         assert case["audience"] in markdown
+        assert case["question"] in markdown
         for key in (
-            "summary", "business_problem", "interaction_change", "professional_value",
+            "summary", "current_user_input", "business_problem", "interaction_change", "professional_value",
             "framework_value", "interpretation_boundary", "validation_scope",
         ):
             assert introduction[key] in markdown
-        for key in ("completed_work", "framework_support", "agent_mechanism"):
+        instructions = introduction["demo_instructions"]
+        assert len(instructions) == 3
+        assert all(isinstance(item, str) and item.strip() for item in instructions)
+        assert len(set(instructions)) == len(instructions)
+        for key in ("demo_instructions", "completed_work", "framework_support", "agent_mechanism"):
             assert introduction[key]
             assert all(item in markdown for item in introduction[key])
 
