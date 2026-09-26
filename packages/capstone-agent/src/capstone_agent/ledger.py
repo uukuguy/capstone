@@ -188,6 +188,18 @@ class Ledger:
             )
             return cursor.rowcount
 
+    def mark_failed(self, session_id: str, token: str, error_code: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                """UPDATE sessions SET state = 'failed', error_code = %s,
+                   active_turn = false, lease_token = NULL, lease_deadline = NULL
+                   WHERE session_id = %s AND lease_token = %s
+                   AND state NOT IN ('completed', 'failed', 'interrupted')
+                   RETURNING session_id""",
+                (error_code, session_id, token),
+            ).fetchone()
+        return row is not None
+
     def _accept(self, session_id: str, kind: str, instruction: str | None,
                 idempotency_key: str) -> CommandRecord:
         if not idempotency_key or len(idempotency_key) > 200:

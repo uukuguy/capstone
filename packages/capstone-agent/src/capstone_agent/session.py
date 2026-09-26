@@ -64,6 +64,8 @@ class WorkerSession:
         provider: str | None = None, model: str | None = None,
         timeout: float = 900.0,
         on_event: Callable[[Frame], None] | None = None,
+        session_id: str | None = None,
+        persist_event: Callable[[Frame], None] | None = None,
     ) -> None:
         if mode not in {"provider", "scripted-demo"}:
             raise ValueError("application mode is invalid")
@@ -81,7 +83,9 @@ class WorkerSession:
         self.model = model
         self.timeout = timeout
         self.on_event = on_event
-        self.session_id = "session-" + secrets.token_hex(12)
+        self.persist_event = persist_event
+        self.session_id = session_id or "session-" + secrets.token_hex(12)
+        Frame(self.session_id, 1, "close", {})
         self.run_id: str | None = None
         self._process: subprocess.Popen[bytes] | None = None
         self._reader: threading.Thread | None = None
@@ -274,6 +278,15 @@ class WorkerSession:
                 }:
                     raise ProtocolError("worker event is invalid")
                 expected += 1
+                if self.persist_event is not None:
+                    try:
+                        self.persist_event(event)
+                    except Exception:
+                        with self._condition:
+                            self._failure = "worker event persistence failed"
+                            self._failure_code = "event_persistence_failed"
+                            self._condition.notify_all()
+                        return
                 with self._condition:
                     self._events.append(event)
                     if event.kind in {"answer_committed", "failed"}:

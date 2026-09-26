@@ -135,4 +135,27 @@ def test_concurrent_evidence_reads_keep_request_identity(tmp_path: Path) -> None
             current = pool.submit(session.read_evidence, "evidence:current")
             foreign = pool.submit(session.read_evidence, "evidence:foreign")
             assert current.result() == {"ref": "evidence:current"}
-            assert foreign.result() is None
+        assert foreign.result() is None
+
+
+def test_host_session_persists_before_publishing_events(tmp_path: Path) -> None:
+    persisted = []
+    spec = WorkerSpec("fixture-app", _worker(tmp_path))
+    with WorkerSession(spec, mode="scripted-demo", session_id="session-host-test",
+                       persist_event=persisted.append) as session:
+        assert session.session_id == "session-host-test"
+        assert persisted[0] == session.events[0]
+        session.submit_and_wait("hello")
+        assert [frame.kind for frame in persisted[:2]] == ["ready", "answer_committed"]
+
+
+def test_host_session_fails_if_event_persistence_fails(tmp_path: Path) -> None:
+    def reject(_frame: object) -> None:
+        raise OSError("ledger unavailable")
+
+    session = WorkerSession(WorkerSpec("fixture-app", _worker(tmp_path)),
+                            mode="scripted-demo", timeout=0.3,
+                            persist_event=reject)
+    with pytest.raises(RuntimeError, match="persistence"):
+        session.__enter__()
+    assert session.events == ()
