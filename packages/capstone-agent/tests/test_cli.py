@@ -29,6 +29,23 @@ def test_headless_cli_writes_one_result_object(tmp_path: Path) -> None:
     assert "FIRST" in errors.getvalue()
 
 
+def test_headless_cli_runs_provider_instruction_file_in_one_session(tmp_path: Path) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path), scripted_cases=()),))
+    instructions = tmp_path / "questions.md.txt"
+    instructions.write_text("first\n\nsecond\n", encoding="utf-8")
+    output, errors = io.StringIO(), io.StringIO()
+
+    status = main(
+        ["run", "--application", "fixture-app", "--instructions", str(instructions)],
+        registry=registry, output_stream=output, error_stream=errors,
+    )
+
+    assert status == 0
+    payload = json.loads(output.getvalue())
+    assert payload["result"] == {"turns": ["first", "second"]}
+    assert len(output.getvalue().splitlines()) == 1
+
+
 def test_chat_answers_before_it_reads_next_instruction(tmp_path: Path) -> None:
     registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
     output, errors = io.StringIO(), io.StringIO()

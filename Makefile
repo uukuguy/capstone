@@ -12,7 +12,8 @@ help:
 	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
 	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
 	@echo "  make capstone-client REQUEST=path  Run a registered pandapower or PyPSA client request"
-	@echo "  make capstone-agent-run REQUEST=path  Run a registered application headlessly"
+	@echo "  make capstone-agent-run INSTRUCTIONS=path  Run real pandapower tasks through Capstone"
+	@echo "  make capstone-agent-run REQUEST=path  Run a registered JSON request"
 	@echo "  make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]  Open one interactive run"
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
@@ -71,8 +72,15 @@ capstone-client:
 	@python3 tools/capstone_client.py --request "$(REQUEST)"
 
 capstone-agent-run:
-	@test -n "$(REQUEST)" || (echo "Usage: make capstone-agent-run REQUEST=path" >&2; exit 2)
-	@uv run --project packages/capstone-agent capstone-agent run --request "$(REQUEST)"
+	@if [ -n "$(REQUEST)" ]; then \
+		test -z "$(INSTRUCTIONS)" || { echo "Use REQUEST or INSTRUCTIONS, not both" >&2; exit 2; }; \
+		uv run --project packages/capstone-agent capstone-agent run --request "$(REQUEST)"; \
+	elif [ -n "$(INSTRUCTIONS)" ]; then \
+		test -f "$(INSTRUCTIONS)" || { echo "Instruction file not found: $(INSTRUCTIONS)" >&2; exit 2; }; \
+		uv run --project packages/capstone-agent capstone-agent run --application "$(if $(APPLICATION),$(APPLICATION),pandapower-static-analysis)" --instructions "$(INSTRUCTIONS)" $(if $(PROVIDER),--provider "$(PROVIDER)") $(if $(MODEL),--model "$(MODEL)"); \
+	else \
+		echo "Usage: make capstone-agent-run REQUEST=path | INSTRUCTIONS=path [APPLICATION=id]" >&2; exit 2; \
+	fi
 
 capstone-agent-chat:
 	@test -n "$(APPLICATION)" || (echo "Usage: make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]" >&2; exit 2)

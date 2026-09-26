@@ -24,6 +24,10 @@ _REQUEST_FIELDS = frozenset({
 
 def _request(path: Path) -> dict[str, Any]:
     document = json.loads(path.read_text(encoding="utf-8"))
+    return _validate_request(document)
+
+
+def _validate_request(document: object) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("schema") != REQUEST_SCHEMA or set(document) - _REQUEST_FIELDS:
         raise ValueError("client request schema is invalid")
     application_id = document.get("application_id")
@@ -38,8 +42,22 @@ def _request(path: Path) -> dict[str, Any]:
     return document
 
 
-def _run(request_path: Path, registry: WorkerRegistry, output: TextIO, errors: TextIO) -> None:
-    values = _request(request_path)
+def _instruction_request(
+    path: Path, application_id: str | None,
+    provider: str | None, model: str | None,
+) -> dict[str, Any]:
+    instructions = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return _validate_request({
+        "schema": REQUEST_SCHEMA,
+        "application_id": application_id,
+        "mode": "provider",
+        "instructions": instructions,
+        "provider": provider,
+        "model": model,
+    })
+
+
+def _run(values: dict[str, Any], registry: WorkerRegistry, output: TextIO, errors: TextIO) -> None:
     application_id = values["application_id"]
     spec = registry.resolve(application_id)
     with WorkerSession(
@@ -123,8 +141,13 @@ def main(
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    headless = commands.add_parser("run", help="Execute an ordered JSON request")
-    headless.add_argument("--request", type=Path, required=True)
+    headless = commands.add_parser("run", help="Execute ordered instructions or a JSON request")
+    headless_source = headless.add_mutually_exclusive_group(required=True)
+    headless_source.add_argument("--request", type=Path)
+    headless_source.add_argument("--instructions", type=Path)
+    headless.add_argument("--application")
+    headless.add_argument("--provider")
+    headless.add_argument("--model")
     chat = commands.add_parser("chat", help="Submit turns in one interactive run")
     chat.add_argument("--application", required=True)
     chat.add_argument("--mode", choices=("provider", "scripted-demo"), default="provider")
@@ -141,7 +164,15 @@ def main(
     errors = error_stream or sys.stderr
     try:
         if args.command == "run":
-            _run(args.request, selected_registry, output, errors)
+            if args.request is not None:
+                if any(value is not None for value in (args.application, args.provider, args.model)):
+                    raise ValueError("request file cannot be combined with application options")
+                values = _request(args.request)
+            else:
+                values = _instruction_request(
+                    args.instructions, args.application, args.provider, args.model,
+                )
+            _run(values, selected_registry, output, errors)
         elif args.command == "chat":
             _chat(args.application, args.mode, args.case, args.provider, args.model,
                   selected_registry, source, output, errors)

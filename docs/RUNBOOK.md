@@ -81,6 +81,12 @@ make capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-de
 make capstone-agent-serve CAPSTONE_PORT=8766
 ```
 
+真实 pandapower 指令文件直接使用同一个无头入口，无需编写 JSON 请求；默认使用项目的 Provider 配置，也可传入 `PROVIDER` 和 `MODEL`：
+
+```sh
+make capstone-agent-run INSTRUCTIONS=validation/questions/test.md.txt
+```
+
 前两个 `run` 示例均为无需 Provider 凭据的三回合脚本演示。第一条运行 pandapower 正式 Profile、真实 `gridctl` 和当前运行证据；第二条运行 PyPSA 双绑定、授权模型引用交接和三回合案例。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与已登记 `case_id`。脚本演示严格核对该案例的指令顺序。无头命令 stdout 仅有一个最终 JSON 对象；每轮进度、工具事件、报告检查点路径和答案写入 stderr。交互命令在同一会话中逐条接收指令并立即显示已提交答案。最终报告位于所显示运行目录的 `output/report.md`，最终 JSON 的 `result.core.report_ref` 给出已登记的报告工件引用；通用报告汇总已提交答案及其结果与证据引用。脚本演示的回答由确定性模型替身产生，不应当作真实 LLM 的分析叙述。
 
 HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状态中创建权限为 0600 的操作者令牌。App 以 `Authorization: Bearer <token>` 调用 `POST /api/v1/sessions` 创建会话，向 `/api/v1/sessions/{id}/turns` 逐条提交指令，以 `GET /api/v1/sessions/{id}/events?after=<sequence>` 接收可按序号恢复的 SSE。`POST /api/v1/sessions/{id}/close` 完成会话；`GET /api/v1/sessions/{id}/turns/{ordinal}`、`/result` 和 `/evidence?ref=<reference>` 分别读取已提交答案、最终组合结果及经当前运行 authority 验证的证据。状态接口返回安全的 `error_code`；服务最多保留 32 个会话，达到上限返回 429，重启后会话不会恢复。服务拒绝非本机 Host、跨源 Origin、无令牌和未登记案例。旧的 `make capstone-client REQUEST=...` 仍为兼容入口。
