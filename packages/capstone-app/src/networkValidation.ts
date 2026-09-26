@@ -28,12 +28,14 @@ export function parseNetworkView(raw: unknown, ordinal: number, admittedRefs: st
     busIds.add(bus.id)
   }
   const branchIds = new Set<string>()
+  const lineIds = new Set<string>()
   for (const branch of raw.branches) {
     if (!record(branch) || !text(branch.id) || !text(branch.label) ||
         !['line', 'link', 'transformer', 'trafo', 'trafo3w'].includes(String(branch.kind)) ||
         !busIds.has(String(branch.from_bus)) || !busIds.has(String(branch.to_bus)) ||
         busIds.has(branch.id) || branchIds.has(branch.id)) return null
     branchIds.add(branch.id)
+    if (branch.kind === 'line') lineIds.add(branch.id)
   }
   const allIds = new Set([...busIds, ...branchIds])
   for (const key of ['focus_ids', 'next_focus_ids']) {
@@ -47,7 +49,7 @@ export function parseNetworkView(raw: unknown, ordinal: number, admittedRefs: st
         !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > 100 ||
         !((overlay.metric === 'loading_percent' && overlay.unit === '%') ||
           (overlay.metric === 'voltage_pu' && overlay.unit === 'p.u.'))) return null
-    const allowed = overlay.metric === 'voltage_pu' ? busIds : branchIds
+    const allowed = overlay.metric === 'voltage_pu' ? busIds : lineIds
     const seen = new Set<string>()
     for (const item of overlay.values) {
       if (!record(item) || !text(item.id) || !allowed.has(item.id) || seen.has(item.id) ||

@@ -36,6 +36,9 @@ def test_network_view_accepts_bounded_topology_and_frame() -> None:
     lambda view: view.update(next_focus_ids=["foreign"]),
     lambda view: view.update(overlay={"metric": "loading_percent", "unit": "%",
         "source_ref": "result:current", "values": [{"id": "foreign", "value": 72.0}]}),
+    lambda view: (view["branches"][0].update(kind="link"),
+        view.update(overlay={"metric": "loading_percent", "unit": "%",
+            "source_ref": "result:current", "values": [{"id": "line:11", "value": 72.0}]})),
 ])
 def test_network_view_rejects_unverifiable_elements(change) -> None:
     view = _view()

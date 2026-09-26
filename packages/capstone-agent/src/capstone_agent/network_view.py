@@ -72,6 +72,7 @@ def normalize_network_view(value: object) -> dict[str, Any]:
 
     branches = []
     branch_ids: set[str] = set()
+    line_ids: set[str] = set()
     for raw in view["branches"]:
         branch = _object(raw, {"id", "kind", "label", "from_bus", "to_bus"})
         identifier = _text(branch["id"])
@@ -82,6 +83,8 @@ def normalize_network_view(value: object) -> dict[str, Any]:
                 or source not in bus_ids or target not in bus_ids):
             raise ValueError("network branch is invalid")
         branch_ids.add(identifier)
+        if kind == "line":
+            line_ids.add(identifier)
         branches.append({"id": identifier, "kind": kind, "label": _text(branch["label"]),
                          "from_bus": source, "to_bus": target})
 
@@ -108,7 +111,7 @@ def normalize_network_view(value: object) -> dict[str, Any]:
         values = raw_overlay["values"]
         if not isinstance(values, list) or not 1 <= len(values) <= 100:
             raise ValueError("network overlay values are invalid")
-        allowed = bus_ids if metric == "voltage_pu" else branch_ids
+        allowed = bus_ids if metric == "voltage_pu" else line_ids
         selected_values = []
         seen: set[str] = set()
         for raw in values:

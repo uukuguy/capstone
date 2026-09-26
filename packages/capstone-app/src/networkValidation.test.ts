@@ -20,5 +20,7 @@ describe('network projection at the browser boundary', () => {
     expect(parseNetworkView(view, 1, ['result:current'])).toBeNull()
     expect(parseNetworkView({ ...view, overlay: { ...view.overlay, source_ref: 'result:current' } },
       1, ['result:current'])).not.toBeNull()
+    expect(parseNetworkView({ ...view, branches: [{ ...sampleView.branches[0], kind: 'link' }],
+      overlay: { ...view.overlay, source_ref: 'result:current' } }, 1, ['result:current'])).toBeNull()
   })
 })
