@@ -23,6 +23,7 @@ _PAYLOAD_FIELDS = {
     "completed": frozenset({"run_id", "result", "report_path"}),
     "failed": frozenset({"code"}),
     "evidence_result": frozenset({"ref", "value"}),
+    "network_view": frozenset({"ordinal", "view"}),
 }
 _REQUIRED_PAYLOAD_FIELDS = {
     "open": frozenset({"application_id", "mode"}),
@@ -34,6 +35,7 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "completed": frozenset({"run_id", "result"}),
     "failed": _PAYLOAD_FIELDS["failed"],
     "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
+    "network_view": _PAYLOAD_FIELDS["network_view"],
 }
 
 
@@ -68,6 +70,15 @@ class Frame:
                    for key in ("result_refs", "evidence_refs"))
         ):
             raise ProtocolError("committed answer payload is invalid")
+        if self.kind == "network_view":
+            from capstone_agent.network_view import normalize_network_view
+
+            try:
+                normalized = normalize_network_view(self.payload["view"])
+            except ValueError:
+                raise ProtocolError("network view payload is invalid") from None
+            if self.payload["ordinal"] != normalized["ordinal"]:
+                raise ProtocolError("network view ordinal is invalid")
         try:
             json.dumps(self.payload, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):

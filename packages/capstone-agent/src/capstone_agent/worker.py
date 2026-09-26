@@ -12,6 +12,7 @@ from capability_agent.application.runner import ApplicationRequest
 
 from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 from capstone_agent.progress import render_progress
+from capstone_agent.network_view import normalize_network_view
 
 
 class _IncrementalApplication(Protocol):
@@ -23,6 +24,7 @@ class PreparedWorker:
     application: _IncrementalApplication
     run_id: str
     evidence_reader: Callable[[str], object | None]
+    network_reader: Callable[[int], Mapping[str, object] | None] | None = None
 
 
 def read_verified_reference(prepared: object, reference: str) -> object | None:
@@ -82,8 +84,9 @@ def serve_application(
 
     def emit(kind: str, payload: dict[str, object]) -> None:
         nonlocal sequence
+        encoded = Frame(opening.session_id, sequence + 1, kind, payload).to_line()
         sequence += 1
-        target.write(Frame(opening.session_id, sequence, kind, payload).to_line())
+        target.write(encoded)
         target.flush()
 
     def observe(event: Mapping[str, object]) -> None:
@@ -100,6 +103,15 @@ def serve_application(
                 "result_refs": result_refs,
                 "evidence_refs": evidence_refs,
             })
+            ordinal = event.get("ordinal")
+            if prepared.network_reader is not None and type(ordinal) is int:
+                try:
+                    projection = prepared.network_reader(ordinal)
+                    if projection is not None:
+                        view = normalize_network_view(projection)
+                        emit("network_view", {"ordinal": ordinal, "view": view})
+                except Exception:
+                    print("Network view unavailable for committed turn", file=sys.stderr)
         else:
             message = render_progress(event)
             if message:

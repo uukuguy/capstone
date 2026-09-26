@@ -6,6 +6,7 @@ from pathlib import Path
 
 from capstone_agent.protocol import Frame
 from capstone_agent.worker import PreparedWorker, serve_application
+from test_network_view import _view
 
 
 @dataclass
@@ -72,3 +73,46 @@ def test_worker_processes_turns_then_serves_run_scoped_evidence() -> None:
     assert frames[7].payload["report_path"] == "runs/run-fixture/output/report.md"
     assert frames[8].payload["value"] == {"ref": "evidence:current"}
     assert frames[9].payload["value"] is None
+
+
+def test_worker_publishes_network_view_only_after_committed_answer() -> None:
+    incoming = b"".join((
+        Frame("session-1", 1, "open", {"application_id": "fixture-app", "mode": "provider"}).to_line(),
+        Frame("session-1", 2, "turn", {"instruction": "first"}).to_line(),
+        Frame("session-1", 3, "close", {}).to_line(),
+    ))
+    output = io.BytesIO()
+    serve_application(
+        lambda _payload, observer: PreparedWorker(
+            application=FakeApplication(observer), run_id="run-fixture",
+            evidence_reader=lambda _ref: None,
+            network_reader=lambda ordinal: {**_view(), "ordinal": ordinal},
+        ), input_stream=io.BytesIO(incoming), output_stream=output,
+    )
+    frames = [Frame.from_line(line) for line in output.getvalue().splitlines(keepends=True)]
+    kinds = [frame.kind for frame in frames]
+    assert kinds.index("answer_committed") < kinds.index("network_view") < kinds.index("completed")
+    assert frames[kinds.index("network_view")].payload["ordinal"] == 1
+
+
+def test_network_projection_failure_does_not_erase_answer() -> None:
+    incoming = b"".join((
+        Frame("session-1", 1, "open", {"application_id": "fixture-app", "mode": "provider"}).to_line(),
+        Frame("session-1", 2, "turn", {"instruction": "first"}).to_line(),
+        Frame("session-1", 3, "close", {}).to_line(),
+    ))
+    output = io.BytesIO()
+
+    def unavailable(_ordinal):
+        raise ValueError("projection is unavailable")
+
+    serve_application(
+        lambda _payload, observer: PreparedWorker(
+            application=FakeApplication(observer), run_id="run-fixture",
+            evidence_reader=lambda _ref: None, network_reader=unavailable,
+        ), input_stream=io.BytesIO(incoming), output_stream=output,
+    )
+    kinds = [Frame.from_line(line).kind for line in output.getvalue().splitlines(keepends=True)]
+    assert "answer_committed" in kinds
+    assert "network_view" not in kinds
+    assert "completed" in kinds

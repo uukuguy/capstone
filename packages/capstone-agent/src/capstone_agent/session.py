@@ -279,7 +279,7 @@ class WorkerSession:
             while raw := process.stdout.readline(MAX_FRAME_BYTES + 1):
                 event = Frame.from_line(raw, expected_sequence=expected)
                 if event.session_id != self.session_id or event.kind not in {
-                    "ready", "progress", "answer_committed", "completed", "failed", "evidence_result"
+                    "ready", "progress", "answer_committed", "network_view", "completed", "failed", "evidence_result"
                 }:
                     raise ProtocolError("worker event is invalid")
                 expected += 1

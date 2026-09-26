@@ -13,9 +13,11 @@ from capstone_agent.artifacts import ArtifactService, MemoryObjectStore
 from capstone_agent.host_api import create_host_app
 from capstone_agent.host_worker import run_claimed_session
 from capstone_agent.ledger import Ledger
+from capstone_agent.protocol import Frame
 from capstone_agent.session import WorkerRegistry, WorkerSpec
 
 from test_host_worker import _worker
+from test_network_view import _view
 
 
 @pytest.fixture
@@ -116,3 +118,27 @@ def test_host_api_requires_token_and_explicit_origin(ledger: Ledger, tmp_path: P
         })
         assert preflight.status_code == 204
         assert preflight.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_network_view_is_authenticated_and_replayable(ledger: Ledger, tmp_path: Path) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("network-test", 30)
+    assert claim is not None and claim.lease_token is not None
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-network"}))
+    ledger.accept_turn(session.session_id, "inspect", "network-turn")
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 2, "answer_committed", {
+                            "ordinal": 1, "turn_id": "run-network-t001", "answer_output": "done",
+                            "answer_ref": "answer:one", "result_refs": [], "evidence_refs": [],
+                        }))
+    view = _view()
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 3, "network_view", {"ordinal": 1, "view": view}))
+    route = f"/api/v1/sessions/{session.session_id}/network?ordinal=1"
+    with TestClient(_app(Ledger(ledger.dsn), registry), base_url="http://localhost") as client:
+        assert client.get(route).status_code == 401
+        auth = {"Authorization": "Bearer hosted-secret"}
+        assert client.get(route, headers=auth).json() == view
+        assert client.get(route.replace("ordinal=1", "ordinal=2"), headers=auth).status_code == 404

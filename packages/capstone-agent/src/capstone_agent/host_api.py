@@ -146,6 +146,16 @@ def create_host_app(
                 return event.payload["result"]
         raise HTTPException(409, "session has no final result")
 
+    @app.get("/api/v1/sessions/{session_id}/network")
+    def get_network(session_id: str, ordinal: Annotated[int, Query(ge=1, le=3)]):
+        record = get_session(session_id)
+        if record.completed_turns < ordinal:
+            raise HTTPException(404, "network view not found")
+        for event in ledger.events_after(session_id, 0):
+            if event.kind == "network_view" and event.payload.get("ordinal") == ordinal:
+                return event.payload["view"]
+        raise HTTPException(404, "network view not found")
+
     @app.get("/api/v1/sessions/{session_id}/report")
     def get_report(session_id: str):
         get_session(session_id)
