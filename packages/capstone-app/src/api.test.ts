@@ -45,4 +45,13 @@ describe('CapstoneClient', () => {
     await expect(client.catalog()).rejects.toBeInstanceOf(ApiError)
     await expect(client.catalog()).rejects.toMatchObject({ status: 401 })
   })
+
+  it('calls native-style fetch with the browser global receiver', async () => {
+    const browserFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation')
+      return Promise.resolve(new Response(JSON.stringify({ schema: 'capstone-catalog/1.0', applications: [] })))
+    }) as unknown as typeof fetch
+    const client = new CapstoneClient('', 'private-token', browserFetch)
+    await expect(client.catalog()).resolves.toMatchObject({ schema: 'capstone-catalog/1.0' })
+  })
 })

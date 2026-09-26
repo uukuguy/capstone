@@ -44,7 +44,7 @@ export class CapstoneClient {
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
-    const response = await this.fetcher(this.base + path, {
+    const response = await this.fetcher.call(globalThis, this.base + path, {
       ...init,
       credentials: 'omit',
       cache: 'no-store',
