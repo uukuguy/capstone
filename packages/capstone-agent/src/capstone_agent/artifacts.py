@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 from pathlib import Path
 from typing import Protocol
@@ -131,7 +132,11 @@ class ArtifactService:
             raise ValueError("report is outside current run")
         with resolved.open("rb") as stream:
             content = stream.read(MAX_ARTIFACT_BYTES + 1)
-        self._save(session_id, "report", None, content, "text/markdown; charset=utf-8")
+        if len(content) > MAX_ARTIFACT_BYTES:
+            raise ValueError("artifact exceeds size limit")
+        public_text = re.sub(r"\[([^\]\n]+)\]\([^)\n]+\)", r"\1", content.decode("utf-8"))
+        self._save(session_id, "report", None, public_text.encode("utf-8"),
+                   "text/markdown; charset=utf-8")
 
     def read_report(self, session_id: str) -> str | None:
         content = self._read(session_id, "report", None)
