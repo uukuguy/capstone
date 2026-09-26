@@ -5,7 +5,7 @@ import type { CapstoneClient } from './api'
 import type { Catalog, SessionEvent } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear() })
 
 const catalog: Catalog = {
   schema: 'capstone-catalog/1.0',
@@ -49,6 +49,33 @@ function mockClient(eventFlow?: (_id: string, _after: number,
 }
 
 describe('operator workflow', () => {
+  it('fills the demo credential supplied by the API on the access screen', async () => {
+    const token = 'public-demo-token-with-enough-length'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ token }))))
+    const { client } = mockClient()
+    render(<App clientFactory={() => client} />)
+    const input = screen.getByLabelText('访问凭证') as HTMLInputElement
+    await waitFor(() => expect(input.value).toBe(token))
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    expect(await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })).toBeTruthy()
+  })
+
+  it('restores demo access after a page reload without showing the login form', async () => {
+    const token = 'public-demo-token-with-enough-length'
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ token }))))
+    const { client } = mockClient()
+    const factory = vi.fn(() => client)
+    const first = render(<App clientFactory={factory} />)
+    await waitFor(() => expect((screen.getByLabelText('访问凭证') as HTMLInputElement).value).toBe(token))
+    fireEvent.click(screen.getByRole('button', { name: '连接工作台' }))
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    first.unmount()
+    render(<App clientFactory={factory} />)
+    expect(screen.queryByLabelText('访问凭证')).toBeNull()
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    expect(factory).toHaveBeenCalledTimes(2)
+  })
+
   it('retries an unavailable case diagram only after reopening that case', async () => {
     const twoCases: Catalog = { ...catalog, applications: [{ ...catalog.applications[0],
       cases: [...catalog.applications[0].cases, {

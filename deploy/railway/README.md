@@ -17,6 +17,7 @@ bucket variable references or protected values in the project UI:
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection URL, shared by API and worker |
 | `CAPSTONE_OPERATOR_TOKEN` | Same private operator token in both roles |
+| `CAPSTONE_PUBLIC_DEMO` | `true` on the API for the public demonstration login |
 | `CAPSTONE_ALLOWED_HOSTS` | API public hostname only, without scheme |
 | `CAPSTONE_ALLOWED_ORIGINS` | Vercel App HTTPS origin only |
 | `CAPSTONE_ARTIFACT_BACKEND` | `s3` |
@@ -36,6 +37,9 @@ committed turns remain readable.
 On Vercel, set the project root to `packages/capstone-app` and configure
 `VITE_API_ORIGIN` to the Railway API's HTTPS origin. The App build contains that
 public origin; it must never contain the operator token or storage credentials.
+The API fills the App's demonstration credential on first load; visitors click
+the existing login button to enter. This credential can run only registered
+scripted cases; Provider sessions require the private operator token.
 
 References: [Railway background workers](https://docs.railway.com/guides/cron-workers-queues),
 [Railway buckets](https://docs.railway.com/storage-buckets),

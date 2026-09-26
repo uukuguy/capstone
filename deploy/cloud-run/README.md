@@ -22,8 +22,8 @@ Prepare these resources before reviewing or running the template:
    same logical token for both roles and is never bundled into the App.
 4. A stable API hostname and the Vercel App HTTPS origin. Bind
    `CAPSTONE_ALLOWED_HOSTS` to the API hostname and
-   `CAPSTONE_ALLOWED_ORIGINS` to the App origin. The public API requires the
-   operator bearer token for every application request; readiness is public.
+   `CAPSTONE_ALLOWED_ORIGINS` to the App origin. The public demo endpoint
+   supplies a scoped demonstration credential to the App's login form.
 
 Set the seven variables required by `deploy.example.sh` in the operator's
 shell, review the command, and run it only as an authorized deployment. The
@@ -37,6 +37,10 @@ On Vercel, set the project root to `packages/capstone-app`, use the checked-in
 `vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
 public in the static build. Provider keys, operator tokens, database URLs, and
 bucket credentials must stay out of Vercel build variables.
+
+The deployment template enables `CAPSTONE_PUBLIC_DEMO=true` on the API. Visitors
+receive a demonstration credential in the login form and can run registered
+scripted cases. Provider sessions still require the separate operator token.
 
 References: [Cloud Run worker pools](https://docs.cloud.google.com/run/docs/deploy-worker-pools),
 [Cloud Run service health checks](https://docs.cloud.google.com/run/docs/configuring/healthchecks),

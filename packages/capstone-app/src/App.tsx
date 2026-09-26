@@ -10,6 +10,7 @@ import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
 type Selection = { applicationId: string; caseId: string }
 type DetailTab = 'overview' | 'evidence'
 type Props = { clientFactory?: (token: string) => CapstoneClient }
+const DEMO_SESSION_KEY = 'capstone-demo-connected'
 
 const stateLabel: Record<SessionStatus['state'], string> = {
   pending: '等待工作进程', ready: '等待指令', executing: '分析中', closing: '整理结果中',
@@ -30,13 +31,22 @@ function PageHeader({ connected, onDisconnect }: { connected: boolean; onDisconn
 }
 
 function AccessGate({ onConnect, pending, error }: {
-  onConnect: (token: string) => Promise<void>; pending: boolean; error: string | null
+  onConnect: (token: string, demo: boolean) => Promise<void>; pending: boolean; error: string | null
 }) {
   const [value, setValue] = useState('')
+  const [demoToken, setDemoToken] = useState('')
+  useEffect(() => {
+    let active = true
+    const client = new CapstoneClient(import.meta.env.VITE_API_ORIGIN || '', '')
+    void client.demoCredential().then((token) => {
+      if (active) { setDemoToken(token); setValue((current) => current || token) }
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
   function submit(event: FormEvent) {
     event.preventDefault()
     if (!value.trim()) return
-    void onConnect(value.trim()).then(() => setValue(''))
+    void onConnect(value.trim(), !!demoToken && value.trim() === demoToken).then(() => setValue(''))
   }
   return <main className="access-shell">
     <div className="access-grid" aria-hidden="true" />
@@ -47,13 +57,14 @@ function AccessGate({ onConnect, pending, error }: {
       <form onSubmit={submit}>
         <label htmlFor="operator-token">访问凭证</label>
         <input id="operator-token" type="password" autoComplete="off" value={value}
-          onChange={(event) => setValue(event.target.value)} placeholder="输入内部操作员凭证" />
+          onChange={(event) => setValue(event.target.value)} placeholder="等待演示凭证自动填入，或输入访问凭证" />
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button access-submit" disabled={pending || !value.trim()}>
           {pending ? '正在连接…' : '连接工作台'} <span aria-hidden="true">↗</span>
         </button>
       </form>
-      <div className="access-note"><span className="pulse-dot" /> 凭证仅保留在当前标签页内存中</div>
+      <div className="access-note"><span className="pulse-dot" />
+        {demoToken ? '演示凭证已自动填入，点击连接即可体验' : '凭证仅保留在当前标签页内存中'}</div>
     </section>
     <div className="access-aside" aria-hidden="true"><Mark /><div>CAPABILITY / EVIDENCE / CONTROL</div></div>
   </main>
@@ -543,8 +554,21 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   const [selection, setSelection] = useState<Selection | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(() => sessionStorage.getItem(DEMO_SESSION_KEY) === '1')
 
-  async function connect(token: string) {
+  useEffect(() => {
+    if (!restoring) return
+    let active = true
+    const bootstrap = new CapstoneClient(import.meta.env.VITE_API_ORIGIN || '', '')
+    void bootstrap.demoCredential().then((token) => {
+      if (active) return connect(token, true)
+    }).catch(() => {
+      if (active) { sessionStorage.removeItem(DEMO_SESSION_KEY); setRestoring(false) }
+    })
+    return () => { active = false }
+  }, [])
+
+  async function connect(token: string, demo = false) {
     setPending(true); setError(null)
     try {
       const nextClient = clientFactory(token)
@@ -556,19 +580,25 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
       if (!firstApp) throw new Error('没有可运行的案例')
       setCatalog(nextCatalog); setClient(nextClient)
       setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
+      if (demo) sessionStorage.setItem(DEMO_SESSION_KEY, '1')
+      else sessionStorage.removeItem(DEMO_SESSION_KEY)
     } catch (cause) {
+      sessionStorage.removeItem(DEMO_SESSION_KEY)
       setError(cause instanceof Error ? cause.message : '连接失败')
-    } finally { setPending(false) }
+    } finally { setPending(false); setRestoring(false) }
   }
 
   function disconnect(message: string | null = null) {
+    sessionStorage.removeItem(DEMO_SESSION_KEY)
     setClient(null); setCatalog(null); setSelection(null); setError(message)
   }
 
   return <div className="app-shell">
     <PageHeader connected={!!client} onDisconnect={() => disconnect()} />
     {!client || !catalog || !selection ?
-      <AccessGate onConnect={connect} pending={pending} error={error} /> :
+      restoring ? <main className="access-shell"><section className="access-card">
+        <h1>正在恢复分析工作台…</h1></section></main>
+        : <AccessGate onConnect={connect} pending={pending} error={error} /> :
       <div className="workspace">
         <CatalogPanel catalog={catalog} selection={selection}
           onSelect={setSelection} />

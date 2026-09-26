@@ -2,6 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError, CapstoneClient } from './api'
 
 describe('CapstoneClient', () => {
+  it('loads a demo credential without sending an authorization header', async () => {
+    const token = 'public-demo-token-with-enough-length'
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ token })))
+    const client = new CapstoneClient('', '', fetcher)
+    await expect(client.demoCredential()).resolves.toBe(token)
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/demo-credential')
+    expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBeUndefined()
+  })
+
   it('keeps the operator token in the authorization header and retries a turn with the same key', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
       new Response(JSON.stringify({ session_id: 'session-one', ordinal: 1, state: 'accepted' }), {

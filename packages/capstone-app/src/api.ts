@@ -49,7 +49,7 @@ export class CapstoneClient {
       credentials: 'omit',
       cache: 'no-store',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
@@ -69,6 +69,15 @@ export class CapstoneClient {
 
   catalog(): Promise<Catalog> {
     return this.json('/api/v1/catalog')
+  }
+
+  async demoCredential(): Promise<string> {
+    const document = await this.json<unknown>('/api/v1/demo-credential')
+    if (!document || typeof document !== 'object' || !('token' in document) ||
+        typeof document.token !== 'string' || document.token.length < 32) {
+      throw new Error('演示凭证不可用')
+    }
+    return document.token
   }
 
   caseDiagram(applicationId: string, caseId: string): Promise<NetworkDiagram> {

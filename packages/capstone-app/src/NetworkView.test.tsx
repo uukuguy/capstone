@@ -12,7 +12,7 @@ describe('operator network canvas', () => {
       source_ref: 'result:current', values: [{ id: 'line:11', value: 72.4 }],
     } }
     render(<NetworkView view={view} modelName="IEEE-39" focusKey="turn-1" />)
-    expect(screen.getByRole('heading', { name: '电网视图' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '电网拓扑图' })).toBeTruthy()
     expect(screen.getByText(/模型结构 · gridctl/)).toBeTruthy()
     expect(screen.getByText('仅对 1 / 2 条有结果的线路着色')).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
@@ -31,6 +31,17 @@ describe('operator network canvas', () => {
     expect(canvas.getAttribute('viewBox')).toBe('0 0 1000 600')
     rerender(<NetworkView view={sampleView} modelName="IEEE-39" focusKey="turn-2" />)
     expect(canvas.getAttribute('viewBox')).not.toBe('0 0 1000 600')
+  })
+
+  it('zooms by wheel only while Shift is held', () => {
+    render(<NetworkView view={sampleView} modelName="IEEE-39" focusKey="turn-1" />)
+    const canvas = screen.getByRole('img', { name: '电网拓扑' })
+    const initial = canvas.getAttribute('viewBox')
+    fireEvent.wheel(canvas, { deltaY: -100 })
+    expect(canvas.getAttribute('viewBox')).toBe(initial)
+    fireEvent.wheel(canvas, { deltaY: -100, shiftKey: true })
+    expect(canvas.getAttribute('viewBox')).not.toBe(initial)
+    expect(screen.getByText(/Shift \+ 滚轮缩放/)).toBeTruthy()
   })
 
   it('keeps a clear pending state before a current-run model opens', () => {
@@ -61,6 +72,19 @@ describe('operator network canvas', () => {
     expect(screen.getByText(/变压器/)).toBeTruthy()
     expect(screen.queryByText('直流连接')).toBeNull()
     expect(document.querySelector('.network-north')).toBeTruthy()
+  })
+
+  it('uses busbars for schematic buses and point markers for geographic buses', () => {
+    const schematic = { ...sampleDiagramView, diagram: {
+      ...sampleDiagramView.diagram, coordinate_system: 'schematic' as const,
+    } }
+    const { rerender } = render(<NetworkView view={schematic} modelName="IEEE-39" focusKey="turn-1" />)
+    expect(document.querySelectorAll('.network-busbar')).toHaveLength(3)
+    expect(document.querySelector('.legend-busbar')).toBeTruthy()
+    rerender(<NetworkView view={sampleDiagramView} modelName="SciGRID" focusKey="turn-1" />)
+    expect(document.querySelectorAll('.network-busbar')).toHaveLength(0)
+    expect(document.querySelectorAll('.network-bus-point')).toHaveLength(3)
+    expect(document.querySelector('.legend-bus-point')).toBeTruthy()
   })
 
   it('preserves manual camera movement while the same diagram receives a neutral layer', () => {

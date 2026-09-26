@@ -27,6 +27,7 @@ class HostSettings:
     port: int
     bind_host: str
     runs_root: Path
+    public_demo: bool
 
 
 def _origin(value: str) -> bool:
@@ -57,6 +58,9 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     except ValueError:
         raise ValueError("PORT is invalid") from None
     bind_host = environment.get("CAPSTONE_BIND_HOST", "0.0.0.0")
+    demo_setting = environment.get("CAPSTONE_PUBLIC_DEMO", "false").lower()
+    if demo_setting not in {"true", "false"}:
+        raise ValueError("CAPSTONE_PUBLIC_DEMO is invalid")
     if not database_url.startswith(("postgresql://", "postgres://")):
         raise ValueError("DATABASE_URL is invalid")
     if len(token) < 8:
@@ -74,7 +78,7 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     default_runs = Path(__file__).resolve().parents[4] / "runs" / "capstone-agent"
     runs_root = Path(environment.get("CAPSTONE_RUNS_ROOT", str(default_runs)))
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
-                        endpoint, port, bind_host, runs_root)
+                        endpoint, port, bind_host, runs_root, demo_setting == "true")
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

@@ -22,7 +22,7 @@ gcloud run deploy capstone-api \
   --add-cloudsql-instances "$CAPSTONE_CLOUDSQL_INSTANCE" \
   --allow-unauthenticated \
   --timeout 3600 \
-  --set-env-vars "CAPSTONE_ALLOWED_HOSTS=$CAPSTONE_API_HOST,CAPSTONE_ALLOWED_ORIGINS=$CAPSTONE_APP_ORIGIN,CAPSTONE_ARTIFACT_BACKEND=gcs,CAPSTONE_ARTIFACT_BUCKET=$CAPSTONE_GCS_BUCKET" \
+  --set-env-vars "CAPSTONE_ALLOWED_HOSTS=$CAPSTONE_API_HOST,CAPSTONE_ALLOWED_ORIGINS=$CAPSTONE_APP_ORIGIN,CAPSTONE_ARTIFACT_BACKEND=gcs,CAPSTONE_ARTIFACT_BUCKET=$CAPSTONE_GCS_BUCKET,CAPSTONE_PUBLIC_DEMO=true" \
   --set-secrets 'DATABASE_URL=capstone-database-url:latest,CAPSTONE_OPERATOR_TOKEN=capstone-operator-token:latest'
 
 gcloud run worker-pools deploy capstone-worker \

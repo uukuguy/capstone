@@ -83,6 +83,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   }
 
   function onWheel(event: WheelEvent<SVGSVGElement>) {
+    if (!event.shiftKey) return
     event.preventDefault()
     zoom(event.deltaY > 0 ? 1.13 : 0.88, event.clientX, event.clientY, event.currentTarget)
   }
@@ -120,10 +121,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const denominator = layer?.overlay?.metric === 'voltage_pu'
     ? geometry?.buses.length || 0 : geometry?.branches.filter((branch) => branch.kind === 'line').length || 0
   const dense = nodes.length > 100
+  const schematic = geometry?.schema === 'capstone-network-diagram/1.0'
+    ? geometry.coordinate_system === 'schematic' : geometry?.coordinate_status === 'schematic-required'
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">MODEL / {view ? 'CURRENT RUN' : 'CASE PREVIEW'}</span>
-      <h2 id="network-title">电网视图</h2></div><span className="network-model">{modelName}</span></div>
+      <h2 id="network-title">电网拓扑图</h2></div><span className="network-model">{modelName}</span></div>
     {geometry ? <>
       <div className="network-meta"><span>模型结构 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
         <span>{geometry!.schema === 'capstone-network-diagram/1.0'
@@ -182,9 +185,17 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             const highlighted = focusIds.includes(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
-              <circle cx={bus.x} cy={bus.y} r={highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5}
-                fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value)}
-                stroke={highlighted ? '#0d7771' : '#344c53'} strokeWidth={highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5} />
+              {schematic ? <line className="network-busbar"
+                x1={bus.x - (highlighted ? 11 : 8)} x2={bus.x + (highlighted ? 11 : 8)}
+                y1={bus.y} y2={bus.y}
+                stroke={value === undefined ? highlighted ? '#0d7771' : '#344c53'
+                  : valueColor(layer!.overlay!.metric, value)}
+                strokeWidth={highlighted ? 5 : 3.5} strokeLinecap="square" />
+                : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
+                  r={highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5}
+                  fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value)}
+                  stroke={highlighted ? '#0d7771' : '#344c53'}
+                  strokeWidth={highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5} />}
               {(nodes.length <= 25 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13} y={bus.y - 11} className="network-node-label">{bus.label}</text>}
               <title>{bus.label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
@@ -193,10 +204,10 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
         </svg>
         {geometry!.schema === 'capstone-network-diagram/1.0' && geometry!.coordinate_system === 'geographic' &&
           <span className="network-north" aria-hidden="true">N ↑</span>}
-        <span className="network-canvas-hint">拖动平移 · 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
+        <span className="network-canvas-hint">拖动平移 · Shift + 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
       </div>
       <div className="network-footer">
-        <div className="network-legend"><span className="legend-bus" /> 母线
+        <div className="network-legend"><span className={schematic ? 'legend-busbar' : 'legend-bus-point'} /> 母线
           {branchKinds.has('line') && <><span className="legend-line" /> 线路</>}
           {branchKinds.has('link') && <><span className="legend-link" /> 直流连接</>}
           {[...branchKinds].some((kind) => ['transformer', 'trafo', 'trafo3w'].includes(kind)) &&

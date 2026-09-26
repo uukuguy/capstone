@@ -189,6 +189,7 @@ def main(
                     ledger, selected_registry, operator_token=settings.operator_token,
                     allowed_hosts=set(settings.allowed_hosts),
                     allowed_origins=set(settings.allowed_origins),
+                    public_demo=settings.public_demo,
                     artifacts=artifacts,
                 )
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,

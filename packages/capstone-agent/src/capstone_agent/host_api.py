@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import json
 import secrets
@@ -35,12 +36,15 @@ def _status(record: SessionRecord) -> dict[str, object]:
 def create_host_app(
     ledger: Ledger, registry: WorkerRegistry, *, operator_token: str,
     allowed_hosts: set[str], allowed_origins: set[str],
+    public_demo: bool = False,
     repo_root: Path | None = None,
     artifacts: ArtifactService | None = None,
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
+    demo_token = (hmac.new(operator_token.encode(), b"capstone-public-demo-v1",
+                           hashlib.sha256).hexdigest() if public_demo else None)
     catalog = build_catalog(registry, repo_root or Path(__file__).resolve().parents[4])
     diagram_cases = {
         (application["application_id"], case["case_id"]): registry.resolve(application["application_id"])
@@ -62,6 +66,7 @@ def create_host_app(
 
     @app.middleware("http")
     async def access(request: Request, call_next):
+        request.state.public_demo = False
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
         origin = request.headers.get("origin")
@@ -69,13 +74,21 @@ def create_host_app(
             return JSONResponse({"error": "invalid_origin"}, status_code=403)
         if request.method == "OPTIONS" and origin is not None:
             response = Response(status_code=204)
-        elif request.url.path == "/health/ready":
+        elif request.url.path == "/health/ready" or (
+            public_demo and request.url.path == "/api/v1/demo-credential"
+        ):
             response = await call_next(request)
         else:
             expected = "Bearer " + operator_token
-            if not hmac.compare_digest(request.headers.get("authorization", ""), expected):
+            supplied = request.headers.get("authorization", "")
+            authorized = hmac.compare_digest(supplied, expected)
+            demo_authorized = demo_token is not None and hmac.compare_digest(
+                supplied, "Bearer " + demo_token,
+            )
+            if not authorized and not demo_authorized:
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
+                request.state.public_demo = demo_authorized
                 response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -88,9 +101,9 @@ def create_host_app(
             )
         return response
 
-    def get_session(session_id: str) -> SessionRecord:
+    def get_session(session_id: str, request: Request) -> SessionRecord:
         record = ledger.get_session(session_id)
-        if record is None:
+        if record is None or (request.state.public_demo and record.mode != "scripted-demo"):
             raise HTTPException(404, "session not found")
         return record
 
@@ -107,6 +120,12 @@ def create_host_app(
     def get_catalog():
         return catalog
 
+    @app.get("/api/v1/demo-credential")
+    def get_demo_credential():
+        if demo_token is None:
+            raise HTTPException(404, "demo access is unavailable")
+        return {"token": demo_token}
+
     @app.get("/api/v1/cases/{application_id}/{case_id}/diagram")
     def get_case_diagram(application_id: str, case_id: str):
         try:
@@ -117,7 +136,9 @@ def create_host_app(
             raise HTTPException(503, "case diagram is unavailable") from None
 
     @app.post("/api/v1/sessions", status_code=201)
-    def create_session(values: _CreateSession):
+    def create_session(values: _CreateSession, request: Request):
+        if request.state.public_demo and values.mode != "scripted-demo":
+            raise HTTPException(403, "public demo only accepts registered cases")
         try:
             spec = registry.resolve(values.application_id)
         except ValueError:
@@ -133,8 +154,9 @@ def create_host_app(
                 "application_id": record.application_id, "state": "pending"}
 
     @app.post("/api/v1/sessions/{session_id}/turns", status_code=202)
-    def submit_turn(session_id: str, values: _TurnInput,
+    def submit_turn(session_id: str, values: _TurnInput, request: Request,
                     idempotency_key: Annotated[str | None, Header(max_length=200)] = None):
+        get_session(session_id, request)
         try:
             command = ledger.accept_turn(session_id, values.instruction,
                                          idempotency_key or secrets.token_urlsafe(24))
@@ -145,8 +167,9 @@ def create_host_app(
         return {"session_id": session_id, "ordinal": command.ordinal, "state": "accepted"}
 
     @app.post("/api/v1/sessions/{session_id}/close", status_code=202)
-    def close_session(session_id: str,
+    def close_session(session_id: str, request: Request,
                       idempotency_key: Annotated[str | None, Header(max_length=200)] = None):
+        get_session(session_id, request)
         try:
             ledger.accept_close(session_id, idempotency_key or secrets.token_urlsafe(24))
         except KeyError:
@@ -156,28 +179,29 @@ def create_host_app(
         return {"session_id": session_id, "state": "closing"}
 
     @app.get("/api/v1/sessions/{session_id}")
-    def session_status(session_id: str):
-        return _status(get_session(session_id))
+    def session_status(session_id: str, request: Request):
+        return _status(get_session(session_id, request))
 
     @app.get("/api/v1/sessions/{session_id}/turns/{ordinal}")
-    def get_turn(session_id: str, ordinal: int):
-        get_session(session_id)
+    def get_turn(session_id: str, ordinal: int, request: Request):
+        get_session(session_id, request)
         for event in ledger.events_after(session_id, 0):
             if event.kind == "answer_committed" and event.payload.get("ordinal") == ordinal:
                 return event.payload
         raise HTTPException(404, "turn answer not found")
 
     @app.get("/api/v1/sessions/{session_id}/result")
-    def get_result(session_id: str):
-        get_session(session_id)
+    def get_result(session_id: str, request: Request):
+        get_session(session_id, request)
         for event in ledger.events_after(session_id, 0):
             if event.kind == "completed":
                 return event.payload["result"]
         raise HTTPException(409, "session has no final result")
 
     @app.get("/api/v1/sessions/{session_id}/network")
-    def get_network(session_id: str, ordinal: Annotated[int, Query(ge=1, le=3)]):
-        record = get_session(session_id)
+    def get_network(session_id: str, request: Request,
+                    ordinal: Annotated[int, Query(ge=1, le=3)]):
+        record = get_session(session_id, request)
         if record.completed_turns < ordinal:
             raise HTTPException(404, "network view not found")
         from capstone_agent.network_diagram import (
@@ -218,8 +242,8 @@ def create_host_app(
         raise HTTPException(404, "network view not found")
 
     @app.get("/api/v1/sessions/{session_id}/report")
-    def get_report(session_id: str):
-        get_session(session_id)
+    def get_report(session_id: str, request: Request):
+        get_session(session_id, request)
         if artifacts is None:
             raise HTTPException(404, "report not found")
         try:
@@ -231,9 +255,9 @@ def create_host_app(
         return Response(report, media_type="text/markdown; charset=utf-8")
 
     @app.get("/api/v1/sessions/{session_id}/evidence")
-    def get_evidence(session_id: str,
+    def get_evidence(session_id: str, request: Request,
                      ref: Annotated[str, Query(min_length=1, max_length=2048)]):
-        get_session(session_id)
+        get_session(session_id, request)
         if artifacts is None:
             raise HTTPException(404, "evidence reference not found")
         try:
@@ -245,8 +269,9 @@ def create_host_app(
         return value
 
     @app.get("/api/v1/sessions/{session_id}/events")
-    async def stream_events(session_id: str, after: Annotated[int, Query(ge=0)] = 0):
-        get_session(session_id)
+    async def stream_events(session_id: str, request: Request,
+                            after: Annotated[int, Query(ge=0)] = 0):
+        get_session(session_id, request)
 
         async def events():
             cursor = after

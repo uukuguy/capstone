@@ -41,6 +41,16 @@ def test_host_settings_accept_operator_secret_file(tmp_path) -> None:
         load_host_settings(env)
 
 
+def test_host_settings_enable_public_demo_explicitly() -> None:
+    assert load_host_settings(_env()).public_demo is False
+    env = _env()
+    env["CAPSTONE_PUBLIC_DEMO"] = "true"
+    assert load_host_settings(env).public_demo is True
+    env["CAPSTONE_PUBLIC_DEMO"] = "maybe"
+    with pytest.raises(ValueError):
+        load_host_settings(env)
+
+
 @pytest.mark.parametrize("name,value", [
     ("DATABASE_URL", ""),
     ("CAPSTONE_OPERATOR_TOKEN", "short"),
