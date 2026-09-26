@@ -1,6 +1,14 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 21:55 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-26 22:44 CST. **Session remains active — not a final handoff.**
+
+## Current implementation checkpoint
+
+- 用户批准本地/Vercel App + Cloud Run/Railway 同镜像 API/worker 方案；设计契约 `docs/superpowers/specs/2026-09-26-capstone-app-multicloud-design.md` 已提交 `d1526b8`，三个实施计划位于 `docs/superpowers/plans/2026-09-26-capstone-*.md`，尚未提交。
+- PostgreSQL 会话/命令/事件账本已提交 `d2c4e6d`；独立 worker 消费账本命令与事件先持久化已提交 `6f9e8e1`。聚焦测试 12 项通过，未跑全量门禁。
+- 本机测试 PostgreSQL 容器 `capstone-ledger-test` 在 `127.0.0.1:32768`，测试变量 `CAPSTONE_TEST_DATABASE_URL=postgresql://postgres:capstone_test@127.0.0.1:32768/capstone_test`；容器可随时重建。
+- 接下来实现当前运行证据/报告的私有工件存储、持久化 HTTP/SSE API 和 catalog，再实现前端及部署模板。
+- `.codex/config.toml` 是用户已暂存改动，始终排除任务提交。未授权的计费 Provider 验证与实际云部署仍不执行。
 
 ## TL;DR
 

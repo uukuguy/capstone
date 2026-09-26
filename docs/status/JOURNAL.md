@@ -992,3 +992,6 @@ _Recovered pre-merge mainline entries._
 - 21:41 重新同步开发依赖并安装托管 Pi；doctor 通过，pandapower/PyPSA 脚本入口各完成 3/3，stdout 均为单 JSON。
 - 21:55 提交 Capstone 进度、报告证据和双语路径更新，收束未提交任务改动 [63e426b]。
 - 21:55 更新活动检查点，记录已验证环境与剩余 Provider 验收边界 [ccaf07d]。
+- 22:37 固定跨本地、Cloud Run、Railway 的同镜像后端与 Vercel App 设计，作为实施契约 [d1526b8]。
+- 22:42 新增 PostgreSQL 会话账本与命令去重、事件顺序和中断状态，为跨实例 API/worker 奠基 [d2c4e6d]。
+- 22:44 独立 worker 从账本消费命令，并在发布事件前持久化；12 项聚焦测试通过 [6f9e8e1]。
