@@ -965,3 +965,7 @@ _Recovered pre-merge mainline entries._
 - 09:00 Refreshed live recovery checkpoint after model-library integration; staged user configuration remains excluded.
 - 09:01 Committed active recovery checkpoint to make the next PyPSA orchestration step recoverable [53806b6].
 - 11:34 三例双格式专业介绍覆盖业务、PyPSA 框架和智能体交互；聚焦、完整测试、E2E37、验证24、doctor及链接检查通过。
+- 11:35 Committed dual-format professional introductions for three runnable PyPSA cases to prepare App content [a1a37d5].
+- 11:36 App 展示成为下一优先方向；活动检查点将目录/详情接口排在前端与真实 LLM 验收之前。
+- 11:42 Added proposed three-turn PyPSA demo instructions and unified-client contract for App preparation [daefe65].
+- 12:19 Validated three-turn PyPSA demos with admitted answers and typed AC/DC topology for App playback [b2a8304].
