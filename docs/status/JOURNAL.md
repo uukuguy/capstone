@@ -1006,3 +1006,6 @@ _Recovered pre-merge mainline entries._
 - 23:29 完成三栏操作台、逐轮提交与证据报告视图；真实 PyPSA 浏览器三轮完成，移动端无横向溢出 [2983f58]。
 - 23:58 打包同镜像 API/worker、Compose 和 Vercel 配置；排除本地凭据并完成容器双案例验证 [e8eabd3]。
 - 23:59 完成本地、Cloud Run、Railway、Vercel 双语操作文档与恢复交接，明确部署和 Provider 验收边界 [0d655de]。
+
+## 2026-09-27
+- 00:19 固定浅色工作台、自动完成与权威电网联动规格，供实现和审阅 [78378f0]。
