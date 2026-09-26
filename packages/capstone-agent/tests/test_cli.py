@@ -4,9 +4,41 @@ import io
 import json
 from pathlib import Path
 
-from capstone_agent.cli import main
+import pytest
+
+from capstone_agent.cli import _request, main
 from capstone_agent.session import WorkerRegistry, WorkerSpec
 from test_session import _worker
+
+
+@pytest.mark.parametrize(("name", "count"), (("task", 9), ("test", 7)))
+def test_pandapower_analysis_request_matches_question_list(
+    name: str, count: int, tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    request_path = root / f"validation/client/pandapower-analysis-{name}.json"
+    request = _request(request_path)
+    questions = [
+        line.strip()
+        for line in (root / f"validation/questions/{name}.md.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert request["application_id"] == "pandapower-static-analysis"
+    assert request["mode"] == "provider"
+    assert "case_id" not in request
+    assert len(request["instructions"]) == count
+    assert request["instructions"] == questions
+
+    registry = WorkerRegistry((WorkerSpec(
+        "pandapower-static-analysis", _worker(tmp_path),
+        scripted_cases=("pandapower-scripted-task",),
+    ),))
+    output = io.StringIO()
+    assert main(
+        ["run", "--request", str(request_path)], registry=registry,
+        output_stream=output, error_stream=io.StringIO(),
+    ) == 0
+    assert json.loads(output.getvalue())["result"]["turns"] == questions
 
 
 def test_headless_cli_writes_one_result_object(tmp_path: Path) -> None:
@@ -27,23 +59,6 @@ def test_headless_cli_writes_one_result_object(tmp_path: Path) -> None:
     assert payload["result"] == {"turns": ["first", "second"]}
     assert len(output.getvalue().splitlines()) == 1
     assert "FIRST" in errors.getvalue()
-
-
-def test_headless_cli_runs_provider_instruction_file_in_one_session(tmp_path: Path) -> None:
-    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path), scripted_cases=()),))
-    instructions = tmp_path / "questions.md.txt"
-    instructions.write_text("first\n\nsecond\n", encoding="utf-8")
-    output, errors = io.StringIO(), io.StringIO()
-
-    status = main(
-        ["run", "--application", "fixture-app", "--instructions", str(instructions)],
-        registry=registry, output_stream=output, error_stream=errors,
-    )
-
-    assert status == 0
-    payload = json.loads(output.getvalue())
-    assert payload["result"] == {"turns": ["first", "second"]}
-    assert len(output.getvalue().splitlines()) == 1
 
 
 def test_chat_answers_before_it_reads_next_instruction(tmp_path: Path) -> None:

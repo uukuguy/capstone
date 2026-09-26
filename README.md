@@ -207,9 +207,10 @@ application in its own Python environment. `make capstone-agent-run
 REQUEST=validation/client/pandapower-scripted-task.json` and `make
 capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json` run
 provider-free three-turn demos and print one final JSON object. `make
-capstone-agent-run INSTRUCTIONS=validation/questions/test.md.txt` runs the real
-pandapower instruction file through the Provider route using project defaults;
-`PROVIDER` and `MODEL` may override them. `make
+capstone-agent-run REQUEST=validation/client/pandapower-analysis-task.json` and
+`make capstone-agent-run REQUEST=validation/client/pandapower-analysis-test.json`
+run the existing nine- and seven-question pandapower lists through the configured
+Provider. `make
 capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo
 CASE=pandapower-scripted-task` accepts one
 instruction at a time and displays each committed answer and progress. Headless
