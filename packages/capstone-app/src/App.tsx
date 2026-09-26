@@ -12,6 +12,12 @@ type DetailTab = 'overview' | 'evidence'
 type Props = { clientFactory?: (token: string) => CapstoneClient }
 const DEMO_SESSION_KEY = 'capstone-demo-connected'
 
+function shouldRestoreDemo(): boolean {
+  const saved = sessionStorage.getItem(DEMO_SESSION_KEY)
+  if (saved !== null) return saved === '1'
+  return (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'reload'
+}
+
 const stateLabel: Record<SessionStatus['state'], string> = {
   pending: '等待工作进程', ready: '等待指令', executing: '分析中', closing: '整理结果中',
   completed: '已完成', failed: '运行失败', interrupted: '运行中断',
@@ -25,7 +31,7 @@ function PageHeader({ connected, onDisconnect }: { connected: boolean; onDisconn
   return <header className="topbar">
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
       <span className="brand-subtitle">分析工作台</span></div>
-    <div className="topbar-right"><span className="product-tag">EVIDENCE-BACKED ANALYSIS</span>
+    <div className="topbar-right">
       {connected && <button className="text-button" onClick={onDisconnect}>断开连接</button>}</div>
   </header>
 }
@@ -123,7 +129,7 @@ function CapstoneIntro() {
       <div className="capstone-intro-art">
         <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
         <div className="capstone-intro-overlay">
-          <span className="capstone-intro-kicker">电力科学AI / PHYSICS-DRIVEN AI</span>
+          <span className="capstone-intro-kicker">电力科学 AI</span>
           <strong>从专业仿真<br />到智能推演</strong>
           <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
           <div className="capstone-intro-disciplines" aria-label="电力科学AI模型方向">
@@ -132,19 +138,20 @@ function CapstoneIntro() {
             <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
           </div>
         </div>
+        <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
       </div>
       <p>CAPSTONE 为电力科学 AI 提供应用底座：把 pandapower、PyPSA 等专业框架封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
     </section>
 }
 
 function RunPanel({ caseCard, status, turns, progress, actionPending, automatic, onStart,
-                    onSubmit, onClose, onAuto, onStopAuto, onEvidence,
+                    onSubmit, onClose, onAuto, onRestart, onStopAuto, onEvidence,
                     networkView, previewDiagram, previewUnavailable,
                     networkFocusKey, networkUnavailable, nextNetworkTask,
                     selectedStep, onSelectStep, report, result }: {
   caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
-  automatic: boolean; onAuto: () => void; onStopAuto: () => void;
+  automatic: boolean; onAuto: () => void; onRestart: () => void; onStopAuto: () => void;
   onStart: () => void; onSubmit: () => void; onClose: () => void;
   onEvidence: (ref: string) => void
   networkView: NetworkViewData | null; previewDiagram: NetworkDiagram | null;
@@ -208,8 +215,9 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         <span>结束本轮后生成最终结果与报告。</span></div>
         {!automatic && <div className="action-buttons"><button className="primary-button" onClick={onClose} disabled={actionPending}>生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
-      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
-        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
+      {status?.state === 'completed' && <><div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
+        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>
+        <button type="button" className="primary-button" onClick={onRestart} disabled={actionPending}>再次分析 <span aria-hidden="true">↗</span></button></>}
       {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message"><strong>{stateLabel[status.state]}</strong><span>已提交的回答仍可查看。</span></div>}
       {automatic && <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
@@ -441,9 +449,9 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     finally { setPending(false) }
   }
 
-  function startAutomatic() {
+  function startAutomatic(newRun = false) {
     if (!client || !app || !caseCard || autoController.current) return
-    const existingSessionId = sessionId
+    const existingSessionId = newRun ? null : sessionId
     if (!existingSessionId) clearRun()
     const controller = new AbortController()
     autoController.current = controller
@@ -537,7 +545,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         selectedStep={selectedStep} onSelectStep={setSelectedStep}
         report={report} result={result}
         onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
-        onAuto={startAutomatic} onStopAuto={stopAutomatic}
+        onAuto={() => startAutomatic()} onRestart={() => startAutomatic(true)} onStopAuto={stopAutomatic}
         onEvidence={(ref) => void showEvidence(ref)} />
     </div>
     <DetailPanel status={status} caseCard={caseCard} turns={turns}
@@ -554,7 +562,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
   const [selection, setSelection] = useState<Selection | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [restoring, setRestoring] = useState(() => sessionStorage.getItem(DEMO_SESSION_KEY) === '1')
+  const [restoring, setRestoring] = useState(shouldRestoreDemo)
 
   useEffect(() => {
     if (!restoring) return
@@ -563,7 +571,7 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
     void bootstrap.demoCredential().then((token) => {
       if (active) return connect(token, true)
     }).catch(() => {
-      if (active) { sessionStorage.removeItem(DEMO_SESSION_KEY); setRestoring(false) }
+      if (active) { sessionStorage.setItem(DEMO_SESSION_KEY, '0'); setRestoring(false) }
     })
     return () => { active = false }
   }, [])
@@ -581,15 +589,15 @@ export default function App({ clientFactory = (token) => new CapstoneClient(
       setCatalog(nextCatalog); setClient(nextClient)
       setSelection({ applicationId: firstApp.application_id, caseId: firstApp.cases[0].case_id })
       if (demo) sessionStorage.setItem(DEMO_SESSION_KEY, '1')
-      else sessionStorage.removeItem(DEMO_SESSION_KEY)
+      else sessionStorage.setItem(DEMO_SESSION_KEY, '0')
     } catch (cause) {
-      sessionStorage.removeItem(DEMO_SESSION_KEY)
+      sessionStorage.setItem(DEMO_SESSION_KEY, '0')
       setError(cause instanceof Error ? cause.message : '连接失败')
     } finally { setPending(false); setRestoring(false) }
   }
 
   function disconnect(message: string | null = null) {
-    sessionStorage.removeItem(DEMO_SESSION_KEY)
+    sessionStorage.setItem(DEMO_SESSION_KEY, '0')
     setClient(null); setCatalog(null); setSelection(null); setError(message)
   }
 

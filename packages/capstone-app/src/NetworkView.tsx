@@ -30,12 +30,15 @@ function taskCamera(view: LegacyNetworkView | NetworkDiagram, buses: PositionedB
   return { x: centerX - width / 2, y: centerY - height / 2, width, height }
 }
 
-function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number): string {
+function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
+                    loadingRange: { min: number; max: number } | null): string {
   if (metric === 'voltage_pu') {
     const deviation = Math.min(1, Math.abs(value - 1) / 0.15)
     return `hsl(${Math.round(178 - deviation * 160)} 65% 39%)`
   }
-  return `hsl(${Math.round(178 - Math.min(1, Math.max(0, value) / 120) * 166)} 68% 40%)`
+  const relative = loadingRange?.max === loadingRange?.min ? 1
+    : loadingRange ? (value - loadingRange.min) / (loadingRange.max - loadingRange.min) : 0
+  return `hsl(${Math.round(178 - Math.min(1, Math.max(0, relative)) * 166)} 68% 40%)`
 }
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
@@ -59,6 +62,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const modelCoordinates = useMemo(() => geometry ? usesModelCoordinates(geometry) : false, [geometry])
   const byId = useMemo(() => new Map(nodes.map((bus) => [bus.id, bus])), [nodes])
   const values = useMemo(() => new Map(layer?.overlay?.values.map((item) => [item.id, item.value]) || []), [layer])
+  const loadingRange = useMemo(() => {
+    if (layer?.overlay?.metric !== 'loading_percent' || !geometry) return null
+    const lineIds = new Set(geometry.branches.filter((branch) => branch.kind === 'line').map((branch) => branch.id))
+    const observed = layer.overlay.values.filter((item) => lineIds.has(item.id)).map((item) => item.value)
+    return observed.length ? { min: Math.min(...observed), max: Math.max(...observed) } : null
+  }, [geometry, layer])
   const focusIds = useMemo(() => layer ? nextTask ? layer.next_focus_ids : layer.focus_ids : [], [layer, nextTask])
   const focusBuses = useMemo(() => new Set(geometry?.branches.filter((branch) =>
     focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [geometry, focusIds])
@@ -160,7 +169,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             const highlighted = focusIds.includes(branch.id)
             const color = value === undefined ? highlighted ? '#187b78' :
               branch.kind === 'link' ? '#718ca0' : '#829c98'
-              : valueColor(layer!.overlay!.metric, value)
+              : valueColor(layer!.overlay!.metric, value, loadingRange)
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
             const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
@@ -189,11 +198,11 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                 x1={bus.x - (highlighted ? 11 : 8)} x2={bus.x + (highlighted ? 11 : 8)}
                 y1={bus.y} y2={bus.y}
                 stroke={value === undefined ? highlighted ? '#0d7771' : '#344c53'
-                  : valueColor(layer!.overlay!.metric, value)}
+                  : valueColor(layer!.overlay!.metric, value, loadingRange)}
                 strokeWidth={highlighted ? 5 : 3.5} strokeLinecap="square" />
                 : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
                   r={highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5}
-                  fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value)}
+                  fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
                   stroke={highlighted ? '#0d7771' : '#344c53'}
                   strokeWidth={highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5} />}
               {(nodes.length <= 25 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
@@ -215,7 +224,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
           <span className="legend-focus" /> 任务定位</div>
         {layer?.overlay ? <div className="network-overlay-note">
           <span className="overlay-gradient" /><strong>{layer!.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {layer!.overlay.unit}</strong>
-          <span>{layer!.overlay.metric === 'loading_percent' ? '色阶 0–120%' : '色阶 接近 1.0 → 偏离 1.0'}</span>
+          <span>{layer!.overlay.metric === 'loading_percent' && loadingRange
+            ? `本轮相对色阶 ${loadingRange.min.toFixed(1)}–${loadingRange.max.toFixed(1)}% · 红色为本轮最高值，不代表越限`
+            : layer!.overlay.metric === 'loading_percent' ? '暂无可比较的线路负载率' : '色阶 接近 1.0 → 偏离 1.0'}</span>
           <span>仅对 {colored} / {denominator} 条有结果的{layer!.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
         </div> : <span className="network-no-overlay">{view ? '当前步骤暂无逐元件数值' : '案例底图 · 尚无运行数值'}</span>}
         {view?.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&

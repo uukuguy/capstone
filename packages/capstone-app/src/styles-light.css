@@ -22,7 +22,6 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .brand-subtitle { color: #59716e; font-size: 13px; }
 .mark i { border-color: #117b73; }
 .mark i:nth-child(1) { background: #117b73; }
-.product-tag { color: #65817e; }
 .text-button { color: #126f69; border-color: #9bc0b8; font-size: 13px; }
 .text-button:hover { color: #064d4b; border-color: #09625c; }
 .eyebrow { color: #387e77; font-size: 11px; }
@@ -80,23 +79,28 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   max-width: 970px; margin-left: auto; margin-right: auto; }
 .intro-breadcrumb { margin-top: 22px; }
 .capstone-intro { margin-top: 12px; }
-.capstone-intro-art { position: relative; overflow: hidden; background: #eef3f1; }
+.capstone-intro-art { position: relative; overflow: hidden; background: #eef3f1;
+  outline: 1px solid #dbe6e1; outline-offset: -1px; }
 .capstone-intro-art img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1;
   object-fit: contain; mix-blend-mode: multiply; }
 .capstone-intro-overlay { position: absolute; inset: 0 auto 0 0; width: 59%; padding: clamp(17px, 2.6vw, 31px);
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: clamp(7px, 1.2vw, 11px);
+  padding-bottom: clamp(42px, 4vw, 52px);
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
   background: linear-gradient(90deg, #eef3f1f2 0%, #eef3f1d1 65%, #eef3f100 100%); }
 .capstone-intro-kicker { color: #376e69; font: 700 10px "SFMono-Regular", Consolas, monospace;
-  letter-spacing: .13em; }
+  letter-spacing: .13em; margin-bottom: 12px; }
 .capstone-intro-overlay strong { color: #173b3c; font-size: clamp(19px, 2vw, 29px);
-  line-height: 1.22; letter-spacing: -.04em; }
-.capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; }
+  line-height: 1.22; letter-spacing: -.04em; margin-bottom: 15px; }
+.capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
 .capstone-intro-frameworks span { padding: 5px 9px; border: 1px solid #bad5ca; border-radius: 3px;
   background: #ffffffd9; color: #275d58; font: 700 11px "SFMono-Regular", Consolas, monospace; }
-.capstone-intro-disciplines { display: grid; gap: 3px; border-left: 2px solid #8cbcb0;
-  padding-left: 9px; color: #637b76; font-size: clamp(9px, .86vw, 11px); }
+.capstone-intro-disciplines { display: grid; gap: 5px; border-left: 2px solid #8cbcb0;
+  padding-left: 11px; color: #637b76; font-size: clamp(10px, .95vw, 12px); line-height: 1.35; }
 .capstone-intro-disciplines span { display: flex; align-items: baseline; gap: 8px; }
 .capstone-intro-disciplines b { color: #356b63; font-weight: 700; min-width: 4.9em; }
+.capstone-intro-principles { position: absolute; bottom: 14px; left: clamp(17px, 2.6vw, 31px);
+  color: #527f78; font: 700 9px "SFMono-Regular", Consolas, monospace;
+  letter-spacing: .12em; pointer-events: none; }
 .capstone-intro > p { margin: 0; padding: 16px 2px 0; border-top: 1px solid #d4e2db; color: #4e6668;
   font-size: 13px; line-height: 1.7; }
 .run-breadcrumb { color: #6c8383; font-size: 11px; }
@@ -243,11 +247,13 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .app-shell { zoom: 1; }
   .intro-breadcrumb, .capstone-intro { width: calc(100% - 34px); }
   .capstone-intro-art img { height: 210px; aspect-ratio: auto; object-fit: cover; object-position: 58% center; }
-  .capstone-intro-overlay { width: 77%; padding: 16px; gap: 8px; }
-  .capstone-intro-kicker { font-size: 8px; }
-  .capstone-intro-overlay strong { font-size: 17px; }
+  .capstone-intro-overlay { width: 77%; padding: 15px 16px 27px; }
+  .capstone-intro-kicker { font-size: 8px; margin-bottom: 7px; }
+  .capstone-intro-overlay strong { font-size: 17px; margin-bottom: 8px; }
+  .capstone-intro-frameworks { margin-bottom: 9px; }
   .capstone-intro-frameworks span { font-size: 9px; padding: 4px 6px; }
-  .capstone-intro-disciplines { font-size: 10px; }
+  .capstone-intro-disciplines { font-size: 10px; gap: 2px; padding-left: 8px; }
+  .capstone-intro-principles { font-size: 8px; left: 16px; bottom: 7px; }
   .capstone-intro > p { padding: 15px 17px 17px; font-size: 13px; }
   .run-panel { padding-left: 17px; padding-right: 17px; }
   .network-head { padding: 18px 17px 12px; }

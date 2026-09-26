@@ -44,6 +44,20 @@ describe('operator network canvas', () => {
     expect(screen.getByText(/Shift \+ 滚轮缩放/)).toBeTruthy()
   })
 
+  it('colors the highest returned line loading red and labels the observed range', () => {
+    const view = { ...sampleView, focus_ids: [], overlay: {
+      metric: 'loading_percent' as const, unit: '%' as const, source_ref: 'result:current',
+      values: [{ id: 'line:11', value: 42 }, { id: 'line:12', value: 73 }],
+    } }
+    render(<NetworkView view={view} modelName="IEEE-39" focusKey="turn-2" />)
+    const lines = [...document.querySelectorAll('svg g')].filter((group) =>
+      group.querySelector('title')?.textContent?.startsWith('Line '))
+    const high = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('Line 12'))
+      ?.querySelectorAll('line')[1]?.getAttribute('stroke')
+    expect(high).toMatch(/^hsl\((?:[0-2]?\d) /)
+    expect(screen.getByText(/本轮相对色阶 42\.0–73\.0%/)).toBeTruthy()
+  })
+
   it('keeps a clear pending state before a current-run model opens', () => {
     render(<NetworkView view={null} modelName="IEEE-39" focusKey="pending" />)
     expect(screen.getByText('正在读取案例电网…')).toBeTruthy()

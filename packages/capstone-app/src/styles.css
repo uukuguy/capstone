@@ -54,12 +54,11 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .brand-divider { height: 19px; width: 1px; background: #395056; margin: 0 5px; }
 .brand-subtitle { font-size: 12px; letter-spacing: .08em; color: #aabcb9; white-space: nowrap; }
 .topbar-right { gap: 30px; }
-.product-tag, .eyebrow, .count-pill, .timeline-count, .app-index, .case-card-footer,
+.eyebrow, .count-pill, .timeline-count, .app-index, .case-card-footer,
 .reference-title, .detail-label, .progress-caption, .run-id, .evidence-ref, .access-note,
 .catalog-footnote, .breadcrumb-separator, .run-breadcrumb, .detail-footer {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
-.product-tag { color: #6f9b99; letter-spacing: .14em; font-size: 10px; white-space: nowrap; }
 .text-button { background: transparent; border: 0; color: #bfd0c9; font-size: 12px;
   border-bottom: 1px solid #738f88; padding: 7px 0; }
 .text-button:hover { color: white; border-color: var(--accent); }
@@ -201,8 +200,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 .completion-message > div, .failure-message { display: grid; gap: 5px; }
 .completion-message small { color: #91aaa3; font-size: 10px; }
 
-.detail-panel { border-left: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column;
-  height: calc(100vh - 69px); position: sticky; top: 0; overflow: hidden; }
+.detail-panel { border-left: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
 .detail-panel > .section-heading { padding: 31px 22px 22px; }
 .status-led { width: 8px; height: 8px; border-radius: 50%; background: #617d7b; }
 .status-led.ready, .status-led.completed { background: var(--accent); box-shadow: 0 0 0 4px #407f7040; }
@@ -214,7 +212,7 @@ button.reference-chip:hover { background: #235043; color: white; }
   color: #8ea6a3; padding: 12px 3px 13px; font-size: 11px; }
 .detail-tabs button:hover { color: #e2eee5; }
 .detail-tabs button[aria-selected="true"] { border-color: var(--accent); color: #d5f1e3; font-weight: 700; }
-.detail-body { padding: 24px 21px; overflow: auto; flex: 1; scrollbar-color: #355451 transparent; }
+.detail-body { padding: 24px 21px; flex: 1; }
 .detail-label { color: #7fa7a1; font-size: 10px; letter-spacing: .08em; }
 .status-card { padding: 19px; border: 1px solid #32504e; background: #12272a; display: grid; }
 .status-card strong { margin-top: 11px; font-size: 21px; letter-spacing: -.04em; font-weight: 650; }
@@ -271,7 +269,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 @media (max-width: 680px) {
   .topbar { padding: 0 17px; min-height: 62px; }
   .brand-name { font-size: 12px; }
-  .brand-subtitle, .brand-divider, .product-tag { display: none; }
+  .brand-subtitle, .brand-divider { display: none; }
   .access-shell { min-height: calc(100vh - 62px); display: flex; padding: 24px; }
   .access-card { width: 100%; padding: 30px 26px; }
   .access-aside { display: none; }
