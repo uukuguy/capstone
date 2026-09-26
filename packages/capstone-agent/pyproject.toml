@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
   "capability-agent-kernel==0.1.0",
   "fastapi>=0.139,<1",
+  "psycopg[binary]>=3.2,<4",
   "uvicorn>=0.51,<1",
 ]
 

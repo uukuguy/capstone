@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta, timezone
+
+import psycopg
+import pytest
+
+from capstone_agent.ledger import Conflict, Ledger
+from capstone_agent.protocol import Frame
+
+
+@pytest.fixture
+def ledger() -> Ledger:
+    dsn = os.environ.get("CAPSTONE_TEST_DATABASE_URL")
+    if not dsn:
+        pytest.skip("CAPSTONE_TEST_DATABASE_URL is required")
+    store = Ledger(dsn)
+    store.initialize()
+    with psycopg.connect(dsn) as connection:
+        connection.execute("TRUNCATE session_events, session_commands, sessions CASCADE")
+    return store
+
+
+def test_session_turn_idempotency_and_cross_connection_reads(ledger: Ledger) -> None:
+    session = ledger.create_session("fixture-app", "scripted-demo", "fixture-case", None, None)
+    assert session.session_id.startswith("session-")
+    assert session.state == "pending"
+    assert Ledger(ledger.dsn).get_session(session.session_id) == session
+
+    lease = ledger.claim_pending("worker-one", 30)
+    assert lease is not None and lease.session_id == session.session_id
+    assert ledger.claim_pending("worker-two", 30) is None
+    ledger.append_event(session.session_id, lease.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-test"}))
+    first = ledger.accept_turn(session.session_id, "first instruction", "retry-key-1")
+    assert first.ordinal == 1 and first.state == "pending"
+    assert ledger.accept_turn(session.session_id, "first instruction", "retry-key-1") == first
+    with pytest.raises(Conflict):
+        ledger.accept_turn(session.session_id, "changed instruction", "retry-key-1")
+    with pytest.raises(Conflict):
+        ledger.accept_turn(session.session_id, "overlap", "retry-key-2")
+
+    frame = Frame(session.session_id, 2, "answer_committed", {
+        "ordinal": 1, "turn_id": "run-test-t001", "answer_output": "done",
+        "answer_ref": "answer:one", "result_refs": [], "evidence_refs": [],
+    })
+    ledger.append_event(session.session_id, lease.lease_token, frame)
+    assert [(event.sequence, event.kind) for event in
+            Ledger(ledger.dsn).events_after(session.session_id, 1)] == [(2, "answer_committed")]
+    assert ledger.accept_turn(session.session_id, "second instruction", "retry-key-2").ordinal == 2
+
+
+def test_stale_lease_interrupts_without_discarding_committed_events(ledger: Ledger) -> None:
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    lease = ledger.claim_pending("worker-one", 30)
+    assert lease is not None
+    ledger.append_event(session.session_id, lease.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-stale"}))
+    future = datetime.now(timezone.utc) + timedelta(seconds=31)
+    assert ledger.mark_interrupted_stale(now=future) == 1
+    assert ledger.get_session(session.session_id).state == "interrupted"
+    assert ledger.events_after(session.session_id, 0)[0].kind == "ready"
+    with pytest.raises(Conflict):
+        ledger.accept_turn(session.session_id, "late turn", "late-key")
