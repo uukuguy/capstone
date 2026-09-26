@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -114,6 +115,7 @@ EXECUTABLE_CAPABILITIES = frozenset(
         "model.dataset.list",
         "model.dataset.describe",
         "model.dataset.query",
+        "operator.diagram.get",
         "topology.branch.endpoints.get",
         "topology.components.get",
         "evidence.get",
@@ -194,6 +196,8 @@ def _dispatch(
         return _model_dataset_describe(workspace, services.engine, request.arguments)
     if request.capability == "model.dataset.query":
         return _model_dataset_query(workspace, services.engine, request.arguments)
+    if request.capability == "operator.diagram.get":
+        return _operator_diagram_get(workspace, services.engine, request.arguments)
     if request.capability == "topology.branch.endpoints.get":
         return _topology_branch_endpoints_get(workspace, services.engine, request.arguments)
     if request.capability == "topology.components.get":
@@ -235,9 +239,75 @@ def _environment_describe(registry: CapabilityRegistry) -> dict[str, Any]:
                 "context_effect": contract.context_effect.model_dump(mode="json"),
             }
             for contract in registry.list()
-            if contract.id in EXECUTABLE_CAPABILITIES
+            if contract.id in EXECUTABLE_CAPABILITIES and contract.availability == "published"
         ],
         "capability_families": [family.model_dump(mode="json") for family in CAPABILITY_FAMILIES],
+    }
+
+
+def _operator_diagram_get(
+    workspace: SimulatorWorkspace, engine: Pandapower340Engine, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
+    branch_count = len(net.line) + len(net.trafo) + 2 * len(net.trafo3w)
+    if len(net.bus) > 2_000 or branch_count > 4_000:
+        raise _failure("diagram_too_large", "operator diagram exceeds component bounds", phase="validate")
+
+    def finite(value: object) -> float | None:
+        if type(value) not in (int, float):
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+
+    def point(value: object) -> tuple[float | None, float | None]:
+        if not isinstance(value, str):
+            return None, None
+        try:
+            geo = json.loads(value)
+        except (TypeError, ValueError):
+            return None, None
+        if not isinstance(geo, dict) or geo.get("type") != "Point":
+            return None, None
+        coords = geo.get("coordinates")
+        if not isinstance(coords, list) or len(coords) != 2:
+            return None, None
+        return finite(coords[0]), finite(coords[1])
+
+    buses = []
+    for index, row in net.bus.sort_index().iterrows():
+        x, y = point(row.get("geo"))
+        name = row.get("name")
+        buses.append({
+            "id": str(index), "label": str(name) if isinstance(name, str) and name else f"Bus {index}",
+            "x": x, "y": y, "vn_kv": finite(row.get("vn_kv")),
+        })
+    bus_ids = {bus["id"] for bus in buses}
+    branches = []
+    for kind, table, ends in (
+        ("line", net.line, ("from_bus", "to_bus")),
+        ("trafo", net.trafo, ("hv_bus", "lv_bus")),
+    ):
+        for index, row in table.sort_index().iterrows():
+            name = row.get("name")
+            branches.append({
+                "id": f"{kind}:{index}", "kind": kind,
+                "label": str(name) if isinstance(name, str) and name else f"{kind} {index}",
+                "from_bus": str(row[ends[0]]), "to_bus": str(row[ends[1]]),
+            })
+    for index, row in net.trafo3w.sort_index().iterrows():
+        name = row.get("name")
+        for terminal in ("mv", "lv"):
+            branches.append({
+                "id": f"trafo3w:{index}:{terminal}", "kind": "trafo3w",
+                "label": (str(name) if isinstance(name, str) and name else f"trafo3w {index}") + f" {terminal}",
+                "from_bus": str(row["hv_bus"]), "to_bus": str(row[f"{terminal}_bus"]),
+            })
+    if any(branch["from_bus"] not in bus_ids or branch["to_bus"] not in bus_ids
+           for branch in branches):
+        raise _failure("diagram_invalid", "operator diagram has an unknown endpoint", phase="validate")
+    return {
+        "context_ref": context.context_ref, "revision_ref": context.revision_ref,
+        "coordinate_system": "schematic", "buses": buses, "branches": branches,
     }
 
 

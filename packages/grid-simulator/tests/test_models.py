@@ -84,3 +84,17 @@ def test_registry_rejects_arbitrary_model_ids_without_callable_resolution() -> N
 
     with pytest.raises(ModelNotFoundError):
         registry.open("pp_elements")
+
+
+def test_operator_diagram_uses_complete_ieee39_schematic_from_gridctl(grid, context_ref) -> None:
+    diagram = grid.call("operator.diagram.get", {"context_ref": context_ref})
+    described = grid.call("environment.describe", {})
+
+    assert len(diagram["buses"]) == 39
+    assert len(diagram["branches"]) == 35 + 11
+    assert diagram["coordinate_system"] == "schematic"
+    assert all(bus["x"] is not None and bus["y"] is not None for bus in diagram["buses"])
+    assert {branch["kind"] for branch in diagram["branches"]} == {"line", "trafo"}
+    assert "operator.diagram.get" not in {
+        item["id"] for item in described["executable_capabilities"]
+    }

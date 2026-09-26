@@ -1,0 +1,64 @@
+{
+  "id": "operator.diagram.get",
+  "version": "1.0",
+  "package": "grid_simulator",
+  "tool_name": "grid_operator_diagram_get",
+  "availability": "not_published",
+  "title": "Read an operator diagram",
+  "purpose": "Project complete registered model geometry for the trusted operator App.",
+  "applies_to": ["operator diagram"],
+  "not_for": ["model-facing tools", "simulation", "network mutation"],
+  "terms": {"zh": ["操作员电网图"], "en": ["operator diagram"]},
+  "input_schema": {
+    "type": "object", "additionalProperties": false, "required": ["context_ref"],
+    "properties": {"context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"}}
+  },
+  "output_schema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["context_ref", "revision_ref", "coordinate_system", "buses", "branches"],
+    "properties": {
+      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
+      "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
+      "coordinate_system": {"const": "schematic"},
+      "buses": {"type": "array", "minItems": 1, "maxItems": 2000,
+        "items": {"type": "object", "additionalProperties": false,
+          "required": ["id", "label", "x", "y", "vn_kv"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "label": {"type": "string", "minLength": 1},
+            "x": {"type": ["number", "null"]},
+            "y": {"type": ["number", "null"]},
+            "vn_kv": {"type": ["number", "null"], "minimum": 0}
+          }}},
+      "branches": {"type": "array", "maxItems": 4000,
+        "items": {"type": "object", "additionalProperties": false,
+          "required": ["id", "label", "kind", "from_bus", "to_bus"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "label": {"type": "string", "minLength": 1},
+            "kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"]},
+            "from_bus": {"type": "string", "minLength": 1},
+            "to_bus": {"type": "string", "minLength": 1}
+          }}}
+    }
+  },
+  "requires": ["context.open"],
+  "consumes": ["network.context"],
+  "produces": ["operator.diagram"],
+  "common_next": [],
+  "errors": ["unknown_context", "diagram_too_large", "diagram_invalid"],
+  "recovery": {
+    "unknown_context": ["open a registered model"],
+    "diagram_too_large": ["report diagram unavailable"],
+    "diagram_invalid": ["report diagram unavailable"]
+  },
+  "context_effect": {
+    "requires_state": ["model.active"], "consumes_state": ["model.active"],
+    "produces_state": [], "invalidates_state": [], "result_kind": null,
+    "projector": "model-observation-v1"
+  },
+  "state_effect": "none",
+  "evidence_required": false,
+  "risk": "read_only_model",
+  "pandapower": {"version": "3.4.0", "operation": "read registered context geometry only", "limitations": ["not exposed as an LLM tool"]}
+}

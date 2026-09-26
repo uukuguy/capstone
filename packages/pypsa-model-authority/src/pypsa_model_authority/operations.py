@@ -208,6 +208,42 @@ def execute(
             "coordinate_status": coordinate_status,
             "snapshot_count": len(network.snapshots),
         })
+    if capability == "operator.diagram":
+        _exact_keys(arguments, {"model_ref"})
+        model_ref = _text(arguments, "model_ref")
+        try:
+            network = store.load_network(model_ref)
+        except (ModelStoreError, ValueError, KeyError, TypeError) as exc:
+            raise ModelCapabilityError("invalid_model_ref", "model reference failed integrity verification") from exc
+        if len(network.buses) > 2_000 or sum(len(table) for table in (
+            network.lines, network.links, network.transformers,
+        )) > 4_000:
+            raise ModelCapabilityError("diagram_too_large", "operator diagram exceeds component bounds")
+        buses = [{
+            "id": str(name), "label": str(name),
+            "x": _optional_finite(row.x), "y": _optional_finite(row.y),
+            "vn_kv": _optional_finite(row.v_nom),
+        } for name, row in network.buses.sort_index().iterrows()]
+        branches = [{
+            "id": f"{kind}:{name}", "label": str(name), "kind": kind,
+            "from_bus": str(row.bus0), "to_bus": str(row.bus1),
+        } for kind, table in (
+            ("line", network.lines), ("link", network.links),
+            ("transformer", network.transformers),
+        ) for name, row in table.sort_index().iterrows()]
+        bus_ids = {bus["id"] for bus in buses}
+        if any(branch["from_bus"] not in bus_ids or branch["to_bus"] not in bus_ids
+               for branch in branches):
+            raise ModelCapabilityError("invalid_model", "operator diagram has an unknown endpoint")
+        coordinates = all(bus["x"] is not None and bus["y"] is not None for bus in buses)
+        geographic = coordinates and getattr(network, "srid", None) == 4326 and all(
+            -180 <= bus["x"] <= 180 and -90 <= bus["y"] <= 90 for bus in buses
+        )
+        return {
+            "model_ref": model_ref,
+            "coordinate_system": "geographic" if geographic else "schematic",
+            "buses": buses, "branches": branches,
+        }
     if capability == "model.validate":
         _exact_keys(arguments, {"model_ref"})
         model_ref = _text(arguments, "model_ref")
