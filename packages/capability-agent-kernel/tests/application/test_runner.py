@@ -1189,6 +1189,67 @@ def test_runner_processes_questions_in_order_and_preserves_two_output_layers(
     ]
 
 
+def test_runner_accepts_next_instruction_after_first_answer_commits(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    observed: list[dict[str, object]] = []
+    transport = FakeTransport(events)
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(
+            application_id="fixture-app", version="1.0.0",
+            result_schema="capability-agent-output/1.0",
+        ),
+        domains=(binding,),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+        application_policy=SimpleNamespace(load=lambda: ""),
+        acceptance_profile=SimpleNamespace(),
+    )
+    application = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(profile=profile, bindings={"alpha": binding}),
+        workspace_root=tmp_path,
+        provider_catalog=SimpleNamespace(load=lambda: object()),
+        catalog=object(),
+        provider_factory=lambda **_: transport,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={},
+        ),
+        semantic_event_observer=lambda event: observed.append(dict(event)),
+    )
+
+    def instructions():
+        yield "q1"
+        assert any(event.get("type") == "application_turn_completed" for event in observed)
+        assert events.count("provider.start") == 1
+        assert "provider.stop" not in events
+        yield "q2"
+
+    outcome = application.run_stream(
+        ApplicationRequest(application_id="fixture-app", questions=()),
+        instructions(),
+    )
+
+    assert outcome.status == "completed"
+    assert outcome.total_questions == 2
+    assert events.count("provider.start") == events.count("provider.stop") == 1
+    assert [event["ordinal"] for event in observed
+            if event.get("type") == "application_turn_completed"] == [1, 2]
+    answers = [event for event in observed if event.get("type") == "application_turn_completed"]
+    assert answers[0]["answer_ref"] == "answer:turn-1"
+    assert answers[0]["turn_id"] == "turn-1"
+    assert answers[0]["result_refs"] == []
+    assert answers[0]["evidence_refs"] == []
+    assert application._diagnostic_workspace is not None
+    replayed = ApplicationContextStore.replay(
+        application._diagnostic_workspace.context_events_path
+    )
+    assert list(replayed.core.input["questions"]) == ["q1", "q2"]
+
+
 def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Path) -> None:
     events: list[str] = []
     transport = FakeTransport(events)

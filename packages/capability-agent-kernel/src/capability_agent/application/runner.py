@@ -9,8 +9,8 @@ import json
 import os
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any, Literal, TypeGuard, cast
@@ -22,7 +22,7 @@ from capability_agent.application.composition import (
 )
 from capability_agent.application._report_files import write_report_atomically
 from capability_agent.application.context_store import ApplicationContextStore
-from capability_agent.application.context_models import PORTABLE_ID_PATTERN
+from capability_agent.application.context_models import ContextEventDraft, PORTABLE_ID_PATTERN
 from capability_agent.application.errors import (
     ApplicationConfigurationError,
     CapabilityAgentError,
@@ -516,6 +516,22 @@ class AgentApplication:
             )
 
     def run(self, request: ApplicationRequest) -> ApplicationOutcome:
+        return self._run(request, request.questions, streaming=False)
+
+    def run_stream(
+        self, request: ApplicationRequest, instructions: Iterable[str]
+    ) -> ApplicationOutcome:
+        """Consume instructions as they arrive in one prepared application run."""
+
+        if request.questions:
+            raise ValueError("streaming request must start without questions")
+        if isinstance(instructions, str):
+            raise ValueError("instructions must be an ordered source")
+        return self._run(request, instructions, streaming=True)
+
+    def _run(
+        self, request: ApplicationRequest, instructions: Iterable[str], *, streaming: bool
+    ) -> ApplicationOutcome:
         self._validate_request(request)
         self._diagnostic_workspace = None
         self._diagnostic_run_id = "run"
@@ -568,7 +584,18 @@ class AgentApplication:
                 capture_status = _capture_status_for_channels(capture_channels)
             transport_ready = True
             transport.start()
-            for ordinal, question in enumerate(request.questions, start=1):
+            for ordinal, question in enumerate(instructions, start=1):
+                if streaming:
+                    if not isinstance(question, str) or not question.strip():
+                        raise ApplicationConfigurationError("instruction must be non-empty text")
+                    if store is not None:
+                        store.append(ContextEventDraft(
+                            event_type="application.instruction.accepted",
+                            payload={"ordinal": ordinal, "instruction": question},
+                        ))
+                    request = replace(
+                        request, questions=(*request.questions, question)
+                    )
                 handle = controller.start(ordinal, question)
                 active_turn = handle
                 turn_started = time.monotonic()
@@ -660,6 +687,10 @@ class AgentApplication:
                         "ordinal": ordinal,
                         "total_questions": len(request.questions),
                         "answer_output": finalized.answer_output,
+                        "turn_id": finalized.turn_id,
+                        "answer_ref": finalized.answer_ref,
+                        "result_refs": list(finalized.result_refs),
+                        "evidence_refs": list(finalized.evidence_refs),
                     }
                 )
             preliminary_core = self._build_core_result(

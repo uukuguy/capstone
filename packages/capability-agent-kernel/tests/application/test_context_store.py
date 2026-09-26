@@ -57,6 +57,27 @@ def test_initialize_append_replay_and_materialized_snapshot(
     assert json.loads(lines[-1])["next_state_hash"] == store.snapshot.state_hash
 
 
+def test_streamed_instruction_is_durable_and_ordered(
+    workspace: ApplicationWorkspace,
+) -> None:
+    store = ApplicationContextStore.initialize(
+        workspace,
+        core={"input": {"application_id": "fixture", "questions": []}},
+    )
+    store.append(ContextEventDraft(
+        event_type="application.instruction.accepted",
+        payload={"ordinal": 1, "instruction": "first"},
+    ))
+
+    assert list(store.snapshot.core.input["questions"]) == ["first"]
+    assert ApplicationContextStore.replay(workspace.context_events_path) == store.snapshot
+    with pytest.raises(ContextStoreError, match="instruction ordinal"):
+        store.append(ContextEventDraft(
+            event_type="application.instruction.accepted",
+            payload={"ordinal": 1, "instruction": "duplicate"},
+        ))
+
+
 def test_append_rejects_transition_without_changing_snapshot(
     workspace: ApplicationWorkspace,
 ) -> None:

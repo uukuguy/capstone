@@ -228,6 +228,7 @@ EventType: TypeAlias = Literal[
     "application.started",
     "application.completed",
     "application.failed",
+    "application.instruction.accepted",
     "turn.started",
     "turn.completed",
     "turn.failed",

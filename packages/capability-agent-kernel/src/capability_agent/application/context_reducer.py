@@ -29,6 +29,7 @@ _KNOWN_EVENT_TYPES = frozenset(
         "application.started",
         "application.completed",
         "application.failed",
+        "application.instruction.accepted",
         "turn.started",
         "turn.completed",
         "turn.failed",
@@ -132,6 +133,8 @@ def _apply_event(
         return context.core, context.domains, "completed"
     if event_type in {"analysis.failed", "application.failed"}:
         return _append_diagnostic(context.core, event_type, payload), context.domains, "failed"
+    if event_type == "application.instruction.accepted":
+        return _accept_instruction(context.core, payload), context.domains, context.status
     if event_type == "domain.state.projected":
         return _project_domain_state(context, draft, payload)
     if event_type in {"diagnostic.recorded", "audit.diagnostic.recorded", "tool.failed"}:
@@ -342,6 +345,32 @@ def _apply_turn_event(
         return CoreContext.model_validate(values)
     except ValidationError:
         raise ContextTransitionError("turn lifecycle record is invalid") from None
+
+
+def _accept_instruction(
+    core: CoreContext, payload: Mapping[str, Any]
+) -> CoreContext:
+    if set(payload) != {"ordinal", "instruction"} or core.active_turn is not None:
+        raise ContextTransitionError("instruction acceptance is invalid")
+    instruction = payload["instruction"]
+    existing = core.input.get("questions")
+    if not isinstance(existing, (list, tuple)) or not all(
+        isinstance(question, str) for question in existing
+    ):
+        raise ContextTransitionError("application input questions are invalid")
+    if (
+        type(payload["ordinal"]) is not int
+        or payload["ordinal"] != len(existing) + 1
+    ):
+        raise ContextTransitionError("instruction ordinal is out of order")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise ContextTransitionError("instruction must be non-empty text")
+    values = core.model_dump(mode="python")
+    values["input"] = {**core.input, "questions": [*existing, instruction]}
+    try:
+        return CoreContext.model_validate(values)
+    except ValidationError:
+        raise ContextTransitionError("accepted instruction is invalid") from None
 
 
 def _append_core_record(
