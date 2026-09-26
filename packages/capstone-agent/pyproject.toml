@@ -7,8 +7,10 @@ name = "capstone-agent"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+  "boto3>=1.40,<2",
   "capability-agent-kernel==0.1.0",
   "fastapi>=0.139,<1",
+  "google-cloud-storage>=3.14,<4",
   "psycopg[binary]>=3.2,<4",
   "uvicorn>=0.51,<1",
 ]

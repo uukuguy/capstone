@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
@@ -32,6 +33,7 @@ def create_host_app(
     ledger: Ledger, registry: WorkerRegistry, *, operator_token: str,
     allowed_hosts: set[str], allowed_origins: set[str],
     repo_root: Path | None = None,
+    artifacts: ArtifactService | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -143,6 +145,33 @@ def create_host_app(
             if event.kind == "completed":
                 return event.payload["result"]
         raise HTTPException(409, "session has no final result")
+
+    @app.get("/api/v1/sessions/{session_id}/report")
+    def get_report(session_id: str):
+        get_session(session_id)
+        if artifacts is None:
+            raise HTTPException(404, "report not found")
+        try:
+            report = artifacts.read_report(session_id)
+        except (OSError, ValueError, KeyError):
+            raise HTTPException(502, "report is unavailable") from None
+        if report is None:
+            raise HTTPException(404, "report not found")
+        return Response(report, media_type="text/markdown; charset=utf-8")
+
+    @app.get("/api/v1/sessions/{session_id}/evidence")
+    def get_evidence(session_id: str,
+                     ref: Annotated[str, Query(min_length=1, max_length=2048)]):
+        get_session(session_id)
+        if artifacts is None:
+            raise HTTPException(404, "evidence reference not found")
+        try:
+            value = artifacts.read_evidence(session_id, ref)
+        except (OSError, ValueError, KeyError):
+            raise HTTPException(502, "evidence is unavailable") from None
+        if value is None:
+            raise HTTPException(404, "evidence reference not found")
+        return value
 
     @app.get("/api/v1/sessions/{session_id}/events")
     async def stream_events(session_id: str, after: Annotated[int, Query(ge=0)] = 0):

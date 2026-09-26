@@ -53,6 +53,18 @@ class EventRecord:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class ArtifactRecord:
+    session_id: str
+    run_id: str
+    kind: str
+    ref: str | None
+    object_key: str
+    sha256: str
+    mime: str
+    byte_count: int
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id text PRIMARY KEY,
@@ -93,6 +105,22 @@ CREATE TABLE IF NOT EXISTS session_events (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(session_id, sequence)
 );
+CREATE TABLE IF NOT EXISTS session_artifacts (
+    artifact_id text PRIMARY KEY,
+    session_id text NOT NULL REFERENCES sessions(session_id),
+    run_id text NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('report', 'evidence')),
+    ref text,
+    object_key text NOT NULL UNIQUE,
+    sha256 text NOT NULL,
+    mime text NOT NULL,
+    byte_count integer NOT NULL CHECK (byte_count >= 0),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS session_artifacts_ref_idx
+    ON session_artifacts(session_id, kind, ref) WHERE ref IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS session_artifacts_report_idx
+    ON session_artifacts(session_id, kind) WHERE kind = 'report';
 CREATE INDEX IF NOT EXISTS session_commands_pending_idx
     ON session_commands(session_id, created_at) WHERE state = 'pending';
 """
@@ -344,3 +372,44 @@ class Ledger:
                 (session_id, sequence),
             ).fetchall()
         return [EventRecord(**row) for row in rows]
+
+    def save_artifact(self, artifact: ArtifactRecord) -> None:
+        with self._connect() as connection:
+            session = connection.execute(
+                "SELECT run_id FROM sessions WHERE session_id = %s FOR UPDATE",
+                (artifact.session_id,),
+            ).fetchone()
+            if session is None or session["run_id"] != artifact.run_id:
+                raise Conflict("artifact does not belong to current run")
+            if artifact.kind == "evidence":
+                if not artifact.ref:
+                    raise ValueError("evidence reference is invalid")
+                admitted = connection.execute(
+                    """SELECT 1 FROM session_events WHERE session_id = %s
+                       AND kind = 'answer_committed' AND payload->'evidence_refs' ? %s LIMIT 1""",
+                    (artifact.session_id, artifact.ref),
+                ).fetchone()
+                if admitted is None:
+                    raise ValueError("evidence reference was not admitted")
+            elif artifact.kind != "report" or artifact.ref is not None:
+                raise ValueError("artifact kind or reference is invalid")
+            connection.execute(
+                """INSERT INTO session_artifacts
+                   (artifact_id, session_id, run_id, kind, ref, object_key,
+                    sha256, mime, byte_count)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                ("artifact-" + secrets.token_hex(12), artifact.session_id,
+                 artifact.run_id, artifact.kind, artifact.ref, artifact.object_key,
+                 artifact.sha256, artifact.mime, artifact.byte_count),
+            )
+
+    def get_artifact(self, session_id: str, kind: str,
+                     ref: str | None) -> ArtifactRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT session_id, run_id, kind, ref, object_key, sha256, mime,
+                   byte_count FROM session_artifacts WHERE session_id = %s
+                   AND kind = %s AND ref IS NOT DISTINCT FROM %s""",
+                (session_id, kind, ref),
+            ).fetchone()
+        return ArtifactRecord(**row) if row is not None else None

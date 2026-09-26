@@ -9,6 +9,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
+from capstone_agent.artifacts import ArtifactService, MemoryObjectStore
 from capstone_agent.host_api import create_host_app
 from capstone_agent.host_worker import run_claimed_session
 from capstone_agent.ledger import Ledger
@@ -29,17 +30,21 @@ def ledger() -> Ledger:
     return store
 
 
-def _app(ledger: Ledger, registry: WorkerRegistry):
+def _app(ledger: Ledger, registry: WorkerRegistry,
+         artifacts: ArtifactService | None = None):
     return create_host_app(
         ledger, registry, operator_token="hosted-secret",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        artifacts=artifacts,
     )
 
 
 def test_host_api_reads_completed_run_across_instances(ledger: Ledger, tmp_path: Path) -> None:
     registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    objects = MemoryObjectStore()
+    artifacts = ArtifactService(ledger, objects, tmp_path / "runs")
     auth = {"Authorization": "Bearer hosted-secret", "Origin": "http://localhost:5173"}
-    with TestClient(_app(ledger, registry), base_url="http://localhost") as first:
+    with TestClient(_app(ledger, registry, artifacts), base_url="http://localhost") as first:
         created = first.post("/api/v1/sessions", headers=auth,
                              json={"application_id": "fixture-app", "mode": "scripted-demo"})
         assert created.status_code == 201
@@ -48,7 +53,7 @@ def test_host_api_reads_completed_run_across_instances(ledger: Ledger, tmp_path:
         claim = ledger.claim_pending("worker-test", 30)
         assert claim is not None
         thread = threading.Thread(target=run_claimed_session, args=(ledger, registry, claim),
-                                  kwargs={"poll_seconds": 0.01}, daemon=True)
+                                  kwargs={"poll_seconds": 0.01, "artifacts": artifacts}, daemon=True)
         thread.start()
         for _ in range(100):
             if first.get(f"/api/v1/sessions/{session_id}", headers=auth).json()["state"] == "ready":
@@ -70,7 +75,9 @@ def test_host_api_reads_completed_run_across_instances(ledger: Ledger, tmp_path:
         }).status_code == 202
         thread.join(timeout=5)
 
-    with TestClient(_app(Ledger(ledger.dsn), registry), base_url="http://localhost") as second:
+    fresh_ledger = Ledger(ledger.dsn)
+    fresh_artifacts = ArtifactService(fresh_ledger, objects, tmp_path / "runs")
+    with TestClient(_app(fresh_ledger, registry, fresh_artifacts), base_url="http://localhost") as second:
         status = second.get(f"/api/v1/sessions/{session_id}", headers=auth).json()
         assert status["state"] == "completed"
         assert status["completed_turns"] == 1
@@ -81,6 +88,15 @@ def test_host_api_reads_completed_run_across_instances(ledger: Ledger, tmp_path:
         assert "event: answer_committed" in stream.text
         assert "event: completed" in stream.text
         assert "event: ready" not in stream.text
+        assert second.get(f"/api/v1/sessions/{session_id}/report", headers=auth).text == (
+            "# Run report\n"
+        )
+        assert second.get(f"/api/v1/sessions/{session_id}/evidence", headers=auth,
+                          params={"ref": "evidence:current"}).json() == {
+                              "ref": "evidence:current"
+                          }
+        assert second.get(f"/api/v1/sessions/{session_id}/evidence", headers=auth,
+                          params={"ref": "evidence:foreign"}).status_code == 404
 
 
 def test_host_api_requires_token_and_explicit_origin(ledger: Ledger, tmp_path: Path) -> None:

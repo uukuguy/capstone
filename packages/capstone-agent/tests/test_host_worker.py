@@ -9,6 +9,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
+from capstone_agent.artifacts import ArtifactService, MemoryObjectStore
 from capstone_agent.host_worker import run_claimed_session
 from capstone_agent.ledger import Ledger
 from capstone_agent.session import WorkerRegistry, WorkerSpec
@@ -31,6 +32,7 @@ def _worker(tmp_path: Path) -> tuple[str, ...]:
     script.write_text('''
 import json
 import sys
+from pathlib import Path
 session = None
 sequence = 0
 turns = []
@@ -48,9 +50,16 @@ for line in sys.stdin:
         turns.append(frame["payload"]["instruction"])
         send("answer_committed", {"ordinal": len(turns), "turn_id": f"turn-{len(turns)}",
              "answer_output": turns[-1].upper(), "answer_ref": f"answer:{len(turns)}",
-             "result_refs": [], "evidence_refs": []})
+             "result_refs": [], "evidence_refs": ["evidence:current"]})
     elif frame["kind"] == "close":
-        send("completed", {"run_id": "run-worker-test", "result": {"turns": turns}})
+        report = Path(__file__).parent / "runs" / "run-worker-test" / "output" / "report.md"
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text("# Run report\\n", encoding="utf-8")
+        send("completed", {"run_id": "run-worker-test", "result": {"turns": turns},
+             "report_path": str(report)})
+    elif frame["kind"] == "evidence":
+        ref = frame["payload"]["ref"]
+        send("evidence_result", {"ref": ref, "value": {"ref": ref}})
 ''', encoding="utf-8")
     return (sys.executable, "-u", str(script))
 
@@ -70,8 +79,9 @@ def test_worker_runs_sequential_commands_for_cross_connection_reader(
     record = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
     claim = ledger.claim_pending("worker-test", 30)
     assert claim is not None
+    artifacts = ArtifactService(ledger, MemoryObjectStore(), tmp_path / "runs")
     thread = threading.Thread(target=run_claimed_session, args=(ledger, registry, claim),
-                              kwargs={"poll_seconds": 0.01}, daemon=True)
+                              kwargs={"poll_seconds": 0.01, "artifacts": artifacts}, daemon=True)
     thread.start()
     _wait(ledger, record.session_id, "ready")
     ledger.accept_turn(record.session_id, "first", "key-1")
@@ -83,7 +93,11 @@ def test_worker_runs_sequential_commands_for_cross_connection_reader(
     assert not thread.is_alive()
     assert ledger.get_session(record.session_id).state == "completed"
     events = Ledger(ledger.dsn).events_after(record.session_id, 0)
-    assert [event.kind for event in events] == [
-        "ready", "answer_committed", "answer_committed", "completed",
-    ]
+    assert [event.kind for event in events] == ["ready", "answer_committed",
+                                               "evidence_result", "answer_committed",
+                                               "completed"]
     assert events[-1].payload["result"] == {"turns": ["first", "second"]}
+    assert artifacts.read_report(record.session_id) == "# Run report\n"
+    assert artifacts.read_evidence(record.session_id, "evidence:current") == {
+        "ref": "evidence:current"
+    }
