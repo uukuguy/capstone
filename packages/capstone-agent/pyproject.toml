@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "capstone-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "capability-agent-kernel==0.1.0",
+  "fastapi>=0.139,<1",
+  "uvicorn>=0.51,<1",
+]
+
+[project.scripts]
+capstone-agent = "capstone_agent.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "httpx>=0.28,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/capstone_agent"]
+
+[tool.uv.sources]
+capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
