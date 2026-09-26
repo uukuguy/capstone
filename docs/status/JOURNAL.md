@@ -973,3 +973,10 @@ _Recovered pre-merge mainline entries._
 - 13:12 Added unified local client for pandapower/PyPSA ordered requests and isolated workers for App demos [f3d3524].
 - 13:13 Updated structural state and live recovery checkpoint for unified client continuation [b94f356].
 - 13:53 Streamed turn and capability progress for both client workers to make local App demos observable [db890db].
+- 13:54 Updated active recovery checkpoint with streaming progress contract and verified client behavior [8a1e882].
+- 14:22 Defined neutral Capstone sessions and HTTP/SSE boundaries to prevent application/runtime complexity from mixing [f4c47ff].
+- 14:26 Planned incremental Kernel, neutral host, workers, and HTTP adapters to implement the approved multimode design [4a2c870].
+- 14:31 Added lazy Kernel instructions with durable input and committed-answer events so interactive turns share one run [fb66927].
+- 14:35 Added neutral persistent worker protocol with ordered frames and admitted evidence reads for shared CLI/HTTP sessions [f324dbc].
+- 14:40 Added loopback token-gated HTTP/SSE session adapter with turn, result, and evidence routes [a1f9d91].
+- 15:34 Added neutral multimode Capstone sessions and registered domain workers so App turns share verified evidence [93cf39a].
