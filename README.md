@@ -190,7 +190,9 @@ and `make run-pypsa-case CASE=scigrid-dispatch` for the local scripted-agent
 workflow. Runnable cases include regional demand stress, SciGRID-DE dispatch,
 and AC/DC topology inspection; four further cases are catalog-only pending
 registered analysis workflows. The run writes a bounded presentation and
-current-run evidence under `runs/pypsa-cases/`. See the [runbook](docs/RUNBOOK.md)
+current-run evidence under `runs/pypsa-cases/`. Each runnable case has structured
+App introduction fields and a linked Markdown article covering the business
+task, framework support, agent interaction, value, and limits. See the [runbook](docs/RUNBOOK.md)
 and [business case design](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md).
 
 `make test` is the provider-free unit gate: it runs the eleven Python packages,

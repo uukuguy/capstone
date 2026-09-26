@@ -963,3 +963,5 @@ _Recovered pre-merge mainline entries._
 - 08:58 Fresh main-checkout doctor, test, E2E (37/37), validation (24/24), package, type, and grid CLI gates passed; all six official assets verified.
 - 09:00 Committed verified PyPSA model library, three scripted business cases, contracts, and documentation on main [63ccb11].
 - 09:00 Refreshed live recovery checkpoint after model-library integration; staged user configuration remains excluded.
+- 09:01 Committed active recovery checkpoint to make the next PyPSA orchestration step recoverable [53806b6].
+- 11:34 三例双格式专业介绍覆盖业务、PyPSA 框架和智能体交互；聚焦、完整测试、E2E37、验证24、doctor及链接检查通过。

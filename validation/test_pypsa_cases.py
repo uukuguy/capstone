@@ -13,6 +13,7 @@ _MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MODULE)
 load_cases = _MODULE.load_cases
 run_case = _MODULE.run_case
+cases_path = _MODULE.CASES_PATH
 
 
 def test_case_catalog_distinguishes_runnable_from_catalog_only() -> None:
@@ -22,6 +23,33 @@ def test_case_catalog_distinguishes_runnable_from_catalog_only() -> None:
         "regional-demand-stress", "scigrid-dispatch", "ac-dc-interconnection",
     }
     assert all(case["question"] and case["limitations"] for case in cases)
+
+
+def test_runnable_case_introductions_match_markdown() -> None:
+    introductions_root = (cases_path.parent / "introductions").resolve()
+    expected_fields = {
+        "summary", "business_problem", "completed_work", "framework_support",
+        "interaction_change", "agent_mechanism", "professional_value",
+        "framework_value", "interpretation_boundary", "validation_scope", "markdown",
+    }
+    for case in load_cases():
+        if case["status"] != "runnable":
+            continue
+        introduction = case["introduction"]
+        assert set(introduction) == expected_fields
+        path = (cases_path.parent / introduction["markdown"]).resolve()
+        assert path.is_relative_to(introductions_root)
+        markdown = path.read_text(encoding="utf-8")
+        assert markdown.startswith(f"# {case['title']}\n")
+        assert case["audience"] in markdown
+        for key in (
+            "summary", "business_problem", "interaction_change", "professional_value",
+            "framework_value", "interpretation_boundary", "validation_scope",
+        ):
+            assert introduction[key] in markdown
+        for key in ("completed_work", "framework_support", "agent_mechanism"):
+            assert introduction[key]
+            assert all(item in markdown for item in introduction[key])
 
 
 def test_regional_stress_commits_two_real_dispatches_and_case_projection(tmp_path) -> None:
