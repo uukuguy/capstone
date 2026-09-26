@@ -969,3 +969,5 @@ _Recovered pre-merge mainline entries._
 - 11:36 App 展示成为下一优先方向；活动检查点将目录/详情接口排在前端与真实 LLM 验收之前。
 - 11:42 Added proposed three-turn PyPSA demo instructions and unified-client contract for App preparation [daefe65].
 - 12:19 Validated three-turn PyPSA demos with admitted answers and typed AC/DC topology for App playback [b2a8304].
+- 12:19 Saved the active PyPSA App recovery checkpoint after multi-turn acceptance [02ec2a8].
+- 13:12 Added unified local client for pandapower/PyPSA ordered requests and isolated workers for App demos [f3d3524].
