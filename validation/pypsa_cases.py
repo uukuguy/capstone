@@ -11,7 +11,7 @@ import argparse
 import json
 import sys
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -35,6 +35,15 @@ from pypsa_power_operations.profile import build_pypsa_power_operations_profile
 
 CASES_PATH = Path(__file__).with_name("pypsa-cases") / "cases.json"
 RUN_ROOT = Path.cwd() / "runs" / "pypsa-cases"
+
+
+def _notify_progress(callback: Callable[[dict[str, object]], None] | None,
+                     event: dict[str, object]) -> None:
+    if callback is not None:
+        try:
+            callback(event)
+        except Exception:
+            pass  # Progress observation cannot veto an admitted answer.
 
 
 def load_cases() -> tuple[dict[str, Any], ...]:
@@ -67,11 +76,13 @@ class CaseProvider:
     """Deterministic tool caller that records real semantic events for one case."""
 
     def __init__(self, case: dict[str, Any], request: ApplicationRequest, prepared: Any,
-                 catalog: Any, handoff: ReferenceHandoffService) -> None:
+                 catalog: Any, handoff: ReferenceHandoffService,
+                 on_progress: Callable[[dict[str, object]], None] | None = None) -> None:
         self.case = case
         self.request = request
         self.prepared = prepared
         self.handoff = handoff
+        self.on_progress = on_progress
         self.tools = {
             (tool.key.binding_id, tool.key.capability_id): tool
             for tool in catalog.domain_tools
@@ -89,9 +100,18 @@ class CaseProvider:
     def stop(self) -> None:
         pass
 
+    def _report_capability_started(self, capability: str) -> None:
+        _notify_progress(self.on_progress, {"event": "capability_started", "ordinal": self._turn_index,
+                          "total": len(self.request.questions), "capability": capability,
+                          "run_id": self.request.run_id,
+                          "message": f"第 {self._turn_index}/{len(self.request.questions)} 轮：开始 {capability}"})
+
     def _invoke(self, binding_id: str, capability: str, arguments: dict[str, object],
-                on_semantic_event: Any, turn_id: str, *, target_result: dict[str, Any] | None = None
+                on_semantic_event: Any, turn_id: str, *, target_result: dict[str, Any] | None = None,
+                progress_started: bool = False,
                 ) -> dict[str, Any]:
+        if not progress_started:
+            self._report_capability_started(capability)
         self._event += 1
         identity = {
             "call_id": f"case-tool-{self._event}",
@@ -119,6 +139,11 @@ class CaseProvider:
             print(f"{capability} event rejected: {exc!r}; cause={exc.__cause__!r}", file=sys.stderr)
             raise
         self.results[capability] = result
+        if self.on_progress is not None:
+            _notify_progress(self.on_progress, {"event": "capability_completed", "ordinal": self._turn_index,
+                              "total": len(self.request.questions), "capability": capability,
+                              "run_id": self.request.run_id,
+                              "message": f"第 {self._turn_index}/{len(self.request.questions)} 轮：完成 {capability}"})
         return result
 
     def prompt_and_wait(self, question: str, *, on_semantic_event: Any,
@@ -134,6 +159,11 @@ class CaseProvider:
                 raise ValueError("case question changed during run")
             workflow = self.case["workflow"]
         self._turn_index += 1
+        if self.on_progress is not None:
+            _notify_progress(self.on_progress, {"event": "turn_started", "ordinal": self._turn_index,
+                              "total": len(self.request.questions), "instruction": question,
+                              "run_id": self.request.run_id,
+                              "message": f"开始第 {self._turn_index}/{len(self.request.questions)} 轮：{question}"})
         on_heartbeat()
         for capability in workflow:
             if capability == "model.open":
@@ -158,6 +188,7 @@ class CaseProvider:
             elif capability == "operations.dispatch":
                 if self._model_ref is None:
                     raise ValueError("model revision is not open")
+                self._report_capability_started(capability)
                 result, receipt = self.handoff.invoke_target(
                     source_binding_id="source", target_binding_id="operations",
                     reference=self._model_ref, reference_kind="model", purpose="operations",
@@ -165,7 +196,8 @@ class CaseProvider:
                 )
                 dispatched = self._invoke("operations", capability,
                              {"reference": self._model_ref, "handoff_ref": receipt.receipt_ref},
-                             on_semantic_event, correlation_id, target_result=result)
+                             on_semantic_event, correlation_id, target_result=result,
+                             progress_started=True)
                 self._dispatch_count += 1
                 if self._dispatch_count == 1 and "model.derive_series" in self.case["workflow"]:
                     self.results["baseline_dispatch"] = dispatched
@@ -263,7 +295,8 @@ class CaseProvider:
 
 
 def run_case(case_id: str, *, root: Path = RUN_ROOT,
-             instructions: Sequence[str] | None = None) -> dict[str, Any]:
+             instructions: Sequence[str] | None = None,
+             on_progress: Callable[[dict[str, object]], None] | None = None) -> dict[str, Any]:
     case = next((item for item in load_cases() if item["id"] == case_id), None)
     if case is None:
         raise ValueError("business case is not registered")
@@ -306,7 +339,8 @@ def run_case(case_id: str, *, root: Path = RUN_ROOT,
 
     def provider_factory(*, request: ApplicationRequest, prepared_application: Any,
                          catalog: Any, **_: Any) -> CaseProvider:
-        provider = CaseProvider(case, request, prepared_application, catalog, handoff)
+        provider = CaseProvider(case, request, prepared_application, catalog, handoff,
+                                on_progress=on_progress)
         providers.append(provider)
         return provider
 
@@ -428,7 +462,13 @@ def main(argv: list[str] | None = None) -> int:
                     line.strip() for line in args.instructions.read_text(encoding="utf-8").splitlines()
                     if line.strip()
                 )
-            print(json.dumps(run_case(args.case_id, instructions=instructions), ensure_ascii=False))
+            def report_progress(event: dict[str, object]) -> None:
+                print(json.dumps({"schema": "capstone-client-progress/1.0",
+                                  "application_id": "pypsa-business-cases", **event},
+                                 ensure_ascii=False), file=sys.stderr, flush=True)
+
+            print(json.dumps(run_case(args.case_id, instructions=instructions,
+                                      on_progress=report_progress), ensure_ascii=False))
     except (ValueError, RuntimeError) as exc:
         print(f"PyPSA case error: {exc}", file=sys.stderr)
         return 1

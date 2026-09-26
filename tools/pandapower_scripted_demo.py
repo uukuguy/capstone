@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -19,7 +20,8 @@ from validation.run import execute_application_case  # noqa: E402
 CASES = frozenset({"pandapower-scripted-task", "pandapower-scripted-test"})
 
 
-def run_case(case_id: str, instructions: tuple[str, ...]) -> dict[str, object]:
+def run_case(case_id: str, instructions: tuple[str, ...], *,
+             on_progress: Callable[[dict[str, object]], None] | None = None) -> dict[str, object]:
     if case_id not in CASES:
         raise ValueError("pandapower demo case is not registered")
     source = ROOT / "validation" / "application" / f"{case_id}.json"
@@ -28,7 +30,8 @@ def run_case(case_id: str, instructions: tuple[str, ...]) -> dict[str, object]:
     if instructions != expected:
         raise ValueError("pandapower demo instructions changed")
     document["run_id"] = f"capstone-pp-{uuid.uuid4().hex[:16]}"
-    execution = execute_application_case(document, runs_root=ROOT / "runs" / "capstone-client")
+    execution = execute_application_case(document, runs_root=ROOT / "runs" / "capstone-client",
+                                         on_progress=on_progress)
     if execution.outcome.status != "completed" or not isinstance(execution.outcome.rendered, str):
         raise RuntimeError("pandapower application did not complete")
     result = json.loads(execution.outcome.rendered)
@@ -47,7 +50,12 @@ def main(argv: list[str] | None = None) -> int:
             line.strip() for line in args.instructions.read_text(encoding="utf-8").splitlines()
             if line.strip()
         )
-        result = run_case(args.case, instructions)
+        def report_progress(event: dict[str, object]) -> None:
+            print(json.dumps({"schema": "capstone-client-progress/1.0",
+                              "application_id": "pandapower-static-analysis", **event},
+                             ensure_ascii=False), file=sys.stderr, flush=True)
+
+        result = run_case(args.case, instructions, on_progress=report_progress)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"pandapower demo error: {type(exc).__name__}", file=sys.stderr)
         return 1

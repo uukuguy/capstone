@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -133,3 +135,85 @@ def test_client_rejects_malformed_worker_turns() -> None:
             "case_id": "regional-demand-stress",
             "instructions": ["one"],
         }, repo_root=ROOT, runner=run)
+
+
+def test_client_reports_start_and_completion_on_stderr(capsys) -> None:
+    def run(command, **kwargs):
+        assert kwargs["stdout"] == subprocess.PIPE
+        assert kwargs["stderr"] is sys.stderr
+        assert "capture_output" not in kwargs
+        return SimpleNamespace(returncode=0, stdout=json.dumps({
+            "schema": "capability-agent-output/1.0",
+            "core": {"application_id": "pandapower-static-analysis", "run_id": "grid-demo", "status": "completed", "answer_refs": ["a"]},
+        }))
+
+    client.run_request({
+        "schema": "capstone-client-request/1.0",
+        "application_id": "pandapower-static-analysis",
+        "mode": "scripted-demo",
+        "case_id": "pandapower-scripted-task",
+        "instructions": ["one"],
+    }, repo_root=ROOT, runner=run)
+    captured = capsys.readouterr()
+    events = [json.loads(line) for line in captured.err.splitlines()]
+    assert [event["event"] for event in events] == ["started", "completed"]
+    assert all(event["schema"] == "capstone-client-progress/1.0" for event in events)
+    assert captured.out == ""
+
+
+def test_pandapower_demo_reports_real_turn_progress(tmp_path) -> None:
+    demo_spec = importlib.util.spec_from_file_location("pandapower_scripted_demo", ROOT / "tools/pandapower_scripted_demo.py")
+    assert demo_spec is not None and demo_spec.loader is not None
+    demo = importlib.util.module_from_spec(demo_spec)
+    demo_spec.loader.exec_module(demo)
+
+    source = json.loads((ROOT / "validation/application/pandapower-scripted-task.json").read_text())
+    events = []
+    demo.run_case("pandapower-scripted-task", tuple(item["text"] for item in source["questions"]),
+                  on_progress=events.append)
+    assert [event["ordinal"] for event in events if event["event"] == "turn_started"] == [1, 2, 3]
+    assert any(event["event"] == "capability_started" and event["capability"] == "context.open"
+               for event in events)
+    assert any(event["event"] == "capability_completed" and event["capability"] == "context.open"
+               for event in events)
+
+
+def test_client_progress_write_failure_does_not_block_result(monkeypatch) -> None:
+    class BrokenStderr:
+        def write(self, value):
+            raise OSError("progress output closed")
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(client.sys, "stderr", BrokenStderr())
+
+    def run(command, **kwargs):
+        return SimpleNamespace(returncode=0, stdout=json.dumps({
+            "schema": "capability-agent-output/1.0",
+            "core": {"application_id": "pandapower-static-analysis", "run_id": "grid-demo", "status": "completed", "answer_refs": ["a"]},
+        }))
+
+    result = client.run_request({
+        "schema": "capstone-client-request/1.0",
+        "application_id": "pandapower-static-analysis",
+        "mode": "scripted-demo",
+        "case_id": "pandapower-scripted-task",
+        "instructions": ["one"],
+    }, repo_root=ROOT, runner=run)
+    assert result["status"] == "completed"
+
+
+def test_pandapower_demo_progress_failure_does_not_block_result() -> None:
+    demo_spec = importlib.util.spec_from_file_location("pandapower_scripted_demo", ROOT / "tools/pandapower_scripted_demo.py")
+    assert demo_spec is not None and demo_spec.loader is not None
+    demo = importlib.util.module_from_spec(demo_spec)
+    demo_spec.loader.exec_module(demo)
+    source = json.loads((ROOT / "validation/application/pandapower-scripted-task.json").read_text())
+
+    def broken_progress(event):
+        raise OSError("progress output closed")
+
+    result = demo.run_case("pandapower-scripted-task", tuple(item["text"] for item in source["questions"]),
+                           on_progress=broken_progress)
+    assert result["core"]["status"] == "completed"

@@ -206,8 +206,11 @@ environments. Try the provider-free examples with
 `make capstone-client REQUEST=validation/client/pandapower-scripted-task.json`
 or `make capstone-client REQUEST=validation/client/pypsa-regional-demo.json`.
 The client returns one `capstone-client-result/1.0` JSON object with the
-selected application's admitted result. Pandapower also supports its formal
-Provider-backed route; running that route may be billed. See the [runbook](docs/RUNBOOK.md).
+selected application's admitted result on stdout. Live start, turn, and
+capability progress is written to stderr as `capstone-client-progress/1.0`
+JSON lines; pandapower Provider diagnostics also appear there. Pandapower also
+supports its formal Provider-backed route; running that route may be billed.
+See the [runbook](docs/RUNBOOK.md).
 
 `make test` is the provider-free unit gate: it runs the eleven Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an

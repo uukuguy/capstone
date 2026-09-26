@@ -89,6 +89,41 @@ def test_regional_demo_accepts_ordered_instructions_in_one_run(tmp_path) -> None
     assert all(turn["answer"] for turn in presentation["turns"])
 
 
+def test_regional_demo_reports_turn_and_capability_progress(tmp_path, monkeypatch) -> None:
+    case = next(item for item in load_cases() if item["id"] == "regional-demand-stress")
+    events = []
+    original_handoff = _MODULE.ReferenceHandoffService.invoke_target
+
+    def record_handoff(self, **kwargs):
+        events.append({"event": "handoff_enter"})
+        return original_handoff(self, **kwargs)
+
+    monkeypatch.setattr(_MODULE.ReferenceHandoffService, "invoke_target", record_handoff)
+    run_case(case["id"], root=tmp_path,
+             instructions=case["introduction"]["demo_instructions"], on_progress=events.append)
+    assert [event["ordinal"] for event in events if event["event"] == "turn_started"] == [1, 2, 3]
+    assert any(event["event"] == "capability_started" and event["capability"] == "operations.dispatch"
+               for event in events)
+    assert any(event["event"] == "capability_completed" and event["capability"] == "operations.dispatch"
+               for event in events)
+    started = next(index for index, event in enumerate(events)
+                   if event["event"] == "capability_started" and event["capability"] == "operations.dispatch")
+    handoff = next(index for index, event in enumerate(events) if event["event"] == "handoff_enter")
+    assert started < handoff
+
+
+def test_regional_demo_progress_failure_does_not_block_result(tmp_path) -> None:
+    case = next(item for item in load_cases() if item["id"] == "regional-demand-stress")
+
+    def broken_progress(event):
+        raise OSError("progress output closed")
+
+    result = run_case(case["id"], root=tmp_path,
+                      instructions=case["introduction"]["demo_instructions"],
+                      on_progress=broken_progress)
+    assert result["status"] == "completed"
+
+
 def test_demo_rejects_changed_instruction_before_creating_run(tmp_path) -> None:
     case = next(item for item in load_cases() if item["id"] == "regional-demand-stress")
     instructions = tuple(case["introduction"]["demo_instructions"])

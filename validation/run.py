@@ -92,9 +92,11 @@ class ScriptedApplicationTransport:
         *,
         prepared: PreparedApplication,
         catalog: CompositeToolCatalog,
+        on_progress: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         self.case = case
         self.run_id = str(case["run_id"])
+        self.on_progress = on_progress
         self._binding: PreparedBinding = prepared.bindings["grid"]
         self._tool_by_capability: dict[str, BoundToolDocument] = {
             tool.key.capability_id: tool for tool in catalog.domain_tools
@@ -125,6 +127,13 @@ class ScriptedApplicationTransport:
         self.semantic_events: list[Mapping[str, object]] = []
         self.started = False
         self.stopped = False
+
+    def _notify_progress(self, event: dict[str, object]) -> None:
+        if self.on_progress is not None:
+            try:
+                self.on_progress(event)
+            except Exception:
+                pass  # Progress observation cannot veto an admitted answer.
 
     @property
     def current_result_refs(self) -> tuple[str, ...]:
@@ -162,6 +171,12 @@ class ScriptedApplicationTransport:
 
         self._current_result_refs = ()
         self._current_evidence_refs = ()
+        if self.on_progress is not None:
+            ordinal = self._question_index + 1
+            total = len(questions)
+            self._notify_progress({"event": "turn_started", "ordinal": ordinal,
+                              "total": total, "instruction": question, "run_id": self.run_id,
+                              "message": f"开始第 {ordinal}/{total} 轮：{question}"})
         steps = scripted.get("steps")
         if not isinstance(steps, list):
             raise RuntimeError("scripted application question has invalid semantic steps")
@@ -208,6 +223,11 @@ class ScriptedApplicationTransport:
         if projector_info is None:
             raise RuntimeError(f"scripted capability has no projector contract: {capability}")
         call_id = f"{self.run_id}-call-{len(self.calls) + 1:03d}"
+        if self.on_progress is not None:
+            self._notify_progress({"event": "capability_started", "ordinal": self._question_index + 1,
+                              "total": len(self.case["questions"]), "capability": capability,
+                              "run_id": self.run_id,
+                              "message": f"第 {self._question_index + 1}/{len(self.case['questions'])} 轮：开始 {capability}"})
         key = {
             "binding_id": tool.key.binding_id,
             "capability_id": tool.key.capability_id,
@@ -284,6 +304,11 @@ class ScriptedApplicationTransport:
         self.all_evidence_refs = list(
             _ordered_unique((*self.all_evidence_refs, *evidence_refs))
         )
+        if self.on_progress is not None:
+            self._notify_progress({"event": "capability_completed", "ordinal": self._question_index + 1,
+                              "total": len(self.case["questions"]), "capability": capability,
+                              "run_id": self.run_id,
+                              "message": f"第 {self._question_index + 1}/{len(self.case['questions'])} 轮：完成 {capability}"})
         context_ref = normalized.get("context_ref")
         if isinstance(context_ref, str):
             self._context_ref = context_ref
@@ -455,6 +480,7 @@ def execute_application_case(
     *,
     runs_root: Path,
     timeout_seconds: float = 60.0,
+    on_progress: Callable[[dict[str, object]], None] | None = None,
 ) -> ApplicationExecution:
     """Run one JSON scripted case through the generic application entry point."""
 
@@ -531,6 +557,7 @@ def execute_application_case(
         document,
         prepared=prepared,
         catalog=catalog,
+        on_progress=on_progress,
     )
     projector = ApplicationInvocationProjector(
         store=store,

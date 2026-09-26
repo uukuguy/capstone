@@ -76,6 +76,8 @@ make capstone-client REQUEST=validation/client/pypsa-regional-demo.json
 
 这两个示例均为无需 Provider 凭据的三回合脚本演示。第一条运行现有 pandapower 正式 `ApplicationProfile`、真实 `gridctl` 及当前运行证据；第二条运行 PyPSA 两个 Pack、模型引用交接和三回合案例展示。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与登记的 `case_id`。PyPSA 只接收与案例清单完全一致的指令列表；pandapower 脚本演示只接收 `validation/application/` 中登记的任务及其原始指令。命令 stdout 仅有一个 JSON 对象，含 `application_id`、`run_id`、`status` 和原应用 `result`；运行工件分别留在各自的 `runs/` 工作区。
 
+运行期间 stderr 实时输出 `capstone-client-progress/1.0` JSON 行：客户端启动和完成、脚本案例每轮开始以及能力调用开始和完成。每行包含 `application_id`、`event` 和可直接显示的 `message`；回合事件另带 `ordinal`/`total`，能力事件另带 `capability`，运行开始后带 `run_id`。App 可按 schema 解析这些事件并更新进度；stdout 仍只保留最终结果对象。正式 pandapower Provider 路径沿用现有运行时的 stderr 诊断，因此该路径还可能输出非 JSON 诊断行。
+
 pandapower 还可在相同请求格式下使用 `mode: "provider"`，省略 `case_id`，提交自由文本指令列表，并通过现有 `grid-agent analysis-generic` 路径运行。Provider 与模型配置仍由原运行时解析；此路径可能产生费用，本地脚本演示不会调用它。PyPSA 的开放式 LLM 工具规划和正式通用 CLI 注册仍待验收，统一客户端目前只为其开放登记案例的脚本演示。客户端只路由上述两个显式应用，不进行动态插件发现。
 
 ## PyPSA 电网模型库与本地案例

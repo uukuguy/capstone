@@ -30,6 +30,16 @@ _SCRIPTED_ENV_NAMES = frozenset({
 })
 
 
+def _emit_progress(event: str, application_id: str, **details: object) -> None:
+    try:
+        print(json.dumps({
+            "schema": "capstone-client-progress/1.0", "event": event,
+            "application_id": application_id, **details,
+        }, ensure_ascii=False), file=sys.stderr, flush=True)
+    except OSError:
+        pass
+
+
 def run_request(
     request: Mapping[str, object], *, repo_root: Path,
     runner: Callable[..., Any] = subprocess.run,
@@ -44,15 +54,18 @@ def run_request(
         source_environment if mode == "provider"
         else {name: value for name, value in source_environment.items() if name in _SCRIPTED_ENV_NAMES}
     )
+    _emit_progress("started", application_id, total_instructions=len(instructions),
+                   message=f"已开始运行 {application_id}，共 {len(instructions)} 条指令")
     with tempfile.TemporaryDirectory(prefix="capstone-instructions-") as directory:
         instruction_path = Path(directory) / "instructions.txt"
         instruction_path.write_text("\n".join(instructions) + "\n", encoding="utf-8")
         command = _command(application_id, mode, instruction_path, case_id, provider, model)
         completed = runner(
             command, cwd=root, env=worker_environment, text=True,
-            capture_output=True, timeout=900,
+            stdout=subprocess.PIPE, stderr=sys.stderr, timeout=900,
         )
     if completed.returncode != 0:
+        _emit_progress("failed", application_id, message="应用运行失败")
         raise RuntimeError("registered application worker failed")
     try:
         payload = json.loads(completed.stdout)
@@ -79,6 +92,7 @@ def run_request(
         run_id, status = payload.get("run_id"), payload.get("status")
     if not isinstance(run_id, str) or not run_id or status != "completed":
         raise RuntimeError("registered application run did not complete")
+    _emit_progress("completed", application_id, run_id=run_id, message="运行完成")
     return {
         "schema": RESULT_SCHEMA, "application_id": application_id,
         "run_id": run_id, "status": status, "result": payload,
