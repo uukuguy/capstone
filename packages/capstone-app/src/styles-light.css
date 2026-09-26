@@ -24,6 +24,8 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .mark i:nth-child(1) { background: #117b73; }
 .text-button { color: #126f69; border-color: #9bc0b8; font-size: 13px; }
 .text-button:hover { color: #064d4b; border-color: #09625c; }
+.project-link { color: #2d756d; }
+.project-link:hover { color: #07574f; }
 .eyebrow { color: #387e77; font-size: 11px; }
 .pulse-dot { background: #168f80; box-shadow: 0 0 0 4px #2d9c8330; }
 
@@ -81,13 +83,13 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
   background: linear-gradient(90deg, #eef3f1f2 0%, #eef3f1d1 65%, #eef3f100 100%); }
 .capstone-intro-main { display: flex; flex-direction: column; align-items: flex-start;
-  transform: translateY(34px); }
+  transform: translateY(9px); }
 .capstone-intro-kicker { color: #376e69; font-size: 11px; font-weight: 700;
-  letter-spacing: .01em; margin-bottom: 12px; }
+  letter-spacing: .01em; margin-bottom: 19px; }
 .capstone-intro-kicker span { color: #62817a; font-size: 10px; letter-spacing: .03em; }
 .capstone-intro-overlay strong { color: #173b3c; font-size: clamp(19px, 2vw, 29px);
-  line-height: 1.22; letter-spacing: -.04em; margin-bottom: 15px; }
-.capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 17px; }
+  line-height: 1.22; letter-spacing: -.04em; margin-bottom: 24px; }
+.capstone-intro-frameworks { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 26px; }
 .capstone-intro-frameworks span { padding: 5px 9px; border: 1px solid #bad5ca; border-radius: 3px;
   background: #ffffffd9; color: #275d58; font: 700 11px "SFMono-Regular", Consolas, monospace; }
 .capstone-intro-disciplines { display: grid; gap: 5px; border-left: 2px solid #8cbcb0;
@@ -251,6 +253,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 @media (max-width: 1320px) {
   .workspace-center { --content-gutter: 30px; }
+  .capstone-intro-main { transform: translateY(0); }
 }
 
 @media (max-width: 680px) {

@@ -56,6 +56,13 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .brand-divider { height: 19px; width: 1px; background: #395056; margin: 0 5px; }
 .brand-subtitle { font-size: 12px; letter-spacing: .08em; color: #aabcb9; white-space: nowrap; }
 .topbar-right { gap: 30px; }
+.project-link { display: inline-flex; align-items: center; gap: 8px; flex: none;
+  color: #a7c5bc; border-bottom: 1px solid currentColor; padding: 5px 0;
+  font-size: 13px; font-weight: 650; letter-spacing: .01em; text-decoration: none; }
+.project-link:hover { color: #e4f2eb; }
+.project-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.project-link-icon { width: 17px; height: 17px; flex: none; fill: currentColor; }
+.project-link-short { display: none; }
 .eyebrow, .count-pill, .timeline-count, .app-index, .case-card-footer,
 .reference-title, .detail-label, .progress-caption, .run-id, .evidence-ref, .access-note,
 .catalog-footnote, .breadcrumb-separator, .run-breadcrumb, .detail-footer {
@@ -245,6 +252,8 @@ button.reference-chip:hover { background: #235043; color: white; }
   .topbar { padding: 0 17px; min-height: 62px; }
   .brand-name { font-size: 12px; }
   .brand-subtitle, .brand-divider { display: none; }
+  .project-link-address { display: none; }
+  .project-link-short { display: inline; }
   .workspace { display: block; }
   .catalog-panel { padding: 22px 16px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
   .panel-intro { margin-bottom: 16px; }
