@@ -111,6 +111,8 @@ make capstone-app-dev
 
 在浏览器打开 `http://127.0.0.1:5173`；本地 Compose 默认启用公开演示模式，页面会自动获取服务端提供的演示凭证并进入工作台。该凭证只允许已登记的脚本案例；Provider 模式仍需私有 `CAPSTONE_OPERATOR_TOKEN`。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
+同一局域网的手机可访问临时开发演示：在电脑上执行 `npm run dev --prefix packages/capstone-app -- --host <电脑局域网 IP> --port 5174`，手机打开 `http://<电脑局域网 IP>:5174/`。开发代理仍将 API 请求转发到电脑的 `127.0.0.1:8767`，无需向局域网开放 API 端口。电脑和手机须处于允许相互访问的网络；结束演示后停止这条开发服务命令。
+
 镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、命令幂等键与事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 
 云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway + Vercel](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 Web 与后台 worker、PostgreSQL 和私有 S3 bucket。两个后端角色须使用同一镜像 digest 和同一账本/工件配置。Vercel 项目根目录为 `packages/capstone-app`；构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，演示凭证由服务端发放，App 自动进入工作台；关闭该开关时公开演示 App 显示连接失败与重试，私有操作员令牌仍可通过 API 使用。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
