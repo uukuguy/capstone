@@ -293,6 +293,17 @@ Python environments: the pinned pandapower and PyPSA releases require
 different pandas major versions. The installed proofs compose two PyPSA
 bindings, not a pandapower/PyPSA application in one interpreter.
 
+The local `tools/capstone_client.py` is a unified application-level client over
+those separate environments. Its closed `capstone-client-request/1.0` contract
+selects `pandapower-static-analysis` or `pypsa-business-cases` and carries an
+ordered instruction list. It launches only the registered worker command for
+that application, then wraps the worker's already-admitted output in
+`capstone-client-result/1.0`. The pandapower route supports its formal
+Provider-backed application and registered provider-free scripted cases; the
+PyPSA route currently supports registered provider-free business cases.
+The client is a local process router, not dynamic Pack discovery or a common
+Python environment. It does not give the model subprocess or file capabilities.
+
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, cross-domain conflict resolution, or a chosen
 second production application. Governed writes, approval flows, tenant/actor scope,

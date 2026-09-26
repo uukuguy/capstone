@@ -199,6 +199,16 @@ executes one fixed question. Scripted multi-turn acceptance has passed for all
 three cases; open-ended LLM planning remains unverified. See the [runbook](docs/RUNBOOK.md)
 and [business case design](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md).
 
+The local Capstone client accepts one JSON request with an application ID and
+ordered instructions. It runs both the pandapower static-analysis application
+and the PyPSA business-case application through their separately pinned worker
+environments. Try the provider-free examples with
+`make capstone-client REQUEST=validation/client/pandapower-scripted-task.json`
+or `make capstone-client REQUEST=validation/client/pypsa-regional-demo.json`.
+The client returns one `capstone-client-result/1.0` JSON object with the
+selected application's admitted result. Pandapower also supports its formal
+Provider-backed route; running that route may be billed. See the [runbook](docs/RUNBOOK.md).
+
 `make test` is the provider-free unit gate: it runs the eleven Python packages,
 both Pi packages, and the trajectory workbench. Grid CLI E2E tests remain an
 integration-only `make test-e2e` target. `make check-types` runs locked

@@ -109,6 +109,8 @@ PyPSA 建模 Pack 提供已登记模型的打开、按类型修改单值或逐�
 
 PyPSA 电网模型库现登记 15 个项目模型和固定版本 PyPSA 1.3.0 的全部六个 Network 示例。官方资产由 `make install-pypsa-models` 显式安装并核对固定 SHA-256；智能体运行时不会下载。使用 `make list-pypsa-models`、`make list-pypsa-cases` 和 `make run-pypsa-case CASE=scigrid-dispatch` 执行本地脚本智能体验收。当前可运行案例为区域负荷增长、SciGRID-DE 调度和 AC/DC 拓扑检查；另四个案例仍是目录项，等待登记所需的分析流程。每次运行在 `runs/pypsa-cases/` 下保存受限展示结果和本轮证据。三个可运行案例各有供 App 使用的结构化介绍字段和对应 Markdown 文章，说明业务任务、框架支持、智能体交互变化、专业价值与边界，并提供统一 App 演示用的有序指令列表。使用 `make run-pypsa-case CASE=regional-demand-stress DEMO=1` 可本地执行三回合演示；默认入口仍执行单条固定问题。三个案例均通过脚本多回合验收，开放式 LLM 自主规划仍待验证。详见[运行指南](docs/RUNBOOK.md)与[案例设计](docs/superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md)。
 
+本地 Capstone 统一客户端使用一份包含应用 ID 和有序指令的 JSON 请求，分别在固定依赖的工作进程中运行 pandapower 静态分析应用和 PyPSA 业务案例应用。可用 `make capstone-client REQUEST=validation/client/pandapower-scripted-task.json` 或 `make capstone-client REQUEST=validation/client/pypsa-regional-demo.json` 运行不调用 Provider 的示例。客户端返回单个 `capstone-client-result/1.0` JSON 对象，其中保留所选应用已准入的结果。pandapower 也支持正式的 Provider 路径，该路径可能计费。详见[运行指南](docs/RUNBOOK.md)。
+
 `make test` 是不使用 Provider 的单元门禁：分别运行十一个 Python 包、两个 Pi 包和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 
 已配置的 GitHub Actions 会在 Linux/macOS、Python 3.12/3.14 与 Node 22.19.0 上运行 release 检查。这说明 CI 配置覆盖范围，不宣称远端工作流已经通过。

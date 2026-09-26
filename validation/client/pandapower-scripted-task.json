@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-client-request/1.0",
+  "application_id": "pandapower-static-analysis",
+  "mode": "scripted-demo",
+  "case_id": "pandapower-scripted-task",
+  "instructions": [
+    "打开 IEEE-39 网络并解析线路 11 的端点。",
+    "沿用已打开的网络执行一次交流潮流。",
+    "沿用当前潮流结果列出负载率最高的三条线路。"
+  ]
+}

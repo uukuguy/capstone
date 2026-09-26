@@ -65,6 +65,19 @@ inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/contex
 
 `make validate` 使用当前保护配置 `configs/runtime/application-instantiation-protected-paths.json` 检查已提交路径摘要与工作树清洁性。历史 Workstream C closure 的保护记录保留为当时证明，不能替代当前发布基线。
 
+## Capstone 统一客户端
+
+统一的本地客户端读取 `capstone-client-request/1.0` JSON，按受信任的 `application_id` 选择应用工作进程，并把有序 `instructions` 提交给该应用。它不向模型发布进程、文件或原始网络操作能力。pandapower 与 PyPSA 保持平行的 Domain Pack 和独立 Python 依赖环境；客户端只负责应用选择、输入交付及 `capstone-client-result/1.0` 输出封装。封装里的 `result` 保留所选应用原有的领域契约，不能把两者的数值字段强行解释为同一模型。
+
+```sh
+make capstone-client REQUEST=validation/client/pandapower-scripted-task.json
+make capstone-client REQUEST=validation/client/pypsa-regional-demo.json
+```
+
+这两个示例均为无需 Provider 凭据的三回合脚本演示。第一条运行现有 pandapower 正式 `ApplicationProfile`、真实 `gridctl` 及当前运行证据；第二条运行 PyPSA 两个 Pack、模型引用交接和三回合案例展示。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与登记的 `case_id`。PyPSA 只接收与案例清单完全一致的指令列表；pandapower 脚本演示只接收 `validation/application/` 中登记的任务及其原始指令。命令 stdout 仅有一个 JSON 对象，含 `application_id`、`run_id`、`status` 和原应用 `result`；运行工件分别留在各自的 `runs/` 工作区。
+
+pandapower 还可在相同请求格式下使用 `mode: "provider"`，省略 `case_id`，提交自由文本指令列表，并通过现有 `grid-agent analysis-generic` 路径运行。Provider 与模型配置仍由原运行时解析；此路径可能产生费用，本地脚本演示不会调用它。PyPSA 的开放式 LLM 工具规划和正式通用 CLI 注册仍待验收，统一客户端目前只为其开放登记案例的脚本演示。客户端只路由上述两个显式应用，不进行动态插件发现。
+
 ## PyPSA 电网模型库与本地案例
 
 PyPSA 1.3.0 的六个官方 Network 示例与 15 个项目模型一起登记在模型库中。官方 NetCDF 只通过操作者命令下载，逐项核对固定文件大小和 SHA-256，保存于 Git 忽略的 `.grid-agent/runtime/pypsa-models/`。若要使用只读容器目录，可设置 `CAPSTONE_PYPSA_MODEL_LIBRARY_DIR` 指向已安装且校验过的资产目录。缺失或被改动的资产不能被 `model.open` 使用；案例运行中不会联网下载。

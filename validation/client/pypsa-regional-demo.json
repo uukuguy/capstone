@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-client-request/1.0",
+  "application_id": "pypsa-business-cases",
+  "mode": "scripted-demo",
+  "case_id": "regional-demand-stress",
+  "instructions": [
+    "打开区域六母线模型，检查网络结构，并求解基准情景的固定容量调度。",
+    "沿用刚才的模型，把 central-demand 在三个时段的负荷各增加 10 MW；保留基准情景，建立增长情景模型修订。",
+    "求解增长情景，比较两次求解状态、模型运行成本目标和发电安排，说明结论的适用边界，并给出本轮证据。"
+  ]
+}

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application report trajectory test test-agent test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-simulator setup-pypsa setup-tools setup-workbench build-workbench test-workbench check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client report trajectory test test-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -11,6 +11,7 @@ help:
 	@echo "  make analysis [INSTRUCTIONS=...]  Compatibility analysis report; default TASK instruction set"
 	@echo "  make analysis-generic APPLICATION=... INSTRUCTIONS=...  Generic composite application output"
 	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
+	@echo "  make capstone-client REQUEST=path  Run a registered pandapower or PyPSA client request"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
 	@echo "  make build-workbench         Build packaged trajectory workbench assets"
 	@echo "  make trajectory [PORT=8765]  Build and serve the local trajectory workbench"
@@ -57,6 +58,10 @@ list-pypsa-cases:
 
 run-pypsa-case:
 	@uv run --project packages/pypsa-power-operations-domain-pack python validation/pypsa_cases.py run "$(CASE)" $(if $(DEMO),--demo) $(if $(INSTRUCTIONS),--instructions "$(INSTRUCTIONS)")
+
+capstone-client:
+	@test -n "$(REQUEST)" || (echo "Usage: make capstone-client REQUEST=path" >&2; exit 2)
+	@python3 tools/capstone_client.py --request "$(REQUEST)"
 
 setup-tools:
 	npm ci --prefix packages/pi-capability-tools
@@ -128,7 +133,10 @@ PORT ?= 8765
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+test: test-agent test-simulator test-tools test-capstone-client test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+
+test-capstone-client:
+	uv run --project packages/grid-agent pytest tools/tests/test_capstone_client.py -q
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
