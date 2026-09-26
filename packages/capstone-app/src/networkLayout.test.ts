@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layoutNetwork } from './networkLayout'
+import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { NetworkView } from './types'
 import { sampleView } from './networkFixture'
 
@@ -27,5 +27,20 @@ describe('network layout', () => {
       .toBeLessThan(positioned.find((bus) => bus.id === 'east')!.x)
     expect(positioned.find((bus) => bus.id === 'north')!.y)
       .toBeLessThan(positioned.find((bus) => bus.id === 'west')!.y)
+  })
+
+  it('uses a labelled schematic when provided positions would collapse a large preview', () => {
+    const crowded: NetworkView = {
+      ...sampleView, coordinate_status: 'provided-unverified',
+      buses: [...Array.from({ length: 49 }, (_, index) => ({
+        id: String(index), label: String(index), x: index / 100, y: index / 100,
+      })), { id: 'outlier', label: 'Outlier', x: 100, y: 100 }],
+      branches: [], focus_ids: [], next_focus_ids: [],
+    }
+    expect(usesModelCoordinates(crowded)).toBe(false)
+    const positioned = layoutNetwork(crowded)
+    const close = positioned.filter((bus) => Math.hypot(bus.x - positioned[0].x,
+      bus.y - positioned[0].y) < 40)
+    expect(close.length).toBeLessThan(10)
   })
 })

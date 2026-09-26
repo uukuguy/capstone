@@ -176,6 +176,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-canvas-frame svg:focus-visible { outline: 2px solid #138575; outline-offset: -3px; }
 .network-node-label { font: 12px Inter, "PingFang SC", sans-serif; fill: #42565b;
   paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.network-branch-label { font: 700 12px Inter, "PingFang SC", sans-serif; fill: #116d66;
+  paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
 .network-canvas-hint { position: absolute; left: 15px; bottom: 12px; background: #ffffffd9;
   color: #65817a; border: 1px solid #e1eae5; border-radius: 3px;
   padding: 5px 7px; font-size: 11px; pointer-events: none; }

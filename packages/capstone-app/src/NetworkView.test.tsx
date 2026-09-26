@@ -18,6 +18,7 @@ describe('operator network canvas', () => {
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '适配全图' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '回到当前任务' })).toBeTruthy()
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe('Line 11')
   })
 
   it('allows manual zoom and returns focus when the step changes', () => {

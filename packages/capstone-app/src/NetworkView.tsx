@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react'
-import { layoutNetwork } from './networkLayout'
+import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { PositionedBus } from './networkLayout'
 import type { NetworkView as NetworkViewData } from './types'
 
@@ -46,9 +46,12 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
   const [hovered, setHovered] = useState<string | null>(null)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
   const nodes = useMemo(() => view ? layoutNetwork(view) : [], [view])
+  const modelCoordinates = useMemo(() => view ? usesModelCoordinates(view) : false, [view])
   const byId = useMemo(() => new Map(nodes.map((bus) => [bus.id, bus])), [nodes])
   const values = useMemo(() => new Map(view?.overlay?.values.map((item) => [item.id, item.value]) || []), [view])
   const focusIds = useMemo(() => view ? nextTask ? view.next_focus_ids : view.focus_ids : [], [view, nextTask])
+  const focusBuses = useMemo(() => new Set(view?.branches.filter((branch) =>
+    focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [view, focusIds])
 
   useEffect(() => {
     setCamera(view ? taskCamera(view, nodes, focusIds) : FULL)
@@ -110,7 +113,8 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
       <h2 id="network-title">电网视图</h2></div><span className="network-model">{modelName}</span></div>
     {view ? <>
       <div className="network-meta"><span>模型结构 · {view.model.source}</span>
-        <span>{view.coordinate_status === 'schematic-required' ? '示意布局' : '模型坐标 · 未经地理校验'}</span></div>
+        <span>{modelCoordinates ? '模型坐标 · 未经地理校验'
+          : view.coordinate_status === 'provided-unverified' ? '示意布局 · 模型坐标过密' : '示意布局'}</span></div>
       <div className="network-toolbar" aria-label="电网图操作">
         <button type="button" onClick={() => zoom(0.8)} aria-label="放大">＋</button>
         <button type="button" onClick={() => zoom(1.25)} aria-label="缩小">－</button>
@@ -147,6 +151,8 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
                 stroke={color} strokeWidth={highlighted ? 7 : value === undefined ? 3 : 5}
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
+              {highlighted && <text x={(from.x + to.x) / 2 + 7} y={(from.y + to.y) / 2 - 9}
+                className="network-branch-label">{branch.label}</text>}
               <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${view.overlay!.unit}`}</title>
             </g>
           })}
@@ -158,12 +164,13 @@ export function NetworkView({ view, modelName, focusKey, nextTask = false, unava
               <circle cx={bus.x} cy={bus.y} r={highlighted ? 11 : 8}
                 fill={value === undefined ? '#ffffff' : valueColor(view.overlay!.metric, value)}
                 stroke={highlighted ? '#0d7771' : '#344c53'} strokeWidth={highlighted ? 3 : 2} />
-              <text x={bus.x + 13} y={bus.y - 11} className="network-node-label">{bus.label}</text>
+              {(nodes.length <= 12 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
+                <text x={bus.x + 13} y={bus.y - 11} className="network-node-label">{bus.label}</text>}
               <title>{bus.label}{value === undefined ? '' : ` · ${value.toFixed(3)} ${view.overlay!.unit}`}</title>
             </g>
           })}
         </svg>
-        <span className="network-canvas-hint">拖动平移 · 滚轮缩放</span>
+        <span className="network-canvas-hint">拖动平移 · 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
       </div>
       <div className="network-footer">
         <div className="network-legend"><span className="legend-line" /> 线路 <span className="legend-link" /> Link

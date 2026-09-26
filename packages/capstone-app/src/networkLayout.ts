@@ -5,30 +5,44 @@ export type PositionedBus = NetworkView['buses'][number] & { x: number; y: numbe
 const WIDTH = 1000
 const HEIGHT = 600
 
+function providedLayout(view: NetworkView): PositionedBus[] | null {
+  const buses = view.buses
+  const coordinated = view.coordinate_status === 'provided-unverified' &&
+    buses.every((bus) => bus.x !== null && bus.y !== null &&
+      Number.isFinite(bus.x) && Number.isFinite(bus.y))
+  if (!coordinated) return null
+  const xValues = buses.map((bus) => bus.x as number)
+  const yValues = buses.map((bus) => bus.y as number)
+  const minX = Math.min(...xValues), maxX = Math.max(...xValues)
+  const minY = Math.min(...yValues), maxY = Math.max(...yValues)
+  if (minX === maxX && minY === maxY) return null
+  const scale = Math.min(800 / Math.max(1, maxX - minX),
+    440 / Math.max(1, maxY - minY))
+  const positioned = buses.map((bus) => ({ ...bus,
+    x: WIDTH / 2 + ((bus.x as number) - (minX + maxX) / 2) * scale,
+    y: HEIGHT / 2 - ((bus.y as number) - (minY + maxY) / 2) * scale,
+  }))
+  if (buses.length > 12) {
+    const crowded = positioned.filter((bus, index) => positioned.some((other, otherIndex) =>
+      index !== otherIndex && Math.hypot(bus.x - other.x, bus.y - other.y) < 20)).length
+    if (crowded > buses.length / 4) return null
+  }
+  return positioned
+}
+
+export function usesModelCoordinates(view: NetworkView): boolean {
+  return providedLayout(view) !== null
+}
+
 export function layoutNetwork(view: NetworkView): PositionedBus[] {
   const buses = view.buses
+  const provided = providedLayout(view)
+  if (provided) return provided
   const positions = buses.map((bus, index) => {
     const angle = (Math.PI * 2 * index) / Math.max(1, buses.length) - Math.PI / 2
     return { x: WIDTH / 2 + Math.cos(angle) * 290,
       y: HEIGHT / 2 + Math.sin(angle) * 185 }
   })
-  const coordinated = view.coordinate_status === 'provided-unverified' &&
-    buses.every((bus) => bus.x !== null && bus.y !== null &&
-      Number.isFinite(bus.x) && Number.isFinite(bus.y))
-  if (coordinated) {
-    const xValues = buses.map((bus) => bus.x as number)
-    const yValues = buses.map((bus) => bus.y as number)
-    const minX = Math.min(...xValues), maxX = Math.max(...xValues)
-    const minY = Math.min(...yValues), maxY = Math.max(...yValues)
-    if (minX !== maxX || minY !== maxY) {
-      const scale = Math.min(800 / Math.max(1, maxX - minX),
-        440 / Math.max(1, maxY - minY))
-      return buses.map((bus) => ({ ...bus,
-        x: WIDTH / 2 + ((bus.x as number) - (minX + maxX) / 2) * scale,
-        y: HEIGHT / 2 - ((bus.y as number) - (minY + maxY) / 2) * scale,
-      }))
-    }
-  }
 
   const indexById = new Map(buses.map((bus, index) => [bus.id, index]))
   const edges = view.branches.flatMap((branch) => {
