@@ -105,6 +105,7 @@ class TurnControllerSource(Protocol):
         handle: ActiveTurnHandle,
         *,
         answer_output: str,
+        answer_summary: str | None = None,
         referenced_bindings: tuple[str, ...],
         result_refs: tuple[str, ...],
         evidence_refs: tuple[str, ...],

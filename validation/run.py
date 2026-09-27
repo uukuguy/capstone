@@ -421,6 +421,7 @@ class AuditingTurnController(TurnController):
         handle: ActiveTurnHandle,
         *,
         answer_output: str,
+        answer_summary: str | None = None,
         referenced_bindings: Iterable[str] = (),
         result_refs: Iterable[str] = (),
         evidence_refs: Iterable[str] = (),
@@ -448,6 +449,7 @@ class AuditingTurnController(TurnController):
         finalized = super().submit(
             handle,
             answer_output=answer_output,
+            answer_summary=answer_summary,
             referenced_bindings=selected_bindings,
             result_refs=result_refs,
             evidence_refs=evidence_refs,

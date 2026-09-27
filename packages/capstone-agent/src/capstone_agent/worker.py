@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import BinaryIO, Protocol
@@ -11,7 +13,7 @@ from typing import BinaryIO, Protocol
 from capability_agent.application.runner import ApplicationRequest
 
 from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
-from capstone_agent.progress import render_progress
+from capstone_agent.progress import render_progress, summarize_answer
 from capstone_agent.network_view import normalize_network_view
 from capstone_agent.network_diagram import normalize_network_projection
 
@@ -83,6 +85,10 @@ def serve_application(
     expected_input = 2
     admitted: set[str] = set()
     last_diagram_ref: str | None = None
+    turn_started_at: dict[int, float] = {}
+    step_link_enabled = os.environ.get("CAPSTONE_ENABLE_NETWORK_STEP_LINK", "true").strip().lower() not in {
+        "0", "false", "no", "off",
+    }
 
     def emit(kind: str, payload: dict[str, object]) -> None:
         nonlocal sequence
@@ -98,16 +104,33 @@ def serve_application(
             evidence_refs = event.get("evidence_refs", [])
             if isinstance(result_refs, list) and isinstance(evidence_refs, list):
                 admitted.update(ref for ref in (*result_refs, *evidence_refs) if isinstance(ref, str))
-            emit("answer_committed", {
+            ordinal = event.get("ordinal")
+            model_summary = event.get("answer_summary")
+            answer_summary = (
+                model_summary.strip()
+                if isinstance(model_summary, str) and model_summary.strip()
+                else summarize_answer(
+                    event.get("answer_output"),
+                    has_references=bool(result_refs or evidence_refs),
+                )
+            )
+            answer_payload: dict[str, object] = {
                 "ordinal": event.get("ordinal"),
                 "turn_id": event.get("turn_id"),
                 "answer_output": event.get("answer_output"),
+                "answer_summary": answer_summary,
                 "answer_ref": event.get("answer_ref"),
                 "result_refs": result_refs,
                 "evidence_refs": evidence_refs,
-            })
-            ordinal = event.get("ordinal")
-            if prepared.network_reader is not None and type(ordinal) is int:
+            }
+            if type(ordinal) is int:
+                started_at = turn_started_at.pop(ordinal, None)
+                if started_at is not None:
+                    answer_payload["duration_ms"] = max(
+                        0, round((time.monotonic() - started_at) * 1000),
+                    )
+            emit("answer_committed", answer_payload)
+            if step_link_enabled and prepared.network_reader is not None and type(ordinal) is int:
                 try:
                     projection = prepared.network_reader(ordinal)
                     if projection is not None:
@@ -127,9 +150,15 @@ def serve_application(
                             emit("network_view", {"ordinal": ordinal, "view": view})
                     else:
                         emit("network_view_unavailable", {"ordinal": ordinal})
-                except Exception:
-                    print("Network view unavailable for committed turn", file=sys.stderr)
+                except Exception as exc:
+                    print(
+                        f"Network view unavailable for committed turn: "
+                        f"{type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                    )
                     emit("network_view_unavailable", {"ordinal": ordinal})
+            elif step_link_enabled and type(ordinal) is int:
+                emit("network_view_unavailable", {"ordinal": ordinal})
         else:
             message = render_progress(event)
             if message:
@@ -165,11 +194,14 @@ def serve_application(
             emit("evidence_result", {"ref": reference, "value": value})
 
         def instructions():
+            next_ordinal = 0
             while frame := next_frame():
                 if frame.kind == "turn":
                     instruction = frame.payload.get("instruction")
                     if not isinstance(instruction, str) or not instruction.strip():
                         raise ProtocolError("turn instruction is invalid")
+                    next_ordinal += 1
+                    turn_started_at[next_ordinal] = time.monotonic()
                     yield instruction
                 elif frame.kind == "evidence":
                     read_evidence(frame)
@@ -179,8 +211,18 @@ def serve_application(
                     raise ProtocolError("worker control message is invalid")
             raise ProtocolError("worker session closed before finalization")
 
+        response_mode = (
+            "answer_bundle"
+            if opening.payload.get("mode") == "provider"
+            else "text"
+        )
         outcome = prepared.application.run_stream(
-            ApplicationRequest(application_id, (), prepared.run_id),
+            ApplicationRequest(
+                application_id,
+                (),
+                prepared.run_id,
+                response_mode=response_mode,
+            ),
             instructions(),
         )
         if getattr(outcome, "status", None) != "completed":

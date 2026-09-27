@@ -36,6 +36,11 @@ from capability_agent.application.output import (
     JsonOutputRenderer,
     ValidatedDomainOutput,
 )
+from capability_agent.application.answer_format import (
+    ANSWER_BUNDLE_INSTRUCTION,
+    AnswerBundle,
+    parse_answer_bundle,
+)
 from capability_agent.application.profile import ApplicationProfile
 from capability_agent.application.projector import ApplicationInvocationProjector
 from capability_agent.application.reporting import GenericReportShell, ReportPublication
@@ -110,6 +115,7 @@ class ApplicationRequest:
     application_id: str
     questions: tuple[str, ...]
     run_id: str | None = None
+    response_mode: Literal["text", "answer_bundle"] = "text"
 
     def __post_init__(self) -> None:
         if not isinstance(self.application_id, str) or not self.application_id:
@@ -127,6 +133,8 @@ class ApplicationRequest:
             not isinstance(self.run_id, str) or not self.run_id
         ):
             raise ValueError("run_id must be non-empty text")
+        if self.response_mode not in {"text", "answer_bundle"}:
+            raise ValueError("response_mode must be 'text' or 'answer_bundle'")
 
     @property
     def instructions(self) -> tuple[str, ...]:
@@ -213,6 +221,7 @@ class _TurnControllerAdapter:
         handle: ActiveTurnHandle,
         *,
         answer_output: str,
+        answer_summary: str | None = None,
         referenced_bindings: tuple[str, ...],
         result_refs: tuple[str, ...],
         evidence_refs: tuple[str, ...],
@@ -221,6 +230,7 @@ class _TurnControllerAdapter:
         finalized = self.source.submit(
             handle,
             answer_output=answer_output,
+            answer_summary=answer_summary,
             referenced_bindings=referenced_bindings,
             result_refs=result_refs,
             evidence_refs=evidence_refs,
@@ -601,19 +611,29 @@ class AgentApplication:
                 active_turn = handle
                 turn_started = time.monotonic()
                 try:
-                    answer, projections = _call_prompt(
+                    answer_value, projections = _call_prompt(
                         transport,
                         question,
                         projector=projector,
                         turn_id=handle.turn_id,
+                        response_mode=request.response_mode,
                         semantic_event_observer=(
                             self._observe_semantic_event
                             if self.semantic_event_observer is not None else None
                         ),
                     )
+                    if isinstance(answer_value, AnswerBundle):
+                        answer = answer_value.answer
+                        answer_summary = answer_value.summary
+                        for code in answer_value.diagnostic_codes:
+                            self._record_diagnostic(code)
+                    else:
+                        answer = answer_value
+                        answer_summary = None
                     finalized = controller.submit(
                         handle,
                         answer_output=answer,
+                        answer_summary=answer_summary,
                         referenced_bindings=tuple(
                             dict.fromkeys(
                                 outcome.binding_id
@@ -682,18 +702,19 @@ class AgentApplication:
                     ),
                     code="report_checkpoint_unavailable",
                 )
-                self._observe_semantic_event(
-                    {
-                        "type": "application_turn_completed",
-                        "ordinal": ordinal,
-                        "total_questions": len(request.questions),
-                        "answer_output": finalized.answer_output,
-                        "turn_id": finalized.turn_id,
-                        "answer_ref": finalized.answer_ref,
-                        "result_refs": list(finalized.result_refs),
-                        "evidence_refs": list(finalized.evidence_refs),
-                    }
-                )
+                turn_event: dict[str, object] = {
+                    "type": "application_turn_completed",
+                    "ordinal": ordinal,
+                    "total_questions": len(request.questions),
+                    "answer_output": finalized.answer_output,
+                    "turn_id": finalized.turn_id,
+                    "answer_ref": finalized.answer_ref,
+                    "result_refs": list(finalized.result_refs),
+                    "evidence_refs": list(finalized.evidence_refs),
+                }
+                if finalized.answer_summary is not None:
+                    turn_event["answer_summary"] = finalized.answer_summary
+                self._observe_semantic_event(turn_event)
             preliminary_core = self._build_core_result(
                 request=request,
                 workspace=workspace,
@@ -1091,6 +1112,14 @@ class AgentApplication:
                 if single_binding else workspace.core_path / "runtime"
             )
             descriptor_path = runtime_dir / "runtime-descriptor.json"
+            handoff_index_path = workspace.core_path / "reference-handoffs.json"
+            if not handoff_index_path.exists():
+                handoff_index_path.write_text(
+                    '{"schema":"capability-agent-reference-handoffs/1.0","run_id":'
+                    + json.dumps(workspace.run_id)
+                    + ',"handoffs":[]}\n',
+                    encoding="utf-8",
+                )
             descriptors = []
             for binding_id in sorted(bindings):
                 binding = bindings[binding_id]
@@ -1132,6 +1161,7 @@ class AgentApplication:
                         trajectory_capture_state_path=controller.trajectory_capture_state_path,
                         trajectory_allowed_refs_path=controller.trajectory_allowed_refs_path,
                         trajectory_acks_path=controller.trajectory_acks_path,
+                        reference_handoffs_path=handoff_index_path,
                     )
                 )
             descriptor = (
@@ -1168,6 +1198,7 @@ class AgentApplication:
                 system_policy_path=host.system_policy_path,
                 runtime_descriptor_path=descriptor_path,
                 binding_id=next(iter(bindings)) if single_binding else None,
+                extra_environment=getattr(host, "extra_environment", {}),
             )
         launch = build_pi_launch(
             resolved,
@@ -1360,6 +1391,7 @@ class AgentApplication:
         core: CoreRunResult,
         completed_answers: tuple[FinalizedTurn, ...],
         prepared: PreparedApplicationRuntime | None = None,
+        final: bool = False,
     ) -> tuple[Path | None, str | None]:
         if workspace is None:
             return None, None
@@ -1370,6 +1402,7 @@ class AgentApplication:
             core=core,
             completed_answers=completed_answers,
             prepared=prepared,
+            final=final,
         )
         path = workspace.output_path / "report.md"
         _write_report_atomically(path, report)
@@ -1390,7 +1423,7 @@ class AgentApplication:
         try:
             path, report_ref = self._write_report(
                 request=request, workspace=workspace, store=store, core=core,
-                completed_answers=completed_answers, prepared=prepared,
+                completed_answers=completed_answers, prepared=prepared, final=True,
             )
             self._record_report_reference(store, report_ref)
             return path, ReportPublication("published", report_ref)
@@ -1487,6 +1520,7 @@ class AgentApplication:
         core: CoreRunResult,
         completed_answers: tuple[FinalizedTurn, ...],
         prepared: PreparedApplicationRuntime | None = None,
+        final: bool = False,
     ) -> str:
         presentation = None
         bindings = _prepared_bindings(
@@ -1505,6 +1539,12 @@ class AgentApplication:
             for answer in completed_answers
             for ref in (*answer.result_refs, *getattr(answer, "evidence_refs", ()))
         )
+        runtime = dict(self._resolved_runtime or {
+            "provider": self.cli_options.provider,
+            "model": self.cli_options.model,
+        })
+        if final:
+            runtime["report_status"] = "completed"
         return self.report_publisher.render(
             questions=request.questions,
             answers=answers,
@@ -1516,10 +1556,7 @@ class AgentApplication:
             core=core.model_dump(mode="json"),
             domains={},
             workspace=workspace,
-            runtime=self._resolved_runtime or {
-                "provider": self.cli_options.provider,
-                "model": self.cli_options.model,
-            },
+            runtime=runtime,
         )
 
     def _record_report_reference(
@@ -2082,8 +2119,9 @@ def _call_prompt(
     *,
     projector: object | None,
     turn_id: str | None,
+    response_mode: Literal["text", "answer_bundle"] = "text",
     semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
-) -> tuple[str, tuple[Any, ...]]:
+) -> tuple[str | AnswerBundle, tuple[Any, ...]]:
     method = _provider_prompt_method(transport)
     projections: list[Any] = []
     callback = getattr(projector, "observe", None) if projector is not None else None
@@ -2112,15 +2150,21 @@ def _call_prompt(
                 {"type": "application_waiting"},
             )
 
+    prompt = question
+    if response_mode == "answer_bundle":
+        prompt = f"{question}\n\n{ANSWER_BUNDLE_INSTRUCTION}"
     answer = method(
-        question,
+        prompt,
         on_semantic_event=on_event,
         correlation_id=turn_id,
         on_heartbeat=on_heartbeat,
     )
     if not isinstance(answer, str):
         raise ApplicationConfigurationError("provider transport returned non-text answer")
-    return answer, tuple(projections)
+    return (
+        parse_answer_bundle(answer) if response_mode == "answer_bundle" else answer,
+        tuple(projections),
+    )
 
 
 def _observe_nonblocking(

@@ -79,6 +79,31 @@ describe('operator workflow', () => {
     expect(factory).toHaveBeenCalledWith(token)
   })
 
+  it('switches long overview facts to stacked rows while keeping short facts compact', async () => {
+    const { client } = mockClient()
+    const longCase: Catalog = {
+      ...catalog,
+      applications: [{
+        ...catalog.applications[0],
+        cases: [{
+          ...catalog.applications[0].cases[0],
+          scenario_assumption: '按案例固定指令和登记模型进行本轮计算。',
+          interpretation_boundary: '仅说明本次登记模型及静态仿真结果；不代表实时运行状态或运行许可。',
+        }],
+      }],
+    }
+    client.catalog = vi.fn().mockResolvedValue(longCase)
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    const facts = [...document.querySelectorAll<HTMLElement>('.case-overview-fact')]
+    const factByValue = (value: string) => facts.find((fact) => fact.textContent?.includes(value))
+    expect(factByValue('regional-six-bus')?.classList.contains('is-long')).toBe(false)
+    expect(factByValue('3 步')?.classList.contains('is-long')).toBe(false)
+    expect(factByValue('按案例固定指令和登记模型进行本轮计算。')?.classList.contains('is-long')).toBe(true)
+    expect(factByValue('仅说明本次登记模型及静态仿真结果；不代表实时运行状态或运行许可。')
+      ?.classList.contains('is-long')).toBe(true)
+  })
+
   it('opens the demo workspace again after a page reload', async () => {
     const { client, createSession } = mockClient()
     const factory = vi.fn(() => client)
@@ -156,7 +181,7 @@ describe('operator workflow', () => {
     await waitFor(() => expect(client.caseDiagram).toHaveBeenCalledTimes(3))
   })
 
-  it('restores the latest session and selected completed step after switching cases', async () => {
+  it('restores the latest session while keeping the topology preview static', async () => {
     const twoCases: Catalog = { ...catalog, applications: [{ ...catalog.applications[0],
       cases: [...catalog.applications[0].cases, {
         ...catalog.applications[0].cases[0], case_id: 'case-b', title: '案例 B',
@@ -187,12 +212,11 @@ describe('operator workflow', () => {
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已打开模型。')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '查看指令 1 的电网' }))
     fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
     expect(await screen.findByRole('heading', { name: '案例 B', level: 1 })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /区域负荷增长情景/ }))
     expect(await screen.findByText('已打开模型。')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '查看指令 1 的电网' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('button', { name: '查看指令 1 的电网' })).toBeNull()
     expect(createSession).toHaveBeenCalledTimes(1)
   })
 
@@ -243,8 +267,8 @@ describe('operator workflow', () => {
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
     await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText('MODEL / CURRENT RUN')).toBeTruthy()
-    expect(network).toHaveBeenCalledWith('session-a', 1)
+    expect((await screen.findAllByText('TOPOLOGY / VIEW')).length).toBeGreaterThan(0)
+    expect(network).not.toHaveBeenCalled()
     expect(submitTurn).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: /案例 B/ }))
     await screen.findByRole('heading', { name: '案例 B', level: 1 })
@@ -260,14 +284,18 @@ describe('operator workflow', () => {
     }
     const { client } = mockClient(flow)
     Object.assign(client, {
-      report: vi.fn().mockResolvedValue('# 本轮报告\n分析已完成。'),
+      report: vi.fn().mockResolvedValue('# 本轮报告\n分析已完成。\n###### 已登记网络核对结果\n**来源**\n| 类型 | 数量 |\n| --- | --- |\n| 母线 | 6 |'),
       result: vi.fn().mockResolvedValue({ completed: true }),
     })
     const { container } = render(<App clientFactory={() => client} />)
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
-    const report = await screen.findByRole('region', { name: '本轮分析报告' })
+    const report = await screen.findByRole('region', { name: '分析报告' })
     expect(report.textContent).toContain('分析已完成。')
+    expect(screen.getByRole('heading', { name: '已登记网络核对结果', level: 6 })).toBeTruthy()
+    expect(report.textContent).toContain('来源')
+    expect(report.textContent).not.toContain('**来源**')
+    expect(screen.getByRole('table')).toBeTruthy()
     expect(container.querySelector('.workspace-center')?.contains(report)).toBe(true)
     expect(report.compareDocumentPosition(container.querySelector('.run-action-bar')!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     expect(screen.queryByRole('tab', { name: '报告' })).toBeNull()
@@ -285,11 +313,11 @@ describe('operator workflow', () => {
     render(<App clientFactory={() => client} />)
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
-    expect(await screen.findByRole('region', { name: '本轮分析报告' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: '分析报告' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '再次分析' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '重置案例' }))
     expect(createSession).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('region', { name: '本轮分析报告' })).toBeNull()
+    expect(screen.queryByRole('region', { name: '分析报告' })).toBeNull()
     expect(screen.getByRole('button', { name: '执行指令 1' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '自动完成' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
@@ -302,7 +330,7 @@ describe('operator workflow', () => {
     expect(await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })).toBeTruthy()
     expect(await screen.findByText(/3 母线 \/ 2 支路/)).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
-    expect(screen.queryByText('成本仅为模型目标值。')).toBeNull()
+    expect(screen.getByText('成本仅为模型目标值。')).toBeTruthy()
     expect(createSession).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     await waitFor(() => expect(createSession).toHaveBeenCalledWith(
@@ -420,6 +448,7 @@ describe('operator workflow', () => {
           sequence: ordinal, event: 'answer_committed', payload: {
             ordinal, turn_id: `turn-${ordinal}`, answer_output: `回答 ${ordinal}`,
             answer_ref: `answer:${ordinal}`, result_refs: [], evidence_refs: [],
+            ...(ordinal === 1 ? { duration_ms: 4200 } : {}),
           } }
       }
       await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
@@ -429,10 +458,11 @@ describe('operator workflow', () => {
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByRole('button', { name: '生成报告' })).toBeTruthy()
+    expect(screen.getByText('已完成 · 4.2 秒')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '自动完成' })).toBeNull()
   })
 
-  it('loads the authenticated network projection after a committed step', async () => {
+  it('keeps the static case diagram when a projection event is emitted', async () => {
     const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
       yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
         sequence: 1, event: 'ready', payload: { run_id: 'run-one' } }
@@ -449,8 +479,8 @@ describe('operator workflow', () => {
     render(<App clientFactory={() => client} />)
     await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
-    await waitFor(() => expect(network).toHaveBeenCalledWith('session-one', 1))
     expect(await screen.findByRole('img', { name: '电网拓扑' })).toBeTruthy()
+    expect(network).not.toHaveBeenCalled()
   })
 
   it('keeps a complete model diagram across a step without a new network layer', async () => {
@@ -476,11 +506,10 @@ describe('operator workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
     expect(await screen.findByText('已分析情景。')).toBeTruthy()
     expect(await screen.findByText(/3 母线 \/ 2 支路/)).toBeTruthy()
-    expect(screen.getByText('当前步骤暂无逐元件数值')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '查看指令 1 的电网' }))
-    expect(screen.getByRole('button', { name: '查看指令 1 的电网' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: '回到最新步骤' })).toBeTruthy()
-    expect(network).toHaveBeenCalledWith('session-one', 1)
+    expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '查看指令 1 的电网' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '回到最新步骤' })).toBeNull()
+    expect(network).not.toHaveBeenCalled()
   })
 
   it('keeps the answer visible when the authority cannot project a network', async () => {

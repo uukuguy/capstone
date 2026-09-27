@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
 import { commandKey } from './commandKey'
 import { NetworkView } from './NetworkView'
-import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
+import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
   rememberSelection, rememberSession } from './sessionMemory'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
@@ -26,6 +25,23 @@ function statusText(status: SessionStatus | null): string {
   if (status.error_code === 'session_capacity_evicted') return '空闲会话已让位'
   return stateLabel[status.state]
 }
+
+function formatDuration(durationMs: number): string {
+  const seconds = Math.max(0, durationMs) / 1000
+  if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} 秒`
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.round(seconds % 60)
+  return `${minutes} 分 ${String(remainder).padStart(2, '0')} 秒`
+}
+
+function isLongCaseFact(value: string): boolean {
+  return value.length > 18
+}
+
+// Step-to-network projection is intentionally disabled until its contract is
+// validated independently. The case diagram remains available as a static
+// preview while answers and reports continue to use the real run.
+const ENABLE_NETWORK_STEP_LINK = false
 
 function isTerminal(state: SessionStatus['state']): boolean {
   return state === 'completed' || state === 'failed' || state === 'interrupted'
@@ -77,11 +93,10 @@ function CatalogPanel({ catalog, selection, onSelect }: {
   </aside>
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="fact"><span>{label}</span><strong>{children}</strong></div>
-}
-
 export function readerAnswerText(turn: CommittedTurn): string {
+  if (typeof turn.answer_summary === 'string' && turn.answer_summary.trim()) {
+    return turn.answer_summary
+  }
   if (!/^scripted semantic execution completed for question \d+\s*:/i.test(turn.answer_output)) {
     return turn.answer_output
   }
@@ -133,7 +148,7 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
                     onSubmit, onClose, onAuto, onRestart, onStopAuto, onEvidence,
                     networkView, previewDiagram, previewUnavailable,
                     networkFocusKey, networkUnavailable, nextNetworkTask,
-                    selectedStep, onSelectStep, report, result }: {
+                    report, result, runDurationMs }: {
   caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
   automatic: boolean; autoPaused: boolean; onAuto: () => void; onRestart: () => void; onStopAuto: () => void;
@@ -142,29 +157,23 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
   networkView: NetworkViewData | null; previewDiagram: NetworkDiagram | null;
   previewUnavailable: boolean; networkFocusKey: string;
   networkUnavailable: boolean; nextNetworkTask: boolean;
-  selectedStep: number | null; onSelectStep: (ordinal: number | null) => void
-  report: string | null; result: unknown
+  report: string | null; result: unknown; runDurationMs: number | null
 }) {
   const next = (status?.completed_turns ?? 0) + 1
   return <main className="run-panel">
-    <div className="run-title-row"><div>
-      <span className="eyebrow">REGISTERED ANALYSIS / 0{caseCard.instructions.length} STEPS</span>
-      <h1>{caseCard.title}</h1>
-    </div><div className="run-title-glyph" aria-hidden="true"><Mark /></div></div>
+    <h1 className="visually-hidden">{caseCard.title}</h1>
+    <div className="timeline-heading model-section-heading"><div>
+      <span className="eyebrow">MODEL / OVERVIEW</span><h2>电网模型</h2>
+    </div></div>
     <NetworkView view={networkView} previewDiagram={previewDiagram}
       modelName={caseCard.model_origin} focusKey={networkFocusKey}
       unavailable={networkUnavailable} previewUnavailable={previewUnavailable}
       nextTask={nextNetworkTask} />
-    <div className="context-strip">
-      <Fact label="电网模型">{caseCard.model_origin}</Fact>
-      <Fact label="情景假设">{caseCard.scenario_assumption}</Fact>
-    </div>
-    <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
+      <div className="timeline-heading"><div><span className="eyebrow">ANALYSIS / WORKFLOW</span><h2>推演过程</h2></div>
       <div className="timeline-heading-actions">{(status?.state === 'completed' || status?.state === 'failed' ||
         status?.state === 'interrupted') &&
         <button type="button" className="timeline-reset" onClick={onRestart}
-          disabled={actionPending}>重置案例</button>}{selectedStep !== null &&
-        <button type="button" className="timeline-latest" onClick={() => onSelectStep(null)}>回到最新步骤</button>}
+          disabled={actionPending}>重置案例</button>}
         <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div></div>
     {autoPaused && status?.state !== 'completed' && status?.state !== 'failed' &&
       status?.state !== 'interrupted' && <div className="auto-pause-notice" role="status">
@@ -187,8 +196,9 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         <span>结束本轮后生成最终结果与报告。</span></div>
         {!automatic && <div className="action-buttons"><button className="primary-button" onClick={onClose} disabled={actionPending}>生成报告 <span aria-hidden="true">↗</span></button></div>}</>}
       {status?.state === 'closing' && <div className="working-line"><span className="spinner" />正在整理本轮结果与报告…</div>}
-      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮分析已完成</strong>
-        <small>{report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
+      {status?.state === 'completed' && <div className="completion-message"><span>✓</span><div><strong>本轮推演已完成</strong>
+        <small>{runDurationMs !== null ? `推演用时 ${formatDuration(runDurationMs)}；` : ''}
+          {report ? '报告见下方，证据可在右侧查看。' : '已提交答案保留在本次运行中。'}</small></div></div>}
       {(status?.state === 'failed' || status?.state === 'interrupted') && <div className="failure-message">
         <strong>{statusText(status)}</strong><span>{status.error_code === 'session_idle_timeout'
           ? '长时间未提交新指令，计算资源已释放；已完成步骤仍可回看。'
@@ -205,12 +215,11 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         const answer = turns[ordinal]
         const isNext = status?.state === 'ready' && ordinal === next
         const isExecuting = status?.state === 'executing' && ordinal === next
-        const itemStatus = answer ? '已完成' : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'
+        const itemStatus = answer
+          ? answer.duration_ms !== undefined ? `已完成 · ${formatDuration(answer.duration_ms)}` : '已完成'
+          : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'
         return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''}`}>
-          {answer ? <button className="timeline-number" type="button"
-            aria-label={`查看指令 ${ordinal} 的电网`} aria-pressed={selectedStep === ordinal}
-            onClick={() => onSelectStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
-            : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
+          <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>
           <div className="timeline-content"><div className="timeline-item-head">
             <p className="instruction-text">{instruction}</p><span>{itemStatus}</span></div>
             {answer && <AnswerCard turn={answer} onEvidence={onEvidence} />}
@@ -219,8 +228,8 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         </li>
       })}
     </ol>
-    {report && <section className="run-report" aria-label="本轮分析报告">
-      <div className="timeline-heading"><div><span className="eyebrow">CURRENT RUN / REPORT</span><h2>本轮分析报告</h2></div></div>
+    {report && <section className="run-report" aria-label="分析报告">
+      <div className="timeline-heading"><div><span className="eyebrow">ANALYSIS / REPORT</span><h2>分析报告</h2></div></div>
       <div className="run-report-paper"><ReportDocument report={report} />
         {result !== null && <details className="result-details"><summary>查看结构化结果</summary>
           <pre>{JSON.stringify(result, null, 2)}</pre></details>}</div>
@@ -228,34 +237,117 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
   </main>
 }
 
-function ReportDocument({ report }: { report: string }) {
-  return <article className="report-document">{report.split('\n').map((raw, index) => {
-    const line = raw.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/`([^`]+)`/g, '$1')
-    if (line.startsWith('### ')) return <h4 key={index}>{line.slice(4)}</h4>
-    if (line.startsWith('## ')) return <h3 key={index}>{line.slice(3)}</h3>
-    if (line.startsWith('# ')) return <h2 key={index}>{line.slice(2)}</h2>
-    if (line.startsWith('- ')) return <p className="report-bullet" key={index}>{line.slice(2)}</p>
-    return line ? <p key={index}>{line}</p> : <div className="report-space" key={index} />
-  })}</article>
+function reportInlineText(value: string): string {
+  return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
 }
 
-function DetailPanel({ status, caseCard, turns, tab, onTab,
+function reportTableRow(line: string): string[] {
+  const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|')
+  return cells.map((cell) => reportInlineText(cell.trim()))
+}
+
+function isReportTableLine(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.split('|').length >= 3
+}
+
+function isReportTableSeparator(line: string): boolean {
+  return reportTableRow(line).every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, '')))
+}
+
+function ReportTable({ rows }: { rows: string[][] }) {
+  const [header, ...body] = rows
+  return <table>
+    <thead><tr>{header.map((cell, index) => <th key={index}>{cell}</th>)}</tr></thead>
+    <tbody>{body.map((row, rowIndex) => <tr key={rowIndex}>
+      {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
+    </tr>)}</tbody>
+  </table>
+}
+
+function ReportDocument({ report }: { report: string }) {
+  // Some model responses place a heading immediately after the preceding
+  // sentence. Split that boundary before applying the line-level renderer.
+  const lines = report.replace(/([。！？.!?])(?=#{1,6}\s)/g, '$1\n').split('\n')
+  const content = []
+  let index = 0
+  while (index < lines.length) {
+    const raw = lines[index]
+    if (isReportTableLine(raw)) {
+      const tableLines: string[] = []
+      while (index < lines.length && isReportTableLine(lines[index])) {
+        tableLines.push(lines[index])
+        index += 1
+      }
+      const rows = tableLines.filter((line) => !isReportTableSeparator(line)).map(reportTableRow)
+      if (rows.length > 0 && rows[0].length > 0) {
+        content.push(<ReportTable key={`table-${index}`} rows={rows} />)
+      }
+      continue
+    }
+
+    const line = reportInlineText(raw)
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line)
+    if (heading) {
+      const text = heading[2]
+      const level = heading[1].length
+      if (level === 1) content.push(<h2 key={index}>{text}</h2>)
+      else if (level === 2) content.push(<h3 key={index}>{text}</h3>)
+      else if (level === 3) content.push(<h4 key={index}>{text}</h4>)
+      else if (level === 4) content.push(<h5 key={index}>{text}</h5>)
+      else content.push(<h6 key={index}>{text}</h6>)
+    } else if (line.startsWith('- ')) {
+      content.push(<p className="report-bullet" key={index}>{line.slice(2)}</p>)
+    } else if (line) {
+      content.push(<p key={index}>{line}</p>)
+    } else {
+      content.push(<div className="report-space" key={index} />)
+    }
+    index += 1
+  }
+  return <article className="report-document">{content}</article>
+}
+
+function DetailPanel({ status, caseCard, turns, tab, onTab, onReconnect, actionPending,
                        evidenceRef, evidence, evidencePending }: {
   status: SessionStatus | null; caseCard: CaseCard; turns: Record<number, CommittedTurn>;
   tab: DetailTab; onTab: (tab: DetailTab) => void;
+  onReconnect: () => void; actionPending: boolean;
   evidenceRef: string | null; evidence: unknown; evidencePending: boolean
 }) {
   const refs = Object.values(turns).flatMap((turn) => turn.evidence_refs)
   const uniqueRefs = [...new Set(refs)]
   return <aside className="detail-panel" aria-label="运行详情">
     <div className="section-heading"><div><span className="eyebrow">CURRENT RUN</span><h2>运行详情</h2></div>
-      <span className={`status-led ${status?.state || 'idle'}`} />
+      <div className="detail-heading-actions"><span className={`status-led ${status?.state || 'idle'}`} />
+        <button type="button" className="text-button reconnect-button" onClick={onReconnect}
+          disabled={actionPending}>断开/重连</button></div>
     </div>
     <div className="detail-tabs" role="tablist" aria-label="详情视图">
       {([['overview', '概览'], ['evidence', '证据']] as const).map(([value, label]) =>
         <button key={value} role="tab" aria-selected={tab === value} onClick={() => onTab(value)}>{label}</button>)}
     </div>
     {tab === 'overview' && <div className="detail-body">
+      <section className="case-overview" aria-label="当前案例概览">
+        <h3>{caseCard.title}</h3>
+        <p className="case-overview-summary">{caseCard.summary}</p>
+        <dl className="case-overview-facts">
+          {([
+            ['电网模型', caseCard.model_origin],
+            ['分析步骤', `${caseCard.instructions.length} 步`],
+            ['情景假设', caseCard.scenario_assumption],
+            ['结果边界', caseCard.interpretation_boundary],
+          ] as const).map(([label, value]) => <div
+            className={`case-overview-fact${isLongCaseFact(value) ? ' is-long' : ''}`}
+            key={label}>
+            <dt>{label}</dt><dd>{value}</dd>
+          </div>)}
+        </dl>
+      </section>
       <div className="status-card"><span className="detail-label">运行状态</span>
         <strong>{statusText(status)}</strong>
         <div className="progress-track"><div style={{ width: `${((status?.completed_turns ?? 0) / caseCard.instructions.length) * 100}%` }} /></div>
@@ -289,15 +381,13 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [progress, setProgress] = useState<string | null>(null)
   const [report, setReport] = useState<string | null>(null)
   const [result, setResult] = useState<unknown>(null)
+  const [runDurationMs, setRunDurationMs] = useState<number | null>(null)
   const [tab, setTab] = useState<DetailTab>('overview')
   const [evidenceRef, setEvidenceRef] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<unknown>(null)
   const [evidencePending, setEvidencePending] = useState(false)
-  const [networkViews, setNetworkViews] = useState<Record<number, NetworkViewData>>({})
   const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
   const [previewUnavailable, setPreviewUnavailable] = useState(false)
-  const [unavailableViews, setUnavailableViews] = useState<number[]>([])
-  const [selectedStep, setSelectedStep] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
   const [restoring, setRestoring] = useState(() =>
     Boolean(readRun(app.application_id, caseCard.case_id)?.sessionId))
@@ -305,11 +395,20 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [automatic, setAutomatic] = useState(false)
   const [autoPaused, setAutoPaused] = useState(false)
   const autoController = useRef<AbortController | null>(null)
+  const runStartedAt = useRef<number | null>(null)
+  const stepStartedAt = useRef<number | null>(null)
+  const measuredDurationMs = useRef(0)
+  const measuredStepCount = useRef(0)
+  const closingStartedAt = useRef<number | null>(null)
   const automaticKeys = useRef(new Map<string, string>())
-  const networkOutcomes = useRef(new Set<string>())
-  const networkWaiters = useRef(new Map<string, () => void>())
 
   useEffect(() => () => autoController.current?.abort(), [])
+
+  useEffect(() => {
+    if (!error) return
+    const timer = window.setTimeout(() => setError(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [error])
 
   useEffect(() => {
     const previous = readRun(app.application_id, caseCard.case_id)
@@ -363,39 +462,54 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     stopAutomatic()
     setAutoPaused(false)
     if (forgetStored) forgetRun(app.application_id, caseCard.case_id)
-    networkOutcomes.current.clear()
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
-    setNetworkViews({}); setUnavailableViews([]); setSelectedStep(null)
+    runStartedAt.current = null; stepStartedAt.current = null
+    measuredDurationMs.current = 0; measuredStepCount.current = 0
+    closingStartedAt.current = null; setRunDurationMs(null)
   }
 
-  function settleNetwork(sid: string, ordinal: number) {
-    const key = `${sid}:${ordinal}`
-    networkOutcomes.current.add(key)
-    networkWaiters.current.get(key)?.()
+  function beginRunTimer() {
+    if (runStartedAt.current === null) runStartedAt.current = Date.now()
   }
 
-  function waitForNetwork(sid: string, ordinal: number, signal: AbortSignal): Promise<void> {
-    const key = `${sid}:${ordinal}`
-    if (signal.aborted || networkOutcomes.current.has(key)) return Promise.resolve()
-    return new Promise((resolve) => {
-      const timer = setTimeout(finish, 12000)
-      function finish() {
-        clearTimeout(timer)
-        signal.removeEventListener('abort', finish)
-        networkWaiters.current.delete(key)
-        resolve()
-      }
-      networkWaiters.current.set(key, finish)
-      signal.addEventListener('abort', finish, { once: true })
-    })
+  function finishRunTimer() {
+    const now = Date.now()
+    if (measuredStepCount.current > 0) {
+      setRunDurationMs(Math.max(0, measuredDurationMs.current
+        + (stepStartedAt.current === null ? 0 : now - stepStartedAt.current)
+        + (closingStartedAt.current === null ? 0 : now - closingStartedAt.current)))
+    } else if (runStartedAt.current !== null) {
+      setRunDurationMs(Math.max(0, now - runStartedAt.current))
+    }
+  }
+
+  function activeElapsedMs(): number | null {
+    if (runStartedAt.current === null && measuredStepCount.current === 0) return null
+    if (measuredStepCount.current === 0) {
+      return Math.max(0, Date.now() - (runStartedAt.current ?? Date.now()))
+    }
+    const now = Date.now()
+    return Math.max(0, measuredDurationMs.current
+      + (stepStartedAt.current === null ? 0 : now - stepStartedAt.current)
+      + (closingStartedAt.current === null ? 0 : now - closingStartedAt.current))
+  }
+
+  function recordStepDuration(answer: CommittedTurn) {
+    const reported = answer.duration_ms
+    const duration = typeof reported === 'number' && Number.isFinite(reported)
+      ? Math.max(0, reported)
+      : stepStartedAt.current === null ? null : Math.max(0, Date.now() - stepStartedAt.current)
+    if (duration === null) return
+    measuredDurationMs.current += duration
+    measuredStepCount.current += 1
+    stepStartedAt.current = null
   }
 
   useEffect(() => {
     if (!client || !sessionId) return
     const controller = new AbortController()
     let cursor = 0
-    const admittedByOrdinal = new Map<number, string[]>()
     const sid = sessionId
     async function complete() {
       const outcomes = await Promise.allSettled([client!.report(sid), client!.result(sid)])
@@ -414,42 +528,25 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
                 state: before.accepted_turns > before.completed_turns ? before.state : 'ready',
                 run_id: typeof event.payload.run_id === 'string' ? event.payload.run_id : before.run_id }))
             } else if (event.event === 'progress') {
-              setProgress(typeof event.payload.message === 'string' ? event.payload.message : null)
+              const message = typeof event.payload.message === 'string' ? event.payload.message : null
+              const elapsed = activeElapsedMs()
+              setProgress(message === null ? null : `[${elapsed === null ? '—' : formatDuration(elapsed)}] ${message}`)
             } else if (event.event === 'answer_committed') {
               const answer = event.payload as CommittedTurn
-              admittedByOrdinal.set(answer.ordinal, Array.isArray(answer.result_refs) ? answer.result_refs : [])
+              recordStepDuration(answer)
               setTurns((before) => ({ ...before, [answer.ordinal]: answer }))
               setStatus((before) => before && (isTerminal(before.state) ? before : { ...before, state: 'ready',
                 completed_turns: answer.ordinal, accepted_turns: answer.ordinal }))
               setProgress(null)
-              setSelectedStep(null)
-            } else if (event.event === 'network_view' || event.event === 'network_layer') {
-              const ordinal = event.payload.ordinal
-              if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
-                try {
-                  const raw = await client!.network(sid, Number(ordinal))
-                  if (controller.signal.aborted) return
-                  const view = parseNetworkView(raw, Number(ordinal),
-                    admittedByOrdinal.get(Number(ordinal)) || [])
-                  if (view) {
-                    setNetworkViews((before) => ({ ...before, [view.ordinal]: view }))
-                  } else {
-                    setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
-                  }
-                } catch {
-                  // A missing optional view cannot veto the committed answer.
-                  setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
-                }
-                settleNetwork(sid, Number(ordinal))
-              }
-            } else if (event.event === 'network_view_unavailable' || event.event === 'network_layer_unavailable') {
-              const ordinal = event.payload.ordinal
-              if (Number.isInteger(ordinal) && Number(ordinal) >= 1 && Number(ordinal) <= 3) {
-                setUnavailableViews((before) => [...new Set([...before, Number(ordinal)])])
-                settleNetwork(sid, Number(ordinal))
+            } else if (event.event === 'network_view' || event.event === 'network_layer' ||
+              event.event === 'network_view_unavailable' || event.event === 'network_layer_unavailable') {
+              // Keep optional projection events from affecting the real answer flow.
+              if (ENABLE_NETWORK_STEP_LINK) {
+                // Reserved for the separately validated network projection path.
               }
             } else if (event.event === 'completed') {
               setStatus((before) => before && { ...before, state: 'completed' })
+              finishRunTimer()
               await complete()
               return
             } else if (event.event === 'failed') {
@@ -461,7 +558,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
           const current = await client!.status(sid)
           if (controller.signal.aborted) return
           setStatus(current)
-          if (current.state === 'completed') { await complete(); return }
+          if (current.state === 'completed') { finishRunTimer(); await complete(); return }
           if (current.state === 'failed' || current.state === 'interrupted') return
         } catch (cause) {
           if (controller.signal.aborted) return
@@ -482,6 +579,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   async function start() {
     if (!client || !app || !caseCard || restoring) return
     setPending(true); setError(null); clearRun(false)
+    beginRunTimer()
     try {
       const createKey = ensureCreateKey(app.application_id, caseCard.case_id)
       const created = await client.createSession(app.application_id, caseCard.case_id, createKey)
@@ -501,17 +599,11 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
       }
       if (!ready) throw new Error('等待当前运行超时')
       await client.submitTurn(created.session_id, caseCard.instructions[0], commandKey())
+      stepStartedAt.current = Date.now()
       setStatus((before) => before && before.completed_turns === 0
         ? { ...before, state: 'executing', accepted_turns: 1 } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '启动失败') }
     finally { setPending(false) }
-  }
-
-  async function presentCommittedStep(sid: string, ordinal: number, signal: AbortSignal) {
-    await waitForNetwork(sid, ordinal, signal)
-    if (signal.aborted) return
-    setSelectedStep(null)
-    await new Promise((resolve) => setTimeout(resolve, 800))
   }
 
   function startAutomatic() {
@@ -522,6 +614,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
       ensureCreateKey(app.application_id, caseCard.case_id)
     const controller = new AbortController()
     autoController.current = controller
+    beginRunTimer()
     setAutomatic(true); setAutoPaused(false); setError(null)
     void runAutomaticSession(
       client, app.application_id, caseCard.case_id,
@@ -532,17 +625,27 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
         setSessionId(created.session_id)
       },
-      (current) => setStatus((before) => before && before.session_id === current.session_id &&
-        (isTerminal(before.state) || before.completed_turns > current.completed_turns ||
-          before.accepted_turns > current.accepted_turns)
-        ? before : current),
+      (current) => {
+        if (current.state === 'executing' && current.accepted_turns > current.completed_turns &&
+            stepStartedAt.current === null) {
+          stepStartedAt.current = Date.now()
+        }
+        if (current.state === 'closing' && closingStartedAt.current === null) {
+          closingStartedAt.current = Date.now()
+        }
+        setStatus((before) => before && before.session_id === current.session_id &&
+          (isTerminal(before.state) || before.completed_turns > current.completed_turns ||
+            before.accepted_turns > current.accepted_turns)
+          ? before : current)
+      },
       undefined,
-      presentCommittedStep,
+      undefined,
       creationKey,
     ).then(async (sid) => {
       if (controller.signal.aborted || !autoController.current) return
       const current = await client.status(sid)
       if (current.state === 'completed') {
+        finishRunTimer()
         const outcomes = await Promise.allSettled([client.report(sid), client.result(sid)])
         if (outcomes[0].status === 'fulfilled') setReport(outcomes[0].value)
         if (outcomes[1].status === 'fulfilled') setResult(outcomes[1].value)
@@ -563,8 +666,10 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     const instruction = caseCard.instructions[ordinal - 1]
     if (!instruction) return
     setPending(true); setAutoPaused(false); setError(null)
+    beginRunTimer()
     try {
       await client.submitTurn(sessionId, instruction, commandKey())
+      stepStartedAt.current = Date.now()
       setStatus((before) => before && before.completed_turns < ordinal
         ? { ...before, state: 'executing', accepted_turns: ordinal } : before)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '提交失败') }
@@ -574,12 +679,45 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   async function close() {
     if (!client || !sessionId) return
     setPending(true); setAutoPaused(false); setError(null)
+    closingStartedAt.current = Date.now()
     try {
       await client.close(sessionId, commandKey())
       setStatus((before) => before && before.state !== 'completed'
         ? { ...before, state: 'closing' } : before)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '结束失败') }
+    } catch (cause) {
+      closingStartedAt.current = null
+      setError(cause instanceof Error ? cause.message : '结束失败')
+    }
     finally { setPending(false) }
+  }
+
+  async function disconnectAndReconnect() {
+    if (!client || restoring) return
+    setPending(true); setError(null); stopAutomatic()
+    const previousSessionId = sessionId
+    try {
+      if (previousSessionId) {
+        await client.disconnect(previousSessionId, `disconnect-${previousSessionId}`)
+      }
+      clearRun(true)
+      const createKey = ensureCreateKey(app.application_id, caseCard.case_id)
+      const created = await client.createSession(app.application_id, caseCard.case_id, createKey)
+      rememberSession(app.application_id, caseCard.case_id, createKey, created.session_id)
+      setStatus({ ...created, error_code: null, accepted_turns: 0, completed_turns: 0 })
+      setSessionId(created.session_id)
+      for (let attempt = 0; attempt < 150; attempt += 1) {
+        const current = await client.status(created.session_id)
+        setStatus(current)
+        if (current.state === 'ready') return
+        if (current.state === 'failed' || current.state === 'interrupted') {
+          throw new Error('新会话未能启动')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
+      throw new Error('等待新会话超时')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '断开并重连失败')
+    } finally { setPending(false) }
   }
 
   async function showEvidence(ref: string) {
@@ -590,19 +728,10 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     finally { setEvidencePending(false) }
   }
 
-  const displayedOrdinal = selectedStep ?? status?.completed_turns ?? 0
-  const exactNetworkView = displayedOrdinal > 0 ? networkViews[displayedOrdinal] ?? null : null
-  const previousOrdinal = Object.keys(networkViews).map(Number).filter((ordinal) => ordinal < displayedOrdinal)
-    .sort((a, b) => b - a)[0]
-  const previousNetworkView = previousOrdinal === undefined ? null : networkViews[previousOrdinal]
-  const networkView: NetworkViewData | null = exactNetworkView || (previousNetworkView?.schema === 'capstone-network-view/2.0'
-    ? { ...previousNetworkView, ordinal: displayedOrdinal,
-      layer: { ...previousNetworkView.layer, ordinal: displayedOrdinal, focus_ids: [], next_focus_ids: [], overlay: null } }
-    : previousNetworkView ? { ...previousNetworkView, ordinal: displayedOrdinal,
-      focus_ids: [], next_focus_ids: [], overlay: null } : null)
-  const networkFocusKey = `${sessionId ?? 'idle'}:${displayedOrdinal}:${status?.state ?? 'new'}`
-  const nextNetworkTask = selectedStep === null && status?.state === 'executing' && displayedOrdinal > 0
-  const networkUnavailable = displayedOrdinal > 0 && unavailableViews.includes(displayedOrdinal) && !networkView
+  const networkView: NetworkViewData | null = null
+  const networkFocusKey = `${sessionId ?? 'idle'}:static:${status?.state ?? 'new'}`
+  const nextNetworkTask = false
+  const networkUnavailable = false
 
   return <div style={{ display: visible ? 'contents' : 'none' }}>
     <div className="workspace-center">
@@ -614,14 +743,15 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         networkView={networkView} previewDiagram={previewDiagram}
         previewUnavailable={previewUnavailable} networkFocusKey={networkFocusKey}
         networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
-        selectedStep={selectedStep} onSelectStep={setSelectedStep}
         report={report} result={result}
+        runDurationMs={runDurationMs}
         onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
         onAuto={startAutomatic} onRestart={clearRun} onStopAuto={stopAutomatic}
         onEvidence={(ref) => void showEvidence(ref)} />
     </div>
     <DetailPanel status={status} caseCard={caseCard} turns={turns}
-      tab={tab} onTab={setTab}
+      tab={tab} onTab={setTab} onReconnect={() => void disconnectAndReconnect()}
+      actionPending={pending || restoring}
       evidenceRef={evidenceRef} evidence={evidence} evidencePending={evidencePending} />
   </div>
 }

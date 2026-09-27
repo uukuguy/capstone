@@ -75,6 +75,8 @@ class FakeController:
             status="success",
             answer_ref=f"answer:{handle.turn_id}",
             answer_output=kwargs["answer_output"],
+            answer_summary=kwargs.get("answer_summary")
+            if isinstance(kwargs.get("answer_summary"), str) else None,
             answer_path=None,
             admission_ref=None,
             referenced_bindings=("alpha",),
@@ -1248,6 +1250,90 @@ def test_runner_accepts_next_instruction_after_first_answer_commits(
         application._diagnostic_workspace.context_events_path
     )
     assert list(replayed.core.input["questions"]) == ["q1", "q2"]
+
+
+def test_runner_parses_answer_bundle_and_persists_summary(tmp_path: Path) -> None:
+    events: list[str] = []
+    observed: list[dict[str, object]] = []
+    transport = FakeTransport(
+        events,
+        answers=['{"answer":"完整正式回答。","summary":"已完成模型核对并确认结果。"}'],
+    )
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(
+            application_id="fixture-app", version="1.0.0",
+            result_schema="capability-agent-output/1.0",
+        ),
+        domains=(binding,),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+        application_policy=SimpleNamespace(load=lambda: ""),
+        acceptance_profile=SimpleNamespace(),
+    )
+    controller = FakeController(events)
+    application = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(profile=profile, bindings={"alpha": binding}),
+        workspace_root=tmp_path,
+        provider_catalog=SimpleNamespace(load=lambda: object()),
+        catalog=object(),
+        provider_factory=lambda **_: transport,
+        turn_controller=controller,
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={},
+        ),
+        semantic_event_observer=lambda event: observed.append(dict(event)),
+    )
+
+    outcome = application.run(
+        ApplicationRequest(
+            application_id="fixture-app", questions=("核对模型。",),
+            response_mode="answer_bundle",
+        )
+    )
+
+    assert outcome.status == "completed", outcome.error
+    provider_question = next(event for event in events if event.startswith("question:"))
+    assert "answer 和 summary" in provider_question
+    assert controller.submissions[0]["answer_output"] == "完整正式回答。"
+    assert controller.submissions[0]["answer_summary"] == "已完成模型核对并确认结果。"
+    committed = [event for event in observed if event.get("type") == "application_turn_completed"]
+    assert committed[0]["answer_output"] == "完整正式回答。"
+    assert committed[0]["answer_summary"] == "已完成模型核对并确认结果。"
+
+
+def test_runner_text_mode_keeps_provider_question_unchanged(tmp_path: Path) -> None:
+    events: list[str] = []
+    transport = FakeTransport(events, answers=["普通回答。"])
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(
+            application_id="fixture-app", version="1.0.0",
+            result_schema="capability-agent-output/1.0",
+        ),
+        domains=(binding,),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+        application_policy=SimpleNamespace(load=lambda: ""),
+        acceptance_profile=SimpleNamespace(),
+    )
+    application = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(profile=profile, bindings={"alpha": binding}),
+        workspace_root=tmp_path,
+        provider_catalog=SimpleNamespace(load=lambda: object()),
+        catalog=object(),
+        provider_factory=lambda **_: transport,
+        turn_controller=FakeController(events),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={},
+        ),
+    )
+
+    application.run(ApplicationRequest(application_id="fixture-app", questions=("原始问题。",)))
+
+    assert "question:原始问题。" in events
 
 
 def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Path) -> None:

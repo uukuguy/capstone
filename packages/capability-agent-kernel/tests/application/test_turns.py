@@ -190,6 +190,36 @@ def test_submit_calls_domain_admission_for_a_zero_reference_answer(active_turn) 
     assert committed.answer_output == "unverified business assertion"
 
 
+def test_submit_persists_answer_summary_without_changing_formal_answer(active_turn) -> None:
+    _store, workspace, current = active_turn
+    controller = TurnController(
+        store=current.store,
+        workspace=workspace,
+        bindings={"grid": current.prepared},
+    )
+
+    committed = controller.submit(
+        current.handle,
+        answer_output="完整正式回答。",
+        answer_summary="正式回答的过程摘要。",
+        duration_seconds=1.0,
+    )
+
+    answer = json.loads(
+        (workspace.turns_path / current.handle.turn_id / "answer.json").read_text()
+    )
+    events = list(ApplicationContextStore.replay_events(workspace)[1])
+    assert committed.answer_output == "完整正式回答。"
+    assert committed.answer_summary == "正式回答的过程摘要。"
+    assert answer["answer_output"] == "完整正式回答。"
+    assert answer["answer_summary"] == "正式回答的过程摘要。"
+    assert any(
+        event.event_type == "answer.submitted"
+        and event.payload.get("answer_summary") == "正式回答的过程摘要。"
+        for event in events
+    )
+
+
 @pytest.mark.parametrize("evaluation_fails", [False, True])
 def test_evaluation_cannot_rewrite_or_fail_primary_answer(active_turn, evaluation_fails):
     _store, _workspace, current = active_turn

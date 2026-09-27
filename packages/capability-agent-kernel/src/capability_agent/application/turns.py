@@ -86,6 +86,7 @@ class FinalizedTurn:
     admission: AnswerAdmissionDecision | None
     error: str | None
     post_commit_diagnostic_codes: tuple[str, ...] = ()
+    answer_summary: str | None = None
 
 
 class _AuthorityReferenceVerifier:
@@ -242,6 +243,7 @@ class TurnController:
         handle: ActiveTurnHandle,
         *,
         answer_output: str,
+        answer_summary: str | None = None,
         referenced_bindings: Iterable[str] = (),
         result_refs: Iterable[str] = (),
         evidence_refs: Iterable[str] = (),
@@ -254,6 +256,12 @@ class TurnController:
         self._require_active_turn(handle)
         if not isinstance(answer_output, str) or not answer_output.strip():
             raise AnswerCommitError("answer output must not be empty")
+        if answer_summary is not None and (
+            not isinstance(answer_summary, str) or not answer_summary.strip()
+        ):
+            raise AnswerCommitError("answer summary must be non-empty text")
+        if isinstance(answer_summary, str):
+            answer_summary = answer_summary.strip()
         duration = _duration(duration_seconds)
         selected = _portable_binding_ids(referenced_bindings)
         results = _string_refs(result_refs, "result_refs")
@@ -385,6 +393,7 @@ class TurnController:
             "turn_nonce": handle.turn_nonce,
             "submission_id": composite_submission.submission_id,
             "answer_output": answer_output,
+            **({"answer_summary": answer_summary} if answer_summary is not None else {}),
             "referenced_bindings": list(selected),
             "result_refs": list(results),
             "claim_evidence_refs": list(evidence),
@@ -403,6 +412,7 @@ class TurnController:
             "referenced_bindings": list(selected),
             "result_refs": list(results),
             "evidence_refs": list(evidence),
+            **({"answer_summary": answer_summary} if answer_summary is not None else {}),
             "claims": [claim.model_dump(mode="json") for claim in composite_submission.claims],
         }
         answer_bytes = canonical_json_bytes(answer_payload)
@@ -456,6 +466,7 @@ class TurnController:
                 "referenced_bindings": list(selected),
                 "result_refs": list(results),
                 "claim_evidence_refs": list(evidence),
+                **({"answer_summary": answer_summary} if answer_summary is not None else {}),
             },
         )
         completed_event = ContextEventDraft(
@@ -471,6 +482,7 @@ class TurnController:
                 "result_refs": list(results),
                 "evidence_refs": list(evidence),
                 "admission_ref": admission_ref,
+                **({"answer_summary": answer_summary} if answer_summary is not None else {}),
             },
         )
         self._preflight_context_events((answer_event, completed_event))
@@ -530,6 +542,7 @@ class TurnController:
             admission=admission,
             error=None,
             post_commit_diagnostic_codes=tuple(post_commit_diagnostics),
+            answer_summary=answer_summary,
         )
 
     def fail(
