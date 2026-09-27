@@ -152,7 +152,7 @@ button.timeline-number[aria-pressed="true"] { box-shadow: 0 0 0 3px #2c9b7930; }
   border-radius: 3px; box-shadow: none; padding: 13px 15px; }
 .answer-label { color: #1d806d; font-size: 12px; }
 .answer-check { border-color: #69ad91; }
-.answer-text { color: #203a3d; font-size: 14px; line-height: 1.7; }
+.answer-text { color: #203a3d; font-size: 12px; line-height: 1.6; }
 .reference-row { border-color: #dbe9e1; }
 .reference-title { color: #5d7771; font-size: 11px; }
 .reference-chip { background: #edf6f1; border-color: #b9d5c5; color: #236f5c; font-size: 12px; }
@@ -324,7 +324,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .fact strong { font-size: 14px; line-height: 1.6; }
   .timeline-heading { margin-top: 34px; }
   .instruction-text { font-size: 15px; line-height: 1.72; }
-  .answer-text { font-size: 16px; line-height: 1.78; }
+  .answer-text { font-size: 13px; line-height: 1.6; }
   .report-document { font-size: 16px; line-height: 1.8; }
   .network-head h2 { font-size: 21px; }
   .network-meta { font-size: 12px; }
