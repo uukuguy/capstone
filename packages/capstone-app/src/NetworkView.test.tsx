@@ -93,6 +93,14 @@ describe('operator network canvas', () => {
     expect(document.querySelector('.network-north')).toBeTruthy()
   })
 
+  it('uses the muted run-indicator legend for a case preview without values', () => {
+    render(<NetworkView view={null} previewDiagram={sampleDiagramView.diagram}
+      modelName="SciGRID" focusKey="preview" />)
+    expect(screen.getByText('运行指标')).toBeTruthy()
+    expect(screen.getByText('执行后显示')).toBeTruthy()
+    expect(screen.queryByText('案例底图 · 尚无运行数值')).toBeNull()
+  })
+
   it('uses busbars for schematic buses and point markers for geographic buses', () => {
     const schematic = { ...sampleDiagramView, diagram: {
       ...sampleDiagramView.diagram, coordinate_system: 'schematic' as const,

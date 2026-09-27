@@ -258,6 +258,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-overlay-note strong { color: #284c4b; font-size: 12px; }
 .overlay-gradient { width: 54px; height: 8px; border-radius: 6px;
   background: linear-gradient(90deg, hsl(14 68% 54%), hsl(9 68% 46%), hsl(4 68% 38%)); }
+.overlay-gradient.is-muted { opacity: .28; }
 .network-no-overlay { color: #748a82; }
 .network-omitted { color: #a1653b; background: #fff5e9; padding: 5px 7px; border-radius: 3px; }
 .network-hover-id { margin-left: auto; color: #315955; font-family: Consolas, monospace; }

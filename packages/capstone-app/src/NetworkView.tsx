@@ -232,7 +232,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             ? `本轮相对色阶 ${loadingRange.min.toFixed(1)}–${loadingRange.max.toFixed(1)}% · 深红为本轮最高值，不代表越限`
             : layer!.overlay.metric === 'loading_percent' ? '暂无可比较的线路负载率' : '色阶 接近 1.0 → 偏离 1.0'}</span>
           <span>仅对 {colored} / {denominator} 条有结果的{layer!.overlay.metric === 'loading_percent' ? '线路' : '母线'}着色</span>
-        </div> : <span className="network-no-overlay">{view ? '当前步骤暂无逐元件数值' : '案例底图 · 尚无运行数值'}</span>}
+        </div> : view ? <span className="network-no-overlay">当前步骤暂无逐元件数值</span>
+          : <span className="network-overlay-note network-no-overlay"><span className="overlay-gradient is-muted" />
+            <strong>运行指标</strong><span>执行后显示</span></span>}
         {view?.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&
           <span className="network-omitted">预览范围：省略 {view.omitted.buses} 个母线、{view.omitted.branches} 条支路</span>}
         {hovered && <span className="network-hover-id">{hovered}{hoveredValue === undefined ? ''
