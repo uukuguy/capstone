@@ -201,7 +201,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .detail-metrics strong { color: #24534b; font-size: 16px; }
 .detail-section { border-color: #dce6e1; }
 .run-id { color: #54726b; font-size: 10px; }
-.detail-section p, .detail-hint { color: #526d6c; font-size: 9px; line-height: 1.6; }
+.detail-section p, .detail-hint { color: #526d6c; font-size: 11px; line-height: 1.6; }
 .detail-footer { color: #668179; border-color: #dce6e0; font-size: 11px; }
 .empty-symbol { color: #86aea0; }
 .empty-detail strong { color: #2d4c4c; font-size: 15px; }
