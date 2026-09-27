@@ -133,7 +133,10 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const denominator = layer?.overlay?.metric === 'voltage_pu'
     ? geometry?.buses.length || 0 : geometry?.branches.filter((branch) => branch.kind === 'line').length || 0
   const dense = nodes.length > 100
-  const schematic = Boolean(nativeSchematic)
+  // Registered diagram views keep their authority coordinates, while using
+  // the electrical busbar glyph in the legend and on the map. Legacy views
+  // without diagram semantics retain their point markers.
+  const schematic = Boolean(nativeSchematic || geometry?.schema === 'capstone-network-diagram/1.0')
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>

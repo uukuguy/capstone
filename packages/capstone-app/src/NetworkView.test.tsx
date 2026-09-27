@@ -101,7 +101,7 @@ describe('operator network canvas', () => {
     expect(screen.queryByText('案例底图 · 尚无运行数值')).toBeNull()
   })
 
-  it('uses busbars for schematic buses and point markers for geographic buses', () => {
+  it('uses electrical busbars while preserving geographic diagram coordinates', () => {
     const schematic = { ...sampleDiagramView, diagram: {
       ...sampleDiagramView.diagram, coordinate_system: 'schematic' as const,
     } }
@@ -109,9 +109,9 @@ describe('operator network canvas', () => {
     expect(document.querySelectorAll('.network-busbar')).toHaveLength(3)
     expect(document.querySelector('.legend-busbar')).toBeTruthy()
     rerender(<NetworkView view={sampleDiagramView} modelName="SciGRID" focusKey="turn-1" />)
-    expect(document.querySelectorAll('.network-busbar')).toHaveLength(0)
-    expect(document.querySelectorAll('.network-bus-point')).toHaveLength(3)
-    expect(document.querySelector('.legend-bus-point')).toBeTruthy()
+    expect(document.querySelectorAll('.network-busbar')).toHaveLength(3)
+    expect(document.querySelector('.legend-busbar')).toBeTruthy()
+    expect(document.querySelector('.network-north')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '电气示意' })).toBeNull()
   })
 
