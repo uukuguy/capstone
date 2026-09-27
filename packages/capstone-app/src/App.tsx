@@ -73,8 +73,7 @@ function CatalogPanel({ catalog, selection, onSelect }: {
           </button>
         })}</div>
       </section>)}</div>
-    <div className="catalog-footnote"><span className="footnote-rule" />
-      所有数值与网络结论均以当前运行的权威结果为准。</div>
+    <div className="catalog-footnote">数值和网络结论以当前运行结果为准。</div>
   </aside>
 }
 
