@@ -65,6 +65,83 @@ _OPERATION_CAPABILITIES = {
 SemanticEventCallback = Callable[[Mapping[str, object], int | None], None]
 
 
+def _render_scripted_answer(calls: Sequence[Mapping[str, object]]) -> str:
+    """Render reader-facing text from the current turn's authority results.
+
+    Scripted runs still execute the real registered capabilities.  Their answer
+    must therefore be a small deterministic projection of those returned
+    documents, rather than an instruction echo that only proves the harness
+    advanced to the next turn.
+    """
+
+    for call in reversed(calls):
+        capability = call.get("capability")
+        result = call.get("result")
+        if not isinstance(capability, str) or not isinstance(result, Mapping):
+            continue
+        if capability == "topology.branch.endpoints.get":
+            branch = result.get("branch")
+            from_bus = result.get("from_bus")
+            to_bus = result.get("to_bus")
+            if isinstance(branch, Mapping) and isinstance(from_bus, Mapping) and isinstance(to_bus, Mapping):
+                branch_name = branch.get("name", branch.get("index", "目标"))
+                from_name = from_bus.get("name", from_bus.get("index", "未知"))
+                to_name = to_bus.get("name", to_bus.get("index", "未知"))
+                return f"线路 {branch_name} 连接母线 {from_name} 与母线 {to_name}。"
+        if capability == "analysis.powerflow.ac.run":
+            converged = result.get("converged") is True
+            loss = result.get("total_active_loss")
+            if isinstance(loss, Mapping) and isinstance(loss.get("value"), int | float):
+                state = "已收敛" if converged else "未收敛"
+                return f"交流潮流{state}；系统总有功网损为 {float(loss['value']):.2f} {loss.get('unit', 'MW')}。"
+            return "交流潮流已完成，但本轮未返回可展示的有功网损。"
+        if capability == "result.branches.rank":
+            branches = result.get("branches")
+            if isinstance(branches, list):
+                rows = [
+                    (item.get("pandapower_index"), item.get("loading_percent", item.get("metric_value")))
+                    for item in branches
+                    if isinstance(item, Mapping)
+                    and isinstance(item.get("pandapower_index"), int)
+                    and isinstance(item.get("loading_percent", item.get("metric_value")), int | float)
+                ]
+                if rows:
+                    values = "、".join(f"线路 {line}（{float(value):.1f}%）" for line, value in rows)
+                    return f"按当前潮流结果，负载率最高的 {len(rows)} 条线路为：{values}。"
+        if capability == "analysis.contingency.n_minus_one.run":
+            scenarios = result.get("scenarios")
+            if isinstance(scenarios, list) and scenarios and isinstance(scenarios[0], Mapping):
+                scenario = scenarios[0]
+                violations = scenario.get("violations")
+                count = len(violations) if isinstance(violations, list) else 0
+                status = scenario.get("status", "未知")
+                maximum = scenario.get("max_loading_percent")
+                suffix = f"最大线路负载率为 {float(maximum):.1f}%。" if isinstance(maximum, int | float) else ""
+                return f"单支路静态校核状态为 {status}，发现 {count} 项越限。{suffix}"
+        if capability == "model.constraints.describe":
+            constraints = result.get("constraints")
+            if isinstance(constraints, list) and constraints:
+                labels = []
+                for item in constraints:
+                    if not isinstance(item, Mapping):
+                        continue
+                    quantity = item.get("quantity")
+                    subject = item.get("subject_kind")
+                    upper = item.get("upper")
+                    unit = item.get("unit")
+                    if isinstance(quantity, str) and isinstance(subject, str):
+                        limit = f"≤ {upper} {unit}" if isinstance(upper, int | float) and isinstance(unit, str) else ""
+                        labels.append(f"{subject} 的 {quantity}{limit}")
+                if labels:
+                    return "已读取模型显式约束：" + "；".join(labels) + "。"
+        if capability == "model.element.get":
+            element = result.get("element")
+            if isinstance(element, Mapping):
+                name = element.get("name", element.get("index", "目标"))
+                return f"已解析线路 {name}，正在读取其端点与当前运行约束。"
+    return "本步已完成，结果与证据已写入当前运行。"
+
+
 @dataclass(frozen=True)
 class ApplicationExecution:
     """Inspectable result of one provider-free generic application run."""
@@ -185,6 +262,7 @@ class ScriptedApplicationTransport:
         steps = scripted.get("steps")
         if not isinstance(steps, list):
             raise RuntimeError("scripted application question has invalid semantic steps")
+        turn_start = len(self.calls)
         for step in steps:
             if not isinstance(step, Mapping):
                 raise RuntimeError("scripted application step is invalid")
@@ -207,10 +285,7 @@ class ScriptedApplicationTransport:
                 on_semantic_event=on_semantic_event,
             )
         self._question_index += 1
-        return (
-            "scripted semantic execution completed for question "
-            f"{self._question_index}: {question}"
-        )
+        return _render_scripted_answer(self.calls[turn_start:])
 
     def _invoke(
         self,

@@ -112,6 +112,7 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     assert len(execution.controller.finalized_turns) == outcome.total_questions
     for finalized in execution.controller.finalized_turns:
         assert finalized.status == "success"
+        assert "scripted semantic execution completed" not in finalized.answer_output
         assert finalized.result_refs or finalized.evidence_refs
         assert not any(
             getattr(diagnostic, "severity", None) == "error"
@@ -126,6 +127,16 @@ def test_scripted_pandapower_application_preserves_run_lineage(
         assert answer_payload["result_refs"] == list(finalized.result_refs)
         assert answer_payload["evidence_refs"] == list(finalized.evidence_refs)
 
+    answers = [turn.answer_output for turn in execution.controller.finalized_turns]
+    if case_name == "pandapower-scripted-task.json":
+        assert "线路 11" in answers[0] and "母线 6" in answers[0] and "母线 11" in answers[0]
+        assert "交流潮流已收敛" in answers[1] and "MW" in answers[1]
+        assert "负载率最高的 3 条线路" in answers[2]
+    else:
+        assert "模型显式约束" in answers[0]
+        assert "线路 17" in answers[1] and "母线 13" in answers[1] and "母线 14" in answers[1]
+        assert "静态校核状态" in answers[2] and "越限" in answers[2]
+
     # Report creation, content-addressed admission, and context replay are
     # checked again here so this test remains useful independent of the CLI
     # validation report formatting.
@@ -133,6 +144,9 @@ def test_scripted_pandapower_application_preserves_run_lineage(
     report_ref = rendered["core"]["report_ref"]
     assert report_path is not None
     assert report_path.is_file()
+    report = report_path.read_text(encoding="utf-8")
+    assert "scripted semantic execution completed" not in report
+    assert answers[0] in report
     assert report_ref == "artifact:sha256:" + hashlib.sha256(
         report_path.read_bytes()
     ).hexdigest()
