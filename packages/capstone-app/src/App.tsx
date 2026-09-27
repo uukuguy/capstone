@@ -141,16 +141,16 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
   return <main className="run-panel">
     <div className="run-title-row"><div>
       <span className="eyebrow">REGISTERED ANALYSIS / 0{caseCard.instructions.length} STEPS</span>
-      <h1>{caseCard.title}</h1><p className="run-summary">{caseCard.summary}</p>
+      <h1>{caseCard.title}</h1>
     </div><div className="run-title-glyph" aria-hidden="true"><Mark /></div></div>
-    <div className="context-strip">
-      <Fact label="电网模型">{caseCard.model_origin}</Fact>
-      <Fact label="情景假设">{caseCard.scenario_assumption}</Fact>
-    </div>
     <NetworkView view={networkView} previewDiagram={previewDiagram}
       modelName={caseCard.model_origin} focusKey={networkFocusKey}
       unavailable={networkUnavailable} previewUnavailable={previewUnavailable}
       nextTask={nextNetworkTask} />
+    <div className="context-strip">
+      <Fact label="电网模型">{caseCard.model_origin}</Fact>
+      <Fact label="情景假设">{caseCard.scenario_assumption}</Fact>
+    </div>
     <div className="timeline-heading"><div><span className="eyebrow">EXECUTION / TIMELINE</span><h2>分析过程</h2></div>
       <div className="timeline-heading-actions">{(status?.state === 'completed' || status?.state === 'failed' ||
         status?.state === 'interrupted') &&
@@ -158,36 +158,14 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
           disabled={actionPending}>重置案例</button>}{selectedStep !== null &&
         <button type="button" className="timeline-latest" onClick={() => onSelectStep(null)}>回到最新步骤</button>}
         <span className="timeline-count">{status?.completed_turns ?? 0} / {caseCard.instructions.length} 已完成</span></div></div>
-    <ol className="timeline">
-      {caseCard.instructions.map((instruction, index) => {
-        const ordinal = index + 1
-        const answer = turns[ordinal]
-        const isNext = status?.state === 'ready' && ordinal === next
-        const isExecuting = status?.state === 'executing' && ordinal === next
-        return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''}`}>
-          {answer ? <button className="timeline-number" type="button"
-            aria-label={`查看指令 ${ordinal} 的电网`} aria-pressed={selectedStep === ordinal}
-            onClick={() => onSelectStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
-            : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
-          <div className="timeline-content"><div className="timeline-item-head">{answer
-            ? <button type="button" className="timeline-title" aria-pressed={selectedStep === ordinal}
-                onClick={() => onSelectStep(ordinal)}>指令 {ordinal}</button>
-            : <strong>指令 {ordinal}</strong>}
-            <span>{answer ? '已完成' : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'}</span></div>
-            <p className="instruction-text">{instruction}</p>
-            {answer && <AnswerCard turn={answer} onEvidence={onEvidence} />}
-            {isExecuting && <div className="working-line"><span className="spinner" />{progress || '正在执行已登记的分析步骤…'}</div>}
-          </div>
-        </li>
-      })}
-    </ol>
     {autoPaused && status?.state !== 'completed' && status?.state !== 'failed' &&
       status?.state !== 'interrupted' && <div className="auto-pause-notice" role="status">
         {status && status.accepted_turns > status.completed_turns
           ? '自动执行已停止；当前指令仍会完成，后续不会自动提交。'
           : '自动执行已停止；后续不会自动提交，可手动继续或重新自动完成。'}
       </div>}
-    <div className="run-action-bar">
+    <div className={`run-action-bar${status?.state === 'completed' || status?.state === 'failed' ||
+      status?.state === 'interrupted' ? ' is-terminal' : ''}`}>
       {!status && <><div><strong>准备开始</strong><span>执行首条指令，或自动完成全部指令。</span></div>
         <div className="action-buttons"><button className="secondary-button" onClick={onStart} disabled={actionPending}>执行指令 1</button>
           <button className="primary-button auto-button" onClick={onAuto} disabled={actionPending}>自动完成</button></div></>}
@@ -213,6 +191,26 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         status?.state !== 'failed' && status?.state !== 'interrupted' &&
         <button className="secondary-button stop-auto" onClick={onStopAuto}>停止自动执行</button>}
     </div>
+    <ol className="timeline">
+      {caseCard.instructions.map((instruction, index) => {
+        const ordinal = index + 1
+        const answer = turns[ordinal]
+        const isNext = status?.state === 'ready' && ordinal === next
+        const isExecuting = status?.state === 'executing' && ordinal === next
+        const itemStatus = answer ? '已完成' : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'
+        return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''}`}>
+          {answer ? <button className="timeline-number" type="button"
+            aria-label={`查看指令 ${ordinal} 的电网`} aria-pressed={selectedStep === ordinal}
+            onClick={() => onSelectStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
+            : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
+          <div className="timeline-content"><div className="timeline-item-head">
+            <p className="instruction-text">{instruction}</p><span>{itemStatus}</span></div>
+            {answer && <AnswerCard turn={answer} onEvidence={onEvidence} />}
+            {isExecuting && <div className="working-line"><span className="spinner" />{progress || '正在执行已登记的分析步骤…'}</div>}
+          </div>
+        </li>
+      })}
+    </ol>
     {report && <section className="run-report" aria-label="本轮分析报告">
       <div className="timeline-heading"><div><span className="eyebrow">CURRENT RUN / REPORT</span><h2>本轮分析报告</h2></div></div>
       <div className="run-report-paper"><ReportDocument report={report} />
@@ -601,8 +599,6 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   return <div style={{ display: visible ? 'contents' : 'none' }}>
     <div className="workspace-center">
       {error && <div className="workspace-alert" role="alert">{error}</div>}
-      <div className="run-breadcrumb intro-breadcrumb"><span>案例分析</span><span className="breadcrumb-separator">/</span>
-        <span>{app.title}</span><span className="breadcrumb-separator">/</span><strong>{caseCard.title}</strong></div>
       <CapstoneIntro />
       <RunPanel caseCard={caseCard} status={status}
         turns={turns} progress={progress} actionPending={pending || restoring}

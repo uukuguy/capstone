@@ -1,151 +1,123 @@
 # Repository Agent Contract
 
-This file is the repository-wide instruction source for coding agents. Keep it
-compatible with both Codex and Claude Code. `CLAUDE.md` must remain a relative
-symbolic link to this file so the two tools read identical instructions.
+This file is the repository-wide instruction source for coding agents. Keep
+`CLAUDE.md` as a relative symbolic link to `AGENTS.md` so Codex and Claude Code
+read the same rules.
 
-## Product Contract
+## Product and Architecture
 
-This repository builds **Capstone Agent Framework**, a capability-first
-framework for evidence-backed applications over authoritative business-domain
-systems. `grid-static-analysis` is its first formal pandapower application;
-`grid-agent` remains that application's stable compatibility CLI.
+Capstone Agent Framework builds evidence-backed applications over registered
+business-domain systems. The first formal application is pandapower grid static
+analysis; `grid-agent` remains its compatibility CLI. The repository also
+contains registered PyPSA applications, capability-named Domain Packs, and an
+independent operator App.
 
-Capstone separates a neutral Kernel, Domain Packs, application assembly, and
-registered domain authorities. New work must preserve that direction: the
-Kernel owns reusable composition, bounded context, trajectory/artifact/replay
-primitives, and framework `core`; a Domain Pack owns domain contracts, policy,
-guides, executor, projectors, and current-run authority; an application owns
-its selected binding and any public compatibility projection. Read
-`docs/architecture/capstone-framework.md` before changing these boundaries.
-
-## Four-Layer Dependency Direction
+Preserve the four ownership layers:
 
 ```text
 Application -> Domain Pack -> Kernel -> registered Authority
 ```
 
-Dependencies flow only to the right. Result and evidence references return
-through explicit contracts; no layer may import or expose another layer's raw
-implementation. A new domain must add a separately installable Domain Pack
-through the public Kernel SPI, register its authority, and select that binding
-from an application. It must not add domain semantics to the Kernel, couple to
-another Domain Pack's state, or turn a compatibility projection into a
-framework-wide output requirement.
+This is an ownership and dependency direction, not a requirement to import
+through every adjacent layer. Applications select bindings, providers, public
+UI/CLI contracts, and compatibility projections. Domain Packs own semantic
+tools, contracts, policy, guides, execution, projection, and domain state.
+The Kernel owns neutral composition, bounded context, turns, trajectory,
+artifacts, replay, and framework `core`. Registered authorities own model
+access, deterministic or source-backed facts, revisions, results, and evidence.
+Results and evidence return through explicit contracts, never raw objects.
+Read [the framework architecture](docs/architecture/capstone-framework.md)
+before changing these boundaries.
 
-## First Application Contract: Grid Static Analysis
+A new domain needs a separately installable Domain Pack using the public Kernel
+SPI, a registered authority, and an application-selected binding. Keep domain
+semantics out of the Kernel. Do not couple one Domain Pack to another's state.
+Cross-domain model references require an explicit application grant and typed
+handoff; a public compatibility projection belongs to its application.
 
-- The default CLI contract writes exactly one JSON object to stdout with
-  `question_id` and `answer_output`.
-- Progress, diagnostics, tool events, and warnings go to stderr.
-- Numerical and network-specific claims must cross the simulator boundary
-  through `gridctl` using `grid-capability/1.0`.
-- Never guess losses, voltages, rankings, topology, contingency outcomes, or
-  evidence. Use simulator results from the current run.
+## Authority and Model Boundaries
 
-## Ownership and Trust Boundaries
+- An agent may call only published, allowlisted semantic tools with exact
+  contracts. Do not give it shell commands, arbitrary subprocesses, Python
+  execution, generic file access, caller-selected endpoints, raw DataFrames,
+  `pandapowerNet` objects, or authority internals.
+- New tools must describe reusable domain actions, not a particular question,
+  fixture, network, expected answer, or legacy query alias.
+- For pandapower, numerical and network claims cross `gridctl` through
+  `grid-capability/1.0`. `gridctl` and `grid-simulator` own registered networks,
+  calculations, model revisions, result datasets, and simulator evidence.
+  Never invent losses, voltages, rankings, topology, contingency outcomes,
+  or evidence.
+- PyPSA calculations and model changes stay behind the registered PyPSA
+  authority and its selected Domain Packs. Do not pass raw PyPSA Networks
+  across application, pack, or Kernel boundaries.
+- The model may compose tools and write reader-facing text. Current-run
+  result and evidence references are admitted and bound by the application
+  and Domain Pack, not asserted by the model. Observation and reporting may
+  diagnose a valid answer without replacing authority truth; required answer
+  or evidence persistence failures remain fatal.
 
-- `grid-agent` owns question handling, answer composition, Pi/LLM runtime setup,
-  continuous context, tracing, reporting, and the final answer envelope.
-- `gridctl` and `grid-simulator` own registered network access, deterministic
-  calculations, model revisions, result datasets, and evidence.
-- pandapower objects, DataFrames, callable names, and raw simulator internals
-  stay behind the simulator boundary.
-- Observation, projection, validation, and reporting may diagnose execution but
-  must not replace simulator truth or block an otherwise valid primary answer.
+## Public Contracts and Runtime State
 
-## Model Capability Boundary
-
-Pi/LLM may use only project-defined grid tools, including bounded
-context/decision tools published by the project, and `grid_guide_open`. The
-model returns reader-facing final text; `grid-agent` binds current-turn
-result/evidence references and commits the answer deterministically.
-
-Do not expose or add model capabilities for:
-
-- shell commands or arbitrary subprocesses;
-- generic file read, write, or edit operations;
-- arbitrary Python or pandapower function execution;
-- raw `pandapowerNet` objects or DataFrames;
-- legacy query aliases;
-- question-, fixture-, network-, or expected-answer-specific shortcuts.
-
-New capabilities must be semantic, reusable across questions, contract-defined,
-allowlisted, and executed through the selected Domain Pack's registered
-authority. For the grid application that authority is `gridctl`.
-
-## Evidence and Runtime State
-
-- Offline informational answers do not create run evidence.
-- Simulator-backed answers persist current-run results and evidence under
-  `runs/<question_id>/`; final claims may cite only references admitted for that
-  run.
-- `runs/` is ignored operator-visible evidence and validation-report storage.
-- `.grid-agent/` is ignored internal authentication, runtime, cache, and session
-  state.
-- Versioned runtime configuration belongs under `configs/runtime/`.
-- Provider credentials stay in environment variables or project-owned ignored
-  authentication state. Never place secrets in arguments, logs, committed files,
+- The pandapower compatibility `run`, `analysis`, and `report` paths write
+  exactly one stdout JSON object containing `question_id` and `answer_output`.
+  Progress, tool events, warnings, and diagnostics go to stderr. The generic
+  application path uses its separate `core` plus `domains.<binding_id>` output.
+- Offline informational answers create no run evidence. Simulator-backed
+  claims may cite only results and evidence admitted for the current run.
+  `runs/` is ignored operator-visible evidence and validation-report storage;
+  `.grid-agent/` is ignored internal authentication, runtime, cache, and
+  session state. Versioned runtime configuration belongs in `configs/runtime/`.
+- The hosted App is a presentation client for the same `/api/v1` contract
+  locally and in the cloud. Public demonstration credentials are scoped to
+  registered scripted cases; they must not grant Provider access. The browser
+  receives bounded API projections, not bucket credentials or raw artifacts.
+- The API and worker run from the same backend source/image revision and share
+  the PostgreSQL ledger and private artifact storage. Cloud Run, Railway, and
+  local Compose must preserve this contract. Never put operator or Provider
+  secrets in static App build variables such as `VITE_API_ORIGIN`.
+- Provider credentials belong in environment variables or project-owned
+  ignored authentication state. Never place them in arguments, logs, commits,
   simulator environments, or answer artifacts.
-- Do not delete or migrate a user's existing main-worktree `var/` data during
-  source cleanup.
 
-## Authoritative References
+## Sources of Truth
 
-Do not duplicate frequently changing facts in this file. Read the owning source:
+Read the owning source before changing behavior; do not duplicate changing
+counts, prices, limits, versions, or deployment state here.
 
-| Information | Source of truth |
+| Topic | Source |
 | --- | --- |
-| Published capability coverage | `configs/capabilities/pandapower-3.4.0-static-analysis.json` |
-| Simulator package and version pin | `packages/grid-simulator/pyproject.toml` |
-| Runtime setup, authentication, commands, and evidence inspection | `docs/RUNBOOK.md` |
-| Capability registration and LLM composition architecture | `docs/architecture/pandapower-capability-composition.md` |
-| Capstone framework, application, and Domain Pack boundaries | `docs/architecture/capstone-framework.md` |
-| Model-facing execution policy | `packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md` |
-| Model-facing pandapower guides | `packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/` |
-| Structural project state | `docs/status/CURRENT-STATE.md` |
-| Active recovery baton | `docs/status/RESUME-NEXT-SESSION.md` |
+| Product overview and local entry points | [README](README.md), [中文 README](README.zh-CN.md), [runbook](docs/RUNBOOK.md) |
+| Framework layers, output, and evidence | [Capstone architecture](docs/architecture/capstone-framework.md) |
+| pandapower capability registration and LLM composition | [Capability architecture](docs/architecture/pandapower-capability-composition.md) |
+| Published pandapower coverage | [Executable capability matrix](configs/capabilities/pandapower-3.4.0-static-analysis.json) |
+| Simulator pin | [grid-simulator manifest](packages/grid-simulator/pyproject.toml) |
+| Model-facing grid policy and guides | [Policy](packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md), [guides](packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/) |
+| Hosted App and local operations | [Runbook](docs/RUNBOOK.md#hosted-app-and-deployment) |
+| Cloud deployment | [Railway](deploy/railway/README.md), [Cloud Run + Vercel](deploy/cloud-run/README.md) |
+| Structural state and recovery baton | [Current state](docs/status/CURRENT-STATE.md), [resume](docs/status/RESUME-NEXT-SESSION.md) |
 
-## Working Rules
+## Working in This Repository
 
-- Preserve unrelated tracked and untracked user changes; stage only task-owned
-  paths.
-- Prefer `rg` and `rg --files` for repository discovery.
-- Use `apply_patch` for text edits and explicit non-destructive commands for
-  filesystem operations such as creating the approved symbolic link.
-- Keep `README.md` and `README.zh-CN.md` aligned whenever shared product facts,
-  commands, headings, or references change.
-- Keep stable rules here and route volatile details to the authoritative
-  references above.
-
-### Isolated worktree setup
-
-An isolated worktree is an implementation aid, not the delivery endpoint. Unless
-the user explicitly requests branch-only delivery, integrate accepted changes
-back into the main checkout and verify its real application entry point before
-claiming completion. Preserve unrelated work and exclude unaccepted changes;
-do not delete a worktree containing user data or deferred work to simulate closure.
-
-A new Git worktree does not include ignored local runtime state. Before running
-tests that exercise Pi, `gridctl`, or the JavaScript tools in an isolated
-worktree, run these commands from that worktree:
-
-```sh
-make setup
-make install-pi
-make doctor
-```
-
-`make setup` creates the simulator virtual environment and installs locked Node
-dependencies; `make install-pi` creates the ignored, pinned
-`.grid-agent/runtime/pi` runtime. A missing managed `gridctl` or Pi CLI is an
-environment-setup failure, not evidence of a product regression. Do not copy
-ignored runtime/authentication state from another worktree.
+- Preserve unrelated tracked and untracked user work. Stage only task-owned
+  paths. Do not delete or migrate existing main-worktree `var/` data.
+- Prefer `rg` and `rg --files` for discovery. Use `apply_patch` for text edits
+  and explicit non-destructive commands for filesystem operations.
+- Keep `README.md` and `README.zh-CN.md` aligned when shared product facts,
+  commands, headings, or references change. Write for readers; move detailed
+  procedures into the runbook and volatile status into `docs/status/`.
+- An isolated worktree is an implementation aid. Unless the user requests
+  branch-only delivery, integrate accepted changes into the main checkout
+  and verify its real entry point. Preserve deferred work and user data.
+- A fresh worktree lacks ignored runtimes. Before testing Pi, `gridctl`, or
+  JavaScript tools there, run `make setup`, `make install-pi`, and
+  `make doctor`. Missing managed runtimes are setup failures, not product
+  regressions. Do not copy ignored authentication state from another worktree.
 
 ## Verification
 
-For behavior changes, run the smallest focused test first and then the supported
-repository gates:
+Run the smallest focused check for the changed behavior, then the repository
+gates needed for its scope. Supported offline gates are:
 
 ```sh
 make doctor
@@ -154,10 +126,10 @@ make test-e2e
 make validate
 ```
 
-`make validate-provider PROVIDER=<id> [MODEL=<id>]` is optional, requires
-explicit provider credentials, and may be billed. Do not run it without that
-authorization.
-
-Documentation-only changes must at minimum pass link/symlink checks,
-`git diff --check`, and `make doctor`. Preserve the stdout envelope,
-simulator-boundary, and current-run evidence contracts in every change.
+Use the full gates for integration or release claims; a focused App or
+documentation change does not itself justify repeating every suite.
+Documentation-only changes require link and symlink checks,
+`git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
+is optional, may be billed, and requires explicit authorization.
+Every change must preserve the compatibility stdout envelope, authority
+boundaries, and current-run evidence rules.
