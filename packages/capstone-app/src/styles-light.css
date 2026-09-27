@@ -148,8 +148,8 @@ button.timeline-number[aria-pressed="true"] { box-shadow: 0 0 0 3px #2c9b7930; }
 .timeline-item.is-current .timeline-item-head span { color: #176e61; }
 .timeline-item-head .instruction-text { flex: 1; margin: 0; }
 .instruction-text { color: #3b5457; font-size: 13px; line-height: 1.65; }
-.answer-card { background: #fff; border-color: #cbded4; border-radius: 5px;
-  box-shadow: 0 6px 22px #2c62541a; }
+.answer-card { background: #f7faf8; border-color: #d5e5dd; border-left: 2px solid #92c5b4;
+  border-radius: 3px; box-shadow: none; padding: 13px 15px; }
 .answer-label { color: #1d806d; font-size: 12px; }
 .answer-check { border-color: #69ad91; }
 .answer-text { color: #203a3d; font-size: 14px; line-height: 1.7; }
