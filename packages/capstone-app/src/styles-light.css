@@ -192,12 +192,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .detail-tabs button { color: #617a79; font-size: 12px; }
 .detail-tabs button:hover { color: #254343; }
 .detail-tabs button[aria-selected="true"] { color: #116f65; }
-.detail-label { color: #5c7c73; font-size: 11px; }
+.detail-label { color: #5c7c73; font-size: 11px; font-weight: 650; letter-spacing: .03em; }
 .status-card { background: #fff; border-color: #cadfd5; border-radius: 5px; padding: 12px 13px; }
 .status-card strong { color: #1c3b3d; font-size: 16px; }
 .progress-track { background: #e2eee8; }
 .detail-metrics > div { background: #fff; border-color: #dbe6e0; border-radius: 5px; min-height: 58px; padding: 9px; }
-.detail-metrics span { color: #607c76; font-size: 11px; }
+.detail-metrics span { color: #607c76; font-size: 11px; font-weight: 650; letter-spacing: .03em; }
 .detail-metrics strong { color: #24534b; font-size: 16px; }
 .detail-section { border-color: #dce6e1; }
 .run-id { color: #54726b; font-size: 10px; }
