@@ -65,7 +65,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .app-label { color: #3d6362; border-color: #dbe6e1; font-size: 11px; }
 .app-index { color: #448c81; }
 .application-list { gap: 21px; }
-.application-list > section + section { border-top: 1px solid #dbe6e1; padding-top: 18px; }
+.application-list > section + section { border-top: 1px solid #c7ddd4; padding-top: 18px; }
 .case-list { gap: 8px; }
 .case-card { color: #253d40; border: 1px solid #e0e9e5; border-left: 3px solid transparent;
   background: #fff; padding: 9px 10px; gap: 7px; border-radius: 5px; box-shadow: 0 2px 7px #3156480a; }
