@@ -11,6 +11,31 @@ describe('CapstoneClient', () => {
     expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBeUndefined()
   })
 
+  it('retries a transient cold-start response before opening the public demo', async () => {
+    vi.useFakeTimers()
+    try {
+      const token = 'public-demo-token-with-enough-length'
+      const fetcher = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 502 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ token })))
+      const client = new CapstoneClient('', '', fetcher)
+      const credential = client.demoCredential()
+      await vi.runAllTimersAsync()
+      await expect(credential).resolves.toBe(token)
+      expect(fetcher).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not repeat a mutating request after a transient response', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 502 }))
+    const client = new CapstoneClient('', 'demo-token', fetcher)
+    await expect(client.createSession('pypsa-business-cases', 'regional-demand-stress'))
+      .rejects.toMatchObject({ status: 502 })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the operator token in the authorization header and retries a turn with the same key', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
       new Response(JSON.stringify({ session_id: 'session-one', ordinal: 1, state: 'accepted' }), {

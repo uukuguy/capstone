@@ -1042,3 +1042,12 @@ _Recovered pre-merge mainline entries._
 - 06:31 提交会话容量恢复与顶图精修，确保公开演示持续可用且表达准确 [c7ae859]。
 - 06:33 统一顶图及图下「电网科学AI」用词，消除同一区域称谓不一致 [eb1e3d5]。
 - 06:34 标题栏与三栏工作区共用最大宽度并居中；2048px 与 390px 浏览器截图核对边界，App 构建通过。
+- 06:35 提交标题栏宽度对齐，使宽屏页眉与工作区边界一致 [4d6eaf0]。
+- 06:53 保存 GitHub 入口及当前页面样式基线，便于整体设计评审后准确恢复 [c2def6b]。
+- 07:00 按跨屏视觉评审重排顶图文字、扩大手机按钮点击区并前置自动完成，避免细节反复失衡 [8202f62]。
+- 07:02 按用户确认恢复右侧自动完成按钮，纠正此前误判的按钮顺序 [33f8715]。
+- 07:43 Railway Hobby 已启用；建立独立 capstone-demo 项目及 Postgres、私有 bucket、API/worker/App 服务与域名。按需唤醒的 27 项后端定向测试通过，amd64 镜像构建通过；GHCR 推送因 GitHub token 缺少 write:packages 被拒，改走 Railway 源码构建。费用按官方实际资源用量计，$5 为月度抵扣，不是容量配额。
+- 07:52 GitHub write:packages 已补齐，后端镜像 ghcr.io/uukuguy/capstone-backend:railway-20260927 推送成功，digest sha256:79313c63a63b4c8c11926375c179f2ee1777c627575fc775a61ae8b570bd51d9。Railway 源码构建的 API/worker 已上线，API 健康、目录与私网唤醒创建会话检查通过；正在核对完整案例与静态 App。
+- 08:00 Railway 静态 App 上线，公开地址 https://capstone-app-production-975e.up.railway.app 。云端 IEEE-39 和 SciGRID-DE 各完成三步，报告、电网图层与刷新恢复通过，浏览器控制台无错误。GHCR 包仍为私有，Railway Hobby 无私有镜像凭证配置，故 API/worker 暂用同源代码构建；未擅自改为公开。项目累计用量初样约 $0.0052，收尾门禁进行中。
+- 08:17 按实际试用进行三客户端并发云测：IEEE-39 24.7 秒，区域负荷与 SciGRID-DE 各 53.7 秒，均三步完成。观测 worker 1.03 GB / 1.9 vCPU、API 237 MB；Hobby 项目累计用量读数约 $0.0090，未据此外推月费。隔离 PostgreSQL 的 8→9 会话让位测试通过，未在正式站制造满池以免影响访客。旧公开演示测试替身缺少幂等参数，修正后 `make doctor`、后续 `make test` 目标、`make test-e2e`、`make validate` 通过。
+- 08:27 六客户端云端并发完整案例全部通过，时长 28.2–78.7 秒；采样最高 worker 2.09 GB / 6.9 vCPU，API 139 MB / 1.6 vCPU。隔离库连续三轮 8 槽满池让位通过。项目累计用量读数约 $0.0162（含部署和其他活动，不能精确归因）。云端单 worker 会话上限调至 12 并部署成功。静态 App 改为常驻，读取请求在冷启动 502/503/504 或网络中断时有限重试，写入请求不重试；先红后绿，56 项前端测试、构建及云端刷新核验通过。

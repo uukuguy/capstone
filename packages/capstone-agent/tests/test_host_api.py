@@ -112,6 +112,37 @@ def test_create_session_retry_returns_existing_session(ledger: Ledger, tmp_path:
         assert first.json()["session_id"] == second.json()["session_id"]
 
 
+def test_pending_session_retries_worker_wake_after_transient_failure(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    calls = 0
+
+    def wake() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("worker is starting")
+
+    app = create_host_app(
+        ledger, registry, operator_token="hosted-secret",
+        allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        wake_worker=wake,
+    )
+    with TestClient(app, base_url="http://localhost") as client:
+        created = client.post("/api/v1/sessions", headers={
+            "Authorization": "Bearer hosted-secret",
+        }, json={"application_id": "fixture-app", "mode": "scripted-demo"})
+        assert created.status_code == 201
+        assert calls == 1
+        status = client.get(f"/api/v1/sessions/{created.json()['session_id']}", headers={
+            "Authorization": "Bearer hosted-secret",
+        })
+        assert status.status_code == 200
+        assert status.json()["state"] == "pending"
+        assert calls == 2
+
+
 def test_host_api_requires_token_and_explicit_origin(ledger: Ledger, tmp_path: Path) -> None:
     registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
     with TestClient(_app(ledger, registry), base_url="http://localhost") as client:

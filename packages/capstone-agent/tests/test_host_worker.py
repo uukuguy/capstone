@@ -125,6 +125,49 @@ def test_worker_loop_claims_new_sessions_and_stops_cleanly(
     assert not thread.is_alive()
 
 
+def test_wake_mode_does_not_query_idle_ledger_until_signalled() -> None:
+    class EmptyLedger:
+        def __init__(self) -> None:
+            self.claims = 0
+
+        def mark_interrupted_stale(self) -> None:
+            pass
+
+        def claim_pending(self, _worker_id: str, _lease_seconds: int) -> None:
+            self.claims += 1
+            return None
+
+    ledger = EmptyLedger()
+    stop = threading.Event()
+    wake = threading.Event()
+    thread = threading.Thread(
+        target=serve_forever,
+        args=(ledger, WorkerRegistry(()), None),
+        kwargs={"stop_event": stop, "wake_event": wake, "poll_seconds": 0.01},
+        daemon=True,
+    )
+    thread.start()
+    try:
+        for _ in range(100):
+            if ledger.claims:
+                break
+            time.sleep(0.01)
+        assert ledger.claims == 1
+        time.sleep(0.08)
+        assert ledger.claims == 1
+        wake.set()
+        for _ in range(100):
+            if ledger.claims == 2:
+                break
+            time.sleep(0.01)
+        assert ledger.claims == 2
+    finally:
+        stop.set()
+        wake.set()
+        thread.join(timeout=2)
+    assert not thread.is_alive()
+
+
 def test_idle_session_releases_worker_slot_for_waiting_session(
     ledger: Ledger, tmp_path: Path,
 ) -> None:
@@ -173,6 +216,45 @@ def test_new_session_evicts_idle_session_when_worker_is_full(
     finally:
         stop.set()
         thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def test_new_sessions_repeatedly_get_slots_after_eight_idle_sessions(
+    ledger: Ledger, tmp_path: Path,
+) -> None:
+    registry = WorkerRegistry((WorkerSpec("fixture-app", _worker(tmp_path)),))
+    artifacts = ArtifactService(ledger, MemoryObjectStore(), tmp_path / "runs")
+    stop = threading.Event()
+    thread = threading.Thread(target=serve_forever, args=(ledger, registry, artifacts),
+                              kwargs={"stop_event": stop, "poll_seconds": 0.01,
+                                      "max_sessions": 8, "idle_seconds": 600,
+                                      "eviction_grace_seconds": 0,
+                                      "pending_grace_seconds": 0}, daemon=True)
+    initial = [ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+               for _ in range(8)]
+    thread.start()
+    try:
+        for record in initial:
+            _wait(ledger, record.session_id, "ready")
+        all_records = list(initial)
+        for expected_evictions in range(1, 4):
+            newcomer = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+            all_records.append(newcomer)
+            _wait(ledger, newcomer.session_id, "ready")
+            victims = [ledger.get_session(record.session_id) for record in all_records]
+            evicted = [record for record in victims if record.state == "interrupted"]
+            assert len(evicted) == expected_evictions
+            assert all(record.error_code == "session_capacity_evicted" for record in evicted)
+        remaining = [record for record in all_records
+                     if ledger.get_session(record.session_id).state == "ready"]
+        assert len(remaining) == 8
+        for record in remaining:
+            ledger.accept_close(record.session_id, f"close-{record.session_id}")
+        for record in remaining:
+            _wait(ledger, record.session_id, "completed")
+    finally:
+        stop.set()
+        thread.join(timeout=10)
     assert not thread.is_alive()
 
 

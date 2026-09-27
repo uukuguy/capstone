@@ -6,6 +6,7 @@ x-host-environment: &host-environment
   CAPSTONE_PUBLIC_DEMO: ${CAPSTONE_PUBLIC_DEMO:-true}
   CAPSTONE_SESSION_IDLE_SECONDS: ${CAPSTONE_SESSION_IDLE_SECONDS:-600}
   CAPSTONE_WORKER_MAX_SESSIONS: ${CAPSTONE_WORKER_MAX_SESSIONS:-8}
+  CAPSTONE_WORKER_WAKE_URL: http://worker:8766
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
   CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
   CAPSTONE_ARTIFACT_BACKEND: s3
@@ -81,6 +82,11 @@ services:
   worker:
     <<: *host-service
     command: [worker]
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
 volumes:
   postgres-data:

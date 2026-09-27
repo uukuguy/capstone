@@ -13,7 +13,8 @@ class DemoLedger:
     def __init__(self) -> None:
         self.sessions: dict[str, SessionRecord] = {}
 
-    def create_session(self, application_id, mode, case_id, provider, model):
+    def create_session(self, application_id, mode, case_id, provider, model,
+                       *, idempotency_key=None):
         session_id = f"session-{len(self.sessions) + 1}"
         record = SessionRecord(session_id, application_id, mode, case_id, provider,
                                model, None, "pending", 0, 0, None, None)

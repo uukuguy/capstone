@@ -118,6 +118,7 @@ def serve_forever(
     lease_seconds: int = 30, idle_seconds: float = 600,
     eviction_grace_seconds: float = 30, pending_grace_seconds: float = 1,
     stop_event: threading.Event | None = None,
+    wake_event: threading.Event | None = None,
 ) -> None:
     """Claim bounded independent sessions without relying on API affinity."""
     if (max_sessions < 1 or poll_seconds <= 0 or idle_seconds <= 0 or
@@ -126,7 +127,15 @@ def serve_forever(
     stop = stop_event or threading.Event()
     active: dict[str, threading.Thread] = {}
     worker_id = f"worker-{os.getpid()}"
+    first_pass = True
     while not stop.is_set():
+        if wake_event is not None and not first_pass and not active:
+            if not wake_event.wait(timeout=1):
+                continue
+            wake_event.clear()
+        first_pass = False
+        if stop.is_set():
+            break
         for session_id, thread in tuple(active.items()):
             if not thread.is_alive():
                 thread.join()
@@ -150,6 +159,7 @@ def serve_forever(
             )
             active[claim.session_id] = thread
             thread.start()
-        stop.wait(poll_seconds)
+        if active or wake_event is None:
+            stop.wait(poll_seconds)
     for thread in active.values():
         thread.join(timeout=2)

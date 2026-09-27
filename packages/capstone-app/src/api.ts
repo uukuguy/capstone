@@ -4,6 +4,22 @@ import type {
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
 const MAX_EVENT_BYTES = 2 * 1024 * 1024 + 128 * 1024
+const READ_ATTEMPTS = 8
+
+function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+    function abort() {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    if (signal?.aborted) abort()
+    else signal?.addEventListener('abort', abort, { once: true })
+  })
+}
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -44,7 +60,7 @@ export class CapstoneClient {
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
-    const response = await this.fetcher.call(globalThis, this.base + path, {
+    const options: RequestInit = {
       ...init,
       credentials: 'omit',
       cache: 'no-store',
@@ -53,13 +69,30 @@ export class CapstoneClient {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
-    })
-    if (!response.ok) {
-      if (response.status === 401) throw new ApiError(401, '演示连接已失效，请重试连接。')
-      if (response.status === 409) throw new ApiError(409, '当前运行状态暂不接受该操作。')
-      throw new ApiError(response.status, `服务请求失败（${response.status}）。`)
     }
-    return response
+    const read = !init.method || init.method.toUpperCase() === 'GET'
+    const attempts = read ? READ_ATTEMPTS : 1
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      let response: Response
+      try {
+        response = await this.fetcher.call(globalThis, this.base + path, options)
+      } catch (cause) {
+        if (!read || attempt + 1 === attempts || !(cause instanceof TypeError)) throw cause
+        await waitForRetry(Math.min(400 * 2 ** attempt, 2000), init.signal)
+        continue
+      }
+      if (read && [502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
+        await waitForRetry(Math.min(400 * 2 ** attempt, 2000), init.signal)
+        continue
+      }
+      if (!response.ok) {
+        if (response.status === 401) throw new ApiError(401, '演示连接已失效，请重试连接。')
+        if (response.status === 409) throw new ApiError(409, '当前运行状态暂不接受该操作。')
+        throw new ApiError(response.status, `服务请求失败（${response.status}）。`)
+      }
+      return response
+    }
+    throw new Error('读取请求未完成')
   }
 
   private async json<T>(path: string, init?: RequestInit): Promise<T> {

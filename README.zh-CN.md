@@ -117,7 +117,7 @@ PyPSA 电网模型库现登记 15 个项目模型和固定版本 PyPSA 1.3.0 的
 
 独立的[操作 App](packages/capstone-app/) 展示已登记的 pandapower 与 PyPSA 案例、手动或自动三轮执行、已提交答案、当前运行证据和私有报告。浅色工作台以生成的电力科学AI主题图介绍 CAPSTONE；切换案例时保留各自最近一次运行，已完成步骤可重新查看。完整报告显示在中栏分析流程下方，右栏保留运行状态和准入证据。登记权威系统提供每案例常驻的完整电网图：SciGRID-DE 地理拓扑或 IEEE-39 电气示意图，支持平移缩放、步骤对焦，并仅对本轮准入结果支持的元件作局部数值着色。本地先启动 hosted API 与 worker，再执行 `make setup-capstone-app && make capstone-app-dev`。公开演示模式下，App 每次加载都从 API 获取受限凭证并直接进入工作台；浏览或启动脚本案例不会调用 Provider。
 
-同一[后端镜像](Dockerfile)以 API 或 worker 角色运行，共享 PostgreSQL 账本与私有工件存储。本地 [Compose](compose.yaml) 使用 PostgreSQL 和兼容 S3 的 RustFS；[Cloud Run](deploy/cloud-run/) 使用服务、worker pool 与 GCS；[Railway](deploy/railway/) 使用两个服务及其兼容 S3 的 bucket。Vercel 仅构建静态 App，以 `VITE_API_ORIGIN` 指向所选公共 API。环境变量和操作命令见[运行指南](docs/RUNBOOK.md#hosted-app-and-deployment)。实际云部署与真实 Provider 验证是独立操作。
+同一[后端镜像](Dockerfile)以 API 或 worker 角色运行，共享 PostgreSQL 账本与私有工件存储。本地 [Compose](compose.yaml) 使用 PostgreSQL 和兼容 S3 的 RustFS；[Cloud Run](deploy/cloud-run/) 使用服务、worker pool 与 GCS；[Railway](deploy/railway/) 使用两个后端服务及其兼容 S3 的 bucket。Railway API 通过私有端点唤醒 worker，使其可在两次演示之间休眠。静态 App 可部署在 Railway 或 Vercel，以 `VITE_API_ORIGIN` 指向公共 API。环境变量和操作命令见[运行指南](docs/RUNBOOK.md#hosted-app-and-deployment)。实际云部署与真实 Provider 验证是独立操作。
 
 `make test` 是不使用 Provider 的单元门禁：分别运行十三个 Python 包、两个 Pi 包、操作 App 和 trajectory workbench。grid CLI E2E 保持为仅集成层的 `make test-e2e`。`make check-types` 使用锁定的 pyright 1.1.408，以 standard 模式和 Python 3.12 最低版本检查全部生产 `src` 树及 workbench；Kernel output 模型中 3 处局部 Pydantic schema 属性覆盖为保持既有公开 wire 契约的例外。`make check-fast` 组合边界、类型和单元测试；`make check-integration` 运行 E2E、实际构建 SDK 捕获冒烟（`make test-pi-capture-runtime`）与无 Provider 验证；`make check-release` 再加入干净包和源码安装检查。以上命令均不调用付费 Provider。
 

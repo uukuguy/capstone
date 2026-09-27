@@ -30,6 +30,7 @@ class HostSettings:
     public_demo: bool
     session_idle_seconds: int
     worker_max_sessions: int
+    worker_wake_url: str | None
 
 
 def _origin(value: str) -> bool:
@@ -55,6 +56,7 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     backend = environment.get("CAPSTONE_ARTIFACT_BACKEND", "")
     bucket = environment.get("CAPSTONE_ARTIFACT_BUCKET", "")
     endpoint = environment.get("CAPSTONE_S3_ENDPOINT") or None
+    worker_wake_url = environment.get("CAPSTONE_WORKER_WAKE_URL") or None
     try:
         port = int(environment.get("PORT", "8766"))
     except ValueError:
@@ -87,13 +89,19 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
         raise ValueError("artifact storage is invalid")
     if endpoint is not None and (backend != "s3" or not _origin(endpoint)):
         raise ValueError("S3 endpoint is invalid")
+    if worker_wake_url is not None:
+        parsed_wake = urlsplit(worker_wake_url)
+        if (not _origin(worker_wake_url) or parsed_wake.scheme != "http"
+                or parsed_wake.port is None
+                or not _HOST.fullmatch(parsed_wake.hostname or "")):
+            raise ValueError("CAPSTONE_WORKER_WAKE_URL is invalid")
     if port < 1 or port > 65535 or bind_host not in {"0.0.0.0", "127.0.0.1", "::"}:
         raise ValueError("server bind is invalid")
     default_runs = Path(__file__).resolve().parents[4] / "runs" / "capstone-agent"
     runs_root = Path(environment.get("CAPSTONE_RUNS_ROOT", str(default_runs)))
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
                         endpoint, port, bind_host, runs_root, demo_setting == "true",
-                        session_idle_seconds, worker_max_sessions)
+                        session_idle_seconds, worker_max_sessions, worker_wake_url)
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

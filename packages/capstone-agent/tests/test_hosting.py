@@ -27,6 +27,7 @@ def test_host_settings_require_explicit_cross_platform_bindings() -> None:
     }
     assert settings.session_idle_seconds == 600
     assert settings.worker_max_sessions == 8
+    assert settings.worker_wake_url is None
     assert "password" not in repr(settings)
     assert "top-secret-token" not in repr(settings)
 
@@ -71,6 +72,17 @@ def test_host_settings_enable_public_demo_explicitly() -> None:
     env["CAPSTONE_PUBLIC_DEMO"] = "maybe"
     with pytest.raises(ValueError):
         load_host_settings(env)
+
+
+def test_host_settings_validate_private_worker_wake_url() -> None:
+    env = _env()
+    env["CAPSTONE_WORKER_WAKE_URL"] = "http://worker:8766"
+    assert load_host_settings(env).worker_wake_url == "http://worker:8766"
+    for invalid in ("https://worker/wake", "http://user:pass@worker:8766",
+                    "http://worker:8766/wake", "http://worker:8766?x=1"):
+        env["CAPSTONE_WORKER_WAKE_URL"] = invalid
+        with pytest.raises(ValueError, match="CAPSTONE_WORKER_WAKE_URL"):
+            load_host_settings(env)
 
 
 @pytest.mark.parametrize("name,value", [

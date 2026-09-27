@@ -177,6 +177,7 @@ def main(
             from capstone_agent.host_worker import serve_forever
             from capstone_agent.hosting import build_artifacts, load_host_settings
             from capstone_agent.ledger import Ledger
+            from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app
 
             settings = load_host_settings(os.environ)
             ledger = Ledger(settings.database_url)
@@ -185,19 +186,52 @@ def main(
             if args.command == "serve-hosted":
                 import uvicorn
 
+                wake_worker = None
+                if settings.worker_wake_url:
+                    wake_worker = WorkerWakeClient(
+                        settings.worker_wake_url, settings.operator_token,
+                    ).wake
+
                 app = create_host_app(
                     ledger, selected_registry, operator_token=settings.operator_token,
                     allowed_hosts=set(settings.allowed_hosts),
                     allowed_origins=set(settings.allowed_origins),
                     public_demo=settings.public_demo,
                     artifacts=artifacts,
+                    wake_worker=wake_worker,
                 )
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False)
             else:
-                serve_forever(ledger, selected_registry, artifacts,
-                              idle_seconds=settings.session_idle_seconds,
-                              max_sessions=settings.worker_max_sessions)
+                if settings.worker_wake_url:
+                    import threading
+                    import uvicorn
+
+                    wake_event = threading.Event()
+                    stop_event = threading.Event()
+                    scheduler = threading.Thread(
+                        target=serve_forever,
+                        args=(ledger, selected_registry, artifacts),
+                        kwargs={"idle_seconds": settings.session_idle_seconds,
+                                "max_sessions": settings.worker_max_sessions,
+                                "stop_event": stop_event, "wake_event": wake_event},
+                        name="capstone-worker-scheduler", daemon=True,
+                    )
+                    scheduler.start()
+                    try:
+                        uvicorn.run(
+                            create_wake_app(wake_event, settings.operator_token),
+                            host=settings.bind_host, port=settings.port,
+                            log_config=None, access_log=False,
+                        )
+                    finally:
+                        stop_event.set()
+                        wake_event.set()
+                        scheduler.join(timeout=3)
+                else:
+                    serve_forever(ledger, selected_registry, artifacts,
+                                  idle_seconds=settings.session_idle_seconds,
+                                  max_sessions=settings.worker_max_sessions)
     except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
         print(f"capstone-agent error: {type(exc).__name__}", file=errors, flush=True)
         return 1

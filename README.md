@@ -245,9 +245,11 @@ a scripted case makes no Provider request.
 One [backend image](Dockerfile) runs either the API or worker role against the
 same PostgreSQL ledger and private artifact store. Local [Compose](compose.yaml)
 uses PostgreSQL and S3-compatible RustFS. [Cloud Run](deploy/cloud-run/) uses a
-service, worker pool, and GCS; [Railway](deploy/railway/) uses two services and
-its S3-compatible bucket. Vercel builds only the static App with
-`VITE_API_ORIGIN` set to the selected public API origin. The [runbook](docs/RUNBOOK.md#hosted-app-and-deployment)
+service, worker pool, and GCS; [Railway](deploy/railway/) uses two backend
+services and its S3-compatible bucket. On Railway the API wakes the worker
+through a private endpoint so the worker can sleep between demonstrations.
+The static App can run on Railway or Vercel with `VITE_API_ORIGIN` set to the
+selected public API origin. The [runbook](docs/RUNBOOK.md#hosted-app-and-deployment)
 has the setup commands and required environment bindings. Cloud deployment and
 live Provider validation are separate operations.
 

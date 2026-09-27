@@ -7,6 +7,8 @@ import hashlib
 import hmac
 import json
 import secrets
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -40,6 +42,7 @@ def create_host_app(
     repo_root: Path | None = None,
     artifacts: ArtifactService | None = None,
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
+    wake_worker: Callable[[], object] | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -52,6 +55,22 @@ def create_host_app(
         if preview_loader is not None or registry.resolve(application["application_id"]).preview_command
     }
     diagrams = CaseDiagramCache(diagram_cases, preview_loader or load_case_diagram)
+    last_wake: dict[str, float] = {}
+    wake_lock = threading.Lock()
+
+    def request_worker(session_id: str) -> None:
+        if wake_worker is None:
+            return
+        with wake_lock:
+            if time.monotonic() - last_wake.get(session_id, float("-inf")) < 2:
+                return
+        try:
+            result = wake_worker()
+        except (OSError, TimeoutError):
+            return
+        if result is not False:
+            with wake_lock:
+                last_wake[session_id] = time.monotonic()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -155,6 +174,8 @@ def create_host_app(
                                            idempotency_key=idempotency_key)
         except Conflict:
             raise HTTPException(409, "session key belongs to another request") from None
+        if record.state == "pending":
+            request_worker(record.session_id)
         return {"session_id": record.session_id, "run_id": None,
                 "application_id": record.application_id, "state": "pending"}
 
@@ -185,7 +206,10 @@ def create_host_app(
 
     @app.get("/api/v1/sessions/{session_id}")
     def session_status(session_id: str, request: Request):
-        return _status(get_session(session_id, request))
+        record = get_session(session_id, request)
+        if record.state == "pending":
+            request_worker(session_id)
+        return _status(record)
 
     @app.get("/api/v1/sessions/{session_id}/turns/{ordinal}")
     def get_turn(session_id: str, ordinal: int, request: Request):
