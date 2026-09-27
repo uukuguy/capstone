@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import App from './App'
+import App, { readerAnswerText } from './App'
 import type { CapstoneClient } from './api'
 import type { Catalog, SessionEvent } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
@@ -56,6 +56,16 @@ function mockClient(eventFlow?: (_id: string, _after: number,
 }
 
 describe('operator workflow', () => {
+  it('replaces scripted demo echo text with concise reader-facing copy', () => {
+    const turn = {
+      ordinal: 1, turn_id: 'turn-one',
+      answer_output: 'scripted semantic execution completed for question 1: 打开模型。',
+      answer_ref: 'answer:one', result_refs: ['result:one'], evidence_refs: ['evidence:one'],
+    }
+    expect(readerAnswerText(turn)).toBe('本步已完成，结果与证据已写入当前运行。')
+    expect(readerAnswerText({ ...turn, answer_output: '已打开模型。' })).toBe('已打开模型。')
+  })
+
   it('opens the demo workspace automatically without a login screen', async () => {
     const token = 'public-demo-token-with-enough-length'
     const { client } = mockClient()

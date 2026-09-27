@@ -81,12 +81,21 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return <div className="fact"><span>{label}</span><strong>{children}</strong></div>
 }
 
+export function readerAnswerText(turn: CommittedTurn): string {
+  if (!/^scripted semantic execution completed for question \d+\s*:/i.test(turn.answer_output)) {
+    return turn.answer_output
+  }
+  return turn.result_refs.length > 0 || turn.evidence_refs.length > 0
+    ? '本步已完成，结果与证据已写入当前运行。'
+    : '本步已完成。'
+}
+
 function AnswerCard({ turn, onEvidence }: {
   turn: CommittedTurn; onEvidence: (ref: string) => void
 }) {
   return <div className="answer-card">
     <div className="answer-label"><span className="answer-check">✓</span> 已提交回答</div>
-    <p className="answer-text">{turn.answer_output}</p>
+    <p className="answer-text">{readerAnswerText(turn)}</p>
     {(turn.result_refs.length > 0 || turn.evidence_refs.length > 0) &&
       <div className="reference-row">
         <span className="reference-title">本轮引用</span>
