@@ -139,13 +139,14 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const schematic = Boolean(nativeSchematic || generatedSchematic)
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
-    <div className="network-head"><div><span className="eyebrow">MODEL / {view ? 'CURRENT RUN' : 'CASE PREVIEW'}</span>
-      <h2 id="network-title">电网拓扑图</h2></div><div className="network-head-context">
+    <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
+      <h2 id="network-title">拓扑图</h2></div><div className="network-head-context">
         {view && <span className="network-step">指令 {view.ordinal}</span>}
         <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
-      <div className="network-meta"><span>模型结构 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
-        <span>{generatedSchematic ? '电气示意 · 拓扑生成'
+      <div className="network-meta"><span>模型来源 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
+        <span>{generatedSchematic ? usesModelCoordinates(geometry!) && geometry!.buses.length > 100
+          ? '电气示意 · 模型坐标' : '电气示意 · 拓扑生成'
           : geometry!.schema === 'capstone-network-diagram/1.0'
           ? geometry!.coordinate_system === 'geographic' ? '地理拓扑 · 模型坐标' : modelCoordinates ? '电气示意 · 模型坐标' : '电气示意布局'
           : modelCoordinates ? '模型坐标 · 未经地理校验'

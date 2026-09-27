@@ -71,4 +71,15 @@ describe('network layout', () => {
     expect(positioned[0].x).toBeLessThan(positioned[38].x)
     expect(positioned[0].y).toBeGreaterThan(positioned[546].y)
   })
+
+  it('keeps dense authority coordinates when schematic glyphs are requested', () => {
+    const buses = Array.from({ length: 585 }, (_, index) => ({
+      id: `bus-${index}`, label: `Bus ${index}`, x: 6 + index % 39 * 0.1,
+      y: 48 + Math.floor(index / 39) * 0.1, vn_kv: 220,
+    }))
+    const diagram = { ...sampleDiagramView.diagram, buses, branches: [] }
+    const geographic = layoutNetwork(diagram)
+    const schematic = layoutNetwork(diagram, true)
+    expect(schematic).toEqual(geographic)
+  })
 })

@@ -39,7 +39,15 @@ export function usesModelCoordinates(view: Geometry): boolean {
 export function layoutNetwork(view: Geometry, forceGeneratedLayout = false): PositionedBus[] {
   const buses = view.buses
   const provided = forceGeneratedLayout ? null : providedLayout(view)
-  if (provided) return provided
+  // A dense, coordinate-rich network cannot be made more readable by a
+  // quadratic force layout: the edges collapse into a hairball. Keep the
+  // authority coordinates for large diagrams and only switch the glyphs to
+  // the electrical schematic style. Smaller networks can use the generated
+  // topology projection when the operator explicitly requests it.
+  const generatedFromCoordinates = providedLayout(view)
+  if (provided || (forceGeneratedLayout && generatedFromCoordinates && buses.length > 100)) {
+    return provided || generatedFromCoordinates!
+  }
   const positions = buses.map((bus, index) => {
     const angle = (Math.PI * 2 * index) / Math.max(1, buses.length) - Math.PI / 2
     return { x: WIDTH / 2 + Math.cos(angle) * 290,
