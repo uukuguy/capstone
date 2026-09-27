@@ -332,7 +332,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .app-label { font-size: 13px; }
   .application-list { gap: 27px; }
   .case-card { padding: 15px 14px; gap: 9px; }
-  .case-card-title { font-size: 12px; }
+  .case-card-title { font-size: 11px; }
   .case-card-summary { font-size: 11px; line-height: 1.6; }
   .case-card-footer { font-size: 10px; }
   .run-title-row { padding-top: 20px; }
