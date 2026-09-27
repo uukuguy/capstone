@@ -112,12 +112,7 @@ describe('operator network canvas', () => {
     expect(document.querySelectorAll('.network-busbar')).toHaveLength(0)
     expect(document.querySelectorAll('.network-bus-point')).toHaveLength(3)
     expect(document.querySelector('.legend-bus-point')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '电气示意' }))
-    expect(document.querySelectorAll('.network-busbar')).toHaveLength(3)
-    expect(document.querySelector('.legend-busbar')).toBeTruthy()
-    expect(screen.getByText('电气示意 · 拓扑生成')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '地理布局' }))
-    expect(document.querySelectorAll('.network-bus-point')).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: '电气示意' })).toBeNull()
   })
 
   it('preserves manual camera movement while the same diagram receives a neutral layer', () => {

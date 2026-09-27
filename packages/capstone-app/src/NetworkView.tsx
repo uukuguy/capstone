@@ -52,7 +52,6 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
 }) {
   const [camera, setCamera] = useState<Camera>(FULL)
   const [hovered, setHovered] = useState<string | null>(null)
-  const [schematicMode, setSchematicMode] = useState(false)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
@@ -62,9 +61,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
       : previewDiagram?.ref || 'empty'
   const nativeSchematic = geometry?.schema === 'capstone-network-diagram/1.0'
     ? geometry.coordinate_system === 'schematic' : geometry?.coordinate_status === 'schematic-required'
-  const canGenerateSchematic = Boolean(geometry && !nativeSchematic)
-  const generatedSchematic = canGenerateSchematic && schematicMode
-  const nodes = useMemo(() => geometry ? layoutNetwork(geometry, generatedSchematic) : [], [geometry, generatedSchematic])
+  const nodes = useMemo(() => geometry ? layoutNetwork(geometry) : [], [geometry])
   const modelCoordinates = useMemo(() => geometry ? usesModelCoordinates(geometry) : false, [geometry])
   const byId = useMemo(() => new Map(nodes.map((bus) => [bus.id, bus])), [nodes])
   const values = useMemo(() => new Map(layer?.overlay?.values.map((item) => [item.id, item.value]) || []), [layer])
@@ -81,7 +78,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   useEffect(() => {
     setCamera(geometry ? taskCamera(geometry, nodes, focusIds) : FULL)
     // Focus changes on step/execution transitions or on arrival of a different diagram.
-  }, [focusKey, viewIdentity, generatedSchematic])
+  }, [focusKey, viewIdentity])
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {
@@ -136,7 +133,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const denominator = layer?.overlay?.metric === 'voltage_pu'
     ? geometry?.buses.length || 0 : geometry?.branches.filter((branch) => branch.kind === 'line').length || 0
   const dense = nodes.length > 100
-  const schematic = Boolean(nativeSchematic || generatedSchematic)
+  const schematic = Boolean(nativeSchematic)
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
@@ -145,9 +142,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
         <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
       <div className="network-meta"><span>模型来源 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
-        <span>{generatedSchematic ? usesModelCoordinates(geometry!) && geometry!.buses.length > 100
-          ? '电气示意 · 模型坐标' : '电气示意 · 拓扑生成'
-          : geometry!.schema === 'capstone-network-diagram/1.0'
+        <span>{geometry!.schema === 'capstone-network-diagram/1.0'
           ? geometry!.coordinate_system === 'geographic' ? '地理拓扑 · 模型坐标' : modelCoordinates ? '电气示意 · 模型坐标' : '电气示意布局'
           : modelCoordinates ? '模型坐标 · 未经地理校验'
             : geometry!.coordinate_status === 'provided-unverified' ? '示意布局 · 模型坐标过密' : '示意布局'}</span></div>
@@ -157,10 +152,6 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
         <span className="network-toolbar-divider" />
         <button type="button" onClick={() => setCamera(FULL)}>适配全图</button>
         <button type="button" onClick={() => setCamera(taskCamera(geometry!, nodes, focusIds))}>回到当前任务</button>
-        {canGenerateSchematic && <button type="button" aria-pressed={generatedSchematic}
-          onClick={() => setSchematicMode((before) => !before)}>
-          {generatedSchematic ? '地理布局' : '电气示意'}
-        </button>}
       </div>
       {nextTask && <div className="network-focus-status">{focusIds.length
         ? '正在对焦下一步已知目标' : '下一步暂无可定位元件，显示全图范围'}</div>}
@@ -225,7 +216,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             </g>
           })}
         </svg>
-        {geometry!.schema === 'capstone-network-diagram/1.0' && geometry!.coordinate_system === 'geographic' && !generatedSchematic &&
+        {geometry!.schema === 'capstone-network-diagram/1.0' && geometry!.coordinate_system === 'geographic' &&
           <span className="network-north" aria-hidden="true">N ↑</span>}
         <span className="network-canvas-hint">拖动平移 · Shift + 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
       </div>
