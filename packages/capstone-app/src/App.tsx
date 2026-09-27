@@ -38,7 +38,7 @@ function Mark() {
 function PageHeader() {
   return <header className="topbar">
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
-      <span className="brand-subtitle">分析工作台</span></div>
+      <span className="brand-subtitle">电网分析工作台</span></div>
     <a className="project-link" href="https://github.com/uukuguy/capstone"
       target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 CAPSTONE 项目源代码">
       <svg className="project-link-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -674,7 +674,7 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
     <PageHeader />
     {!client || !catalog || !selection ?
       <main className="connection-state" aria-live="polite">
-        {loading ? <strong>正在打开分析工作台…</strong> : <>
+        {loading ? <strong>正在打开电网分析工作台…</strong> : <>
           <strong>演示服务暂时无法连接</strong>
           <p role="alert">{error || '请稍后重试。'}</p>
           <button className="primary-button" onClick={() => setAttempt((value) => value + 1)}>重试连接</button>

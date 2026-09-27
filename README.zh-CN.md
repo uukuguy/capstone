@@ -6,7 +6,7 @@ Capstone 让智能体组织分析任务，让专业系统负责计算，并把�
 
 电网分析是仓库中的第一批应用：pandapower 负责静态电网计算，PyPSA 负责已登记的建模、运行和规划能力。框架本身不绑定电力行业；接入其他领域时，由独立的 Domain Pack 定义可用能力和权威系统边界。
 
-![Capstone 分析工作台：案例库、IEEE-39 拓扑图和当前运行状态](docs/images/capstone-workbench.png)
+![Capstone 电网分析工作台：案例库、IEEE-39 拓扑图和当前运行状态](docs/images/capstone-workbench.png)
 
 ## 从工作台看起
 
