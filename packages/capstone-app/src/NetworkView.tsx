@@ -82,7 +82,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {
-      const width = Math.max(220, Math.min(1500, before.width * factor))
+      const width = Math.max(120, Math.min(1500, before.width * factor))
       const height = width * 0.6
       const rect = target?.getBoundingClientRect()
       const relativeX = rect && rect.width > 0 && clientX !== undefined
@@ -137,6 +137,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   // the electrical busbar glyph in the legend and on the map. Legacy views
   // without diagram semantics retain their point markers.
   const schematic = Boolean(nativeSchematic || geometry?.schema === 'capstone-network-diagram/1.0')
+  // Keep strokes, symbols, and labels readable in screen pixels while the SVG
+  // viewBox zooms into a dense network.
+  const visualScale = Math.max(0.12, Math.min(1.25, camera.width / FULL.width))
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
@@ -182,18 +185,19 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
               onMouseLeave={() => setHovered(null)}>
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke="transparent" strokeWidth={dense ? 7 : 20} />
+                stroke="transparent" strokeWidth={Math.max(4, (dense ? 7 : 20) * visualScale)} />
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke={color} strokeWidth={highlighted ? dense ? 3 : 6 : dense ? 1.5 : value === undefined ? 2.5 : 4}
+                stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
-                <circle cx={centerX - (dense ? 2.3 : 4)} cy={centerY} r={dense ? 2.7 : 4.5} />
-                <circle cx={centerX + (dense ? 2.3 : 4)} cy={centerY} r={dense ? 2.7 : 4.5} />
+                <circle cx={centerX - (dense ? 2.3 : 4) * visualScale} cy={centerY} r={(dense ? 2.7 : 4.5) * visualScale} />
+                <circle cx={centerX + (dense ? 2.3 : 4) * visualScale} cy={centerY} r={(dense ? 2.7 : 4.5) * visualScale} />
               </g>}
-              {highlighted && <text x={centerX + 7} y={centerY - 9}
+              {highlighted && <text x={centerX + 7 * visualScale} y={centerY - 9 * visualScale}
                 className="network-branch-label"
-                style={value === undefined ? undefined : { fill: color }}>{branch.label}</text>}
+                style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${4 * visualScale}px`,
+                  ...(value === undefined ? {} : { fill: color }) }}>{branch.label}</text>}
               <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
@@ -203,18 +207,20 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
               {schematic ? <line className="network-busbar"
-                x1={bus.x - (highlighted ? 11 : 8)} x2={bus.x + (highlighted ? 11 : 8)}
+                x1={bus.x - (highlighted ? 11 : 8) * visualScale} x2={bus.x + (highlighted ? 11 : 8) * visualScale}
                 y1={bus.y} y2={bus.y}
                 stroke={value === undefined ? highlighted ? '#0d7771' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                strokeWidth={highlighted ? 5 : 3.5} strokeLinecap="square" />
+                strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
                 : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
-                  r={highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5}
+                  r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * visualScale}
                   fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
                   stroke={highlighted ? '#0d7771' : '#344c53'}
-                  strokeWidth={highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5} />}
+                  strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
               {(nodes.length <= 25 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
-                <text x={bus.x + 13} y={bus.y - 11} className="network-node-label">{bus.label}</text>}
+                <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
+                  className="network-node-label"
+                  style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{bus.label}</text>}
               <title>{bus.label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
