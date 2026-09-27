@@ -69,7 +69,7 @@ function CatalogPanel({ catalog, selection, onSelect }: {
             onClick={() => onSelect({ applicationId: app.application_id, caseId: caseCard.case_id })}>
             <span className="case-card-top"><span className="case-card-title">{caseCard.title}</span><span aria-hidden="true">↗</span></span>
             <span className="case-card-summary">{caseCard.summary}</span>
-            <span className="case-card-footer"><span>03 个步骤</span></span>
+            <span className="case-card-footer"><span>共 3 步</span></span>
           </button>
         })}</div>
       </section>)}</div>
