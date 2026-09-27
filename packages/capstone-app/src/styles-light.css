@@ -83,7 +83,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .case-card.is-active { background: #e9f5ef; border-color: #a6d1bf; border-left-color: #0a8978;
   box-shadow: 0 4px 14px #1f7b6230; }
 .case-card-top > span:last-child { color: #237f70; }
-.case-card-title { font-size: 11px; line-height: 1.35; }
+.case-card-title { color: #3d6362; font-size: 11px; font-weight: 700; letter-spacing: .015em; line-height: 1.35; }
 .case-card-summary { color: #597075; font-size: 9px; line-height: 1.55; }
 .case-card-footer { color: #5c8178; font-size: 9px; }
 .catalog-footnote { color: #647d78; font-size: 9px; }
