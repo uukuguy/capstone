@@ -204,7 +204,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 .detail-body { padding: 24px 21px; flex: 1; }
 .case-overview { background: #102126; border: 1px solid #274146; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
 .case-overview h3 { color: #d8e9df; font-size: 13px; line-height: 1.45; letter-spacing: -.02em; margin: 9px 0 8px; }
-.case-overview-summary { color: #96aaa6; font-size: 11px; line-height: 1.65; margin: 0 0 15px; }
+.case-overview-summary { color: #96aaa6; font-size: 11px; line-height: 1.8; margin: 0 0 15px; }
 .case-overview dl { margin: 0; }
 .case-overview-facts { display: grid; grid-template-columns: minmax(0, 1fr);
   margin-top: 14px; border-top: 1px solid #284045; }
@@ -214,7 +214,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 .case-overview-fact.is-long dt { padding-right: 0; margin-bottom: 4px; }
 .case-overview dt { color: #7fa7a1; font: 600 11px/1.5 "SFMono-Regular", Consolas, monospace;
   letter-spacing: .03em; padding-right: 8px; }
-.case-overview dd { color: #c6ded1; font-size: 11px; line-height: 1.5; margin: 0; overflow-wrap: break-word; }
+.case-overview dd { color: #c6ded1; font-size: 11px; line-height: 1.8; margin: 0; overflow-wrap: break-word; }
 .detail-label { color: #7fa7a1; font-size: 10px; font-weight: 600; letter-spacing: .03em; }
 .status-card { padding: 13px 15px; border: 1px solid #32504e; background: #12272a; display: grid;
   grid-template-columns: 1fr auto; align-items: baseline; gap: 7px 12px; }

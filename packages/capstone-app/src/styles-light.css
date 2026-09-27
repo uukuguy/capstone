@@ -60,9 +60,9 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .detail-body { padding: 20px 15px; }
 .case-overview { background: #fff; border: 1px solid #dbe6e0; border-radius: 5px; padding: 15px; }
 .case-overview h3 { color: #24484a; font-size: 13px; line-height: 1.45; }
-.case-overview-summary { color: #526d6c; font-size: 10px; }
+.case-overview-summary { color: #526d6c; font-size: 11px; line-height: 1.6; }
 .case-overview dt { color: #5c7c73; font-size: 11px; font-weight: 650; letter-spacing: .03em; }
-.case-overview dd { color: #365653; font-size: 10px; line-height: 1.6; }
+.case-overview dd { color: #526d6c; font-size: 11px; line-height: 1.6; }
 .case-overview-facts { border-color: #dce6e1; }
 .case-overview-fact { border-color: #dce6e1; }
 .status-card { padding: 15px; }
