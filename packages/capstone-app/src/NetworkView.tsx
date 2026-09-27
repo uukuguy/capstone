@@ -140,6 +140,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   // Keep strokes, symbols, and labels readable in screen pixels while the SVG
   // viewBox zooms into a dense network.
   const visualScale = Math.max(0.12, Math.min(1.25, camera.width / FULL.width))
+  // Electrical symbols need a slightly larger floor than connecting lines so
+  // buses and transformers remain identifiable in a focused network region.
+  const symbolScale = Math.max(visualScale, Math.min(0.6, Math.max(0.3, camera.width / 650)))
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
@@ -191,11 +194,11 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
-                <circle cx={centerX - (dense ? 2.3 : 4) * visualScale} cy={centerY}
-                  r={(dense ? 2.7 : 4.5) * visualScale}
+                <circle cx={centerX - (dense ? 2.3 : 4) * symbolScale} cy={centerY}
+                  r={(dense ? 2.7 : 4.5) * symbolScale}
                   style={{ strokeWidth: `${1.2 * visualScale}px` }} />
-                <circle cx={centerX + (dense ? 2.3 : 4) * visualScale} cy={centerY}
-                  r={(dense ? 2.7 : 4.5) * visualScale}
+                <circle cx={centerX + (dense ? 2.3 : 4) * symbolScale} cy={centerY}
+                  r={(dense ? 2.7 : 4.5) * symbolScale}
                   style={{ strokeWidth: `${1.2 * visualScale}px` }} />
               </g>}
               {highlighted && <text x={centerX + 7 * visualScale} y={centerY - 9 * visualScale}
@@ -211,13 +214,13 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
               {schematic ? <line className="network-busbar"
-                x1={bus.x - (highlighted ? 11 : 8) * visualScale} x2={bus.x + (highlighted ? 11 : 8) * visualScale}
+                x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
                 stroke={value === undefined ? highlighted ? '#0d7771' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
                 strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
                 : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
-                  r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * visualScale}
+                  r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
                   fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
                   stroke={highlighted ? '#0d7771' : '#344c53'}
                   strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
