@@ -71,7 +71,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .section-heading h2, .timeline-heading h2 { color: #173438; font-size: 17px; }
 .count-pill { color: #216f67; border-color: #b8d2c8; background: #edf7f2; }
 .panel-intro { color: #607578; font-size: 9px; line-height: 1.6; margin: 14px 0 18px; }
-.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 13px; }
+.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 13px; letter-spacing: -.02em; white-space: nowrap; }
 .app-index { color: #448c81; }
 .application-list { gap: 21px; }
 .application-list > section + section { border-top: 1px solid #c7ddd4; padding-top: 18px; }
@@ -329,7 +329,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .detail-section p, .detail-hint { font-size: 11px; line-height: 1.6; }
   .section-heading h2, .timeline-heading h2 { font-size: 20px; }
   .panel-intro { font-size: 11px; line-height: 1.55; margin: 16px 0 20px; }
-  .app-label { font-size: 14px; }
+  .app-label { font-size: 13px; }
   .application-list { gap: 27px; }
   .case-card { padding: 15px 14px; gap: 9px; }
   .case-card-title { font-size: 12px; }
