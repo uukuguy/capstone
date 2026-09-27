@@ -62,7 +62,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .section-heading h2, .timeline-heading h2 { color: #173438; font-size: 17px; }
 .count-pill { color: #216f67; border-color: #b8d2c8; background: #edf7f2; }
 .panel-intro { color: #607578; font-size: 9px; line-height: 1.6; margin: 14px 0 18px; }
-.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 11px; }
+.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 12px; }
 .app-index { color: #448c81; }
 .application-list { gap: 21px; }
 .application-list > section + section { border-top: 1px solid #c7ddd4; padding-top: 18px; }
@@ -74,7 +74,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .case-card.is-active { background: #e9f5ef; border-color: #a6d1bf; border-left-color: #0a8978;
   box-shadow: 0 4px 14px #1f7b6230; }
 .case-card-top > span:last-child { color: #237f70; }
-.case-card-title { font-size: 12px; line-height: 1.35; }
+.case-card-title { font-size: 11px; line-height: 1.35; }
 .case-card-summary { color: #597075; font-size: 9px; line-height: 1.55; }
 .case-card-footer { color: #5c8178; font-size: 9px; }
 .catalog-footnote { color: #647d78; font-size: 9px; }
@@ -309,10 +309,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .detail-section p, .detail-hint { font-size: 11px; line-height: 1.6; }
   .section-heading h2, .timeline-heading h2 { font-size: 20px; }
   .panel-intro { font-size: 11px; line-height: 1.55; margin: 16px 0 20px; }
-  .app-label { font-size: 12px; }
+  .app-label { font-size: 14px; }
   .application-list { gap: 27px; }
   .case-card { padding: 15px 14px; gap: 9px; }
-  .case-card-title { font-size: 14px; }
+  .case-card-title { font-size: 12px; }
   .case-card-summary { font-size: 11px; line-height: 1.6; }
   .case-card-footer { font-size: 10px; }
   .run-title-row { padding-top: 20px; }
