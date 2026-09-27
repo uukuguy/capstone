@@ -209,7 +209,7 @@ button.reference-chip:hover { background: #235043; color: white; }
 .case-overview-facts { display: grid; grid-template-columns: minmax(0, 1fr);
   margin-top: 14px; border-top: 1px solid #284045; }
 .case-overview-fact { display: grid; grid-template-columns: 76px minmax(0, 1fr);
-  min-width: 0; padding: 9px 0; border-bottom: 1px solid #284045; }
+  min-width: 0; padding: 7px 0; border-bottom: 1px solid #284045; }
 .case-overview-fact.is-long { grid-template-columns: minmax(0, 1fr); }
 .case-overview-fact.is-long dt { padding-right: 0; margin-bottom: 4px; }
 .case-overview dt { color: #7fa7a1; font: 600 10px/1.5 "SFMono-Regular", Consolas, monospace;
