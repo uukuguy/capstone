@@ -65,6 +65,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .app-label { color: #3d6362; border-color: #dbe6e1; font-size: 11px; }
 .app-index { color: #448c81; }
 .application-list { gap: 21px; }
+.application-list > section + section { border-top: 1px solid #dbe6e1; padding-top: 18px; }
 .case-list { gap: 8px; }
 .case-card { color: #253d40; border: 1px solid #e0e9e5; border-left: 3px solid transparent;
   background: #fff; padding: 9px 10px; gap: 7px; border-radius: 5px; box-shadow: 0 2px 7px #3156480a; }
@@ -310,9 +311,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .app-label { font-size: 12px; }
   .application-list { gap: 27px; }
   .case-card { padding: 15px 14px; gap: 9px; }
-  .case-card-title { font-size: 15px; }
-  .case-card-summary { font-size: 13px; line-height: 1.6; }
-  .case-card-footer { font-size: 11px; }
+  .case-card-title { font-size: 14px; }
+  .case-card-summary { font-size: 11px; line-height: 1.6; }
+  .case-card-footer { font-size: 10px; }
   .run-title-row { padding-top: 20px; }
   .run-title-row h1 { font-size: 26px; margin: 13px 0 9px; }
   .run-summary { font-size: 16px; line-height: 1.7; }

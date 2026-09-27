@@ -60,8 +60,8 @@ function CatalogPanel({ catalog, selection, onSelect }: {
       <span className="count-pill">{String(total).padStart(2, '0')}</span></div>
     <p className="panel-intro">从已登记的分析任务开始，每一步都保留在同一运行中。</p>
     <div className="application-list">
-      {catalog.applications.map((app: ApplicationCard, appIndex) => <section key={app.application_id}>
-        <div className="app-label"><span className="app-index">0{appIndex + 1}</span>{app.title}</div>
+      {catalog.applications.map((app: ApplicationCard) => <section key={app.application_id}>
+        <div className="app-label">{app.title}</div>
         <div className="case-list">{app.cases.map((caseCard: CaseCard) => {
           const active = selection?.applicationId === app.application_id && selection.caseId === caseCard.case_id
           return <button key={caseCard.case_id} className={`case-card ${active ? 'is-active' : ''}`}
