@@ -191,8 +191,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
-                <circle cx={centerX - (dense ? 2.3 : 4) * visualScale} cy={centerY} r={(dense ? 2.7 : 4.5) * visualScale} />
-                <circle cx={centerX + (dense ? 2.3 : 4) * visualScale} cy={centerY} r={(dense ? 2.7 : 4.5) * visualScale} />
+                <circle cx={centerX - (dense ? 2.3 : 4) * visualScale} cy={centerY}
+                  r={(dense ? 2.7 : 4.5) * visualScale}
+                  style={{ strokeWidth: `${1.2 * visualScale}px` }} />
+                <circle cx={centerX + (dense ? 2.3 : 4) * visualScale} cy={centerY}
+                  r={(dense ? 2.7 : 4.5) * visualScale}
+                  style={{ strokeWidth: `${1.2 * visualScale}px` }} />
               </g>}
               {highlighted && <text x={centerX + 7 * visualScale} y={centerY - 9 * visualScale}
                 className="network-branch-label"
