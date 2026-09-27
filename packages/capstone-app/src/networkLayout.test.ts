@@ -52,6 +52,13 @@ describe('network layout', () => {
     expect(positioned[0].y).toBeLessThan(positioned[1].y)
   })
 
+  it('can generate a schematic projection from a geographic diagram', () => {
+    const positioned = layoutNetwork(sampleDiagramView.diagram, true)
+    expect(positioned).toHaveLength(sampleDiagramView.diagram.buses.length)
+    expect(positioned.every((bus) => bus.x > 20 && bus.x < 980 && bus.y > 20 && bus.y < 580)).toBe(true)
+    expect(positioned[0].x).not.toBe(sampleDiagramView.diagram.buses[0].x)
+  })
+
   it('keeps all 585 geographic buses even at dense overview scale', () => {
     const buses = Array.from({ length: 585 }, (_, index) => ({
       id: `bus-${index}`, label: `Bus ${index}`, x: 6 + index % 39 * 0.1,

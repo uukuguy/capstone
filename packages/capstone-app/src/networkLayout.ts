@@ -36,9 +36,9 @@ export function usesModelCoordinates(view: Geometry): boolean {
   return providedLayout(view) !== null
 }
 
-export function layoutNetwork(view: Geometry): PositionedBus[] {
+export function layoutNetwork(view: Geometry, forceGeneratedLayout = false): PositionedBus[] {
   const buses = view.buses
-  const provided = providedLayout(view)
+  const provided = forceGeneratedLayout ? null : providedLayout(view)
   if (provided) return provided
   const positions = buses.map((bus, index) => {
     const angle = (Math.PI * 2 * index) / Math.max(1, buses.length) - Math.PI / 2
