@@ -71,7 +71,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .section-heading h2, .timeline-heading h2 { color: #173438; font-size: 17px; }
 .count-pill { color: #216f67; border-color: #b8d2c8; background: #edf7f2; }
 .panel-intro { color: #607578; font-size: 9px; line-height: 1.6; margin: 14px 0 18px; }
-.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 12px; }
+.app-label { color: #3d6362; border-color: #dbe6e1; font-size: 13px; }
 .app-index { color: #448c81; }
 .application-list { gap: 21px; }
 .application-list > section + section { border-top: 1px solid #c7ddd4; padding-top: 18px; }
