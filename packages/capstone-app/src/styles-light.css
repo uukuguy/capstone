@@ -299,15 +299,15 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .detail-tabs { margin: 0 21px; }
   .detail-body { padding: 24px 21px; }
   .detail-tabs button { font-size: 14px; }
-  .detail-label { font-size: 12px; }
-  .status-card { padding: 19px; }
-  .status-card strong { font-size: 21px; }
-  .detail-metrics > div { padding: 14px; }
-  .detail-metrics span { font-size: 12px; }
-  .detail-metrics strong { font-size: 20px; }
-  .detail-section p, .detail-hint { font-size: 14px; }
+  .detail-label { font-size: 11px; }
+  .status-card { padding: 15px; }
+  .status-card strong { font-size: 18px; }
+  .detail-metrics > div { padding: 11px; }
+  .detail-metrics span { font-size: 11px; }
+  .detail-metrics strong { font-size: 18px; }
+  .detail-section p, .detail-hint { font-size: 11px; line-height: 1.6; }
   .section-heading h2, .timeline-heading h2 { font-size: 20px; }
-  .panel-intro { font-size: 14px; line-height: 1.65; margin: 18px 0 22px; }
+  .panel-intro { font-size: 11px; line-height: 1.55; margin: 16px 0 20px; }
   .app-label { font-size: 12px; }
   .application-list { gap: 27px; }
   .case-card { padding: 15px 14px; gap: 9px; }
