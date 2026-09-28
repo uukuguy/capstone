@@ -301,6 +301,50 @@ describe('operator workflow', () => {
     expect(screen.queryByRole('tab', { name: '报告' })).toBeNull()
   })
 
+  it('links each completed timeline step to its replayed topology snapshot', async () => {
+    const story = {
+      schema: 'capstone-network-story/1.0' as const,
+      mode: 'cumulative-snapshots' as const,
+      story_status: 'complete' as const,
+      plan_source: 'fallback' as const,
+      diagram: sampleDiagramView.diagram,
+      steps: [1, 2, 3].map((ordinal) => ({
+        schema: 'capstone-network-story-step/1.0' as const,
+        ordinal,
+        diagram_ref: sampleDiagramView.diagram.ref,
+        model_revision: sampleDiagramView.diagram.model.revision,
+        current_focus_ids: [ordinal === 1 ? 'line:1' : 'transformer:2'],
+        history_focus_ids: ordinal === 1 ? [] : ['line:1'],
+        overlay: null,
+        plan_source: 'fallback' as const,
+      })),
+    }
+    const flow = async function* (): AsyncGenerator<SessionEvent> {
+      for (let ordinal = 1; ordinal <= 3; ordinal += 1) {
+        yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+          sequence: ordinal, event: 'answer_committed', payload: {
+            ordinal, turn_id: `turn-${ordinal}`, answer_output: `回答 ${ordinal}`,
+            answer_ref: `answer:${ordinal}`, result_refs: [], evidence_refs: [],
+          } }
+      }
+      yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
+        sequence: 4, event: 'completed', payload: {} }
+    }
+    const { client } = mockClient(flow)
+    Object.assign(client, {
+      report: vi.fn().mockResolvedValue('# 本轮报告'),
+      result: vi.fn().mockResolvedValue({ completed: true }),
+      networkStory: vi.fn().mockResolvedValue(story),
+    })
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '执行指令 1' }))
+    await screen.findByRole('button', { name: '查看步骤 1 的电气拓扑' })
+    expect(document.querySelector('.network-step')?.textContent).toBe('指令 3')
+    fireEvent.click(screen.getByRole('button', { name: '查看步骤 1 的电气拓扑' }))
+    expect(document.querySelector('.network-step')?.textContent).toBe('指令 1')
+  })
+
   it('returns a completed case to its initial manual or automatic choice', async () => {
     const flow = async function* (_id: string, _after: number, signal: AbortSignal): AsyncGenerator<SessionEvent> {
       yield { schema: 'capstone-session-event/1.0', session_id: 'session-one',
@@ -370,6 +414,45 @@ describe('operator workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: '停止自动执行' }))
     expect(screen.queryByRole('button', { name: '停止自动执行' })).toBeNull()
     expect(screen.getByRole('status').textContent).toContain('后续不会自动提交')
+  })
+
+  it('loads the completed topology story when automatic polling observes completion', async () => {
+    const { client, submitTurn } = mockClient()
+    let statusCalls = 0
+    const story = {
+      schema: 'capstone-network-story/1.0' as const,
+      mode: 'cumulative-snapshots' as const,
+      story_status: 'partial' as const,
+      plan_source: 'fallback' as const,
+      diagram: sampleDiagramView.diagram,
+      steps: [{
+        schema: 'capstone-network-story-step/1.0' as const,
+        ordinal: 1,
+        diagram_ref: sampleDiagramView.diagram.ref,
+        model_revision: sampleDiagramView.diagram.model.revision,
+        current_focus_ids: ['line:1'], history_focus_ids: [], overlay: null,
+        plan_source: 'fallback' as const,
+      }],
+    }
+    Object.assign(client, {
+      status: vi.fn().mockImplementation(async () => {
+        statusCalls += 1
+        return statusCalls === 1
+          ? { session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
+              state: 'ready', error_code: null, accepted_turns: 0, completed_turns: 0 }
+          : { session_id: 'session-one', run_id: 'run-one', application_id: 'pypsa-business-cases',
+              state: 'completed', error_code: null, accepted_turns: 1, completed_turns: 1 }
+      }),
+      report: vi.fn().mockResolvedValue('# 本轮报告'),
+      result: vi.fn().mockResolvedValue({ completed: true }),
+      networkStory: vi.fn().mockResolvedValue(story),
+    })
+    render(<App clientFactory={() => client} />)
+    await screen.findByRole('heading', { name: '区域负荷增长情景', level: 1 })
+    fireEvent.click(screen.getByRole('button', { name: '自动完成' }))
+    await waitFor(() => expect(submitTurn).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(client.networkStory).toHaveBeenCalledWith('session-one'))
+    expect(await screen.findByRole('button', { name: '步骤 1' })).toBeTruthy()
   })
 
   it('keeps the accepted instruction running after stop without submitting the next one', async () => {

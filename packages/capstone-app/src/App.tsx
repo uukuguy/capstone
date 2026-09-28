@@ -38,11 +38,6 @@ function isLongCaseFact(value: string): boolean {
   return value.length > 18
 }
 
-// Step-to-network projection is intentionally disabled until its contract is
-// validated independently. The case diagram remains available as a static
-// preview while answers and reports continue to use the real run.
-const ENABLE_NETWORK_STEP_LINK = false
-
 function isTerminal(state: SessionStatus['state']): boolean {
   return state === 'completed' || state === 'failed' || state === 'interrupted'
 }
@@ -231,8 +226,12 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
         const itemStatus = answer
           ? answer.duration_ms !== undefined ? `已完成 · ${formatDuration(answer.duration_ms)}` : '已完成'
           : isExecuting ? '分析中' : isNext ? '下一步' : '待执行'
-        return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''}`}>
-          <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>
+        const storyStep = networkStory?.steps.some((step) => step.ordinal === ordinal) === true
+        return <li key={ordinal} className={`timeline-item ${answer ? 'is-complete' : ''} ${isNext || isExecuting ? 'is-current' : ''} ${selectedStoryOrdinal === ordinal ? 'is-story-selected' : ''}`}>
+          {storyStep && answer ? <button type="button" className="timeline-number"
+            aria-label={`查看步骤 ${ordinal} 的电气拓扑`} aria-pressed={selectedStoryOrdinal === ordinal}
+            onClick={() => onStoryStep(ordinal)}>{String(ordinal).padStart(2, '0')}</button>
+            : <span className="timeline-number">{String(ordinal).padStart(2, '0')}</span>}
           <div className="timeline-content"><div className="timeline-item-head">
             <p className="instruction-text">{instruction}</p><span>{itemStatus}</span></div>
             {answer && <AnswerCard turn={answer} onEvidence={onEvidence} />}
@@ -566,10 +565,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
               setProgress(null)
             } else if (event.event === 'network_view' || event.event === 'network_layer' ||
               event.event === 'network_view_unavailable' || event.event === 'network_layer_unavailable') {
-              // Keep optional projection events from affecting the real answer flow.
-              if (ENABLE_NETWORK_STEP_LINK) {
-                // Reserved for the separately validated network projection path.
-              }
+              // The completed story is the only topology source for step replay.
             } else if (event.event === 'completed') {
               setStatus((before) => before && { ...before, state: 'completed' })
               finishRunTimer()
@@ -672,9 +668,17 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
       const current = await client.status(sid)
       if (current.state === 'completed') {
         finishRunTimer()
-        const outcomes = await Promise.allSettled([client.report(sid), client.result(sid)])
+        const storyRequest = typeof (client as Partial<CapstoneClient>).networkStory === 'function'
+          ? client.networkStory(sid)
+          : Promise.reject(new Error('拓扑故事接口不可用'))
+        const outcomes = await Promise.allSettled([client.report(sid), client.result(sid), storyRequest])
         if (outcomes[0].status === 'fulfilled') setReport(outcomes[0].value)
         if (outcomes[1].status === 'fulfilled') setResult(outcomes[1].value)
+        if (outcomes[2].status === 'fulfilled') {
+          setNetworkStory(outcomes[2].value)
+          const steps = outcomes[2].value.steps
+          setSelectedStoryOrdinal(steps.length ? steps[steps.length - 1].ordinal : null)
+        }
       }
     }).catch((cause) => {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '自动执行失败')
