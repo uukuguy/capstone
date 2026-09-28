@@ -49,17 +49,10 @@ def _candidate_ids(
             item["id"] for item in values
             if isinstance(item, Mapping) and isinstance(item.get("id"), str)
         ][:_MAX_CANDIDATES]
-    for field in ("focus_ids", "next_focus_ids"):
-        raw = layer.get(field)
-        if isinstance(raw, list):
-            selected = [item for item in raw if isinstance(item, str)]
-            if selected:
-                return selected[:_MAX_CANDIDATES]
-    branches = diagram.get("branches")
-    return [
-        item["id"] for item in branches
-        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
-    ][:_MAX_CANDIDATES] if isinstance(branches, list) else []
+    raw = layer.get("focus_ids")
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)][:_MAX_CANDIDATES]
+    return []
 
 
 def _component_metadata(diagram: Mapping[str, object], identifier: str) -> dict[str, object]:

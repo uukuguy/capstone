@@ -63,10 +63,11 @@ def _plan_selection(
         keys = raw.get("focus_candidate_keys")
         primary = raw.get("primary_candidate_key")
         presentation = raw.get("presentation")
-        if (type(ordinal) is not int or not isinstance(keys, list) or not 1 <= len(keys) <= 3
+        if (type(ordinal) is not int or not isinstance(keys, list) or not 0 <= len(keys) <= 3
                 or any(not isinstance(key, str) for key in keys)
                 or len(set(keys)) != len(keys) or not isinstance(primary, str)
-                or primary not in keys or not isinstance(presentation, str)
+                or (primary not in keys if keys else primary != "")
+                or not isinstance(presentation, str)
                 or presentation not in PRESENTATIONS or ordinal not in candidate_directory
                 or any(key not in candidate_directory[ordinal] for key in keys)
                 or ordinal in selections):

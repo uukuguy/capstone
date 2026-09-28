@@ -127,3 +127,17 @@ def test_grid_story_invalid_planner_selection_uses_fallback() -> None:
 
     assert story["plan_source"] == "fallback"
     assert story["steps"][2]["current_focus_ids"] == ["line:11", "line:17"]
+
+
+def test_grid_story_does_not_promote_next_step_focus_into_an_earlier_snapshot() -> None:
+    story = build_grid_story(
+        executor=NetworkExecutor(),
+        context_ref="context:one",
+        case_id="pandapower-scripted-test",
+        completed_steps=_steps(),
+        planner=None,
+    )
+
+    assert story["steps"][0]["current_focus_ids"] == []
+    assert story["steps"][1]["current_focus_ids"] == ["line:17"]
+    assert story["steps"][2]["current_focus_ids"] == ["line:17"]

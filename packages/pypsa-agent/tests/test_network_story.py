@@ -121,3 +121,20 @@ def test_pypsa_story_invalid_planner_selection_uses_fallback() -> None:
 
     assert story["plan_source"] == "fallback"
     assert story["steps"][2]["current_focus_ids"] == ["line:main", "line:aux"]
+
+
+def test_pypsa_story_does_not_promote_next_step_focus_into_an_earlier_snapshot() -> None:
+    story = build_pypsa_story(
+        executor=TopologyExecutor(),
+        model_ref="model:baseline",
+        model_id="regional-six-bus",
+        case_id="ac-dc-interconnection",
+        completed_steps=(
+            {"ordinal": 1, "result_refs": (), "dispatch": None},
+            {"ordinal": 2, "result_refs": (), "dispatch": None},
+        ),
+        planner=None,
+    )
+
+    assert story["steps"][0]["current_focus_ids"] == []
+    assert story["steps"][1]["current_focus_ids"] == ["link:converter"]
