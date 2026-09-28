@@ -185,14 +185,6 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
               : valueColor(layer!.overlay!.metric, value, loadingRange)
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
             const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
-            const branchDx = to.x - from.x, branchDy = to.y - from.y
-            const branchLength = Math.hypot(branchDx, branchDy)
-            const transformerNearBus = transformer && nodes.some((bus) =>
-              Math.hypot(bus.x - centerX, bus.y - centerY) < 24 * symbolScale)
-            const side = (branch.id.charCodeAt(0) || 0) % 2 === 0 ? 1 : -1
-            const transformerOffset = transformerNearBus && branchLength > 0 ? 30 * symbolScale : 0
-            const transformerCenterX = centerX + (branchLength ? -branchDy / branchLength : 0) * transformerOffset * side
-            const transformerCenterY = centerY + (branchLength ? branchDx / branchLength : 0) * transformerOffset * side
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
               onMouseLeave={() => setHovered(null)}>
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
@@ -202,10 +194,10 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
-                <circle cx={transformerCenterX - (dense ? 2.3 : 4) * symbolScale} cy={transformerCenterY}
+                <circle cx={centerX - (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
                   style={{ strokeWidth: `${1.2 * visualScale}px` }} />
-                <circle cx={transformerCenterX + (dense ? 2.3 : 4) * symbolScale} cy={transformerCenterY}
+                <circle cx={centerX + (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
                   style={{ strokeWidth: `${1.2 * visualScale}px` }} />
               </g>}
