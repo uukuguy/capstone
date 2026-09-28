@@ -291,7 +291,10 @@ def create_host_app(
                 raw = event.payload.get("layer")
                 if not isinstance(raw, dict):
                     continue
-                diagram = diagrams.get(raw.get("diagram_ref"))
+                diagram_ref = raw.get("diagram_ref")
+                if not isinstance(diagram_ref, str):
+                    continue
+                diagram = diagrams.get(diagram_ref)
                 if diagram is None:
                     continue
                 try:
