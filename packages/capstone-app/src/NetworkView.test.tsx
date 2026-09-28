@@ -12,7 +12,7 @@ describe('operator network canvas', () => {
       source_ref: 'result:current', values: [{ id: 'line:11', value: 72.4 }],
     } }
     render(<NetworkView view={view} modelName="IEEE-39" focusKey="turn-1" />)
-    expect(screen.getByRole('heading', { name: '拓扑图' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '电气拓扑图' })).toBeTruthy()
     expect(screen.getByText('指令 1')).toBeTruthy()
     expect(screen.getByText(/模型来源 · gridctl/)).toBeTruthy()
     expect(screen.getByText('仅对 1 / 2 条有结果的线路着色')).toBeTruthy()

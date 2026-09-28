@@ -146,7 +146,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
-      <h2 id="network-title">拓扑图</h2></div><div className="network-head-context">
+      <h2 id="network-title">电气拓扑图</h2></div><div className="network-head-context">
         {view && <span className="network-step">指令 {view.ordinal}</span>}
         <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
