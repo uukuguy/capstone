@@ -4,7 +4,7 @@ import uuid
 
 from pypsa_agent.profile import build_profile
 from pypsa_agent.registry import build_trusted_application_registry
-from pypsa_agent.worker import _event_ordinal, _prepare
+from pypsa_agent.worker import ROOT, _event_ordinal, _prepare
 
 
 def test_pypsa_application_declares_two_trusted_bindings_and_reference_grant() -> None:
@@ -28,6 +28,23 @@ def test_provider_worker_prepares_without_sending_a_model_request() -> None:
     assert [binding.binding_id for binding in prepared.application.profile.domains] == [
         "source", "operations",
     ]
+
+
+def test_provider_worker_prepares_registered_case_prompt_context(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(ROOT))
+    run_id = "pypsa-provider-case-preflight-" + uuid.uuid4().hex
+    prepared = _prepare({"application_id": "pypsa-business-cases",
+                         "run_id": run_id, "mode": "provider",
+                         "case_id": "scigrid-dispatch",
+                         "provider": "deepseek", "model": "deepseek-flash"},
+                        lambda _: None)
+    assert prepared.run_id == run_id
+    assert prepared.application.prompt_decorator is not None
+    prompt = prepared.application.prompt_decorator(
+        "打开已登记的 SciGRID-DE 示例网络，核对来源、快照和主要组件。", 1,
+    )
+    assert "case_id=scigrid-dispatch" in prompt
+    assert "model_id=pypsa-example/scigrid_de" in prompt
 
 
 def test_provider_tool_events_use_the_rpc_correlation_id_for_story_steps() -> None:

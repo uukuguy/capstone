@@ -237,6 +237,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         provider = values.get("provider")
         model = values.get("model")
         provider_case_id = values.get("case_id")
+        provider_case: Mapping[str, object] | None = None
         provider_model_id: str | None = None
         if isinstance(provider_case_id, str):
             from validation.pypsa_cases import load_cases
@@ -311,8 +312,8 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
                     application_id=APPLICATION_ID,
                     case_id=str(provider_case_id),
                     model_id=provider_model_id or str(provider_case_id),
-                    instructions=tuple(case["introduction"]["demo_instructions"]),
-                    workflows=tuple(tuple(step for step in workflow) for workflow in case["demo_workflow"]),
+                    instructions=tuple(provider_case["introduction"]["demo_instructions"]),
+                    workflows=tuple(tuple(step for step in workflow) for workflow in provider_case["demo_workflow"]),
                 )
                 if isinstance(provider_case_id, str) and isinstance(provider_case, Mapping)
                 else None
