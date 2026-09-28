@@ -1118,3 +1118,5 @@ _Recovered pre-merge mainline entries._
 - 13:42 收窄 Host API 持久化拓扑图引用类型，保持无效事件跳过且通过定向 Pyright [56f54a5]
 - 12:54 为 pandapower 与 PyPSA 增加权威候选回退和可选规划器，完成后生成累计拓扑故事 [f70eeb0]
 - 14:33 将完成拓扑故事与时间线步骤真正联动，并覆盖自动完成路径的故事加载 [343ddf9]
+- 14:46 将右栏案例概览案例名的字号、字重、字距和行高对齐左栏案例库标题 [f6313cb]
+- 15:02 修复 PyPSA provider 事件按 correlation_id 归属回合，恢复完成后的累计拓扑回放 [af1f04e]
