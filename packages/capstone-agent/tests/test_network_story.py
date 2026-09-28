@@ -36,10 +36,10 @@ def steps() -> list[dict[str, object]]:
 def test_story_keeps_one_diagram_and_accumulates_prior_focus() -> None:
     story = build_cumulative_story(
         diagram(), steps(),
-        {"plan_source": "llm", "steps": [
-            {"ordinal": 1, "focus_candidate_keys": ["c1"]},
-            {"ordinal": 2, "focus_candidate_keys": ["c1"]},
-            {"ordinal": 3, "focus_candidate_keys": ["c1"]},
+        {"schema": "capstone-topology-plan/1.0", "plan_source": "llm", "steps": [
+            {"ordinal": 1, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+            {"ordinal": 2, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+            {"ordinal": 3, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
         ]},
     )
     assert story["schema"] == "capstone-network-story/1.0"
@@ -58,7 +58,11 @@ def test_story_rejects_foreign_overlay_reference() -> None:
 def test_story_drops_unknown_plan_key_and_uses_fallback() -> None:
     story = build_cumulative_story(
         diagram(), steps(),
-        {"plan_source": "llm", "steps": [{"ordinal": 1, "focus_candidate_keys": ["unknown"]}]},
+        {"schema": "capstone-topology-plan/1.0", "plan_source": "llm", "steps": [
+            {"ordinal": 1, "focus_candidate_keys": ["unknown"], "primary_candidate_key": "unknown", "presentation": "highlight"},
+            {"ordinal": 2, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+            {"ordinal": 3, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+        ]},
     )
     assert story["plan_source"] == "fallback"
     assert story["steps"][0]["current_focus_ids"] == ["line:1"]
@@ -67,10 +71,14 @@ def test_story_drops_unknown_plan_key_and_uses_fallback() -> None:
 def test_story_does_not_take_values_or_references_from_plan() -> None:
     story = build_cumulative_story(
         diagram(), steps(),
-        {"plan_source": "llm", "steps": [{
+        {"schema": "capstone-topology-plan/1.0", "plan_source": "llm", "steps": [{
             "ordinal": 1, "focus_candidate_keys": ["c1"],
+            "primary_candidate_key": "c1", "presentation": "highlight",
             "overlay": {"source_ref": "result:foreign", "values": [{"id": "line:2", "value": 999}]},
-        }]},
+        },
+            {"ordinal": 2, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+            {"ordinal": 3, "focus_candidate_keys": ["c1"], "primary_candidate_key": "c1", "presentation": "highlight"},
+        ]},
     )
     assert story["steps"][0]["overlay"]["source_ref"] == "result:step-1"
     assert story["steps"][0]["overlay"]["values"] == [{"id": "line:1", "value": 80.0}]
@@ -81,3 +89,14 @@ def test_story_does_not_carry_an_incompatible_overlay_metric() -> None:
     inputs[2]["overlay_metric"] = "loading_percent"
     story = build_cumulative_story(diagram(), inputs, None)
     assert story["steps"][2]["overlay"] is None
+
+
+def test_malformed_planner_values_use_fallback_without_type_errors() -> None:
+    malformed = {"schema": "capstone-topology-plan/1.0", "plan_source": [], "steps": []}
+    story = build_cumulative_story(diagram(), steps(), malformed)  # type: ignore[arg-type]
+    assert story["plan_source"] == "fallback"
+
+
+def test_story_history_is_the_complete_prior_focus_union() -> None:
+    story = build_cumulative_story(diagram(), steps(), None)
+    assert story["steps"][2]["history_focus_ids"] == ["line:1", "bus:2"]
