@@ -61,15 +61,41 @@ if [ "${CAPSTONE_START_APP:-1}" = "1" ]; then
     mkdir -p "$app_state_dir"
     app_command=(npm run dev --prefix "$repo_root/packages/capstone-app" --
       --host "$app_host" --port "$app_port")
-    if command -v setsid >/dev/null 2>&1; then
-      nohup setsid "${app_command[@]}" \
-        >"$app_state_dir/app-dev.log" 2>&1 < /dev/null &
-    else
-      nohup "${app_command[@]}" \
-        >"$app_state_dir/app-dev.log" 2>&1 < /dev/null &
-    fi
-    app_pid=$!
-    printf '%s\n' "$app_pid" >"$app_state_dir/app-dev.pid"
+    command -v python3 >/dev/null 2>&1 || fail "python3 is required to detach the App process"
+    python3 - "$app_state_dir/app-dev.pid" "$app_state_dir/app-dev.log" "$repo_root" -- \
+      "${app_command[@]}" <<'PY'
+import os
+import sys
+
+pid_path, log_path, working_dir = sys.argv[1:4]
+command = sys.argv[5:]
+if not command:
+    raise SystemExit("missing detached App command")
+
+first_child = os.fork()
+if first_child:
+    _, status = os.waitpid(first_child, 0)
+    raise SystemExit(os.waitstatus_to_exitcode(status))
+
+os.setsid()
+second_child = os.fork()
+if second_child:
+    with open(pid_path, "w", encoding="ascii") as handle:
+        handle.write(f"{second_child}\n")
+    os._exit(0)
+
+os.chdir(working_dir)
+log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+os.dup2(log_fd, 1)
+os.dup2(log_fd, 2)
+null_fd = os.open(os.devnull, os.O_RDONLY)
+os.dup2(null_fd, 0)
+os.close(log_fd)
+os.close(null_fd)
+os.execvp(command[0], command)
+PY
+    app_pid="$(cat "$app_state_dir/app-dev.pid")"
+    [ -n "$app_pid" ] || fail "detached App process did not report a PID"
     ready=0
     for _ in $(seq 1 30); do
       if curl -fsS "$app_origin/" >/dev/null 2>&1; then
