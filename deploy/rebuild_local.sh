@@ -49,12 +49,29 @@ worker_image="$(docker inspect -f '{{.Image}}' "$worker_container")"
 [ "$api_image" = "$worker_image" ] \
   || fail "API and worker are running different image revisions"
 
-app_host="${CAPSTONE_APP_HOST:-127.0.0.1}"
+app_host="${CAPSTONE_APP_HOST:-0.0.0.0}"
 app_port="${CAPSTONE_APP_PORT:-5173}"
-app_origin="http://${app_host}:${app_port}"
+app_probe_origin="http://127.0.0.1:${app_port}"
+app_public_host="${CAPSTONE_APP_PUBLIC_HOST:-}"
+if [ -z "$app_public_host" ]; then
+  if [ "$app_host" = "0.0.0.0" ]; then
+    if command -v ipconfig >/dev/null 2>&1; then
+      for interface in en0 en1; do
+        app_public_host="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+        [ -n "$app_public_host" ] && break
+      done
+    elif command -v hostname >/dev/null 2>&1; then
+      app_public_host="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+    fi
+  else
+    app_public_host="$app_host"
+  fi
+fi
+app_public_host="${app_public_host:-127.0.0.1}"
+app_origin="http://${app_public_host}:${app_port}"
 app_state="already running"
 if [ "${CAPSTONE_START_APP:-1}" = "1" ]; then
-  if ! curl -fsS "$app_origin/" >/dev/null 2>&1; then
+  if ! curl -fsS "$app_probe_origin/" >/dev/null 2>&1; then
     command -v npm >/dev/null 2>&1 || fail "npm is required to start the App"
     app_state="started by rebuild"
     app_state_dir="$repo_root/.capstone-agent"
@@ -98,7 +115,7 @@ PY
     [ -n "$app_pid" ] || fail "detached App process did not report a PID"
     ready=0
     for _ in $(seq 1 30); do
-      if curl -fsS "$app_origin/" >/dev/null 2>&1; then
+      if curl -fsS "$app_probe_origin/" >/dev/null 2>&1; then
         ready=1
         break
       fi

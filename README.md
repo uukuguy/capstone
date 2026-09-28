@@ -60,7 +60,7 @@ ensures the Vite App is reachable (starting it in the background when needed).
 Set `CAPSTONE_START_APP=0` to skip App startup or `CAPSTONE_LOCAL_PULL=1` when
 base images should also be refreshed.
 
-Open `http://127.0.0.1:5173/`. The API issues a scoped access credential and the App opens directly; there is no token to enter. Cases still run through the real Provider/LLM path. Reports and evidence stay in private artifact storage, and the browser reads bounded content through the API. See the [runbook](docs/RUNBOOK.md#hosted-app-and-deployment) for ports, credentials, and troubleshooting.
+Open `http://127.0.0.1:5173/`. The local App listens on the LAN by default, so a phone on the same network can open `http://<computer-lan-ip>:5173/`. Vite proxies browser requests to the loopback API; the API itself remains loopback-only. Set `CAPSTONE_APP_HOST=127.0.0.1` to restrict the App to the computer. The API issues a scoped access credential and the App opens directly; there is no token to enter. Cases still run through the real Provider/LLM path. Reports and evidence stay in private artifact storage, and the browser reads bounded content through the API. See the [runbook](docs/RUNBOOK.md#hosted-app-and-deployment) for ports, credentials, and troubleshooting.
 
 ## Use the CLI
 

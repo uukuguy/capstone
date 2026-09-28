@@ -33,6 +33,6 @@ rg -q -- '--env-file .* config --quiet' "$CAPSTONE_TEST_CALLS"
 rg -q -- '--env-file .* build api' "$CAPSTONE_TEST_CALLS"
 rg -q -- '--env-file .* up --no-build --force-recreate --wait -d' "$CAPSTONE_TEST_CALLS"
 rg -q -- 'http://127.0.0.1:8767/health/ready' "$CAPSTONE_TEST_CALLS"
-rg -q 'App:.*http://127.0.0.1:5173/' "$scratch/output"
+rg -q 'App:.*http://.*:5173/' "$scratch/output"
 
 echo 'local-rebuild: ok'

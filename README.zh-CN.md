@@ -58,7 +58,7 @@ make capstone-local-rebuild
 `CAPSTONE_START_APP=0` 可跳过 App 启动，需要同时刷新基础镜像时设置
 `CAPSTONE_LOCAL_PULL=1`。
 
-打开 `http://127.0.0.1:5173/`。访问凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。案例执行仍走真实 Provider/LLM 路径。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
+打开 `http://127.0.0.1:5173/`。本地 App 默认监听局域网接口；手机可通过 `http://<电脑局域网 IP>:5173/` 访问。访问凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。Vite 通过同源代理转发到本机 API，API 本身仍只监听 loopback。若只需要本机访问，可设置 `CAPSTONE_APP_HOST=127.0.0.1`。案例执行仍走真实 Provider/LLM 路径。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
 
 ## 使用 CLI
 
