@@ -4,7 +4,7 @@ import uuid
 
 from pypsa_agent.profile import build_profile
 from pypsa_agent.registry import build_trusted_application_registry
-from pypsa_agent.worker import _prepare
+from pypsa_agent.worker import _event_ordinal, _prepare
 
 
 def test_pypsa_application_declares_two_trusted_bindings_and_reference_grant() -> None:
@@ -28,3 +28,8 @@ def test_provider_worker_prepares_without_sending_a_model_request() -> None:
     assert [binding.binding_id for binding in prepared.application.profile.domains] == [
         "source", "operations",
     ]
+
+
+def test_provider_tool_events_use_the_rpc_correlation_id_for_story_steps() -> None:
+    assert _event_ordinal({"turn_id": "run-t002"}) == 2
+    assert _event_ordinal({"correlation_id": "run-t003"}) == 3

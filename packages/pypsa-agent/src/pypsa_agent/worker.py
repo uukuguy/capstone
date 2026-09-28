@@ -38,6 +38,16 @@ def _turn_ordinal(turn_id: object) -> int | None:
         return None
 
 
+def _event_ordinal(event: Mapping[str, object]) -> int | None:
+    """Resolve a tool event to its turn for scripted and RPC providers."""
+
+    for key in ("turn_id", "correlation_id", "correlationId"):
+        ordinal = _turn_ordinal(event.get(key))
+        if ordinal is not None:
+            return ordinal
+    return None
+
+
 def _write_handoff_index(
     path: Path, run_id: str, handoffs: Mapping[str, Mapping[str, object]],
 ) -> None:
@@ -112,7 +122,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
 
         def observed(event: Mapping[str, object]) -> None:
             if event.get("type") == "tool_result":
-                ordinal = _turn_ordinal(event.get("turn_id"))
+                ordinal = _event_ordinal(event)
                 result = event.get("result")
                 capability = event.get("capability")
                 if ordinal is not None and isinstance(capability, str) and isinstance(result, Mapping):
@@ -249,7 +259,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
 
         def observed(event: Mapping[str, object]) -> None:
             if event.get("type") == "tool_result":
-                ordinal = _turn_ordinal(event.get("turn_id"))
+                ordinal = _event_ordinal(event)
                 result = event.get("result")
                 capability = event.get("capability")
                 if ordinal is not None and isinstance(capability, str) and isinstance(result, Mapping):
