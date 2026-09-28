@@ -28,6 +28,8 @@ _PAYLOAD_FIELDS = {
     "network_diagram": frozenset({"diagram"}),
     "network_layer": frozenset({"ordinal", "layer"}),
     "network_layer_unavailable": frozenset({"ordinal"}),
+    "network_story": frozenset({"story"}),
+    "network_story_unavailable": frozenset({"code"}),
 }
 _REQUIRED_PAYLOAD_FIELDS = {
     "open": frozenset({"application_id", "mode"}),
@@ -46,6 +48,8 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "network_diagram": _PAYLOAD_FIELDS["network_diagram"],
     "network_layer": _PAYLOAD_FIELDS["network_layer"],
     "network_layer_unavailable": _PAYLOAD_FIELDS["network_layer_unavailable"],
+    "network_story": _PAYLOAD_FIELDS["network_story"],
+    "network_story_unavailable": _PAYLOAD_FIELDS["network_story_unavailable"],
 }
 
 
@@ -124,6 +128,30 @@ class Frame:
             type(self.payload["ordinal"]) is not int or not 1 <= self.payload["ordinal"] <= 3
         ):
             raise ProtocolError("network layer unavailable ordinal is invalid")
+        if self.kind == "network_story":
+            from capstone_agent.network_story import normalize_network_story
+
+            story = self.payload["story"]
+            if not isinstance(story, dict):
+                raise ProtocolError("network story payload is invalid")
+            refs = {
+                ordinal: tuple(
+                    step["overlay"]["source_ref"]
+                    for step in story.get("steps", [])
+                    if isinstance(step, dict) and step.get("ordinal") == ordinal
+                    and isinstance(step.get("overlay"), dict)
+                    and isinstance(step["overlay"].get("source_ref"), str)
+                )
+                for ordinal in range(1, 4)
+            }
+            try:
+                normalize_network_story(story, admitted_refs_by_ordinal=refs)
+            except ValueError:
+                raise ProtocolError("network story payload is invalid") from None
+        if self.kind == "network_story_unavailable" and (
+            not isinstance(self.payload.get("code"), str) or not self.payload["code"]
+        ):
+            raise ProtocolError("network story unavailable payload is invalid")
         try:
             json.dumps(self.payload, ensure_ascii=False, allow_nan=False)
         except (TypeError, ValueError):

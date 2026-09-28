@@ -16,6 +16,7 @@ from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
 from capstone_agent.progress import render_progress, summarize_answer
 from capstone_agent.network_view import normalize_network_view
 from capstone_agent.network_diagram import normalize_network_projection
+from capstone_agent.network_story import normalize_network_story
 
 
 class _IncrementalApplication(Protocol):
@@ -230,6 +231,35 @@ def serve_application(
         rendered = getattr(outcome, "rendered", None)
         if isinstance(rendered, str):
             rendered = json.loads(rendered)
+        projection_marker = object()
+        projection = getattr(outcome, "completion_projection", projection_marker)
+        if projection is not projection_marker:
+            story: Mapping[str, object] | None = None
+            if isinstance(projection, Mapping):
+                try:
+                    # The worker receives the validated projection from the
+                    # application. Frame validation repeats structural checks;
+                    # current-run admission is enforced by the domain projector.
+                    refs_by_ordinal = {
+                        ordinal: tuple(
+                            step["overlay"]["source_ref"]
+                            for step in projection.get("steps", [])
+                            if isinstance(step, Mapping)
+                            and step.get("ordinal") == ordinal
+                            and isinstance(step.get("overlay"), Mapping)
+                            and isinstance(step["overlay"].get("source_ref"), str)
+                        )
+                        for ordinal in range(1, 4)
+                    }
+                    story = normalize_network_story(
+                        projection, admitted_refs_by_ordinal=refs_by_ordinal,
+                    )
+                except (TypeError, ValueError):
+                    story = None
+            if story is not None:
+                emit("network_story", {"story": story})
+            else:
+                emit("network_story_unavailable", {"code": "network_story_unavailable"})
         report_path = getattr(outcome, "report_path", None)
         completed = {"run_id": prepared.run_id, "result": rendered}
         if report_path is not None:

@@ -306,6 +306,32 @@ def create_host_app(
                 return event.payload["view"]
         raise HTTPException(404, "network view not found")
 
+    @app.get("/api/v1/sessions/{session_id}/network-story")
+    def get_network_story(session_id: str, request: Request):
+        record = get_session(session_id, request)
+        if record.state != "completed":
+            raise HTTPException(409, "network story is not ready")
+        from capstone_agent.network_story import normalize_network_story
+
+        story_event = None
+        admitted: dict[int, tuple[str, ...]] = {}
+        for event in ledger.events_after(session_id, 0):
+            if event.kind == "answer_committed":
+                ordinal = event.payload.get("ordinal")
+                refs = event.payload.get("result_refs")
+                if type(ordinal) is int and isinstance(refs, list):
+                    admitted[ordinal] = tuple(ref for ref in refs if isinstance(ref, str))
+            elif event.kind == "network_story":
+                story_event = event.payload.get("story")
+        if not isinstance(story_event, dict):
+            raise HTTPException(404, "network story not found")
+        try:
+            return normalize_network_story(
+                story_event, admitted_refs_by_ordinal=admitted,
+            )
+        except ValueError:
+            raise HTTPException(502, "network story is invalid") from None
+
     @app.get("/api/v1/sessions/{session_id}/report")
     def get_report(session_id: str, request: Request):
         get_session(session_id, request)

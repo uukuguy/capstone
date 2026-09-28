@@ -294,6 +294,7 @@ class WorkerSession:
                 if event.session_id != self.session_id or event.kind not in {
                     "ready", "progress", "answer_committed", "network_view", "network_view_unavailable",
                     "network_diagram", "network_layer", "network_layer_unavailable",
+                    "network_story", "network_story_unavailable",
                     "completed", "failed", "evidence_result"
                 }:
                     raise ProtocolError("worker event is invalid")
