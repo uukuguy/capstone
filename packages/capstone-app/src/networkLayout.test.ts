@@ -65,4 +65,23 @@ describe('network layout', () => {
     expect(positioned[0].y).toBeGreaterThan(positioned[546].y)
   })
 
+  it('separates co-located voltage-level buses for transformer stations', () => {
+    const diagram = {
+      ...sampleDiagramView.diagram,
+      buses: [
+        { id: 'hv', label: 'HV', x: 10, y: 20, vn_kv: 380 },
+        { id: 'lv', label: 'LV', x: 10, y: 20, vn_kv: 110 },
+        { id: 'remote', label: 'Remote', x: 20, y: 20, vn_kv: 380 },
+      ],
+      branches: [{ id: 'transformer:1', kind: 'transformer' as const,
+        label: 'Transformer 1', from_bus: 'hv', to_bus: 'lv' }],
+    }
+    const positioned = layoutNetwork(diagram)
+    const hv = positioned.find((bus) => bus.id === 'hv')!
+    const lv = positioned.find((bus) => bus.id === 'lv')!
+    expect(hv.x).toBe(lv.x)
+    expect(hv.y).not.toBe(lv.y)
+    expect((hv.y + lv.y) / 2).toBe(300)
+  })
+
 })

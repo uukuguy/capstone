@@ -24,6 +24,24 @@ function providedLayout(view: Geometry): PositionedBus[] | null {
     x: WIDTH / 2 + ((bus.x as number) - (minX + maxX) / 2) * scale,
     y: HEIGHT / 2 - ((bus.y as number) - (minY + maxY) / 2) * scale,
   }))
+  // PyPSA represents transformer voltage levels as co-located buses. Expand
+  // those station points slightly so the transformer can sit between the
+  // two electrical busbars without changing the surrounding geography.
+  const coincident = new Map<string, number[]>()
+  positioned.forEach((bus, index) => {
+    const key = `${bus.x.toFixed(6)}:${bus.y.toFixed(6)}`
+    const group = coincident.get(key) || []
+    group.push(index)
+    coincident.set(key, group)
+  })
+  for (const group of coincident.values()) {
+    if (group.length < 2) continue
+    const gap = Math.min(14, 70 / (group.length - 1))
+    const center = (group.length - 1) / 2
+    for (const [rank, index] of group.entries()) {
+      positioned[index].y += (rank - center) * gap
+    }
+  }
   if (view.schema === 'capstone-network-view/1.0' && buses.length > 12) {
     const crowded = positioned.filter((bus, index) => positioned.some((other, otherIndex) =>
       index !== otherIndex && Math.hypot(bus.x - other.x, bus.y - other.y) < 20)).length
