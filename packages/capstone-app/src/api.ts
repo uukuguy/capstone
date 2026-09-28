@@ -185,7 +185,7 @@ export class CapstoneClient {
       try {
         return await this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network-story`, { signal })
       } catch (cause) {
-        const retryable = cause instanceof ApiError && [502, 503, 504].includes(cause.status)
+        const retryable = cause instanceof ApiError && [409, 502, 503, 504].includes(cause.status)
         if (!retryable || attempt + 1 === READ_ATTEMPTS) throw cause
         await waitForRetry(Math.min(300 * 2 ** attempt, 1500), signal)
       }
