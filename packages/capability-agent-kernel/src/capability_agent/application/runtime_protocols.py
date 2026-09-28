@@ -7,10 +7,12 @@ They deliberately do not own concrete Kernel composition or Domain Pack types.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from capability_agent.application.context_store import ApplicationContextStore
     from capability_agent.application.composition import CredentialBroker
     from capability_agent.application.profile import ApplicationProfile
     from capability_agent.application.registry import DomainRegistry
@@ -93,6 +95,23 @@ class PreparedApplicationRuntime(Protocol):
 
     @property
     def bindings(self) -> Mapping[str, object]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CompletionProjectionContext:
+    """Neutral context supplied to an application-owned completion projector."""
+
+    request: ApplicationRequest
+    prepared: PreparedApplicationRuntime
+    bindings: Mapping[str, object]
+    workspace: ApplicationWorkspace | None
+    store: ApplicationContextStore | None
+    completed_answers: tuple[FinalizedTurn, ...]
+    provider: ProviderSession | None
+
+
+class CompletionProjector(Protocol):
+    def __call__(self, context: CompletionProjectionContext) -> object | None: ...
 
 
 class TurnControllerSource(Protocol):
@@ -203,6 +222,8 @@ class ReportPublisher(Protocol):
 
 __all__ = [
     "ApplicationPreparer",
+    "CompletionProjectionContext",
+    "CompletionProjector",
     "DomainPayloadBuilder",
     "DomainOutputBuilder",
     "HeartbeatObserver",

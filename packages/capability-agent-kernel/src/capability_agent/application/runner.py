@@ -46,6 +46,8 @@ from capability_agent.application.projector import ApplicationInvocationProjecto
 from capability_agent.application.reporting import GenericReportShell, ReportPublication
 from capability_agent.application.runtime_protocols import (
     ApplicationPreparer,
+    CompletionProjectionContext,
+    CompletionProjector,
     DomainPayloadBuilder,
     DomainOutputBuilder,
     LegacyPromptSession,
@@ -154,6 +156,7 @@ class ApplicationOutcome:
     total_questions: int
     error: str | None = None
     model_request_capture_status: ModelRequestCaptureStatus = "unavailable"
+    completion_projection: object | None = None
 
     @property
     def output(self) -> object | None:
@@ -466,6 +469,7 @@ class AgentApplication:
         runtime_host: RuntimeHost | None = None,
         runtime_paths: RuntimePaths | None = None,
         semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
+        completion_projector: CompletionProjector | None = None,
     ) -> None:
         self.profile = profile
         self.prepared_application = (
@@ -508,6 +512,7 @@ class AgentApplication:
         self.runtime_host = runtime_host
         self.runtime_paths = runtime_paths
         self.semantic_event_observer = semantic_event_observer
+        self.completion_projector = completion_projector
         self._prepared_for_run = False
         self._diagnostic_workspace: ApplicationWorkspace | None = None
         self._diagnostic_run_id = "run"
@@ -561,6 +566,7 @@ class AgentApplication:
         controller: TurnControllerSession | None = None
         projector: object | None = self.projector
         active_turn: ActiveTurnHandle | None = None
+        completion_projection: object | None = None
         try:
             self._hook("registration")
             prepared = self._prepare(request)
@@ -715,6 +721,22 @@ class AgentApplication:
                 if finalized.answer_summary is not None:
                     turn_event["answer_summary"] = finalized.answer_summary
                 self._observe_semantic_event(turn_event)
+            if self.completion_projector is not None:
+                try:
+                    completion_projection = self.completion_projector(
+                        CompletionProjectionContext(
+                            request=request,
+                            prepared=prepared,
+                            bindings=bindings,
+                            workspace=workspace,
+                            store=store,
+                            completed_answers=tuple(completed_answers),
+                            provider=transport,
+                        )
+                    )
+                except Exception:
+                    self._record_diagnostic("completion_projection_unavailable")
+                    completion_projection = None
             preliminary_core = self._build_core_result(
                 request=request,
                 workspace=workspace,
@@ -747,6 +769,7 @@ class AgentApplication:
                 completed_questions=len(completed_answers),
                 total_questions=len(request.questions),
                 model_request_capture_status=capture_status,
+                completion_projection=completion_projection,
             )
         except Exception as exc:
             failure = _safe_failure(exc)
@@ -781,6 +804,7 @@ class AgentApplication:
                 total_questions=len(request.questions),
                 error=failure,
                 model_request_capture_status=capture_status,
+                completion_projection=completion_projection,
             )
         finally:
             primary_failure = sys.exc_info()[1]
