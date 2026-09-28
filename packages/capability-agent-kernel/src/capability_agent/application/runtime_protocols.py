@@ -208,6 +208,7 @@ class ReportPublisher(Protocol):
         *,
         questions: tuple[str, ...],
         answers: tuple[str, ...],
+        answer_summaries: tuple[str, ...],
         assurances: tuple[str, ...],
         trajectories: tuple[str, ...],
         references: tuple[str, ...],

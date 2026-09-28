@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -24,6 +24,7 @@ help:
 	@echo "  make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]  Open one interactive run"
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
 	@echo "  make capstone-app-dev [CAPSTONE_APP_HOST=0.0.0.0] [CAPSTONE_APP_PORT=5173]  Start the App dev server"
+	@echo "  make capstone-local-rebuild  Rebuild and redeploy local API/worker from current source"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
 	@echo "  make test-capstone-app     Run focused App tests"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
@@ -68,6 +69,9 @@ test-capstone-app:
 
 capstone-app-dev:
 	npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),127.0.0.1)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
+
+capstone-local-rebuild:
+	@./deploy/rebuild_local.sh
 
 setup-simulator:
 	uv sync --project packages/grid-simulator
@@ -203,7 +207,7 @@ CAPSTONE_PORT ?= 8766
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-capstone-agent test-capstone-app test-capstone-client test-makefile-application test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+test: test-agent test-simulator test-tools test-capstone-agent test-capstone-app test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
 
 test-capstone-agent:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q
@@ -213,6 +217,9 @@ test-capstone-client:
 
 test-makefile-application:
 	bash tools/test_makefile_application.sh
+
+test-local-rebuild:
+	bash tools/test_local_rebuild.sh
 
 test-verification-targets:
 	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q

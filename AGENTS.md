@@ -114,6 +114,31 @@ counts, prices, limits, versions, or deployment state here.
   `make doctor`. Missing managed runtimes are setup failures, not product
   regressions. Do not copy ignored authentication state from another worktree.
 
+### Local rebuild and deployment
+
+When local API, worker, or App source changes, use the checked-in rebuild
+entrypoint instead of starting Compose with an old image:
+
+```sh
+make capstone-local-rebuild
+```
+
+`deploy/rebuild_local.sh` loads the ignored `deploy/local.env`, validates the
+Compose configuration, rebuilds the API and worker image from the current
+checkout, force-recreates both roles, waits for PostgreSQL/object storage and
+the worker, checks `/health/ready`, verifies that API and worker run the same
+image digest, and ensures the Vite App is reachable. If the App is not already
+running, it starts a background dev server and records its PID/log under the
+ignored `.capstone-agent/` directory. Set `CAPSTONE_START_APP=0` to skip that
+step, `CAPSTONE_LOCAL_PULL=1` when base images should also be refreshed, or
+`CAPSTONE_LOCAL_ENV_FILE=/path/to/local.env` when using a different local
+environment file. The script never prints secret values.
+
+The App remains a separate Vite development process because Compose does not
+host the static App. `make capstone-app-dev` remains the foreground alternative
+when interactive logs are needed. A stale browser session should be refreshed
+or reset before starting a new case.
+
 ## Verification
 
 Run the smallest focused check for the changed behavior, then the repository

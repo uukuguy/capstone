@@ -28,6 +28,19 @@ def test_report_shell_keeps_framework_records_and_delegates_domain_summary() -> 
     assert "alpha summary" in report
 
 
+def test_report_shell_separates_answer_summary_from_formal_answer() -> None:
+    report = GenericReportShell().render(
+        questions=("first",),
+        answers=("完整正式回答。",),
+        answer_summaries=("已核对模型并确认结果。",),
+    )
+
+    assert "### 回答摘要" in report
+    assert "已核对模型并确认结果。" in report
+    assert "### 正式回答" in report
+    assert "完整正式回答。" in report
+
+
 def test_tool_failure_formatter_keeps_code_and_direct_cause() -> None:
     failures = extract_tool_failures(
         (

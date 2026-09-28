@@ -349,6 +349,7 @@ class _GenericReportPublisherAdapter:
         *,
         questions: tuple[str, ...],
         answers: tuple[str, ...],
+        answer_summaries: tuple[str, ...],
         assurances: tuple[str, ...],
         trajectories: tuple[str, ...],
         references: tuple[str, ...],
@@ -364,6 +365,7 @@ class _GenericReportPublisherAdapter:
             report_method=self.source.render,
             questions=questions,
             answers=answers,
+            answer_summaries=answer_summaries,
             assurances=assurances,
             trajectories=trajectories,
             references=references,
@@ -390,6 +392,7 @@ class _ConfiguredReportPublisherAdapter:
         *,
         questions: tuple[str, ...],
         answers: tuple[str, ...],
+        answer_summaries: tuple[str, ...],
         assurances: tuple[str, ...],
         trajectories: tuple[str, ...],
         references: tuple[str, ...],
@@ -406,6 +409,7 @@ class _ConfiguredReportPublisherAdapter:
                 report_method=GenericReportShell().render,
                 questions=questions,
                 answers=answers,
+                answer_summaries=answer_summaries,
                 assurances=assurances,
                 trajectories=trajectories,
                 references=references,
@@ -1557,6 +1561,10 @@ class AgentApplication:
             )
             presentation = getattr(profile, "presentation_provider", None)
         answers = tuple(answer.answer_output for answer in completed_answers)
+        answer_summaries = tuple(
+            getattr(answer, "answer_summary", None) or ""
+            for answer in completed_answers
+        )
         assurances = _persisted_answer_assurances(completed_answers, workspace)
         references = tuple(
             ref
@@ -1572,6 +1580,7 @@ class AgentApplication:
         return self.report_publisher.render(
             questions=request.questions,
             answers=answers,
+            answer_summaries=answer_summaries,
             assurances=assurances,
             trajectories=(),
             references=references,
@@ -1983,6 +1992,7 @@ def _render_generic_report_shell(
     report_method: Callable[..., object],
     questions: Sequence[str],
     answers: Sequence[str],
+    answer_summaries: Sequence[str],
     assurances: Sequence[str],
     trajectories: Sequence[str],
     references: Sequence[str],
@@ -1996,6 +2006,7 @@ def _render_generic_report_shell(
     report = report_method(
         questions=questions,
         answers=answers,
+        answer_summaries=answer_summaries,
         assurances=assurances,
         trajectories=trajectories,
         references=references,

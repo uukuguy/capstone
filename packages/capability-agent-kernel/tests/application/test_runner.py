@@ -703,7 +703,7 @@ def test_runner_preserves_configured_generic_report_shell_instance(tmp_path: Pat
     assert outcome.status == "completed"
     assert len(rendered) == 2
     assert all(call == (
-        "answers", "assurances", "context", "core", "domains", "presentation",
+        "answer_summaries", "answers", "assurances", "context", "core", "domains", "presentation",
         "questions", "references", "trajectories",
     ) for call in rendered)
 

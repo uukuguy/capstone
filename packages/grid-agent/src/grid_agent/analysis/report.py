@@ -116,6 +116,7 @@ def _render_narrative_turn(
 ) -> list[str]:
     limitations = [item for item in context.unresolved_limitations if item.turn_id == turn.turn_id]
     answer = _reader_answer(_accepted_answer_text(turn, workspace, limitations, diagnostics))
+    summary = _reader_summary(turn.answer_summary, answer)
     steps = _steps_for_turn(context, turn.turn_id, trace_steps)
     trace_link = (
         _workspace_link(
@@ -134,7 +135,11 @@ def _render_narrative_turn(
         "",
         f"## {turn.ordinal}. {_md(turn.instruction)}",
         "",
-        "### 回答",
+        "### 回答摘要",
+        "",
+        summary if turn.answer_path else "模型未返回可接受的回答摘要。",
+        "",
+        "### 正式回答",
         "",
         answer if turn.answer_path else "模型未返回可接受的最终回答。",
         "",
@@ -1095,6 +1100,7 @@ def _render_reader_turns(
     lines: list[str] = []
     for turn in sorted(context.turns, key=lambda item: item.ordinal):
         answer = _accepted_answer_text(turn, workspace, limitations_by_turn.get(turn.turn_id, ()), diagnostics)
+        summary = _reader_summary(turn.answer_summary, answer)
         lines.extend(
             [
                 f"### {turn.ordinal}. {_md(turn.instruction)}",
@@ -1102,7 +1108,11 @@ def _render_reader_turns(
                 f"状态：{_reader_status(turn.status)}" + (f"；耗时 {turn.duration_seconds:.1f} 秒" if turn.duration_seconds is not None else ""),
                 f"原始回答：{_answer_link_or_label(turn, workspace, diagnostics)}",
                 "",
-                "#### 回答",
+                "#### 回答摘要",
+                "",
+                summary if answer.strip() else "模型未返回可接受的回答摘要。",
+                "",
+                "#### 正式回答",
                 "",
                 _reader_answer(answer),
                 "",
@@ -1186,6 +1196,15 @@ def _answer_preview(answer: str) -> str:
 def _reader_answer(answer: str) -> str:
     answer = _redact_internal_refs(answer)
     return format_report_answer(answer) if answer.strip() else "未提供回答。"
+
+
+def _reader_summary(summary: str | None, answer: str) -> str:
+    if isinstance(summary, str) and summary.strip():
+        return _redact_internal_refs(summary.strip())
+    compact = _reader_answer(answer).replace("\n", " ").strip()
+    if len(compact) > 160:
+        compact = compact[:159].rstrip() + "…"
+    return compact or "未提供回答摘要。"
 
 
 def _reader_diagnostic(message: str) -> str:

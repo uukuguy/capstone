@@ -110,6 +110,18 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
+日常修改后使用一键重构入口，避免 API/worker 继续使用旧镜像：
+
+```sh
+make capstone-local-rebuild
+```
+
+该入口读取 `deploy/local.env`，校验 Compose 配置，按当前源码重建并强制替换
+API/worker，等待依赖与健康检查完成，确认两个角色使用同一镜像摘要，并确保
+Vite App 已启动。App 未运行时会在忽略的 `.capstone-agent/` 下后台启动并记录
+PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础镜像时设置
+`CAPSTONE_LOCAL_PULL=1`。重构后刷新浏览器，已有会话需要重置后才会开始新运行。
+
 公开演示模式必须在 `deploy/local.env` 中显式设置
 `CAPSTONE_PUBLIC_PROVIDER` 和 `CAPSTONE_PUBLIC_MODEL`；Compose 不再为 LLM
 后端注入隐式模型，缺少任一项会在启动前直接失败。为了让网页应用和本地案例

@@ -80,7 +80,11 @@ class PyPSAApplicationReportShell:
                 [
                     f"## {index}. {_reader_text(question)}",
                     "",
-                    "### 回答",
+                    "### 回答摘要",
+                    "",
+                    _summary_text(turn.get("answer_summary"), answer),
+                    "",
+                    "### 正式回答",
                     "",
                     _formal_answer(answer),
                     "",
@@ -205,6 +209,13 @@ def _reader_text(value: str) -> str:
 
 def _formal_answer(value: str) -> str:
     return format_report_answer(_reader_text(value))
+
+
+def _summary_text(value: object, answer: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return _reader_text(value.strip())
+    compact = _formal_answer(answer).replace("\n", " ").strip()
+    return compact[:159].rstrip() + "…" if len(compact) > 160 else compact or "未提供回答摘要。"
 
 
 __all__ = ["PyPSAApplicationReportShell"]

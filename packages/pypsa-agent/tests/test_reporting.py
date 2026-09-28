@@ -65,7 +65,7 @@ def test_pypsa_report_keeps_formal_answer_and_drops_planning_preamble() -> None:
         core={"run_id": "run-2", "status": "completed"},
     )
 
-    answer = report.split("### 回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
+    answer = report.split("### 正式回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
     assert answer.startswith("##### 区域负荷增长分析")
     assert "I'll inspect" not in answer
 
@@ -73,7 +73,7 @@ def test_pypsa_report_keeps_formal_answer_and_drops_planning_preamble() -> None:
         questions=("检查基准情景。",),
         answers=("I'll inspect the model first.**基准情景分析结果**\n\n结果已核验。",),
     )
-    bold_answer = bold_report.split("### 回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
+    bold_answer = bold_report.split("### 正式回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
     assert bold_answer.startswith("**基准情景分析结果**")
     assert "I'll inspect" not in bold_answer
 
@@ -84,9 +84,27 @@ def test_pypsa_report_keeps_formal_answer_and_drops_planning_preamble() -> None:
             "## 模型校验\n\n校验通过。",
         ),
     )
-    markdown_answer = markdown_report.split("### 回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
+    markdown_answer = markdown_report.split("### 正式回答\n\n", 1)[1].split("\n\n### 仿真环境上下文", 1)[0]
     assert markdown_answer.startswith("#### 网络结构")
     assert "##### 模型校验" in markdown_answer
+
+
+def test_pypsa_report_shows_answer_summary_before_formal_answer() -> None:
+    report = PyPSAApplicationReportShell().render(
+        questions=("检查基准情景。",),
+        answers=("正式回答内容。",),
+        context=SimpleNamespace(
+            run_id="run-summary",
+            core=SimpleNamespace(
+                runtime={},
+                turns=({"answer_summary": "已完成基准情景核对。", "status": "success"},),
+                diagnostics=(),
+            ),
+        ),
+    )
+
+    assert report.index("### 回答摘要") < report.index("### 正式回答")
+    assert "已完成基准情景核对。" in report
 
 
 def test_pypsa_report_includes_direct_tool_failure_cause() -> None:

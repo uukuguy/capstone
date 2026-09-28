@@ -117,6 +117,7 @@ class TurnRecord(StrictFrozenModel):
     nonce_sha256: str
     status: Literal["success", "failed"]
     answer_path: str | None = None
+    answer_summary: str | None = None
     answer_sha256: str | None = None
     duration_seconds: float | None = None
     consumed_refs: list[str] = Field(default_factory=list)

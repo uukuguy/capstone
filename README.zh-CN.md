@@ -47,6 +47,17 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
+源码修改后使用可重复执行的一键重构入口，避免 API 和 worker 继续使用旧镜像：
+
+```sh
+make capstone-local-rebuild
+```
+
+该入口会校验环境，重建并替换两个后端角色，等待服务就绪，并确认二者使用同一
+镜像摘要，同时确保 Vite App 可访问（未启动时会后台启动）。设置
+`CAPSTONE_START_APP=0` 可跳过 App 启动，需要同时刷新基础镜像时设置
+`CAPSTONE_LOCAL_PULL=1`。
+
 打开 `http://127.0.0.1:5173/`。访问凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。案例执行仍走真实 Provider/LLM 路径。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
 
 ## 使用 CLI

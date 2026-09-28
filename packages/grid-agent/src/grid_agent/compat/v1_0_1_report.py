@@ -233,6 +233,7 @@ def _turn_record(
         value = {}
     turn_id = _text_mapping_value(value, "turn_id", f"{run_id}-t{ordinal:03d}")
     answer_path = _text_mapping_value(value, "answer_path", f"turns/{turn_id}/answer.json")
+    answer_summary = value.get("answer_summary") if isinstance(value.get("answer_summary"), str) else None
     return TurnRecord(
         turn_id=turn_id,
         ordinal=ordinal,
@@ -241,6 +242,7 @@ def _turn_record(
         nonce_sha256=_text_mapping_value(value, "nonce_sha256", _sha256(turn_id)),
         status="success" if value.get("status") == "success" else "failed",
         answer_path=answer_path,
+        answer_summary=answer_summary,
         answer_sha256=_text_mapping_value(value, "answer_sha256", _sha256(answers[ordinal - 1])),
         duration_seconds=_number_mapping_value(value, "duration_seconds"),
         consumed_refs=_string_values(value.get("result_refs", ())),

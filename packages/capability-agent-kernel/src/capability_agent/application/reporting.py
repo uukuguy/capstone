@@ -108,6 +108,7 @@ class GenericReportShell:
         *,
         questions: Iterable[str] = (),
         answers: Iterable[str] = (),
+        answer_summaries: Iterable[str] = (),
         assurances: Iterable[str] = (),
         trajectories: Iterable[str] = (),
         references: Iterable[str] = (),
@@ -118,6 +119,7 @@ class GenericReportShell:
     ) -> str:
         question_values = tuple(_text_values(questions, "questions"))
         answer_values = tuple(_text_values(answers, "answers"))
+        summary_values = tuple(_text_values(answer_summaries, "answer_summaries"))
         assurance_values = tuple(_text_values(assurances, "assurances"))
         trajectory_values = tuple(_text_values(trajectories, "trajectories"))
         reference_values = tuple(_text_values(references, "references"))
@@ -125,7 +127,9 @@ class GenericReportShell:
         for index, question in enumerate(question_values, start=1):
             lines.extend((f"## Question {index}", "", question, ""))
             if index <= len(answer_values):
-                lines.extend(("### Answer", "", answer_values[index - 1], ""))
+                summary = summary_values[index - 1] if index <= len(summary_values) else ""
+                lines.extend(("### 回答摘要", "", summary or "未记录独立回答摘要。", ""))
+                lines.extend(("### 正式回答", "", answer_values[index - 1], ""))
                 assurance = assurance_values[index - 1] if index <= len(assurance_values) else "unknown"
                 lines.extend((f"Guarantee scope: {assurance}", ""))
         if trajectory_values:

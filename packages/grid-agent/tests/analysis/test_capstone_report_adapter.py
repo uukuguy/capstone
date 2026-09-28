@@ -77,3 +77,34 @@ def test_capstone_report_includes_direct_tool_failure_cause(tmp_path: Path) -> N
     )
 
     assert "失败原因：registered model is unavailable（错误码 model_not_found）" in report
+
+
+def test_capstone_report_separates_answer_summary_from_formal_answer(tmp_path: Path) -> None:
+    workspace = ApplicationWorkspace.create(tmp_path, run_id="run-summary", binding_ids=("grid",))
+    context = SimpleNamespace(
+        run_id=workspace.run_id,
+        revision=1,
+        state_hash="hash",
+        status="completed",
+        core=SimpleNamespace(
+            input={},
+            runtime={},
+            turns=[{
+                "turn_id": "run-summary-t001",
+                "status": "success",
+                "answer_summary": "已完成线路负载核对。",
+            }],
+            diagnostics=[],
+        ),
+        domains={"grid": SimpleNamespace(state={})},
+    )
+
+    report = PandapowerApplicationReportShell().render(
+        questions=("检查线路负载。",),
+        answers=("线路负载处于可接受范围。",),
+        workspace=workspace,
+        context=context,
+    )
+
+    assert report.index("### 回答摘要") < report.index("### 正式回答")
+    assert "已完成线路负载核对。" in report
