@@ -24,3 +24,14 @@ def test_catalog_lists_only_registered_runnable_three_turn_cases() -> None:
     assert grid["pandapower-scripted-task"]["instructions"][0] == (
         "打开 IEEE-39 网络并解析线路 11 的端点。"
     )
+
+
+def test_catalog_orders_pypsa_cases_by_expected_runtime() -> None:
+    catalog = build_catalog(build_registry(ROOT), ROOT)
+    pypsa = next(item for item in catalog["applications"]
+                 if item["application_id"] == "pypsa-business-cases")
+    assert [case["case_id"] for case in pypsa["cases"]] == [
+        "ac-dc-interconnection",
+        "scigrid-dispatch",
+        "regional-demand-stress",
+    ]

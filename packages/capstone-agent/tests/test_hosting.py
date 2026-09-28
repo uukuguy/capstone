@@ -68,7 +68,11 @@ def test_host_settings_enable_public_demo_explicitly() -> None:
     assert load_host_settings(_env()).public_demo is False
     env = _env()
     env["CAPSTONE_PUBLIC_DEMO"] = "true"
+    env["CAPSTONE_PUBLIC_PROVIDER"] = "deepseek"
+    env["CAPSTONE_PUBLIC_MODEL"] = "deepseek-v4-pro"
     assert load_host_settings(env).public_demo is True
+    assert load_host_settings(env).public_provider == "deepseek"
+    assert load_host_settings(env).public_model == "deepseek-v4-pro"
     env["CAPSTONE_PUBLIC_DEMO"] = "maybe"
     with pytest.raises(ValueError):
         load_host_settings(env)

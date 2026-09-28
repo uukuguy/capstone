@@ -115,11 +115,13 @@ class OperationsExecutor:
             ):
                 raise ValueError("handoff receipt does not authorize this operation")
             verify_model(self.source_workspace, self.run_id, reference)
-            passed: dict[str, object] = {"model_ref": reference}
-            if capability == "operations.security_dispatch":
-                passed["outage_set_id"] = arguments["outage_set_id"]
-            if capability == "operations.ac_validate":
-                passed["dispatch_result_ref"] = _reference(arguments["dispatch_result_ref"], "result")
+            # Keep the application-issued handoff envelope on the authority
+            # boundary.  The CLI performs the same authorization when it
+            # receives the request, then converts the opaque reference to the
+            # authority's internal ``model_ref`` argument.  Passing only the
+            # internal form here would make the CLI unable to enforce its
+            # handoff contract for in-process application calls.
+            passed = dict(arguments)
         request_id = f"pypsa-ops-{uuid4().hex}"
         request = {
             "protocol": "pypsa-operations-capability", "protocol_version": "1.0",

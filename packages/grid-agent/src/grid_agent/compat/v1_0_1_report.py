@@ -8,7 +8,8 @@ import json
 import re
 
 from capability_agent.application.workspace import ApplicationWorkspace
-from grid_agent.analysis.models import AnalysisContext, DomainState, EvidenceRecord, InputRecord, RuntimeRecord, TurnRecord
+from capability_agent.application.reporting import extract_tool_failures, format_tool_failure
+from grid_agent.analysis.models import AnalysisContext, DomainState, EvidenceRecord, InputRecord, LimitationRecord, RuntimeRecord, TurnRecord
 from grid_agent.analysis.report import render_analysis_report
 from grid_agent.analysis.workspace import AnalysisWorkspace
 from grid_agent.compat.v1_0_1_submission import write_submission_checkpoint
@@ -156,8 +157,30 @@ def _analysis_context(
         ),
         turns=report_turns,
         evidence=_admitted_evidence(report_turns, workspace),
+        unresolved_limitations=_tool_failure_limitations(generic_core),
         domain_state=_domain_state(context),
     )
+
+
+def _tool_failure_limitations(generic_core: object | None) -> list[LimitationRecord]:
+    diagnostics = getattr(generic_core, "diagnostics", ())
+    if not isinstance(diagnostics, (tuple, list)):
+        return []
+    limitations: list[LimitationRecord] = []
+    for failure in extract_tool_failures(
+        item for item in diagnostics if isinstance(item, Mapping)
+    ):
+        identity = f"{failure.turn_id or 'run'}:{failure.capability_id}:{failure.message}:{failure.code or ''}"
+        limitation_ref = f"tool-failure:{sha256(identity.encode()).hexdigest()[:32]}"
+        limitations.append(
+            LimitationRecord(
+                limitation_ref=limitation_ref,
+                turn_id=failure.turn_id,
+                message=format_tool_failure(failure),
+                refs=[],
+            )
+        )
+    return limitations
 
 
 def _admitted_evidence(

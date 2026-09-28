@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-chat capstone-agent-serve capstone-app-dev report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -13,9 +13,17 @@ help:
 	@echo "  make application [INSTRUCTIONS=...] [PROVIDER=...] [MODEL=...]  Run the formal registered application"
 	@echo "  make capstone-client REQUEST=path  Run a registered pandapower or PyPSA client request"
 	@echo "  make capstone-agent-run REQUEST=path  Run a registered application headlessly"
+	@echo "  make capstone-agent-case CASE=id  Run one of the five catalog cases with the real Provider/LLM path"
+	@echo "    CASE=pandapower-scripted-task | pandapower-scripted-test"
+	@echo "    CASE=regional-demand-stress | scigrid-dispatch | ac-dc-interconnection"
+	@echo "  make capstone-agent-pandapower-task  Run IEEE-39 潮流与线路筛查"
+	@echo "  make capstone-agent-pandapower-test  Run IEEE-39 约束与单支路校核"
+	@echo "  make capstone-agent-pypsa-regional   Run 区域负荷增长情景"
+	@echo "  make capstone-agent-pypsa-scigrid     Run 德国输电网日内调度概览"
+	@echo "  make capstone-agent-pypsa-ac-dc       Run AC/DC 跨区互联结构核查"
 	@echo "  make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]  Open one interactive run"
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
-	@echo "  make capstone-app-dev      Start the operator App against hosted API on localhost:8767"
+	@echo "  make capstone-app-dev [CAPSTONE_APP_HOST=0.0.0.0] [CAPSTONE_APP_PORT=5173]  Start the App dev server"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
 	@echo "  make test-capstone-app     Run focused App tests"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
@@ -59,7 +67,7 @@ test-capstone-app:
 	npm test --prefix packages/capstone-app
 
 capstone-app-dev:
-	npm run dev --prefix packages/capstone-app -- --host 127.0.0.1 --port 5173
+	npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),127.0.0.1)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
 
 setup-simulator:
 	uv sync --project packages/grid-simulator
@@ -88,6 +96,34 @@ capstone-client:
 capstone-agent-run:
 	@test -n "$(REQUEST)" || (echo "Usage: make capstone-agent-run REQUEST=path" >&2; exit 2)
 	@uv run --project packages/capstone-agent capstone-agent run --request "$(REQUEST)"
+
+capstone-agent-case:
+	@test -n "$(CASE)" || (echo "Usage: make capstone-agent-case CASE=<registered-case-id>" >&2; exit 2)
+	@request="validation/client/$(CASE).json"; \
+	case "$(CASE)" in \
+		pandapower-scripted-task) request="validation/client/pandapower-task.json" ;; \
+		pandapower-scripted-test) request="validation/client/pandapower-test.json" ;; \
+		regional-demand-stress) request="validation/client/pypsa-regional.json" ;; \
+		scigrid-dispatch) request="validation/client/pypsa-scigrid.json" ;; \
+		ac-dc-interconnection) request="validation/client/pypsa-ac-dc.json" ;; \
+	esac; \
+	test -f "$$request" || { echo "Unknown case or missing request: $(CASE)" >&2; exit 2; }; \
+	$(MAKE) capstone-agent-run REQUEST="$$request"
+
+capstone-agent-pandapower-task:
+	@$(MAKE) capstone-agent-case CASE=pandapower-scripted-task
+
+capstone-agent-pandapower-test:
+	@$(MAKE) capstone-agent-case CASE=pandapower-scripted-test
+
+capstone-agent-pypsa-regional:
+	@$(MAKE) capstone-agent-case CASE=regional-demand-stress
+
+capstone-agent-pypsa-scigrid:
+	@$(MAKE) capstone-agent-case CASE=scigrid-dispatch
+
+capstone-agent-pypsa-ac-dc:
+	@$(MAKE) capstone-agent-case CASE=ac-dc-interconnection
 
 capstone-agent-chat:
 	@test -n "$(APPLICATION)" || (echo "Usage: make capstone-agent-chat APPLICATION=id [MODE=provider] [CASE=id]" >&2; exit 2)

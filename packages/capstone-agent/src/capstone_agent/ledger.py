@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS create_key text;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS create_hash text;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS capacity_victim_id text;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS disconnect_key text;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS disconnect_hash text;
 CREATE UNIQUE INDEX IF NOT EXISTS sessions_create_key_idx ON sessions(create_key);
 CREATE TABLE IF NOT EXISTS session_commands (
     command_id text PRIMARY KEY,
@@ -200,6 +202,33 @@ class Ledger:
             row = connection.execute("SELECT * FROM sessions WHERE session_id = %s",
                                      (session_id,)).fetchone()
         return _session(row) if row is not None else None
+
+    def disconnect_session(self, session_id: str, idempotency_key: str) -> SessionRecord:
+        """Interrupt a session and release its worker lease, safely retryable."""
+        if not idempotency_key or len(idempotency_key) > 200:
+            raise ValueError("idempotency key is invalid")
+        request_hash = hashlib.sha256(f"disconnect\0{session_id}".encode()).hexdigest()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM sessions WHERE session_id = %s FOR UPDATE", (session_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("session not found")
+            if row["disconnect_key"] is not None:
+                if row["disconnect_key"] != idempotency_key or row["disconnect_hash"] != request_hash:
+                    raise Conflict("disconnect key has another request")
+                return _session(row)
+            state = row["state"]
+            next_state = "interrupted" if state not in {"completed", "failed", "interrupted"} else state
+            error_code = "session_disconnected" if next_state == "interrupted" else row["error_code"]
+            updated = connection.execute(
+                """UPDATE sessions SET state = %s, error_code = %s, active_turn = false,
+                   lease_token = NULL, lease_deadline = NULL, disconnect_key = %s,
+                   disconnect_hash = %s WHERE session_id = %s RETURNING *""",
+                (next_state, error_code, idempotency_key, request_hash, session_id),
+            ).fetchone()
+        assert updated is not None
+        return _session(updated)
 
     def claim_pending(self, worker_id: str, lease_seconds: int) -> SessionRecord | None:
         if not worker_id or lease_seconds < 1:

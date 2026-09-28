@@ -48,6 +48,7 @@ class RuntimeHost:
     project_pi_dir: Path
     extension_path: Path
     system_policy_path: Path | None = None
+    extra_environment: Mapping[str, str] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.command, PiCommand):
@@ -66,6 +67,12 @@ class RuntimeHost:
             if not path.is_absolute():
                 raise ValueError(f"runtime host {name} must be absolute")
             object.__setattr__(self, name, path)
+        if not isinstance(self.extra_environment, Mapping) or any(
+            not isinstance(key, str) or not key or not isinstance(value, str)
+            for key, value in self.extra_environment.items()
+        ):
+            raise ValueError("runtime host extra_environment must contain string keys and values")
+        object.__setattr__(self, "extra_environment", dict(self.extra_environment))
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +95,7 @@ class RuntimePaths:
     trajectory_allowed_refs_path: Path | None = None
     trajectory_acks_path: Path | None = None
     extra_controller_values: Mapping[str, str] = field(default_factory=dict, repr=False)
+    extra_environment: Mapping[str, str] = field(default_factory=dict, repr=False)
     domain_search_paths: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
@@ -102,6 +110,12 @@ class RuntimePaths:
         object.__setattr__(
             self, "extra_controller_values", dict(self.extra_controller_values)
         )
+        if not isinstance(self.extra_environment, Mapping) or any(
+            not isinstance(key, str) or not key or not isinstance(value, str)
+            for key, value in self.extra_environment.items()
+        ):
+            raise ValueError("runtime paths extra_environment must contain string keys and values")
+        object.__setattr__(self, "extra_environment", dict(self.extra_environment))
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +166,7 @@ def build_pi_environment(
     environment = {
         key: value for key, value in source.items() if key in _PASSTHROUGH_ENVIRONMENT
     }
+    environment.update(paths.extra_environment)
     _merge_loopback_no_proxy(environment, resolved.config.base_url)
 
     inherited_path = environment.get("PATH", "")

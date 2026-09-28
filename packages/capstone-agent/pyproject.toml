@@ -12,6 +12,7 @@ dependencies = [
   "fastapi>=0.139,<1",
   "google-cloud-storage>=3.14,<4",
   "psycopg[binary]>=3.2,<4",
+  "python-dotenv>=1.2,<2",
   "uvicorn>=0.51,<1",
 ]
 

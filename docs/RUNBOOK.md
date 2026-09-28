@@ -73,27 +73,28 @@ inventory 事实只由 `inventoryctl` 生成，并以 `inventory-revision/contex
 
 ```sh
 make setup-capstone
-make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
 make capstone-agent-run REQUEST=validation/client/pandapower-analysis-task.json
 make capstone-agent-run REQUEST=validation/client/pandapower-analysis-test.json
-make capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json
-make capstone-agent-run REQUEST=validation/client/pypsa-scigrid-demo.json
-make capstone-agent-run REQUEST=validation/client/pypsa-ac-dc-demo.json
+make capstone-agent-pandapower-task
+make capstone-agent-pandapower-test
+make capstone-agent-pypsa-regional
+make capstone-agent-pypsa-scigrid
+make capstone-agent-pypsa-ac-dc
 make capstone-agent-chat APPLICATION=pandapower-static-analysis MODE=scripted-demo CASE=pandapower-scripted-task
 make capstone-agent-serve CAPSTONE_PORT=8766
 ```
 
-`pandapower-analysis-task.json` 和 `pandapower-analysis-test.json` 分别对应 `validation/questions/task.md.txt` 与 `test.md.txt`，使用 `mode: "provider"` 调用项目配置的真实模型；两份题单分别为 9 条和 7 条。`pandapower-scripted-task.json` 是无需 Provider 凭据的三回合演示，运行 pandapower 正式 Profile、真实 `gridctl` 和当前运行证据。PyPSA 示例也使用无需 Provider 的三回合脚本演示。请求字段为 `schema`、`application_id`、`instructions`，演示模式另带 `mode: "scripted-demo"` 与已登记 `case_id`。脚本演示严格核对该案例的指令顺序。
+`pandapower-analysis-task.json` 和 `pandapower-analysis-test.json` 分别对应 `validation/questions/task.md.txt` 与 `test.md.txt`，使用 `mode: "provider"` 调用项目配置的真实模型；两份题单分别为 9 条和 7 条。Makefile 中五个案例入口也使用 `mode: "provider"` 和真实 LLM，五个请求文件分别为 `pandapower-task.json`、`pandapower-test.json`、`pypsa-regional.json`、`pypsa-scigrid.json`、`pypsa-ac-dc.json`。`pandapower-scripted-task.json`、`pandapower-scripted-test.json` 及 `*-demo.json` 仅用于无需 Provider 凭据的确定性离线验证；脚本模式严格核对登记指令顺序。请求字段为 `schema`、`application_id`、`instructions`，Provider 案例另带 `mode: "provider"` 与已登记 `case_id`。
 
 直接在终端运行无头命令时，工具进度显示相对时间、状态和简短结果，最终只显示完成摘要及报告路径；当 stdout 被管道或程序捕获时，仍输出单个 `capstone-client-result/1.0` JSON 对象。交互命令在同一会话中逐条接收指令并立即显示答案、结果与证据数量，不展开长引用。完整报告位于 `runs/capstone-agent/<run-id>/output/report.md`，运行结束时会打印实际完整路径。JSON 结果的 `result.core.report_ref` 给出已登记的报告工件引用。脚本演示的回答由确定性模型替身产生，不应当作真实 LLM 的分析叙述。
 
 HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状态中创建权限为 0600 的操作者令牌。App 以 `Authorization: Bearer <token>` 调用 `POST /api/v1/sessions` 创建会话，向 `/api/v1/sessions/{id}/turns` 逐条提交指令，以 `GET /api/v1/sessions/{id}/events?after=<sequence>` 接收可按序号恢复的 SSE。`POST /api/v1/sessions/{id}/close` 完成会话；`GET /api/v1/sessions/{id}/turns/{ordinal}`、`/result` 和 `/evidence?ref=<reference>` 分别读取已提交答案、最终组合结果及经当前运行 authority 验证的证据。状态接口返回安全的 `error_code`；服务最多保留 32 个会话，达到上限返回 429，重启后会话不会恢复。服务拒绝非本机 Host、跨源 Origin、无令牌和未登记案例。旧的 `make capstone-client REQUEST=...` 仍为兼容入口。
 
-两个应用均登记了 `mode: "provider"` 的自由文本路径，复用已有 Kernel/Pi 运行机制；可选 `provider` 和 `model` 仍按原运行时配置解析。真实 Provider 请求可能计费，本轮未执行计费验收；本地脚本演示不调用它。中性宿主只路由两个显式应用，不进行动态插件发现。
+两个应用均登记了 `mode: "provider"` 的自由文本路径，复用已有 Kernel/Pi 运行机制；可选 `provider` 和 `model` 仍按原运行时配置解析。真实 Provider 请求可能计费，运行前应确认凭据和费用。中性宿主只路由两个显式应用，不进行动态插件发现。
 
 ## Hosted App and deployment
 
-独立的 `packages/capstone-app/` 是公开演示操作台，当前只开放已登记的三轮脚本案例。顶部电力科学AI主题图展示专业框架与科学计算模型，图下短文介绍 CAPSTONE 的领域能力与运行机制。目录浏览和打开案例不调用 Provider；选择案例即显示登记模型全图。点击「执行指令 1」会创建会话并直接提交首条指令，后续可逐条提交，也可点击「自动完成」让同一会话按序提交剩余指令、等待每轮已提交答案和对应电网图层后继续，并在结束时生成报告；图层不可用时按有界等待继续。「停止自动执行」只停止后续步骤，已接受的当前指令会正常完成，并显示暂停说明。切换案例时，当前标签页保留各案例最近一次会话、完成步骤选择和仍在运行的自动流程；完成后可从分析过程标题旁点击「重置案例」回到初始状态，重新选择逐步执行或自动完成，不改变其他案例的当前状态。报告生成后显示在中栏分析流程底部；右栏查看运行状态与当前运行准入证据。页面加载与刷新时自动向 API 领取演示凭证并进入工作台，不持久化凭证；同一标签页的会话编号和创建防重复键保存在 `sessionStorage`，刷新后恢复各案例最近运行与所选案例。明确重置后才开始新一轮，断网重试不会重复创建会话；刷新不会恢复正在执行的自动提交循环，已提交的步骤仍可查看或手动继续。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
+独立的 `packages/capstone-app/` 是公开访问操作台，当前开放已登记的三轮 Provider 案例。顶部电力科学AI主题图展示专业框架与科学计算模型，图下短文介绍 CAPSTONE 的领域能力与运行机制。目录浏览和打开案例不调用 Provider；选择案例即显示登记模型全图。点击「执行指令 1」会创建 `mode: "provider"` 会话并直接提交首条指令，后续可逐条提交，也可点击「自动完成」让同一会话按序提交剩余指令、等待每轮已提交答案和对应电网图层后继续，并在结束时生成报告；图层不可用时按有界等待继续。「停止自动执行」只停止后续步骤，已接受的当前指令会正常完成，并显示暂停说明。切换案例时，当前标签页保留各案例最近一次会话、完成步骤选择和仍在运行的自动流程；完成后可从分析过程标题旁点击「重置案例」回到初始状态，重新选择逐步执行或自动完成，不改变其他案例的当前状态。报告生成后显示在中栏分析流程底部；右栏查看运行状态与当前运行准入证据。页面加载与刷新时自动向 API 领取访问凭证并进入工作台，不持久化凭证；同一标签页的会话编号和创建防重复键保存在 `sessionStorage`，刷新后恢复各案例最近运行与所选案例。明确重置后才开始新一轮，断网重试不会重复创建会话；刷新不会恢复正在执行的自动提交循环，已提交的步骤仍可查看或手动继续。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
 
 API 启动时预热已登记案例的权威模型图，已认证的 `GET /api/v1/cases/{application_id}/{case_id}/diagram` 直接返回经过边界校验的完整底图，不创建运行或证据。运行中的 worker 仍从该次运行登记的 `gridctl` 或 PyPSA authority 读取完整元件和坐标，将底图与逐步骤图层分别写入持久事件；API 通过已认证的 `GET /api/v1/sessions/{id}/network?ordinal=N` 重建指定步骤的投影，并以当前运行视图覆盖案例预览。SciGRID-DE 使用模型地理坐标展示全部 585 个母线、852 条线路和 96 台变压器；IEEE-39 使用模型电气示意坐标展示 39 个母线、35 条线路和 11 台变压器。非电网步骤继续显示同一底图，图层数值回到中性；完成步骤可点击回看，执行任务时重新对焦。白底拓扑图支持拖动平移、Shift + 滚轮或按钮缩放、适配全图和回到任务；普通滚轮滚动页面。电气示意图用短母线符号，地理拓扑图用位置点；图例仅列实际存在的元件类型。线路负载率着色仅覆盖同修订、同本轮已准入的逐元件结果；本轮已返回线路中的最高值显示为红色，图例标明这是相对色阶以及实际数值范围，不代表越限。缺失的元件保持中性色。没有可验证底图时显示不可用状态，不影响已提交答案。模型面对的 PyPSA `model.topology` 仍只返回至多 50 个母线；完整底图只供操作视图使用。
 
@@ -109,7 +110,13 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
-在浏览器打开 `http://127.0.0.1:5173`；本地 Compose 默认启用公开演示模式，页面会自动获取服务端提供的演示凭证并进入工作台。该凭证只允许已登记的脚本案例；Provider 模式仍需私有 `CAPSTONE_OPERATOR_TOKEN`。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+公开演示模式必须在 `deploy/local.env` 中显式设置
+`CAPSTONE_PUBLIC_PROVIDER` 和 `CAPSTONE_PUBLIC_MODEL`；Compose 不再为 LLM
+后端注入隐式模型，缺少任一项会在启动前直接失败。为了让网页应用和本地案例
+脚本使用同一模型，本地部署应将 `CAPSTONE_PUBLIC_MODEL` 与根目录 `.env` 中的
+`GRID_AGENT_LLM_MODEL` 保持一致。
+
+在浏览器打开 `http://127.0.0.1:5173`；本地 Compose 默认启用公开访问模式，页面会自动获取服务端提供的访问凭证并进入工作台。该凭证只允许已登记案例，会话仍固定使用 Provider 模式；私有 Provider 运行仍可使用 `CAPSTONE_OPERATOR_TOKEN`。仅 API 端口绑定本机 loopback；数据库和 bucket 不发布主机端口。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 同一局域网的手机可访问临时开发演示：在电脑上执行 `npm run dev --prefix packages/capstone-app -- --host <电脑局域网 IP> --port 5174`，手机打开 `http://<电脑局域网 IP>:5174/`。开发代理仍将 API 请求转发到电脑的 `127.0.0.1:8767`，无需向局域网开放 API 端口。电脑和手机须处于允许相互访问的网络；结束演示后停止这条开发服务命令。
 

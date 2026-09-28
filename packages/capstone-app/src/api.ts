@@ -121,7 +121,7 @@ export class CapstoneClient {
                 key?: string): Promise<CreatedSession> {
     return this.json('/api/v1/sessions', {
       method: 'POST',
-      body: JSON.stringify({ application_id: applicationId, mode: 'scripted-demo', case_id: caseId }),
+      body: JSON.stringify({ application_id: applicationId, mode: 'provider', case_id: caseId }),
       headers: key ? { 'Idempotency-Key': key } : undefined,
     })
   }
@@ -137,6 +137,12 @@ export class CapstoneClient {
 
   close(sessionId: string, key: string): Promise<{ session_id: string; state: string }> {
     return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/close`, {
+      method: 'POST', headers: { 'Idempotency-Key': key },
+    })
+  }
+
+  disconnect(sessionId: string, key: string): Promise<SessionStatus> {
+    return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/disconnect`, {
       method: 'POST', headers: { 'Idempotency-Key': key },
     })
   }
@@ -157,11 +163,21 @@ export class CapstoneClient {
     return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/evidence?ref=${encodeURIComponent(ref)}`)
   }
 
-  network(sessionId: string, ordinal: number): Promise<NetworkView> {
+  async network(sessionId: string, ordinal: number, signal?: AbortSignal): Promise<NetworkView> {
     if (!Number.isSafeInteger(ordinal) || ordinal < 1 || ordinal > 3) {
-      return Promise.reject(new Error('电网视图步骤无效'))
+      throw new Error('电网视图步骤无效')
     }
-    return this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network?ordinal=${ordinal}`)
+    const path = `/api/v1/sessions/${encodeURIComponent(sessionId)}/network?ordinal=${ordinal}`
+    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.json(path, { signal })
+      } catch (cause) {
+        const retryable = cause instanceof ApiError && [404, 502, 503, 504].includes(cause.status)
+        if (!retryable || attempt + 1 === READ_ATTEMPTS) throw cause
+        await waitForRetry(Math.min(300 * 2 ** attempt, 1500), signal)
+      }
+    }
+    throw new Error('电网视图读取未完成')
   }
 
   async report(sessionId: string): Promise<string> {

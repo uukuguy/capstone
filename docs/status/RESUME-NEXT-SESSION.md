@@ -1,43 +1,46 @@
-# Live Session Checkpoint
+# Next-Session Handoff
 
-> Updated: 2026-09-27 08:27 CST. Active-session checkpoint; the Railway demonstration is live and verified.
+> Updated: 2026-09-28 03:58 CST. Final handoff after the current session.
 
-## Where things stand
+## TL;DR
 
-- Railway project `capstone-demo` (`a7a503b3-9f48-480d-8090-f063bab3b8db`) has Postgres, private bucket, API, worker and App services. Public App: `https://capstone-app-production-975e.up.railway.app`; API: `https://capstone-api-production-ec73.up.railway.app`. API readiness, public catalog, private worker wake, full IEEE-39 run, full SciGRID-DE run, report, network layers, App reload restoration and clean browser console were checked in the cloud. The UI review found no high-benefit change and preserved the approved layout.
-- Immutable backend image `ghcr.io/uukuguy/capstone-backend:railway-20260927` pushed successfully: `sha256:79313c63a63b4c8c11926375c179f2ee1777c627575fc775a61ae8b570bd51d9`. The GHCR package is private, and Railway Hobby cannot configure private registry pull credentials, so the deployed API and worker currently use separate source builds from the same tested checkout. Do not change image visibility without user authorization. No benchmark score is associated with the image.
-- At 08:24 CST the Railway project showed about `$0.0162` total usage since creation; billing updates lag and this is not a monthly forecast. Keep API/worker Serverless, the small static App and PostgreSQL running. The 3-user cloud test observed worker at 1.03 GB and 1.9 vCPU and completed in 24.7–53.7 seconds. Six concurrent full cloud cases all completed in 28.2–78.7 seconds, with worker at 2.09 GB / 6.9 vCPU and API at 139 MB / 1.6 vCPU in sampled metrics. The worker is one replica with `CAPSTONE_WORKER_MAX_SESSIONS=12`, deployed successfully. Isolated PostgreSQL tests verified three successive full-pool evictions and replacements after eight ready sessions.
-- Push quota tracking: today_used 1/3 successful image pushes; one earlier authorization-denied attempt produced no image. Preserve the ignored `.capstone-agent/auth/railway-operator.token` and do not print its contents.
+- 已将底层工具失败记录做成 Kernel 通用机制，pandapower 与 PyPSA 报告共用同一套失败提取和格式化逻辑。
+- 工具失败会保存 `error_code`、`error_message`，报告显示直接失败原因；当前实际观察到的失败案例是 PyPSA 的 grid-dispatch。
+- 相关聚焦测试全部通过；根目录全量测试受现有跨包环境问题影响，不能作为本次改动门禁。
 
-## Current result
+## What this session delivered
 
-- The current UI was preserved in commit `c2def6b` before a full-page visual review. Commit `8202f62` gives the original hero image a content-driven text/footer layout and larger mobile targets. Commit `33f8715` keeps automatic completion on the right, per user correction. The project GitHub link and official icon are in the header. Preserve this baseline rather than restarting pixel-level tuning.
-- Selecting a registered case shows its complete grid before a run. The API prewarms and caches authority-backed diagrams; the authenticated preview endpoint creates no session or run evidence. The case workspace retains its latest run and completed-step selection when another case is opened.
-- The first manual click creates the session and submits instruction 1. Automatic completion remains the primary action. The fixed interpretation-boundary box is removed; the model label and IEEE-39 text are shorter; the breadcrumb is above the original hero image; the hero caption is smaller.
-- The network view has a thin flat border and a shorter canvas, preserving the complete topology while exposing the analysis timeline sooner. The original hero art content remains unchanged. The central report and existing current-run evidence behavior remain in place.
-- Local Compose enables a public demonstration credential issued by the API, separate from the private operator token and limited to registered scripted cases. The App obtains it on each load and enters directly; unavailable service shows a retry action. The diagram title is “电网拓扑图”; schematic buses use busbars, geographic buses use location points, and zoom needs Shift + wheel.
-- At browser 100% zoom, the desktop App uses a compact presentation density calibrated against the user's 03:43–03:44 screenshots, restoring a centered workspace with outer margins and the original light-theme font values. Mobile width retains normal density.
-- A completed case has a restrained 「重置案例」 control beside the timeline heading, returning that case to its initial manual/automatic choice without starting a run. The right detail column extends with the long report like the left column. The hero's `CAPABILITY / EVIDENCE / CONTROL` line sits at the image's lower left; its theme now reads 「电网科学AI / SCIENTIFIC AI FOR THE GRID」, with the main text moved toward that lower line. Hero art text opts out of browser translation, which previously inserted duplicate labels and crowded the overlay. The header has no decorative link-like label. Line loading uses a clearly labeled within-run relative scale; returned lines use warm shades with the highest shown deepest red, without implying overload. Sidebar eyebrows read `CASE LIBRARY` and `CURRENT RUN`; redundant case-card registration text is removed.
-- The compact 「自动完成」 primary control sits to the right of manual execution and centers its text. Automatic execution waits for each committed step's network view or explicit unavailable outcome before advancing, with a 12-second fallback for missing optional events and a brief visible interval. 「停止自动执行」 preserves an accepted current instruction, blocks subsequent automatic submissions, and explains that state in the timeline. Network headings show the current instruction number. Command keys use Web Crypto randomness on the LAN HTTP page, where `crypto.randomUUID` is unavailable.
-- A hosted worker now times out a ready session after 600 idle seconds, with active turns and report generation protected. If capacity is full, PostgreSQL atomically chooses the globally oldest ready session after 30 idle seconds for a new session that has waited at least one second; one pending session reserves at most one victim. `CAPSTONE_WORKER_MAX_SESSIONS` configures per-replica capacity, and Cloud Run worker instance count is a separate deployment setting. All terminal states preserve committed answers.
-- The public App stores only opaque run IDs and creation keys in tab session storage; a refresh reacquires the demo credential, restores the selected case and latest run, and replays committed steps without creating another session. An idempotent creation key prevents retries from opening duplicates. Explicit 「重置案例」 starts a new run; automatic submission itself does not resume across a refresh.
+- `packages/capability-agent-kernel/src/capability_agent/application/projector.py`
+  - `tool.failed` 诊断保存结构化错误码和错误原因。
+- `packages/capability-agent-kernel/src/capability_agent/application/reporting.py`
+  - 新增通用 `ToolFailure`、`extract_tool_failures`、`format_tool_failure`。
+- `packages/pypsa-agent/src/pypsa_agent/reporting.py`
+  - PyPSA 报告轨迹显示统一失败原因。
+- `packages/grid-agent/src/grid_agent/compat/v1_0_1_report.py`
+  - pandapower 报告把同一失败诊断投影为执行限制。
+- 新增 Kernel、PyPSA、pandapower 回归测试。
 
 ## Verification
 
-- UI review used 1920, 1280, 768 and 375px browser captures. The 375px page had no horizontal overflow; the actual buttons render manual left, automatic right. Nineteen focused App tests and the production App build passed. An arm64 backend image built successfully with six verified PyPSA assets; a cloud-compatible amd64 build is in progress.
-- All five registered authority preview CLIs returned complete diagrams. The local API image was rebuilt, the API container restarted without replacing the active worker container, and authenticated API calls returned IEEE-39, SciGRID-DE, and AC/DC preview diagrams.
-- Focused App and API tests, the App production build, `make doctor`, `make test`, `make test-e2e`, `make validate`, and `git diff --check` passed. A real browser layout inspection used the authority-returned AC/DC diagram; its saved screenshot is `output/case-preview-layout.png`.
-- New public demo API and host-setting tests passed; all 43 App tests and the App production build passed. The local API demo-credential, catalog, and provider-denial paths were exercised through the live Vite proxy. A browser reload returned to the workspace without the login form. A 2048×1152 browser screenshot confirmed desktop margins and a 390px viewport showed no horizontal overflow. The previous full repository gates predate these presentation and demo-access changes; they were not repeated.
-- For the latest UI fixes, 25 focused App/network tests, the production App build, `make doctor`, and `git diff --check` passed. In the live browser, refresh returned directly to the workspace, a completed scripted run exposed 「再次分析」, the next click produced a distinct run ID, and the long report kept the left, center, and right columns aligned to the same bottom. Desktop and 390px hero measurements confirmed the image footer does not overlap the model list; no full repository gate was rerun.
-- After removing the login screen, 25 focused App/network tests and the production build passed. A live browser refresh showed `CASE LIBRARY`, no credential form, equal sidebar widths, and no horizontal overflow. Deployment instructions now describe automatic public demo entry.
-- For a phone on the same LAN, a separate Vite process can bind the computer's LAN IP on port 5174 while its development proxy keeps the API on loopback. The LAN page, demonstration credential endpoint, authenticated catalog, and 390px layout were checked locally at `192.168.2.24:5174`; the temporary Vite process was left running for the user to try.
-- The latest App focused tests, production build, and browser check passed. A real LAN browser run showed network step labels 1, 2, then 3 as automatic completion advanced; the hero text stayed untranslated, and the centered auto button was compact. Full repository tests were not repeated for this App change.
-- For the session lifecycle changes, 27 focused hosted API/ledger/worker/settings tests and 33 focused App/auto/API tests passed. The App production build, `make doctor`, Compose config, link/symlink check, and `git diff --check` passed. The local API and worker were rebuilt from the same image. In a real browser, instruction 1 created one session, refresh and instruction 2 kept that session and run ID, and 「自动完成」 completed instruction 3 with its report. No full repository gate or billed Provider test was run.
-- Railway cloud acceptance passed: API readiness, catalog, private wake, IEEE-39 full run, SciGRID-DE full run, browser App reload, report and diagram layers, with no browser console errors. Three concurrent cloud clients completed IEEE-39, regional load and SciGRID in 24.7, 53.7 and 53.7 seconds. The isolated 8→9 capacity test passed. The final repository gates passed after correcting an outdated test double: `make doctor`, all remaining `make test` targets, `make test-e2e`, `make validate`, documentation links/symlink and `git diff --check`. No billed Provider validation was run.
-- After the gates, a targeted App resilience change added bounded retries only to read requests on transient 502/503/504 or network errors, to cover sleeping API cold starts; mutating requests remain single-shot. A red-first test, all 56 App tests and the production build passed. Railway App was redeployed successfully with Serverless disabled to protect first-page availability; an actual browser reload restored the completed workspace with no console errors. The worker was redeployed with a 12-session limit. Do not repeat full repository gates for this focused frontend/config follow-up.
+- Kernel projector/reporting：18 passed
+- PyPSA reporting：3 passed
+- pandapower report adapter：2 passed
+- `git diff --check`：passed
+- 根目录全量 pytest 未通过，原因是现有环境缺少依赖、跨包同名测试收集冲突，以及 grid-agent 第三方 conftest 缺少 `timeout` 选项。
 
-## Preserve
+## Next steps
 
-- `.codex/config.toml` is an unrelated staged user change. Do not commit or reset it.
-- Ignored `deploy/local.env`, `.grid-agent/`, `.capstone-agent/`, `runs/`, `output/`, and container volumes hold local state or artifacts; do not delete or expose them.
-- Cloud Run and Vercel have not been deployed. Railway is live. Provider validation has not been run.
+1. 重新运行 grid-dispatch，确认新报告出现具体失败码和直接原因。
+2. 检查报告中是否只显示实际失败的工具，不给成功案例增加空诊断。
+3. 如确认无误，再按部署流程同步云端。
+
+## Ruled out
+
+- 不在 PyPSA 或 pandapower 报告里硬编码某个错误码。
+- 不为两类 Domain Pack 各维护一套失败报告逻辑。
+- 不把历史运行记录强行回写；旧记录没有保存结构化错误详情，只能新运行生效。
+
+## Working tree
+
+- 当前工作树包含本轮及此前用户要求的多项未提交修改；不要重置或清理无关路径。
+- 本轮新增/修改的失败诊断相关文件见上方清单。

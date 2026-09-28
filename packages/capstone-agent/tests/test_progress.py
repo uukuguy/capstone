@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from capstone_agent.progress import render_progress
+from capstone_agent.progress import render_progress, summarize_answer
 
 
 def test_progress_renders_tools_and_redacts_credentials() -> None:
@@ -53,7 +53,27 @@ def test_progress_summarizes_semantic_tool_events_without_hashes_or_rows() -> No
 
 def test_progress_reports_prompt_and_assistant_message() -> None:
     assert render_progress({"type": "response", "command": "prompt", "success": True}) == "模型请求已接收"
-    assert "模型输出" in render_progress({"type": "assistant_message", "text": "正在核对网络数据"})
+    assert render_progress({"type": "assistant_message", "text": "正在核对网络数据"}) == "正在整理本步回答"
+
+
+def test_summarize_answer_hides_model_process_narration() -> None:
+    answer = "I'll inspect the model first. Now I will validate it.\n\n已完成：模型包含 6 个母线。"
+    assert summarize_answer(answer, has_references=True) == "已完成：模型包含 6 个母线。"
+
+
+def test_summarize_answer_always_keeps_process_output_compact() -> None:
+    answer = "基于当前潮流结果，负载率最高的三条线路如下：线路 21、线路 11、线路 26。"
+    assert summarize_answer(answer, has_references=True) == answer
+
+
+def test_summarize_answer_uses_lead_sentence_before_markdown_table() -> None:
+    answer = "基于当前潮流结果，负载率最高的三条线路如下： | 排名 | 线路 | 负载率 |"
+    assert summarize_answer(answer, has_references=True) == "基于当前潮流结果，负载率最高的三条线路如下："
+
+
+def test_summarize_answer_drops_chinese_planning_prefix_before_heading() -> None:
+    answer = "我先查阅已发布指南并打开注册网络。## 网络核对结果\n\n已完成核查。"
+    assert summarize_answer(answer, has_references=True) == "网络核对结果 已完成核查。"
 
 
 def test_progress_summarizes_small_named_counts() -> None:

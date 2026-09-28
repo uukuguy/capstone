@@ -19,7 +19,7 @@ _PAYLOAD_FIELDS = {
     "evidence": frozenset({"ref"}),
     "ready": frozenset({"run_id"}),
     "progress": frozenset({"event", "message", "ordinal", "total", "capability", "run_id"}),
-    "answer_committed": frozenset({"ordinal", "turn_id", "answer_output", "answer_ref", "result_refs", "evidence_refs"}),
+    "answer_committed": frozenset({"ordinal", "turn_id", "answer_output", "answer_summary", "answer_ref", "result_refs", "evidence_refs", "duration_ms"}),
     "completed": frozenset({"run_id", "result", "report_path"}),
     "failed": frozenset({"code"}),
     "evidence_result": frozenset({"ref", "value"}),
@@ -35,7 +35,9 @@ _REQUIRED_PAYLOAD_FIELDS = {
     "evidence": _PAYLOAD_FIELDS["evidence"],
     "ready": _PAYLOAD_FIELDS["ready"],
     "progress": frozenset({"event", "message"}),
-    "answer_committed": _PAYLOAD_FIELDS["answer_committed"],
+    # Duration was added after the worker protocol shipped. Keep it optional so
+    # older workers and persisted sessions remain readable.
+    "answer_committed": frozenset({"ordinal", "turn_id", "answer_output", "answer_ref", "result_refs", "evidence_refs"}),
     "completed": frozenset({"run_id", "result"}),
     "failed": _PAYLOAD_FIELDS["failed"],
     "evidence_result": _PAYLOAD_FIELDS["evidence_result"],
@@ -72,12 +74,18 @@ class Frame:
             type(self.payload["ordinal"]) is not int or self.payload["ordinal"] < 1
             or not isinstance(self.payload["turn_id"], str)
             or not isinstance(self.payload["answer_output"], str)
+            or ("answer_summary" in self.payload and not isinstance(self.payload["answer_summary"], str))
             or not isinstance(self.payload["answer_ref"], str)
             or any(not isinstance(self.payload[key], list)
                    or any(not isinstance(ref, str) for ref in self.payload[key])
                    for key in ("result_refs", "evidence_refs"))
         ):
             raise ProtocolError("committed answer payload is invalid")
+        if self.kind == "answer_committed" and (
+            "duration_ms" in self.payload
+            and (type(self.payload["duration_ms"]) is not int or self.payload["duration_ms"] < 0)
+        ):
+            raise ProtocolError("committed answer duration is invalid")
         if self.kind == "network_view":
             from capstone_agent.network_view import normalize_network_view
 

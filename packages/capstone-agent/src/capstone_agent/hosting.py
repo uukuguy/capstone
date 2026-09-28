@@ -31,6 +31,8 @@ class HostSettings:
     session_idle_seconds: int
     worker_max_sessions: int
     worker_wake_url: str | None
+    public_provider: str | None
+    public_model: str | None
 
 
 def _origin(value: str) -> bool:
@@ -57,6 +59,8 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     bucket = environment.get("CAPSTONE_ARTIFACT_BUCKET", "")
     endpoint = environment.get("CAPSTONE_S3_ENDPOINT") or None
     worker_wake_url = environment.get("CAPSTONE_WORKER_WAKE_URL") or None
+    public_provider = environment.get("CAPSTONE_PUBLIC_PROVIDER") or None
+    public_model = environment.get("CAPSTONE_PUBLIC_MODEL") or None
     try:
         port = int(environment.get("PORT", "8766"))
     except ValueError:
@@ -65,6 +69,8 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     demo_setting = environment.get("CAPSTONE_PUBLIC_DEMO", "false").lower()
     if demo_setting not in {"true", "false"}:
         raise ValueError("CAPSTONE_PUBLIC_DEMO is invalid")
+    if demo_setting == "true" and (not public_provider or not public_model):
+        raise ValueError("public demo provider configuration is incomplete")
     try:
         session_idle_seconds = int(environment.get("CAPSTONE_SESSION_IDLE_SECONDS", "600"))
     except ValueError:
@@ -101,7 +107,8 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     runs_root = Path(environment.get("CAPSTONE_RUNS_ROOT", str(default_runs)))
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
                         endpoint, port, bind_host, runs_root, demo_setting == "true",
-                        session_idle_seconds, worker_max_sessions, worker_wake_url)
+                        session_idle_seconds, worker_max_sessions, worker_wake_url,
+                        public_provider, public_model)
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

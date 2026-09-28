@@ -105,6 +105,23 @@ def test_idle_timeout_interrupts_only_ready_session_without_pending_command(ledg
         ledger.accept_turn(session.session_id, "late instruction", "key-2")
 
 
+def test_disconnect_releases_session_and_is_idempotent(ledger: Ledger) -> None:
+    session = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
+    claim = ledger.claim_pending("worker-one", 30)
+    assert claim is not None and claim.lease_token is not None
+    ledger.append_event(session.session_id, claim.lease_token,
+                        Frame(session.session_id, 1, "ready", {"run_id": "run-disconnect"}))
+    disconnected = ledger.disconnect_session(session.session_id, "disconnect-key")
+    assert disconnected.state == "interrupted"
+    assert disconnected.error_code == "session_disconnected"
+    assert disconnected.lease_token is None
+    assert ledger.disconnect_session(session.session_id, "disconnect-key") == disconnected
+    with pytest.raises(Conflict):
+        ledger.disconnect_session(session.session_id, "another-key")
+    with pytest.raises(Conflict):
+        ledger.accept_turn(session.session_id, "late instruction", "late-key")
+
+
 def test_capacity_eviction_selects_longest_idle_ready_session(ledger: Ledger) -> None:
     first = ledger.create_session("fixture-app", "scripted-demo", None, None, None)
     second = ledger.create_session("fixture-app", "scripted-demo", None, None, None)

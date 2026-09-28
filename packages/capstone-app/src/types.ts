@@ -43,9 +43,11 @@ export type CommittedTurn = {
   ordinal: number
   turn_id: string
   answer_output: string
+  answer_summary?: string
   answer_ref: string
   result_refs: string[]
   evidence_refs: string[]
+  duration_ms?: number
 }
 
 export type SessionEvent = {

@@ -19,6 +19,70 @@ APPLICATION_ID = "pandapower-static-analysis"
 CASES = frozenset({"pandapower-scripted-task", "pandapower-scripted-test"})
 
 
+def _provider_network_reader(application: Any, case_id: str):
+    """Project a provider run from its committed authority events.
+
+    The generic provider application keeps the live ``gridctl`` executor in
+    its prepared binding, while the durable event log carries the current
+    context, admitted result references, and capability results.  Combining
+    those two existing authority-backed surfaces lets the operator graph use
+    the same projection path as the scripted worker without inventing data.
+    """
+    def network(ordinal: int) -> dict[str, object] | None:
+        workspace = getattr(application, "workspace", None)
+        root = getattr(workspace, "root", None)
+        if not isinstance(root, Path):
+            return None
+        events_path = root / "core" / "context-events.jsonl"
+        if not events_path.is_file():
+            return None
+        context_ref: str | None = None
+        calls: list[dict[str, object]] = []
+        refs_by_ordinal: dict[int, tuple[str, ...]] = {}
+        try:
+            with events_path.open(encoding="utf-8") as stream:
+                for raw in stream:
+                    event = json.loads(raw)
+                    payload = event.get("payload")
+                    if not isinstance(payload, Mapping):
+                        continue
+                    if event.get("event_type") == "tool.observation.recorded":
+                        capability = event.get("capability") or payload.get("capability_id")
+                        result = payload.get("result")
+                        if isinstance(capability, str) and isinstance(result, Mapping):
+                            calls.append({"capability": capability, "result": result})
+                            candidate = result.get("context_ref")
+                            if isinstance(candidate, str):
+                                context_ref = candidate
+                            for candidate in payload.get("context_refs", ()):
+                                if isinstance(candidate, str) and candidate.startswith("context:"):
+                                    context_ref = candidate
+                    elif event.get("event_type") == "answer.submitted":
+                        turn_id = payload.get("turn_id")
+                        result_refs = payload.get("result_refs")
+                        if isinstance(turn_id, str) and isinstance(result_refs, list):
+                            try:
+                                turn_ordinal = int(turn_id.rsplit("-t", 1)[1])
+                            except (IndexError, ValueError):
+                                continue
+                            refs_by_ordinal[turn_ordinal] = tuple(
+                                ref for ref in result_refs if isinstance(ref, str)
+                            )
+        except (OSError, ValueError, TypeError):
+            return None
+        if not context_ref:
+            return None
+        try:
+            executor = application.prepared_application.bindings["grid"].endpoint.executor
+            return build_grid_network_view(
+                executor, context_ref, ordinal, case_id,
+                refs_by_ordinal.get(ordinal, ()), calls,
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+    return network
+
+
 class _ScriptedCaseApplication:
     def __init__(self, case: dict[str, Any], observer) -> None:
         self.case = case
@@ -82,8 +146,11 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
             )
 
         return PreparedWorker(application, run_id, evidence, network)
-    if mode != "provider" or values.get("case_id") is not None:
+    if mode != "provider":
         raise ValueError("pandapower worker mode is invalid")
+    case_id = values.get("case_id")
+    if case_id is not None and case_id not in CASES:
+        raise ValueError("pandapower provider case is not registered")
     provider = values.get("provider")
     model = values.get("model")
     if provider is not None and not isinstance(provider, str):
@@ -103,6 +170,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
     return PreparedWorker(
         application, run_id,
         lambda reference: read_verified_reference(application.prepared_application, reference),
+        _provider_network_reader(application, case_id) if case_id is not None else None,
     )
 
 

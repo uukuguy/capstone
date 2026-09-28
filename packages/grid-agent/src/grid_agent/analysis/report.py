@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from capability_agent.application.answer_format import format_report_answer
 from pandapower_domain.models import (
     AnalysisContext,
     AnalysisContextEvent,
@@ -1184,7 +1185,7 @@ def _answer_preview(answer: str) -> str:
 
 def _reader_answer(answer: str) -> str:
     answer = _redact_internal_refs(answer)
-    return answer if answer.strip() else "未提供回答。"
+    return format_report_answer(answer) if answer.strip() else "未提供回答。"
 
 
 def _reader_diagnostic(message: str) -> str:

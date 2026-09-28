@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+import json
 from pathlib import Path
 from typing import cast
 
 from capstone_agent.application import EmptyCredentialBroker
-from capstone_agent.runtime import build_runtime_host
+from capstone_agent.runtime import build_runtime_host, load_runtime_environment
 from capstone_agent.worker import PreparedWorker, read_verified_reference, serve_application
 from capability_agent.application.composition import prepare_application
 from capability_agent.application.context_store import ApplicationContextStore
@@ -25,6 +26,17 @@ from pypsa_agent.network_view import build_pypsa_network_view
 
 ROOT = Path(__file__).resolve().parents[4]
 APPLICATION_ID = "pypsa-business-cases"
+
+
+def _write_handoff_index(path: Path, run_id: str, handoffs: Mapping[str, object]) -> None:
+    document = {
+        "schema": "capability-agent-reference-handoffs/1.0",
+        "run_id": run_id,
+        "handoffs": [dict(value) for value in handoffs.values()],
+    }
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(document, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 class _ExactCaseApplication:
@@ -114,6 +126,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         selected = _ExactCaseApplication(
             application, tuple(case["introduction"]["demo_instructions"]),
         )
+        diagram_cache: dict[str, dict[str, object]] = {}
 
         def network_reader(ordinal: int) -> dict[str, object] | None:
             if not providers:
@@ -127,24 +140,77 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
                 return None
             dispatch = provider.results.get("operations.dispatch")
             executor = prepared.bindings["source"].endpoint.executor
+
+            class CachedDiagramExecutor:
+                def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
+                    if capability != "operator.diagram":
+                        return executor.invoke(capability, arguments)
+                    reference = arguments.get("model_ref")
+                    if not isinstance(reference, str):
+                        return executor.invoke(capability, arguments)
+                    cached = diagram_cache.get(reference)
+                    if cached is None:
+                        cached = executor.invoke(capability, arguments)
+                        diagram_cache[reference] = cached
+                    return cached
+
             return build_pypsa_network_view(
-                executor, model_ref, str(case["model_id"]), ordinal, str(case["id"]),
+                CachedDiagramExecutor(), model_ref, str(case["model_id"]), ordinal, str(case["id"]),
                 dispatch, committed_refs.get(ordinal, ()),
             )
-    elif mode == "provider" and values.get("case_id") is None:
+    elif mode == "provider":
         provider = values.get("provider")
         model = values.get("model")
         if provider is not None and not isinstance(provider, str):
             raise ValueError("Provider is invalid")
         if model is not None and not isinstance(model, str):
             raise ValueError("model is invalid")
+        runtime_environment = load_runtime_environment(ROOT)
+
+        handoff = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
+        handoffs: dict[str, dict[str, object]] = {}
+        handoff_index = workspace.core_path / "reference-handoffs.json"
+
+        def observed(event: Mapping[str, object]) -> None:
+            if event.get("type") == "tool_result" and event.get("ok") is True:
+                capability = event.get("capability")
+                result = event.get("result")
+                if (
+                    isinstance(capability, str)
+                    and capability.startswith("model.")
+                    and isinstance(result, Mapping)
+                    and isinstance(result.get("model_ref"), str)
+                ):
+                    model_ref = str(result["model_ref"])
+                    if model_ref not in handoffs:
+                        try:
+                            receipt = handoff.prepare_handoff(
+                                source_binding_id="source",
+                                target_binding_id="operations",
+                                reference=model_ref,
+                                reference_kind="model",
+                                purpose="operations",
+                                capability="operations.dispatch",
+                            )
+                            handoffs[model_ref] = {
+                                "reference": model_ref,
+                                "target_binding_id": "operations",
+                                "capability_family": "operations",
+                                "handoff_ref": receipt.receipt_ref,
+                            }
+                            _write_handoff_index(handoff_index, run_id, handoffs)
+                        except Exception:
+                            pass
+            observer(event)
+
         application = AgentApplication(
             profile=profile, prepared_application=prepared,
             workspace=workspace, store=store,
             provider_catalog=ProviderCatalog.load(ROOT / "configs/llm-providers.json"),
             cli_options=CliLLMOptions(provider=provider, model=model),
-            runtime_host=build_runtime_host(ROOT, profile),
-            semantic_event_observer=observer,
+            environment=runtime_environment,
+            runtime_host=build_runtime_host(ROOT, profile, runtime_environment),
+            semantic_event_observer=observed,
         )
         selected = application
     else:

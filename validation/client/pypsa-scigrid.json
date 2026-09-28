@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-client-request/1.0",
+  "application_id": "pypsa-business-cases",
+  "mode": "provider",
+  "case_id": "scigrid-dispatch",
+  "instructions": [
+    "打开已登记的 SciGRID-DE 示例网络，核对来源、快照和主要组件。",
+    "基于刚才的网络查看受限拓扑，说明预览范围以及模型检查尚未给出的运行结论。",
+    "执行各时段固定容量线性调度，报告求解状态、模型目标值、发电结构及负载率较高的线路，说明分析边界和本轮证据。"
+  ]
+}

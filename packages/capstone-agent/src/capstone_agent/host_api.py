@@ -39,6 +39,8 @@ def create_host_app(
     ledger: Ledger, registry: WorkerRegistry, *, operator_token: str,
     allowed_hosts: set[str], allowed_origins: set[str],
     public_demo: bool = False,
+    public_provider: str | None = None,
+    public_model: str | None = None,
     repo_root: Path | None = None,
     artifacts: ArtifactService | None = None,
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
@@ -46,9 +48,16 @@ def create_host_app(
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
+    if public_demo and (not public_provider or not public_model):
+        raise ValueError("public demo provider configuration is incomplete")
     demo_token = (hmac.new(operator_token.encode(), b"capstone-public-demo-v1",
                            hashlib.sha256).hexdigest() if public_demo else None)
     catalog = build_catalog(registry, repo_root or Path(__file__).resolve().parents[4])
+    public_cases = frozenset(
+        (application["application_id"], case["case_id"])
+        for application in catalog["applications"]
+        for case in application["cases"]
+    )
     diagram_cases = {
         (application["application_id"], case["case_id"]): registry.resolve(application["application_id"])
         for application in catalog["applications"] for case in application["cases"]
@@ -122,7 +131,14 @@ def create_host_app(
 
     def get_session(session_id: str, request: Request) -> SessionRecord:
         record = ledger.get_session(session_id)
-        if record is None or (request.state.public_demo and record.mode != "scripted-demo"):
+        if record is None:
+            raise HTTPException(404, "session not found")
+        if request.state.public_demo and (
+            record.mode != "provider"
+            or (record.application_id, record.case_id) not in public_cases
+            or record.provider != public_provider
+            or record.model != public_model
+        ):
             raise HTTPException(404, "session not found")
         return record
 
@@ -157,20 +173,26 @@ def create_host_app(
     @app.post("/api/v1/sessions", status_code=201)
     def create_session(values: _CreateSession, request: Request,
                        idempotency_key: Annotated[str | None, Header(max_length=200)] = None):
-        if request.state.public_demo and values.mode != "scripted-demo":
-            raise HTTPException(403, "public demo only accepts registered cases")
+        provider = values.provider
+        model = values.model
+        if request.state.public_demo:
+            if values.mode != "provider" or (values.application_id, values.case_id) not in public_cases:
+                raise HTTPException(403, "public demo only accepts registered cases")
+            if provider is not None or model is not None:
+                raise HTTPException(403, "public demo provider is fixed")
+            provider, model = public_provider, public_model
         try:
             spec = registry.resolve(values.application_id)
         except ValueError:
             raise HTTPException(404, "application is not registered") from None
         try:
             WorkerSession(spec, mode=values.mode, case_id=values.case_id,
-                          provider=values.provider, model=values.model)
+                          provider=provider, model=model)
         except ValueError:
             raise HTTPException(422, "application mode or case is invalid") from None
         try:
             record = ledger.create_session(values.application_id, values.mode, values.case_id,
-                                           values.provider, values.model,
+                                           provider, model,
                                            idempotency_key=idempotency_key)
         except Conflict:
             raise HTTPException(409, "session key belongs to another request") from None
@@ -203,6 +225,20 @@ def create_host_app(
         except Conflict:
             raise HTTPException(409, "session cannot close") from None
         return {"session_id": session_id, "state": "closing"}
+
+    @app.post("/api/v1/sessions/{session_id}/disconnect", status_code=200)
+    def disconnect_session(session_id: str, request: Request,
+                           idempotency_key: Annotated[str | None, Header(max_length=200)] = None):
+        get_session(session_id, request)
+        try:
+            record = ledger.disconnect_session(
+                session_id, idempotency_key or secrets.token_urlsafe(24),
+            )
+        except KeyError:
+            raise HTTPException(404, "session not found") from None
+        except Conflict:
+            raise HTTPException(409, "session cannot disconnect") from None
+        return _status(record)
 
     @app.get("/api/v1/sessions/{session_id}")
     def session_status(session_id: str, request: Request):

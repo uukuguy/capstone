@@ -8,9 +8,9 @@ from capstone_agent.session import WorkerRegistry, WorkerSpec
 
 
 PYPSA_DEMOS = (
-    "regional-demand-stress",
-    "scigrid-dispatch",
     "ac-dc-interconnection",
+    "scigrid-dispatch",
+    "regional-demand-stress",
 )
 PANDAPOWER_DEMOS = ("pandapower-scripted-task", "pandapower-scripted-test")
 
@@ -20,18 +20,18 @@ def build_registry(repo_root: Path | None = None) -> WorkerRegistry:
     return WorkerRegistry((
         WorkerSpec(
             "pandapower-static-analysis",
-            ("uv", "run", "--project", str(root / "packages/grid-agent"),
+            ("uv", "run", "--no-sync", "--project", str(root / "packages/grid-agent"),
              "python", "-m", "grid_agent.worker"),
-            cwd=root, scripted_cases=PANDAPOWER_DEMOS,
-            preview_command=("uv", "run", "--project", str(root / "packages/grid-agent"),
+            cwd=root, scripted_cases=PANDAPOWER_DEMOS, provider_cases=PANDAPOWER_DEMOS,
+            preview_command=("uv", "run", "--no-sync", "--project", str(root / "packages/grid-agent"),
                              "python", "-m", "grid_agent.case_preview"),
         ),
         WorkerSpec(
             "pypsa-business-cases",
-            ("uv", "run", "--project", str(root / "packages/pypsa-agent"),
+            ("uv", "run", "--no-sync", "--project", str(root / "packages/pypsa-agent"),
              "python", "-m", "pypsa_agent.worker"),
-            cwd=root, scripted_cases=PYPSA_DEMOS,
-            preview_command=("uv", "run", "--project", str(root / "packages/pypsa-agent"),
+            cwd=root, scripted_cases=PYPSA_DEMOS, provider_cases=PYPSA_DEMOS,
+            preview_command=("uv", "run", "--no-sync", "--project", str(root / "packages/pypsa-agent"),
                              "python", "-m", "pypsa_agent.case_preview"),
         ),
     ))

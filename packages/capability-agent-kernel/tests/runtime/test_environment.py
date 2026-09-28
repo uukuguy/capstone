@@ -51,6 +51,7 @@ def test_launch_environment_binds_endpoint_path_and_scrubs_controller_values(
         domain_search_path=Path("/opt/domain/bin"),
         runtime_descriptor_path=tmp_path / "descriptor.json",
         binding_id="alpha",
+        extra_environment={"CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": "/opt/pypsa-models"},
     )
 
     environment = build_pi_environment(
@@ -71,6 +72,7 @@ def test_launch_environment_binds_endpoint_path_and_scrubs_controller_values(
     assert "CAPABILITY_AGENT_FORGED" not in environment
     assert environment["CAPABILITY_AGENT_SECRET_ENV_NAMES"] == "ALPHA_KEY"
     assert environment["ALPHA_KEY"] == "secret"
+    assert environment["CAPSTONE_PYPSA_MODEL_LIBRARY_DIR"] == "/opt/pypsa-models"
 
 
 def test_environment_preserves_binding_search_path_precedence_without_injection(

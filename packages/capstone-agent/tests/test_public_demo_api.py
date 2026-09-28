@@ -25,14 +25,16 @@ class DemoLedger:
         return self.sessions.get(session_id)
 
 
-def test_public_demo_opens_registered_cases_without_exposing_provider_runs() -> None:
+def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
     ledger = DemoLedger()
     registry = WorkerRegistry((WorkerSpec(
         "pandapower-static-analysis", ("unused",),
         scripted_cases=("pandapower-scripted-task",),
+        provider_cases=("pandapower-scripted-task",),
     ),))
     app = create_host_app(
         ledger, registry, operator_token="hosted-secret", public_demo=True,
+        public_provider="deepseek", public_model="deepseek-v4-pro",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
         repo_root=Path(__file__).resolve().parents[3],
     )
@@ -46,14 +48,17 @@ def test_public_demo_opens_registered_cases_without_exposing_provider_runs() -> 
         demo = {"Authorization": f"Bearer {token}"}
         assert client.get("/api/v1/catalog", headers=demo).status_code == 200
         created = client.post("/api/v1/sessions", json={
-            "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
+            "application_id": "pandapower-static-analysis", "mode": "provider",
             "case_id": "pandapower-scripted-task",
         }, headers=demo)
         assert created.status_code == 201
         assert client.get(f"/api/v1/sessions/{created.json()['session_id']}",
                           headers=demo).status_code == 200
+        assert ledger.sessions[created.json()["session_id"]].provider == "deepseek"
+        assert ledger.sessions[created.json()["session_id"]].model == "deepseek-v4-pro"
         assert client.post("/api/v1/sessions", json={
-            "application_id": "pandapower-static-analysis", "mode": "provider",
+            "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
+            "case_id": "pandapower-scripted-task",
         }, headers=demo).status_code == 403
         private = ledger.create_session("pandapower-static-analysis", "provider", None, None, None)
         route = f"/api/v1/sessions/{private.session_id}"

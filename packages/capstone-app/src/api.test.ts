@@ -61,6 +61,7 @@ describe('CapstoneClient', () => {
     }), { status: 201 }))
     const client = new CapstoneClient('', 'demo-token', fetcher)
     await client.createSession('pypsa-business-cases', 'regional-demand-stress', 'create-key')
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({ mode: 'provider' })
     expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>)['Idempotency-Key'])
       .toBe('create-key')
   })

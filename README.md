@@ -47,7 +47,7 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
-Open `http://127.0.0.1:5173/`. The API issues a scoped demo credential and the App opens directly; there is no token to enter. Reports and evidence stay in private artifact storage, and the browser reads bounded content through the API. See the [runbook](docs/RUNBOOK.md#hosted-app-and-deployment) for ports, credentials, and troubleshooting.
+Open `http://127.0.0.1:5173/`. The API issues a scoped access credential and the App opens directly; there is no token to enter. Cases still run through the real Provider/LLM path. Reports and evidence stay in private artifact storage, and the browser reads bounded content through the API. See the [runbook](docs/RUNBOOK.md#hosted-app-and-deployment) for ports, credentials, and troubleshooting.
 
 ## Use the CLI
 
@@ -59,12 +59,19 @@ make doctor
 make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 ```
 
-You can run a three-turn registered case without a provider:
+The five catalog cases use the same real Provider/LLM path as the App:
 
 ```sh
-make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
-make capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json
+make capstone-agent-pandapower-task
+make capstone-agent-pandapower-test
+make capstone-agent-pypsa-regional
+make capstone-agent-pypsa-scigrid
+make capstone-agent-pypsa-ac-dc
 ```
+
+Configure a Provider credential before running these commands. The `*-scripted*`
+and `*-demo` request files remain deterministic offline validation fixtures; they
+are not the LLM execution path.
 
 `grid-agent` is the pandapower application's compatibility CLI. Its `run`, `analysis`, and `report` commands write one JSON object with `question_id` and `answer_output` to stdout; progress and diagnostics go to stderr. For natural-language analysis with an LLM, use `make run-llm` after configuring the provider and Pi as described in the [runbook](docs/RUNBOOK.md). Never put credentials in command arguments or committed files.
 

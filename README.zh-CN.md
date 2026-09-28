@@ -47,7 +47,7 @@ make setup-capstone-app
 make capstone-app-dev
 ```
 
-打开 `http://127.0.0.1:5173/`。本地演示凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
+打开 `http://127.0.0.1:5173/`。访问凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。案例执行仍走真实 Provider/LLM 路径。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
 
 ## 使用 CLI
 
@@ -59,12 +59,18 @@ make doctor
 make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 ```
 
-统一的无 Provider 三步案例也可从命令行运行：
+案例库的五个案例命令都和网页使用同一条真实 Provider/LLM 路径：
 
 ```sh
-make capstone-agent-run REQUEST=validation/client/pandapower-scripted-task.json
-make capstone-agent-run REQUEST=validation/client/pypsa-regional-demo.json
+make capstone-agent-pandapower-task
+make capstone-agent-pandapower-test
+make capstone-agent-pypsa-regional
+make capstone-agent-pypsa-scigrid
+make capstone-agent-pypsa-ac-dc
 ```
+
+运行前需要配置 Provider 凭据。名称带 `*-scripted*` 或 `*-demo` 的请求文件仅
+用于确定性的离线验证，不是 LLM 执行路径。
 
 `grid-agent` 是 pandapower 应用的兼容 CLI。其 `run`、`analysis` 和 `report` 命令在标准输出中只写一个包含 `question_id` 与 `answer_output` 的 JSON 对象；进度和诊断走标准错误输出。需要 LLM 的自然语言分析使用 `make run-llm`，先按[运行手册](docs/RUNBOOK.md)配置 Provider 与 Pi。凭据不能写进命令参数或提交到仓库。
 

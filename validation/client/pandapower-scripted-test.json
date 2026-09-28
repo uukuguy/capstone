@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-client-request/1.0",
+  "application_id": "pandapower-static-analysis",
+  "mode": "scripted-demo",
+  "case_id": "pandapower-scripted-test",
+  "instructions": [
+    "打开 IEEE-39 网络并读取模型显式约束。",
+    "沿用同一网络解析线路 17。",
+    "针对已解析线路执行单支路静态校核。"
+  ]
+}

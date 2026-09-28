@@ -45,3 +45,12 @@ def test_worker_frame_rejects_incomplete_committed_answer() -> None:
             "ordinal": 1, "answer_output": "done", "result_refs": [],
             "evidence_refs": [],
         })
+
+
+def test_worker_frame_accepts_bounded_answer_duration() -> None:
+    frame = Frame("session-1", 1, "answer_committed", {
+        "ordinal": 1, "turn_id": "turn-1", "answer_output": "done",
+        "answer_ref": "answer:1", "result_refs": [], "evidence_refs": [],
+        "duration_ms": 4200,
+    })
+    assert frame.payload["duration_ms"] == 4200

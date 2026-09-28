@@ -84,6 +84,23 @@ test("runtime v1.1 validates and freezes two ordered domain bindings", () => {
   assert.equal(Object.isFrozen(descriptor.domains[1]), true);
 });
 
+test("runtime v1.1 allows executable arguments to reference a sibling domain workspace", async () => {
+  const fixture = await runtimeV11Fixture();
+  const siblingWorkspace = fixture.descriptor.domains[0].workspacePath;
+  const descriptor = {
+    ...fixture.descriptor,
+    domains: [
+      {
+        ...fixture.descriptor.domains[1],
+        executableArgs: ["request", "--source-workspace", siblingWorkspace],
+      },
+      fixture.descriptor.domains[0],
+    ],
+  };
+
+  assert.doesNotThrow(() => validateRuntimeDescriptor(descriptor));
+});
+
 test("runtime v1.1 rejects empty domains and duplicate binding or guide names", () => {
   for (const domains of [
     [],

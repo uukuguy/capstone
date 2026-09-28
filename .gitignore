@@ -61,6 +61,8 @@ packages/trajectory-workbench/test-results/
 packages/trajectory-workbench/playwright-report/
 packages/trajectory-workbench/coverage/
 /output/playwright/
+/.debug-ops/
+/output/
 /.playwright-cli/
 /deploy/local.env
 **/__pycache__/

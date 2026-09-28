@@ -43,3 +43,37 @@ def test_capstone_report_uses_resolved_runtime_and_admitted_evidence(tmp_path: P
     href = re.search(r"\[查看证据工件\]\(([^)]+)\)", report)
     assert href is not None
     assert (workspace.output_path / href.group(1)).is_file()
+
+
+def test_capstone_report_includes_direct_tool_failure_cause(tmp_path: Path) -> None:
+    workspace = ApplicationWorkspace.create(tmp_path, run_id="run-failure", binding_ids=("grid",))
+    context = SimpleNamespace(
+        run_id=workspace.run_id,
+        revision=1,
+        state_hash="hash",
+        status="completed",
+        core=SimpleNamespace(
+            input={},
+            runtime={},
+            turns=[{"turn_id": "run-failure-t001", "status": "success"}],
+            diagnostics=[
+                {
+                    "event_type": "tool.failed",
+                    "turn_id": "run-failure-t001",
+                    "capability_id": "asset.read",
+                    "error_code": "model_not_found",
+                    "error_message": "registered model is unavailable",
+                },
+            ],
+        ),
+        domains={"grid": SimpleNamespace(state={})},
+    )
+
+    report = PandapowerApplicationReportShell().render(
+        questions=("读取模型。",),
+        answers=("模型读取失败。",),
+        workspace=workspace,
+        context=context,
+    )
+
+    assert "失败原因：registered model is unavailable（错误码 model_not_found）" in report

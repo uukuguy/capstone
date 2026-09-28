@@ -87,6 +87,7 @@ class RuntimeDescriptor:
     guide_index_sha256: str | None = None
     application_id: str = "capability-agent"
     run_id: str = "run"
+    reference_handoffs_path: Path | None = None
     pi_runtime: Mapping[str, str] | None = None
     active_turn_path: Path | None = None
     context_view_path: Path | None = None
@@ -124,7 +125,7 @@ class RuntimeDescriptor:
         object.__setattr__(self, "search_path", search)
         for argument in self.executable_args:
             if Path(argument).is_absolute() and not _is_inside(
-                Path(argument), workspace
+                Path(argument), application_workspace
             ):
                 raise RuntimeDescriptorError(
                     "executable_args path is outside workspace_path"
@@ -195,6 +196,13 @@ class RuntimeDescriptor:
                     raise RuntimeDescriptorError(f"{name} is outside workspace_path")
                 _reject_existing_symlink(path, name)
                 object.__setattr__(self, name, path)
+        if self.reference_handoffs_path is not None:
+            _absolute_directory_or_file(self.reference_handoffs_path, "reference_handoffs_path")
+            path = Path(self.reference_handoffs_path)
+            if not _is_inside(path, application_workspace):
+                raise RuntimeDescriptorError("reference_handoffs_path is outside application_workspace_path")
+            _reject_existing_symlink(path, "reference_handoffs_path")
+            object.__setattr__(self, "reference_handoffs_path", path)
         capture_paths = (
             self.trajectory_requests_path,
             self.trajectory_capture_state_path,
@@ -241,6 +249,7 @@ class RuntimeDescriptor:
             "applicationId": self.application_id,
             "runId": self.run_id,
             "workspacePath": str(self.application_workspace_path),
+            **({"referenceHandoffsPath": str(self.reference_handoffs_path)} if self.reference_handoffs_path is not None else {}),
             **({"piRuntime": dict(self.pi_runtime)} if self.pi_runtime is not None else {}),
         }
 
@@ -437,6 +446,7 @@ def descriptor_from_endpoint(
     trajectory_capture_state_path: Path | None = None,
     trajectory_allowed_refs_path: Path | None = None,
     trajectory_acks_path: Path | None = None,
+    reference_handoffs_path: Path | None = None,
 ) -> RuntimeDescriptor:
     """Convert only controller-owned endpoint metadata into a descriptor."""
 
@@ -490,6 +500,7 @@ def descriptor_from_endpoint(
         ),
         application_id=application_id,
         run_id=run_id,
+        reference_handoffs_path=reference_handoffs_path,
         pi_runtime=pi_runtime,
         active_turn_path=active_turn_path,
         context_view_path=context_view_path,

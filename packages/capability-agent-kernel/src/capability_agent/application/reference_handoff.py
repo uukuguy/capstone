@@ -91,15 +91,37 @@ class ReferenceHandoffService:
         capability: str, arguments: Mapping[str, object],
     ) -> tuple[dict[str, object], ReferenceHandoffReceipt]:
         """Record a grant decision before asking the target authority to admit it."""
+        receipt = self.prepare_handoff(
+            source_binding_id=source_binding_id,
+            target_binding_id=target_binding_id,
+            reference=reference,
+            reference_kind=reference_kind,
+            purpose=purpose,
+            capability=capability,
+        )
+        target = self._binding(target_binding_id)
+        passed = dict(arguments)
+        passed.update(reference=reference, handoff_ref=receipt.receipt_ref)
+        return target.endpoint.executor.invoke(capability, passed), receipt
 
+    def prepare_handoff(
+        self, *, source_binding_id: str, target_binding_id: str,
+        reference: str, reference_kind: str, purpose: str,
+        capability: str,
+    ) -> ReferenceHandoffReceipt:
+        """Issue and admit an application-owned handoff without executing a capability.
+
+        Provider transports use this before the model calls a target-domain
+        tool.  The model never receives authority to mint the receipt; the
+        application creates it after the source authority has returned a
+        verified current-run reference.
+        """
         grant = self._grant(
             source_binding_id, target_binding_id, reference_kind,
             purpose, capability,
         )
         if not isinstance(reference, str) or not reference:
             raise ReferenceHandoffError("reference is invalid")
-        if "reference" in arguments or "handoff_ref" in arguments:
-            raise ReferenceHandoffError("handoff arguments are application-owned")
         source = self._binding(source_binding_id)
         target = self._binding(target_binding_id)
         if not any(
@@ -147,9 +169,7 @@ class ReferenceHandoffService:
             )
         except Exception as exc:
             raise ReferenceHandoffError("target authority rejected handoff") from exc
-        passed = dict(arguments)
-        passed.update(reference=reference, handoff_ref=receipt.receipt_ref)
-        return target.endpoint.executor.invoke(capability, passed), receipt
+        return receipt
 
     def verify_receipt(self, receipt: ReferenceHandoffReceipt) -> ReferenceHandoffReceipt:
         if not isinstance(receipt, ReferenceHandoffReceipt):

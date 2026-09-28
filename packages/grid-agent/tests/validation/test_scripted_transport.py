@@ -30,7 +30,7 @@ def test_scripted_transport_delivers_prompt_heartbeat_without_creating_evidence(
     )
 
     assert pulses == ["waiting"]
-    assert "question 1" in answer
+    assert answer == "本步已完成，结果与证据已写入当前运行。"
     assert transport.calls == []
     assert transport.current_result_refs == ()
     assert transport.current_evidence_refs == ()

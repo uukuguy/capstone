@@ -95,6 +95,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "google-cloud-storage" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
 
@@ -111,6 +112,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "google-cloud-storage", specifier = ">=3.14,<4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
+    { name = "python-dotenv", specifier = ">=1.2,<2" },
     { name = "uvicorn", specifier = ">=0.51,<1" },
 ]
 

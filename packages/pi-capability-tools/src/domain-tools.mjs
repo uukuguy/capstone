@@ -43,7 +43,7 @@ const LEGACY_DESCRIPTOR_KEYS = new Set([
   "piRuntime",
 ]);
 const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
-const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "piRuntime"]);
+const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "referenceHandoffsPath", "piRuntime"]);
 const CORE_KEYS = new Set([
   "decisionToolName",
   "contextToolName",
@@ -296,6 +296,12 @@ function validateRuntimeV1(value, options = {}) {
       "application workspacePath",
     );
   }
+  if (value.application.referenceHandoffsPath !== undefined) {
+    application.referenceHandoffsPath = requireAbsolutePath(
+      value.application.referenceHandoffsPath,
+      "application referenceHandoffsPath",
+    );
+  }
 
   requireExactKeys(value.core, CORE_KEYS, "runtime descriptor core", {
     required: ["decisionToolName", "contextToolName"],
@@ -346,8 +352,11 @@ function validateRuntimeV1(value, options = {}) {
     : value.domains.length === 0)) {
     throw new TypeError("runtime descriptor requires one or more domain bindings");
   }
-  const domains = value.domains.map((domain) => validateRuntimeDomain(domain, options));
-  const applicationWorkspacePath = application.workspacePath ?? domains[0].workspacePath;
+  const applicationWorkspacePath = application.workspacePath ?? value.domains[0].workspacePath;
+  const domains = value.domains.map((domain) => validateRuntimeDomain(domain, {
+    ...options,
+    applicationWorkspacePath,
+  }));
   const routingToolNames = [
     core.decisionToolName,
     core.contextToolName,
@@ -376,7 +385,7 @@ function validateRuntimeV1(value, options = {}) {
   return runtime;
 }
 
-function validateRuntimeDomain(value, { legacy = false } = {}) {
+function validateRuntimeDomain(value, { legacy = false, applicationWorkspacePath } = {}) {
   requireExactKeys(value, DOMAIN_KEYS, "runtime descriptor domain", {
     required: legacy
       ? [
@@ -437,10 +446,13 @@ function validateRuntimeDomain(value, { legacy = false } = {}) {
         requireInside(domain[key], workspacePath, key);
       }
     }
+    const executableArgsWorkspacePath = applicationWorkspacePath ?? workspacePath;
     for (const argument of executableArgs) {
-      if (isAbsolute(argument) && !isInside(resolve(argument), workspacePath)) {
+      if (isAbsolute(argument) && !isInside(resolve(argument), executableArgsWorkspacePath)) {
         throw new TypeError(
-          "runtime descriptor domain executableArgs path is outside workspacePath",
+          `runtime descriptor domain executableArgs path is outside ${
+            executableArgsWorkspacePath === workspacePath ? "workspacePath" : "application workspacePath"
+          }`,
         );
       }
     }
@@ -505,7 +517,8 @@ export function createCapabilityTool(descriptor, contract, runner) {
     description: contract.description,
     parameters: Type.Unsafe(contract.input_schema),
     async execute(_id, params) {
-      const payload = buildCapabilityRequest(runtime, contract.capability, params);
+      const routedParams = injectApplicationHandoff(runtime, contract.capability, params);
+      const payload = buildCapabilityRequest(runtime, contract.capability, routedParams);
       const response = await executeRunner(payload);
       if (!isCorrelatedResponse(response, payload.request_id, runtime)) {
         return toolError(
@@ -532,6 +545,38 @@ export function createCapabilityTool(descriptor, contract, runner) {
       };
     },
   });
+}
+
+function injectApplicationHandoff(runtime, capability, params) {
+  if (!isPlainObject(params) || params.reference === undefined) {
+    return params;
+  }
+  const path = runtime.referenceHandoffsPath;
+  if (typeof path !== "string") {
+    return params;
+  }
+  let document;
+  try {
+    document = readJsonSync(path);
+  } catch {
+    return params;
+  }
+  if (
+    !isPlainObject(document) ||
+    document.schema !== "capability-agent-reference-handoffs/1.0" ||
+    !Array.isArray(document.handoffs)
+  ) {
+    return params;
+  }
+  const handoff = document.handoffs.find((item) =>
+    isPlainObject(item) &&
+    item.target_binding_id === runtime.bindingId &&
+    item.reference === params.reference &&
+    typeof item.handoff_ref === "string" &&
+    typeof item.capability_family === "string" &&
+    capability.startsWith(`${item.capability_family}.`)
+  );
+  return handoff === undefined ? params : { ...params, handoff_ref: handoff.handoff_ref };
 }
 
 /**
@@ -748,7 +793,10 @@ function validateExecutableArgumentPaths(runtime) {
       "runtime descriptor executableArgs absolute paths require workspacePath",
     );
   }
-  const workspacePath = requiredExistingRealPath(workspaceValue, "workspacePath");
+  const workspacePath = requiredExistingRealPath(
+    runtime.applicationWorkspacePath ?? workspaceValue,
+    runtime.applicationWorkspacePath === undefined ? "workspacePath" : "applicationWorkspacePath",
+  );
   for (const argument of absoluteArguments) {
     let candidate;
     try {
@@ -1281,6 +1329,9 @@ function runtimePaths(descriptor) {
     ["trajectoryCaptureStatePath", trajectoryCaptureStatePath],
     ["trajectoryAllowedRefsPath", trajectoryAllowedRefsPath],
   ];
+  if (descriptor.referenceHandoffsPath !== undefined && !isInside(descriptor.referenceHandoffsPath, applicationWorkspacePath)) {
+    throw new Error("referenceHandoffsPath is outside application workspacePath");
+  }
   if (!legacy) {
     corePathBindings.push(["trajectoryAcksPath", trajectoryAcksPath]);
   }
@@ -1309,6 +1360,7 @@ function runtimePaths(descriptor) {
     trajectoryAllowedRefsPath,
     trajectoryAcksPath,
     piRuntime: descriptor.piRuntime,
+    referenceHandoffsPath: descriptor.referenceHandoffsPath,
   };
 }
 
@@ -1372,6 +1424,7 @@ function selectedBindingRuntimeForDomain(runtime, domain) {
     trajectoryAllowedRefsPath: runtime.core.trajectoryAllowedRefsPath,
     trajectoryAcksPath: runtime.core.trajectoryAcksPath,
     piRuntime: runtime.application.piRuntime,
+    referenceHandoffsPath: runtime.application.referenceHandoffsPath,
   });
   SELECTED_BINDING_RUNTIMES.add(selected);
   if (LEGACY_RUNTIME_DESCRIPTORS.has(runtime)) {

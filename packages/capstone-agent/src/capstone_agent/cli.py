@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from capstone_agent.registry import build_registry
+from capstone_agent.progress import summarize_answer
 from capstone_agent.server import create_app
 from capstone_agent.session import WorkerRegistry, WorkerSession
 
@@ -52,8 +53,13 @@ def _run(request_path: Path, registry: WorkerRegistry, output: TextIO, errors: T
     ) as session:
         print(f"Capstone run {session.run_id} started", file=errors, flush=True)
         for ordinal, instruction in enumerate(values["instructions"], start=1):
+            print(f"开始第 {ordinal} 步：{instruction}", file=errors, flush=True)
             answer = session.submit_and_wait(instruction)
-            print(f"Turn {ordinal}: {answer.payload['answer_output']}", file=errors, flush=True)
+            print(
+                f"Turn {ordinal}: {summarize_answer(answer.payload['answer_output'], has_references=bool(answer.payload.get('result_refs') or answer.payload.get('evidence_refs')))}",
+                file=errors,
+                flush=True,
+            )
         completed = session.close()
         report_path = completed.payload.get("report_path")
         result = completed.payload["result"]
@@ -197,6 +203,8 @@ def main(
                     allowed_hosts=set(settings.allowed_hosts),
                     allowed_origins=set(settings.allowed_origins),
                     public_demo=settings.public_demo,
+                    public_provider=settings.public_provider,
+                    public_model=settings.public_model,
                     artifacts=artifacts,
                     wake_worker=wake_worker,
                 )

@@ -363,6 +363,24 @@ def test_runtime_descriptor_separates_binding_workspace_from_application_channel
     assert core_payload["analysisContextViewPath"] == str(context_path)
 
 
+def test_runtime_descriptor_allows_arguments_to_reference_sibling_domain_workspace(
+    tmp_path: Path,
+) -> None:
+    application_root = tmp_path / "run"
+    domain_root = application_root / "domains" / "operations"
+    source_root = application_root / "domains" / "source"
+    domain_root.mkdir(parents=True)
+    source_root.mkdir(parents=True)
+
+    RuntimeDescriptor(
+        binding_id="operations",
+        workspace_path=domain_root,
+        application_workspace_path=application_root,
+        executable="opsctl",
+        executable_args=("--source-workspace", str(source_root)),
+    )
+
+
 def test_descriptor_endpoint_rejects_explicit_empty_optional_tool_name(
     tmp_path: Path,
 ) -> None:

@@ -673,19 +673,32 @@ class ApplicationInvocationProjector:
             _arguments(start, event),
             {},
         )
+        error = event.get("error")
+        error_mapping = error if isinstance(error, Mapping) else {}
+        error_code = _first_string(error_mapping, "code", "error_code") or _first_string(
+            event, "error_code", "code"
+        )
+        error_message = _first_string(
+            error_mapping, "message", "error_message", "detail"
+        ) or _first_string(event, "error_message", "message", "detail")
+        payload: dict[str, object] = {
+            "binding_id": tool.key.binding_id,
+            "turn_id": turn_id,
+            "capability_id": tool.key.capability_id,
+            "observation_ref": observation_ref,
+            "message": "capability returned a bounded failure",
+        }
+        if error_code is not None:
+            payload["error_code"] = error_code
+        if error_message is not None:
+            payload["error_message"] = error_message
         draft = ContextEventDraft(
             event_type="tool.failed",
             binding_id=tool.key.binding_id,
             turn_id=turn_id,
             capability=tool.key.capability_id,
             trace_sequence=trace_sequence,
-            payload={
-                "binding_id": tool.key.binding_id,
-                "turn_id": turn_id,
-                "capability_id": tool.key.capability_id,
-                "observation_ref": observation_ref,
-                "message": "capability returned a bounded failure",
-            },
+            payload=payload,
         )
         self._preflight_context((draft,))
         try:

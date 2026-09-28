@@ -7,7 +7,7 @@ from capability_agent.application.output import JsonOutputRenderer
 from capability_agent.application.profile import (
     ApplicationProfile, CredentialScope, DataSharingPolicy, DomainBinding, ReferenceGrant,
 )
-from capability_agent.application.reporting import GenericReportShell
+from pypsa_agent.reporting import PyPSAApplicationReportShell
 from pypsa_network_modeling.profile import build_pypsa_network_modeling_profile
 from pypsa_power_operations.profile import build_pypsa_power_operations_profile
 
@@ -38,7 +38,7 @@ def build_profile() -> ApplicationProfile:
         ),
         output_renderer=JsonOutputRenderer(),
         application_policy=_ApplicationPolicy(),
-        report_shell=GenericReportShell(),
+        report_shell=PyPSAApplicationReportShell(),
         acceptance_profile=_AcceptanceProfile(),
         reference_grants=(ReferenceGrant(
             "source", "operations", "model", "operations", "operations"

@@ -35,6 +35,7 @@ class WorkerSpec:
     cwd: Path | None = None
     environment: Mapping[str, str] | None = None
     scripted_cases: tuple[str, ...] | None = None
+    provider_cases: tuple[str, ...] | None = None
     preview_command: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
@@ -83,8 +84,8 @@ class WorkerSession:
                 raise ValueError("scripted case is not registered")
             if provider is not None or model is not None:
                 raise ValueError("scripted case does not accept Provider options")
-        elif case_id is not None:
-            raise ValueError("Provider route does not accept a case ID")
+        elif spec.provider_cases is not None and case_id not in spec.provider_cases:
+            raise ValueError("Provider case is not registered")
         self.spec = spec
         self.mode = mode
         self.case_id = case_id

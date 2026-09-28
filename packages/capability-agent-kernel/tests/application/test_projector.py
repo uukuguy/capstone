@@ -241,6 +241,46 @@ def test_projector_routes_structured_key_to_only_matching_binding(tmp_path: Path
     assert current.store.snapshot.domains["inventory"].revision == 0
 
 
+def test_projector_persists_structured_tool_failure_diagnostics(tmp_path: Path) -> None:
+    current = _harness(tmp_path)
+    projector = ApplicationInvocationProjector(
+        store=current.store,
+        catalog=_catalog(),
+        bindings=current.bindings,
+    )
+
+    projector.observe(
+        {
+            "type": "tool_execution_start",
+            "call_id": "failed-call",
+            "tool_name": "grid_asset_read",
+            "capability_key": CapabilityKey("grid", "asset.read"),
+            "arguments": {"asset_id": "missing"},
+        },
+        turn_id="run-1-t001",
+    )
+
+    projector.observe(
+        {
+            "type": "tool_result",
+            "call_id": "failed-call",
+            "tool_name": "grid_asset_read",
+            "capability_key": CapabilityKey("grid", "asset.read"),
+            "ok": False,
+            "error": {
+                "code": "model_not_found",
+                "message": "registered model is unavailable",
+            },
+        },
+        turn_id="run-1-t001",
+    )
+
+    diagnostic = current.store.snapshot.core.diagnostics[-1]
+    assert diagnostic["event_type"] == "tool.failed"
+    assert diagnostic["error_code"] == "model_not_found"
+    assert diagnostic["error_message"] == "registered model is unavailable"
+
+
 def test_projector_keeps_core_tool_references_opaque(tmp_path: Path) -> None:
     current = _harness(tmp_path)
     projector = ApplicationInvocationProjector(
