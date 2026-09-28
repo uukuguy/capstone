@@ -59,9 +59,15 @@ if [ "${CAPSTONE_START_APP:-1}" = "1" ]; then
     app_state="started by rebuild"
     app_state_dir="$repo_root/.capstone-agent"
     mkdir -p "$app_state_dir"
-    nohup npm run dev --prefix "$repo_root/packages/capstone-app" -- \
-      --host "$app_host" --port "$app_port" \
-      >"$app_state_dir/app-dev.log" 2>&1 < /dev/null &
+    app_command=(npm run dev --prefix "$repo_root/packages/capstone-app" --
+      --host "$app_host" --port "$app_port")
+    if command -v setsid >/dev/null 2>&1; then
+      nohup setsid "${app_command[@]}" \
+        >"$app_state_dir/app-dev.log" 2>&1 < /dev/null &
+    else
+      nohup "${app_command[@]}" \
+        >"$app_state_dir/app-dev.log" 2>&1 < /dev/null &
+    fi
     app_pid=$!
     printf '%s\n' "$app_pid" >"$app_state_dir/app-dev.pid"
     ready=0
