@@ -106,3 +106,23 @@ export type DiagramNetworkView = {
 }
 
 export type NetworkView = LegacyNetworkView | DiagramNetworkView
+
+export type NetworkStoryStep = {
+  schema: 'capstone-network-story-step/1.0'
+  ordinal: number
+  diagram_ref: string
+  model_revision: string
+  current_focus_ids: string[]
+  history_focus_ids: string[]
+  overlay: LegacyNetworkView['overlay']
+  plan_source: 'llm' | 'fallback'
+}
+
+export type NetworkStory = {
+  schema: 'capstone-network-story/1.0'
+  mode: 'cumulative-snapshots'
+  story_status: 'complete' | 'partial'
+  plan_source: 'llm' | 'fallback'
+  diagram: NetworkDiagram
+  steps: NetworkStoryStep[]
+}

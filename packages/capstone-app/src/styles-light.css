@@ -245,6 +245,14 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-toolbar-divider { width: 1px; height: 20px; background: #d5e2da; margin: 0 5px; }
 .network-focus-status { color: #28675e; background: #f0f8f3; padding: 7px 22px;
   font-size: 12px; border-bottom: 1px solid #deebe2; }
+.network-story-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  padding: 9px 20px; border-bottom: 1px solid #deebe2; background: #f7fbf8;
+  color: #5f7770; font-size: 11px; }
+.network-story-controls button { border: 1px solid #c8ded3; border-radius: 3px;
+  background: #fff; color: #28675e; padding: 5px 9px; font-size: 11px; }
+.network-story-controls button:hover, .network-story-controls button.is-selected {
+  border-color: #138575; background: #e8f4ed; color: #126c63; font-weight: 700; }
+.network-story-source { margin-left: auto; color: #789189; }
 .network-canvas-frame { position: relative; background: #fff; }
 .network-canvas-frame svg { display: block; width: 100%; height: clamp(250px, 23vw, 340px);
   background: #fff; touch-action: none; cursor: grab; }
@@ -365,6 +373,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .network-meta { padding: 0 17px 12px; flex-wrap: wrap; }
   .network-toolbar { flex-wrap: wrap; padding: 7px; }
   .network-toolbar button { min-height: 44px; font-size: 12px; }
+  .network-story-controls { padding: 10px 15px; }
+  .network-story-source { width: 100%; margin-left: 0; }
   .project-link, .detail-tabs button, .timeline-reset { min-height: 44px; }
   .network-canvas-frame svg { height: 310px; }
   .network-footer { padding: 13px 15px; }

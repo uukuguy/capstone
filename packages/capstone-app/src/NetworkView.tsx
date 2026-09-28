@@ -44,11 +44,12 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
                               nextTask = false, unavailable = false,
-                              previewUnavailable = false }: {
+                              previewUnavailable = false, historyFocusIds = [] }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
   nextTask?: boolean;
   unavailable?: boolean; previewUnavailable?: boolean
+  historyFocusIds?: string[]
 }) {
   const [camera, setCamera] = useState<Camera>(FULL)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -72,6 +73,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
     return observed.length ? { min: Math.min(...observed), max: Math.max(...observed) } : null
   }, [geometry, layer])
   const focusIds = useMemo(() => layer ? nextTask ? layer.next_focus_ids : layer.focus_ids : [], [layer, nextTask])
+  const historyIds = useMemo(() => new Set(historyFocusIds), [historyFocusIds])
   const focusBuses = useMemo(() => new Set(geometry?.branches.filter((branch) =>
     focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [geometry, focusIds])
 
@@ -180,8 +182,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             if (!from || !to) return null
             const value = values.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
+            const historical = !highlighted && historyIds.has(branch.id)
             const color = value === undefined ? highlighted ? '#187b78' :
-              branch.kind === 'link' ? '#718ca0' : '#829c98'
+              historical ? '#91aaa6' : branch.kind === 'link' ? '#718ca0' : '#829c98'
               : valueColor(layer!.overlay!.metric, value, loadingRange)
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
             const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
@@ -190,7 +193,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 stroke="transparent" strokeWidth={Math.max(4, (dense ? 7 : 20) * visualScale)} />
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
+                stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
@@ -211,20 +214,21 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
           {nodes.map((bus) => {
             const value = values.get(bus.id)
             const highlighted = focusIds.includes(bus.id)
+            const historical = !highlighted && historyIds.has(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
               {schematic ? <line className="network-busbar"
                 x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
-                stroke={value === undefined ? highlighted ? '#0d7771' : '#344c53'
+                stroke={value === undefined ? highlighted ? '#0d7771' : historical ? '#91aaa6' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
                 strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
                 : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
                   r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
                   fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                  stroke={highlighted ? '#0d7771' : '#344c53'}
+                  stroke={highlighted ? '#0d7771' : historical ? '#91aaa6' : '#344c53'}
                   strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
-              {(nodes.length <= 25 || highlighted || focusBuses.has(bus.id) || hovered === bus.id) &&
+              {(nodes.length <= 25 || highlighted || historical || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
                   className="network-node-label"
                   style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{bus.label}</text>}

@@ -1,5 +1,5 @@
 import type {
-  Catalog, CommittedTurn, CreatedSession, NetworkDiagram, NetworkView, SessionEvent, SessionStatus,
+  Catalog, CommittedTurn, CreatedSession, NetworkDiagram, NetworkStory, NetworkView, SessionEvent, SessionStatus,
 } from './types'
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
@@ -178,6 +178,19 @@ export class CapstoneClient {
       }
     }
     throw new Error('电网视图读取未完成')
+  }
+
+  async networkStory(sessionId: string, signal?: AbortSignal): Promise<NetworkStory> {
+    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network-story`, { signal })
+      } catch (cause) {
+        const retryable = cause instanceof ApiError && [502, 503, 504].includes(cause.status)
+        if (!retryable || attempt + 1 === READ_ATTEMPTS) throw cause
+        await waitForRetry(Math.min(300 * 2 ** attempt, 1500), signal)
+      }
+    }
+    throw new Error('电气拓扑故事读取未完成')
   }
 
   async report(sessionId: string): Promise<string> {

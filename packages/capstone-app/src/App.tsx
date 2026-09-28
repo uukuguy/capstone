@@ -7,7 +7,7 @@ import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
   rememberSelection, rememberSession } from './sessionMemory'
 import type { ApplicationCard, CaseCard, Catalog, CommittedTurn, NetworkDiagram,
-  NetworkView as NetworkViewData, SessionStatus } from './types'
+  NetworkStory, NetworkView as NetworkViewData, SessionStatus } from './types'
 
 type Selection = { applicationId: string; caseId: string }
 type DetailTab = 'overview' | 'evidence'
@@ -148,6 +148,7 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
                     onSubmit, onClose, onAuto, onRestart, onStopAuto, onEvidence,
                     networkView, previewDiagram, previewUnavailable,
                     networkFocusKey, networkUnavailable, nextNetworkTask,
+                    networkStory, selectedStoryOrdinal, onStoryStep,
                     report, result, runDurationMs }: {
   caseCard: CaseCard; status: SessionStatus | null;
   turns: Record<number, CommittedTurn>; progress: string | null; actionPending: boolean;
@@ -157,6 +158,8 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
   networkView: NetworkViewData | null; previewDiagram: NetworkDiagram | null;
   previewUnavailable: boolean; networkFocusKey: string;
   networkUnavailable: boolean; nextNetworkTask: boolean;
+  networkStory: NetworkStory | null; selectedStoryOrdinal: number | null;
+  onStoryStep: (ordinal: number) => void;
   report: string | null; result: unknown; runDurationMs: number | null
 }) {
   const next = (status?.completed_turns ?? 0) + 1
@@ -168,7 +171,17 @@ function RunPanel({ caseCard, status, turns, progress, actionPending, automatic,
     <NetworkView view={networkView} previewDiagram={previewDiagram}
       modelName={caseCard.model_origin} focusKey={networkFocusKey}
       unavailable={networkUnavailable} previewUnavailable={previewUnavailable}
-      nextTask={nextNetworkTask} />
+      nextTask={nextNetworkTask}
+      historyFocusIds={networkStory?.steps.find((step) => step.ordinal === selectedStoryOrdinal)?.history_focus_ids || []} />
+    {networkStory && <div className="network-story-controls" aria-label="拓扑故事步骤">
+      <span className="network-story-label">完成后回看</span>
+      {networkStory.steps.map((step) => <button type="button" key={step.ordinal}
+        className={step.ordinal === selectedStoryOrdinal ? 'is-selected' : ''}
+        onClick={() => onStoryStep(step.ordinal)}>
+        步骤 {step.ordinal}
+      </button>)}
+      <span className="network-story-source">{networkStory.plan_source === 'llm' ? '重点由模型规划' : '按权威排序展示'}</span>
+    </div>}
       <div className="timeline-heading"><div><span className="eyebrow">ANALYSIS / WORKFLOW</span><h2>推演过程</h2></div>
       <div className="timeline-heading-actions">{(status?.state === 'completed' || status?.state === 'failed' ||
         status?.state === 'interrupted') &&
@@ -388,6 +401,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   const [evidencePending, setEvidencePending] = useState(false)
   const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
   const [previewUnavailable, setPreviewUnavailable] = useState(false)
+  const [networkStory, setNetworkStory] = useState<NetworkStory | null>(null)
+  const [selectedStoryOrdinal, setSelectedStoryOrdinal] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
   const [restoring, setRestoring] = useState(() =>
     Boolean(readRun(app.application_id, caseCard.case_id)?.sessionId))
@@ -464,6 +479,7 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     if (forgetStored) forgetRun(app.application_id, caseCard.case_id)
     setSessionId(null); setStatus(null); setTurns({}); setProgress(null)
     setReport(null); setResult(null); setEvidenceRef(null); setEvidence(null); setTab('overview')
+    setNetworkStory(null); setSelectedStoryOrdinal(null)
     runStartedAt.current = null; stepStartedAt.current = null
     measuredDurationMs.current = 0; measuredStepCount.current = 0
     closingStartedAt.current = null; setRunDurationMs(null)
@@ -512,10 +528,20 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     let cursor = 0
     const sid = sessionId
     async function complete() {
-      const outcomes = await Promise.allSettled([client!.report(sid), client!.result(sid)])
+      const storyRequest = typeof (client as Partial<CapstoneClient>).networkStory === 'function'
+        ? client!.networkStory(sid, controller.signal)
+        : Promise.reject(new Error('拓扑故事接口不可用'))
+      const outcomes = await Promise.allSettled([
+        client!.report(sid), client!.result(sid), storyRequest,
+      ])
       if (controller.signal.aborted) return
       if (outcomes[0].status === 'fulfilled') setReport(outcomes[0].value)
       if (outcomes[1].status === 'fulfilled') setResult(outcomes[1].value)
+      if (outcomes[2].status === 'fulfilled') {
+        setNetworkStory(outcomes[2].value)
+        const steps = outcomes[2].value.steps
+        setSelectedStoryOrdinal(steps.length ? steps[steps.length - 1].ordinal : null)
+      }
     }
     async function run() {
       while (!controller.signal.aborted) {
@@ -728,8 +754,15 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
     finally { setEvidencePending(false) }
   }
 
-  const networkView: NetworkViewData | null = null
-  const networkFocusKey = `${sessionId ?? 'idle'}:static:${status?.state ?? 'new'}`
+  const selectedStory = networkStory?.steps.find((step) => step.ordinal === selectedStoryOrdinal) ?? null
+  const networkView: NetworkViewData | null = selectedStory && networkStory ? {
+    schema: 'capstone-network-view/2.0', ordinal: selectedStory.ordinal,
+    diagram: networkStory.diagram,
+    layer: { schema: 'capstone-network-layer/1.0', ordinal: selectedStory.ordinal,
+      diagram_ref: selectedStory.diagram_ref, model_revision: selectedStory.model_revision,
+      focus_ids: selectedStory.current_focus_ids, next_focus_ids: [], overlay: selectedStory.overlay },
+  } : null
+  const networkFocusKey = `${sessionId ?? 'idle'}:${selectedStoryOrdinal ?? 'preview'}:${status?.state ?? 'new'}`
   const nextNetworkTask = false
   const networkUnavailable = false
 
@@ -743,6 +776,8 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
         networkView={networkView} previewDiagram={previewDiagram}
         previewUnavailable={previewUnavailable} networkFocusKey={networkFocusKey}
         networkUnavailable={networkUnavailable} nextNetworkTask={nextNetworkTask}
+        networkStory={networkStory} selectedStoryOrdinal={selectedStoryOrdinal}
+        onStoryStep={setSelectedStoryOrdinal}
         report={report} result={result}
         runDurationMs={runDurationMs}
         onStart={() => void start()} onSubmit={() => void submit()} onClose={() => void close()}
