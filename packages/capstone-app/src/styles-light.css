@@ -15,7 +15,8 @@
 }
 
 body, .app-shell { background: #eef3f1; color: var(--text); }
-.topbar { max-width: 1280px; min-height: 58px; position: sticky; top: 0; z-index: 10;
+.topbar { max-width: 1280px; min-height: 58px; position: sticky; top: 10px; z-index: 10;
+  margin: 10px auto 0;
   background: #fff; border-color: #dbe5e1; box-shadow: 0 1px 12px #243e3910; }
 .brand-name { color: #132e33; font-size: 13px; }
 .brand-divider { background: #cedbd7; }
@@ -47,10 +48,10 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .action-buttons { display: flex !important; flex-direction: row; align-items: center; gap: 9px; }
 .action-buttons .auto-button { min-width: 0; width: auto; padding: 0 16px; justify-content: center; }
 
-.workspace { max-width: 1280px; min-height: calc(100vh - 58px);
+.workspace { max-width: 1280px; min-height: calc(100vh - 68px);
   grid-template-columns: 205px minmax(0, 1fr) 205px; }
-.catalog-panel, .detail-panel { background: #f8faf9; position: sticky; top: 58px;
-  height: calc(100vh - 58px); overflow-y: auto; align-self: start; }
+.catalog-panel, .detail-panel { background: #f8faf9; position: sticky; top: 68px;
+  height: calc(100vh - 68px); overflow-y: auto; align-self: start; }
 .catalog-panel, .detail-panel { border-color: #dce6e2; }
 .catalog-panel { padding: 22px 12px 24px; }
 .detail-panel > .section-heading { padding: 22px 15px 16px; }
@@ -67,7 +68,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .case-overview-fact { border-color: #dce6e1; }
 .status-card { padding: 15px; }
 .detail-metrics > div { padding: 10px; }
-.workspace-center { background: #eef3f1; --content-gutter: clamp(24px, 3vw, 48px); padding-top: 8px; }
+.workspace-center { background: #eef3f1; --content-gutter: clamp(24px, 3vw, 48px); }
 .section-heading h2, .timeline-heading h2 { color: #173438; font-size: 17px; }
 .count-pill { color: #216f67; border-color: #b8d2c8; background: #edf7f2; }
 .panel-intro { color: #607578; font-size: 9px; line-height: 1.6; margin: 14px 0 18px; }
@@ -317,7 +318,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 }
 
 @media (max-width: 680px) {
-  .topbar { position: relative; min-height: 62px; }
+  .topbar { position: relative; top: auto; min-height: 62px; }
   .run-action-bar { position: static; }
   .brand-name { font-size: 12px; }
   .primary-button, .secondary-button { min-height: 45px; font-size: 14px; }
