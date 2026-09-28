@@ -188,9 +188,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
             const branchDx = to.x - from.x, branchDy = to.y - from.y
             const branchLength = Math.hypot(branchDx, branchDy)
             const transformerNearBus = transformer && nodes.some((bus) =>
-              Math.hypot(bus.x - centerX, bus.y - centerY) < 16 * symbolScale)
+              Math.hypot(bus.x - centerX, bus.y - centerY) < 24 * symbolScale)
             const side = (branch.id.charCodeAt(0) || 0) % 2 === 0 ? 1 : -1
-            const transformerOffset = transformerNearBus && branchLength > 0 ? 14 * symbolScale : 0
+            const transformerOffset = transformerNearBus && branchLength > 0 ? 30 * symbolScale : 0
             const transformerCenterX = centerX + (branchLength ? -branchDy / branchLength : 0) * transformerOffset * side
             const transformerCenterY = centerY + (branchLength ? branchDx / branchLength : 0) * transformerOffset * side
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
