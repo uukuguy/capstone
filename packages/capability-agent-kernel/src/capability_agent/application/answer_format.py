@@ -35,9 +35,8 @@ def parse_answer_bundle(value: str) -> AnswerBundle:
     fenced = re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```", raw, re.IGNORECASE)
     if fenced is not None:
         candidate = fenced.group(1).strip()
-    try:
-        decoded = json.loads(candidate)
-    except json.JSONDecodeError:
+    decoded = _decode_json_object(candidate)
+    if decoded is None:
         return AnswerBundle(raw, None, ("answer_bundle_unavailable",))
     if not isinstance(decoded, dict) or not isinstance(decoded.get("answer"), str):
         return AnswerBundle(raw, None, ("answer_bundle_invalid",))
@@ -48,6 +47,27 @@ def parse_answer_bundle(value: str) -> AnswerBundle:
     if not isinstance(summary, str) or not summary.strip() or len(summary.strip()) > _MAX_SUMMARY_CODEPOINTS:
         return AnswerBundle(answer, None, ("answer_summary_invalid",))
     return AnswerBundle(answer, summary.strip(), ())
+
+
+def _decode_json_object(value: str) -> dict[str, object] | None:
+    """Decode a JSON answer bundle, tolerating a provider preamble."""
+
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        decoded = None
+        for index, character in enumerate(value):
+            if character != "{":
+                continue
+            try:
+                candidate, _ = decoder.raw_decode(value[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                decoded = candidate
+                break
+    return decoded if isinstance(decoded, dict) else None
 
 
 _PLANNING_PREFIX = re.compile(

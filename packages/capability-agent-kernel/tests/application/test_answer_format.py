@@ -23,6 +23,17 @@ def test_parse_answer_bundle_accepts_fenced_json() -> None:
     assert result.diagnostic_codes == ()
 
 
+def test_parse_answer_bundle_extracts_json_after_provider_preamble() -> None:
+    result = parse_answer_bundle(
+        "I'll open the analysis guide first."
+        '{"answer":"已打开登记网络。","summary":"已完成网络核对。"}'
+    )
+
+    assert result.answer == "已打开登记网络。"
+    assert result.summary == "已完成网络核对。"
+    assert result.diagnostic_codes == ()
+
+
 def test_parse_answer_bundle_keeps_legacy_text_with_fallback_diagnostic() -> None:
     result = parse_answer_bundle("旧版正式回答。")
 
