@@ -15,8 +15,8 @@
 }
 
 body, .app-shell { background: #eef3f1; color: var(--text); }
-.topbar { max-width: 1280px; min-height: 58px; position: sticky; top: 10px; z-index: 10;
-  margin: 10px auto 0;
+.topbar { max-width: 1280px; min-height: 58px; position: sticky; top: 4px; z-index: 10;
+  margin: 4px auto 0;
   background: #fff; border-color: #dbe5e1; box-shadow: 0 1px 12px #243e3910; }
 .brand-name { color: #132e33; font-size: 13px; }
 .brand-divider { background: #cedbd7; }
@@ -48,10 +48,10 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .action-buttons { display: flex !important; flex-direction: row; align-items: center; gap: 9px; }
 .action-buttons .auto-button { min-width: 0; width: auto; padding: 0 16px; justify-content: center; }
 
-.workspace { max-width: 1280px; min-height: calc(100vh - 68px);
+.workspace { max-width: 1280px; min-height: calc(100vh - 62px);
   grid-template-columns: 205px minmax(0, 1fr) 205px; }
-.catalog-panel, .detail-panel { background: #f8faf9; position: sticky; top: 68px;
-  height: calc(100vh - 68px); overflow-y: auto; align-self: start; }
+.catalog-panel, .detail-panel { background: #f8faf9; position: sticky; top: 62px;
+  height: calc(100vh - 62px); overflow-y: auto; align-self: start; }
 .catalog-panel, .detail-panel { border-color: #dce6e2; }
 .catalog-panel { padding: 22px 12px 24px; }
 .detail-panel > .section-heading { padding: 22px 15px 16px; }
