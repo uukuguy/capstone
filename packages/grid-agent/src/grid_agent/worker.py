@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from capstone_agent.worker import PreparedWorker, read_verified_reference, serve_application
+from capstone_agent.prompt_hints import build_case_prompt_decorator
 from capability_agent.runtime.catalog import ProviderCatalog
 
 from grid_agent.application.composition import build_generic_application
@@ -223,6 +224,47 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         raise ValueError("model is invalid")
     from grid_agent.cli.app import _generic_runtime_environment, _runtime_environment
 
+    prompt_decorator = None
+    if provider_case_id is not None:
+        case_document = json.loads(
+            (ROOT / "validation" / "application" / f"{provider_case_id}.json")
+            .read_text(encoding="utf-8")
+        )
+        questions = case_document.get("questions", ())
+        instructions = tuple(
+            item.get("text") for item in questions
+            if isinstance(item, Mapping) and isinstance(item.get("text"), str)
+        )
+        workflows = tuple(
+            tuple(
+                step.get("capability")
+                for step in item.get("steps", ())
+                if isinstance(step, Mapping) and isinstance(step.get("capability"), str)
+            )
+            for item in questions
+            if isinstance(item, Mapping)
+        )
+        model_id = next(
+            (
+                step.get("arguments", {}).get("model_id")
+                for item in questions
+                if isinstance(item, Mapping)
+                for step in item.get("steps", ())
+                if isinstance(step, Mapping)
+                and step.get("capability") == "context.open"
+                and isinstance(step.get("arguments"), Mapping)
+                and isinstance(step["arguments"].get("model_id"), str)
+            ),
+            provider_case_id,
+        )
+        prompt_decorator = build_case_prompt_decorator(
+            application_id=APPLICATION_ID,
+            case_id=provider_case_id,
+            model_id=model_id,
+            instructions=instructions,
+            workflows=workflows,
+        )
+
     application = build_generic_application(
         APPLICATION_ID, provider=provider, model=model,
         provider_catalog=ProviderCatalog.load(ROOT / "configs/llm-providers.json"),
@@ -230,6 +272,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
         run_id=run_id,
         environment=_generic_runtime_environment(_runtime_environment(ROOT)),
         semantic_event_observer=observer,
+        prompt_decorator=prompt_decorator,
     )
     def completion_projector(context: Any) -> dict[str, object] | None:
         if context.workspace is None or provider_case_id is None:

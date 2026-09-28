@@ -1332,8 +1332,63 @@ def test_runner_text_mode_keeps_provider_question_unchanged(tmp_path: Path) -> N
     )
 
     application.run(ApplicationRequest(application_id="fixture-app", questions=("原始问题。",)))
-
     assert "question:原始问题。" in events
+
+
+def test_runner_decorates_provider_prompt_without_changing_recorded_instruction(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    transport = FakeTransport(
+        events,
+        answers=['{"answer":"回答。","summary":"已完成。"}'],
+    )
+    binding = _valid_binding()
+    profile = SimpleNamespace(
+        manifest=SimpleNamespace(
+            application_id="fixture-app", version="1.0.0",
+            result_schema="capability-agent-output/1.0",
+        ),
+        domains=(binding,),
+        output_renderer=SimpleNamespace(render=lambda result: result),
+        report_shell=SimpleNamespace(),
+        application_policy=SimpleNamespace(load=lambda: ""),
+        acceptance_profile=SimpleNamespace(),
+    )
+    controller = FakeController(events)
+    application = AgentApplication(
+        profile=profile,
+        prepared_application=SimpleNamespace(profile=profile, bindings={"alpha": binding}),
+        workspace_root=tmp_path,
+        provider_catalog=SimpleNamespace(load=lambda: object()),
+        catalog=object(),
+        provider_factory=lambda **_: transport,
+        turn_controller=controller,
+        prompt_decorator=lambda instruction, ordinal: (
+            f"<case-context step=\"{ordinal}\">\n{instruction}\n</case-context>"
+        ),
+        domain_output_builder=lambda **_: ValidatedDomainOutput(
+            schema="alpha-output/1.0", status="completed", payload={},
+        ),
+    )
+
+    outcome = application.run(
+        ApplicationRequest(
+            application_id="fixture-app", questions=("原始问题。",),
+            response_mode="answer_bundle",
+        )
+    )
+
+    assert outcome.status == "completed", outcome.error
+    assert any(
+        event.startswith("question:<case-context step=\"1\">")
+        for event in events
+    )
+    assert any("原始问题。" in event for event in events if event.startswith("question:"))
+    assert controller.submissions[0]["answer_output"] == "回答。"
+    assert "<case-context step=\"1\">" in next(
+        event for event in events if event.startswith("question:")
+    )
 
 
 def test_runner_performs_all_preflight_steps_before_provider_start(tmp_path: Path) -> None:

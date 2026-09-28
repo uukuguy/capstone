@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from capstone_agent.application import EmptyCredentialBroker
+from capstone_agent.prompt_hints import build_case_prompt_decorator
 from capstone_agent.runtime import build_runtime_host, load_runtime_environment
 from capstone_agent.worker import PreparedWorker, read_verified_reference, serve_application
 from capability_agent.application.composition import prepare_application
@@ -305,6 +306,17 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
             environment=runtime_environment,
             runtime_host=build_runtime_host(ROOT, profile, runtime_environment),
             semantic_event_observer=observed,
+            prompt_decorator=(
+                build_case_prompt_decorator(
+                    application_id=APPLICATION_ID,
+                    case_id=str(provider_case_id),
+                    model_id=provider_model_id or str(provider_case_id),
+                    instructions=tuple(case["introduction"]["demo_instructions"]),
+                    workflows=tuple(tuple(step for step in workflow) for workflow in case["demo_workflow"]),
+                )
+                if isinstance(provider_case_id, str) and isinstance(provider_case, Mapping)
+                else None
+            ),
         )
         def completion_projector(context: Any) -> dict[str, object] | None:
             current = None

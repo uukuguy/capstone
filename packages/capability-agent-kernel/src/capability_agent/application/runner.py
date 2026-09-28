@@ -473,6 +473,7 @@ class AgentApplication:
         runtime_host: RuntimeHost | None = None,
         runtime_paths: RuntimePaths | None = None,
         semantic_event_observer: Callable[[Mapping[str, object]], None] | None = None,
+        prompt_decorator: Callable[[str, int], str] | None = None,
         completion_projector: CompletionProjector | None = None,
     ) -> None:
         self.profile = profile
@@ -516,6 +517,9 @@ class AgentApplication:
         self.runtime_host = runtime_host
         self.runtime_paths = runtime_paths
         self.semantic_event_observer = semantic_event_observer
+        if prompt_decorator is not None and not callable(prompt_decorator):
+            raise ApplicationConfigurationError("prompt decorator is not callable")
+        self.prompt_decorator = prompt_decorator
         self.completion_projector = completion_projector
         self._prepared_for_run = False
         self._diagnostic_workspace: ApplicationWorkspace | None = None
@@ -624,6 +628,8 @@ class AgentApplication:
                     answer_value, projections = _call_prompt(
                         transport,
                         question,
+                        ordinal=ordinal,
+                        prompt_decorator=self.prompt_decorator,
                         projector=projector,
                         turn_id=handle.turn_id,
                         response_mode=request.response_mode,
@@ -2152,6 +2158,8 @@ def _call_prompt(
     transport: object,
     question: str,
     *,
+    ordinal: int = 1,
+    prompt_decorator: Callable[[str, int], str] | None = None,
     projector: object | None,
     turn_id: str | None,
     response_mode: Literal["text", "answer_bundle"] = "text",
@@ -2186,8 +2194,14 @@ def _call_prompt(
             )
 
     prompt = question
+    if prompt_decorator is not None:
+        prompt = prompt_decorator(question, ordinal)
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ApplicationConfigurationError(
+                "prompt decorator returned an invalid prompt"
+            )
     if response_mode == "answer_bundle":
-        prompt = f"{question}\n\n{ANSWER_BUNDLE_INSTRUCTION}"
+        prompt = f"{prompt}\n\n{ANSWER_BUNDLE_INSTRUCTION}"
     answer = method(
         prompt,
         on_semantic_event=on_event,
