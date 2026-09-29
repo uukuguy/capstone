@@ -1193,3 +1193,4 @@ _Recovered pre-merge mainline entries._
 - 19:55 确认统一 ThreadSnapshot + EventPage 读模型，保证 CLI/SDK/API/Web/TUI 共享业务状态语义
 - 19:56 提交公共读模型决策，统一快照、增量事件、断线恢复与历史读取 [75fa18a]
 - 19:58 确认统一控制命令协议：幂等键与期望序号校验，accepted/rejected 回执，终态统一进入事件流
+- 19:59 提交统一控制命令决策，保证取消、重试、模型切换和 Run 关闭的跨客户端一致性 [dd41cf3]
