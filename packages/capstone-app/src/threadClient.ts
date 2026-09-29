@@ -1,0 +1,47 @@
+import {
+  parseCommandReceipt, parseEventPage, parseThreadSnapshot,
+  type CommandReceipt, type EventPage, type ThreadSnapshot,
+} from './threadProtocol'
+
+export type ThreadCommand = {
+  schema: 'capstone-command/1'
+  command_id: string
+  idempotency_key: string
+  thread_id: string
+  run_id?: string
+  kind: string
+  expected_event_seq: number
+  payload: Record<string, unknown>
+}
+
+export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' | 'offline'
+
+export interface ThreadTransport {
+  getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
+  readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
+  sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
+  readonly connectionState?: ThreadTransportState
+}
+
+export class CapstoneThreadClient {
+  constructor(private readonly transport: ThreadTransport) {}
+
+  get connectionState(): ThreadTransportState {
+    return this.transport.connectionState ?? 'live'
+  }
+
+  async load(threadId: string, signal?: AbortSignal): Promise<ThreadSnapshot> {
+    return parseThreadSnapshot(await this.transport.getSnapshot(threadId, signal))
+  }
+
+  async readAfter(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<EventPage> {
+    return parseEventPage(
+      await this.transport.readEvents(threadId, afterEventSeq, signal),
+      afterEventSeq,
+    )
+  }
+
+  async send(command: ThreadCommand, signal?: AbortSignal): Promise<CommandReceipt> {
+    return parseCommandReceipt(await this.transport.sendCommand(command, signal))
+  }
+}
