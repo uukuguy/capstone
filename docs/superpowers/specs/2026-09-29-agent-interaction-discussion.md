@@ -226,6 +226,8 @@ ToolSourceRef
 
 **Proposed bidirectional interaction.** Thread events may focus/highlight validated model elements and show admitted overlays. Pan, zoom, hover, and ordinary selection stay local. Explicit actions such as “ask about this element”, “analyze this element”, and model switch create structured commands. Selecting a historical step moves a replay cursor without rerunning calculations. Agent-driven focus should respect manual exploration; a follow-analysis control can resume it.
 
+**Proposed grid-to-Thread reference.** An element action should carry `model_context_id`, exact `model_revision`, `element_kind`, and `element_id`; it should not carry screen coordinates or a rendered image identifier. Asking about an element can become a structured Turn input, while analysis and model switching use the common command envelope. A historical page remains read-only until an explicit model switch or an explicitly supported historical-reference request, so selecting a historical bus cannot silently change the active Context.
+
 **Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
