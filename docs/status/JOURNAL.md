@@ -1289,3 +1289,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 增加 Web 侧严格 Thread protocol parser，使浏览器复用 capstone-thread/1 快照、事件页和 receipt 边界 [9ad0b12]
 - 2026-09-30 增加 transport-facing CapstoneThreadClient，验证浏览器边界响应并保持命令幂等键由调用方控制 [e608044]
 - 2026-09-30 增加 ThreadProjectionStore 与 fixture transport，统一光标追赶、历史页本地视图、严格重同步和幂等回执 [c27016f]
+- 2026-09-30 关闭 Thread client adapter 计划并更新恢复 baton，下一步进入 fixture-backed Web/TUI 原型 [2ac0da4]
