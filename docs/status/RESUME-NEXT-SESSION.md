@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-29 19:52 CST. **Session remains active — not a final handoff.** The prior session's baton was recovered from the journal.
+> Updated: 2026-09-30 00:49 CST. **Session remains active — not a final handoff.** The prior session's baton was recovered from the journal.
 
 ## TL;DR
 
@@ -19,7 +19,8 @@
 - Pure Pi/DSH parity is accepted as interaction-only: shared gateway/control/events/replay, empty capability Context by default, no Domain Pack/Authority business facts, and explicit `runtime_mode`/`authority_mode` markers.
 - Pi and DSH are replaceable pure harness runtimes from Thread's perspective; `HarnessPiClient` and an empty `HarnessDSHClient` remain comparison paths. `capstone-harness` may consume their events, normalize and enrich them, then serve CLI/SDK/API/Web projections; Thread is only one consumer.
 - A case is a reusable multi-turn instruction batch, not Thread state. A Thread is centered on a current grid model, supports ordinary and model-focused professional dialogue, and can switch that model; v1 has one current model at a time, with multi-model context deferred.
-- Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves the concrete model revision at creation or first run and binds that revision to subsequent result/evidence events.
+- Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves and pins the concrete model revision at Thread creation and binds it to subsequent result/evidence events.
+- Thread creation now resolves and pins the exact IEEE-39 model revision and implementation family; Profile handles, Provider sessions, and tool catalog are prepared lazily before first execution. Failed revision resolution rejects creation; later preparation failure preserves the Thread for retry.
 - Users select registered Grid Models, not internal capability profiles. The model catalog resolves implementation family plus Authority revision, then Capstone resolves a compatible `ModelCapabilityProfile`. One Thread/Run may switch between pandapower-backed and PyPSA-backed models; each switch starts a new Model Context with isolated tools and evidence.
 - A model implementation may expose multiple candidate `ModelCapabilityProfile` entries. Users enable or disable packages at the Profile/Domain Pack boundary, and a Model Context may hold several selected packages. Individual tool switches are unnecessary; semantic overlap is diagnosed by professionals during use. Model defaults may provide a common package set, and selection revisions apply at Turn boundaries.
 - Tool provenance is mandatory in public activity/evidence projections: tool identity/name, source profile/version, Domain Pack/version when available, implementation family, model context, and selection revision must be visible for troubleshooting.
@@ -58,7 +59,7 @@
 
 ## Immediate next steps
 
-1. Resolve Thread model revision timing and remaining event taxonomy/snapshot details before implementation planning.
+1. Resolve remaining event taxonomy/snapshot details and ModelContext preparation/release semantics before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.

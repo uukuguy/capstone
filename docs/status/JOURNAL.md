@@ -1198,3 +1198,7 @@ _Recovered pre-merge mainline entries._
 - 20:03 提交确认、取消与部分结果规则，防止取消后输出成为有效答案或证据 [81edf93]
 - 20:05 确认 Pi/DSH 参考路径只做交互对等、业务隔离，并在事件中标记 runtime 与 Authority 模式
 - 20:06 提交 Pi/DSH 参考路径边界，避免 runtime 输出混入电网业务事实与证据 [ab293c8]
+
+## 2026-09-30
+
+- 00:49 确认 Thread 创建时固定 IEEE-39 Authority revision，首次执行前再准备 Profile/Provider 运行资源
