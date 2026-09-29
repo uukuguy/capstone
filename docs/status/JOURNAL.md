@@ -1141,3 +1141,4 @@ _Recovered pre-merge mainline entries._
 - 10:49 创建并验证 Railway `capstone-cloud-dev` 的 API、worker、PostgreSQL、私有 bucket 与 App，推送 `d262aed` 后三项服务按同一源码修订部署成功 [f1eef11]
 - 11:05 固化本地、cloud-dev、用户试用三阶段研发晋级架构，并将强制约束写入 AGENTS，移除 README 内部部署细节 [cdf6057]
 - 11:55 刷新 CURRENT-STATE 结构快照，纳入三阶段研发发布边界和规范文档索引 [6728960]
+- 12:29 按确认草稿重写下一会话交接 baton，记录架构规范、云端验证边界与下一步 [cc3ef9d]
