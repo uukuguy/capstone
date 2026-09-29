@@ -28,11 +28,11 @@
 - Produces `parseThreadSnapshot`, `parseEventPage`, and `parseCommandReceipt`.
 - Produces `ThreadProtocolError` and the public types `ThreadSnapshot`, `EventEnvelope`, `EventPage`, and `CommandReceipt`.
 
-- [ ] **Step 1: Write failing parser tests**
-- [ ] **Step 2: Run `npm test --prefix packages/capstone-app -- --run src/threadProtocol.test.ts` and verify the missing-module failure**
-- [ ] **Step 3: Implement strict field, ID, sequence, timestamp, and JSON payload validation matching Python `capstone_agent.thread_protocol`**
-- [ ] **Step 4: Run the focused parser tests and verify GREEN**
-- [ ] **Step 5: Commit `feat: add browser thread protocol parser`**
+- [x] **Step 1: Write failing parser tests**
+- [x] **Step 2: Run `npm test --prefix packages/capstone-app -- --run src/threadProtocol.test.ts` and verify the missing-module failure**
+- [x] **Step 3: Implement strict field, ID, sequence, timestamp, and JSON payload validation matching Python `capstone_agent.thread_protocol`**
+- [x] **Step 4: Run the focused parser tests and verify GREEN**
+- [x] **Step 5: Commit `feat: add browser thread protocol parser`**
 
 ### Task 2: Add the transport-facing `CapstoneThreadClient`
 
@@ -48,11 +48,11 @@
 - `CapstoneThreadClient.readAfter(threadId, afterEventSeq) -> Promise<EventPage>`
 - `CapstoneThreadClient.send(command) -> Promise<CommandReceipt>`
 
-- [ ] **Step 1: Write failing tests for response validation, cursor forwarding, and idempotency-key reuse**
-- [ ] **Step 2: Run the focused tests and verify RED**
-- [ ] **Step 3: Implement the adapter with no automatic new command key**
-- [ ] **Step 4: Run focused tests and verify GREEN**
-- [ ] **Step 5: Commit `feat: add capstone thread client adapter`**
+- [x] **Step 1: Write failing tests for response validation, cursor forwarding, and idempotency-key reuse**
+- [x] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 3: Implement the adapter with no automatic new command key**
+- [x] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 5: Commit `feat: add capstone thread client adapter`**
 
 ### Task 3: Add the projection store and fixture transport
 
@@ -67,11 +67,11 @@
 - `ThreadProjectionStore.state` exposes `connection`, `snapshot`, `eventSeq`, `resyncRequired`, `pendingCommands`, and `viewedGridPageId`.
 - `createFixtureTransport(fixture)` replays a checked-in fixture for tests and prototype screens only.
 
-- [ ] **Step 1: Write failing tests for load, catch-up, historical viewed page, gap-to-resync, and command receipt reconciliation**
-- [ ] **Step 2: Run focused tests and verify RED**
-- [ ] **Step 3: Implement minimal store with client-local viewed page and no business-state mutation from page navigation**
-- [ ] **Step 4: Run focused tests and all App tests**
-- [ ] **Step 5: Commit `feat: add thread projection store`**
+- [x] **Step 1: Write failing tests for load, catch-up, historical viewed page, gap-to-resync, and command receipt reconciliation**
+- [x] **Step 2: Run focused tests and verify RED**
+- [x] **Step 3: Implement minimal store with client-local viewed page and no business-state mutation from page navigation**
+- [x] **Step 4: Run focused tests and all App tests**
+- [x] **Step 5: Commit `feat: add thread projection store`**
 
 ## Completion gate
 
