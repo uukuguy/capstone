@@ -1222,3 +1222,4 @@ _Recovered pre-merge mainline entries._
 - 01:16 确认稳定错误分类与跨客户端投影，区分命令、Context、Attempt、Authority 和 Run 级失败
 - 01:17 提交稳定错误类决策，统一 retryable、关联对象、最后安全序号与客户端动作提示 [4e21ebb]
 - 01:19 确认意图分类只做路由，工具 allowlist、admission 与声明绑定作为不可绕过的硬门控
+- 01:20 提交意图路由硬门控原则，防止分类误判直接造成工具越权或专业结论污染 [f5a4faf]
