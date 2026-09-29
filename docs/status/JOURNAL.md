@@ -1278,3 +1278,5 @@ _Recovered pre-merge mainline entries._
 - 08:19 完成场景级深评，补充 Workspace 状态机、Thread 导航、输入冻结、Case 预检、回放恢复与大电网可读性 [d5aac61]
 - 08:26 更新恢复 baton，记录深评后的 UI/UX 状态与三个实现验证门 [bc8b65f]
 - 05:08 CST（实际系统时间）撤回过早通过结论，记录八项交互冲突及布局缺口，恢复设计待完善状态 [d34c29e]
+- 2026-09-30 继续以现有 App 作为视觉基线完成结构评审；保留其深色蓝绿色、网络投影、证据卡片与时间线，明确 Thread 双栏重组、模型页与会话优先级 [f615bb9]
+- 2026-09-30 新增 Web/TUI 几何线框、跨客户端动作矩阵、活跃 Attempt 控制通道、历史页/回放/恢复/Case 阻塞及 headless approval walkthrough；同步将视觉 MASTER 改为产品化草案 [f615bb9]

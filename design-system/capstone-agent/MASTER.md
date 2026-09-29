@@ -8,8 +8,10 @@
 
 **Project:** Capstone Agent
 **Generated:** 2026-09-30 04:55:32
-**Category:** RPA / Automation Dashboard
-**Design Dials:** Motion 4/10 (Standard) | Density 7/10 (Standard)
+**Category:** Scientific grid operations workspace
+**Design Dials:** Motion 2/10 (restrained) | Density 7/10 (engineering)
+
+> **Product override:** This file is a token draft for the existing Capstone App and the Thread redesign. It is not a generic landing-page recipe. The current App CSS and `docs/superpowers/specs/2026-09-30-capstone-ui-wireframes.md` are the product sources of truth. Hero sections, marketing CTAs, glow effects, and decorative staggered motion do not apply to the Thread workspace.
 
 ---
 
@@ -19,36 +21,32 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#0F172A` | `--color-primary` |
-| On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#1E293B` | `--color-secondary` |
-| On Secondary | `#FFFFFF` | `--color-on-secondary` |
-| Accent/CTA | `#16A34A` | `--color-accent` |
-| On Accent/CTA | `#0F172A` | `--color-on-accent` |
-| Background | `#020617` | `--color-background` |
-| Foreground | `#F8FAFC` | `--color-foreground` |
-| Card | `#0E1223` | `--color-card` |
-| Card Foreground | `#F8FAFC` | `--color-card-foreground` |
-| Muted | `#1A1E2F` | `--color-muted` |
-| Muted Foreground | `#94A3B8` | `--color-muted-foreground` |
-| Border | `#334155` | `--color-border` |
-| Destructive | `#DC2626` | `--color-destructive` |
-| On Destructive | `#FFFFFF` | `--color-on-destructive` |
-| Ring | `#FFFFFF` | `--color-ring` |
+| Primary | `#102126` | `--color-primary` |
+| On Primary | `#E9EFED` | `--color-on-primary` |
+| Secondary | `#13272B` | `--color-secondary` |
+| On Secondary | `#E9EFED` | `--color-on-secondary` |
+| Accent/CTA | `#7CDBC8` | `--color-accent` |
+| On Accent/CTA | `#0A2728` | `--color-on-accent` |
+| Background | `#081216` | `--color-background` |
+| Foreground | `#E9EFED` | `--color-foreground` |
+| Card | `#102126` | `--color-card` |
+| Card Foreground | `#E9EFED` | `--color-card-foreground` |
+| Muted | `#13272B` | `--color-muted` |
+| Muted Foreground | `#98A9A9` | `--color-muted-foreground` |
+| Border | `#20353A` | `--color-border` |
+| Destructive | `#DC9789` | `--color-destructive` |
+| On Destructive | `#081216` | `--color-on-destructive` |
+| Ring | `#7CDBC8` | `--color-ring` |
 
 **Color Notes:** Dark terminal + running green + failed red + queued amber
 
 ### Typography
 
-- **Heading Font:** Fira Code
-- **Body Font:** Fira Sans
-- **Mood:** dashboard, data, analytics, code, technical, precise
-- **Google Fonts:** [Fira Code + Fira Sans](https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap)
-
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
-```
+- **Heading Font:** Inter, with Chinese system fallbacks
+- **Body Font:** Inter, with Chinese system fallbacks
+- **Metadata Font:** SFMono-Regular, Consolas, Liberation Mono, monospace
+- **Mood:** scientific operations, evidence, topology, precise and quiet
+- **External font downloads:** not required; use the existing App stack for deterministic local rendering.
 
 ### Spacing Variables
 
@@ -82,29 +80,29 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #16A34A;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 8px;
+  background: #7CDBC8;
+  color: #0A2728;
+  padding: 10px 17px;
+  border: 1px solid #90E7D4;
+  border-radius: 3px;
   font-weight: 600;
-  transition: all 200ms ease;
+  transition: background 180ms ease;
   cursor: pointer;
 }
 
 .btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  background: #A6F0DF;
 }
 
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #0F172A;
-  border: 2px solid #0F172A;
-  padding: 12px 24px;
-  border-radius: 8px;
+  color: #BFD0C9;
+  border: 1px solid #355357;
+  padding: 10px 17px;
+  border-radius: 3px;
   font-weight: 600;
-  transition: all 200ms ease;
+  transition: border-color 180ms ease, color 180ms ease;
   cursor: pointer;
 }
 ```
@@ -113,17 +111,14 @@
 
 ```css
 .card {
-  background: #020617;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow-md);
-  transition: all 200ms ease;
-  cursor: pointer;
+  background: #102126;
+  border: 1px solid #20353A;
+  border-radius: 3px;
+  padding: 17px 19px;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  border-color: #315C57;
 }
 ```
 
@@ -131,17 +126,19 @@
 
 ```css
 .input {
-  padding: 12px 16px;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  padding: 10px 12px;
+  color: #E9EFED;
+  background: #0C191D;
+  border: 1px solid #20353A;
+  border-radius: 3px;
   font-size: 16px;
-  transition: border-color 200ms ease;
+  transition: border-color 180ms ease;
 }
 
 .input:focus {
-  border-color: #0F172A;
+  border-color: #7CDBC8;
   outline: none;
-  box-shadow: 0 0 0 3px #0F172A20;
+  box-shadow: 0 0 0 3px #7CDBC820;
 }
 ```
 
@@ -154,7 +151,7 @@
 }
 
 .modal {
-  background: white;
+  background: #102126;
   border-radius: 16px;
   padding: 32px;
   box-shadow: var(--shadow-xl);
@@ -166,6 +163,8 @@
 ---
 
 ## Style Guidelines
+
+The page-pattern guidance below applies only to standalone documentation or catalog surfaces. The Thread workspace uses the two-pane geometry and state walkthroughs in `docs/superpowers/specs/2026-09-30-capstone-ui-wireframes.md`; it has no hero section or marketing CTA.
 
 **Style:** Dark Mode (OLED)
 

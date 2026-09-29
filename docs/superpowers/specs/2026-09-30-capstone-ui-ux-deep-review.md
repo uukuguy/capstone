@@ -21,6 +21,28 @@ Thread shell
 
 The current contract lists most individual states but does not define their precedence, the allowed actions in each combination, or which state owns the composer. Without this matrix, Web and TUI implementations will diverge even if they use the same events.
 
+## Existing App baseline assessment
+
+The current App is a useful visual baseline, but it is not yet a Thread UI. The review of `packages/capstone-app/src/App.tsx`, `NetworkView.tsx`, `styles.css`, and the existing session types finds:
+
+### Strengths to carry forward
+
+- The dark blue-green palette, mint accent, monospace metadata, low-radius controls, and restrained borders already give Capstone a coherent engineering identity.
+- `NetworkView` has a real projection boundary: fit/zoom/pan/focus, keyboard handling, `role="img"`, a legend, omitted-count messaging, and explicit unavailable states.
+- The existing timeline, status LEDs, answer cards, reference chips, and report/evidence details provide a good visual vocabulary for Attempt progress and admitted evidence.
+- The top bar and compact brand mark are recognizable and should be retained unless a measured accessibility or density problem requires change.
+
+### Structural gaps to correct
+
+- `CatalogPanel` makes the Case library the primary navigation. A Thread route needs Thread switching and creation first; Case is a drawer/preflight action.
+- `RunPanel` assumes one case-owned session and one ordinal workflow. The new workspace must render the current Grid Model and conversation even when no Case exists.
+- The current `NetworkStory` is useful for topology focus but can be mistaken for business progress. Replay and Case step state need separate labels and event references.
+- `AnswerCard` does not yet expose the authority distinction between admitted current results, historical references, and diagnostic output. A visually successful answer must not imply current evidence.
+- Existing session states (`pending`, `ready`, `executing`, `closing`, `completed`, `failed`, `interrupted`) cover the legacy Case flow but do not encode transport trust, viewed/replay state, pending model/profile changes, approval, or a live Attempt viewed from a historical page.
+- Existing responsive rules collapse the three columns vertically. That is acceptable for the compatibility App, but it does not provide the requested two-surface Thread interaction or a mobile Grid/Thread mode.
+
+The conclusion is deliberate: preserve the visual material and network interaction where it is sound, while replacing the state model and shell composition. This is an explicit redesign, not a CSS reskin. The detailed geometry, action matrix, and state walkthroughs are now in `2026-09-30-capstone-ui-wireframes.md`.
+
 ## Scenario audit
 
 ### 1. Start a new Thread
@@ -169,8 +191,8 @@ These are design defects found by tracing concrete operations against the curren
 - **Information hierarchy:** raw Context IDs, sequence numbers and revisions are currently prescribed in the primary header, composer and replay banner. Default views should identify the model and action outcome; inspect/copy details can reveal internal identifiers. Choose the hierarchy explicitly instead of displaying every field everywhere.
 - **Evidence interaction:** distinguish an immutable admitted historical result from a currently applicable result and from current-Attempt admissibility. Opening old evidence must preserve its provenance; a label or UI action cannot grant reuse in a new Attempt.
 - **TUI operations:** Ctrl+K still overlaps editor behavior; Ctrl+C lacks idle, selected-text, cancellation-pending, and exit-with-live-worker cases. Image placement ownership does not yet define picking, image-to-cell hit testing, overlay labels, or mouse/keyboard parity.
-- **Visual direction:** the generated MASTER is a generic operations landing template with hero/CTA sections, glow and staggered motion. It conflicts with the engineering workspace and contains component colors that bypass its own tokens. Dark-first and font choices have not been reviewed as product decisions. It is not a validated visual source of truth.
+- **Visual direction:** the generated MASTER originally used a generic operations landing template with hero/CTA sections, glow and staggered motion. This pass reclassified it as a product token draft, aligned its palette/typography with the existing App, and explicitly removed those patterns from the Thread workspace. A browser visual prototype is still required before calling the visual system validated.
 
 ### Evidence required to close this review
 
-Produce an action matrix across connection, live execution, inspected/replay view, and pending commands; annotated Web and TUI wireframes for idle, running, pending switch, approval, failed/interrupted, historical view, and reconnect; and walkthroughs of R1–R8 including target identity, receipt, visible feedback, and failure recovery. A limited TGP prototype can test feasibility, but cannot substitute for these interaction decisions. Keep unapproved behavior explicitly proposed.
+The draft action matrix and annotated Web/TUI/CLI walkthroughs now live in `2026-09-30-capstone-ui-wireframes.md`. Closing this review still requires user review of the proposed behavior, fixture-driven state tests for R1–R8, and a limited TGP/browser prototype. Those prototypes can test feasibility, but cannot silently approve unresolved interaction choices. Keep unapproved behavior explicitly proposed.

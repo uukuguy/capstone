@@ -16,6 +16,28 @@ Capstone presents three surfaces of one workspace:
 
 The same action has one meaning in every client. A button, keyboard shortcut, API command, or clear conversational control request ends at the same Harness `CommandEnvelope`. A viewport gesture remains presentation-local; a model switch or professional analysis is a durable application action.
 
+## Existing App baseline and deliberate departures
+
+The current App is the visual starting point, not an approval to preserve every layout decision. It already establishes a recognizable Capstone language:
+
+- deep blue-green background (`#081216`) with raised surfaces (`#0c191d`, `#102126`), quiet borders, and a mint/teal accent (`#7cdbc8`);
+- `Inter` plus Chinese system fallbacks for reading, with a monospace face for IDs, labels, event counts, and evidence references;
+- a compact CAPSTONE mark and top bar, square or low-radius controls, restrained motion, and visible focus rings;
+- evidence-aware answer cards, timeline rails, status LEDs, source/reference chips, and a network card with fit, zoom, pan, focus, legend, and keyboard support;
+- the current `PageHeader`, `CatalogPanel`, `RunPanel`, `NetworkView`, `NetworkStory`, and `AnswerCard` components in `packages/capstone-app`.
+
+The Thread redesign keeps the brand mark, color temperature, typography hierarchy, network interaction vocabulary, evidence density, and engineering tone. It deliberately changes the information architecture:
+
+| Existing App concept | Thread workspace replacement | Reason |
+| --- | --- | --- |
+| `CatalogPanel` with case-first navigation | Thread switcher plus model/case drawers | A Case is a reusable instruction batch; the Thread owns the live conversation. |
+| `RunPanel` as the central case result | Grid projection and conversation as peer surfaces | The current grid model remains useful outside a Case. |
+| `NetworkStory` ordinal steps | Event/Case step rail with explicit replay state | A topology focus must not look like current business state. |
+| `AnswerCard` with generic references | Assistant answer plus authority-labelled result/evidence cards | Users need to distinguish admitted current data, historical data, and diagnostics. |
+| permanent three-column shell | resizable two-column shell with hideable drawers | Conversation and model projection need usable width; secondary information is on demand. |
+
+The redesign may replace a component when it causes misleading state, cramped interaction, or poor accessibility. Visual continuity is a migration constraint, not a reason to retain the case-centric shell. `design-system/capstone-agent/MASTER.md` is a draft token reference and must be reconciled with this baseline before implementation; it does not override the existing App or this contract.
+
 ## Shared state shown by every client
 
 Each client consumes `ThreadSnapshot` plus `EventPage` and maintains a local projection store. The business state shown in the primary workspace is:
@@ -33,19 +55,27 @@ The UI must always distinguish `active` from `viewed`. A historical page can be 
 
 ## Workspace controller and input policy
 
-All clients derive a `ThreadWorkspaceViewModel` from the shared projection. Its action precedence is:
+All clients derive a `ThreadWorkspaceViewModel` from the shared projection. It must not use one global priority ladder: four independent axes determine the action matrix.
 
-1. `resync_required` or `reconnecting`: freeze all state-changing actions; allow only reconnect, verified snapshot reload, help, and exit.
-2. `replay` or a historical read-only view: freeze send, model switch, capability edits, Case controls, and element analysis; allow navigation and `Return to live`.
-3. `run=closed|failed`: freeze business actions and show replay/read-only controls.
-4. `approval_wait`: focus the approval surface; allow approve, deny, cancel, and diagnostics.
-5. `active_attempt`: allow streaming, cancel, approval response, and explicitly accepted pending controls; disable new ordinary/professional Turn submission in v1.
-6. `context=preparing|switch_pending|selection_pending`: show the pending target and keep the old effective Context visible until activation; disable a second conflicting change.
-7. `ready`: enable the composer, model/profile actions, Case launch, and grid element actions when their page is active and valid.
+| Axis | Values | What it controls |
+| --- | --- | --- |
+| Transport trust | `live`, `reconnecting`, `resync_required`, `offline` | Whether a new command can obtain a receipt. |
+| Execution | `idle`, `active`, `approval_wait`, `terminal` | Which Turn/Attempt controls are available. |
+| View | `live`, `historical`, `replay` | Whether the visible page can be mutated or used as a target. |
+| Context | `active`, `preparing`, `switch_pending`, `selection_pending`, `failed` | Which model/profile snapshot a new Turn may target. |
 
-The composer may retain a draft while input is disabled. Every submitted Turn displays a frozen target chip containing model ID/revision, ModelContext ID, selection revision, and optional element reference. A pending model or capability change is shown separately and never rewrites an in-flight Turn's chip. Reconnect and snapshot replacement preserve drafts only when their client-local target remains valid; otherwise the draft is retained as plain text with an explicit “review target before sending” state.
+The following rules are normative for the first UI implementation:
 
-Clear conversational controls can bypass the ordinary composer route and create a control Turn/command. The UI never creates a second ordinary/professional Turn while one Attempt is active. A cancel, approval, retry, or pending model/profile command remains available through the command surface defined by Harness.
+- `reconnecting` and `resync_required` block commands that need a receipt. Reconnect, verified snapshot reload, help, and exit remain available. The UI must say “command unavailable while reconnecting”; it must not imply that a cancel was accepted.
+- A live Attempt has a global control rail independent of the viewed page. `Cancel live Attempt`, approval decisions, and diagnostics target the explicit live Attempt even while the user inspects a historical page. Replay blocks business submission, but it does not hide the live Attempt rail.
+- The composer remains editable during an active Attempt so the user can preserve the next instruction. Ordinary/professional submission is disabled until the Attempt reaches a terminal state. A separate `Send control` action, or the direct cancel/approval controls, may submit a Harness control command against the active Attempt.
+- A control request that contains a dependent business request is shown as a bounded plan: control resolution → pending Context activation → business Turn. If Harness cannot resolve the dependency, it asks for clarification and keeps the original text as an unsent draft.
+- Model/profile changes from a historical page are allowed only through the live model drawer after returning to the live workspace. The drawer displays the live target, not the inspected page, and creates a pending command with an idempotency key.
+- `context=preparing` accepts a valid professional request and renders a preparation Attempt. The UI must not require the user to discover or manually trigger preparation first. Diagram availability is independent from calculation readiness.
+- Every submitted Turn displays a frozen target chip containing model ID/revision, ModelContext ID, selection revision, and optional element reference. A pending model or capability change never rewrites an in-flight Turn's chip.
+- Snapshot replacement preserves an unsent draft as text. A structured element reference is revalidated by model identity, revision, and element ID; returning to the same page alone is insufficient.
+
+The complete matrix and annotated state walkthroughs live in `2026-09-30-capstone-ui-wireframes.md`. The matrix is the implementation gate for Web and TUI; buttons, keyboard shortcuts, and conversational controls may differ in presentation but must resolve to the same public Harness command.
 
 ## Thread navigation and lifecycle
 
@@ -245,9 +275,9 @@ Evidence and tool outputs use explicit authority labels: `admitted/current`, `hi
 
 ## Visual and accessibility system
 
-The Web visual system is dark-first and information-dense for engineering work: deep navy background, slate surfaces, high-contrast foreground, green running/healthy state, amber queued/waiting state, and red failure state. Connection state is separate from data freshness: the header shows connection plus last event time/cursor, while a grid projection shows its model revision, source, and `stale`/`unavailable` status where applicable. The generated master design system is stored at `design-system/capstone-agent/MASTER.md` and is the source for tokens, spacing, typography, motion, and contrast checks.
+The Web visual system is dark-first and information-dense for engineering work. The current App tokens are the starting point: `#081216` background, `#0c191d`/`#102126` surfaces, `#20353a` lines, `#e9efed` text, `#98a9a9` muted text, and `#7cdbc8` accent. Green/mint means healthy or admitted, amber means queued/waiting, and red means failure/interruption. Connection state is separate from data freshness: the header shows connection plus last event time/cursor, while a grid projection shows its model revision, source, and `stale`/`unavailable` status where applicable. The generated master design system is a draft reference that must be updated to match these product tokens before implementation; it is not a generic landing-page template.
 
-- Use Fira Sans for readable UI text and Fira Code for model IDs, revisions, event cursors, tool IDs, and code-like values.
+- Use `Inter`, `PingFang SC`, `Hiragino Sans GB`, and `Microsoft YaHei` fallbacks for readable UI text; use the existing monospace stack for model IDs, revisions, event cursors, tool IDs, and code-like values.
 - Use one consistent SVG icon family with accessible labels; do not use emoji as icons.
 - Maintain visible keyboard focus and a minimum 4.5:1 text contrast ratio.
 - Never use color alone for state; pair color with text, border, icon, or pattern.
