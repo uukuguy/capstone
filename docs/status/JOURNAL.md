@@ -1226,3 +1226,4 @@ _Recovered pre-merge mainline entries._
 - 01:22 确认最小可审计 TurnPlan，记录路由与 Context 快照但不持久化隐藏分类推理
 - 01:23 提交 TurnPlan 最小契约，固定路由修订、硬门控事件与隐式推理隔离 [0bcac0b]
 - 01:25 确认 Jev 实验开关：部署默认 off，Run 固化模式/版本/schema，active 前置、shadow 旁路，服务端脱敏调用
+- 01:26 提交 Jev 可选路由器决策，固定开关、快照、数据边界与历史可回放语义 [9e47d29]
