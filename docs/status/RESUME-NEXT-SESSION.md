@@ -13,6 +13,7 @@
 - Run lifecycle is accepted: `created → open → closing → closed`, with `failed` only for unrecoverable Run-level persistence/integrity/security errors. Ordinary Turn/tool/Provider failures leave Run usable; Worker execution states remain separate and cannot close Run or change model/capability selection.
 - Turn retry model is accepted: one logical Turn contains immutable Attempts; retry creates a new Attempt, preserves the prior trail, and allows only one Attempt to commit answer/evidence. Each Attempt freezes the Model Context, selection revision, tool catalog, Provider/model, and Harness runtime snapshot.
 - ModelContext control operations are accepted: model switches and capability selection changes are first-class ordered Run events, pending during an active Turn, validated before activation, and isolated by Context identity or selection revision.
+- Model-to-Profile resolution is accepted as three layers: Authority/Grid Model Catalog owns model facts and revision, Capstone Model Capability Catalog owns eligibility/defaults and user labels, and neutral SPI plus trusted adapter prepares exact selected handles atomically.
 - Pi and DSH are replaceable pure harness runtimes from Thread's perspective; `HarnessPiClient` and an empty `HarnessDSHClient` remain comparison paths. `capstone-harness` may consume their events, normalize and enrich them, then serve CLI/SDK/API/Web projections; Thread is only one consumer.
 - A case is a reusable multi-turn instruction batch, not Thread state. A Thread is centered on a current grid model, supports ordinary and model-focused professional dialogue, and can switch that model; v1 has one current model at a time, with multi-model context deferred.
 - Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves the concrete model revision at creation or first run and binds that revision to subsequent result/evidence events.
@@ -49,7 +50,7 @@
 
 ## Immediate next steps
 
-1. Define model-to-profile resolution and ModelContext transition contracts, then complete adapter details before implementation planning.
+1. Define `CapstoneModelCapabilityAdapter` preparation output and the Capstone harness event/control SPI before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
