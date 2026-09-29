@@ -183,6 +183,7 @@ def main(
             from capstone_agent.host_worker import serve_forever
             from capstone_agent.hosting import build_artifacts, load_host_settings
             from capstone_agent.ledger import Ledger
+            from capstone_agent.thread_service import PostgresThreadService
             from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app
 
             settings = load_host_settings(os.environ)
@@ -191,6 +192,9 @@ def main(
             artifacts = build_artifacts(settings, ledger)
             if args.command == "serve-hosted":
                 import uvicorn
+
+                thread_service = PostgresThreadService(settings.database_url)
+                thread_service.initialize()
 
                 wake_worker = None
                 if settings.worker_wake_url:
@@ -207,6 +211,7 @@ def main(
                     public_model=settings.public_model,
                     artifacts=artifacts,
                     wake_worker=wake_worker,
+                    thread_service=thread_service,
                 )
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False)
