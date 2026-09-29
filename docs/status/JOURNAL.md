@@ -1258,3 +1258,4 @@ _Recovered pre-merge mainline entries._
 - 05:56 提议对话控制保留可见 Turn、可不创建 Pi Attempt，歧义进入澄清状态，直接命令不伪造 transcript [2102c81]
 - 06:03 提议能力包控制只解析用户明确的精确身份，不自动裁决语义重叠，工具来源用于用户排错 [a7e95f0]
 - 06:10 明确 TurnRouter 仅分类，ControlResolver/CommandFactory/CommandExecutor 分层，Jev/LLM 永不绕过门控 [9dc34dc]
+- 06:17 提议控制 Turn 使用独立事件投影，保留类型与目标审计但不暴露隐藏分类推理 [6ca2d6d]
