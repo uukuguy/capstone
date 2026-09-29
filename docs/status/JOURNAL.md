@@ -1253,3 +1253,4 @@ _Recovered pre-merge mainline entries._
 - 05:22 明确新 Thread 立即创建 IEEE-39 页面，并以 loading/ready/unavailable 显示投影状态 [eed1db9]
 - 05:29 提议分离 active_grid_page_id 与 TUI viewed_grid_page_id，避免历史分页查看偷偷改变当前 ModelContext [3c8406c]
 - 05:36 提议由 capstone-harness 统一承载界面与对话操控语义，Pi/DSH 只执行已接受 Attempt [5e53ab7]
+- 05:42 提议显式控制先于 Pi/DSH Attempt 解析，清晰命令直接走 Harness receipt，歧义才请求澄清 [bcac606]
