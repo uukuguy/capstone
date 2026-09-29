@@ -222,6 +222,8 @@ capstone-harness
 
 **Adapter scope.** Each approved profile has a trusted `CapstoneModelCapabilityAdapter` entry point. It validates compatibility and assembles the active model capability context from host-supplied preparation inputs. It does not own Thread persistence, Run/Turn state machines, Worker scheduling, Pi/DSH event normalization, public output, or user instruction parsing.
 
+**Prepared Capability Contribution accepted.** An adapter prepares a profile-scoped contribution for the active Model Context rather than returning a new public Kernel `ApplicationProfile`. The contribution contains the exact profile reference, model compatibility, bounded tool descriptors with `ToolSourceRef`, capability execution binding, Authority-admission binding, optional bounded model/projection providers, and a close operation. Capstone supplies the resolved model/revision, selection revision, scoped Authority client, policy, and resource handles. The Harness composes several contributions, owns user/control/event semantics, and admits results; raw pandapower or PyPSA objects never cross the contribution boundary. Preparation is all-or-nothing for the new Context, and Context replacement or Run close releases the contributions. Existing Kernel profiles may remain an internal migration implementation.
+
 **Historical audit findings (2026-09-29).** The current tree confirms that the new SPI must not be implemented as a rename of an existing registry:
 
 - `capstone-agent.application_registry.ApplicationRegistry` resolves an `application_id/version` pair directly to a complete Kernel `ApplicationProfile`.

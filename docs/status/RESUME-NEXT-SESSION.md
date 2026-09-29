@@ -41,6 +41,7 @@
 - Registry lifecycle is accepted: trusted bootstrap registers and explicitly seals it; production runtime resolves read-only after sealing; host application configuration and model catalog select exact profile identities; only isolated test/development registries may remain unsealed.
 - Capability lifetimes are accepted: registration is process-scoped, the profile handle is per active Model Context within a Prepared Run, Worker lease is per task, and Thread/Run state is persistent. A Run may sequence profiles as models change; persistent events store model/revision/profile identities.
 - `CapstoneModelCapabilityAdapter` is accepted as the trusted per-profile assembly entry point. It validates compatibility and returns current/future Capstone application assembly; Thread, Run/Turn, Worker, Pi/DSH events, and public output stay above it.
+- Adapter output is accepted as a prepared profile-scoped capability contribution: bounded tools, execution/admission bindings, and optional projections are composed by Harness; Kernel ApplicationProfile remains migration-internal.
 - Historical audit confirms the existing `ApplicationRegistry` resolves complete Kernel `ApplicationProfile` objects, while `DomainRegistry` and `DomainBinding` already encode today's domain/tool details. The new profile SPI must be independent and use adapters during migration; it must not rename either existing registry or promote `DomainBinding`.
 
 ## Where things stand
@@ -52,7 +53,7 @@
 
 ## Immediate next steps
 
-1. Define `CapstoneModelCapabilityAdapter` preparation output and public replay/projection semantics before implementation planning.
+1. Define public replay/projection semantics and the App projection contracts before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
