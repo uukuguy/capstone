@@ -286,6 +286,18 @@ This is a substantive API, runtime, persistence, and UI change. Capstone has no 
 
 Each milestone must have a runnable verification path before the next layer is expanded. Milestones 1–2 provide a useful runtime/application skeleton without domain facts; milestone 3 introduces authoritative grid capabilities.
 
+## Proposed migration map from the current code
+
+- Reuse `ledger.py`'s transaction, idempotency, event-append, and Worker-lease patterns, but replace the session-shaped persistence model with Thread/Run/Turn/Attempt records.
+- Keep `protocol.py` as a private Worker JSONL contract; it is not the public `capstone-thread/1` event protocol.
+- Fold `session.py`, `runtime.py`, and `host_worker.py` behind `HarnessPiClient`, preserving Pi process isolation and resource setup.
+- Retain `host_api.py` and `server.py` as FastAPI, authentication, and SSE foundations while replacing session endpoints with the public `CapstoneThreadClient` transport adapter.
+- Keep `worker.py`'s Authority result verification and network projection normalization, while moving session and Case orchestration into Harness.
+- Reuse `network_diagram.py` and `network_view.py` as the starting bounded grid projection contracts.
+- Keep Kernel runner and trajectory modules domain-neutral; Harness owns Thread/Run state and maps Kernel/runtime events into the public event stream.
+
+The first implementation may host these contracts in a `capstone_harness` subpackage inside the `capstone-agent` distribution. A separate `capstone-harness` distribution should be considered only after the public protocol and dependency direction are stable, avoiding a premature package split and circular imports.
+
 ## Historical framework audit and refactoring stance
 
 **Decided.** Before implementing the new interaction feature, inspect and map the historical framework rather than trusting package names. Refactor where ownership or dependency direction is wrong. Do not treat current `capstone-agent`, `grid-agent`, or `pypsa-agent` package APIs as stable public contracts; Capstone has no actual external application adoption that would justify preserving those accidental boundaries.
