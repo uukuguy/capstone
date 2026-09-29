@@ -238,6 +238,8 @@ ToolSourceRef
 
 **Proposed capability-selection guard.** Control resolution may map explicit Profile/Domain Pack names or an explicitly selected UI target to exact trusted identities, but it must not infer a “best” package or silently remove semantic overlaps. Multiple catalog matches require clarification. `replace_selection` applies atomically at a valid Turn boundary, and an empty selection remains valid for ordinary conversation. Tool events must expose `ToolSourceRef` so users can diagnose overlap and then issue an explicit enable/disable/replace command.
 
+**Proposed router/resolver boundary.** `TurnRouter` only classifies a Turn as `ordinary`, `professional`, `mixed`, or `control` and may request clarification. A `ControlResolver` handles control-specific language and target references, `CommandFactory` converts a resolved candidate into a validated public command, and `CommandExecutor` applies it. Jev/LLM output is advisory at the first two stages and never bypasses catalog resolution, snapshot checks, idempotency, or lifecycle gates.
+
 **Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
