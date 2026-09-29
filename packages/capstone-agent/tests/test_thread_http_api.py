@@ -117,3 +117,34 @@ def test_thread_sse_reuses_the_same_event_cursor() -> None:
         assert stream.headers["content-type"].startswith("text/event-stream")
         assert "id: 1" in stream.text
         assert "event: command_accepted" in stream.text
+
+
+def test_thread_rejects_unknown_command_kind_without_emitting_an_acceptance_event() -> None:
+    service = _service()
+    command = {
+        "schema": "capstone-command/1", "command_id": "cmd_unknown_001",
+        "idempotency_key": "idem_unknown_001", "thread_id": "thr_demo_39",
+        "run_id": "run_001", "kind": "execute_shell", "expected_event_seq": 0,
+        "payload": {"command": "echo unsafe"},
+    }
+    receipt = service.submit_command(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "unsupported_command"
+    assert service.snapshot("thr_demo_39").last_event_seq == 0
+
+
+def test_thread_rejects_message_without_nonempty_text() -> None:
+    service = _service()
+    command = {
+        "schema": "capstone-command/1", "command_id": "cmd_empty_001",
+        "idempotency_key": "idem_empty_001", "thread_id": "thr_demo_39",
+        "run_id": "run_001", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "   "},
+    }
+
+    receipt = service.submit_command(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "message_text_required"
+    assert service.read_events("thr_demo_39", 0).events == ()

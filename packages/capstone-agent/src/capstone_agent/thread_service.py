@@ -36,6 +36,7 @@ _COMMAND_FIELDS = frozenset({
     "schema", "command_id", "idempotency_key", "thread_id", "run_id",
     "kind", "expected_event_seq", "payload",
 })
+_MESSAGE_COMMAND_KINDS = frozenset({"send_ordinary", "send_professional", "send_control"})
 
 
 class ThreadNotFound(KeyError):
@@ -74,6 +75,19 @@ def _now() -> str:
 
 def _canonical(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+
+
+def _admission_rejection(command: Mapping[str, Any]) -> str | None:
+    """Return a bounded semantic rejection before a command enters the ledger."""
+
+    if command["kind"] not in _MESSAGE_COMMAND_KINDS:
+        return "unsupported_command"
+    text = command["payload"].get("text")
+    if not isinstance(text, str) or not text.strip():
+        return "message_text_required"
+    if "\n" in text or "\r" in text:
+        return "message_text_multiline"
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +157,11 @@ class InMemoryThreadService:
                 return receipt
             if parsed["expected_event_seq"] != self._snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                return receipt
+            semantic_rejection = _admission_rejection(parsed)
+            if semantic_rejection is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
             if self._snapshot.run.state != "open":
@@ -247,7 +266,9 @@ class ThreadCreator:
         self._catalog = catalog
 
     def create(self, model_id: str | None = None) -> ThreadSnapshot:
-        descriptor = self._catalog.resolve(model_id or self._catalog.default_model_id)
+        descriptor = self._catalog.resolve(
+            self._catalog.default_model_id if model_id is None else model_id
+        )
         token = secrets.token_hex(10)
         context = ModelContextSnapshot(
             id="ctx_" + token, model_id=descriptor.model_id,
@@ -404,6 +425,8 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
+            elif (semantic_rejection := _admission_rejection(parsed)) is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
             else:

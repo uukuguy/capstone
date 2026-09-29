@@ -51,6 +51,22 @@ def test_thread_creator_defaults_to_registered_ieee39_and_pins_revision() -> Non
     assert service.created == snapshot
 
 
+def test_thread_creator_does_not_treat_an_explicit_empty_model_id_as_default() -> None:
+    service = _Service()
+
+    class Catalog(_Catalog):
+        def resolve(self, model_id: str | None) -> ThreadModelDescriptor:
+            assert model_id == ""
+            raise ValueError("model is not registered")
+
+    try:
+        ThreadCreator(service, Catalog()).create("")
+    except ValueError as error:
+        assert str(error) == "model is not registered"
+    else:
+        raise AssertionError("explicit empty model_id must not select the default")
+
+
 def test_thread_creation_route_returns_pinned_snapshot() -> None:
     service = _Service()
     app = create_host_app(
