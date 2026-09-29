@@ -1235,3 +1235,4 @@ _Recovered pre-merge mainline entries._
 - 02:58 刷新恢复接力文档，移除已完成的 Jev 待办并指向 Harness 事件控制 SPI 讨论 [ddb82de]
 - 03:05 确认事件持久化拉取为恢复基础，实时订阅仅作可丢失加速并统一按游标补齐 [76050ad]
 - 03:18 确认 Run 仅显式 close_run 终止，普通 Turn 和 Context 变化保持 Run 可用 [38bf885]
+- 03:27 确认事件游标失效必须显式 resync_required，以带 base_event_seq 的快照重建而非静默跳过 [068c87a]
