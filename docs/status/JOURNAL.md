@@ -1285,4 +1285,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 冻结 capstone-thread/1 最小 ThreadSnapshot、EventPage、EventEnvelope 与 CommandReceipt 严格 JSON 契约，先于客户端实现建立恢复边界 [0c80ee7]
 - 2026-09-30 增加 idle、历史页活跃 Attempt、重同步和中断四个严格 UI fixture，验证快照基线与事件页连续性 [0a49202]
 - 2026-09-30 实现 projection-only fixture runner，统一计算 Web/TUI/CLI 动作集合并验证历史页取消、重同步冻结和中断重试 [24fa3d5]
-- 2026-09-30 更新计划和恢复 baton，确认 read-model/fixture runner 阶段完成，下一阶段进入 transport-facing Thread client 与 fixture-backed UI 原型 [pending]
+- 2026-09-30 更新计划和恢复 baton，确认 read-model/fixture runner 阶段完成，下一阶段进入 transport-facing Thread client 与 fixture-backed UI 原型 [2ed7274]
