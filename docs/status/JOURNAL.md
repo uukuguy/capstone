@@ -1211,3 +1211,4 @@ _Recovered pre-merge mainline entries._
 - 00:59 提交事件 schema 与保留策略，固定 upcaster、诊断 TTL 和业务事件保护边界 [6c95b78]
 - 01:01 确认 ModelContext declared/preparing/active/retiring/closed 生命周期，准备原子激活且 Worker 仅借用资源
 - 01:02 提交 ModelContext 资源生命周期，明确原子准备、失败回收和 Worker 借用边界 [2ff6248]
+- 01:04 确认严格恢复不变量：无法证明完整 checkpoint 就中断即死，v1 只允许新 Attempt 干净重启并用 fencing 防旧 Worker 写入

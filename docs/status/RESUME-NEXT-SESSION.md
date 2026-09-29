@@ -38,6 +38,7 @@
 - Event classification is accepted: state events rebuild snapshots, interaction events support streaming/replay, diagnostic events stay separately controlled, and verified snapshot replay uses explicit schema upcasters with fail-closed integrity checks.
 - Event schema/retention is accepted: explicit versions/upcasters, long-lived protected business/replay events, restricted TTL-bound raw diagnostics, pre-persistence filtering, and no deletion of protected canonical events during compaction.
 - ModelContext resource lifecycle is accepted: `declared → preparing → active → retiring → closed`, atomic activation, idempotent close, persistent identities only, and Worker leases that borrow resources per Attempt.
+- Strict recovery is accepted: no best-effort continuation. Lost lease/session/event continuity makes an Attempt `interrupted`; v1 restarts cleanly in a new Attempt, with fencing against stale Workers. Perfect resume requires a future verified durable checkpoint.
 - The complete discussion is recorded in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, with explicit Decided / Proposed / Open sections. It is a discussion record, not yet an approved implementation spec.
 - `grid-agent` application growth is frozen. It remains a pandapower compatibility adapter; new CLI/TUI and agent interaction work goes through the unified Capstone application/harness. `capstone-tui` is shorthand for the unified CLI's TUI mode, not a new package or application. `capstone-agent`, `pandapower-agent`, and `pypsa-agent` are historical peer-agent names to converge behind one Capstone application.
 - `Capstone` is the public brand and default executable name. `capstone-agent` is the canonical internal name for the intelligent-agent application layer; `capstone-application` is rejected as verbose and conceptually conflicting with `capstone-app`.
@@ -63,7 +64,7 @@
 
 ## Immediate next steps
 
-1. Resolve runtime session scope, Worker lease recovery, and remaining public event taxonomy before implementation planning.
+1. Resolve runtime session scope, fencing/recovery events, and remaining public event taxonomy before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
