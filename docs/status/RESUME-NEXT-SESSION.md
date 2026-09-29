@@ -41,6 +41,7 @@
 - Strict recovery is accepted: no best-effort continuation. Lost lease/session/event continuity makes an Attempt `interrupted`; v1 restarts cleanly in a new Attempt, with fencing against stale Workers. Perfect resume requires a future verified durable checkpoint.
 - Runtime session scope is accepted: Pi/DSH semantic session state belongs to one Attempt; cross-Turn continuity is rebuilt from durable Capstone state, and stale Attempt lease tokens cannot publish events.
 - Worker lease recovery is accepted: lease loss interrupts the Attempt, advances fencing, rejects stale writes, and never silently retries in v1. Explicit retry creates a new Attempt/session with a durable relation.
+- Tool operation safety is accepted: calls carry operation identity and idempotency; unknown/non-idempotent calls are not automatically resent, and admission deduplicates operation plus payload hash.
 - The complete discussion is recorded in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, with explicit Decided / Proposed / Open sections. It is a discussion record, not yet an approved implementation spec.
 - `grid-agent` application growth is frozen. It remains a pandapower compatibility adapter; new CLI/TUI and agent interaction work goes through the unified Capstone application/harness. `capstone-tui` is shorthand for the unified CLI's TUI mode, not a new package or application. `capstone-agent`, `pandapower-agent`, and `pypsa-agent` are historical peer-agent names to converge behind one Capstone application.
 - `Capstone` is the public brand and default executable name. `capstone-agent` is the canonical internal name for the intelligent-agent application layer; `capstone-application` is rejected as verbose and conceptually conflicting with `capstone-app`.
@@ -66,7 +67,7 @@
 
 ## Immediate next steps
 
-1. Resolve Provider/Authority idempotency and duplicate execution handling before implementation planning.
+1. Resolve Provider/Authority failure classes and professional-turn error projections before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
