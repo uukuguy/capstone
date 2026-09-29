@@ -11,6 +11,7 @@
 - Dialogue v1 uses one run per thread. The design must preserve a later one-thread/many-run upgrade for comparison, reruns, and branches.
 - The Thread → Run → ModelContext data model is accepted: Thread keeps the ordered workspace events and current pointers; its v1 Run contains multiple Turns and sequential ModelContexts. Model switch creates a context, while package selection changes only its revision at a Turn boundary. Tool/evidence/replay records bind to the effective context snapshot and `ToolSourceRef` where applicable.
 - Run lifecycle is accepted: `created → open → closing → closed`, with `failed` only for unrecoverable Run-level persistence/integrity/security errors. Ordinary Turn/tool/Provider failures leave Run usable; Worker execution states remain separate and cannot close Run or change model/capability selection.
+- Turn retry model is accepted: one logical Turn contains immutable Attempts; retry creates a new Attempt, preserves the prior trail, and allows only one Attempt to commit answer/evidence. Each Attempt freezes the Model Context, selection revision, tool catalog, Provider/model, and Harness runtime snapshot.
 - Pi and DSH are replaceable pure harness runtimes from Thread's perspective; `HarnessPiClient` and an empty `HarnessDSHClient` remain comparison paths. `capstone-harness` may consume their events, normalize and enrich them, then serve CLI/SDK/API/Web projections; Thread is only one consumer.
 - A case is a reusable multi-turn instruction batch, not Thread state. A Thread is centered on a current grid model, supports ordinary and model-focused professional dialogue, and can switch that model; v1 has one current model at a time, with multi-model context deferred.
 - Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves the concrete model revision at creation or first run and binds that revision to subsequent result/evidence events.
@@ -47,7 +48,7 @@
 
 ## Immediate next steps
 
-1. Define Turn commit/failure/retry semantics and ModelContext transition contracts, then complete model-to-profile resolution and adapter details before implementation planning.
+1. Define ModelContext transition contracts and model-to-profile resolution, then complete adapter details before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
