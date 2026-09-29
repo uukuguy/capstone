@@ -1215,3 +1215,4 @@ _Recovered pre-merge mainline entries._
 - 01:05 提交严格 Attempt 恢复规则，禁止半状态续接并要求未来续接具备可验证 durable checkpoint [03d1286]
 - 01:07 确认 Pi/DSH runtime session 按 Attempt 隔离，跨 Turn 连续性由持久化 Capstone 状态重建
 - 01:08 提交 Attempt 级 runtime session 决策，防止重试和 Worker 缓存携带隐藏语义状态 [dc9636a]
+- 01:10 确认 v1 禁止 Worker 丢失后的静默自动重试，lease loss 只中断并由显式 retry 创建新 Attempt
