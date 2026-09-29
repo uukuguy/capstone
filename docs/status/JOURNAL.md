@@ -1256,3 +1256,4 @@ _Recovered pre-merge mainline entries._
 - 05:42 提议显式控制先于 Pi/DSH Attempt 解析，清晰命令直接走 Harness receipt，歧义才请求澄清 [bcac606]
 - 05:49 记录 Harness ControlIntent、CommandFactory、CommandExecutor 三段控制解析链，统一 UI 与对话命令审计 [243fceb]
 - 05:56 提议对话控制保留可见 Turn、可不创建 Pi Attempt，歧义进入澄清状态，直接命令不伪造 transcript [2102c81]
+- 06:03 提议能力包控制只解析用户明确的精确身份，不自动裁决语义重叠，工具来源用于用户排错 [a7e95f0]
