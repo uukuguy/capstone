@@ -1174,3 +1174,4 @@ _Recovered pre-merge mainline entries._
 - 19:01 确认 Thread → Run → ModelContext 三层持久数据模型：v1 一 Thread 一 Run、多 Turn 和顺序 ModelContext；切换模型新建 Context，包变更只推进 selection revision；工具、结果、证据与回放绑定当时 Context 快照
 - 19:03 提交智能体交互架构讨论与恢复状态，防止跨会话丢失 [7e3c671]
 - 19:04 将上一条提交的持久化记录补入 append-only journal [3b8d3da]
+- 19:07 确认 Run 生命周期：created/open/closing/closed，failed 仅用于不可恢复 Run 级错误；普通 Turn/工具/Provider/Worker 失败不终止 Run，Worker 状态独立
