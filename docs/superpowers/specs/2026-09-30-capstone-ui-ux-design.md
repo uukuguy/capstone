@@ -19,11 +19,11 @@ The same action has one meaning in every client. A button, keyboard shortcut, AP
 Each client consumes `ThreadSnapshot` plus `EventPage` and maintains a local projection store. The business state shown in the primary workspace is:
 
 - connection state: `connecting`, `live`, `reconnecting`, `resync_required`, or `offline`;
-- Run state: `open`, `closing`, `closed`, or `failed`;
+- Run state: `created`, `open`, `closing`, `closed`, or `failed`;
 - current model: display name, exact revision, implementation family, and `active_grid_page_id`;
 - viewed grid page: local `viewed_grid_page_id`, which may be a historical read-only page;
 - current selection: enabled Profile/Domain Pack labels and `selection_revision`;
-- current Turn/Attempt: phase, progress, cancellation/approval state, retry availability, and runtime mode;
+- current Turn/Attempt: phase (`created`, `accepted`, `running`, `waiting`, `committing`, terminal), progress, cancellation/approval state, retry availability, and runtime mode;
 - active Case, when present: Case version, pinned Context snapshot, current step, completed steps, and blocked reason;
 - latest authoritative answer, admitted results/evidence, and bounded source references.
 
@@ -53,16 +53,16 @@ The top bar contains the Capstone mark, Thread title and ID, connection/recovery
 
 The grid header contains one tab per distinct Grid Model identity in the Thread. A tab shows model name, implementation family, active/current marker, and projection status. There is never more than one page for a model. A historical tab can be viewed read-only; `Use this model` is the explicit `model_switch` action.
 
-The canvas renders the bounded `GridDiagramProjection` or `GridDiagramProjection`-compatible network view. It exposes:
+The canvas renders a bounded grid projection (`capstone-network-diagram/1.0`, `capstone-network-view/2.0`, or a future `GridDiagramProjection`). It exposes:
 
 - fit-to-view, zoom, pan, and focus controls;
 - a `Follow current` toggle for automatic agent-driven focus;
 - a compact overlay legend with metric, unit, source reference, and revision;
 - visible `loading`, `unavailable`, `partial`, `stale`, and `read-only replay` states;
-- a selected-element toolbar with `Ask about this` and `Analyze this` actions;
+- a selected-element toolbar with `Ask about this` and `Analyze this` actions when the page is the active current model;
 - a model/revision line that remains visible when the viewport is zoomed.
 
-Agent focus never erases a user's manual viewport. With `Follow current` off, a new focus is shown as a non-invasive “analysis focus available” action. Pan, zoom, hover, and ordinary selection are local UI state. Element questions carry model Context and element IDs, never screen coordinates or image IDs.
+Agent focus never erases a user's manual viewport. With `Follow current` off, a new focus is shown as a non-invasive “analysis focus available” action. Pan, zoom, hover, and ordinary selection are local UI state. Element questions carry model Context and element IDs, never screen coordinates or image IDs. Historical pages show a read-only banner; their element analysis actions are disabled in v1 and offer `Use this model` as the explicit transition.
 
 ### Thread conversation
 
@@ -87,13 +87,13 @@ Drawers are opened from the top command menu or keyboard shortcuts and overlay t
 - **Evidence:** admitted results, evidence references, artifact links, source metadata, and replay entry points;
 - **Diagnostics:** connection, resync, runtime mode, error class, command receipts, and restricted diagnostic summaries.
 
-Each drawer has a clear title, close action, focus return target, and keyboard navigation. Drawer content is read-only unless an explicit command control is present.
+Each drawer has a clear title, close action, focus return target, focus trap while modal, escape route, and keyboard navigation. Drawer content is read-only unless an explicit command control is present. A drawer never obscures the focused control; focus returns to the invoking control after close.
 
 ### Responsive Web behavior
 
 - **≥ 1200px:** two-column workspace; drawers overlay from the right or bottom.
 - **900–1199px:** two columns with a narrower grid and collapsible conversation context header.
-- **< 900px:** one primary surface at a time with `Grid` and `Thread` tabs; the current page and active Attempt status remain pinned in the header.
+- **< 900px:** one primary surface at a time with `Grid` and `Thread` tabs; the current page and active Attempt status remain pinned in the header. The tabs are keyboard-operable and expose selected state to assistive technology.
 - **< 600px:** full-width conversation or grid surface, bottom command sheet, and no horizontal scrolling. The grid can open as a focused full-screen view and return to the Thread without changing business state.
 
 Responsive changes affect presentation only. They never create a new Thread, Run, ModelContext, or event.
@@ -137,29 +137,29 @@ The TUI owns `ThreadProjectionStore`, cursor/reconnect state, local focus, scrol
 
 The composer accepts ordinary questions, professional requests, Case commands, and control language. Clear controls are resolved by Harness before Pi/DSH work begins. Control confirmations and clarification requests appear as structured conversation entries. Tool cards show source Profile/Domain Pack and result/evidence references; a user can open the capability drawer from the card to disable a package for later Turns.
 
-Recommended keyboard map:
+Recommended keyboard map. Function keys are used for drawers so terminal line-editing control characters retain their normal meanings. Single-letter shortcuts are active only when the composer is not focused; while typing, the user uses the command palette or function keys.
 
 | Key | Action |
 | --- | --- |
 | `Tab` / `Shift+Tab` | move between operable regions |
-| `Ctrl+G` | focus or maximize grid |
-| `Ctrl+T` | focus conversation/composer |
+| `F6` | focus or maximize grid |
+| `F7` | focus conversation/composer |
 | `Ctrl+K` | open command palette |
-| `Ctrl+M` | open model drawer |
-| `Ctrl+P` | open capabilities drawer |
-| `Ctrl+E` | open evidence drawer |
-| `Ctrl+D` | open diagnostics drawer |
+| `F2` | open model drawer |
+| `F3` | open capabilities drawer |
+| `F4` | open evidence drawer |
+| `F5` | open diagnostics drawer |
 | `f` | toggle follow-current grid focus |
 | `r` | fit grid to viewport |
 | `Esc` | close drawer/modal or clear local focus |
-| `Ctrl+C` | request cancellation for the active Attempt |
+| `Ctrl+C` | first press requests cancellation; second press exits after confirmation |
 | `?` | show the complete keymap |
 
-The command palette exposes the same public commands as the Web menu. Destructive or state-changing actions show a confirmation line with target model/Attempt IDs before dispatch when the action is not already explicit in the input.
+The command palette exposes the same public commands as the Web menu. Destructive or state-changing actions show a confirmation line with target model/Attempt IDs before dispatch when the action is not already explicit in the input. Key bindings are displayed in the focused control and in `?`; no binding silently overrides composer editing.
 
 ### TGP and ANSI presentation
 
-The TUI consumes the same bounded projection in both modes. A local renderer chooses TGP, iTerm2 inline image, or Unicode/ANSI based on `TerminalCapabilitySnapshot`. It never changes the projection, event stream, or evidence. A failed image write, resize, stale placement, or unsupported protocol switches to ANSI/Unicode and displays a small status marker explaining the degradation. Color is never the only indicator: focus uses labels/borders, loading uses text, and failures use an icon plus text label.
+The TUI consumes the same bounded projection in both modes. A dedicated `TerminalCanvas` owns image placement IDs, clear/redraw ordering, resize invalidation, and the final terminal write. No other widget emits graphics escape sequences. A local renderer chooses TGP, iTerm2 inline image, or Unicode/ANSI based on `TerminalCapabilitySnapshot`; if Textual cannot grant the canvas ownership needed for safe repaint, it selects Unicode/ANSI before emitting TGP. It never changes the projection, event stream, or evidence. A failed image write, resize, stale placement, or unsupported protocol switches to ANSI/Unicode and displays a small status marker explaining the degradation. Color is never the only indicator: focus uses labels/borders, loading uses text, and failures use an icon plus text label. Every image view has a textual grid summary for assistive tooling and terminal logs.
 
 ## Headless CLI
 
@@ -170,6 +170,7 @@ The TUI consumes the same bounded projection in both modes. A local renderer cho
 - `capstone chat` prints a compact prompt containing current model, revision, selection revision, and connection state; streamed answer text and control confirmations remain readable without ANSI color.
 - `--json`, `--no-color`, and `--events` are presentation flags only; they never change routing, admission, or evidence.
 - A stale cursor or interrupted Attempt prints the stable error class, last safe event sequence, and the recovery action; it never claims a resumed run without a verified checkpoint.
+- `capstone chat` accepts multiline input with an explicit end-of-input command (`Ctrl+D` at an empty line or `/send`); `Ctrl+C` cancels the active Attempt on the first press and exits only after a second press or explicit confirmation. Headless exit codes distinguish committed, cancelled, interrupted, rejected, and resync-required outcomes; recovery text remains on stderr.
 
 The frozen `grid-agent run`, `analysis`, and `report` commands remain separate compatibility surfaces.
 
@@ -178,20 +179,22 @@ The frozen `grid-agent run`, `analysis`, and `report` commands remain separate c
 | State | Web | TUI | Headless CLI |
 | --- | --- | --- | --- |
 | Connecting | header indicator + disabled send | status bar + disabled composer | stderr progress |
-| Resync required | blocking recovery banner with snapshot reload | modal recovery screen | structured error + exit code |
+| Resync required | blocking recovery banner with snapshot reload; send, model, capability, Case, and page actions disabled | modal recovery screen with only reload/reconnect/exit | structured error + exit code |
 | Model loading | page skeleton with revision | page status line | stderr status |
 | Attempt running | streaming text + phase card + cancel | progress card + cancel key | stderr progress |
 | Approval requested | inline approval card with expiry | modal/drawer approval prompt | prompt on stderr, command input |
 | Capability required | answer-side action to open capabilities | capability drawer action | structured error/action hint |
 | Case blocked | step timeline with retry/cancel | batch drawer/card | stderr event + nonzero result state |
-| Historical page | read-only banner | page marker/status line | replay/event output only |
+| Historical page | read-only banner; element analysis disabled until `Use this model` | page marker/status line; element analysis disabled | replay/event output only |
 | Run closed | read-only Thread with replay | read-only TUI | final snapshot/events only |
 
-The same stable error class and related IDs appear in each surface. Client-specific wording can be shorter, but it cannot change the meaning or retryability.
+The same stable error class and related IDs appear in each surface. Client-specific wording can be shorter, but it cannot change the meaning or retryability. An error surface includes the stable class/code, retryability, related IDs, last safe event sequence, and an action hint. After `resync_required`, the client atomically replaces its projection from the verified snapshot, resets the viewed page to a valid page, and resumes only after reading events after `base_event_seq`.
+
+Evidence and tool outputs use explicit authority labels: `admitted/current`, `historical`, `reference/non-authoritative`, or `diagnostic/unadmitted`. Only `admitted/current` may support the current answer or be offered as a current-evidence follow-up action.
 
 ## Visual and accessibility system
 
-The Web visual system is dark-first and information-dense for engineering work: deep navy background, slate surfaces, high-contrast foreground, green running/healthy state, amber queued/waiting state, and red failure state. The generated master design system is stored at `design-system/capstone-agent/MASTER.md` and is the source for tokens, spacing, typography, motion, and contrast checks.
+The Web visual system is dark-first and information-dense for engineering work: deep navy background, slate surfaces, high-contrast foreground, green running/healthy state, amber queued/waiting state, and red failure state. Connection state is separate from data freshness: the header shows connection plus last event time/cursor, while a grid projection shows its model revision, source, and `stale`/`unavailable` status where applicable. The generated master design system is stored at `design-system/capstone-agent/MASTER.md` and is the source for tokens, spacing, typography, motion, and contrast checks.
 
 - Use Fira Sans for readable UI text and Fira Code for model IDs, revisions, event cursors, tool IDs, and code-like values.
 - Use one consistent SVG icon family with accessible labels; do not use emoji as icons.
@@ -199,8 +202,9 @@ The Web visual system is dark-first and information-dense for engineering work: 
 - Never use color alone for state; pair color with text, border, icon, or pattern.
 - Respect `prefers-reduced-motion`; streaming and status remain understandable without animation.
 - Keep clickable targets at least 44×44 CSS pixels on Web; TUI controls must have a visible text or key equivalent.
-- Preserve logical tab order: global controls, grid pages, grid actions, conversation messages, composer, drawers.
-- Live updates use polite announcements for progress and assertive announcements only for errors, approvals, cancellation, and resync requirements.
+- Provide skip-to-workspace and skip-to-Thread links, preserve logical tab order, and keep focus visible and unobscured: global controls, grid pages, grid actions, conversation messages, composer, drawers.
+- Drawers and modal screens trap focus while open and restore focus to their trigger when closed. Resync, approval, cancellation failure, and integrity errors move focus to their action surface.
+- Live updates use polite announcements for progress and assertive announcements only for errors, approvals, cancellation, and resync requirements. Streamed answer text uses a bounded live region rather than announcing every token.
 - Tool and evidence cards expose source and status in text so screen readers do not need to interpret the grid image.
 
 ## UI acceptance criteria
@@ -214,4 +218,3 @@ The UI milestone is complete when:
 5. Case launch, step progress, blocking failure, retry, cancellation, and completion are visible in both Web and TUI.
 6. TGP failure falls back to ANSI/Unicode without losing grid state; Web remains usable when image or diagram projection is unavailable.
 7. Keyboard-only Web navigation, TUI keyboard navigation, reduced motion, contrast, and explicit error/recovery states pass focused UX checks.
-
