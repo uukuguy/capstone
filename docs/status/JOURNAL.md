@@ -1250,3 +1250,4 @@ _Recovered pre-merge mainline entries._
 - 05:00 确认 TUI 启动探测、运行时降级与本地图片缓存，隔离 TGP 细节 [86994ee]
 - 05:08 记录 TUI 本地图像渲染提案，复用公共几何投影并保持核心依赖与终端协议解耦 [bbc4e94]
 - 05:15 修正分页语义：每个 Thread 对每个 Grid Model 仅保留一个页面，重复打开只复用并更新该页 [9c37d27]
+- 05:22 明确新 Thread 立即创建 IEEE-39 页面，并以 loading/ready/unavailable 显示投影状态 [eed1db9]
