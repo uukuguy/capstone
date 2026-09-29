@@ -13,7 +13,7 @@
 
 ## Where things stand
 
-- Branch: `main`, ahead of `origin/main` by 138 commits.
+- Branch: `main`; use `git log` for the current ahead count because the checkpoint itself is append-only state.
 - Task work is committed through `d233f7b`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, command admission, runtime adapter normalization, and bounded command payloads.
 - Working tree also contains the append-only journal and this active checkpoint; the unrelated user change in `.gitignore` (`.codegraph/`) remains unstaged and must be preserved.
 - Verification completed:
