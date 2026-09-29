@@ -165,9 +165,14 @@ def create_host_app(
         return catalog
 
     if thread_service is not None:
+        def require_private_thread(request: Request) -> None:
+            if request.state.public_demo:
+                raise HTTPException(404, "thread not found")
+
         if thread_creator is not None:
             @app.post("/api/v1/threads", status_code=201)
             async def create_thread(request: Request):
+                require_private_thread(request)
                 try:
                     body = await request.json()
                     if not isinstance(body, dict):
@@ -189,14 +194,17 @@ def create_host_app(
                     raise HTTPException(422, str(error)) from None
 
         @app.get("/api/v1/threads/{thread_id}")
-        def get_thread_snapshot(thread_id: str):
+        def get_thread_snapshot(thread_id: str, request: Request):
+            require_private_thread(request)
             try:
                 return thread_service.snapshot(thread_id).to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
         @app.get("/api/v1/threads/{thread_id}/events")
-        def get_thread_events(thread_id: str, after: Annotated[int, Query(ge=0)] = 0):
+        def get_thread_events(thread_id: str, request: Request,
+                              after: Annotated[int, Query(ge=0)] = 0):
+            require_private_thread(request)
             try:
                 return thread_service.read_events(thread_id, after).to_document()
             except ThreadNotFound:
@@ -213,6 +221,7 @@ def create_host_app(
             thread_id: str, request: Request,
             idempotency_key: Annotated[str | None, Header(max_length=200)] = None,
         ):
+            require_private_thread(request)
             try:
                 command = await request.json()
                 if not isinstance(command, dict):
@@ -228,7 +237,9 @@ def create_host_app(
                 raise HTTPException(422, str(error)) from None
 
         @app.get("/api/v1/threads/{thread_id}/events/stream")
-        async def stream_thread_events(thread_id: str, after: Annotated[int, Query(ge=0)] = 0):
+        async def stream_thread_events(thread_id: str, request: Request,
+                                       after: Annotated[int, Query(ge=0)] = 0):
+            require_private_thread(request)
             try:
                 page = thread_service.read_events(thread_id, after)
             except ThreadNotFound:

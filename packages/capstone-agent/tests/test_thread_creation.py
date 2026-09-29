@@ -67,3 +67,18 @@ def test_thread_creation_route_returns_pinned_snapshot() -> None:
     document = response.json()
     assert document["schema"] == "capstone-thread-snapshot/1"
     assert document["active_model_context"]["model_id"] == "ieee39"
+
+
+def test_public_demo_cannot_create_or_read_private_threads() -> None:
+    service = _Service()
+    app = create_host_app(
+        _Ledger(), WorkerRegistry(()), operator_token="hosted-secret", public_demo=True,
+        public_provider="deepseek", public_model="deepseek-flash",
+        allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        thread_service=service, thread_creator=ThreadCreator(service, _Catalog()),
+    )
+    with TestClient(app, base_url="http://localhost") as client:
+        token = client.get("/api/v1/demo-credential").json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        assert client.post("/api/v1/threads", headers=headers, json={}).status_code == 404
+        assert client.get("/api/v1/threads/thr_demo_39", headers=headers).status_code == 404
