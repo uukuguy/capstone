@@ -1267,3 +1267,4 @@ _Recovered pre-merge mainline entries._
 - 06:59 提议 Case 由 Harness resolver 精确解析、BatchExecutor 顺序提交，Pi/DSH 不负责 step 循环 [98b7d36]
 - 07:06 整理公共事件候选 taxonomy，统一 Run/Context/Turn/Attempt/控制/工具/准入/网格/批处理分组 [b936429]
 - 07:13 提议 Pi/DSH 保留空能力基线，并增加隔离的 capability parity reference mode 比较业务工具行为 [bdcc2fc]
+- 07:20 收敛能力默认优先级：模型精确 revision、implementation family、空 selection；模型切换不隐式沿用旧 Profile [15e95d0]
