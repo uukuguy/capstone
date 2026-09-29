@@ -1185,3 +1185,4 @@ _Recovered pre-merge mainline entries._
 - 19:24 确认 Capstone 统一事件与控制协议：Pi/DSH 作为低层 runtime adapter，公共 Envelope 由 capstone-harness 负责
 - 19:25 提交 Capstone Harness 协议决策，统一 CLI/SDK/API/Web 事件并隔离原生 runtime 事件 [f205173]
 - 19:27 确认单一 Thread 事件流：规范化事件先持久化再发布，驱动实时、断线恢复、回放和三栏投影
+- 19:28 提交统一事件持久化决策，确保实时流、回放和 UI 投影共享同一权威来源 [a314480]
