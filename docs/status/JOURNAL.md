@@ -1127,3 +1127,8 @@ _Recovered pre-merge mainline entries._
 - 18:07 将页头顶部留白从 10px 收窄至 4px，保留轻微呼吸感 [82f6547]
 - 18:20 让本地 App 默认可由局域网手机访问，同时保持 API 仅 loopback 暴露 [69bfb2d]
 - 2026-09-28: Added provider turn performance design spec f840ba3 to reduce redundant model discovery while preserving LLM composition.
+- 2026-09-29: Added bounded registered-case prompt context 8fa5a1e to prevent future-step leakage and redundant provider discovery.
+- 2026-09-29: Fixed PyPSA provider case binding e82a26b so registered SciGRID runs no longer fail during prompt setup.
+
+## 2026-09-29
+- 10:11 对齐本地 PyPSA 模型缓存与公开 DeepSeek 配置，避免重下载并统一演示模型 [673fa2d]
