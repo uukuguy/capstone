@@ -1259,3 +1259,4 @@ _Recovered pre-merge mainline entries._
 - 06:03 提议能力包控制只解析用户明确的精确身份，不自动裁决语义重叠，工具来源用于用户排错 [a7e95f0]
 - 06:10 明确 TurnRouter 仅分类，ControlResolver/CommandFactory/CommandExecutor 分层，Jev/LLM 永不绕过门控 [9dc34dc]
 - 06:17 提议控制 Turn 使用独立事件投影，保留类型与目标审计但不暴露隐藏分类推理 [6ca2d6d]
+- 06:24 明确 CapstoneThreadClient、CapstoneHarness 与 Pi/DSH runtime adapter 的调用边界，runtime 可替换而 Thread 协议不变 [fd700ee]
