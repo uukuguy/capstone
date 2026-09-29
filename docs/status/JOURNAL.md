@@ -1224,3 +1224,4 @@ _Recovered pre-merge mainline entries._
 - 01:19 确认意图分类只做路由，工具 allowlist、admission 与声明绑定作为不可绕过的硬门控
 - 01:20 提交意图路由硬门控原则，防止分类误判直接造成工具越权或专业结论污染 [f5a4faf]
 - 01:22 确认最小可审计 TurnPlan，记录路由与 Context 快照但不持久化隐藏分类推理
+- 01:23 提交 TurnPlan 最小契约，固定路由修订、硬门控事件与隐式推理隔离 [0bcac0b]
