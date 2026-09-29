@@ -299,3 +299,105 @@ button.reference-chip:hover { background: #235043; color: white; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Fixture-backed Thread workspace. It is isolated from the legacy Case shell. */
+.thread-fixture-shell { min-height: 100vh; background: #081216; color: #e9efed; }
+.thread-fixture-topbar { min-height: 64px; display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; padding: 0 clamp(18px, 3vw, 42px); background: #0b181c; border-bottom: 1px solid #233a3e; }
+.thread-brand { display: flex; align-items: center; gap: 12px; color: #8ba7a3; font: 700 10px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .13em; }
+.thread-brand strong { color: #eff7f1; font: 800 14px/1 Inter, sans-serif; letter-spacing: .2em; }
+.thread-brand-mark { color: #7cdbc8; font-size: 17px; transform: rotate(45deg); }
+.thread-connection { display: flex; align-items: center; gap: 8px; color: #91afa9; font: 700 10px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; }
+.thread-connection i { width: 7px; height: 7px; display: block; border-radius: 50%; background: #7cdbc8; box-shadow: 0 0 0 4px #27655d55; }
+.thread-connection.is-resync_required i { background: #ef9b84; box-shadow: 0 0 0 4px #8b443955; }
+.thread-connection.is-reconnecting i, .thread-connection.is-connecting i { background: #e2bd78; box-shadow: 0 0 0 4px #89662f55; }
+.thread-workspace { width: min(1600px, 100%); min-height: calc(100vh - 64px); margin: 0 auto; display: grid;
+  grid-template-columns: minmax(420px, 1.06fr) minmax(420px, .94fr); grid-template-rows: auto 1fr; }
+.thread-workspace-title { grid-column: 1 / -1; margin: 0; padding: 25px clamp(22px, 4vw, 56px) 21px;
+  border-bottom: 1px solid #20363a; color: #f0f5ef; font-size: clamp(23px, 2.2vw, 32px); letter-spacing: -.045em; font-weight: 680; }
+.thread-grid-pane, .thread-conversation-pane { min-width: 0; padding: 28px clamp(22px, 3.2vw, 52px) 42px; }
+.thread-grid-pane { border-right: 1px solid #20363a; background: #0a171b; }
+.thread-conversation-pane { background: #0c1a1e; display: flex; flex-direction: column; }
+.thread-pane-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 19px; }
+.thread-pane-heading h2 { margin: 7px 0 0; color: #eaf1ed; font-size: 21px; letter-spacing: -.03em; font-weight: 670; }
+.thread-context-state, .thread-run-state { color: #87aaa2; border: 1px solid #31534f; border-radius: 3px; padding: 6px 8px;
+  font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
+.thread-model-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px;
+  background: #102328; border: 1px solid #28464a; border-left: 3px solid #7cdbc8; }
+.thread-model-card strong { display: block; color: #e9f2ed; font-size: 15px; }
+.thread-model-card span:not(.thread-model-badge) { display: block; margin-top: 5px; color: #8fa9a6; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-model-badge { color: #9fe4d3; border: 1px solid #3b776d; padding: 5px 7px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
+.thread-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 14px 0 4px; }
+.thread-page-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; flex: 0 0 auto; padding: 0 10px;
+  border: 1px solid #2a464a; background: #0e2024; color: #91aaa7; border-radius: 3px; font-size: 10px; text-align: left; }
+.thread-page-button:hover { border-color: #4c8177; color: #d6ebe3; }
+.thread-page-button.is-active { background: #143230; border-color: #5b9d8f; color: #d8f2e8; }
+.thread-page-button.is-history { border-style: dashed; }
+.thread-page-index { color: #6b9990; font-size: 9px; }
+.thread-page-button small { color: #d7b882; font: 700 8px "SFMono-Regular", Consolas, monospace; }
+.thread-network-canvas { margin-top: 13px; overflow: hidden; background: #0b1c20; border: 1px solid #28464b; }
+.thread-network-canvas svg { display: block; width: 100%; height: clamp(270px, 28vw, 410px); background: radial-gradient(circle at 50% 42%, #143035 0, #0b1b1f 63%); }
+.thread-network-canvas text { fill: #7faaa4; font: 10px "SFMono-Regular", Consolas, monospace; }
+.grid-edge { fill: none; stroke: #50716f; stroke-width: 2; opacity: .75; }
+.grid-edge-active { stroke: #7cdbc8; stroke-width: 4; opacity: .95; filter: drop-shadow(0 0 4px #7cdbc855); }
+.grid-node { fill: #0d2529; stroke: #9bd7c7; stroke-width: 2; }
+.is-historical .grid-edge-active { stroke: #d0ad71; opacity: .8; }
+.is-historical .grid-node { stroke: #c9a871; }
+.thread-network-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 9px 12px; border-top: 1px solid #263f42; color: #819d99; font-size: 9px; }
+.thread-network-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: #7cdbc8; }
+.legend-dot.muted { background: #c9a871; }
+.thread-grid-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 13px; }
+.thread-grid-meta > div { min-width: 0; padding: 10px; border: 1px solid #203b3f; background: #0e2024; }
+.thread-grid-meta span, .thread-element-reference > span { display: block; color: #6f9992; font: 8px/1.4 "SFMono-Regular", Consolas, monospace; letter-spacing: .09em; }
+.thread-grid-meta strong { display: block; margin-top: 5px; overflow: hidden; color: #b9d4cc; font: 10px/1.35 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.thread-history-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; padding: 9px 11px;
+  background: #30271c; border: 1px solid #80643a; color: #e0c58d; font-size: 10px; }
+.thread-history-bar button, .thread-element-reference { color: #ecd49c; }
+.thread-history-bar button { border: 0; border-bottom: 1px solid currentColor; background: none; padding: 0; font-size: 10px; }
+.thread-element-reference { margin-top: 12px; padding: 10px 11px; border-left: 2px solid #c9a871; background: #1d1a16; }
+.thread-element-reference strong { display: block; margin-top: 4px; font: 700 11px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-element-reference small { display: block; margin-top: 4px; color: #a58e69; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-state-notice { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid #315b56; background: #12302f; }
+.thread-state-notice strong { color: #b8ebdc; font-size: 12px; }
+.thread-state-notice span { color: #9ab8b2; font-size: 10px; line-height: 1.65; }
+.thread-state-notice.is-danger { border-color: #824d42; background: #36211f; }
+.thread-state-notice.is-danger strong { color: #ffc0ae; }
+.thread-state-notice.is-danger span { color: #e5a99c; }
+.thread-inline-error, .thread-inline-notice { margin-top: 9px; padding: 8px 10px; font-size: 10px; line-height: 1.5; }
+.thread-inline-error { color: #ffc0ae; border: 1px solid #824d42; background: #36211f; }
+.thread-inline-notice { color: #b8ebdc; border: 1px solid #315b56; background: #12302f; }
+.thread-events { display: grid; gap: 9px; flex: 1; min-height: 220px; max-height: 440px; overflow: auto; margin: 14px 0; padding-right: 3px; }
+.thread-message { padding: 11px 13px; border: 1px solid #263f43; background: #102329; }
+.thread-message.is-system { background: #0f2023; border-left: 2px solid #6da99d; }
+.thread-message.is-warning { background: #30251d; border-color: #755a36; border-left: 2px solid #d0ad71; }
+.thread-message-role { display: block; color: #6ea098; font: 700 8px/1.4 "SFMono-Regular", Consolas, monospace; letter-spacing: .11em; }
+.thread-message p { margin: 6px 0 0; color: #c5d8d1; font-size: 11px; line-height: 1.65; }
+.thread-message small { display: block; margin-top: 6px; color: #75928e; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-composer { padding: 12px; border: 1px solid #2c4a4d; background: #0f2226; }
+.thread-composer textarea { display: block; width: 100%; resize: vertical; min-height: 76px; border: 0; outline: 0; background: transparent; color: #e9f2ed; font-size: 12px; line-height: 1.65; }
+.thread-composer textarea::placeholder { color: #66827f; }
+.thread-composer textarea:disabled { color: #718987; cursor: not-allowed; }
+.thread-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid #223c40; color: #6f918d; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-send-actions, .thread-control-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.thread-primary-button, .thread-secondary-button, .thread-control-button { min-height: 34px; border-radius: 3px; padding: 0 11px; font-size: 10px; font-weight: 700; }
+.thread-primary-button { border: 1px solid #8bdfcf; background: #7cdbc8; color: #092424; }
+.thread-secondary-button, .thread-control-button { border: 1px solid #3c6360; background: #10272a; color: #b0d0c7; }
+.thread-primary-button:hover:not(:disabled), .thread-secondary-button:hover:not(:disabled), .thread-control-button:hover:not(:disabled) { border-color: #b5f1e2; filter: brightness(1.1); }
+.thread-primary-button:disabled, .thread-secondary-button:disabled, .thread-control-button:disabled { opacity: .42; cursor: not-allowed; }
+.thread-control-row { margin-top: 11px; }
+.thread-loading { min-height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center; gap: 10px; color: #91aaa7; font-size: 12px; }
+@media (max-width: 900px) {
+  .thread-workspace { display: block; }
+  .thread-workspace-title { padding-bottom: 16px; }
+  .thread-grid-pane { border-right: 0; border-bottom: 1px solid #20363a; }
+  .thread-events { max-height: 340px; }
+}
+@media (max-width: 560px) {
+  .thread-brand span:last-child { display: none; }
+  .thread-grid-pane, .thread-conversation-pane { padding: 21px 16px 28px; }
+  .thread-grid-meta { grid-template-columns: 1fr; }
+  .thread-composer-footer { align-items: flex-start; flex-direction: column; }
+  .thread-send-actions, .thread-send-actions > button { width: 100%; }
+  .thread-send-actions > button { flex: 1; }
+}

@@ -3,6 +3,8 @@ import { ApiError, CapstoneClient } from './api'
 import { runAutomaticSession } from './autoRun'
 import { commandKey } from './commandKey'
 import { NetworkView } from './NetworkView'
+import ThreadFixtureApp from './ThreadFixtureApp'
+import type { ThreadUiFixtureId } from './threadUiFixtures'
 import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
   rememberSelection, rememberSession } from './sessionMemory'
@@ -796,6 +798,11 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 }
 
 export default function App({ clientFactory = defaultClientFactory }: Props) {
+  const fixtureRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('thread-fixture')
+  const fixtureIds = new Set<ThreadUiFixtureId>(['idle-ieee39', 'historical-live-attempt', 'resync-required', 'interrupted-attempt'])
+  if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
+    return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} />
+  }
   const [client, setClient] = useState<CapstoneClient | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)

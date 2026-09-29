@@ -19,13 +19,14 @@ export type ThreadProjectionState = {
   viewedGridPageId: string | null
 }
 
-type FixtureDocument = {
+export type ThreadFixtureDocument = {
   snapshot: unknown
   events: unknown
   assertions?: { transport_state?: unknown }
+  local_view?: { viewed_grid_page_id?: unknown; draft?: unknown; replay?: unknown }
 }
 
-function fixtureConnection(fixture: FixtureDocument): ThreadTransportState {
+function fixtureConnection(fixture: ThreadFixtureDocument): ThreadTransportState {
   const value = fixture.assertions?.transport_state
   if (value === 'reconnecting' || value === 'resync_required' || value === 'offline') return value
   return 'live'
@@ -37,7 +38,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 /** A checked-fixture transport for the first Web/TUI projection prototype. */
-export function createFixtureTransport(fixture: FixtureDocument): ThreadTransport {
+export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTransport {
   const receipts = new Map<string, Record<string, unknown>>()
   const snapshot = record(fixture.snapshot)
   const run = record(snapshot.run)
