@@ -1271,3 +1271,5 @@ _Recovered pre-merge mainline entries._
 - 07:27 提议公共客户端固定 capstone-thread/1，事件独立版本化，内部 Harness 与 Pi/DSH 版本不外泄 [a292c67]
 - 07:34 提议六个实现里程碑：公共契约、单 Run、模型能力、CLI/TUI、Web/Case、reference 与高级 runtime [a5601da]
 - 07:41 更新恢复 baton，记录控制链、Case 批处理、reference parity 提案及六阶段实现顺序 [442f412]
+- 07:48 映射现有 ledger/protocol/session/worker/API/network 代码到 Harness 迁移边界，首阶段暂留 capstone-agent 内部子包 [fc15100]
+- 07:55 完成 Web、Textual TUI 与 headless CLI 的 UI/UX 契约，并持久化 Capstone 设计系统 [daf82ad]
