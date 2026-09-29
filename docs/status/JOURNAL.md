@@ -1273,3 +1273,4 @@ _Recovered pre-merge mainline entries._
 - 07:41 更新恢复 baton，记录控制链、Case 批处理、reference parity 提案及六阶段实现顺序 [442f412]
 - 07:48 映射现有 ledger/protocol/session/worker/API/network 代码到 Harness 迁移边界，首阶段暂留 capstone-agent 内部子包 [fc15100]
 - 07:55 完成 Web、Textual TUI 与 headless CLI 的 UI/UX 契约，并持久化 Capstone 设计系统 [daf82ad]
+- 08:02 更新恢复 baton，记录 UI/UX 契约与共享设计系统已完成 [3377f2f]
