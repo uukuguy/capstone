@@ -1264,3 +1264,4 @@ _Recovered pre-merge mainline entries._
 - 06:38 提议 Case 按版本固定指令序列，使用当前 ModelContext，兼容性失败显式处理且不隐式切换模型 [5c71a57]
 - 06:45 提议 Case 启动时固定 ModelContext 与 selection revision，批处理期间禁止切换模型或能力包 [fe4a300]
 - 06:52 提议 Case required step 失败即 blocked，重试复用 step Turn 创建新 Attempt，禁止默认跳过 [0ff2b7f]
+- 06:59 提议 Case 由 Harness resolver 精确解析、BatchExecutor 顺序提交，Pi/DSH 不负责 step 循环 [98b7d36]
