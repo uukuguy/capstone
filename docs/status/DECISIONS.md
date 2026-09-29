@@ -1,5 +1,52 @@
 # Architectural Decisions
 
+## 2026-09-29 — Freeze grid-agent application growth under the unified Capstone application
+
+- **Decision:** `capstone-agent` is the canonical application host for all new CLI/TUI, Thread, Run, current-model, Case-batch, API, Web, and Pi/DSH runtime-switching capabilities. `grid-agent` application-level behavior is frozen.
+- **Compatibility:** `grid-agent` remains the pandapower compatibility adapter with its exact `run`, `analysis`, and `report` stdout contract and simulator/evidence boundary. Necessary security, dependency, correctness, and compatibility maintenance remains allowed; new application orchestration does not go there.
+- **TUI consequence:** `capstone-tui` is a shorthand for the unified Capstone CLI's terminal UI mode, not a new agent application or package by definition. The existing `capstone-agent run` and line-oriented `chat` are reusable foundations; a rich TUI needs the public Thread/event client before UI implementation.
+- **Rationale:** one application core prevents divergent Thread/Run/Turn, Authority admission, evidence, and runtime behavior across Web, CLI, and terminal UI while preserving the stable grid compatibility surface.
+- **Discussion record:** `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
+
+## 2026-09-29 — Historical peer-agent names converge on one Capstone application
+
+- **Decision:** the existing `capstone-agent`, `pandapower-agent`, and `pypsa-agent` names must not define three peer agent applications. The target is one Capstone application with model-compatible capability profiles, Domain Packs, and Authority adapters inside it.
+- **Compatibility:** retain current package/entrypoint names temporarily where needed for migration and the frozen `grid-agent` compatibility surface. Do not introduce new features into historical peer application paths.
+- **Rationale:** the names obscure the ownership direction and invite divergent orchestration, Thread/Run semantics, and evidence behavior. A unified Capstone application is the only public application boundary; domain names describe packs/adapters, not agent products.
+- **Open:** choose the final single public executable/distribution name and migration aliases after the Thread/harness contracts stabilize.
+- **Discussion record:** `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
+
+- **Package inventory:** there is no separate `pandapower-agent` distribution today; its historical application code is mainly in `grid-agent` alongside the correctly named `pandapower-domain-pack`. `pypsa-agent` is a real trusted application assembly package. Their migration must follow ownership boundaries rather than a symmetric rename.
+- **Refactoring direction:** keep model-family capability assemblies inside Capstone or use separately installed profile distributions where pandapower/PyPSA environment isolation requires it. Exact package names remain open. Do not create new `*-agent` peer product names. Keep existing Domain Pack and Authority names.
+
+- **Compatibility stance:** Capstone has no real external application consumers, so current internal package, registry, worker, session, and API shapes may be refactored. The historical `grid-agent` stdout contract remains a separately frozen repository boundary until deliberately retired; it does not constrain the new Capstone design.
+
+## 2026-09-29 — Model Capability Profiles follow user-selected grid models
+
+- **User-facing rule:** users choose a registered Grid Model. The catalog resolves its implementation family and Authority-owned revision. Capstone then presents eligible ModelCapabilityProfiles/Domain Packs and activates the user-selected set. The system does not claim to know semantic overlap in advance. Profiles and Domain Packs are internal capabilities, not separate user-facing applications.
+- **Model switch:** one Thread and its v1 Run may switch between pandapower-backed and PyPSA-backed models. Each switch closes the previous Model Context and opens a new one, recording model/revision and resolved profile identities. Old tools and evidence do not automatically become current-model capabilities or facts.
+- **Persistent data model:** Thread owns the ordered conversation/event stream and current Run/ModelContext pointers; the v1 Run owns multiple Turns and an ordered ModelContext sequence. Each ModelContext has a stable identity, model/revision/implementation family, and enabled package selection revisions. A model switch creates a new context; a package change retains the context identity and advances its selection revision at a Turn boundary. Tool calls, results, evidence, and replay bind to the effective context snapshot.
+- **Naming correction:** `Application Binding` and `capstone-binding-spi` are superseded design names. The accepted name is `ModelCapabilityProfile`; the intended independent package is `capstone-model-capability-spi`. Existing Kernel `DomainBinding` retains its historical meaning.
+- **Four-concern baseline:** the neutral SPI owns descriptor, registry, factory, and exact selection contracts. It has no host, Kernel, Domain Pack, Authority, Pi, DSH, or current-tool imports. Model catalog, Case, network projection, Authority, and tool-catalog shapes are not mandatory SPI fields.
+- **Two-layer rationale:** a neutral factory returns a lightweight `ModelCapabilityProfileHandle`; a trusted `CapstoneModelCapabilityAdapter` converts it into current Kernel or future Capstone assembly. This prevents the public SPI from inheriting today's `ApplicationProfile`/`DomainBinding` assumptions and keeps credentials, Authority admission, evidence, and runtime policy in the host and owning Domain Packs.
+- **Trust/version:** descriptor fields are limited to `profile_id`, `profile_version`, and `spi_version`. Trust belongs to the Registry registration record. A trusted bootstrap registers approved factories and seals the Registry; runtime resolution is exact and read-only, with no implicit latest/range selection. Invalid or mismatched registration fails closed.
+- **Lifetimes:** registration is process-scoped, a profile handle belongs to one active Model Context within a Prepared Run, Worker lease belongs to one task, and Thread/Run history is persistent. A Run may sequence different profile handles as models change. Persistent state stores exact model/revision/profile identities, not live handles.
+- **Tool-choice correction:** users enable or disable packages at the ModelCapabilityProfile/Domain Pack boundary; all tools from enabled packages are available. Individual tool toggles are unnecessary. Overlap is permitted because semantic conflict may only be recognized by a professional user during tool descriptions, calls, or results. A model-specific default package set may be supplied for common models, and users may temporarily disable packages at a Turn boundary.
+- **Tool provenance:** every tool-call and admitted-result projection must show stable tool identity, source profile/version, Domain Pack/version when available, implementation family, model context, and selection revision. This provenance is the primary troubleshooting surface for unexpected or conflicting behavior.
+- **Public structure:** standardize these fields as `ToolSourceRef` and attach it to tool lifecycle events plus admitted result/evidence references. It is diagnostic provenance shared by CLI, TUI, SDK, API, and Web, with existing secret and evidence screening unchanged.
+- **Catalog ownership:** user-facing profile labels/descriptions, selectable profile references, implementation-family association, and default package selections belong to a Capstone Model Capability Catalog. Authorities retain model/revision truth; the neutral profile SPI remains presentation- and default-policy-independent.
+- **Empty context:** an empty enabled profile set is valid. Capstone can support ordinary conversation, model/capability discovery, context switching, and UI state without domain tools; professional claims, tool calls, admitted results, and evidence require an applicable enabled package. Pure Pi/DSH can use the empty context as a no-domain-tool interaction/event baseline, with no authority or Capstone evidence semantics.
+- **Selection control:** expose structured `enable_profile`, `disable_profile`, and `replace_selection` commands. A running Turn freezes its selection revision; changes become pending and apply after terminal completion/cancellation. An empty selection supports ordinary conversation, while professional analysis requires an applicable enabled package. Validation covers exact trusted model-compatible identities and leaves semantic overlap to the user.
+- **Historical audit:** the existing `ApplicationRegistry` resolves complete Kernel `ApplicationProfile` objects, while Kernel `DomainRegistry` and `DomainBinding` encode current domain/tool details. The new SPI is independent and uses migration adapters rather than renaming these registries.
+- **Discussion record:** `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
+
+## 2026-09-29 — Capstone is the public brand and default executable
+
+- **Decision:** `Capstone` is the product brand and default command-line program name. `capstone-agent` is the canonical internal name for the single intelligent-agent application layer; it is not the public brand and not a peer application to a domain pack.
+- **Naming guidance:** `capstone-harness` names the Capstone-aware execution layer; `capability-agent-kernel` remains the neutral Kernel package; `capstone-app` remains the Web presentation package; Domain Pack names carry domain semantics without an `-agent` product suffix.
+- **Rejected:** `capstone-application` and `capstone-application-host` are longer and conflict conceptually with the existing `capstone-app` Web package. No `capstone-agent` rename is planned.
+- **Discussion record:** `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
+
 ## 2026-09-25 — Capability-named PyPSA packs and multi-binding composition
 
 - **Decision:** an application may explicitly assemble multiple independently installable Domain Packs. PyPSA's Network modeling is its own pack; operations, capacity planning, and sector coupling are separately named packs. Each new distribution name includes `pypsa`, while the existing pandapower distribution remains compatible.

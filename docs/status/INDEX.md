@@ -28,6 +28,7 @@
 | [PyPSA model-library design](../superpowers/specs/2026-09-26-pypsa-model-library-and-business-cases-design.md) | Official model asset boundary, runnable case scope, and presentation contract. |
 | [PyPSA model-library implementation plan](../superpowers/plans/2026-09-26-pypsa-model-library-and-cases.md) | Local model library and scripted-case acceptance; container and frontend work remains deferred. |
 | [Capstone framework](../architecture/capstone-framework.md) | Layer contracts, current-run evidence and guide-access assurance boundaries. |
+| [Agent interaction discussion record](../superpowers/specs/2026-09-29-agent-interaction-discussion.md) | 🟡 Active discussion record for capstone-agent/harness, Thread/Run/Turn/Case, Pi/DSH runtime paths, model context, events, and three-pane App redesign; not an approved implementation spec. |
 
 ## Climb storage and configuration
 

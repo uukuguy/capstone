@@ -1,51 +1,64 @@
-# Next-Session Handoff
+# Live Session Checkpoint
 
-> Updated: 2026-09-29 12:00 CST end of session.
+> Updated: 2026-09-29 19:02 CST. **Session remains active — not a final handoff.** The prior session's baton was recovered from the journal.
 
 ## TL;DR
 
-- 已将本地、cloud-dev、用户试用三阶段研发与发布架构写入
-  `docs/architecture/capstone-development-lifecycle.md`。
-- `AGENTS.md` 已加入强制隔离、同修订晋级、凭据和验证要求；README 已移除研发内部细节。
-- Railway cloud-dev 的 API、worker、App 按同一源码修订部署并通过健康检查；用户试用环境保持独立。
-- 当前工作树干净，`main` 已同步 `origin/main`。
+- The local, cloud-development, and user-trial release lanes are documented in `docs/architecture/capstone-development-lifecycle.md` and enforced in `AGENTS.md`.
+- Railway `capstone-cloud-dev` API, worker, PostgreSQL, private bucket, and App were deployed and health-checked on one source revision; the user-trial environment remains isolated.
+- `main` is synchronized with `origin/main`; this recovery checkpoint is the only current worktree change. No cloud Provider validation has been claimed because cloud-dev still lacks its independent protected Provider key.
+- Active design discussion: `capstone-agent` is the unified agent core for CLI, SDK, API, and Web. Cases and dialogue must share its session, turn, authority, and evidence path; pandapower and PyPSA adapters belong inside it.
+- Dialogue v1 uses one run per thread. The design must preserve a later one-thread/many-run upgrade for comparison, reruns, and branches.
+- The Thread → Run → ModelContext data model is accepted: Thread keeps the ordered workspace events and current pointers; its v1 Run contains multiple Turns and sequential ModelContexts. Model switch creates a context, while package selection changes only its revision at a Turn boundary. Tool/evidence/replay records bind to the effective context snapshot and `ToolSourceRef` where applicable.
+- Pi and DSH are replaceable pure harness runtimes from Thread's perspective; `HarnessPiClient` and an empty `HarnessDSHClient` remain comparison paths. `capstone-harness` may consume their events, normalize and enrich them, then serve CLI/SDK/API/Web projections; Thread is only one consumer.
+- A case is a reusable multi-turn instruction batch, not Thread state. A Thread is centered on a current grid model, supports ordinary and model-focused professional dialogue, and can switch that model; v1 has one current model at a time, with multi-model context deferred.
+- Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves the concrete model revision at creation or first run and binds that revision to subsequent result/evidence events.
+- Users select registered Grid Models, not internal capability profiles. The model catalog resolves implementation family plus Authority revision, then Capstone resolves a compatible `ModelCapabilityProfile`. One Thread/Run may switch between pandapower-backed and PyPSA-backed models; each switch starts a new Model Context with isolated tools and evidence.
+- A model implementation may expose multiple candidate `ModelCapabilityProfile` entries. Users enable or disable packages at the Profile/Domain Pack boundary, and a Model Context may hold several selected packages. Individual tool switches are unnecessary; semantic overlap is diagnosed by professionals during use. Model defaults may provide a common package set, and selection revisions apply at Turn boundaries.
+- Tool provenance is mandatory in public activity/evidence projections: tool identity/name, source profile/version, Domain Pack/version when available, implementation family, model context, and selection revision must be visible for troubleshooting.
+- The common provenance structure is named `ToolSourceRef` and is attached to every tool lifecycle event and admitted result/evidence reference.
+- User-facing labels, descriptions, eligible profiles, and default package combinations belong to the Capstone Model Capability Catalog; Authorities retain model/revision truth.
+- Empty capability context is a valid baseline: Capstone supports ordinary conversation and capability discovery without tools, while professional claims/evidence require an enabled package; pure Pi/DSH uses it for no-domain-tool runtime/event comparison.
+- Capability selection controls are accepted: structured enable/disable/replace commands, pending changes during an active Turn, next-Turn effect, durable selection revisions, empty selection allowed for ordinary conversation, and bounded rejection of professional analysis without an enabled applicable package.
+- The existing App middle column is a redesign target: replace the case-result panel with a Thread-driven current-grid workspace. Chat, model projection, case batches, and evidence replay must consume one event source; the model area is a peer projection of the Thread, not a case-owned widget.
+- The whole three-column App layout is a redesign target: left Thread conversation, center current-grid workspace, right contextual inspector/evidence. The case library becomes an auxiliary batch launcher rather than a persistent primary column.
+- The complete discussion is recorded in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, with explicit Decided / Proposed / Open sections. It is a discussion record, not yet an approved implementation spec.
+- `grid-agent` application growth is frozen. It remains a pandapower compatibility adapter; new CLI/TUI and agent interaction work goes through the unified Capstone application/harness. `capstone-tui` is shorthand for the unified CLI's TUI mode, not a new package or application. `capstone-agent`, `pandapower-agent`, and `pypsa-agent` are historical peer-agent names to converge behind one Capstone application.
+- `Capstone` is the public brand and default executable name. `capstone-agent` is the canonical internal name for the intelligent-agent application layer; `capstone-application` is rejected as verbose and conceptually conflicting with `capstone-app`.
+- Historical domain-agent names need asymmetric refactoring: no separate `pandapower-agent` distribution exists; `grid-agent` contains much of its legacy application/compatibility code, while `pypsa-agent` is a real PyPSA assembly package. Candidate target is Capstone-owned model-family capability profiles or isolated profile distributions, with Domain Packs and Authorities retaining their current semantic names.
+- Capstone has no real external application consumers, so internal historical APIs and package boundaries may be refactored freely; only the separately frozen `grid-agent` compatibility envelope remains constrained. A public, versioned, trusted Model Capability Profile SPI is required before moving the historical assemblies, because many future grid-computing tools will be composed under one Capstone application.
+- The initial `capstone-model-capability-spi` must stay lightweight and implementation-agnostic: identity/version/registration/resolution/trust plus exact selection. It must not make current pandapower/PyPSA model, Case, Authority, network projection, or tool catalog shapes mandatory.
+- The approved first SPI baseline is four concerns only: descriptor, registry, factory, and application-profile selection. Optional contribution protocols wait until the historical audit proves a concrete need.
+- The SPI package boundary is accepted: create an independent `packages/capstone-model-capability-spi` distribution with no Capstone host, Kernel, Domain Pack, Authority, Pi, DSH, or current-tool imports. `capstone-agent` will populate the trusted registry and host migration adapters.
+- The two-layer rule is accepted: the neutral SPI factory returns a `ModelCapabilityProfileHandle`; a named `CapstoneModelCapabilityAdapter` in `capstone-agent` translates it into Kernel or future Capstone application assembly. The rationale prevents confusing a profile handle with a Domain Pack or executable Kernel profile.
+- Version/trust rules are accepted: descriptor fields are limited to `profile_id`, `profile_version`, and `spi_version`; trust belongs to closed Registry registration; first resolution is exact and deterministic with no latest/range selection.
+- Registry lifecycle is accepted: trusted bootstrap registers and explicitly seals it; production runtime resolves read-only after sealing; host application configuration and model catalog select exact profile identities; only isolated test/development registries may remain unsealed.
+- Capability lifetimes are accepted: registration is process-scoped, the profile handle is per active Model Context within a Prepared Run, Worker lease is per task, and Thread/Run state is persistent. A Run may sequence profiles as models change; persistent events store model/revision/profile identities.
+- `CapstoneModelCapabilityAdapter` is accepted as the trusted per-profile assembly entry point. It validates compatibility and returns current/future Capstone application assembly; Thread, Run/Turn, Worker, Pi/DSH events, and public output stay above it.
+- Historical audit confirms the existing `ApplicationRegistry` resolves complete Kernel `ApplicationProfile` objects, while `DomainRegistry` and `DomainBinding` already encode today's domain/tool details. The new profile SPI must be independent and use adapters during migration; it must not rename either existing registry or promote `DomainBinding`.
 
 ## Where things stand
 
-- 最新提交：
-  - `a0f994c` — journal project state refresh
-  - `6728960` — refresh structural project state
-  - `7f63add` — record lifecycle architecture
-  - `cdf6057` — codify development release lanes
-  - `2e300db` — record cloud-dev deployment
-- 文档验证通过：`make doctor`、链接检查、`git diff --check`、`CLAUDE.md` 符号链接检查。
-- Railway cloud-dev API `/health/ready` 和 App `/health` 返回 `200`。
-- cloud-dev 尚未配置独立 `DEEPSEEK_API_KEY`，因此 Provider 云端验证仍需单独授权和配置。
-- 用户试用环境不跟随普通开发推送；本地 App 继续承担高频迭代。
+- Recent durable commits: `ba5b666` (journal handoff), `cc3ef9d` (handoff refresh), `a0f994c` (journal refresh), `6728960` (structural state), `7f63add` (lifecycle architecture).
+- Documentation gates passed: `make doctor`, link checks, `git diff --check`, and the `CLAUDE.md` symlink check.
+- Cloud-dev API `/health/ready` and App `/health` returned `200`.
+- Project route is `direct`; the canonical optimization worklist remains `docs/superpowers/plans/2026-09-05-capstone-optimization.md`. The active design has not yet been approved or implemented.
 
-## What this session delivered
+## Immediate next steps
 
-- 新增研发与发布生命周期规范文档。
-- 在 `AGENTS.md` 中固化三阶段架构和不可绕过的核心要求。
-- 清理中英文 README，保留用户需要的部署入口。
-- 刷新 `CURRENT-STATE.md`，记录架构边界和规范文档索引。
+1. Finish the Run lifecycle and ModelContext transition contract, then complete model-to-profile resolution and adapter details before implementation planning.
+2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
+3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
+4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
 
-## Next steps
+## Ruled-out paths
 
-1. 如需云端 Provider 验证，在 Railway cloud-dev 的受保护变量中配置独立 Provider key。
-2. 运行一个 Provider 案例，比较本地与 cloud-dev 的分步耗时、报告和证据回放。
-3. 后续发布只能按“本地门禁 → cloud-dev 验证 → 精确修订晋级”的流程执行。
-4. 新功能开发前先阅读 `AGENTS.md` 和研发生命周期文档。
+- Do not share cloud-dev and user-trial databases, buckets, credentials, origins, or mutable run data.
+- Do not promote ordinary development pushes directly to user-trial.
+- Do not use an old Compose image as evidence for current source.
+- Do not claim cloud Provider validation without the separate cloud-dev key.
 
-## Don't go down these paths again
-
-- 不把研发内部架构和 cloud-dev 细节写回面向用户的 README。
-- 不让 cloud-dev 与用户试用共享数据库、bucket、凭据、域名或运行数据。
-- 不用普通开发推送直接更新用户试用环境。
-- 不用旧 Compose 镜像代表当前源码进行远程验证。
-- 未配置独立 Provider key 时，不宣称云端 Provider 验证已通过。
-
-## Ready-to-paste commands / configs
+## Ready-to-paste checks
 
 ```sh
 git status --short --branch

@@ -1142,3 +1142,33 @@ _Recovered pre-merge mainline entries._
 - 11:05 固化本地、cloud-dev、用户试用三阶段研发晋级架构，并将强制约束写入 AGENTS，移除 README 内部部署细节 [cdf6057]
 - 11:55 刷新 CURRENT-STATE 结构快照，纳入三阶段研发发布边界和规范文档索引 [6728960]
 - 12:29 按确认草稿重写下一会话交接 baton，记录架构规范、云端验证边界与下一步 [cc3ef9d]
+- 13:47 确认 capstone-agent 为统一智能体核心；案例与对话共用其编排，领域应用内部适配
+- 13:47 确认对话首版每线程单 run；设计保留多 run 对比、重算与分支升级
+- 14:24 确认 Pi/DSH 是 Thread 可切换的底层纯 harness runtime；保留 HarnessPiClient 与 HarnessDSHClient 空壳，切换点位于纯 runtime 与 Capstone harness 之间
+- 14:29 确认 capstone-harness 消费并定制 Pi/DSH runtime 事件，向 CLI、SDK、API、Web 提供统一的 Capstone run/event 语义；Thread 只是其中一种应用投影
+- 14:46 明确案例是可复用的多轮指令批处理，不绑定 Thread；Thread 以当前电网模型为核心上下文，支持普通对话、面向模型的专业对话和模型切换，先做单当前模型，高级版再扩展多模型
+- 14:48 确认 Thread v1 创建时默认绑定已注册的 IEEE-39 电网模型；具体 revision 由 Authority/catalog 解析并写入上下文与事件，案例仍是可选的多轮指令批处理
+- 14:54 确认现有 App 中栏需要从案例运行结果区重新设计为 Thread 驱动的当前电网模型工作区；对话、模型投影、案例批处理和证据回放共享同一事件源
+- 14:58 确认现有三栏整体需要重设计：从“案例库 / 案例运行 / 证据详情”改为“Thread 对话 / 当前电网模型 / 上下文与证据”，案例批处理降为辅助入口
+- 15:04 将本轮 Agent 交互、Thread/Run/Turn/Case、Pi/DSH runtime、Harness 事件、IEEE-39 默认模型和三栏工作区讨论落盘到 `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`；标明已确认、建议与待决问题
+- 15:08 确认 grid-agent 应用级能力冻结；新 CLI/TUI、Thread、模型上下文、Case 批处理和 runtime 切换直接归 capstone-agent，capstone-tui 作为其客户端
+- 15:12 澄清 capstone-tui 只是统一 Capstone CLI 的 TUI 形态，不是独立包或新应用；capstone-agent、pandapower-agent、pypsa-agent 均属历史命名，目标收敛为一个 Capstone 应用及内部领域适配
+- 15:35 确认 Capstone 是品牌名和缺省命令行程序名；capstone-agent 暂保留为统一应用宿主的内部代码名，是否改为 capstone-application 待 Thread/harness 契约稳定后再评估
+- 15:51 确认 capstone-agent 作为 Capstone 智能体应用层的正式内部名称；capstone-application 与 capstone-app 概念冲突且过长，不再作为重命名目标
+- 15:56 核对历史包边界：无独立 pandapower-agent 包，pypsa-agent 是 PyPSA 应用装配；后续按 binding/domain pack/authority/兼容适配器拆分，不做对称机械改名
+- 16:05 确认先审计历史框架再重构；Capstone 无实际外部应用，内部包/registry/worker/API 可重构；必须新增公开、版本化、受信任的 Application Binding Registry SPI 以支持未来大量电网工具
+- 16:12 确认 capstone-binding-spi 初版保持轻量、工具无关，只负责 binding 身份/版本/注册/解析/信任与可选扩展，不锁定当前两个工具的模型、Case、Authority 或网络投影形态
+- 16:29 完成历史装配审计：ApplicationRegistry 解析完整 ApplicationProfile，Kernel DomainRegistry/DomainBinding 已携带当前域工具语义；确认 Binding SPI 不应改名复用既有 registry，而应以 Descriptor、Registry、Factory、ApplicationProfile Selection 四项作为首版核心，现有装配通过适配器迁移
+- 16:31 确认首版 Binding SPI 独立为 packages/capstone-binding-spi，零 Capstone/Kernel/Domain Pack/Authority/Pi/DSH/当前工具依赖；下一项需确定 Factory 返回对象的最小宿主行为后再创建包骨架
+- 16:33 确认 Binding 两层结构：neutral SPI Factory 返回轻量 ApplicationBinding 句柄，capstone-agent 通过命名明确的 CapstoneBindingAdapter 转换为 Kernel/未来 Capstone 装配；缘由是隔离未来 binding 形态与当前 ApplicationProfile/DomainBinding 假设，并把凭据、Authority admission、evidence 和 runtime policy 留在宿主
+- 16:35 确认 Binding 版本与信任规则：Descriptor 仅含 binding_id/binding_version/spi_version，信任归受控 Registry 注册记录，首版按精确版本解析并拒绝重复、身份不匹配、SPI 不支持和非法 Factory，不做 latest/range 自动选择
+- 16:37 确认 Binding Registry 生命周期：受信任 bootstrap 注册后显式 seal，生产运行期只读解析，禁止动态注册/替换/删除；ApplicationProfile 只保存精确 binding identity，测试可使用隔离的未 seal Registry
+- 16:39 确认 Binding 生命周期分层：Registration 为进程级，ApplicationBinding 句柄为 Prepared Application/Run 级，Worker lease 为单任务级，Thread 为持久会话级；Thread 只存 identity，Worker 不得注册 Binding、选模型或拥有 Thread 状态
+- 16:41 确认 CapstoneBindingAdapter 边界：每个 Binding 由 capstone-agent 受信任注册一个适配器，负责 descriptor/SPI 校验和当前/未来 Capstone 应用装配；Thread、Run/Turn、Worker、Pi/DSH 事件、公共输出和模型选择均留在上层
+- 17:24 简化用户工具选择：同一模型实现可有多个候选 ModelCapabilityProfile，但 v1 一个 Model Context 只激活一个，用户选择停在 Profile/Domain Pack 层级，不开放逐工具开关或多个重叠 Profile 并行
+- 17:28 修正工具选择语义：允许多个 Profile/Domain Pack 同时启用，系统不预判未知语义冲突；用户按专业知识启用/临时关闭包，默认模型可提供常用组合；逐工具开关不需要，所有工具调用必须显示 tool、Profile/Domain Pack、实现族、Model Context 和 selection revision 来源
+- 17:30 确认统一工具来源结构命名为 ToolSourceRef，附着于工具生命周期事件与 admitted result/evidence reference，供 CLI/TUI/SDK/API/Web 共享诊断来源信息
+- 17:32 确认能力包选择控制：enable/disable/replace 为结构化命令，运行 Turn 冻结 selection revision，变更 pending 并在 Turn 终态后对下一 Turn 生效；空选择允许普通对话，专业分析需有适用启用包
+- 17:35 确认 Model Capability Catalog 归 capstone-agent，负责用户标签、可选 Profile、实现族关联和默认组合；空能力 context 保留为 Capstone 普通对话/能力发现模式及 Pi/DSH 无领域工具运行时基线，不能产生权威电网事实或 Capstone evidence
+- 17:19 修正模型能力层级与命名：用户选择注册电网模型，模型目录解析实现族与 Authority revision，再由 Capstone 解析兼容 ModelCapabilityProfile；同一 Thread/Run 可跨 pandapower/PyPSA 切换 Model Context，SPI 包目标改为 capstone-model-capability-spi，旧 Application Binding 名称标记为 superseded
+- 19:01 确认 Thread → Run → ModelContext 三层持久数据模型：v1 一 Thread 一 Run、多 Turn 和顺序 ModelContext；切换模型新建 Context，包变更只推进 selection revision；工具、结果、证据与回放绑定当时 Context 快照
