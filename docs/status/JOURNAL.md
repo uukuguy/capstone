@@ -1261,3 +1261,4 @@ _Recovered pre-merge mainline entries._
 - 06:17 提议控制 Turn 使用独立事件投影，保留类型与目标审计但不暴露隐藏分类推理 [6ca2d6d]
 - 06:24 明确 CapstoneThreadClient、CapstoneHarness 与 Pi/DSH runtime adapter 的调用边界，runtime 可替换而 Thread 协议不变 [fd700ee]
 - 06:31 收敛能力包默认与 live handle 替换：精确版本快照、隔离准备、边界原子激活、失败保留旧选择 [aa8ebc1]
+- 06:38 提议 Case 按版本固定指令序列，使用当前 ModelContext，兼容性失败显式处理且不隐式切换模型 [5c71a57]
