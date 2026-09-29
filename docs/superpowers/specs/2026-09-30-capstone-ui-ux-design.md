@@ -29,6 +29,54 @@ Each client consumes `ThreadSnapshot` plus `EventPage` and maintains a local pro
 
 The UI must always distinguish `active` from `viewed`. A historical page can be inspected without changing the current ModelContext. A model switch is confirmed by `model_context_activated`, after which the default follow-current behavior selects that model's page.
 
+## Workspace controller and input policy
+
+All clients derive a `ThreadWorkspaceViewModel` from the shared projection. Its action precedence is:
+
+1. `resync_required` or `reconnecting`: freeze all state-changing actions; allow only reconnect, verified snapshot reload, help, and exit.
+2. `replay` or a historical read-only view: freeze send, model switch, capability edits, Case controls, and element analysis; allow navigation and `Return to live`.
+3. `run=closed|failed`: freeze business actions and show replay/read-only controls.
+4. `approval_wait`: focus the approval surface; allow approve, deny, cancel, and diagnostics.
+5. `active_attempt`: allow streaming, cancel, approval response, and explicitly accepted pending controls; disable new ordinary/professional Turn submission in v1.
+6. `context=preparing|switch_pending|selection_pending`: show the pending target and keep the old effective Context visible until activation; disable a second conflicting change.
+7. `ready`: enable the composer, model/profile actions, Case launch, and grid element actions when their page is active and valid.
+
+The composer may retain a draft while input is disabled. Every submitted Turn displays a frozen target chip containing model ID/revision, ModelContext ID, selection revision, and optional element reference. A pending model or capability change is shown separately and never rewrites an in-flight Turn's chip. Reconnect and snapshot replacement preserve drafts only when their client-local target remains valid; otherwise the draft is retained as plain text with an explicit “review target before sending” state.
+
+Clear conversational controls can bypass the ordinary composer route and create a control Turn/command. The UI never creates a second ordinary/professional Turn while one Attempt is active. A cancel, approval, retry, or pending model/profile command remains available through the command surface defined by Harness.
+
+## Thread navigation and lifecycle
+
+Thread navigation is part of the product shell, not a hidden API detail. Web uses a route such as `/threads/{thread_id}` with a recent Thread switcher, `New Thread`, rename, and recovery markers. Textual exposes the same picker through the command palette and a dedicated function key; headless CLI accepts `--thread-id`, `--new-thread`, and a clear error when neither an existing Thread nor creation intent is supplied.
+
+The Thread picker shows title, last activity, current model, Run state, connection/recovery marker, and unread event count. Opening a Thread first loads its verified `ThreadSnapshot`, then catches up by `event_seq`; it never reuses a stale in-memory projection from another Thread. `New Thread` creates the default IEEE-39 page and starts a separate Run record. A closed Thread remains selectable for replay but cannot be mutated.
+
+## Detailed interaction contracts
+
+### New Thread and model loading
+
+Thread creation renders a labeled IEEE-39 page in `loading` state and a connection status immediately. Ordinary conversation becomes available after the Thread snapshot and current Run are valid, even if the diagram later becomes `unavailable`. Professional/model actions remain disabled until the relevant ModelContext and capability contribution are ready. A failed revision resolution is a creation error with retry/new-thread actions; it never renders an unlabeled empty workspace.
+
+### Grid element to composer
+
+Selecting a bus or branch creates a local element reference chip with element kind, ID, label, model revision, and page status. `Ask about this` creates an ordinary or professional Turn according to the action; `Analyze this` explicitly requests the professional route. The chip is removable. Switching page, entering replay, receiving a new model Context, or losing projection validity marks it stale and disables send until the user removes it or returns to the referenced page. Keyboard and text-list selection provide a non-canvas path.
+
+### Model switch and capability editing
+
+The model drawer previews target model ID/revision, implementation family, default Profile set, and preparation status before dispatch. During an active Attempt it becomes `pending after Attempt N`; the existing Context remains the only effective target. Capability editing is staged: the drawer shows `Effective now`, a pending diff, exact Profile versions, and one atomic `Apply next Turn` action. Preparation failure keeps the previous Context/selection and exposes the stable error class, retryability, and action hint.
+
+### Case preflight and batch mode
+
+Case launch opens a preflight card containing exact Case version, step count, model/revision requirement, selected Profiles, and Context pin. Confirmation creates the batch relation; future steps remain visibly pending. The Thread composer changes to “Case active” and accepts only permitted control input until the batch completes or is cancelled. A blocked step shows the failed Attempt, required admission that failed, retry target, and cancel action. Completion restores normal input and leaves the step rail available for replay.
+
+### Replay and recovery
+
+Evidence links and Case steps enter replay with a visible `view_seq`, base event sequence, model revision, and read-only banner. `Return to live` restores the current active page without mutating Thread state. During reconnect/resync all state-changing controls are disabled. A verified snapshot replaces the projection atomically; the client then reads after `base_event_seq`. An interrupted Attempt is rendered as interrupted and offers `Retry as new Attempt`; the interface never calls it resumed without a verified checkpoint.
+
+### Grid scale and readability
+
+The renderer uses projection-provided counts, omitted metadata, and optional level-of-detail hints. For large networks it starts in an overview mode with labels reduced, preserves focus search by stable element ID, and allows a focused neighborhood view. Omitted buses/branches and unavailable coordinates remain visible as text status. Numeric overlays expose metric, unit, source reference, and revision; the UI does not invent values when projection coverage is partial.
+
 ## Web workspace
 
 ### Desktop shell
@@ -142,6 +190,7 @@ Recommended keyboard map. Function keys are used for drawers so terminal line-ed
 | Key | Action |
 | --- | --- |
 | `Tab` / `Shift+Tab` | move between operable regions |
+| `F1` | open Thread picker / create Thread |
 | `F6` | focus or maximize grid |
 | `F7` | focus conversation/composer |
 | `Ctrl+K` | open command palette |
