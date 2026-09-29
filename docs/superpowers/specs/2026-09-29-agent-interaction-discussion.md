@@ -116,6 +116,8 @@ The UI presents user-facing package descriptions and Domain Pack-level enable/di
 
 **Open.** The earlier proposal that a Thread could begin without a model is superseded by the IEEE-39 default. Revision resolution now occurs at Thread creation. The remaining implementation detail is the exact catalog schema and precedence between model/revision defaults and implementation-family fallbacks; the prepare-before-retire lifecycle is fixed by the proposal above.
 
+**Proposed Case launch semantics.** A Case is a versioned ordered user-instruction sequence, not a Thread or ModelContext owner. `launch_case` resolves an exact `case_id@version`, checks its optional model/implementation-family requirement against the current Context, and never silently switches the model. An incompatibility returns explicit candidate models and a separate `model_switch` path. A compatible Case creates a batch relation in the same Thread; each step is an ordinary Turn with its own Attempt/retry history, and the next step is admitted only after the previous step reaches its required terminal result. Batch progress, cancellation, and step outcomes use the canonical Thread event stream.
+
 ## Events and application projections
 
 **Decided direction.** `capstone-harness` consumes rich Pi/DSH events, performs Capstone-specific processing, and exposes a common Capstone run/event stream to CLI, SDK, API, and Web. Thread is one projection of that shared stream. Native runtime events must not be mistaken for admitted business facts or a stable Capstone public API. Diagnostic native events may be retained server-side subject to security and storage policy.
