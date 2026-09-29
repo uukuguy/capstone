@@ -24,6 +24,8 @@ from .thread_protocol import (
     CommandReceipt,
     EventEnvelope,
     EventPage,
+    ModelContextSnapshot,
+    RunSnapshot,
     ThreadProtocolError,
     ThreadSnapshot,
 )
@@ -50,6 +52,8 @@ class ThreadResyncRequired(RuntimeError):
 
 class ThreadService(Protocol):
     """Persistence and admission operations required by the HTTP projection."""
+
+    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot: ...
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
@@ -96,6 +100,12 @@ class InMemoryThreadService:
     @classmethod
     def from_document(cls, document: Mapping[str, Any]) -> InMemoryThreadService:
         return cls(ThreadSnapshot.from_document(dict(document)))
+
+    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+        with self._lock:
+            if snapshot.thread_id != self._snapshot.thread_id:
+                raise ValueError("in-memory service only contains its configured thread")
+            raise ValueError("thread identity already exists")
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
         with self._lock:
@@ -212,6 +222,47 @@ class InMemoryThreadService:
             status=status, accepted_event_seq=accepted_event_seq,
             rejection=rejection, target=None,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ThreadModelDescriptor:
+    """Authority-resolved model identity used to create an immutable Context."""
+
+    model_id: str
+    model_revision: str
+    implementation_family: str
+
+
+class ThreadModelCatalog(Protocol):
+    default_model_id: str
+
+    def resolve(self, model_id: str | None) -> ThreadModelDescriptor: ...
+
+
+class ThreadCreator:
+    """Resolve a registered model once, then persist a pinned Thread snapshot."""
+
+    def __init__(self, service: ThreadService, catalog: ThreadModelCatalog) -> None:
+        self._service = service
+        self._catalog = catalog
+
+    def create(self, model_id: str | None = None) -> ThreadSnapshot:
+        descriptor = self._catalog.resolve(model_id or self._catalog.default_model_id)
+        token = secrets.token_hex(10)
+        context = ModelContextSnapshot(
+            id="ctx_" + token, model_id=descriptor.model_id,
+            model_revision=descriptor.model_revision,
+            implementation_family=descriptor.implementation_family,
+            selection_revision="sel_0",
+        )
+        snapshot = ThreadSnapshot(
+            thread_id="thr_" + token,
+            run=RunSnapshot(run_id="run_" + token, state="open"),
+            active_model_context=context,
+            active_grid_page_id="page_" + descriptor.model_id,
+            current_attempt=None, last_event_seq=0, base_event_seq=0,
+        )
+        return self._service.create_thread(snapshot)
 
 
 _THREAD_SCHEMA = """

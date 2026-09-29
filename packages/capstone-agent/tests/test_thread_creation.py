@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+
+from capstone_agent.host_api import create_host_app
+from capstone_agent.session import WorkerRegistry
+from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
+from capstone_agent.thread_service import ThreadCreator, ThreadModelDescriptor
+
+
+class _Catalog:
+    default_model_id = "ieee39"
+
+    def resolve(self, model_id: str | None) -> ThreadModelDescriptor:
+        if model_id not in {None, "ieee39"}:
+            raise ValueError("model is not registered")
+        return ThreadModelDescriptor("ieee39", "revision:sha256:" + "a" * 64, "pandapower")
+
+
+class _Service:
+    def __init__(self) -> None:
+        self.created: ThreadSnapshot | None = None
+
+    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+        self.created = snapshot
+        return snapshot
+
+    def snapshot(self, thread_id: str) -> ThreadSnapshot:
+        assert self.created is not None and self.created.thread_id == thread_id
+        return self.created
+
+    def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
+        raise AssertionError("not used by creation route")
+
+    def submit_command(self, command: dict[str, object]) -> CommandReceipt:
+        raise AssertionError("not used by creation route")
+
+
+class _Ledger:
+    def ping(self) -> bool:
+        return True
+
+
+def test_thread_creator_defaults_to_registered_ieee39_and_pins_revision() -> None:
+    service = _Service()
+    snapshot = ThreadCreator(service, _Catalog()).create()
+
+    assert snapshot.active_model_context.model_id == "ieee39"
+    assert snapshot.active_model_context.model_revision == "revision:sha256:" + "a" * 64
+    assert snapshot.active_grid_page_id == "page_ieee39"
+    assert service.created == snapshot
+
+
+def test_thread_creation_route_returns_pinned_snapshot() -> None:
+    service = _Service()
+    app = create_host_app(
+        _Ledger(), WorkerRegistry(()), operator_token="hosted-secret",
+        allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        thread_service=service, thread_creator=ThreadCreator(service, _Catalog()),
+    )
+    with TestClient(app, base_url="http://localhost") as client:
+        response = client.post(
+            "/api/v1/threads", headers={"Authorization": "Bearer hosted-secret"}, json={},
+        )
+
+    assert response.status_code == 201
+    document = response.json()
+    assert document["schema"] == "capstone-thread-snapshot/1"
+    assert document["active_model_context"]["model_id"] == "ieee39"

@@ -25,6 +25,7 @@ from capstone_agent.server import _CreateSession, _TurnInput
 from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
 from capstone_agent.thread_protocol import ThreadProtocolError
 from capstone_agent.thread_service import (
+    ThreadCreator,
     ThreadNotFound,
     ThreadResyncRequired,
     ThreadService,
@@ -52,6 +53,7 @@ def create_host_app(
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
     wake_worker: Callable[[], object] | None = None,
     thread_service: ThreadService | None = None,
+    thread_creator: ThreadCreator | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -163,6 +165,29 @@ def create_host_app(
         return catalog
 
     if thread_service is not None:
+        if thread_creator is not None:
+            @app.post("/api/v1/threads", status_code=201)
+            async def create_thread(request: Request):
+                try:
+                    body = await request.json()
+                    if not isinstance(body, dict):
+                        raise ThreadProtocolError("thread creation must be an object")
+                    unknown = set(body) - {"model_id"}
+                    if unknown:
+                        raise ThreadProtocolError(
+                            "thread creation has unknown field: " + ", ".join(sorted(unknown)),
+                        )
+                    model_id = body.get("model_id")
+                    if model_id is not None and (
+                        not isinstance(model_id, str) or not model_id
+                    ):
+                        raise ThreadProtocolError("thread creation model_id is invalid")
+                    return thread_creator.create(model_id).to_document()
+                except ThreadProtocolError as error:
+                    raise HTTPException(422, str(error)) from None
+                except (KeyError, ValueError) as error:
+                    raise HTTPException(422, str(error)) from None
+
         @app.get("/api/v1/threads/{thread_id}")
         def get_thread_snapshot(thread_id: str):
             try:
