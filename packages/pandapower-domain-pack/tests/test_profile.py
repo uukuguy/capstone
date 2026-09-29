@@ -8,6 +8,7 @@ import pytest
 
 from capability_agent import DomainRuntimeProfile
 from capability_agent.domain.answer_admission import AnswerAdmissionInput
+from capability_agent.tools.catalog import ToolCatalog
 from pandapower_domain import PandapowerResourceSet, build_pandapower_profile
 from pandapower_domain.capabilities import KNOWN_CONTEXT_PROJECTORS
 from pandapower_domain.execution import GridctlExecutor
@@ -49,6 +50,29 @@ def test_pandapower_profile_public_runtime_surface_is_preserved() -> None:
     assert profile.projector_registry.__class__.__name__ == (
         "PandapowerProjectorRegistry"
     )
+
+
+def test_model_catalog_and_context_open_descriptions_separate_ids_from_sources() -> None:
+    profile = build_pandapower_profile()
+    catalog = ToolCatalog.from_documents(
+        profile.contract_source.load(),
+        tool_name_prefix=profile.manifest.tool_name_prefix,
+        description_builder=profile.tool_description_builder,
+    )
+
+    model_list = catalog.require("grid_model_list").description
+    context_document = catalog.require("grid_context_open")
+    context_open = context_document.description
+
+    assert "model field is the exact model_id" in model_list
+    assert "source is provenance metadata only" in model_list
+    assert "must not be passed as model_id" in model_list
+    assert "exact model field returned by model.list" in context_open
+    assert "source strings such as pandapower.networks.case39" in context_open
+    model_id_schema = context_document.input_schema["properties"]["model_id"]
+    model_id_description = model_id_schema["description"].lower()
+    assert "exact model field returned by model.list" in model_id_description
+    assert "source" in model_id_description
 
 
 def test_pandapower_profile_adapts_grid_runtime_dependencies(tmp_path: Path) -> None:

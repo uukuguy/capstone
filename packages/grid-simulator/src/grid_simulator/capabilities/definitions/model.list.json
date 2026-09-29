@@ -5,7 +5,7 @@
   "tool_name": "grid_model_list",
   "availability": "published",
   "title": "List supported grid models",
-  "purpose": "Return the deterministic set of grid models that can be opened by the simulator.",
+  "purpose": "Return the deterministic set of grid models that can be opened by the simulator. In each item, the model field is the exact model_id accepted by context.open; source is provenance metadata only and must not be passed as model_id.",
   "applies_to": ["model discovery", "unsupported model recovery", "planning an analysis context"],
   "not_for": ["opening the model", "querying element data", "performing simulator calculations"],
   "terms": {

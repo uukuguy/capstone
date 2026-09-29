@@ -14,8 +14,8 @@
     "type": "object", "additionalProperties": false,
     "required": ["reference", "handoff_ref"],
     "properties": {
-      "reference": {"type": "string", "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$"},
-      "handoff_ref": {"type": "string", "pattern": "^handoff:sha256:[a-f0-9]{64}$"}
+      "reference": {"type": "string", "pattern": "^pypsa-model:sha256:[a-f0-9]{64}$", "description": "Application-granted current-run model reference from the modeling domain."},
+      "handoff_ref": {"type": "string", "pattern": "^handoff:sha256:[a-f0-9]{64}$", "description": "Current-run typed handoff reference authorizing operations to use reference."}
     }
   },
   "requires": ["application-granted model handoff"],

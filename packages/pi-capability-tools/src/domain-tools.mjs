@@ -1177,7 +1177,8 @@ function createAnalysisContextTool(toolName, analysisContextViewPath) {
   return defineTool({
     name: toolName,
     label: toolName,
-    description: "Return the controller-generated bounded read-only analysis context view.",
+    description:
+      "Return bounded controller execution metadata only when the needed metadata is absent from the current prompt. Do not call this before every domain action or to discover simulator truth; use domain tools for model and result state. This view is execution context, not domain truth.",
     parameters: Type.Object({}),
     async execute() {
       const result = await readJson(analysisContextViewPath);

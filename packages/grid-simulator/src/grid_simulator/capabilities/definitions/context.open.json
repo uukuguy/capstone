@@ -5,7 +5,7 @@
   "tool_name": "grid_context_open",
   "availability": "published",
   "title": "Open a supported grid model",
-  "purpose": "Create a deterministic context reference for a supported pandapower network model.",
+  "purpose": "Create a deterministic context reference for a supported pandapower network model. model_id must be the exact model field returned by model.list; source strings such as pandapower.networks.case39 are provenance metadata and must not be passed as model_id.",
   "applies_to": ["loading IEEE-39", "creating a context reference", "starting simulator-backed analysis"],
   "not_for": ["loading arbitrary user files", "editing network topology", "performing calculations"],
   "terms": {
@@ -17,7 +17,11 @@
     "additionalProperties": false,
     "required": ["model_id"],
     "properties": {
-      "model_id": {"type": "string", "minLength": 1}
+      "model_id": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Exact model field returned by model.list, such as ieee39. Do not pass source provenance strings such as pandapower.networks.case39."
+      }
     }
   },
   "output_schema": {

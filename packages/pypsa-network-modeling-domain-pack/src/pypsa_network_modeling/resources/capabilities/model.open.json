@@ -12,7 +12,7 @@
   "not_for": ["unregistered model files", "raw Network access"],
   "input_schema": {
     "type": "object", "additionalProperties": false, "required": ["catalog_id"],
-    "properties": {"catalog_id": {"type": "string", "minLength": 1, "maxLength": 100}}
+    "properties": {"catalog_id": {"type": "string", "minLength": 1, "maxLength": 100, "description": "Exact registered catalog ID, such as pypsa-example/ac_dc_meshed; do not pass a filesystem path."}}
   },
   "requires": [], "produces": ["model_ref", "result_ref", "current-run evidence"],
   "common_next": ["model.derive", "model.inspect"],

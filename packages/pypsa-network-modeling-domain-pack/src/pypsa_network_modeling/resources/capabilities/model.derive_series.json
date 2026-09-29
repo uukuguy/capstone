@@ -36,15 +36,18 @@
     "properties": {
       "model_ref": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "description": "Current-run model_ref returned by model.open or a prior model derivation."
       },
       "load_id": {
         "type": "string",
         "minLength": 1,
-        "maxLength": 100
+        "maxLength": 100,
+        "description": "Registered load identifier from the opened model inspection."
       },
       "p_set_mw": {
         "type": "array",
+        "description": "Non-negative active demand in MW for each existing snapshot, in snapshot order.",
         "minItems": 2,
         "maxItems": 24,
         "items": {

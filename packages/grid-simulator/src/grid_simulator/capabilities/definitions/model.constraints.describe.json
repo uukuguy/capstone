@@ -17,7 +17,7 @@
     "additionalProperties": false,
     "required": ["context_ref"],
     "properties": {
-      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"}
+      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$", "description": "Current-run context_ref returned by context.open."}
     }
   },
   "output_schema": {

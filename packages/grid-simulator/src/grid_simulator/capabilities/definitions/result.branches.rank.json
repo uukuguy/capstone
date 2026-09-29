@@ -17,11 +17,11 @@
     "additionalProperties": false,
     "required": ["result_ref", "metric", "direction", "limit"],
     "properties": {
-      "result_ref": {"type": "string", "pattern": "^result:sha256:[0-9a-f]{64}$"},
-      "metric": {"type": "string", "enum": ["loading_percent", "p_from_mw", "p_to_mw", "pl_mw"]},
-      "direction": {"type": "string", "enum": ["descending", "ascending"]},
-      "limit": {"type": "integer", "minimum": 1, "maximum": 100},
-      "element_kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"]}
+      "result_ref": {"type": "string", "pattern": "^result:sha256:[0-9a-f]{64}$", "description": "Current-run result_ref returned by analysis.powerflow.ac.run; ranking never reruns power flow."},
+      "metric": {"type": "string", "enum": ["loading_percent", "p_from_mw", "p_to_mw", "pl_mw"], "description": "Numeric branch result field to rank; use loading_percent for line load screening."},
+      "direction": {"type": "string", "enum": ["descending", "ascending"], "description": "Sort direction for the selected metric."},
+      "limit": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Maximum number of ranked rows to return."},
+      "element_kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"], "description": "Optional branch kind filter; set line when the question asks for lines only."}
     }
   },
   "output_schema": {

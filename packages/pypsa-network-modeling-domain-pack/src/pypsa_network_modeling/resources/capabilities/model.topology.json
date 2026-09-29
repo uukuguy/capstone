@@ -16,7 +16,7 @@
   "input_schema": {
     "type": "object", "additionalProperties": false,
     "required": ["model_ref"],
-    "properties": {"model_ref": {"type": "string", "minLength": 1}}
+    "properties": {"model_ref": {"type": "string", "minLength": 1, "description": "Current-run model_ref returned by model.open or a model derivation."}}
   },
   "requires": ["current-run model_ref"],
   "produces": ["at most 50 buses, 50 lines, 50 links, and 50 transformers", "omitted counts", "coordinate status", "result_ref", "current-run evidence"],

@@ -1076,6 +1076,10 @@ test("managed Pi default extension starts with both published catalogs and guide
     assert.deepEqual(session.getActiveToolNames().filter((name) => name.startsWith("agent_")).sort(), ["agent_context_get", "agent_record_decision"]);
     assert.equal(started.extensionsResult.extensions.length, 1);
     const registered = started.extensionsResult.extensions[0].tools;
+    assert.match(
+      registered.get("agent_context_get").definition.description,
+      /execution metadata only when.*absent from the current prompt/i,
+    );
     for (const name of ["grid_guide_open", "inventory_guide_open"]) {
       const result = await registered.get(name).definition.execute("guide-smoke", { resource_id: "skill" });
       assert.equal(result.isError, undefined);

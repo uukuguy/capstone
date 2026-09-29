@@ -475,8 +475,11 @@ def _context_tool(tool_name_prefix: str) -> ToolDocument:
         name=tool_name,
         capability=tool_name,
         description=(
-            "Return the controller-generated bounded read-only application "
-            "context view. This view is execution context, not domain truth."
+            "Return bounded controller execution metadata only when the needed "
+            "metadata is absent from the current prompt. Do not call this before "
+            "every domain action or to discover simulator truth; use domain tools "
+            "for model and result state. This view is execution context, not domain "
+            "truth."
         ),
         input_schema={
             "type": "object",

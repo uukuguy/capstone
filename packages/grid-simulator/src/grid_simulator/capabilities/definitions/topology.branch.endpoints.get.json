@@ -17,11 +17,11 @@
     "additionalProperties": false,
     "required": ["context_ref"],
     "properties": {
-      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
-      "branch_ref": {"type": "string", "pattern": "^asset:(line|trafo|trafo3w):sha256:[0-9a-f]{64}$"},
-      "kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"]},
-      "namespace": {"type": "string", "enum": ["pandapower_index", "name", "alias", "asset_ref"]},
-      "identifier": {"type": "string", "minLength": 1}
+      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$", "description": "Current-run context_ref returned by context.open."},
+      "branch_ref": {"type": "string", "pattern": "^asset:(line|trafo|trafo3w):sha256:[0-9a-f]{64}$", "description": "Stable branch asset_ref returned by model.element.get; use this form instead of a second selector."},
+      "kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"], "description": "Branch table kind when resolving by namespace and identifier."},
+      "namespace": {"type": "string", "enum": ["pandapower_index", "name", "alias", "asset_ref"], "description": "Identifier namespace used with kind and identifier."},
+      "identifier": {"type": "string", "minLength": 1, "description": "Branch index, name, alias, or asset reference matching namespace."}
     },
     "oneOf": [
       {"required": ["branch_ref"], "not": {"anyOf": [{"required": ["kind"]}, {"required": ["namespace"]}, {"required": ["identifier"]}]}},
