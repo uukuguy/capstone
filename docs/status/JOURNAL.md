@@ -1245,3 +1245,4 @@ _Recovered pre-merge mainline entries._
 - 04:24 确认 Textual TUI 由单一 ThreadProjectionStore 驱动，Widget 不持有 Thread/Run 业务状态 [65ef1af]
 - 04:32 确认 TUI 两栏布局与模型分页：左电网右对话，当前模型页置零，历史模型页只读可显式切换 [d1bfdcb]
 - 04:39 修正分页语义：页面顺序稳定，active_grid_page_id 自动选中当前模型，不因切换重排 [db4b6b5]
+- 04:47 确认 Ghostty/iTerm2 优先 Kitty/TGP 图片渲染，Unicode/ANSI 仅作降级路径 [ad7a5bf]
