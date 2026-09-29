@@ -1255,3 +1255,4 @@ _Recovered pre-merge mainline entries._
 - 05:36 提议由 capstone-harness 统一承载界面与对话操控语义，Pi/DSH 只执行已接受 Attempt [5e53ab7]
 - 05:42 提议显式控制先于 Pi/DSH Attempt 解析，清晰命令直接走 Harness receipt，歧义才请求澄清 [bcac606]
 - 05:49 记录 Harness ControlIntent、CommandFactory、CommandExecutor 三段控制解析链，统一 UI 与对话命令审计 [243fceb]
+- 05:56 提议对话控制保留可见 Turn、可不创建 Pi Attempt，歧义进入澄清状态，直接命令不伪造 transcript [2102c81]
