@@ -1243,3 +1243,4 @@ _Recovered pre-merge mainline entries._
 - 04:08 确认 v1 用 Textual Python，保留其它语言单文件服务客户端选项并统一走 capstone serve 协议 [464804a]
 - 04:16 确认 capstone run 默认单个最终 JSON，--events 才输出 JSONL，诊断留 stderr 且兼容命令独立冻结 [3c060fb]
 - 04:24 确认 Textual TUI 由单一 ThreadProjectionStore 驱动，Widget 不持有 Thread/Run 业务状态 [65ef1af]
+- 04:32 确认 TUI 两栏布局与模型分页：左电网右对话，当前模型页置零，历史模型页只读可显式切换 [d1bfdcb]
