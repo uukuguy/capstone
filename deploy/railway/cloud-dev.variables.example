@@ -3,7 +3,9 @@
 
 DATABASE_URL=<set-in-railway>
 CAPSTONE_OPERATOR_TOKEN=<set-in-railway>
-CAPSTONE_PUBLIC_DEMO=false
+# The cloud-dev App has no login flow; keep this true for an internal App smoke
+# target. Set false only when running API-only/operator tests without the App.
+CAPSTONE_PUBLIC_DEMO=true
 CAPSTONE_PUBLIC_PROVIDER=deepseek
 CAPSTONE_PUBLIC_MODEL=deepseek-flash
 CAPSTONE_SESSION_IDLE_SECONDS=600

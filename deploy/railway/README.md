@@ -45,10 +45,12 @@ demo instead of rebuilding it for the trial environment.
 5. Recheck the demo health endpoint and one registered public case.
 6. Roll back the demo to the previous verified revision when a release fails.
 
-Cloud-dev may use `CAPSTONE_PUBLIC_DEMO=false` and an operator-only App origin.
-The demo API uses `CAPSTONE_PUBLIC_DEMO=true`,
-`CAPSTONE_PUBLIC_PROVIDER=deepseek`, and `CAPSTONE_PUBLIC_MODEL=deepseek-flash`.
-Use separate Provider keys and limits for the two stages.
+The cloud-dev App uses `CAPSTONE_PUBLIC_DEMO=true` so its no-login flow can
+exercise the registered public cases. Keep its URL internal and use a separate
+Provider key and limits. Set `CAPSTONE_PUBLIC_DEMO=false` only for API-only or
+operator tests that do not run the App. The demo API uses
+`CAPSTONE_PUBLIC_DEMO=true`, `CAPSTONE_PUBLIC_PROVIDER=deepseek`, and
+`CAPSTONE_PUBLIC_MODEL=deepseek-flash`.
 
 The variable checklists in [`cloud-dev.variables.example`](cloud-dev.variables.example)
 and [`demo.variables.example`](demo.variables.example) contain names and safe
