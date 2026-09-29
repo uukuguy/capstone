@@ -1239,3 +1239,4 @@ _Recovered pre-merge mainline entries._
 - 03:36 确认默认流式状态反馈与可选详细解释轨迹，避免长推理无反馈且不暴露原始隐藏思维链 [076aa5c]
 - 03:44 确认生产 Web 用 CapstoneThreadClient 接 assistant-ui，react-pi 仅作 Pi 对比且浏览器不直连 runtime [089014f]
 - 03:51 确认 v1 使用 HTTP JSON + SSE，高级版再以 WebSocket 支持人在回路和高频双向交互 [c400a60]
+- 03:59 确认统一 capstone run/chat/tui 入口，默认直接进入 TUI，兼容 grid-agent 独立保留 [4c13024]
