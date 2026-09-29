@@ -1269,3 +1269,4 @@ _Recovered pre-merge mainline entries._
 - 07:13 提议 Pi/DSH 保留空能力基线，并增加隔离的 capability parity reference mode 比较业务工具行为 [bdcc2fc]
 - 07:20 收敛能力默认优先级：模型精确 revision、implementation family、空 selection；模型切换不隐式沿用旧 Profile [15e95d0]
 - 07:27 提议公共客户端固定 capstone-thread/1，事件独立版本化，内部 Harness 与 Pi/DSH 版本不外泄 [a292c67]
+- 07:34 提议六个实现里程碑：公共契约、单 Run、模型能力、CLI/TUI、Web/Case、reference 与高级 runtime [a5601da]
