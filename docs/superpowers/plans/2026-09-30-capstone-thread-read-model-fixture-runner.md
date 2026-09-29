@@ -30,7 +30,7 @@
 - Produces frozen `ThreadSnapshot`, `EventEnvelope`, `EventPage`, and `CommandReceipt` dataclasses with `from_document()` and `to_document()` methods.
 - Raises `ThreadProtocolError` for unknown fields, missing fields, invalid identifiers, non-contiguous event sequences, invalid `base_event_seq`, or non-JSON payloads.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
   Add tests that require:
 
@@ -58,13 +58,13 @@
       assert receipt.status == "accepted"
   ```
 
-- [ ] **Step 2: Run the focused tests and verify the expected RED failure**
+- [x] **Step 2: Run the focused tests and verify the expected RED failure**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_protocol.py -q`
 
   Expected: collection fails because `capstone_agent.thread_protocol` does not exist.
 
-- [ ] **Step 3: Implement the smallest strict contract**
+- [x] **Step 3: Implement the smallest strict contract**
 
   Define only the following public fields:
 
@@ -85,13 +85,13 @@
 
   Use frozen dataclasses and explicit `frozenset` field allowlists. Validate IDs as bounded lowercase/number/dash identifiers, revisions as non-empty strings, sequences as non-negative integers, `visibility` as `public` or `diagnostic`, and payloads with `json.dumps(..., allow_nan=False)`. Keep nested `run`, `active_model_context`, and `current_attempt` as typed frozen values; allow `current_attempt` to be `None`.
 
-- [ ] **Step 4: Run the focused tests and verify GREEN**
+- [x] **Step 4: Run the focused tests and verify GREEN**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_protocol.py -q`
 
   Expected: all protocol tests pass.
 
-- [ ] **Step 5: Commit the contract**
+- [x] **Step 5: Commit the contract**
 
   ```bash
   git add packages/capstone-agent/src/capstone_agent/thread_protocol.py packages/capstone-agent/tests/test_thread_protocol.py
@@ -112,25 +112,25 @@
 - Each JSON file contains `fixture_id`, `snapshot`, `events`, `local_view`, and `assertions` as defined in `2026-09-30-capstone-ui-state-fixtures.md`.
 - Test helper `packages/capstone-agent/tests/thread_fixtures.py:load_fixture(name)` returns a parsed mapping after validating `snapshot` and `events` through Task 1 types.
 
-- [ ] **Step 1: Write the failing fixture-loader tests**
+- [x] **Step 1: Write the failing fixture-loader tests**
 
   Require all four fixture files to load and require the historical fixture to expose `viewed_grid_page_id != active_grid_page_id` while preserving the active Attempt target.
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_fixtures.py -q`
 
   Expected: failure because the fixture files and loader do not exist.
 
-- [ ] **Step 3: Add the smallest four JSON fixtures and test helper loader**
+- [x] **Step 3: Add the smallest four JSON fixtures and test helper loader**
 
   Keep payloads bounded and deterministic. Use no provider output. The resync fixture must set `snapshot.base_event_seq` to the replacement sequence and include no event before that base. The interrupted fixture must include `retry_new_attempt` in its expected semantic actions.
 
-- [ ] **Step 4: Run the fixture tests and verify GREEN**
+- [x] **Step 4: Run the fixture tests and verify GREEN**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_fixtures.py -q`
 
-- [ ] **Step 5: Commit the fixtures**
+- [x] **Step 5: Commit the fixtures**
 
   ```bash
   git add packages/capstone-agent/tests/fixtures/thread-ui packages/capstone-agent/tests/test_thread_fixtures.py
@@ -149,7 +149,7 @@
 - Produces `run_fixture(document) -> FixtureProjection`.
 - Produces `expected_commands(document, surface) -> frozenset[str]` for `web`, `tui`, and `cli`.
 
-- [ ] **Step 1: Write failing runner tests**
+- [x] **Step 1: Write failing runner tests**
 
   Cover these assertions:
 
@@ -172,23 +172,23 @@
       assert expected_commands(fixture, "tui") == expected_commands(fixture, "cli")
   ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_fixture_runner.py -q`
 
   Expected: failure because the runner module does not exist.
 
-- [ ] **Step 3: Implement a projection-only runner**
+- [x] **Step 3: Implement a projection-only runner**
 
   Apply only state events needed by the fixtures: `model_context_activated`, `attempt_started`, `attempt_progress`, `approval_requested`, `attempt_cancelled`, `attempt_interrupted`, and `run_closed`. Treat `grid_page_viewed` as local view state from `local_view`; do not mutate the active context. Derive the action set from transport, execution, view, and context axes in the wireframes. Do not classify user text and do not infer authority from answer prose.
 
-- [ ] **Step 4: Run the focused runner tests and the existing capstone-agent tests**
+- [x] **Step 4: Run the focused runner tests and the existing capstone-agent tests**
 
   Run: `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_thread_fixture_runner.py packages/capstone-agent/tests/test_thread_fixtures.py -q` and then `make test`.
 
   Expected: focused tests and the repository suite pass without Provider credentials.
 
-- [ ] **Step 5: Commit the runner**
+- [x] **Step 5: Commit the runner**
 
   ```bash
   git add packages/capstone-agent/src/capstone_agent/thread_fixture_runner.py packages/capstone-agent/tests/test_thread_fixture_runner.py packages/capstone-agent/tests/test_thread_fixtures.py
