@@ -240,6 +240,8 @@ ToolSourceRef
 
 **Proposed router/resolver boundary.** `TurnRouter` only classifies a Turn as `ordinary`, `professional`, `mixed`, or `control` and may request clarification. A `ControlResolver` handles control-specific language and target references, `CommandFactory` converts a resolved candidate into a validated public command, and `CommandExecutor` applies it. Jev/LLM output is advisory at the first two stages and never bypasses catalog resolution, snapshot checks, idempotency, or lifecycle gates.
 
+**Proposed control event projection.** A conversational control may produce `turn_started`, `turn_plan_created(route=control)`, `control_resolved` or `clarification_requested`, `command_accepted`, the command's canonical state events, and `turn_completed(kind=control)`. `control_resolved` retains only bounded control type, target IDs, source, and plan revision; hidden classifier reasoning and raw prompts are excluded. Direct UI/API commands may omit a Turn but still require durable command receipts and terminal state events, allowing every client to render the same confirmation or clarification.
+
 **Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
