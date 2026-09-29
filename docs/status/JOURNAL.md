@@ -1192,3 +1192,4 @@ _Recovered pre-merge mainline entries._
 - 19:53 提交 UI 临时布局与历史回放定位修正，避免三栏候选结构约束新交互设计 [abd4d94]
 - 19:55 确认统一 ThreadSnapshot + EventPage 读模型，保证 CLI/SDK/API/Web/TUI 共享业务状态语义
 - 19:56 提交公共读模型决策，统一快照、增量事件、断线恢复与历史读取 [75fa18a]
+- 19:58 确认统一控制命令协议：幂等键与期望序号校验，accepted/rejected 回执，终态统一进入事件流
