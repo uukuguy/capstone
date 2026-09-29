@@ -1218,3 +1218,4 @@ _Recovered pre-merge mainline entries._
 - 01:10 确认 v1 禁止 Worker 丢失后的静默自动重试，lease loss 只中断并由显式 retry 创建新 Attempt
 - 01:11 提交 Worker lease recovery 决策，固定 fencing、interrupted 终态与显式新 Attempt 重试 [260ce00]
 - 01:13 确认工具 operation_id/idempotency_key 与保守重试：未知或非幂等操作不自动重发，结果按 payload hash 去重
+- 01:14 提交工具操作幂等决策，防止 Authority/Provider 模糊状态下重复执行或错误接纳 [bcb6dd0]
