@@ -75,7 +75,7 @@ The following rules are normative for the first UI implementation:
 - Every submitted Turn displays a frozen target chip containing model ID/revision, ModelContext ID, selection revision, and optional element reference. A pending model or capability change never rewrites an in-flight Turn's chip.
 - Snapshot replacement preserves an unsent draft as text. A structured element reference is revalidated by model identity, revision, and element ID; returning to the same page alone is insufficient.
 
-The complete matrix and annotated state walkthroughs live in `2026-09-30-capstone-ui-wireframes.md`. The matrix is the implementation gate for Web and TUI; buttons, keyboard shortcuts, and conversational controls may differ in presentation but must resolve to the same public Harness command.
+The complete matrix and annotated state walkthroughs live in `2026-09-30-capstone-ui-wireframes.md`. The shared fixture and cross-client assertion contract live in `2026-09-30-capstone-ui-state-fixtures.md`. These are the implementation gates for Web and TUI; buttons, keyboard shortcuts, and conversational controls may differ in presentation but must resolve to the same public Harness command.
 
 ## Thread navigation and lifecycle
 

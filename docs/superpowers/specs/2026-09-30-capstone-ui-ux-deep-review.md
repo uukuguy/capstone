@@ -195,4 +195,4 @@ These are design defects found by tracing concrete operations against the curren
 
 ### Evidence required to close this review
 
-The draft action matrix and annotated Web/TUI/CLI walkthroughs now live in `2026-09-30-capstone-ui-wireframes.md`. Closing this review still requires user review of the proposed behavior, fixture-driven state tests for R1–R8, and a limited TGP/browser prototype. Those prototypes can test feasibility, but cannot silently approve unresolved interaction choices. Keep unapproved behavior explicitly proposed.
+The draft action matrix and annotated Web/TUI/CLI walkthroughs now live in `2026-09-30-capstone-ui-wireframes.md`; the shared state fixtures and semantic cross-client assertions are in `2026-09-30-capstone-ui-state-fixtures.md`. Closing this review still requires user review of the proposed behavior, fixture-driven state tests for R1–R8, and a limited TGP/browser prototype. Those prototypes can test feasibility, but cannot silently approve unresolved interaction choices. Keep unapproved behavior explicitly proposed.
