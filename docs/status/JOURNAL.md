@@ -1240,3 +1240,4 @@ _Recovered pre-merge mainline entries._
 - 03:44 确认生产 Web 用 CapstoneThreadClient 接 assistant-ui，react-pi 仅作 Pi 对比且浏览器不直连 runtime [089014f]
 - 03:51 确认 v1 使用 HTTP JSON + SSE，高级版再以 WebSocket 支持人在回路和高频双向交互 [c400a60]
 - 03:59 确认统一 capstone run/chat/tui 入口，默认直接进入 TUI，兼容 grid-agent 独立保留 [4c13024]
+- 04:08 确认 v1 用 Textual Python，保留其它语言单文件服务客户端选项并统一走 capstone serve 协议 [464804a]
