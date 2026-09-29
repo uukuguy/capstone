@@ -1248,3 +1248,4 @@ _Recovered pre-merge mainline entries._
 - 04:47 确认 Ghostty/iTerm2 优先 Kitty/TGP 图片渲染，Unicode/ANSI 仅作降级路径 [ad7a5bf]
 - 04:52 保存 Kitty/TGP 电网图概念预览，便于直接查看目标终端图形效果 [beaabfb]
 - 05:00 确认 TUI 启动探测、运行时降级与本地图片缓存，隔离 TGP 细节 [86994ee]
+- 05:08 记录 TUI 本地图像渲染提案，复用公共几何投影并保持核心依赖与终端协议解耦 [bbc4e94]
