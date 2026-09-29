@@ -1205,3 +1205,4 @@ _Recovered pre-merge mainline entries._
 - 00:50 提交 Thread 模型 revision 固定时序，保证首次执行与回放使用同一模型身份 [877429d]
 - 00:52 确认 Pi/DSH 参考上下文与 Capstone 业务隔离，Attempt 固定 runtime/Authority 模式并支持安全恢复
 - 00:53 提交参考 runtime 上下文隔离决策，避免未验证回答污染 Capstone 业务记忆与证据 [22ba2ae]
+- 00:55 确认状态/交互/诊断三类事件与 fail-closed 快照重建，保证回放可验证且诊断不污染业务 Snapshot
