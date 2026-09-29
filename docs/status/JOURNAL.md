@@ -1197,3 +1197,4 @@ _Recovered pre-merge mainline entries._
 - 20:02 确认用户确认与部分执行协议：批准请求可过期，取消设定 admission 截止点，部分结果须经 Domain Pack 接纳
 - 20:03 提交确认、取消与部分结果规则，防止取消后输出成为有效答案或证据 [81edf93]
 - 20:05 确认 Pi/DSH 参考路径只做交互对等、业务隔离，并在事件中标记 runtime 与 Authority 模式
+- 20:06 提交 Pi/DSH 参考路径边界，避免 runtime 输出混入电网业务事实与证据 [ab293c8]
