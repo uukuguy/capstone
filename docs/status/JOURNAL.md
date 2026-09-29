@@ -1233,3 +1233,4 @@ _Recovered pre-merge mainline entries._
 - 01:32 提交 TurnRouter 接口决策，固定可替换实现、typed DecisionUnavailable 和路由权限边界 [38f22fa]
 - 02:57 确认 Jev 显式安全回退与最小脱敏请求边界，避免隐式慢分类器和敏感数据外发 [7b6738d]
 - 02:58 刷新恢复接力文档，移除已完成的 Jev 待办并指向 Harness 事件控制 SPI 讨论 [ddb82de]
+- 03:05 确认事件持久化拉取为恢复基础，实时订阅仅作可丢失加速并统一按游标补齐 [76050ad]
