@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+import pytest
+
+from capstone_agent.thread_protocol import (
+    CommandReceipt,
+    EventPage,
+    ThreadProtocolError,
+    ThreadSnapshot,
+)
+
+
+def valid_snapshot() -> dict[str, object]:
+    return {
+        "schema": "capstone-thread-snapshot/1",
+        "thread_id": "thr_demo_39",
+        "run": {"run_id": "run_001", "state": "open"},
+        "active_model_context": {
+            "id": "ctx_ieee39_7",
+            "model_id": "ieee39",
+            "model_revision": "7",
+            "implementation_family": "pandapower",
+            "selection_revision": "sel_2",
+        },
+        "active_grid_page_id": "page_ieee39",
+        "current_attempt": {
+            "turn_id": "turn_004",
+            "attempt_id": "attempt_004a",
+            "phase": "running",
+            "target_model_context_id": "ctx_ieee39_7",
+        },
+        "last_event_seq": 183,
+        "base_event_seq": 180,
+    }
+
+
+def event(sequence: int) -> dict[str, object]:
+    return {
+        "event_id": f"evt_{sequence}",
+        "event_seq": sequence,
+        "event_type": "attempt_progress",
+        "event_version": 1,
+        "thread_id": "thr_demo_39",
+        "run_id": "run_001",
+        "turn_id": "turn_004",
+        "attempt_id": "attempt_004a",
+        "model_context_id": "ctx_ieee39_7",
+        "selection_revision": "sel_2",
+        "occurred_at": "2026-09-30T00:00:00Z",
+        "visibility": "public",
+        "payload": {"phase": "running"},
+    }
+
+
+def valid_page(*, events: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "schema": "capstone-thread-events/1",
+        "thread_id": "thr_demo_39",
+        "after_event_seq": 180,
+        "next_event_seq": events[-1]["event_seq"] if events else 180,
+        "has_more": False,
+        "events": events,
+    }
+
+
+def valid_receipt() -> dict[str, object]:
+    return {
+        "schema": "capstone-command-receipt/1",
+        "command_id": "cmd_switch_005",
+        "idempotency_key": "idem_switch_005",
+        "thread_id": "thr_demo_39",
+        "run_id": "run_001",
+        "status": "accepted",
+        "accepted_event_seq": 184,
+        "target": {"model_id": "pypsa39", "model_revision": "3"},
+    }
+
+
+def test_snapshot_round_trips_with_active_context_and_attempt() -> None:
+    snapshot = ThreadSnapshot.from_document(valid_snapshot())
+
+    assert snapshot.thread_id == "thr_demo_39"
+    assert snapshot.active_model_context.model_revision == "7"
+    assert snapshot.to_document()["schema"] == "capstone-thread-snapshot/1"
+
+
+def test_event_page_rejects_a_gap_after_the_snapshot() -> None:
+    with pytest.raises(ThreadProtocolError, match="contiguous"):
+        EventPage.from_document(
+            valid_page(events=[event(181), event(183)]),
+            expected_after_seq=180,
+        )
+
+
+def test_snapshot_rejects_provider_or_native_runtime_payload_fields() -> None:
+    document = valid_snapshot()
+    document["provider_token"] = "secret"
+
+    with pytest.raises(ThreadProtocolError, match="unknown field"):
+        ThreadSnapshot.from_document(document)
+
+
+def test_receipt_preserves_command_identity_and_status() -> None:
+    receipt = CommandReceipt.from_document(valid_receipt())
+
+    assert receipt.command_id == "cmd_switch_005"
+    assert receipt.status == "accepted"
