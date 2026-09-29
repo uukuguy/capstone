@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-29 19:02 CST. **Session remains active — not a final handoff.** The prior session's baton was recovered from the journal.
+> Updated: 2026-09-29 19:52 CST. **Session remains active — not a final handoff.** The prior session's baton was recovered from the journal.
 
 ## TL;DR
 
@@ -27,7 +27,8 @@
 - Empty capability context is a valid baseline: Capstone supports ordinary conversation and capability discovery without tools, while professional claims/evidence require an enabled package; pure Pi/DSH uses it for no-domain-tool runtime/event comparison.
 - Capability selection controls are accepted: structured enable/disable/replace commands, pending changes during an active Turn, next-Turn effect, durable selection revisions, empty selection allowed for ordinary conversation, and bounded rejection of professional analysis without an enabled applicable package.
 - The existing App middle column is a redesign target: replace the case-result panel with a Thread-driven current-grid workspace. Chat, model projection, case batches, and evidence replay must consume one event source; the model area is a peer projection of the Thread, not a case-owned widget.
-- The whole three-column App layout is a redesign target: left Thread conversation, center current-grid workspace, right contextual inspector/evidence. The case library becomes an auxiliary batch launcher rather than a persistent primary column.
+- The existing three-column App layout is temporary until a scenario-driven UI design is completed. The earlier left Thread / center model / right context arrangement is only a candidate hypothesis and does not constrain the new design.
+- Historical replay uses a client-local read-only cursor; it changes displayed projections without changing Thread/Run state or rerunning work.
 - The complete discussion is recorded in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, with explicit Decided / Proposed / Open sections. It is a discussion record, not yet an approved implementation spec.
 - `grid-agent` application growth is frozen. It remains a pandapower compatibility adapter; new CLI/TUI and agent interaction work goes through the unified Capstone application/harness. `capstone-tui` is shorthand for the unified CLI's TUI mode, not a new package or application. `capstone-agent`, `pandapower-agent`, and `pypsa-agent` are historical peer-agent names to converge behind one Capstone application.
 - `Capstone` is the public brand and default executable name. `capstone-agent` is the canonical internal name for the intelligent-agent application layer; `capstone-application` is rejected as verbose and conceptually conflicting with `capstone-app`.

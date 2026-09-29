@@ -146,23 +146,17 @@ ToolSourceRef
 
 ## App redesign: whole workspace, not a chat widget
 
-**Decided.** Redesign all three columns. Current App structure is Case library / Case run plus network story / details. The new conceptual structure is:
+**Current UI status.** The existing three-column layout remains the temporary App surface until a new interaction design is completed. No new Thread/Run architecture should assume that three-column arrangement. The earlier `Thread conversation | Current grid model workspace | Context and evidence` arrangement is retained only as a candidate hypothesis for the design pass, not as an approved target. The Case library, model workspace, and evidence presentation must be reconsidered from user scenarios and the shared event stream.
 
-```text
-Thread conversation | Current grid model workspace | Context and evidence
-```
+**Candidate conversation surface.** Thread messages, text streaming, tool progress and result cards, ordinary and professional turns, composer, cancellation/retry, and Case batch launch. A message can link to the model element or replay point it describes.
 
-The Case library becomes an auxiliary batch launcher instead of a persistent primary column. The center model area is a peer projection of the Thread, not a Case-owned widget. Chat, model projections, result references, and replay use one ordered event source. Existing bounded network contracts and rendering code can be reused selectively, but the workspace state root changes from `caseCard + session` to `thread + current_model + run`.
+**Candidate model surface.** Model identity and revision, model switch, an authoritative topology canvas, focus and result overlays, follow-analysis control, concise current analysis context, and access to replay. The default IEEE-39 topology should be visible when its bounded projection is available. The canvas must label partial/omitted network data and never infer topology or numerical values from assistant prose.
 
-**Proposed left pane.** Thread messages, text streaming, tool progress and result cards, ordinary and professional turns, composer, cancellation/retry, and Case batch launch. A message can link to the model element or replay point it describes.
-
-**Proposed center pane.** Model identity and revision, model switch, an authoritative topology canvas, focus and result overlays, follow-analysis control, concise current analysis context, and access to replay. The default IEEE-39 topology should be visible when its bounded projection is available. The canvas must label partial/omitted network data and never infer topology or numerical values from assistant prose.
-
-**Proposed right pane.** Context inspector for selected model element, admitted findings, evidence and artifacts, plus Case batch status and step replay. Full narrative answers stay in the Thread. Existing post-run `NetworkStory` is a candidate replay projection; live in-run topology updates require a separate design and cannot be claimed as current behavior.
+**Candidate context surface.** Context inspector for selected model element, admitted findings, evidence and artifacts, plus Case batch status and step replay. Full narrative answers stay in the Thread. Existing post-run `NetworkStory` is a candidate replay projection; live in-run topology updates require a separate design and cannot be claimed as current behavior.
 
 **Proposed bidirectional interaction.** Thread events may focus/highlight validated model elements and show admitted overlays. Pan, zoom, hover, and ordinary selection stay local. Explicit actions such as “ask about this element”, “analyze this element”, and model switch create structured commands. Selecting a historical step moves a replay cursor without rerunning calculations. Agent-driven focus should respect manual exploration; a follow-analysis control can resume it.
 
-**Proposed responsive direction.** Desktop uses three panes with the model canvas as the main visual surface. At narrower widths, the inspector becomes a drawer; on phone, model, Thread, and inspector need a clear single-surface navigation pattern. Exact sizing, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
+**Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
 
@@ -243,7 +237,7 @@ The remaining SPI question is the exact minimum behavior of the returned handle 
 4. Evolve the Capstone harness facade around existing Kernel/Domain Pack/Authority flow; refactor internal package boundaries without treating current Capstone APIs as stable.
 5. Add a Pi runtime adapter and `HarnessPiClient` reference path; keep a `HarnessDSHClient` unavailable shell.
 6. Add Capstone Thread API/client, streaming interaction, model switch, Case batch, and event replay.
-7. Redesign the App's three-pane workspace and connect conversation, topology, inspector, and evidence to one event stream.
+7. Design the new App workspace from user scenarios, then connect its selected surfaces to one event stream; keep the existing three-column layout as the temporary implementation.
 8. Add the Capstone TUI mode on the public client/event contract, unify CLI/SDK/API/Web projections, and verify behavioral parity; later add DSH adapter and multi-Run/multi-model capabilities.
 
 This order will be refined into smaller independently reviewable specs and plans. No code or deployment is authorized by this discussion record alone.
@@ -255,7 +249,7 @@ This order will be refined into smaller independently reviewable specs and plans
 3. How much runtime parity should pure Pi/DSH reference modes provide: conversation only, the same bounded tool catalog, or full business comparison with separately admitted results?
 4. Which Pi/DSH events need durable replay, which are transient progress, and how are snapshots rebuilt after reconnect?
 5. Where do user approvals, cancellation, interruption, and partial tool execution appear in the public control protocol?
-6. How should the new App present Thread navigation, Case launch, model switching, and responsive pane transitions? The three-pane concept is decided; exact interaction and visual specification are not.
+6. How should the new App present Thread navigation, Case launch, model switching, model/evidence context, and responsive transitions? The existing three-column layout is temporary; no replacement surface has been approved.
 7. How should the single `capstone` executable expose headless, line-interactive, and TUI modes while keeping `capstone-agent` as the internal application package? `capstone-tui` remains a mode term rather than a package decision.
 8. What exact public Model Capability Profile SPI and trust/dependency model should be approved before moving the historical PyPSA and pandapower assemblies?
 
