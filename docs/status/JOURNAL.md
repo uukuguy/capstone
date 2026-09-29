@@ -1202,3 +1202,4 @@ _Recovered pre-merge mainline entries._
 ## 2026-09-30
 
 - 00:49 确认 Thread 创建时固定 IEEE-39 Authority revision，首次执行前再准备 Profile/Provider 运行资源
+- 00:50 提交 Thread 模型 revision 固定时序，保证首次执行与回放使用同一模型身份 [877429d]
