@@ -1178,3 +1178,4 @@ _Recovered pre-merge mainline entries._
 - 19:12 提交 Run 生命周期设计记录，明确关闭、失败与 Worker 状态边界 [a5d4d07]
 - 19:15 确认 Turn + Attempt 重试模型：重试保留同一逻辑 Turn 下的不可变执行轨迹，避免覆盖失败证据
 - 19:16 提交 Turn + Attempt 重试模型决策，保证重试可回放且只允许一次答案与证据提交 [c974417]
+- 19:18 确认 ModelContext 一等控制操作：切换先准备后激活，能力包变更推进 selection revision，活动 Attempt 保持快照
