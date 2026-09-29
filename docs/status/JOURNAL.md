@@ -1184,3 +1184,4 @@ _Recovered pre-merge mainline entries._
 - 19:22 提交 Model-to-Profile 三层解析决策，保证模型事实、用户选择与运行时装配解耦 [5047221]
 - 19:24 确认 Capstone 统一事件与控制协议：Pi/DSH 作为低层 runtime adapter，公共 Envelope 由 capstone-harness 负责
 - 19:25 提交 Capstone Harness 协议决策，统一 CLI/SDK/API/Web 事件并隔离原生 runtime 事件 [f205173]
+- 19:27 确认单一 Thread 事件流：规范化事件先持久化再发布，驱动实时、断线恢复、回放和三栏投影
