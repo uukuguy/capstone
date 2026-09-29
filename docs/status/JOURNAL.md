@@ -1242,3 +1242,4 @@ _Recovered pre-merge mainline entries._
 - 03:59 确认统一 capstone run/chat/tui 入口，默认直接进入 TUI，兼容 grid-agent 独立保留 [4c13024]
 - 04:08 确认 v1 用 Textual Python，保留其它语言单文件服务客户端选项并统一走 capstone serve 协议 [464804a]
 - 04:16 确认 capstone run 默认单个最终 JSON，--events 才输出 JSONL，诊断留 stderr 且兼容命令独立冻结 [3c060fb]
+- 04:24 确认 Textual TUI 由单一 ThreadProjectionStore 驱动，Widget 不持有 Thread/Run 业务状态 [65ef1af]
