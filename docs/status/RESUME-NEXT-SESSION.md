@@ -16,6 +16,7 @@
 - Model-to-Profile resolution is accepted as three layers: Authority/Grid Model Catalog owns model facts and revision, Capstone Model Capability Catalog owns eligibility/defaults and user labels, and neutral SPI plus trusted adapter prepares exact selected handles atomically.
 - Capstone event/control protocol is accepted: low-level Pi/DSH clients are replaceable runtime adapters, while `capstone-harness` owns the public event Envelope and control commands for CLI/SDK/API/Web; native events remain restricted diagnostics.
 - Event persistence is accepted: one Thread-scoped append-only Capstone stream is persisted before publication and drives reconnect, replay, and all App projections; normalized deltas/progress are retained in v1, while native runtime events remain diagnostics.
+- Pure Pi/DSH parity is accepted as interaction-only: shared gateway/control/events/replay, empty capability Context by default, no Domain Pack/Authority business facts, and explicit `runtime_mode`/`authority_mode` markers.
 - Pi and DSH are replaceable pure harness runtimes from Thread's perspective; `HarnessPiClient` and an empty `HarnessDSHClient` remain comparison paths. `capstone-harness` may consume their events, normalize and enrich them, then serve CLI/SDK/API/Web projections; Thread is only one consumer.
 - A case is a reusable multi-turn instruction batch, not Thread state. A Thread is centered on a current grid model, supports ordinary and model-focused professional dialogue, and can switch that model; v1 has one current model at a time, with multi-model context deferred.
 - Thread v1 defaults to the registered IEEE-39 grid model. The Authority/catalog resolves the concrete model revision at creation or first run and binds that revision to subsequent result/evidence events.
@@ -57,7 +58,7 @@
 
 ## Immediate next steps
 
-1. Resolve pure Pi/DSH reference-mode parity and remaining event taxonomy/snapshot details before implementation planning.
+1. Resolve Thread model revision timing and remaining event taxonomy/snapshot details before implementation planning.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
