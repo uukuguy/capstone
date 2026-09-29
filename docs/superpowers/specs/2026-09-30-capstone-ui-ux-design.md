@@ -87,7 +87,7 @@ The Thread picker shows title, last activity, current model, Run state, connecti
 
 ### New Thread and model loading
 
-Thread creation renders a labeled IEEE-39 page in `loading` state and a connection status immediately. Ordinary conversation becomes available after the Thread snapshot and current Run are valid, even if the diagram later becomes `unavailable`. Professional/model actions remain disabled until the relevant ModelContext and capability contribution are ready. A failed revision resolution is a creation error with retry/new-thread actions; it never renders an unlabeled empty workspace.
+Thread creation renders a labeled IEEE-39 page in `loading` state and a connection status immediately. Ordinary conversation becomes available after the Thread snapshot and current Run are valid, even if the diagram later becomes `unavailable`. A professional request may be accepted into `preparing` so the Harness can build the required capability contribution; model/profile changes show a pending target rather than requiring a hidden preparation step. A failed revision resolution is a creation error with retry/new-thread actions; it never renders an unlabeled empty workspace.
 
 ### Grid element to composer
 
@@ -142,7 +142,7 @@ The canvas renders a bounded grid projection (`capstone-network-diagram/1.0`, `c
 - a selected-element toolbar with `Ask about this` and `Analyze this` actions when the page is the active current model;
 - a model/revision line that remains visible when the viewport is zoomed.
 
-Agent focus never erases a user's manual viewport. With `Follow current` off, a new focus is shown as a non-invasive “analysis focus available” action. Pan, zoom, hover, and ordinary selection are local UI state. Element questions carry model Context and element IDs, never screen coordinates or image IDs. Historical pages show a read-only banner; their element analysis actions are disabled in v1 and offer `Use this model` as the explicit transition.
+Agent focus never erases a user's manual viewport. With `Follow current` off, a new focus is shown as a non-invasive “analysis focus available” action. Pan, zoom, hover, and ordinary selection are local UI state. Element questions carry model Context and element IDs, never screen coordinates or image IDs. Historical pages show a read-only banner; their element analysis actions are disabled in v1. `Use this model` first returns to the live workspace, then opens the live model switch flow; it never mutates the inspected page directly.
 
 ### Thread conversation
 
@@ -155,7 +155,7 @@ The conversation pane contains:
 - Case batch cards with step state and the blocked reason when applicable;
 - a composer with model/context hint, trace-level selector, attachment/action affordances reserved for later milestones, and send/cancel controls.
 
-Assistant messages are labeled as AI-generated content. Streaming text appears incrementally; the composer remains visible and changes to `Cancel` when the current Attempt is cancellable. A long operation always shows a phase/status card before the answer arrives. `trace_level=detailed` adds bounded explanation summaries in a collapsible card; it never exposes raw hidden reasoning.
+Assistant messages are labeled as AI-generated content. Streaming text appears incrementally; the composer remains visible and retains a draft while the current Attempt is active. The active Attempt rail exposes `Cancel` and, when explicitly resolved as a control request, `Send control`; ordinary/professional submission remains disabled until the Attempt is terminal. A long operation always shows a phase/status card before the answer arrives. `trace_level=detailed` adds bounded explanation summaries in a collapsible card; it never exposes raw hidden reasoning.
 
 ### Drawers and overlays
 
