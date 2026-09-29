@@ -1266,3 +1266,4 @@ _Recovered pre-merge mainline entries._
 - 06:52 提议 Case required step 失败即 blocked，重试复用 step Turn 创建新 Attempt，禁止默认跳过 [0ff2b7f]
 - 06:59 提议 Case 由 Harness resolver 精确解析、BatchExecutor 顺序提交，Pi/DSH 不负责 step 循环 [98b7d36]
 - 07:06 整理公共事件候选 taxonomy，统一 Run/Context/Turn/Attempt/控制/工具/准入/网格/批处理分组 [b936429]
+- 07:13 提议 Pi/DSH 保留空能力基线，并增加隔离的 capability parity reference mode 比较业务工具行为 [bdcc2fc]
