@@ -228,6 +228,8 @@ ToolSourceRef
 
 **Proposed grid-to-Thread reference.** An element action should carry `model_context_id`, exact `model_revision`, `element_kind`, and `element_id`; it should not carry screen coordinates or a rendered image identifier. Asking about an element can become a structured Turn input, while analysis and model switching use the common command envelope. A historical page remains read-only until an explicit model switch or an explicitly supported historical-reference request, so selecting a historical bus cannot silently change the active Context.
 
+**Proposed active versus viewed page state.** Keep the business `active_grid_page_id` (the page for the current ModelContext) separate from a TUI-local `viewed_grid_page_id` (the page currently visible, which may be historical and read-only). A new Thread initializes both to IEEE-39. Selecting a historical page changes only the viewed page; “use this model” sends `model_switch`. A later `model_context_activated` normally follows the active page automatically, while a local historical replay may temporarily hold the viewed page and show that the current model is elsewhere. This prevents page navigation from silently changing business state.
+
 **Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
