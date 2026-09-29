@@ -1208,3 +1208,4 @@ _Recovered pre-merge mainline entries._
 - 00:55 确认状态/交互/诊断三类事件与 fail-closed 快照重建，保证回放可验证且诊断不污染业务 Snapshot
 - 00:56 提交事件分类与快照重建规则，固定 schema/upcaster 校验和诊断隔离 [509fa96]
 - 00:58 确认事件显式版本与分级保留：业务事件长期可回放，runtime/Provider 诊断独立 TTL 且先过滤再持久化
+- 00:59 提交事件 schema 与保留策略，固定 upcaster、诊断 TTL 和业务事件保护边界 [6c95b78]
