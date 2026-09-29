@@ -1132,3 +1132,4 @@ _Recovered pre-merge mainline entries._
 
 ## 2026-09-29
 - 10:11 对齐本地 PyPSA 模型缓存与公开 DeepSeek 配置，避免重下载并统一演示模型 [673fa2d]
+- 10:13 收紧 Grid/PyPSA 工具输入说明并增加描述回归测试，减少模型传错引用和来源字段 [2c0f4df]

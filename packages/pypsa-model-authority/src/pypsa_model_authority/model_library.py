@@ -123,13 +123,14 @@ def install_official_example(catalog_id: str, *, root: Path | None = None) -> Pa
     try:
         digest = hashlib.sha256()
         size = 0
-        with os.fdopen(descriptor, "wb") as output, urlopen(entry.source_url) as response:
-            while chunk := response.read(1_048_576):
-                size += len(chunk)
-                if size > entry.size_bytes:
-                    raise ModelLibraryError("official PyPSA model download size differs")
-                digest.update(chunk)
-                output.write(chunk)
+        with os.fdopen(descriptor, "wb") as output:
+            with urlopen(entry.source_url) as response:
+                while chunk := response.read(1_048_576):
+                    size += len(chunk)
+                    if size > entry.size_bytes:
+                        raise ModelLibraryError("official PyPSA model download size differs")
+                    digest.update(chunk)
+                    output.write(chunk)
             output.flush()
             os.fsync(output.fileno())
         if size != entry.size_bytes or digest.hexdigest() != entry.sha256:
