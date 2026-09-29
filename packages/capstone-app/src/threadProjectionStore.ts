@@ -1,4 +1,4 @@
-import { type CommandReceipt, type EventPage, type ThreadSnapshot } from './threadProtocol'
+import { parseThreadSnapshot, type CommandReceipt, type EventPage, type ThreadSnapshot } from './threadProtocol'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -35,6 +35,16 @@ function fixtureConnection(fixture: ThreadFixtureDocument): ThreadTransportState
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as Record<string, unknown>
+}
+
+function resyncSnapshot(error: unknown): ThreadSnapshot | null {
+  const body = record(record(error).body)
+  if (body.error !== 'resync_required' || !('snapshot' in body)) return null
+  try {
+    return parseThreadSnapshot(body.snapshot)
+  } catch {
+    return null
+  }
 }
 
 /** A checked-fixture transport for the first Web/TUI projection prototype. */
@@ -101,7 +111,11 @@ export class ThreadProjectionStore {
       }
       this.loadedThreadId = threadId
     } catch (error) {
-      this.current = { ...this.current, connection: 'resync_required', resyncRequired: true }
+      const snapshot = resyncSnapshot(error)
+      this.current = {
+        ...this.current, connection: 'resync_required', resyncRequired: true,
+        ...(snapshot ? { snapshot, eventSeq: snapshot.lastEventSeq } : {}),
+      }
       throw error
     }
   }

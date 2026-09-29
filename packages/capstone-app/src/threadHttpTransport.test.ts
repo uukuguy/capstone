@@ -36,10 +36,13 @@ describe('HttpThreadTransport', () => {
   })
 
   it('surfaces non-success responses without treating them as receipts', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 409 }))
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: 'resync_required', base_event_seq: 3, snapshot: { schema: 'capstone-thread-snapshot/1' },
+    }), { status: 409 }))
     const transport = new HttpThreadTransport('', '', fetcher)
 
-    await expect(transport.sendCommand(command)).rejects.toBeInstanceOf(ThreadTransportError)
-    await expect(transport.sendCommand(command)).rejects.toMatchObject({ status: 409 })
+    await expect(transport.sendCommand(command)).rejects.toMatchObject({
+      status: 409, body: { error: 'resync_required', base_event_seq: 3 },
+    })
   })
 })

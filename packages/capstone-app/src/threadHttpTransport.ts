@@ -3,7 +3,7 @@ import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './thr
 const MAX_JSON_BYTES = 2 * 1024 * 1024 + 128 * 1024
 
 export class ThreadTransportError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly body?: unknown) {
     super(message)
     this.name = 'ThreadTransportError'
   }
@@ -37,14 +37,17 @@ export class HttpThreadTransport implements ThreadTransport {
         ...init.headers,
       },
     })
-    if (!response.ok) throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`)
     const text = await response.text()
     if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) throw new Error('Thread 响应超过允许大小')
+    let body: unknown = undefined
     try {
-      return JSON.parse(text) as unknown
+      body = JSON.parse(text) as unknown
     } catch {
+      if (!response.ok) throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`)
       throw new ThreadTransportError(response.status, 'Thread 响应不是有效 JSON。')
     }
+    if (!response.ok) throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`, body)
+    return body
   }
 
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown> {

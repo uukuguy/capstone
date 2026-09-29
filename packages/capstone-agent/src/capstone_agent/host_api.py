@@ -23,6 +23,12 @@ from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
 from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
+from capstone_agent.thread_protocol import ThreadProtocolError
+from capstone_agent.thread_service import (
+    ThreadNotFound,
+    ThreadResyncRequired,
+    ThreadService,
+)
 
 
 def _status(record: SessionRecord) -> dict[str, object]:
@@ -45,6 +51,7 @@ def create_host_app(
     artifacts: ArtifactService | None = None,
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
     wake_worker: Callable[[], object] | None = None,
+    thread_service: ThreadService | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -154,6 +161,69 @@ def create_host_app(
     @app.get("/api/v1/catalog")
     def get_catalog():
         return catalog
+
+    if thread_service is not None:
+        @app.get("/api/v1/threads/{thread_id}")
+        def get_thread_snapshot(thread_id: str):
+            try:
+                return thread_service.snapshot(thread_id).to_document()
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+
+        @app.get("/api/v1/threads/{thread_id}/events")
+        def get_thread_events(thread_id: str, after: Annotated[int, Query(ge=0)] = 0):
+            try:
+                return thread_service.read_events(thread_id, after).to_document()
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadResyncRequired as error:
+                return JSONResponse(status_code=409, content={
+                    "error": "resync_required",
+                    "base_event_seq": error.snapshot.base_event_seq,
+                    "snapshot": error.snapshot.to_document(),
+                })
+
+        @app.post("/api/v1/threads/{thread_id}/commands", status_code=202)
+        async def post_thread_command(
+            thread_id: str, request: Request,
+            idempotency_key: Annotated[str | None, Header(max_length=200)] = None,
+        ):
+            try:
+                command = await request.json()
+                if not isinstance(command, dict):
+                    raise ThreadProtocolError("command must be an object")
+                if command.get("thread_id") != thread_id:
+                    raise ThreadProtocolError("command.thread_id does not match route")
+                if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
+                    raise HTTPException(400, "Idempotency-Key does not match command")
+                return thread_service.submit_command(command).to_document()
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadProtocolError as error:
+                raise HTTPException(422, str(error)) from None
+
+        @app.get("/api/v1/threads/{thread_id}/events/stream")
+        async def stream_thread_events(thread_id: str, after: Annotated[int, Query(ge=0)] = 0):
+            try:
+                page = thread_service.read_events(thread_id, after)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadResyncRequired as error:
+                return JSONResponse(status_code=409, content={
+                    "error": "resync_required",
+                    "base_event_seq": error.snapshot.base_event_seq,
+                    "snapshot": error.snapshot.to_document(),
+                })
+
+            async def events():
+                if not page.events:
+                    yield ": keepalive\n\n"
+                    return
+                for event in page.events:
+                    payload = json.dumps(event.to_document(), ensure_ascii=False)
+                    yield f"id: {event.event_seq}\nevent: {event.event_type}\ndata: {payload}\n\n"
+
+            return StreamingResponse(events(), media_type="text/event-stream")
 
     @app.get("/api/v1/demo-credential")
     def get_demo_credential():
