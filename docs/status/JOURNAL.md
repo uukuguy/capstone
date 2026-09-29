@@ -1190,3 +1190,4 @@ _Recovered pre-merge mainline entries._
 - 19:31 提交 Prepared Capability Contribution 决策，明确 Adapter 与 Harness 的装配边界 [17f65dd]
 - 19:52 确认历史回放游标仅属客户端视图，并修正三栏定位：现有三栏暂用，新 UI 需从用户场景重新设计
 - 19:53 提交 UI 临时布局与历史回放定位修正，避免三栏候选结构约束新交互设计 [abd4d94]
+- 19:55 确认统一 ThreadSnapshot + EventPage 读模型，保证 CLI/SDK/API/Web/TUI 共享业务状态语义
