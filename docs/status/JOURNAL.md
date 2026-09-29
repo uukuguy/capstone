@@ -1212,3 +1212,4 @@ _Recovered pre-merge mainline entries._
 - 01:01 确认 ModelContext declared/preparing/active/retiring/closed 生命周期，准备原子激活且 Worker 仅借用资源
 - 01:02 提交 ModelContext 资源生命周期，明确原子准备、失败回收和 Worker 借用边界 [2ff6248]
 - 01:04 确认严格恢复不变量：无法证明完整 checkpoint 就中断即死，v1 只允许新 Attempt 干净重启并用 fencing 防旧 Worker 写入
+- 01:05 提交严格 Attempt 恢复规则，禁止半状态续接并要求未来续接具备可验证 durable checkpoint [03d1286]
