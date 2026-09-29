@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 07:36 CST. Session remains active.
+> Updated: 2026-09-30 07:43 CST. Session remains active.
 
 ## TL;DR
 
@@ -9,15 +9,16 @@
 - The server-side HTTP/SSE projection, isolated Postgres Thread store, and injected model-pinned Thread creation route are implemented and tested; the neutral `AuthorityThreadModelCatalog` now validates Authority identity records without importing a Domain Pack.
 - Thread command admission now rejects unsupported command kinds and empty/multiline message payloads before emitting `command_accepted`; actual Harness Attempt execution is still pending.
 - `capstone_agent.harness` now provides an injected `HarnessPiClient` with bounded native-event normalization and an explicit unavailable `HarnessDSHClient` shell; it is not yet connected to durable Attempt execution.
+- Thread command payloads are now finite JSON (64 KiB maximum) and invalid payloads fail as protocol errors instead of reaching the route as server errors.
 
 ## Where things stand
 
-- Branch: `main`, ahead of `origin/main` by 132 commits.
-- Task work is committed through `006d118`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, command admission, and runtime adapter normalization.
+- Branch: `main`, ahead of `origin/main` by 136 commits.
+- Task work is committed through `d233f7b`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, command admission, runtime adapter normalization, and bounded command payloads.
 - Working tree also contains the append-only journal and this active checkpoint; the unrelated user change in `.gitignore` (`.codegraph/`) remains unstaged and must be preserved.
 - Verification completed:
   - `npm test --prefix packages/capstone-app` — 14 files, 86 tests passed.
-  - `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 129 passed, 23 skipped.
+  - `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 130 passed, 23 skipped.
   - `npm run check --prefix packages/capstone-app` — passed.
   - `npm run build --prefix packages/capstone-app` — passed.
   - `make doctor` — passed.

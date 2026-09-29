@@ -1308,3 +1308,6 @@ _Recovered pre-merge mainline entries._
 - 07:36 增加 HarnessPiClient 事件归一化和明确不可用的 HarnessDSHClient 空壳，保持 Thread 协议不暴露原生 runtime 事件 [006d118]
 - 07:36 capstone-agent 全量回归通过 129 passed/23 skipped，包边界检查通过 [006d118]
 - 07:37 `make doctor` 通过，Pi extension/gridctl 运行时探测正常，live provider probe 保持关闭 [006d118]
+- 07:38 更新活动恢复 baton，记录 Harness runtime seam 已落盘，下一步接入 Attempt 执行而非直接暴露原生 Pi 事件 [3b6f4f8]
+- 07:43 为 Thread 命令加入有限 JSON 校验与 64 KiB 上限，修复非 JSON payload 可能导致 500 或账本膨胀的问题 [d233f7b]
+- 07:43 capstone-agent 全量回归通过 130 passed/23 skipped，包边界检查与 git diff --check 通过 [d233f7b]
