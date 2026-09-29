@@ -1182,3 +1182,4 @@ _Recovered pre-merge mainline entries._
 - 19:19 提交 ModelContext 控制操作决策，保证切换失败回退且历史 Context 可回放 [927b2f2]
 - 19:21 确认三层 Model-to-Profile 解析：Authority 定义模型事实，Capstone Catalog 定义资格默认，SPI/Adapter 原子准备运行时能力
 - 19:22 提交 Model-to-Profile 三层解析决策，保证模型事实、用户选择与运行时装配解耦 [5047221]
+- 19:24 确认 Capstone 统一事件与控制协议：Pi/DSH 作为低层 runtime adapter，公共 Envelope 由 capstone-harness 负责

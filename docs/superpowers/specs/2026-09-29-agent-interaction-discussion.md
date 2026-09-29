@@ -112,6 +112,8 @@ The UI presents user-facing package descriptions and Domain Pack-level enable/di
 
 **Decided direction.** `capstone-harness` consumes rich Pi/DSH events, performs Capstone-specific processing, and exposes a common Capstone run/event stream to CLI, SDK, API, and Web. Thread is one projection of that shared stream. Native runtime events must not be mistaken for admitted business facts or a stable Capstone public API. Diagnostic native events may be retained server-side subject to security and storage policy.
 
+**Capstone event/control protocol accepted.** `HarnessPiClient` and `HarnessDSHClient` implement a replaceable low-level runtime client interface for session start, prompt submission, cancellation/interruption, close, state, and native event delivery. `capstone-harness` owns the public Capstone protocol above those clients. CLI, SDK, API, and Web consume a Capstone event Envelope carrying `event_id`, monotonic `event_seq`, `event_type`, applicable Thread/Run/Turn/Attempt identifiers, Model Context and selection snapshot fields, timestamp, and bounded payload. Public controls normalize to Capstone commands such as `submit_turn`, `retry_attempt`, `cancel_attempt`, `switch_model`, profile selection changes, and `close_run`. Pi/DSH native events may be retained as restricted runtime diagnostics, but cannot become public business facts or bypass Authority admission.
+
 **Proposed event groups** (names and schema are not approved):
 
 - Lifecycle/control: `run_started`, `turn_started`, `turn_committed`, `run_completed`, `run_failed`, `run_cancelled`, model switch, cancellation, reconnect/replay.
