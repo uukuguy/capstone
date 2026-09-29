@@ -1210,3 +1210,4 @@ _Recovered pre-merge mainline entries._
 - 00:58 确认事件显式版本与分级保留：业务事件长期可回放，runtime/Provider 诊断独立 TTL 且先过滤再持久化
 - 00:59 提交事件 schema 与保留策略，固定 upcaster、诊断 TTL 和业务事件保护边界 [6c95b78]
 - 01:01 确认 ModelContext declared/preparing/active/retiring/closed 生命周期，准备原子激活且 Worker 仅借用资源
+- 01:02 提交 ModelContext 资源生命周期，明确原子准备、失败回收和 Worker 借用边界 [2ff6248]
