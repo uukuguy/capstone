@@ -32,6 +32,7 @@ from .thread_protocol import (
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_MAX_COMMAND_BYTES = 64 * 1024
 _COMMAND_FIELDS = frozenset({
     "schema", "command_id", "idempotency_key", "thread_id", "run_id",
     "kind", "expected_event_seq", "payload",
@@ -75,6 +76,13 @@ def _now() -> str:
 
 def _canonical(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+
+
+def _validate_json(value: Any, *, name: str) -> None:
+    try:
+        json.dumps(value, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError):
+        raise ThreadProtocolError(f"{name} is not JSON") from None
 
 
 def _admission_rejection(command: Mapping[str, Any]) -> str | None:
@@ -223,6 +231,12 @@ class InMemoryThreadService:
         payload = command["payload"]
         if not isinstance(payload, dict):
             raise ThreadProtocolError("command.payload is invalid")
+        _validate_json(payload, name="command.payload")
+        try:
+            if len(_canonical(command).encode("utf-8")) > _MAX_COMMAND_BYTES:
+                raise ThreadProtocolError("command is too large")
+        except (TypeError, ValueError):
+            raise ThreadProtocolError("command is not JSON") from None
         return {
             "command_id": _identifier(command["command_id"], name="command.command_id"),
             "idempotency_key": _identifier(command["idempotency_key"], name="command.idempotency_key"),
