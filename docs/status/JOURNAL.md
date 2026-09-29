@@ -1281,4 +1281,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 继续以现有 App 作为视觉基线完成结构评审；保留其深色蓝绿色、网络投影、证据卡片与时间线，明确 Thread 双栏重组、模型页与会话优先级 [a5b9107]
 - 2026-09-30 新增 Web/TUI 几何线框、跨客户端动作矩阵、活跃 Attempt 控制通道、历史页/回放/恢复/Case 阻塞及 headless approval walkthrough；同步将视觉 MASTER 改为产品化草案 [a5b9107]
 - 2026-09-30 对齐 UI 契约与线框：专业请求可进入 preparation，活跃 Attempt 保留草稿并走独立控制通道，历史页切换先回到 live [22d914e]
-- 2026-09-30 新增十个 Thread UI 状态 fixture、六条最小事件序列及 Web/TUI/CLI 语义断言，作为跨客户端实现前的验证边界 [pending]
+- 2026-09-30 新增十个 Thread UI 状态 fixture、六条最小事件序列及 Web/TUI/CLI 语义断言，作为跨客户端实现前的验证边界 [0e20f11]
