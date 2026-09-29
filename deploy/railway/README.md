@@ -22,6 +22,8 @@ bucket variable references or protected values in the project UI:
 | `DATABASE_URL` | PostgreSQL connection URL, shared by API and worker |
 | `CAPSTONE_OPERATOR_TOKEN` | Same private operator token in both roles |
 | `CAPSTONE_PUBLIC_DEMO` | `true` on the API for automatic public demonstration access |
+| `CAPSTONE_PUBLIC_PROVIDER` | `deepseek` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
+| `CAPSTONE_PUBLIC_MODEL` | `deepseek-flash` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
 | `CAPSTONE_SESSION_IDLE_SECONDS` | `600` on the worker; release a session after ten minutes waiting for the next instruction |
 | `CAPSTONE_WORKER_MAX_SESSIONS` | `12` for the measured public demo on one worker replica; tune after measuring memory and latency |
 | `CAPSTONE_WORKER_WAKE_URL` | `http://capstone-worker.railway.internal:8766` on both API and worker; local Compose uses `http://worker:8766` |

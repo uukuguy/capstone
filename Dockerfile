@@ -20,6 +20,7 @@ COPY schemas/ schemas/
 COPY third-party-notices/ third-party-notices/
 COPY deploy/entrypoint.sh deploy/entrypoint.sh
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
+COPY deploy/local-model-assets/ /opt/capstone-models/
 
 ENV UV_NO_SYNC=1 \
     UV_NO_DEV=1 \

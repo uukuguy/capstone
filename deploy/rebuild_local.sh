@@ -18,7 +18,30 @@ fail() {
 command -v docker >/dev/null 2>&1 || fail "docker is not installed or not on PATH"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose is not available"
 command -v curl >/dev/null 2>&1 || fail "curl is not installed or not on PATH"
+command -v uv >/dev/null 2>&1 || fail "uv is not installed or not on PATH"
 [ -f "$env_file" ] || fail "missing $env_file; copy deploy/local.env.example and fill local values"
+
+model_source="${CAPSTONE_PYPSA_MODEL_LIBRARY_DIR:-$repo_root/.grid-agent/runtime/pypsa-models}"
+model_stage="$repo_root/deploy/local-model-assets"
+printf '%s\n' "==> Verifying and staging the local PyPSA model library"
+if ! CAPSTONE_PYPSA_MODEL_LIBRARY_DIR="$model_source" uv run --project "$repo_root/packages/pypsa-agent" \
+  python - "$model_source" "$model_stage" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+
+from pypsa_model_authority.model_library import list_official_examples, verified_asset_path
+
+source = Path(sys.argv[1])
+stage = Path(sys.argv[2])
+stage.mkdir(parents=True, exist_ok=True)
+for entry in list_official_examples():
+    source_path = verified_asset_path(entry.catalog_id, root=source)
+    shutil.copy2(source_path, stage / source_path.name)
+PY
+then
+  fail "local PyPSA model library is missing or invalid at $model_source; run make install-pypsa-models"
+fi
 
 printf '%s\n' "==> Validating local Compose configuration"
 "${compose[@]}" config --quiet

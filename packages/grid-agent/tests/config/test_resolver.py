@@ -77,7 +77,7 @@ def test_deepseek_accepts_current_provider_model_id(catalog: ProviderCatalog) ->
             "openrouter",
             "pi-built-in",
         ),
-        ("deepseek", "DEEPSEEK_API_KEY", "deepseek-v4-pro", "https://api.deepseek.com", "deepseek", "pi-built-in"),
+        ("deepseek", "DEEPSEEK_API_KEY", "deepseek-flash", "https://api.deepseek.com", "deepseek", "pi-built-in"),
         (
             "minimax",
             "MINIMAX_API_KEY",
@@ -113,7 +113,7 @@ def test_api_key_provider_defaults_are_fieldwise(
     assert resolved.config.pi_provider == pi_provider
     assert resolved.config.compatibility_profile == compatibility_profile
     assert resolved.config.supports_tools is True
-    assert resolved.config.descriptor_version == "2026-09-26.deepseek-model-id-policy"
+    assert resolved.config.descriptor_version == "2026-09-28.deepseek-flash-policy"
     assert resolved.config.field_sources["model"] == "default"
     assert resolved.config.field_sources["credential_reference"] == "default"
 

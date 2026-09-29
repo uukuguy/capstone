@@ -120,7 +120,9 @@ make capstone-local-rebuild
 API/worker，等待依赖与健康检查完成，确认两个角色使用同一镜像摘要，并确保
 Vite App 已启动。App 未运行时会在忽略的 `.capstone-agent/` 下后台启动并记录
 PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础镜像时设置
-`CAPSTONE_LOCAL_PULL=1`。重构后刷新浏览器，已有会话需要重置后才会开始新运行。
+`CAPSTONE_LOCAL_PULL=1`。脚本会先校验本机 `.grid-agent/runtime/pypsa-models`
+中的六个固定模型，并将它们放入本地构建上下文，因此本地重构不会重复下载模型。
+重构后刷新浏览器，已有会话需要重置后才会开始新运行。
 
 公开演示模式必须在 `deploy/local.env` 中显式设置
 `CAPSTONE_PUBLIC_PROVIDER` 和 `CAPSTONE_PUBLIC_MODEL`；Compose 不再为 LLM
@@ -283,7 +285,7 @@ cp .env.example .env
 
 可选的非密钥参数也写在 `.env`：`GRID_AGENT_LLM_MODEL`、`GRID_AGENT_LLM_BASE_URL`、`GRID_AGENT_LLM_TIMEOUT_SECONDS` 与 `GRID_AGENT_LLM_MAX_RETRIES`。后两项分别是单次 provider 请求的秒数和重试次数（`0` 禁用重试）；每次 `make run-llm` 都会写入项目私有的 Pi `settings.json`，同时作用于 Pi 的 HTTP 空闲时限、SDK 请求时限和自动重试。命令行参数优先于 `.env`，进程环境变量优先于 `.env`。支持的 provider 与默认密钥变量为：`openai`/`OPENAI_API_KEY`、`openrouter`/`OPENROUTER_API_KEY`、`deepseek`/`DEEPSEEK_API_KEY`、`minimax`/`MINIMAX_API_KEY`。`openai-codex` 使用 Pi OAuth，而不是 API key。
 
-DeepSeek 模型名以其[官方模型列表](https://api-docs.deepseek.com/api/list-models/)为准；项目只校验非空模型名，不维护 DeepSeek 模型白名单。当前官方模型列表包含 `deepseek-flash` 与 `deepseek-v4-pro`。Pi 对尚未收录的显式模型名使用自定义模型 ID，最终是否可用由 DeepSeek API 验证。
+DeepSeek 模型名以其[官方模型列表](https://api-docs.deepseek.com/api/list-models/)为准；项目只校验非空模型名，不维护 DeepSeek 模型白名单。当前项目统一使用 `deepseek-flash`。Pi 对尚未收录的显式模型名使用自定义模型 ID，最终是否可用由 DeepSeek API 验证。
 
 Pi 运行时按以下顺序发现：`GRID_AGENT_PI_COMMAND`、项目托管版本、`PATH` 中的 `pi`。因此 Pi 已在 `PATH` 时无需配置 `GRID_AGENT_PI_COMMAND`；否则可在 `.env` 设置该绝对路径，或在仓库根目录执行 `make install-pi` 安装本项目锁定版本到 `.grid-agent/runtime/pi`。模型密钥会仅在启动 Pi 子进程时通过环境变量传递，不写入 `.grid-agent/auth/pi` 的配置文件或命令行。
 

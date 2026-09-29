@@ -34,7 +34,7 @@ def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
     ),))
     app = create_host_app(
         ledger, registry, operator_token="hosted-secret", public_demo=True,
-        public_provider="deepseek", public_model="deepseek-v4-pro",
+        public_provider="deepseek", public_model="deepseek-flash",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
         repo_root=Path(__file__).resolve().parents[3],
     )
@@ -55,7 +55,7 @@ def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
         assert client.get(f"/api/v1/sessions/{created.json()['session_id']}",
                           headers=demo).status_code == 200
         assert ledger.sessions[created.json()["session_id"]].provider == "deepseek"
-        assert ledger.sessions[created.json()["session_id"]].model == "deepseek-v4-pro"
+        assert ledger.sessions[created.json()["session_id"]].model == "deepseek-flash"
         assert client.post("/api/v1/sessions", json={
             "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
             "case_id": "pandapower-scripted-task",

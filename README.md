@@ -57,6 +57,8 @@ make capstone-local-rebuild
 The rebuild validates the environment, rebuilds and replaces both backend
 roles, waits for readiness, verifies that they use the same image digest, and
 ensures the Vite App is reachable (starting it in the background when needed).
+It verifies the local pinned PyPSA model library and stages it into the image
+build, so local rebuilds do not download those model files again.
 Set `CAPSTONE_START_APP=0` to skip App startup or `CAPSTONE_LOCAL_PULL=1` when
 base images should also be refreshed.
 

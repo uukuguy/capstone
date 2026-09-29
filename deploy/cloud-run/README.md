@@ -49,8 +49,10 @@ On Vercel, set the project root to `packages/capstone-app`, use the checked-in
 public in the static build. Provider keys, operator tokens, database URLs, and
 bucket credentials must stay out of Vercel build variables.
 
-The deployment template enables `CAPSTONE_PUBLIC_DEMO=true` on the API. Visitors
-enter the App automatically with a scoped demonstration credential and can run
+The deployment template enables `CAPSTONE_PUBLIC_DEMO=true` on the API and pins
+the public demo to `CAPSTONE_PUBLIC_PROVIDER=deepseek` and
+`CAPSTONE_PUBLIC_MODEL=deepseek-flash`. Visitors enter the App automatically
+with a scoped demonstration credential and can run
 registered scripted cases. Refresh restores the current tab's last run without
 creating another session. Provider sessions still require the separate operator token.
 

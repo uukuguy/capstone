@@ -132,7 +132,11 @@ running, it starts a background dev server and records its PID/log under the
 ignored `.capstone-agent/` directory. Set `CAPSTONE_START_APP=0` to skip that
 step, `CAPSTONE_LOCAL_PULL=1` when base images should also be refreshed, or
 `CAPSTONE_LOCAL_ENV_FILE=/path/to/local.env` when using a different local
-environment file. The script never prints secret values.
+environment file. Before the Docker build, the script verifies the six pinned
+PyPSA assets in `.grid-agent/runtime/pypsa-models` (or the directory named by
+`CAPSTONE_PYPSA_MODEL_LIBRARY_DIR`) and stages them under the ignored
+`deploy/local-model-assets/` build directory, so a local rebuild does not
+redownload model files. The script never prints secret values.
 
 The App remains a separate Vite development process because Compose does not
 host the static App. It listens on `0.0.0.0` by default so a phone on the same

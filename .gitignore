@@ -64,7 +64,9 @@ packages/trajectory-workbench/coverage/
 /.debug-ops/
 /output/
 /.playwright-cli/
+/.codex/
 /deploy/local.env
+/deploy/local-model-assets/*.nc
 **/__pycache__/
 **/.pytest_cache/
 **/.coverage
