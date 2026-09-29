@@ -1221,3 +1221,4 @@ _Recovered pre-merge mainline entries._
 - 01:14 提交工具操作幂等决策，防止 Authority/Provider 模糊状态下重复执行或错误接纳 [bcb6dd0]
 - 01:16 确认稳定错误分类与跨客户端投影，区分命令、Context、Attempt、Authority 和 Run 级失败
 - 01:17 提交稳定错误类决策，统一 retryable、关联对象、最后安全序号与客户端动作提示 [4e21ebb]
+- 01:19 确认意图分类只做路由，工具 allowlist、admission 与声明绑定作为不可绕过的硬门控
