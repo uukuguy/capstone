@@ -11,6 +11,7 @@
 ## Where things stand
 
 - 最新提交：
+  - `d6f7bd4 docs: record organized worktree state`
   - `96c14db build: refresh packaged trajectory workbench`
   - `348159e fix: close PyPSA model download before sync`
   - `2c0f4df test: clarify registered capability inputs`
@@ -29,7 +30,7 @@
 - 工作树：
   - 历史遗留改动已按功能拆分提交；`.codex/` 保留本机并已加入忽略。
   - `deploy/local-model-assets/*.nc` 保留在忽略目录中，构建时由本地模型库校验并复制。
-  - 状态文件将在本次整理结束时一并提交。
+  - 状态文件已随本次整理提交，普通 `git status` 已清洁。
 
 ## What this session delivered
 
