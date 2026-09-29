@@ -122,6 +122,8 @@ The UI presents user-facing package descriptions and Domain Pack-level enable/di
 
 **Proposed Case failure semantics.** A required tool, answer, or evidence admission failure moves the Case to `blocked` and prevents later steps from starting. Retrying a failed step creates a new Attempt under that step's Turn; it does not overwrite the failed history. Case cancellation follows Attempt cancellation and ends the batch without starting another step. Skipping is available only when the versioned Case explicitly marks a step skippable. The Case reaches `completed` only after all required steps commit, while each step's results and evidence remain independently replayable.
 
+**Proposed Case resolution boundary.** Natural-language Case requests pass through the Harness control resolver to an exact `case_id@version`; ambiguous labels require clarification. A Harness-owned `BatchExecutor` submits registered steps in order and never delegates the step loop to Pi/DSH. Each step's original instruction, Case version, and execution state remain visible in the canonical event stream. Case metadata may declare model or implementation-family requirements, but a Case owns neither ModelContext nor capability handles.
+
 ## Events and application projections
 
 **Decided direction.** `capstone-harness` consumes rich Pi/DSH events, performs Capstone-specific processing, and exposes a common Capstone run/event stream to CLI, SDK, API, and Web. Thread is one projection of that shared stream. Native runtime events must not be mistaken for admitted business facts or a stable Capstone public API. Diagnostic native events may be retained server-side subject to security and storage policy.
