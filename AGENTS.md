@@ -35,6 +35,36 @@ semantics out of the Kernel. Do not couple one Domain Pack to another's state.
 Cross-domain model references require an explicit application grant and typed
 handoff; a public compatibility projection belongs to its application.
 
+## Development and Release Architecture
+
+Capstone has three execution lanes: local Compose plus Vite for high-frequency
+iteration, an isolated cloud-development stage for remote integration
+validation, and an isolated user-trial stage for stable releases. The local
+lane is not a substitute for cloud verification, and the cloud-development
+lane is not a user-data or production lane. Read the normative
+[development and release lifecycle](docs/architecture/capstone-development-lifecycle.md)
+before changing deployment, release, or environment behavior.
+
+- Cloud development and user trial must never share PostgreSQL, artifact
+  buckets, operator tokens, Provider credentials, public origins, or mutable
+  run/session/evidence data.
+- API and worker within one stage must use the same tested backend source
+  revision or exact image digest. A user-trial release promotes that exact
+  verified revision or digest; ordinary development pushes must not update the
+  user-trial stage.
+- The local API, worker, and App path is rebuilt with
+  `make capstone-local-rebuild` before remote validation. Do not test an old
+  Compose image and call the result current.
+- Cloud-development validation covers readiness, App health, registered cases,
+  Provider behavior when separately authorized, reports, evidence replay, and
+  API/worker identity before promotion. Failed releases roll back to the last
+  verified user-trial revision.
+- Hosted App build variables may contain only the selected API origin. Provider
+  and operator secrets stay in protected environment variables or ignored
+  authentication state and never enter source, logs, arguments, or artifacts.
+- Public demonstration access, when enabled for a no-login App smoke target,
+  remains limited to registered scripted cases and never grants Provider access.
+
 ## Authority and Model Boundaries
 
 - An agent may call only published, allowlisted semantic tools with exact
@@ -95,6 +125,7 @@ counts, prices, limits, versions, or deployment state here.
 | Model-facing grid policy and guides | [Policy](packages/pandapower-domain-pack/src/pandapower_domain/resources/policy/system-policy.md), [guides](packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/) |
 | Hosted App and local operations | [Runbook](docs/RUNBOOK.md#hosted-app-and-deployment) |
 | Cloud deployment | [Railway](deploy/railway/README.md), [Cloud Run + Vercel](deploy/cloud-run/README.md) |
+| Development and release lifecycle | [Lifecycle architecture](docs/architecture/capstone-development-lifecycle.md) |
 | Structural state and recovery baton | [Current state](docs/status/CURRENT-STATE.md), [resume](docs/status/RESUME-NEXT-SESSION.md) |
 
 ## Working in This Repository
