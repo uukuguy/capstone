@@ -1207,3 +1207,4 @@ _Recovered pre-merge mainline entries._
 - 00:53 提交参考 runtime 上下文隔离决策，避免未验证回答污染 Capstone 业务记忆与证据 [22ba2ae]
 - 00:55 确认状态/交互/诊断三类事件与 fail-closed 快照重建，保证回放可验证且诊断不污染业务 Snapshot
 - 00:56 提交事件分类与快照重建规则，固定 schema/upcaster 校验和诊断隔离 [509fa96]
+- 00:58 确认事件显式版本与分级保留：业务事件长期可回放，runtime/Provider 诊断独立 TTL 且先过滤再持久化
