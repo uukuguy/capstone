@@ -1283,3 +1283,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 对齐 UI 契约与线框：专业请求可进入 preparation，活跃 Attempt 保留草稿并走独立控制通道，历史页切换先回到 live [22d914e]
 - 2026-09-30 新增十个 Thread UI 状态 fixture、六条最小事件序列及 Web/TUI/CLI 语义断言，作为跨客户端实现前的验证边界 [0e20f11]
 - 2026-09-30 冻结 capstone-thread/1 最小 ThreadSnapshot、EventPage、EventEnvelope 与 CommandReceipt 严格 JSON 契约，先于客户端实现建立恢复边界 [0c80ee7]
+- 2026-09-30 增加 idle、历史页活跃 Attempt、重同步和中断四个严格 UI fixture，验证快照基线与事件页连续性 [0a49202]
