@@ -275,6 +275,17 @@ ToolSourceRef
 
 This is a substantive API, runtime, persistence, and UI change. Capstone has no real external application consumers yet, so internal package, registry, worker, session, and API shapes may be refactored rather than preserved for compatibility. The historical `grid-agent` compatibility stdout boundary is a separate repository contract and remains frozen unless a deliberate retirement decision changes it; it must not constrain the new Capstone application design. Duplicating every change separately in pandapower and PyPSA paths should not become the target architecture.
 
+## Proposed implementation milestones
+
+1. **Public contract and Harness skeleton:** publish `capstone-thread/1`, `ThreadSnapshot`/`EventPage`, command envelopes, and Thread/Run/Turn/Attempt types; add the Pi adapter and deliberately unavailable DSH shell.
+2. **Single-Run core execution:** implement the canonical ledger, strict recovery, cancellation/retry, control semantics, and `CapstoneThreadClient`; prove ordinary conversation with an empty capability Context.
+3. **Model and capability integration:** add the IEEE-39 default, Model Capability Catalog, Profile/Domain Pack selection, pandapower/PyPSA adapters, `ToolSourceRef`, bounded network projections, and explicit model switching.
+4. **CLI and Textual TUI:** add `capstone run/chat/tui`, the HTTP/SSE service boundary, the two-column workspace, one page per model, and TGP/ANSI rendering.
+5. **Web and Case orchestration:** add the assistant-ui custom client, current-model/grid interaction, Case `BatchExecutor`, context pinning, and blocked-step recovery.
+6. **Reference and advanced runtime work:** add empty-capability Pi/DSH baselines, the isolated capability-parity reference mode, WebSocket human-in-the-loop controls, a real DSH adapter, and future multi-Run support.
+
+Each milestone must have a runnable verification path before the next layer is expanded. Milestones 1–2 provide a useful runtime/application skeleton without domain facts; milestone 3 introduces authoritative grid capabilities.
+
 ## Historical framework audit and refactoring stance
 
 **Decided.** Before implementing the new interaction feature, inspect and map the historical framework rather than trusting package names. Refactor where ownership or dependency direction is wrong. Do not treat current `capstone-agent`, `grid-agent`, or `pypsa-agent` package APIs as stable public contracts; Capstone has no actual external application adoption that would justify preserving those accidental boundaries.
