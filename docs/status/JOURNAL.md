@@ -1138,4 +1138,4 @@ _Recovered pre-merge mainline entries._
 - 10:16 完成历史遗留工作树整理，按功能提交并保留本地配置与模型资产在忽略目录中
 - 10:19 修正交接文件中的工作树描述，明确状态文件已提交且普通 Git 状态清洁
 - 10:41 建立 Railway cloud-dev/demo 双环境约定与变量清单，隔离试用数据并规范同修订晋级
-- 10:49 创建并验证 Railway `capstone-cloud-dev` 的 API、worker、PostgreSQL、私有 bucket 与 App，推送 `d262aed` 后三项服务按同一源码修订部署成功
+- 10:49 创建并验证 Railway `capstone-cloud-dev` 的 API、worker、PostgreSQL、私有 bucket 与 App，推送 `d262aed` 后三项服务按同一源码修订部署成功 [f1eef11]
