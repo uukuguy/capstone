@@ -1175,3 +1175,4 @@ _Recovered pre-merge mainline entries._
 - 19:03 提交智能体交互架构讨论与恢复状态，防止跨会话丢失 [7e3c671]
 - 19:04 将上一条提交的持久化记录补入 append-only journal [3b8d3da]
 - 19:07 确认 Run 生命周期：created/open/closing/closed，failed 仅用于不可恢复 Run 级错误；普通 Turn/工具/Provider/Worker 失败不终止 Run，Worker 状态独立
+- 19:12 提交 Run 生命周期设计记录，明确关闭、失败与 Worker 状态边界 [a5d4d07]
