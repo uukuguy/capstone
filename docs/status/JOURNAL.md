@@ -1220,3 +1220,4 @@ _Recovered pre-merge mainline entries._
 - 01:13 确认工具 operation_id/idempotency_key 与保守重试：未知或非幂等操作不自动重发，结果按 payload hash 去重
 - 01:14 提交工具操作幂等决策，防止 Authority/Provider 模糊状态下重复执行或错误接纳 [bcb6dd0]
 - 01:16 确认稳定错误分类与跨客户端投影，区分命令、Context、Attempt、Authority 和 Run 级失败
+- 01:17 提交稳定错误类决策，统一 retryable、关联对象、最后安全序号与客户端动作提示 [4e21ebb]
