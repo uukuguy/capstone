@@ -1292,3 +1292,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 关闭 Thread client adapter 计划并更新恢复 baton，下一步进入 fixture-backed Web/TUI 原型 [2ac0da4]
 - 2026-09-30 增加 fixture-backed Web Thread 两栏原型与查询入口，验证模型页、历史取消、重同步冻结和新 Attempt 重试 [6a42541]
 - 2026-09-30 关闭 Thread UI fixture prototype 计划并更新恢复 baton，下一步接入真实 HTTP/SSE 与 TUI 投影复用 [86be477]
+- 2026-09-30 增加可配置 HttpThreadTransport，严格区分网络传输与 capstone-thread/1 解析，命令沿用原始幂等键 [c933304]
