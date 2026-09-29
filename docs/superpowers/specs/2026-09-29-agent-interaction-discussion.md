@@ -124,6 +124,8 @@ The UI presents user-facing package descriptions and Domain Pack-level enable/di
 
 **Event access protocol accepted.** `read_events(thread_id, after_seq, limit)` is the recovery, pagination, replay, CLI/TUI, SDK, and API foundation. `subscribe_events(thread_id, after_seq)` is an optional low-latency delivery path, not a second business source. A subscriber may receive duplicates and must resume or repair gaps through `read_events`; reconnect never assumes that a live channel was complete. Both paths use the same canonical `event_seq`, schema/upcaster rules, visibility filtering, and `EventPage` contract. Transport choices such as HTTP polling, SSE, WebSocket, or an SDK iterator remain adapters and do not become the Capstone business protocol.
 
+**Cursor resynchronization accepted.** If a requested `after_seq` is outside the retained/replayable range or cannot be proven contiguous, `read_events` and `subscribe_events` return an explicit `resync_required` result instead of silently advancing the cursor. The result includes a current `ThreadSnapshot` with `base_event_seq`, schema/hash metadata, and the next valid cursor. The client replaces its local projection from that snapshot and then reads events after the declared base sequence. A snapshot without a verified base sequence is not sufficient for recovery.
+
 **Proposed event groups** (names and schema are not approved):
 
 - Lifecycle/control: `run_started`, `turn_started`, `turn_committed`, `run_completed`, `run_failed`, `run_cancelled`, model switch, cancellation, reconnect/replay.
