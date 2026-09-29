@@ -136,6 +136,8 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 
 云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 API、按需唤醒的 worker、PostgreSQL、私有 S3 bucket，并可托管静态 App。两个后端角色须基于同一已验证源码修订，并共享账本/工件配置；可拉取时优先固定同一镜像 digest。Railway Hobby 无法配置私有镜像仓库凭证，当前演示部署使用同源代码构建。Railway 和本地 Compose 的 API 通过 `CAPSTONE_WORKER_WAKE_URL` 访问 worker 私有 HTTP 端点；Cloud Run 未设置该变量时保持原有轮询模式。App 构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，演示凭证由服务端发放，App 自动进入工作台；关闭该开关时公开演示 App 显示连接失败与重试，私有操作员令牌仍可通过 API 使用。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
 
+Railway 的持续开发配置分为两个隔离阶段：现有 `capstone-demo` 保持用户试用，`capstone-cloud-dev` 承担开发版本的云端验证。两个阶段分别准备 API、worker、PostgreSQL、私有 bucket 和静态 App，并分别使用数据库、工件存储、操作员令牌、Provider 凭据和域名。开发版本通过本地门禁后部署到 cloud-dev；完成健康检查、登记案例、Provider、报告、证据回放及 API/worker 修订一致性检查后，使用同一已验证源码修订或镜像 digest 晋级 demo。晋级失败时回退到上一版已验证修订。变量清单见 [Railway cloud-dev](../deploy/railway/cloud-dev.variables.example) 和 [Railway demo](../deploy/railway/demo.variables.example)；文件只含占位符，不是凭据文件。
+
 ## PyPSA 电网模型库与本地案例
 
 PyPSA 1.3.0 的六个官方 Network 示例与 15 个项目模型一起登记在模型库中。官方 NetCDF 只通过操作者命令下载，逐项核对固定文件大小和 SHA-256，保存于 Git 忽略的 `.grid-agent/runtime/pypsa-models/`。若要使用只读容器目录，可设置 `CAPSTONE_PYPSA_MODEL_LIBRARY_DIR` 指向已安装且校验过的资产目录。缺失或被改动的资产不能被 `model.open` 使用；案例运行中不会联网下载。

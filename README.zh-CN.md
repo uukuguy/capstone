@@ -90,6 +90,8 @@ make capstone-agent-pypsa-ac-dc
 
 本地 Compose、Cloud Run 和 Railway 使用同一套 API 契约和同一后端镜像；镜像按角色启动 API 或 worker。两者共享 PostgreSQL 运行账本和私有工件存储。静态 App 可部署在 Railway 或 Vercel，通过 `VITE_API_ORIGIN` 连接公开 API；这个构建变量只放 API 地址，不放密钥。
 
+Railway 使用两个隔离阶段支持持续开发：现有的 `capstone-demo` 项目用于登记案例的用户试用，`capstone-cloud-dev` 作为开发版本的云端验证目标。两个阶段分别使用独立的数据库、工件 bucket、凭据和 App 原点。本地 Compose 继续承担高频迭代；只有通过云端冒烟检查的开发版本才晋级到试用阶段。
+
 - [Railway 部署说明](deploy/railway/README.md)
 - [Cloud Run + Vercel 部署说明](deploy/cloud-run/README.md)
 - [完整运行手册](docs/RUNBOOK.md)

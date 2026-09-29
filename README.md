@@ -94,6 +94,13 @@ are not the LLM execution path.
 
 Local Compose, Cloud Run, and Railway use the same API contract and backend image. The image starts as either an API or a worker; both share a PostgreSQL run ledger and private artifact storage. The static App can run on Railway or Vercel and uses `VITE_API_ORIGIN` to reach the public API. This build variable contains an API origin, never a secret.
 
+Railway uses two isolated stages for the continuing development cycle: the
+existing `capstone-demo` project serves registered user trials, and
+`capstone-cloud-dev` is the cloud validation target for the development
+revision. They use separate databases, artifact buckets, credentials, and App
+origins. Local Compose remains the fast iteration path; promote only a
+cloud-dev revision that passed the remote smoke checks to the demo stage.
+
 - [Railway deployment](deploy/railway/README.md)
 - [Cloud Run + Vercel deployment](deploy/cloud-run/README.md)
 - [Full runbook](docs/RUNBOOK.md)

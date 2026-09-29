@@ -1,0 +1,23 @@
+# Checklist only. Do not paste real credentials into this file or commit a
+# populated copy. Set values in the capstone-cloud-dev Railway environment.
+
+DATABASE_URL=<set-in-railway>
+CAPSTONE_OPERATOR_TOKEN=<set-in-railway>
+CAPSTONE_PUBLIC_DEMO=false
+CAPSTONE_PUBLIC_PROVIDER=deepseek
+CAPSTONE_PUBLIC_MODEL=deepseek-flash
+CAPSTONE_SESSION_IDLE_SECONDS=600
+CAPSTONE_WORKER_MAX_SESSIONS=4
+CAPSTONE_WORKER_WAKE_URL=http://capstone-worker-dev.railway.internal:8766
+CAPSTONE_ALLOWED_HOSTS=<cloud-dev-api-host-without-scheme>
+CAPSTONE_ALLOWED_ORIGINS=https://<cloud-dev-app-host>
+CAPSTONE_ARTIFACT_BACKEND=s3
+CAPSTONE_ARTIFACT_BUCKET=<cloud-dev-bucket-credential>
+CAPSTONE_S3_ENDPOINT=<cloud-dev-bucket-endpoint-credential>
+AWS_ACCESS_KEY_ID=<set-in-railway>
+AWS_SECRET_ACCESS_KEY=<set-in-railway>
+AWS_DEFAULT_REGION=<cloud-dev-bucket-region>
+DEEPSEEK_API_KEY=<set-in-railway>
+
+# App service build variable; it contains an origin only, never a secret.
+VITE_API_ORIGIN=https://<cloud-dev-api-host>

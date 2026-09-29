@@ -1,18 +1,58 @@
 # Railway topology
 
-Railway can host the complete public demonstration, including its static App.
-Create one PostgreSQL service, one private Railway Bucket, one API service,
-one on-demand worker service, and one static App service. Deploy the API and
-worker from the same tested source revision. An immutable backend image digest
-built from the repository `Dockerfile` is preferable when Railway can pull it;
-Railway Hobby cannot configure credentials for a private container registry,
-so a private GHCR image requires source builds or a public image. Set the API start
-command to `/app/deploy/entrypoint.sh api` and the worker start command to
-`/app/deploy/entrypoint.sh worker`. Keep one worker replica initially. The worker
+Railway hosts two separate Capstone stages: the existing `capstone-demo` project
+serves user trials, while the planned `capstone-cloud-dev` project validates
+cloud changes. Local Compose remains the high-frequency development loop. Railway
+environments can also represent the two stages inside one project, but separate
+projects provide the clearest billing, credential, data, and access boundary.
+
+## Environment topology
+
+| Stage | Railway target | Source trigger | Public access | Data and credentials |
+| --- | --- | --- | --- | --- |
+| Cloud development | `capstone-cloud-dev` | `main` after local gates, deployed deliberately | Internal testers and the development App origin | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
+| User trial | `capstone-demo` | Release tag or explicit promotion of a verified revision | Registered scripted cases through the public demo credential | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
+| Local | Docker Compose plus Vite | Working tree changes | Local machine or LAN | Ignored local database, RustFS bucket, and runtime state |
+
+Each Railway stage contains one PostgreSQL service, one private Railway Bucket,
+one API service, one on-demand Worker service, and one static App service. API and
+Worker must use the same tested backend image or source revision within a stage.
+The two stages never share `DATABASE_URL`, artifact storage, operator tokens,
+Provider credentials, or public origins. `VITE_API_ORIGIN` contains only the
+selected API origin.
+
+The existing public topology remains the user-trial topology. Set the API start
+command to `/app/deploy/entrypoint.sh api` and the Worker start command to
+`/app/deploy/entrypoint.sh worker`. Keep one Worker replica initially. The Worker
 has no public domain. Set its internal HTTP health check path to `/health` and
-its `PORT` to `8766`. Set the API health check path to `/health/ready` and
-expose its generated HTTPS domain. A local SciGRID run peaked near 1.1 GiB;
-allow headroom and check Railway metrics before setting a worker memory cap.
+its `PORT` to `8766`. Set the API health check path to `/health/ready` and expose
+its generated HTTPS domain. A local SciGRID run peaked near 1.1 GiB; allow
+headroom and check Railway metrics before setting a Worker memory cap.
+
+Railway Hobby cannot configure credentials for a private container registry, so
+the current source-build topology remains supported. When a registry is
+available, promote the exact verified backend image digest from cloud-dev to
+demo instead of rebuilding it for the trial environment.
+
+## Cloud-dev to demo promotion
+
+1. Run local gates and exercise the local App with `make capstone-local-rebuild`.
+2. Deploy the same source revision to `capstone-cloud-dev`.
+3. Check `/health/ready`, a registered scripted case, one Provider case, report
+   generation, evidence replay, and API/Worker source or image identity.
+4. Record the verified revision and promote that exact revision or image digest
+   to `capstone-demo` under a release tag.
+5. Recheck the demo health endpoint and one registered public case.
+6. Roll back the demo to the previous verified revision when a release fails.
+
+Cloud-dev may use `CAPSTONE_PUBLIC_DEMO=false` and an operator-only App origin.
+The demo API uses `CAPSTONE_PUBLIC_DEMO=true`,
+`CAPSTONE_PUBLIC_PROVIDER=deepseek`, and `CAPSTONE_PUBLIC_MODEL=deepseek-flash`.
+Use separate Provider keys and limits for the two stages.
+
+The variable checklists in [`cloud-dev.variables.example`](cloud-dev.variables.example)
+and [`demo.variables.example`](demo.variables.example) contain names and safe
+placeholders only. They are review aids, not complete Railway credentials.
 
 Set these variables on **both** backend services, using Railway service and
 bucket variable references or protected values in the project UI:
