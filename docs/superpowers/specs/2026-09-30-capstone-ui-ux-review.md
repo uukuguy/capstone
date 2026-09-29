@@ -1,5 +1,7 @@
 # Capstone Agent Web / CLI / TUI UI/UX Design Review
 
+**Superseded verdict:** This initial checklist review did not establish interaction completeness. Its PASS conclusion is withdrawn by the reopened findings in `2026-09-30-capstone-ui-ux-deep-review.md`. Added prose alone is not evidence that a finding is closed.
+
 **Reviewed:** `docs/superpowers/specs/2026-09-30-capstone-ui-ux-design.md` and the accepted interaction architecture in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
 
 **Initial verdict:** **FLAG — architecture is coherent, but implementation should wait for the blocking interaction details below.** The two-column workspace, one-page-per-model rule, shared Thread projection, Harness command path, explicit evidence boundary, and TGP fallback direction are sound. The review found no product-boundary contradiction, but several interaction contracts were underspecified.

@@ -138,10 +138,39 @@ The document says the clients share commands and read models, but it does not pr
 
 The UI/UX contract was expanded after this deep review with a `ThreadWorkspaceViewModel` action-precedence model, explicit Thread navigation, composer target/context freezing, one-active-Attempt input policy, element-reference invalidation, model-switch and staged-capability flows, Case preflight, replay/recovery behavior, grid-scale rules, and a TUI Thread picker.
 
-The design is now suitable for an implementation plan, with three implementation gates still required:
+The added text is a candidate correction, not proof of closure. Three prototype/verification activities remain useful after the contradictions below are resolved:
 
 1. Build a Web state-fixture matrix that verifies enabled/disabled actions for each workspace state.
 2. Prototype `TerminalCanvas` on Ghostty and iTerm2 to verify Textual repaint, resize, placement cleanup, and ANSI fallback.
 3. Test large-network projection performance and choose concrete level-of-detail thresholds from measured projections rather than arbitrary UI constants.
 
-**Updated verdict:** **PASS WITH IMPLEMENTATION GATES.** The design is no longer only a component inventory; it now specifies the user decisions and recovery behavior at the major state boundaries.
+**Updated verdict: NOT READY.** The earlier PASS conclusion was premature and is withdrawn. The following counterexamples remain open; adding a state-controller name has not resolved them.
+
+## Reopened findings
+
+These are design defects found by tracing concrete operations against the current text. Recommendations below are proposals; none is marked resolved without a consistent transition table and a walkthrough of its visible states.
+
+| ID / priority | Reproduction and conflicting rules | User consequence | Required design resolution |
+| --- | --- | --- | --- |
+| R1 / blocking | During an active calculation, type “停止，切换到另一个模型”. The composer is disabled or replaced by Cancel, yet conversational controls are promised. | The primary command surface disappears at the time control matters most; a button cannot express the full request. | Separate editable draft, message submission, business execution scheduling, and control execution. Specify what happens to control, ordinary, mixed, and ambiguous input while busy; do not let frontend classification decide authorization. |
+| R2 / blocking | While a live Attempt runs, inspect an old model page. The historical-view rule freezes model changes and Case controls, but the same page offers “Use this model”; replay takes precedence over approval/cancel. | Users cannot perform the advertised model switch, or stop live work while viewing history. | Distinguish live execution state, inspected model, replay cursor, and connection trust. Historical writes stay disabled; any live cancellation targets the explicit live Attempt independently. Provide an action matrix instead of one global priority ladder. |
+| R3 / blocking | Create Thread with pinned IEEE-39 metadata and no live handles, then request power flow. Professional actions are disabled until capability preparation, while architecture starts preparation on the first executable Turn. | The first professional interaction can never initiate preparation. | Accept a valid request against declared capabilities, render preparation, then execute or report failure. Diagram availability must be independent from calculation readiness. |
+| R4 / high | Send “切换到 SciGRID，然后计算潮流”; model preparation is slow or fails. Control turns and business turns are specified separately, with no dependency relation. | Calculation may start on the old model, disappear, or require the user to retype the second clause. | Specify a visible dependent request sequence: resolution, pending switch, activation, business submission, and failure disposition. If v1 does not support compound requests, define an explicit clarification flow preserving the unsent instruction. |
+| R5 / high | Submit a model switch, server accepts, connection drops before receipt. Reload snapshot or re-press Apply. | A second command may be created; a cancelled UI request may still activate later. | Define local pending-command identity, reconciliation by the original idempotency key/command ID, acceptance versus activation, and superseding/withdrawing pending changes. No automatic new-key resend. |
+| R6 / high | Select a line on an old revision, draft a question, browse another tab, return after that model has changed revision. Current text implies returning to the page can unblock Send. | A stale reference can be attached to a new model state; incidental tab browsing may also discard valid context. | Bind attachments to stable model/revision/element identity; page focus alone must not validate or invalidate a reference. Specify historical explanation versus current computation and preserve user text. |
+| R7 / high | A Case step blocks because a package needs adjustment. Selection is pinned; edits require cancelling the Case. | Users can only repeat the same failure or abandon the batch. “Blocked-step recovery” is incomplete. | Distinguish same-context retry from corrected-context restart; show what committed steps remain and what will rerun. Reassess global Case pinning as a proposal against the user's instruction-sequence model. |
+| R8 / high | `capstone run` is invoked by a script and reaches approval. The headless state table requires interactive input, while no-input behavior and exit codes are unspecified. | Automation can hang or leave unclear live work. | Define noninteractive approval-required output, attachment/resolution path, timeout/disconnect policy, exact exit codes, and final JSON/JSONL terminal semantics. |
+
+### Layout and operation details still missing
+
+- **Conversation reading:** when the user scrolls up during streaming, define scroll anchoring, unread indicator, return-to-latest, tool-card expansion and preserved selection. Specify how cancelled partial answers and retries are grouped so they cannot look committed.
+- **Model tabs:** specify overflow, stable model identity versus duplicate display names, revision badges, active/viewed markers, keyboard selection, and whether hiding a tab removes only presentation state. Use one page per model throughout.
+- **Two-pane workspace:** give minimum usable pane widths and terminal cell dimensions, splitter keyboard controls, compact-mode transitions, per-Thread viewport retention, and what happens when a drawer covers the input or selected element.
+- **Information hierarchy:** raw Context IDs, sequence numbers and revisions are currently prescribed in the primary header, composer and replay banner. Default views should identify the model and action outcome; inspect/copy details can reveal internal identifiers. Choose the hierarchy explicitly instead of displaying every field everywhere.
+- **Evidence interaction:** distinguish an immutable admitted historical result from a currently applicable result and from current-Attempt admissibility. Opening old evidence must preserve its provenance; a label or UI action cannot grant reuse in a new Attempt.
+- **TUI operations:** Ctrl+K still overlaps editor behavior; Ctrl+C lacks idle, selected-text, cancellation-pending, and exit-with-live-worker cases. Image placement ownership does not yet define picking, image-to-cell hit testing, overlay labels, or mouse/keyboard parity.
+- **Visual direction:** the generated MASTER is a generic operations landing template with hero/CTA sections, glow and staggered motion. It conflicts with the engineering workspace and contains component colors that bypass its own tokens. Dark-first and font choices have not been reviewed as product decisions. It is not a validated visual source of truth.
+
+### Evidence required to close this review
+
+Produce an action matrix across connection, live execution, inspected/replay view, and pending commands; annotated Web and TUI wireframes for idle, running, pending switch, approval, failed/interrupted, historical view, and reconnect; and walkthroughs of R1–R8 including target identity, receipt, visible feedback, and failure recovery. A limited TGP prototype can test feasibility, but cannot substitute for these interaction decisions. Keep unapproved behavior explicitly proposed.

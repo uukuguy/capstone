@@ -2,6 +2,8 @@
 
 **Status:** Proposed design contract for the single-Run interaction milestone. It is derived from the accepted Thread, ModelContext, event, Harness, grid-page, and runtime decisions in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`.
 
+**Review status: NOT READY.** The latest deep review found contradictions in the action-precedence rules below. These rules are unresolved proposals, not implementation instructions. Completion and PASS claims in earlier review revisions are withdrawn; see `2026-09-30-capstone-ui-ux-deep-review.md`, “Reopened findings”.
+
 **Scope:** Web App, Textual terminal UI, and headless CLI presentation. This document defines presentation behavior and interaction semantics; it does not replace the public `capstone-thread/1` protocol, `capstone-harness`, Domain Packs, or Authority contracts.
 
 ## Product interaction model
