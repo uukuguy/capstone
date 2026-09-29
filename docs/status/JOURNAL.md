@@ -1294,3 +1294,4 @@ _Recovered pre-merge mainline entries._
 - 2026-09-30 关闭 Thread UI fixture prototype 计划并更新恢复 baton，下一步接入真实 HTTP/SSE 与 TUI 投影复用 [86be477]
 - 2026-09-30 增加可配置 HttpThreadTransport，严格区分网络传输与 capstone-thread/1 解析，命令沿用原始幂等键 [c933304]
 - 2026-09-30 关闭 HTTP transport 计划并更新恢复 baton，明确后端路由/SSE 与 TUI 复用仍是下一阶段 [b8dfb76]
+- 2026-09-30 修正中断 Attempt 控制显示：仅历史页显示返回当前模型，回放入口覆盖中断态 [3ab287a]
