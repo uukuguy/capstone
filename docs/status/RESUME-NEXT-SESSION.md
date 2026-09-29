@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 07:30 CST. Session remains active.
+> Updated: 2026-09-30 07:36 CST. Session remains active.
 
 ## TL;DR
 
@@ -8,15 +8,16 @@
 - A fixture-backed Web two-column Thread workspace is available for UI validation, and `HttpThreadTransport` is ready for the future real server contract. The legacy Case App remains the default route and is untouched.
 - The server-side HTTP/SSE projection, isolated Postgres Thread store, and injected model-pinned Thread creation route are implemented and tested; the neutral `AuthorityThreadModelCatalog` now validates Authority identity records without importing a Domain Pack.
 - Thread command admission now rejects unsupported command kinds and empty/multiline message payloads before emitting `command_accepted`; actual Harness Attempt execution is still pending.
+- `capstone_agent.harness` now provides an injected `HarnessPiClient` with bounded native-event normalization and an explicit unavailable `HarnessDSHClient` shell; it is not yet connected to durable Attempt execution.
 
 ## Where things stand
 
 - Branch: `main`, ahead of `origin/main` by 132 commits.
-- Task work is committed through `99d3172`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, and command admission.
+- Task work is committed through `006d118`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, command admission, and runtime adapter normalization.
 - Working tree also contains the append-only journal and this active checkpoint; the unrelated user change in `.gitignore` (`.codegraph/`) remains unstaged and must be preserved.
 - Verification completed:
   - `npm test --prefix packages/capstone-app` — 14 files, 86 tests passed.
-  - `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 125 passed, 23 skipped.
+  - `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 129 passed, 23 skipped.
   - `npm run check --prefix packages/capstone-app` — passed.
   - `npm run build --prefix packages/capstone-app` — passed.
   - `make doctor` — passed.
@@ -62,7 +63,7 @@
 
 1. Wire the hosted application’s selected Authority to `AuthorityThreadModelCatalog`, including the exact registered IEEE-39 revision and implementation family, without adding a forbidden capstone-agent → Domain Pack import.
 2. Add authorization and integration tests for catalog selection, Thread creation, event-page cursors, SSE reconnect, and `resync_required` after compaction.
-3. Implement Harness command execution beyond admission: route ordinary/professional turns, model switches, package selection, and immutable Attempt creation through the approved control boundary.
+3. Implement Harness command execution beyond admission: route ordinary/professional turns, model switches, package selection, and immutable Attempt creation through the approved control boundary, using `HarnessPiClient` events.
 4. Keep the legacy Case App as the default until Thread creation, execution, and recovery tests pass. Then wire the Web workspace to `HttpThreadTransport` behind an explicit route/configuration.
 5. Add the Textual Python TUI as another projection client. Reuse the public Thread snapshot/event/command semantics; do not duplicate business state in widgets.
 6. Add the single `capstone` executable/TUI mode only after the shared server/client contract is stable. Preserve `capstone run` final-JSON and `--events` JSONL behavior separately from the frozen `grid-agent` compatibility envelope.

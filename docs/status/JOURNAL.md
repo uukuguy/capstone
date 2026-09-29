@@ -1304,3 +1304,7 @@ _Recovered pre-merge mainline entries._
 - 07:18 Web client creation测试、TypeScript检查与 make doctor 通过，保持共享 Thread client 边界可用 [696e053]
 - 07:30 增加中性 AuthorityThreadModelCatalog 边界并拒绝未支持的 Thread 命令，防止伪造模型 revision 或任意命令进入事件账本 [99d3172]
 - 07:30 capstone-agent 全量回归通过 125 passed/23 skipped，包边界检查通过；生产 Authority 装配仍由应用注入 [99d3172]
+- 07:31 更新活动恢复 baton，明确 Authority 装配仍需应用层注入，命令执行与 Harness Attempt 生命周期是下一步 [9f3f695]
+- 07:36 增加 HarnessPiClient 事件归一化和明确不可用的 HarnessDSHClient 空壳，保持 Thread 协议不暴露原生 runtime 事件 [006d118]
+- 07:36 capstone-agent 全量回归通过 129 passed/23 skipped，包边界检查通过 [006d118]
+- 07:37 `make doctor` 通过，Pi extension/gridctl 运行时探测正常，live provider probe 保持关闭 [006d118]
