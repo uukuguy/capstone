@@ -1236,3 +1236,4 @@ _Recovered pre-merge mainline entries._
 - 03:05 确认事件持久化拉取为恢复基础，实时订阅仅作可丢失加速并统一按游标补齐 [76050ad]
 - 03:18 确认 Run 仅显式 close_run 终止，普通 Turn 和 Context 变化保持 Run 可用 [38bf885]
 - 03:27 确认事件游标失效必须显式 resync_required，以带 base_event_seq 的快照重建而非静默跳过 [068c87a]
+- 03:36 确认默认流式状态反馈与可选详细解释轨迹，避免长推理无反馈且不暴露原始隐藏思维链 [076aa5c]
