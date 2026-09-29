@@ -1274,3 +1274,4 @@ _Recovered pre-merge mainline entries._
 - 07:48 映射现有 ledger/protocol/session/worker/API/network 代码到 Harness 迁移边界，首阶段暂留 capstone-agent 内部子包 [fc15100]
 - 07:55 完成 Web、Textual TUI 与 headless CLI 的 UI/UX 契约，并持久化 Capstone 设计系统 [daf82ad]
 - 08:02 更新恢复 baton，记录 UI/UX 契约与共享设计系统已完成 [3377f2f]
+- 08:11 完成 UI/UX 评审并修订快捷键、TGP 画布、恢复冻结、历史页、证据状态和无障碍契约 [c503550]
