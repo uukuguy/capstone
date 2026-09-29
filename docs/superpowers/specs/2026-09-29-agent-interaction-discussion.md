@@ -138,12 +138,14 @@ The UI presents user-facing package descriptions and Domain Pack-level enable/di
 
 **Reasoning visibility and streaming accepted.** The public interaction path always provides visible progress while a model or tool is working; a silent long-running state is not an acceptable default experience. Each Thread/Turn has a `trace_level`: `basic` (default) streams bounded phase/status events, wait reasons, tool activity, and admitted results; `detailed` additionally streams bounded `explanation_delta` summaries describing decision factors or result impact. Detailed explanations are generated or adapted as a public explanation channel, are length-limited, rate-limited/coalesced, secret-screened, and marked as explanation rather than Authority fact. A Provider's safe reasoning-summary channel may be adapted into this form. Raw hidden chain-of-thought, private Provider content, unreviewed intermediate claims, and unrestricted reasoning tokens never enter the public Capstone event stream. `trace_level` changes are ordered controls applied at a Turn boundary; the active Attempt keeps its immutable snapshot. Enabled explanation events follow the same replay, visibility, and retention rules as other interaction events.
 
-**Proposed event groups** (names and schema are not approved):
+**Proposed public event taxonomy** (names and exact payload schemas remain subject to protocol freeze):
 
-- Lifecycle/control: `run_started`, `turn_started`, `turn_committed`, `run_completed`, `run_failed`, `run_cancelled`, model switch, cancellation, reconnect/replay.
-- Streaming interaction: `text_delta`, bounded reasoning/status indicator, tool-call start/progress/completion, user approval request/decision where applicable, capability-policy change.
-- Business admission: Authority result admitted, evidence admitted, artifact/report available, bounded network projection updated.
-- Batch execution: Case batch started, step started/completed, batch completed/failed.
+- Thread/Run/Context state: `thread_created`, `run_opened`, `run_closing`, `run_closed`, `run_failed`, `model_context_activated`, `model_context_retired`, `selection_activated`.
+- Turn/Attempt state: `turn_started`, `turn_completed`, `attempt_started`, `attempt_waiting`, `attempt_committed`, `attempt_failed`, `attempt_cancelled`, `attempt_interrupted`.
+- Interaction and control: `text_delta`, `status_update`, `explanation_delta`, `turn_plan_created`, `control_resolved`, `clarification_requested`, `command_accepted`, `command_rejected`, `approval_requested`, `approval_resolved`.
+- Tool and admission: `tool_call_started`, `tool_call_progress`, `tool_call_completed`, `tool_call_failed`, `answer_committed`, `result_admitted`, `evidence_admitted`.
+- Grid and batch projections: `network_diagram_published`, `network_view_published`, `batch_started`, `batch_step_started`, `batch_step_completed`, `batch_blocked`, `batch_completed`, `batch_cancelled`.
+- Restricted diagnostics: runtime-native Pi/DSH events, Provider traces, Worker lease details, and transport cancellation details remain outside the public event taxonomy and use separate visibility/retention rules.
 
 **Proposed event identity.** A public event envelope should carry a monotonic cursor and appropriate `thread_id`, `run_id`, `turn_id`, optional `batch_id`, source, visibility, and model/revision/profile context. The exact event taxonomy, visibility levels, snapshot format, recovery behavior, and whether a separate harness protocol version is warranted are open. Do not expose hidden chain-of-thought, raw Authority objects, credentials, or unadmitted claims.
 
