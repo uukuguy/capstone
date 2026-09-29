@@ -236,6 +236,8 @@ ToolSourceRef
 
 **Proposed control Turn relation.** A conversational control request remains a visible user Turn with `route_kind=control`, but it may complete through a linked `command_id` without creating a Pi/DSH Attempt. A direct UI/API command may omit `turn_id`; it must not fabricate a transcript message. An ambiguous conversational control enters `waiting_for_clarification` and changes no Thread state. Successful control confirmation is a structured interaction result, not an LLM business answer, while the same command receipt and canonical state events remain available to every client.
 
+**Proposed capability-selection guard.** Control resolution may map explicit Profile/Domain Pack names or an explicitly selected UI target to exact trusted identities, but it must not infer a “best” package or silently remove semantic overlaps. Multiple catalog matches require clarification. `replace_selection` applies atomically at a valid Turn boundary, and an empty selection remains valid for ordinary conversation. Tool events must expose `ToolSourceRef` so users can diagnose overlap and then issue an explicit enable/disable/replace command.
+
 **Candidate responsive direction.** A future design may use multiple panes on desktop and a single-surface navigation pattern on phone. Exact surfaces, pane priorities, accessibility behavior, and visual language require a dedicated UI design pass. The prior illustrative `320px / flex / 340px` widths are not approved measurements.
 
 ## Existing implementation and expected migration
