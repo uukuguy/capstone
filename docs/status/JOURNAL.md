@@ -1231,3 +1231,4 @@ _Recovered pre-merge mainline entries._
 - 01:29 提交 Jev 三阶段评估时序，确保研发启动不依赖外部服务或标注集 [56b13ea]
 - 01:31 确认最小异步 TurnRouter 接口，Fake/规则/Jev/LLM 共用 typed decision 契约且不授予工具权限
 - 01:32 提交 TurnRouter 接口决策，固定可替换实现、typed DecisionUnavailable 和路由权限边界 [38f22fa]
+- 02:57 确认 Jev 显式安全回退与最小脱敏请求边界，避免隐式慢分类器和敏感数据外发 [7b6738d]
