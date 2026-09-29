@@ -36,6 +36,18 @@ function command(): ThreadCommand {
 }
 
 describe('CapstoneThreadClient', () => {
+  it('creates a Thread and validates its pinned snapshot', async () => {
+    const transport: ThreadTransport = {
+      createThread: vi.fn().mockResolvedValue(snapshot),
+      getSnapshot: vi.fn(), readEvents: vi.fn(), sendCommand: vi.fn(),
+    }
+
+    const result = await new CapstoneThreadClient(transport).create()
+
+    expect(result.activeModelContext.modelId).toBe('ieee39')
+    expect(transport.createThread).toHaveBeenCalledWith(undefined, undefined)
+  })
+
   it('validates and returns a typed snapshot from the transport', async () => {
     const transport: ThreadTransport = {
       getSnapshot: vi.fn().mockResolvedValue(snapshot),

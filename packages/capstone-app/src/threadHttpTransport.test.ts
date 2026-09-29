@@ -22,6 +22,20 @@ describe('HttpThreadTransport', () => {
     expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer token-1')
   })
 
+  it('creates a Thread through the same resource root', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({
+      schema: 'capstone-thread-snapshot/1', thread_id: 'thr_new',
+    }), { status: 201 }))
+    const transport = new HttpThreadTransport('', 'token-1', fetcher)
+
+    await expect(transport.createThread?.()).resolves.toEqual({
+      schema: 'capstone-thread-snapshot/1', thread_id: 'thr_new',
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/v1/threads', expect.objectContaining({
+      method: 'POST', body: '{}',
+    }))
+  })
+
   it('posts commands with the original idempotency key and bounded JSON payload', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 200 }))
     const transport = new HttpThreadTransport('', 'token-1', fetcher)
