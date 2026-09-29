@@ -1276,3 +1276,4 @@ _Recovered pre-merge mainline entries._
 - 08:02 更新恢复 baton，记录 UI/UX 契约与共享设计系统已完成 [3377f2f]
 - 08:11 完成 UI/UX 评审并修订快捷键、TGP 画布、恢复冻结、历史页、证据状态和无障碍契约 [c503550]
 - 08:19 完成场景级深评，补充 Workspace 状态机、Thread 导航、输入冻结、Case 预检、回放恢复与大电网可读性 [d5aac61]
+- 08:26 更新恢复 baton，记录深评后的 UI/UX 状态与三个实现验证门 [bc8b65f]
