@@ -1173,3 +1173,4 @@ _Recovered pre-merge mainline entries._
 - 17:19 修正模型能力层级与命名：用户选择注册电网模型，模型目录解析实现族与 Authority revision，再由 Capstone 解析兼容 ModelCapabilityProfile；同一 Thread/Run 可跨 pandapower/PyPSA 切换 Model Context，SPI 包目标改为 capstone-model-capability-spi，旧 Application Binding 名称标记为 superseded
 - 19:01 确认 Thread → Run → ModelContext 三层持久数据模型：v1 一 Thread 一 Run、多 Turn 和顺序 ModelContext；切换模型新建 Context，包变更只推进 selection revision；工具、结果、证据与回放绑定当时 Context 快照
 - 19:03 提交智能体交互架构讨论与恢复状态，防止跨会话丢失 [7e3c671]
+- 19:04 将上一条提交的持久化记录补入 append-only journal [3b8d3da]
