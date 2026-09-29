@@ -6,7 +6,7 @@
 
 - The local, cloud-development, and user-trial release lanes are documented in `docs/architecture/capstone-development-lifecycle.md` and enforced in `AGENTS.md`.
 - Railway `capstone-cloud-dev` API, worker, PostgreSQL, private bucket, and App were deployed and health-checked on one source revision; the user-trial environment remains isolated.
-- `main` is synchronized with `origin/main`; this recovery checkpoint is the only current worktree change. No cloud Provider validation has been claimed because cloud-dev still lacks its independent protected Provider key.
+- `main` contains the persisted discussion commits and is four commits ahead of `origin/main`; the worktree is clean. No cloud Provider validation has been claimed because cloud-dev still lacks its independent protected Provider key.
 - Active design discussion: `capstone-agent` is the unified agent core for CLI, SDK, API, and Web. Cases and dialogue must share its session, turn, authority, and evidence path; pandapower and PyPSA adapters belong inside it.
 - Dialogue v1 uses one run per thread. The design must preserve a later one-thread/many-run upgrade for comparison, reruns, and branches.
 - The Thread → Run → ModelContext data model is accepted: Thread keeps the ordered workspace events and current pointers; its v1 Run contains multiple Turns and sequential ModelContexts. Model switch creates a context, while package selection changes only its revision at a Turn boundary. Tool/evidence/replay records bind to the effective context snapshot and `ToolSourceRef` where applicable.
@@ -67,16 +67,16 @@
 
 ## Where things stand
 
-- Recent durable commits: `ba5b666` (journal handoff), `cc3ef9d` (handoff refresh), `a0f994c` (journal refresh), `6728960` (structural state), `7f63add` (lifecycle architecture).
+- Recent durable commits: `7b6738d` (Jev fallback and payload boundary), `36cec9f` (journal entry), `38f22fa` (TurnRouter contract), `56b13ea` (Jev evaluation timing).
 - Documentation gates passed: `make doctor`, link checks, `git diff --check`, and the `CLAUDE.md` symlink check.
 - Cloud-dev API `/health/ready` and App `/health` returned `200`.
 - Project route is `direct`; the canonical optimization worklist remains `docs/superpowers/plans/2026-09-05-capstone-optimization.md`. The active design has not yet been approved or implemented.
 
 ## Immediate next steps
 
-1. Define TurnRouter fallback policy and Jev request/response redaction before implementation planning; defer the evaluation dataset to the promotion phase.
-2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
-3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
+1. Define the Capstone harness event/control SPI and projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing Authority admission.
+2. Decide the remaining open interaction and UI questions, then approve the discussion record before implementation planning.
+3. After approval, write and review the implementation specification before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
 
 ## Ruled-out paths
