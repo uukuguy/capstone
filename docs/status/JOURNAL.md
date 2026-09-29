@@ -1229,3 +1229,4 @@ _Recovered pre-merge mainline entries._
 - 01:26 提交 Jev 可选路由器决策，固定开关、快照、数据边界与历史可回放语义 [9e47d29]
 - 01:28 确认 Jev 验证数据集后置：研发演示无依赖，实验可选采集，扩大 active 前再做完整评估
 - 01:29 提交 Jev 三阶段评估时序，确保研发启动不依赖外部服务或标注集 [56b13ea]
+- 01:31 确认最小异步 TurnRouter 接口，Fake/规则/Jev/LLM 共用 typed decision 契约且不授予工具权限

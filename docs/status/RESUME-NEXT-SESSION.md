@@ -47,6 +47,7 @@
 - TurnPlan is accepted as a minimal auditable contract: route, bounded confidence, capability hints, Context snapshot, source, and revision; hidden classifier reasoning is excluded.
 - Jev is accepted as an optional experimental `TurnRouter`: deployment default off, Run-snapshotted mode/model/schema, active before main LLM, shadow asynchronous, server-side redacted input, and explicit safe fallback.
 - Jev evaluation timing is accepted: demo development uses FakeDecisionRouter/fixtures without keys or datasets; optional experiments collect metadata; broad active/default use requires later labeled evaluation.
+- TurnRouter interface is accepted: capstone-harness owns an async sanitized-input/typed-decision contract shared by Fake, heuristic, Jev, and LLM comparison implementations; routers only produce auditable TurnPlan decisions.
 - The complete discussion is recorded in `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, with explicit Decided / Proposed / Open sections. It is a discussion record, not yet an approved implementation spec.
 - `grid-agent` application growth is frozen. It remains a pandapower compatibility adapter; new CLI/TUI and agent interaction work goes through the unified Capstone application/harness. `capstone-tui` is shorthand for the unified CLI's TUI mode, not a new package or application. `capstone-agent`, `pandapower-agent`, and `pypsa-agent` are historical peer-agent names to converge behind one Capstone application.
 - `Capstone` is the public brand and default executable name. `capstone-agent` is the canonical internal name for the intelligent-agent application layer; `capstone-application` is rejected as verbose and conceptually conflicting with `capstone-app`.
@@ -72,7 +73,7 @@
 
 ## Immediate next steps
 
-1. Define the stable TurnRouter interface and Fake/Jev adapter boundary before implementation planning; defer the evaluation dataset to the promotion phase.
+1. Define TurnRouter fallback policy and Jev request/response redaction before implementation planning; defer the evaluation dataset to the promotion phase.
 2. Define the Capstone harness event/control SPI and the projections for CLI, SDK, API, and Web; keep Pi/DSH native events available for runtime comparison without bypassing authority admission.
 3. After the design is approved, write the implementation specification and review it before invoking the planning workflow.
 4. Cloud Provider validation remains separate and needs its own authorization and protected cloud-dev key.
