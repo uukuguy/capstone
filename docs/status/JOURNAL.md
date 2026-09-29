@@ -1181,3 +1181,4 @@ _Recovered pre-merge mainline entries._
 - 19:18 确认 ModelContext 一等控制操作：切换先准备后激活，能力包变更推进 selection revision，活动 Attempt 保持快照
 - 19:19 提交 ModelContext 控制操作决策，保证切换失败回退且历史 Context 可回放 [927b2f2]
 - 19:21 确认三层 Model-to-Profile 解析：Authority 定义模型事实，Capstone Catalog 定义资格默认，SPI/Adapter 原子准备运行时能力
+- 19:22 提交 Model-to-Profile 三层解析决策，保证模型事实、用户选择与运行时装配解耦 [5047221]
