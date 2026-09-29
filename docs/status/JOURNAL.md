@@ -1172,3 +1172,4 @@ _Recovered pre-merge mainline entries._
 - 17:35 确认 Model Capability Catalog 归 capstone-agent，负责用户标签、可选 Profile、实现族关联和默认组合；空能力 context 保留为 Capstone 普通对话/能力发现模式及 Pi/DSH 无领域工具运行时基线，不能产生权威电网事实或 Capstone evidence
 - 17:19 修正模型能力层级与命名：用户选择注册电网模型，模型目录解析实现族与 Authority revision，再由 Capstone 解析兼容 ModelCapabilityProfile；同一 Thread/Run 可跨 pandapower/PyPSA 切换 Model Context，SPI 包目标改为 capstone-model-capability-spi，旧 Application Binding 名称标记为 superseded
 - 19:01 确认 Thread → Run → ModelContext 三层持久数据模型：v1 一 Thread 一 Run、多 Turn 和顺序 ModelContext；切换模型新建 Context，包变更只推进 selection revision；工具、结果、证据与回放绑定当时 Context 快照
+- 19:03 提交智能体交互架构讨论与恢复状态，防止跨会话丢失 [7e3c671]
