@@ -641,15 +641,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-item strong, .capstone-chat-activity-item small { display: block; }
 .capstone-chat-activity-item small { color: #9aafaa; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-composer { flex: 0 0 auto; padding: 10px 12px 12px; border-top: 1px solid #e5eee9; background: #fff; }
-.capstone-chat-mode { gap: 4px; margin-bottom: 7px; }
-.capstone-chat-mode button { min-height: 27px; padding: 0 10px; border-color: #d6e4de; border-radius: 999px; background: #fff; color: #718b85; font-size: 11px; }
-.capstone-chat-mode button.is-selected { border-color: #80bdab; background: #eff8f4; color: #18776c; }
 .capstone-composer-root { border: 1px solid #c9ded5; border-radius: 20px; background: #fff; box-shadow: 0 2px 9px #3156480b; }
 .capstone-composer-root:focus-within { border-color: #63aa98; box-shadow: 0 0 0 3px #4ca88f18; }
-.capstone-composer-root textarea { min-height: 44px; max-height: 156px; resize: vertical; padding: 10px 13px 5px; font-size: 14px; line-height: 1.55; }
-.capstone-composer-footer { min-height: 35px; padding: 4px 8px 7px 12px; border-top: 0; font-size: 10px; }
+.capstone-composer-root textarea { min-height: 48px; max-height: 156px; resize: vertical; padding: 10px 13px 8px; font-size: 13px; line-height: 1.45; }
+.capstone-composer-footer { display: flex; align-items: center; flex-direction: row; justify-content: flex-end; min-height: 0; padding: 3px 8px 7px; border-top: 0; }
 .capstone-composer-actions { display: flex; align-items: center; gap: 3px; }
-.capstone-chat-send, .capstone-chat-stop { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 50%; }
+.capstone-chat-send, .capstone-chat-stop { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 50%; }
 .capstone-chat-send { background: #117b73; color: #fff; }
 .capstone-chat-stop { border: 1px solid #d28b71; background: #fff7f3; color: #ae5b42; }
 .capstone-chat-send:hover:not(:disabled), .capstone-chat-stop:hover { filter: brightness(.96); }

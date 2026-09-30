@@ -10,7 +10,7 @@ import {
   useAuiState,
   useExternalStoreRuntime,
 } from '@assistant-ui/react'
-import { Activity, Check, Copy, FileCheck2, ListTree, MoreHorizontal, Pencil, RotateCcw, SendHorizontal, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Activity, ArrowUp, Check, Copy, FileCheck2, ListTree, MoreHorizontal, Pencil, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope } from './threadProtocol'
@@ -419,16 +419,16 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ mode, disabled, isRunning, editRequest }: { mode: SendMode; disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number } }) {
+function ComposerSurface({ disabled, isRunning, editRequest }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number } }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   useEffect(() => {
     if (editRequest) aui.composer.setText(editRequest.text)
   }, [aui, editRequest])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
-    <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="ctrlEnter" />
-    <div className="capstone-composer-footer"><span>Enter 换行 · ⌘/Ctrl + Enter 发送</span><div className="capstone-composer-actions">
-      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成"><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : !disabled && !isEmpty ? <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title={mode === 'professional' ? '发送专业请求' : '发送指令'}><SendHorizontal aria-hidden="true" /></ComposerPrimitive.Send> : null}
+    <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
+    <div className="capstone-composer-footer"><div className="capstone-composer-actions">
+      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成"><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : !disabled && !isEmpty ? <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令"><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send> : null}
     </div></div>
   </ComposerPrimitive.Root>
 }
@@ -447,7 +447,6 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
-  const [mode, setMode] = useState<SendMode>('automatic')
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
   const legacyActivity = activity.some((item) => typeof item === 'string')
@@ -458,11 +457,11 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
     isRunning,
     onNew: async (message) => {
       const text = messageText(message)
-      if (text.trim()) await onSend(mode, text.trim())
+      if (text.trim()) await onSend('automatic', text.trim())
     },
     onEdit: async (message) => {
       const text = messageText(message)
-      if (text.trim()) await onSend(mode, text.trim())
+      if (text.trim()) await onSend('automatic', text.trim())
     },
     onCancel,
   })
@@ -483,11 +482,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <div className="capstone-chat-mode" role="group" aria-label="指令模式">
-            <button type="button" className={mode === 'automatic' ? 'is-selected' : ''} aria-pressed={mode === 'automatic'} onClick={() => setMode('automatic')} disabled={disabled}>自动识别</button>
-            <button type="button" className={mode === 'professional' ? 'is-selected' : ''} aria-pressed={mode === 'professional'} onClick={() => setMode('professional')} disabled={disabled}>专业分析</button>
-          </div>
-          <ComposerSurface mode={mode} disabled={disabled} isRunning={isRunning} editRequest={editRequest} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} />
         </div>
       </ThreadPrimitive.Root>
     </div>

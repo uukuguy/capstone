@@ -1425,3 +1425,4 @@ _Recovered pre-merge mainline entries._
 - 04:56 记录视觉密度验证日志提交 [0d15403]
 - 05:02 隐藏无决策价值的协议回执与上下文调试标识，压缩证据展开层，并修复 StrictMode 下历史 live Attempt 误报重同步 [pending]
 - 05:03 更正上一条提交标识 [b18db0f]
+- 05:18 Composer 收敛为单一自动路由输入：Enter 发送、Shift+Enter 换行，移除模式页签和快捷键提示，缩小字号并保留原生高度调整 [pending]
