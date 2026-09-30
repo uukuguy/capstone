@@ -1407,3 +1407,4 @@ _Recovered pre-merge mainline entries._
 - 02:28 更新恢复 baton，下一步锁定 Web UI Phase A/B：密度收敛与 Markdown/GFM [033faea]
 - 02:34 收紧 Web UI 主合同：对话区继承 assistant-ui GPT/Perplexity/Grok/Claude/Gemini 主流模式，补齐图标操作栏与 Composer 细节 [pending]
 - 02:35 更正：主合同已收紧为 assistant-ui 主流对话模式基线，补充消息操作栏和 Composer 微交互 [3163f38]
+- 03:08 实现主合同 Web UI：GFM、消息操作栏、工具活动摘要、紧凑 Composer，并以真实 Thread 指令验证 [9f031e9]

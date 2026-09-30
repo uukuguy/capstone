@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-01 02:27 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-01 03:10 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -30,10 +30,10 @@
 
 - Commit `03063ff` keeps the legacy three-column App and `RunPanel` unchanged. The Thread route now uses a separate light two-column shell: a copied model pane on the left and an assistant-ui conversation surface on the right.
 - `ThreadModelPane.tsx` copies the legacy hero image treatment and reuses the existing `NetworkView` renderer. Fixture mode uses a bounded IEEE-39 preview; live mode fetches the registered `gridctl` diagram (`39` buses / `46` branches) through `CapstoneClient.caseDiagram`.
-- `CapstoneAssistantThread.tsx` uses `useExternalStoreRuntime` over the Capstone public event projection. It maps nested `command_accepted`, streaming text, and `attempt_completed.answer` into messages; empty assistant messages show a generation indicator. Automatic routing is the default, with an optional professional override.
+- `CapstoneAssistantThread.tsx` uses `useExternalStoreRuntime` over the Capstone public event projection. It maps nested `command_accepted`, streaming text, and `attempt_completed.answer` into messages; assistant answers use controlled GFM Markdown, compact hover/focus action icons, and assistant-ui style generation/stop states. Tool events are grouped into readable activity steps with binding/capability provenance. Automatic routing is the default, with an optional professional override.
 - The Thread route preserves the original App header, compact model controls, registered topology, and viewport-filling two-column layout. The legacy App remains available unchanged.
 - Commit `f57c182` injects the full pandapower Thread application into both hosted API and worker (`grid_agent.hosted_worker`). New Threads receive the registered default Profile and execute via the prepared Kernel/Pi Harness.
-- Latest verification: App 108 tests; hosted/catalog/Thread capability 7 tests; TypeScript/build, package boundaries and diff checks pass. Local API and worker were rebuilt from the current backend source and are healthy.
+- Latest verification: App 110 tests; TypeScript/build, package boundaries and diff checks pass. Local API and worker were rebuilt from the current backend source and are healthy. A real local Thread command using the scripted task's first instruction completed with model/context/element/topology tool events and an admitted Markdown answer.
 - A real new Thread (`thr_ad750d83909b8e382a01`) completed a model query with admitted evidence and a full answer. The former accepted-only Thread failed closed during preparation because it predates Profile registration; create a new Thread for user trial.
 - The approved Web UI primary contract is `docs/superpowers/specs/2026-10-01-capstone-thread-web-ui-main-contract.md`. It makes typography density a hard gate: body 14px, headings 18–22px, body never above 16px, compact state hierarchy, Markdown/GFM, grouped tool activity, and sticky Composer.
 
@@ -171,8 +171,8 @@
 
 ## Immediate next action
 
-1. Implement Phase A and Phase B of the Web UI primary contract: compact right-column hierarchy, hard typography density, sticky Composer, and controlled Markdown/GFM rendering.
-2. Use a browser screenshot at 100% zoom to verify the contract against a real new Thread before moving to grouped tool activity and domain cards.
+1. Continue Phase C–E of the Web UI primary contract: richer grouped tool/evidence details, domain result cards, and screenshot/accessibility acceptance for populated runs.
+2. Keep using the real scripted pandapower instructions for deterministic Thread/App smoke; do not substitute guessed grid values.
 3. Continue with public CLI/TUI commands using the same typed Thread client, receipt, cursor, and projection contracts.
 
 ## Recovery constraints
