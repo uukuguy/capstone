@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 12:31 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 12:43 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -66,10 +66,14 @@
   the next new Turn boundary. The active Model Context keeps its identity and
   advances `selection_revision`; the prepared Context owner keys resources by
   that revision.
+- Prepared Application Context failure now restores the prior effective
+  selection, emits `selection_reverted`, and fails the Attempt with a bounded
+  `capability_context_preparation_failed` result. A failed replacement cannot
+  leave a new selection active without prepared resources.
 
 ## Verification
 
-- Capstone Python suite: 195 passed, 27 skipped.
+- Capstone Python suite: 203 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
   including a professional Attempt with admitted result/evidence refs;
@@ -97,10 +101,9 @@
 
 ## Immediate next action
 
-1. Connect selection activation to the application preparation lifecycle:
-   prepare the replacement profile contribution set before retiring the old
-   revision, and expose preparation failure as a durable bounded control
-   outcome while preserving the old effective selection.
+1. Add the public model-switch control path using the same prepare-before-
+   activate and rollback contract, then expose pending/failed context state in
+   the shared Web/TUI/CLI projections.
 
 ## Recovery constraints
 
