@@ -310,14 +310,15 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-model-intro { margin-bottom: 16px; }
 .thread-model-intro .capstone-intro-art { outline-color: #cbded5; }
 .thread-model-intro > p { margin: 0; padding: 8px 2px 0; border-top: 1px solid #d4e2db; color: #587170; font-size: 10px; line-height: 1.5; }
-.thread-model-card { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #fff; border: 1px solid #cbded5; border-left: 3px solid #117b73; }
-.thread-model-card strong { color: #254344; font-size: 14px; white-space: nowrap; }
+.thread-model-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding: 6px 9px; background: #fff; border: 1px solid #cbded5; border-left: 3px solid #117b73; }
+.thread-model-current { display: flex; align-items: center; min-width: 0; flex: 1 1 250px; gap: 8px; }
+.thread-model-current-label { color: #608078; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
+.thread-model-current strong { color: #254344; font-size: 14px; white-space: nowrap; }
 .thread-model-card-meta { min-width: 0; overflow: hidden; color: #587170; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .thread-model-badge { color: #28756c; border: 1px solid #a8cfc1; padding: 5px 7px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
-.thread-model-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.thread-model-controls label { display: grid; gap: 5px; color: #5b7771; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
-.thread-model-controls select { min-height: 34px; border: 1px solid #b7d2c8; border-radius: 3px; background: #fff; color: #2c5f5b; padding: 0 9px; font-size: 11px; }
-.thread-model-controls small { align-self: center; color: #9a713e; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-model-switch { display: flex; align-items: center; gap: 6px; color: #5b7771; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
+.thread-model-switch select { min-height: 30px; border: 1px solid #b7d2c8; border-radius: 3px; background: #fff; color: #2c5f5b; padding: 0 8px; font-size: 10px; }
+.thread-model-toolbar > small { color: #9a713e; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
 .thread-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; }
 .thread-page-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; flex: 0 0 auto; padding: 0 10px; border: 1px solid #c5dcd2; background: #fff; color: #52706d; border-radius: 3px; font-size: 10px; text-align: left; }
 .thread-page-button:hover { border-color: #5aa18f; color: #176f65; }
