@@ -145,6 +145,13 @@ def test_snapshot_round_trips_a_pending_model_switch() -> None:
     assert snapshot.to_document()["pending_model_switch"] == document["pending_model_switch"]
 
 
+def test_snapshot_accepts_real_hierarchical_model_id() -> None:
+    document = valid_snapshot()
+    document["active_model_context"]["model_id"] = "pypsa-example/scigrid_de"
+    snapshot = ThreadSnapshot.from_document(document)
+    assert snapshot.active_model_context.model_id == "pypsa-example/scigrid_de"
+
+
 def test_event_page_rejects_a_gap_after_the_snapshot() -> None:
     with pytest.raises(ThreadProtocolError, match="contiguous"):
         EventPage.from_document(

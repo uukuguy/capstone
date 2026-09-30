@@ -10,6 +10,8 @@ from typing import Any, Mapping
 
 from capstone_model_capability_spi import ModelCapabilitySelection
 
+from .model_identity import validate_model_id
+
 
 THREAD_PROTOCOL = "capstone-thread/1"
 _SNAPSHOT_SCHEMA = "capstone-thread-snapshot/1"
@@ -46,6 +48,13 @@ def _identifier(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or not _IDENTIFIER.fullmatch(value):
         raise ThreadProtocolError(f"{name} is invalid")
     return value
+
+
+def _model_id(value: Any, *, name: str) -> str:
+    try:
+        return validate_model_id(value, name=name)
+    except ValueError as error:
+        raise ThreadProtocolError(str(error)) from None
 
 
 def _text(value: Any, *, name: str) -> str:
@@ -129,7 +138,7 @@ class ModelContextSnapshot:
             raise ThreadProtocolError(str(error)) from None
         return cls(
             id=_identifier(document["id"], name="active_model_context.id"),
-            model_id=_identifier(document["model_id"], name="active_model_context.model_id"),
+            model_id=_model_id(document["model_id"], name="active_model_context.model_id"),
             model_revision=_text(document["model_revision"], name="active_model_context.model_revision"),
             implementation_family=_identifier(
                 document["implementation_family"], name="active_model_context.implementation_family"
@@ -204,7 +213,7 @@ class PendingModelSwitchSnapshot:
             raise ThreadProtocolError(str(error)) from None
         return cls(
             command_id=_identifier(document["command_id"], name="pending_model_switch.command_id"),
-            model_id=_identifier(document["model_id"], name="pending_model_switch.model_id"),
+            model_id=_model_id(document["model_id"], name="pending_model_switch.model_id"),
             model_revision=_text(document["model_revision"], name="pending_model_switch.model_revision"),
             implementation_family=_identifier(
                 document["implementation_family"], name="pending_model_switch.implementation_family"

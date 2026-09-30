@@ -21,6 +21,30 @@ from .thread_service import (
     ThreadService,
 )
 from .thread_worker import RuntimeFactory
+from .runtime_capabilities import RuntimeCapabilityRegistry
+
+
+class FamilyRuntimeFactory:
+    """Dispatch Attempts to the application-registered family runtime."""
+
+    def __init__(self, factories: Mapping[str, RuntimeFactory]) -> None:
+        if not isinstance(factories, Mapping) or not factories:
+            raise ValueError("runtime family registry must not be empty")
+        normalized: dict[str, RuntimeFactory] = {}
+        for family, factory in factories.items():
+            if not isinstance(family, str) or not family or not callable(factory):
+                raise ValueError("runtime family registration is invalid")
+            if family in normalized:
+                raise ValueError(f"duplicate runtime family: {family}")
+            normalized[family] = factory
+        self._factories = normalized
+
+    def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
+        family = claim.model_context.implementation_family
+        factory = self._factories.get(family)
+        if factory is None:
+            raise RuntimeError(f"implementation family is not registered: {family}")
+        return factory(claim)
 
 
 class ApplicationPiRuntimeFactory:
@@ -36,11 +60,17 @@ class ApplicationPiRuntimeFactory:
         session_factory: Callable[[AttemptClaim], PiPromptSession],
         *,
         runtime_mode: str = "capstone",
+        runtime_capabilities: RuntimeCapabilityRegistry | None = None,
     ) -> None:
         if not callable(session_factory):
             raise TypeError("session_factory must be callable")
+        if runtime_capabilities is not None and not isinstance(
+            runtime_capabilities, RuntimeCapabilityRegistry,
+        ):
+            raise TypeError("runtime_capabilities must be a RuntimeCapabilityRegistry")
         self._session_factory = session_factory
         self._runtime_mode = runtime_mode
+        self.runtime_capabilities = runtime_capabilities
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         return HarnessPiClient(
@@ -65,14 +95,20 @@ class PreparedApplicationPiRuntimeFactory:
         ],
         *,
         runtime_mode: str = "capstone",
+        runtime_capabilities: RuntimeCapabilityRegistry | None = None,
     ) -> None:
         if not isinstance(context_owner, ModelCapabilityContextOwner):
             raise TypeError("context_owner must be a ModelCapabilityContextOwner")
         if not callable(session_factory):
             raise TypeError("session_factory must be callable")
+        if runtime_capabilities is not None and not isinstance(
+            runtime_capabilities, RuntimeCapabilityRegistry,
+        ):
+            raise TypeError("runtime_capabilities must be a RuntimeCapabilityRegistry")
         self._context_owner = context_owner
         self._session_factory = session_factory
         self._runtime_mode = runtime_mode
+        self.runtime_capabilities = runtime_capabilities
         self.rollback_selection_on_failure = True
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
@@ -101,6 +137,7 @@ class ThreadApplicationAssembly:
     runtime_factory: RuntimeFactory
     capability_catalog: ThreadCapabilityCatalog | None = None
     capability_context_owner: ModelCapabilityContextOwner | None = None
+    runtime_capabilities: RuntimeCapabilityRegistry | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -113,6 +150,10 @@ class ThreadApplicationAssembly:
             self.capability_context_owner, ModelCapabilityContextOwner,
         ):
             raise TypeError("Thread application capability context owner is invalid")
+        if self.runtime_capabilities is not None and not isinstance(
+            self.runtime_capabilities, RuntimeCapabilityRegistry,
+        ):
+            raise TypeError("Thread application runtime capabilities are invalid")
 
     @classmethod
     def from_authority(
@@ -122,6 +163,7 @@ class ThreadApplicationAssembly:
         model_resolver: Callable[[str], Mapping[str, Any]],
         session_factory: Callable[[AttemptClaim], PiPromptSession],
         runtime_mode: str = "capstone",
+        runtime_capabilities: RuntimeCapabilityRegistry | None = None,
     ) -> "ThreadApplicationAssembly":
         """Build an assembly from application-owned Authority and Pi seams.
 
@@ -138,8 +180,12 @@ class ThreadApplicationAssembly:
         )
         runtime_factory = ApplicationPiRuntimeFactory(
             session_factory, runtime_mode=runtime_mode,
+            runtime_capabilities=runtime_capabilities,
         )
-        return cls(catalog=catalog, runtime_factory=runtime_factory)
+        return cls(
+            catalog=catalog, runtime_factory=runtime_factory,
+            runtime_capabilities=runtime_capabilities,
+        )
 
     @classmethod
     def from_prepared_authority(
@@ -153,6 +199,7 @@ class ThreadApplicationAssembly:
             [AttemptClaim, PreparedModelCapabilityContext], PiPromptSession
         ],
         runtime_mode: str = "capstone",
+        runtime_capabilities: RuntimeCapabilityRegistry | None = None,
     ) -> "ThreadApplicationAssembly":
         """Pair model authority, exact Profile catalog, Context owner, and Pi."""
 
@@ -163,12 +210,14 @@ class ThreadApplicationAssembly:
         )
         runtime_factory = PreparedApplicationPiRuntimeFactory(
             capability_context_owner, session_factory, runtime_mode=runtime_mode,
+            runtime_capabilities=runtime_capabilities,
         )
         return cls(
             catalog=catalog,
             runtime_factory=runtime_factory,
             capability_catalog=capability_catalog,
             capability_context_owner=capability_context_owner,
+            runtime_capabilities=runtime_capabilities,
         )
 
     def thread_creator(self, service: ThreadService) -> ThreadCreator:
@@ -179,6 +228,7 @@ class ThreadApplicationAssembly:
 
 __all__ = [
     "ApplicationPiRuntimeFactory",
+    "FamilyRuntimeFactory",
     "PreparedApplicationPiRuntimeFactory",
     "ThreadApplicationAssembly",
 ]

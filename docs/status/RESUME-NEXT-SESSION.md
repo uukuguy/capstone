@@ -179,9 +179,9 @@
 
 ## Immediate next action
 
-1. Start M2: move from the pandapower compatibility factory to a Capstone-owned
-   composite model/authority catalog with real PyPSA model identities and
-   family-specific Profile/runtime dispatch.
+1. Review the completed M2 model/runtime changes, then begin M3 ordinary
+   conversation and TurnRouter work. Keep the generic runtime capability
+   registry as the source for Pi/DSH skills, MCP, and plugins.
 2. Keep using the real scripted pandapower instructions for deterministic
    Thread/App smoke; do not substitute guessed grid values.
 3. Preserve the shared typed Thread client, receipt, cursor, and projection
@@ -199,3 +199,6 @@
 - Preserve unrelated unstaged `.gitignore` addition `.codegraph/`.
 - Keep the boundary checker green; a new grid/pypsa hosted or worker entrypoint
   must delegate through `capstone_agent.hosted` / `capstone_agent.worker`.
+- M2 model IDs may contain one registered authority namespace slash; derive page
+  keys through `page_id_for_model` and never treat a model ID as a filesystem
+  path.

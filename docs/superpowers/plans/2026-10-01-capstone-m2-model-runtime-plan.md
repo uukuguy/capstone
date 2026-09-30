@@ -26,7 +26,12 @@ registration adapters.
 5. Register the real PyPSA catalog IDs through the existing PyPSA Authority
    adapter. `pypsa39` remains only as a legacy test fixture and is removed from
    production model labels; no fake model is added to the Authority.
-6. Add focused tests, boundary checks, and documentation. Do not co-install
+6. Keep the Capstone runtime capability surface a superset of Pi's generic
+   agent surface. Application-owned registration must be able to select
+   verified skills, MCP servers, and plugins in addition to Domain Pack tools;
+   these remain generic runtime capabilities rather than pandapower-only
+   semantics. Pi/DSH may execute them only after Capstone registration.
+7. Add focused tests, boundary checks, and documentation. Do not co-install
    incompatible pandapower/PyPSA simulator environments; the composite catalog
    is an application registration seam and actual cross-environment hosting
    remains an explicit adapter/process concern.
@@ -45,3 +50,4 @@ registration adapters.
 - No per-tool toggles or multi-Run Thread behavior.
 - No raw pandapowerNet/PyPSA Network in Thread state.
 - No direct Web/TUI connection to Pi or DSH.
+- No assumption that every Pi skill, MCP server, or plugin is a grid tool.

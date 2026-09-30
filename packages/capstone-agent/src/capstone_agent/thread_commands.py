@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .model_identity import validate_model_id
+
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
@@ -78,7 +80,7 @@ class ThreadCommandFactory:
 
     def switch_model(self, model_id: str, **kwargs: Any) -> dict[str, Any]:
         return self._command(
-            "switch_model", {"model_id": _identifier(model_id, name="model_id")}, **kwargs,
+            "switch_model", {"model_id": validate_model_id(model_id)}, **kwargs,
         )
 
     def enable_profile(self, profile_id: str, profile_version: str, **kwargs: Any) -> dict[str, Any]:

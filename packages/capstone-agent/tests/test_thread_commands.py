@@ -37,7 +37,7 @@ def test_command_factory_keeps_control_payloads_strict_and_does_not_invent_curso
     assert command["expected_event_seq"] == 8
 
 
-@pytest.mark.parametrize("model_id", ["", "PyPSA", "pypsa/39"])
+@pytest.mark.parametrize("model_id", ["", "PyPSA", "pypsa/39/extra"])
 def test_command_factory_rejects_invalid_model_ids(model_id: str) -> None:
     factory = ThreadCommandFactory("thr_demo_39", "run_001")
 
@@ -46,3 +46,11 @@ def test_command_factory_rejects_invalid_model_ids(model_id: str) -> None:
             model_id, expected_event_seq=0,
             command_id="cmd_switch_001", idempotency_key="idem_switch_001",
         )
+
+
+def test_command_factory_accepts_real_hierarchical_model_id() -> None:
+    command = ThreadCommandFactory("thr_demo_39", "run_001").switch_model(
+        "pypsa-example/scigrid_de", expected_event_seq=0,
+        command_id="cmd_switch_001", idempotency_key="idem_switch_001",
+    )
+    assert command["payload"] == {"model_id": "pypsa-example/scigrid_de"}

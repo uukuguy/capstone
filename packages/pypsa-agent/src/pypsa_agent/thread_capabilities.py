@@ -15,6 +15,7 @@ from capstone_agent.kernel_pi_session import (
     PreparedKernelSessionBuilder,
 )
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
+from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner, register_application_profile
 from capstone_model_capability_spi import ModelCapabilityDescriptor
 from capstone_model_capability_spi import ModelCapabilityRegistry, ModelCapabilitySelection
@@ -22,6 +23,7 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
 
 from .profile import build_profile
+from pypsa_model_authority.catalog import list_registered_models
 
 
 PYPSA_PROFILE_DESCRIPTOR = ModelCapabilityDescriptor("pypsa-business-cases", "1.0.0")
@@ -30,6 +32,24 @@ PYPSA_PROFILE_INFO = ModelCapabilityProfileInfo(
     display_name="PyPSA Business Cases",
     implementation_families=("pypsa",),
 )
+
+
+def build_pypsa_thread_model_catalog(
+    *,
+    model_resolver: Callable[[str], Mapping[str, object]],
+    default_model_id: str = "regional-six-bus",
+) -> AuthorityThreadModelCatalog:
+    """Expose the Authority's real catalog IDs to the Capstone Thread seam."""
+
+    model_ids = tuple(
+        entry["catalog_id"] for entry in list_registered_models()
+        if isinstance(entry.get("catalog_id"), str)
+    )
+    return AuthorityThreadModelCatalog(
+        default_model_id=default_model_id,
+        model_ids=model_ids,
+        resolver=model_resolver,
+    )
 
 
 def register_pypsa_capability(
@@ -103,6 +123,7 @@ def build_pypsa_thread_application(
 __all__ = [
     "PYPSA_PROFILE_DESCRIPTOR",
     "PYPSA_PROFILE_INFO",
+    "build_pypsa_thread_model_catalog",
     "build_pypsa_thread_application",
     "register_pypsa_capability",
 ]

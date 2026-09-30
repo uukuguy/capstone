@@ -14,6 +14,7 @@ from capstone_model_capability_spi import (
 )
 
 from .thread_service import ThreadModelDescriptor
+from .model_identity import validate_model_id
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -153,8 +154,7 @@ class CapstoneModelCapabilityCatalog:
 
     @staticmethod
     def _validate_model_key(model_id: str, model_revision: str) -> None:
-        if not isinstance(model_id, str) or not _IDENTIFIER.fullmatch(model_id):
-            raise ValueError("model_id is invalid")
+        validate_model_id(model_id)
         if not isinstance(model_revision, str) or not model_revision.strip():
             raise ValueError("model_revision is invalid")
 

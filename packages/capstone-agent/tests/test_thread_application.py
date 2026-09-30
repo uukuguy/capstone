@@ -8,6 +8,7 @@ import pytest
 from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_application import ApplicationPiRuntimeFactory
+from capstone_agent.thread_application import FamilyRuntimeFactory
 from capstone_agent.thread_application import PreparedApplicationPiRuntimeFactory
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
@@ -113,6 +114,31 @@ def _claim() -> AttemptClaim:
             "ctx_ieee39", "ieee39", "revision:sha256:" + "a" * 64, "pandapower", "sel_0",
         ),
     )
+
+
+class _Runtime:
+    def start(self) -> None: pass
+    def prompt(self, question: str, **kwargs: object) -> str:
+        return "answer"
+    def stop(self) -> None: pass
+
+
+def test_family_runtime_factory_dispatches_from_immutable_model_context() -> None:
+    pandapower = _Runtime()
+    pypsa = _Runtime()
+    factory = FamilyRuntimeFactory({
+        "pandapower": lambda claim: pandapower,
+        "pypsa": lambda claim: pypsa,
+    })
+
+    assert factory(_claim()) is pandapower
+    pypsa_claim = replace(
+        _claim(),
+        model_context=replace(_claim().model_context, implementation_family="pypsa"),
+    )
+    assert factory(pypsa_claim) is pypsa
+    with pytest.raises(RuntimeError, match="implementation family"):
+        FamilyRuntimeFactory({"pandapower": lambda claim: pandapower})(pypsa_claim)
 
 
 def test_application_factory_wraps_injected_session_as_harness_runtime() -> None:

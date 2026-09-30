@@ -13,6 +13,7 @@ from capstone_model_capability_spi import ModelCapabilityRegistry
 from pypsa_agent.thread_capabilities import (
     PYPSA_PROFILE_DESCRIPTOR,
     build_pypsa_thread_application,
+    build_pypsa_thread_model_catalog,
     register_pypsa_capability,
 )
 
@@ -76,6 +77,30 @@ def test_pypsa_migration_root_registers_existing_application_profile():
     assert contribution.descriptor == PYPSA_PROFILE_DESCRIPTOR
     assert getattr(getattr(contribution, "profile"), "manifest").application_id == "pypsa-business-cases"
     owner.close()
+
+
+def test_pypsa_thread_model_catalog_exposes_real_authority_ids():
+    catalog = build_pypsa_thread_model_catalog(
+        model_resolver=lambda model_id: {
+            "model_id": model_id,
+            "revision_ref": "revision:sha256:" + "a" * 64,
+            "implementation_family": "pypsa",
+        },
+    )
+    assert "pypsa-example/scigrid_de" in catalog.list_model_ids()
+    assert catalog.resolve("pypsa-example/scigrid_de").model_id == "pypsa-example/scigrid_de"
+
+
+def test_pypsa_thread_model_catalog_exposes_real_authority_ids():
+    catalog = build_pypsa_thread_model_catalog(
+        model_resolver=lambda model_id: {
+            "model_id": model_id,
+            "revision_ref": "revision:sha256:" + "a" * 64,
+            "implementation_family": "pypsa",
+        },
+    )
+    assert "pypsa-example/scigrid_de" in catalog.list_model_ids()
+    assert catalog.resolve("pypsa-example/scigrid_de").model_id == "pypsa-example/scigrid_de"
 
 
 def test_pypsa_thread_application_is_an_explicit_opt_in_composition_root(tmp_path):

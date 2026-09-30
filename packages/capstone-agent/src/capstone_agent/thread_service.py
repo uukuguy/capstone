@@ -35,6 +35,7 @@ from .thread_protocol import (
     ThreadProtocolError,
     ThreadSnapshot,
 )
+from .model_identity import page_id_for_model, validate_model_id
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -186,7 +187,11 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
         elif command["kind"] == "switch_model":
             if set(payload) != {"model_id"}:
                 return "model_target_required"
-            if not isinstance(payload["model_id"], str) or not _IDENTIFIER.fullmatch(payload["model_id"]):
+            if not isinstance(payload["model_id"], str):
+                return "model_target_invalid"
+            try:
+                validate_model_id(payload["model_id"])
+            except ValueError:
                 return "model_target_invalid"
         elif command["kind"] in {"enable_profile", "disable_profile"}:
             if set(payload) != {"profile_id", "profile_version"}:
@@ -854,7 +859,7 @@ class InMemoryThreadService:
                 "activation_turn_id": turn_id,
                 "previous_context": previous.to_document(),
                 "previous_grid_page_id": self._snapshot.active_grid_page_id,
-                "active_grid_page_id": "page_" + active.model_id,
+                "active_grid_page_id": page_id_for_model(active.model_id),
                 "model_context": active.to_document(),
             },
             context=active,
@@ -862,7 +867,7 @@ class InMemoryThreadService:
         self._snapshot = replace(
             self._snapshot,
             active_model_context=active,
-            active_grid_page_id="page_" + active.model_id,
+            active_grid_page_id=page_id_for_model(active.model_id),
             pending_model_switch=None,
             pending_selection=None,
             last_event_seq=event.event_seq,
@@ -1003,6 +1008,22 @@ class ThreadModelDescriptor:
     model_id: str
     model_revision: str
     implementation_family: str
+    authority_model_ref: str | None = None
+    display_name: str | None = None
+    diagram_provider_id: str | None = None
+
+    def __post_init__(self) -> None:
+        validate_model_id(self.model_id)
+        if not isinstance(self.model_revision, str) or not self.model_revision.strip():
+            raise ValueError("model_revision is invalid")
+        if not isinstance(self.implementation_family, str) or not _IDENTIFIER.fullmatch(
+            self.implementation_family
+        ):
+            raise ValueError("implementation_family is invalid")
+        for name in ("authority_model_ref", "display_name", "diagram_provider_id"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{name} is invalid")
 
 
 class ThreadModelCatalog(Protocol):
@@ -1063,7 +1084,7 @@ class ThreadCreator:
             thread_id="thr_" + token,
             run=RunSnapshot(run_id="run_" + token, state="open"),
             active_model_context=context,
-            active_grid_page_id="page_" + descriptor.model_id,
+            active_grid_page_id=page_id_for_model(descriptor.model_id),
             current_attempt=None, last_event_seq=0, base_event_seq=0,
         )
         return self._service.create_thread(snapshot)
@@ -2010,7 +2031,7 @@ class PostgresThreadService:
                 "activation_turn_id": turn_id,
                 "previous_context": previous.to_document(),
                 "previous_grid_page_id": snapshot.active_grid_page_id,
-                "active_grid_page_id": "page_" + active.model_id,
+                "active_grid_page_id": page_id_for_model(active.model_id),
                 "model_context": active.to_document(),
             },
         )
@@ -2029,12 +2050,12 @@ class PostgresThreadService:
                 Jsonb([
                     {"profile_id": profile_id, "profile_version": profile_version}
                     for profile_id, profile_version in active.enabled_profiles
-                ]), "page_" + active.model_id, event.event_seq, snapshot.thread_id,
+                ]), page_id_for_model(active.model_id), event.event_seq, snapshot.thread_id,
             ),
         )
         return replace(
             snapshot, active_model_context=active,
-            active_grid_page_id="page_" + active.model_id,
+            active_grid_page_id=page_id_for_model(active.model_id),
             pending_model_switch=None, pending_selection=None,
             last_event_seq=event.event_seq,
         )

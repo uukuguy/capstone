@@ -171,12 +171,16 @@ application grant。
 - cancellation、lease、fencing、retry 和严格恢复；
 - TurnRouter/TurnPlan 的调用和路由事件；
 - 所有客户端消费的公共事件 Envelope。
+- Capstone 注册的通用 runtime capability（Pi/DSH skill、MCP、plugin）到
+  runtime session 的编译与生命周期管理；它们不因当前模型是电网模型而
+  被误判成 Domain Pack 工具。
 
 ### 4.2 Harness 不拥有
 
 - pandapower 或 PyPSA 语义工具；
 - Authority 原始对象和凭据；
 - Domain Pack 的结果准入实现；
+- 未经 Capstone application 注册的 Pi skill、MCP server 或 plugin；
 - UI 自己解释出的模型、拓扑或数值；
 - Pi/DSH 原生事件的直接外透。
 
@@ -354,4 +358,3 @@ M0 设计完成后的最低验收标准：
 5. `send_auto`、Jev、TurnPlan 和普通策略的职责清楚，未把 UI 模式按钮当成路由实现。
 6. Web、TUI、CLI 只共享公共 Thread/Harness 协议，不复制领域执行逻辑。
 7. 后续实现可以按 M1–M5 顺序独立验收，不需要再次重新解释产品架构。
-
