@@ -7,6 +7,7 @@
 - `capstone-thread/1` now persists accepted commands as immutable `Turn + Attempt` targets.
 - Harness runtime events are normalized before persistence; Pi and DSH remain replaceable runtime adapters.
 - Attempt execution now has claim, lease renewal, bounded runtime-event append, terminal commit, stale-lease interruption, and a neutral worker polling seam.
+- Accepted Attempts now carry an immutable full `ModelContextSnapshot`; Worker claim fails closed and interrupts if the persisted context is missing or differs from the active context.
 - Hosted CLI now accepts an application-injected Thread catalog and runtime factory; without them production Thread execution remains disabled.
 - `ThreadApplicationAssembly` now keeps the Authority model catalog and Pi runtime factory as one application-owned pairing; hosted API/CLI can consume the pair without importing Domain Packs.
 - The independent `capstone-model-capability-spi` package now defines exact profile descriptors, immutable selections, trusted sealed registry resolution, and closeable context handles.
@@ -30,6 +31,7 @@
 - `npm test --prefix packages/capstone-app` — 14 files, 91 tests passed; `npm run check` and production build passed.
 - Latest Web projection check — 14 files, 92 tests passed; TypeScript check passed.
 - Latest Python Thread check — 147 passed, 25 skipped; assembly-to-Worker-to-SSE and missing-authorization coverage passed.
+- Latest Python Thread check — 149 passed, 27 skipped; context snapshot integrity coverage passed. Postgres integration remains environment-gated when `CAPSTONE_TEST_DATABASE_URL` is unset.
 - `make test-model-capability-spi` — 13 passed; preparation rollback attempts every close and preserves cleanup errors.
 - Package boundary checker tests — 61 passed; stdlib-only imports and zero runtime dependencies enforced for the SPI.
 - SPI wheel/sdist build passed under `.capstone-agent/build/model-capability-spi`.

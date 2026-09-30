@@ -83,6 +83,15 @@ class AttemptClaim:
     model_context_id: str
     selection_revision: str
     lease_token: str
+    model_context: ModelContextSnapshot
+
+    def __post_init__(self) -> None:
+        if (
+            self.model_context.id != self.model_context_id
+            or self.model_context.selection_revision != self.selection_revision
+            or self.attempt.target_model_context_id != self.model_context_id
+        ):
+            raise ThreadExecutionError("attempt claim model context is inconsistent")
 
 
 class ThreadExecutionService(ThreadService, Protocol):
@@ -256,6 +265,7 @@ class InMemoryThreadService:
                 "attempt": attempt, "kind": parsed["kind"],
                 "instruction": parsed["payload"]["text"], "lease_token": None,
                 "lease_deadline": None,
+                "model_context": self._snapshot.active_model_context,
             }
             receipt = self._receipt(
                 parsed, status="accepted", accepted_event_seq=event_seq,
@@ -272,6 +282,18 @@ class InMemoryThreadService:
             for attempt_id, record in self._attempts.items():
                 if record["attempt"].phase != "accepted" or record["lease_token"] is not None:
                     continue
+                context = record.get("model_context")
+                if context != self._snapshot.active_model_context:
+                    terminal = replace(record["attempt"], phase="interrupted")
+                    record["attempt"] = terminal
+                    event = self._append_event(
+                        event_type="attempt_interrupted", attempt=terminal,
+                        payload={"reason": "model_context_snapshot_unavailable"},
+                    )
+                    self._snapshot = replace(
+                        self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                    )
+                    return None
                 token = secrets.token_hex(16)
                 accepted = record["attempt"]
                 running = replace(accepted, phase="running")
@@ -289,6 +311,7 @@ class InMemoryThreadService:
                     model_context_id=self._snapshot.active_model_context.id,
                     selection_revision=self._snapshot.active_model_context.selection_revision,
                     lease_token=token,
+                    model_context=context,
                 )
             return None
 
@@ -549,6 +572,7 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     instruction text NOT NULL,
     model_context_id text NOT NULL,
     selection_revision text NOT NULL,
+    model_context_snapshot jsonb,
     phase text NOT NULL CHECK (phase IN ('accepted', 'running', 'waiting', 'committing', 'cancelled', 'interrupted', 'completed', 'failed')),
     lease_token text,
     lease_deadline timestamptz,
@@ -556,6 +580,7 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     UNIQUE (thread_id, turn_id),
     UNIQUE (thread_id, command_id)
 );
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
     ON capstone_thread_attempts(created_at, attempt_id)
     WHERE phase = 'accepted' AND lease_token IS NULL;
@@ -697,12 +722,13 @@ class PostgresThreadService:
                 connection.execute(
                     """INSERT INTO capstone_thread_attempts
                        (attempt_id, thread_id, run_id, turn_id, command_id, kind,
-                        instruction, model_context_id, selection_revision, phase)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                        instruction, model_context_id, selection_revision, model_context_snapshot, phase)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                     (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                      parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
                      snapshot.active_model_context.id,
-                     snapshot.active_model_context.selection_revision),
+                     snapshot.active_model_context.selection_revision,
+                     Jsonb(snapshot.active_model_context.to_document())),
                 )
                 connection.execute(
                     "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
@@ -747,6 +773,33 @@ class PostgresThreadService:
             current = thread["current_attempt"]
             if not isinstance(current, dict) or current.get("attempt_id") != attempt_row["attempt_id"]:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
+            context = None
+            try:
+                context = ModelContextSnapshot.from_document(attempt_row["model_context_snapshot"])
+            except ThreadProtocolError:
+                pass
+            if (
+                context is None
+                or context != self._snapshot_from_row(thread).active_model_context
+                or context.id != attempt_row["model_context_id"]
+                or context.selection_revision != attempt_row["selection_revision"]
+            ):
+                terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
+                event = self._make_attempt_event(
+                    thread, terminal, event_seq=thread["last_event_seq"] + 1,
+                    event_type="attempt_interrupted",
+                    payload={"reason": "model_context_snapshot_unavailable"},
+                )
+                self._insert_event(connection, event)
+                connection.execute(
+                    "UPDATE capstone_thread_attempts SET phase = 'interrupted' WHERE attempt_id = %s",
+                    (attempt_row["attempt_id"],),
+                )
+                connection.execute(
+                    "UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s WHERE thread_id = %s",
+                    (event.event_seq, thread["thread_id"]),
+                )
+                return None
             running = AttemptSnapshot.from_document({**current, "phase": "running"})
             updated = connection.execute(
                 """UPDATE capstone_thread_attempts
@@ -772,6 +825,7 @@ class PostgresThreadService:
                 kind=updated["kind"], instruction=updated["instruction"],
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
+                model_context=context,
             )
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:

@@ -7,7 +7,7 @@ from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_application import ApplicationPiRuntimeFactory
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import AttemptClaim
-from capstone_agent.thread_protocol import AttemptSnapshot
+from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
 
@@ -58,6 +58,9 @@ def _claim() -> AttemptClaim:
         attempt=AttemptSnapshot("turn_1", "attempt_1", "running", "ctx_ieee39"),
         kind="send_ordinary", instruction="inspect", model_context_id="ctx_ieee39",
         selection_revision="sel_0", lease_token="lease_1",
+        model_context=ModelContextSnapshot(
+            "ctx_ieee39", "ieee39", "revision:sha256:" + "a" * 64, "pandapower", "sel_0",
+        ),
     )
 
 

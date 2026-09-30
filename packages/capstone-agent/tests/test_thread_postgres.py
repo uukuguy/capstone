@@ -75,6 +75,7 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
     claim = service.claim_attempt("thread-worker", lease_seconds=30)
     assert claim is not None
     assert claim.attempt.phase == "running"
+    assert claim.model_context == _snapshot(thread_id).active_model_context
 
     event = service.append_runtime_event(
         claim, event_type="assistant_text_delta", payload={"text": "running"},
@@ -109,3 +110,29 @@ def test_postgres_thread_store_interrupts_expired_attempt(
     assert service.interrupt_expired_attempts() == 1
     assert service.snapshot(thread_id).current_attempt is None
     assert service.read_events(thread_id, 0).events[-1].event_type == "attempt_interrupted"
+
+
+@pytest.mark.parametrize("damage", ["missing", "drift"])
+def test_postgres_context_integrity_fails_closed_before_runtime_claim(
+    postgres_thread_service: tuple[PostgresThreadService, str], damage: str,
+) -> None:
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    with psycopg.connect(service.dsn) as connection:
+        if damage == "missing":
+            connection.execute(
+                "UPDATE capstone_thread_attempts SET model_context_snapshot = NULL WHERE thread_id = %s",
+                (thread_id,),
+            )
+        else:
+            connection.execute(
+                "UPDATE capstone_threads SET model_revision = 'changed' WHERE thread_id = %s",
+                (thread_id,),
+            )
+    fresh = PostgresThreadService(service.dsn)
+    assert fresh.claim_attempt("thread-worker", lease_seconds=30) is None
+    assert fresh.snapshot(thread_id).current_attempt is None
+    event = fresh.read_events(thread_id, 0).events[-1]
+    assert event.event_type == "attempt_interrupted"
+    assert event.payload["reason"] == "model_context_snapshot_unavailable"

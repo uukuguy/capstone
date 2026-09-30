@@ -50,6 +50,31 @@ def test_command_creates_an_immutable_attempt_target_before_runtime_claim() -> N
     assert event.attempt_id == receipt.target["attempt_id"]
 
 
+def test_worker_claim_contains_the_exact_admitted_model_context() -> None:
+    service = _service()
+    context = service.snapshot("thr_attempts").active_model_context
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    assert claim.model_context == context
+    assert claim.model_context.model_revision == "revision:sha256:" + "a" * 64
+
+
+def test_context_drift_interrupts_attempt_before_worker_execution() -> None:
+    service = _service()
+    service.submit_command(_command())
+    context = service.snapshot("thr_attempts").active_model_context
+    service._snapshot = replace(
+        service._snapshot, active_model_context=replace(context, model_revision="changed"),
+    )
+    assert service.claim_attempt("thread-worker", lease_seconds=30) is None
+    assert service.snapshot("thr_attempts").current_attempt is None
+    assert service.read_events("thr_attempts", 0).events[-1].event_type == "attempt_interrupted"
+    assert service.read_events("thr_attempts", 0).events[-1].payload == {
+        "reason": "model_context_snapshot_unavailable",
+    }
+
+
 def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     service = _service()
     receipt = service.submit_command(_command())
