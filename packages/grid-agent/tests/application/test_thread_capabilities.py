@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import sys
+
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner
 from capability_agent.runtime.environment import RuntimeHost
@@ -10,6 +13,8 @@ from capstone_agent.kernel_capability_preparation import (
 )
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
+from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.thread_worker import run_pending_attempt
 from capstone_model_capability_spi import ModelCapabilityRegistry
 from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
@@ -197,4 +202,86 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     assert descriptor is not None and descriptor.is_file()
     runtime.stop()
+    assembly.capability_context_owner.close()
+
+
+def test_thread_worker_uses_prepared_kernel_pi_rpc_transport(tmp_path):
+    authority_models = ModelRegistry(Pandapower340Engine())
+    revision = authority_models.trusted_revision_ref("ieee39")
+    fake_pi = tmp_path / "fake-pi.py"
+    fake_pi.write_text(
+        "import json,sys\n"
+        "for line in sys.stdin:\n"
+        " request=json.loads(line)\n"
+        " correlation=request.get('request_id')\n"
+        " print(json.dumps({'type':'prompt_ack','ok':True,'request_id':correlation}),flush=True)\n"
+        " print(json.dumps({'type':'text_delta','text':'prepared answer','request_id':correlation}),flush=True)\n"
+        " print(json.dumps({'type':'agent_end','request_id':correlation}),flush=True)\n",
+        encoding="utf-8",
+    )
+
+    def bind(prepared, context):
+        opened = prepared.bindings["grid"].runtime.executor.invoke(
+            "context.open", {"model_id": context.model_id}
+        )
+        return AuthorityModelBinding(
+            "grid", context.model_id, opened["revision_ref"],
+            context.implementation_family, opened["context_ref"],
+        )
+
+    resolved = ResolvedLLM(
+        config=ResolvedLLMConfig(
+            provider="openai", model="fixture", base_url="https://api.openai.com/v1",
+            auth_kind="api_key_env", credential_reference="OPENAI_API_KEY",
+            timeout_seconds=60, max_retries=0, pi_provider="openai",
+            compatibility_profile="openai-responses", descriptor_version="test",
+            public_headers={}, field_sources={}, supports_tools=True,
+        ),
+        secret=None,
+    )
+    host = RuntimeHost(
+        command=PiCommand(
+            argv=(sys.executable, str(fake_pi)),
+            identity=PiRuntimeIdentity(
+                path=fake_pi, source="fixture", package_version="1.0",
+                lock_sha256="fixture",
+            ),
+        ),
+        project_pi_dir=tmp_path / "project-pi",
+        extension_path=tmp_path / "extension.mjs",
+    )
+    assembly = build_pandapower_thread_application(
+        default_model_id="ieee39",
+        model_resolver=lambda model_id: {
+            "model_id": model_id, "revision_ref": revision,
+            "implementation_family": "pandapower",
+        },
+        workspace_root=tmp_path / "workspaces",
+        model_binder=bind,
+        session_builder=PreparedKernelPiRpcSessionBuilder(
+            runtime_host=host, resolved_llm=resolved,
+        ),
+        default_selection=ModelCapabilitySelection(
+            (PANDAPOWER_PROFILE_DESCRIPTOR.reference,)
+        ),
+    )
+    service = InMemoryThreadService.from_document({
+        "schema": "capstone-thread-snapshot/1", "thread_id": "thr_grid",
+        "run": {"run_id": "run_grid", "state": "open"},
+        "active_model_context": _claim(revision).model_context.to_document(),
+        "active_grid_page_id": "page_ieee39", "current_attempt": None,
+        "last_event_seq": 0, "base_event_seq": 0,
+    })
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_1",
+        "idempotency_key": "idem_1", "thread_id": "thr_grid",
+        "run_id": "run_grid", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "inspect"},
+    })
+    result = run_pending_attempt(service, assembly.runtime_factory, worker_id="fixture-worker")
+    assert result is not None and result.status == "completed"
+    assert result.answer == "prepared answer"
+    events = service.read_events("thr_grid", 0).events
+    assert events[-1].event_type == "attempt_completed"
+    assert events[-1].payload["answer"] == "prepared answer"
     assembly.capability_context_owner.close()
