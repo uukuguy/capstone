@@ -1388,3 +1388,4 @@ _Recovered pre-merge mainline entries._
 - 15:03 完成 Web Thread 真实入口、持续 SSE、重同步与可重连错误态，补齐新建 IEEE-39 Thread 路由 [d311cba]
 - 15:04 更新恢复 baton，记录 Web 完成边界、验证结果与本地手工试用前置条件 [c9c37a8]
 - 15:06 同步 PyPSA 锁文件中的 Textual 传递依赖，保证本地重建与锁定安装一致 [3047cd3]
+- 15:18 将 hosted API 接入 grid-agent 注册模型目录，真实创建 Thread 并钉住 Authority revision [cc750f8]

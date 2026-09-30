@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 15:03 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 15:18 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -110,6 +110,10 @@
   emits a typed `resync_required` frame when retention creates a cursor gap,
   and preserves the one-shot stream behavior for existing clients. The Web
   distinguishes transient reconnectable failures from verified resync failures.
+- `grid-agent.hosted` is now the API composition root used by the local and
+  container entrypoint. It injects a registered pandapower model catalog into
+  the neutral hosted CLI, so `POST /api/v1/threads` creates IEEE-39 with an
+  Authority-derived content revision instead of returning an unconfigured 404.
 
 ## Verification
 
@@ -156,9 +160,9 @@
 
 ## Immediate next action
 
-1. Start the local App for manual Web verification, then add the real API
-   composition wiring needed by the local/hosted entry point to provide its
-   registered Thread creator and worker runtime.
+1. Use the running local App to manually verify `?thread=new`, model/page
+   controls, command receipts, and SSE recovery. The current hosted worker
+   still needs a full Thread runtime factory before commands execute Attempts.
 2. Continue with public CLI/TUI commands using the same typed Thread client,
    receipt, cursor, and projection contracts.
 
