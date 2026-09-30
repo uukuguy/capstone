@@ -1349,3 +1349,5 @@ _Recovered pre-merge mainline entries._
 - 10:05 将 prepared Context owner 与 ThreadApplicationAssembly 成对绑定，防止模型目录、Profile、Pi runtime 错配 [a11fbb0]
 - 10:07 更新 checkpoint，记录 prepared assembly 成对绑定与 Capstone 172/27 回归 [49ab613]
 - 10:22 接通 Kernel Profile 到真实 Authority 准备：独立 workspace、gridctl context.open、revision 硬校验与回收 [f89e0f4]
+- 10:25 更新 checkpoint，记录真实 Kernel/Authority preparation 与下一步 Pi session builder 绑定 [7a50391]
+- 10:34 增加 opt-in pandapower Thread 装配，启动 Pi 前校验 Kernel 工具目录与 Authority 绑定 [afe9805]

@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 10:24 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 10:34 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -20,8 +20,9 @@
   application-owned Pi session factory. Session stop does not release Run
   resources.
 - `grid-agent` and `pypsa-agent` now expose explicit migration registration
-  hooks for their existing complete Application Profiles. These hooks are not
-  called by their default compatibility/application paths.
+  hooks for their existing complete Application Profiles. `grid-agent` also
+  provides an opt-in Thread assembly and validates prepared Kernel tool paths
+  and Authority endpoints before handing control to a Pi session builder.
 
 ## Current implementation
 
@@ -47,25 +48,29 @@
 
 - Capstone Python suite: 185 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid application tests: 43 passed; PyPSA tests: 17 passed.
+- Grid Thread capability tests: 3 passed; selected application tests: 7
+  passed. The full Grid suite reached 874 passed but exposed two unrelated
+  failures in checked-in schema drift and a provider-backed offline answer.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
   raised the Context tests to 13 focused cases.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
 - Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
-  `f89e0f4` real Kernel/Authority preparation bridge.
+  `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
+  pandapower Thread Pi session builder seam.
 
 ## Immediate next action
 
-1. Bind the prepared Kernel contribution into one explicit Pi session builder;
-   it must consume the prepared tool catalog and Authority endpoint before Pi
-   starts, and expose no raw objects to Thread/Web.
-2. Add one opt-in end-to-end Thread worker composition root, keeping the
-   default compatibility CLI and Web Case route unchanged until an end-to-end
-   Thread run proves model, tool, result, and evidence admission.
-3. Add public tool provenance and control-command execution only after this
-   runtime path has a real selected Domain Pack and Authority.
+1. Supply the final application-owned Pi launch/session builder to
+   `PreparedKernelPiSessionFactory`; it must consume the prepared tool catalog
+   and Authority endpoint before Pi starts, and expose no raw objects to
+   Thread/Web.
+2. Exercise the opt-in pandapower Thread worker composition root end to end,
+   including tool invocation, result admission, and current-run evidence.
+3. Add the corresponding explicit PyPSA composition hook, then add public tool
+   provenance and control-command execution only after a selected Domain Pack
+   and Authority path passes the same gates.
 
 ## Recovery constraints
 
