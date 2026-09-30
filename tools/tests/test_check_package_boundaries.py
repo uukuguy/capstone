@@ -564,6 +564,27 @@ def test_hosted_domain_adapter_must_delegate_to_capstone_host(tmp_path: Path) ->
     assert "must delegate to capstone_agent.hosted" in result.stderr
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from capstone_agent.hosted import run_hosted_api\n\ndef main():\n    return None\n",
+        "from capstone_agent.hosted import run_hosted_api\n\ndef main():\n    return run_hosted_worker(factory)\n",
+        "from capstone_agent.hosted import run_hosted_api\n# run_hosted_api(factory)\n\ndef main():\n    return None\n",
+    ],
+)
+def test_hosted_domain_adapter_must_call_the_expected_runner(
+    tmp_path: Path, source: str,
+) -> None:
+    package = tmp_path / "packages/grid-agent/src/grid_agent"
+    package.mkdir(parents=True)
+    (package / "hosted.py").write_text(source, encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert "grid_agent/hosted.py must call run_hosted_api from main" in result.stderr
+
+
 def test_domain_worker_must_delegate_to_capstone_worker(tmp_path: Path) -> None:
     source = tmp_path / "packages/pypsa-agent/src/pypsa_agent"
     source.mkdir(parents=True)

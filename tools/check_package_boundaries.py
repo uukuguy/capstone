@@ -347,9 +347,21 @@ def check_application_host_boundaries(root: Path) -> list[str]:
             expected_runner = (
                 "run_hosted_worker" if relative == "hosted_worker.py" else "run_hosted_api"
             )
-            if expected_runner not in path.read_text(encoding="utf-8"):
+            delegated = any(
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == "main"
+                and any(
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id == expected_runner
+                    and bool(call.args or call.keywords)
+                    for call in ast.walk(node)
+                )
+                for node in tree.body
+            )
+            if not delegated:
                 violations.append(
-                    f"{path.relative_to(root).as_posix()} must use {expected_runner}"
+                    f"{path.relative_to(root).as_posix()} must call {expected_runner} from main"
                 )
 
         worker = source_root / "worker.py"

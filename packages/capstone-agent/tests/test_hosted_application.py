@@ -6,10 +6,17 @@ from pathlib import Path
 import pytest
 
 from capstone_agent import hosted
+from capstone_agent.harness import PiPromptSession
 from capstone_agent.thread_application import ThreadApplicationAssembly
 
 
 def _assembly() -> ThreadApplicationAssembly:
+    class Session:
+        def start(self) -> None: pass
+        def prompt_and_wait(self, question, *, on_semantic_event, correlation_id, on_heartbeat):
+            return "answer"
+        def stop(self) -> None: pass
+
     return ThreadApplicationAssembly.from_authority(
         default_model_id="model",
         model_resolver=lambda model_id: {
@@ -17,7 +24,7 @@ def _assembly() -> ThreadApplicationAssembly:
             "revision_ref": "revision:sha256:" + "a" * 64,
             "implementation_family": "test",
         },
-        session_factory=lambda _claim: object(),
+        session_factory=lambda _claim: Session(),
     )
 
 
@@ -50,8 +57,11 @@ def test_hosted_runner_builds_once_and_dispatches_exact_mode(
 
 
 def test_hosted_runner_rejects_an_invalid_factory_result() -> None:
+    def invalid_factory() -> ThreadApplicationAssembly:
+        return object()  # type: ignore[return-value]
+
     with pytest.raises(TypeError, match="ThreadApplicationAssembly"):
-        hosted.run_hosted_api(lambda: object())
+        hosted.run_hosted_api(invalid_factory)
 
 
 def test_capstone_hosted_module_has_no_domain_imports() -> None:
