@@ -1360,3 +1360,5 @@ _Recovered pre-merge mainline entries._
 - 11:03 将 Thread 完成门控改为应用 admission 决策，拒绝把 runtime evidence ref 冒充已验证证据 [1eecfa1]
 - 11:04 更新活动 checkpoint，记录 application admission gate 与下一步多 binding/PyPSA 适配 [f324e0a]
 - 11:12 按工具 provenance 将 Thread result/evidence refs 归属到 binding，支持多 binding admission 保守聚合 [0690078]
+- 11:13 更新活动 checkpoint，记录多 binding admission ownership 与下一步 PyPSA/共享 fixture [3cdd4ad]
+- 11:42 将 Kernel/Pi 装配桥下沉至 capstone-agent，并为 PyPSA 增加显式 Thread 组合根 [5d6d569]

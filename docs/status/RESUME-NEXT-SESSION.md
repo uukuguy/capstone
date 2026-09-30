@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:12 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:42 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -20,11 +20,11 @@
   application-owned Pi session factory. Session stop does not release Run
   resources.
 - `grid-agent` and `pypsa-agent` now expose explicit migration registration
-  hooks for their existing complete Application Profiles. `grid-agent` also
-  provides an opt-in Thread assembly and validates prepared Kernel tool paths
-  and Authority endpoints before handing control to a Pi session builder. Its
-  concrete Pi RPC builder writes a bounded runtime descriptor and closes the
-  trace on session stop without starting Pi during assembly.
+  hooks for their existing complete Application Profiles. Both provide opt-in
+  Thread composition roots over the shared prepared Kernel/Pi bridge in
+  `capstone-agent`; the concrete Pi RPC builder writes a bounded runtime
+  descriptor and closes the trace on session stop without starting Pi during
+  assembly.
 
 ## Current implementation
 
@@ -41,12 +41,15 @@
 - `packages/capstone-agent/src/capstone_agent/kernel_capability_preparation.py`
   — Kernel public `prepare_application` bridge, independent workspace,
   Authority model binding, revision gate, and endpoint cleanup.
+- `packages/capstone-agent/src/capstone_agent/kernel_pi_session.py` — shared
+  prepared Kernel profile validation, Pi RPC runtime descriptor/session
+  construction, and per-binding result/evidence admission aggregation.
 - `packages/grid-agent/src/grid_agent/application/thread_capabilities.py` —
-  explicit pandapower migration registration, prepared Kernel validation,
-  opt-in Thread assembly/session builder, and per-binding result/evidence
-  ownership with conservative admission aggregation.
+  explicit pandapower migration registration and opt-in Thread composition
+  root over the shared bridge.
 - `packages/pypsa-agent/src/pypsa_agent/thread_capabilities.py` — explicit
-  PyPSA migration registration.
+  PyPSA migration registration and opt-in Thread composition root over the
+  shared bridge.
 - `packages/capstone-agent/src/capstone_agent/harness.py` — bounded tool
   capability, binding, projector, result, and evidence provenance for UI
   diagnostics; professional/tool attempts now require an application-owned
@@ -56,7 +59,8 @@
 
 - Capstone Python suite: 189 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid Thread capability tests: 5 passed; Harness/Thread application tests:
+- Grid Thread capability tests: 5 passed; PyPSA package tests: 18 passed;
+  Harness/Thread application tests:
   17 passed; Capstone suite: 189 passed, 27 skipped. The full Grid suite
   reached 874 passed but
   exposed two unrelated
@@ -65,21 +69,21 @@
   raised the Context tests to 13 focused cases.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
+- Changed-file pyright — 0 errors.
 - Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC
   descriptor/session builder; `45abb24` bounded Harness provenance;
   `afc932e` provider-free Thread worker fixture; `1eecfa1` application
-  result/evidence admission gate; `0690078` per-binding admission ownership.
+  result/evidence admission gate; `0690078` per-binding admission ownership;
+  `5d6d569` shared prepared Kernel/Pi assembly and explicit PyPSA Thread root.
 
 ## Immediate next action
 
-1. Add the corresponding explicit PyPSA composition hook, keeping its model
-   identifiers and authority binder application-owned.
-2. Exercise both application profiles through a shared controlled Thread
+1. Exercise both application profiles through a shared controlled Thread
    worker fixture; verify current-run result/evidence ownership end to end.
-3. Add public control-command execution only after result/evidence admission
+2. Add public control-command execution only after result/evidence admission
    and current-run binding are enforced.
 
 ## Recovery constraints
