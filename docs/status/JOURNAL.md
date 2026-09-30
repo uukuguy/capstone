@@ -1420,3 +1420,4 @@ _Recovered pre-merge mainline entries._
 - 04:08 刷新活动恢复 baton，补录按 Attempt 重试语义与当前 Phase D–E 边界 [1c7f7f1]
 - 04:34 收紧 Web Thread 主合同实现：补齐准入结果/证据卡片、失败/取消/中断终态、Attempt 上下文回填、运行中草稿和紧凑 Thread 详情；真实浏览器验证动态时长、工具来源、GFM 表格、多轮滚动与中断态 [a48c475]
 - 04:39 对 result/evidence 引用增加 admission 硬门控，避免未准入字符串进入 Thread UI，并补充回归覆盖 [eda2be7]
+- 04:54 按视觉验收收紧 Thread 密度：回答默认隐藏证据标识、操作栏收起不占位、运行步骤卡片压缩留白，并补齐 1200/900/600px 与恢复态浏览器证据；App 123 测试、TypeScript/build、边界检查和本地重建通过 [pending]

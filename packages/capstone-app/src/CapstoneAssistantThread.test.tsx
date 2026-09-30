@@ -129,7 +129,9 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('button', { name: '查看证据' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '查看运行过程' })).toBeTruthy()
     expect(screen.getByRole('group', { name: '当前运行结果' }).textContent).toContain('1 份')
-    expect(screen.getByRole('group', { name: '当前运行证据' }).textContent).toContain('1 条')
+    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
+    expect(screen.getByLabelText('当前运行证据').textContent).toContain('evidence:run_1:powerflow')
   })
 
   it('keeps repeated tool calls and each conversation activity separate', () => {
@@ -157,7 +159,7 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
-  it('renders result and evidence cards from current-run admission metadata', () => {
+  it('renders the admitted result card and keeps evidence behind its action', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_professional', payload: { text: '运行潮流' } }, 'attempt_cards'),
       event('attempt_completed', 2, {
@@ -171,7 +173,9 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
     expect(screen.getByRole('group', { name: '当前运行结果' })).toBeTruthy()
-    expect(screen.getByRole('group', { name: '当前运行证据' })).toBeTruthy()
+    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
+    expect(screen.getByLabelText('当前运行证据')).toBeTruthy()
     expect(screen.getByText('已准入')).toBeTruthy()
     expect(screen.getByText(/admission:run_1/)).toBeTruthy()
   })

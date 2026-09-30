@@ -364,11 +364,10 @@ function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, conte
       <div className="capstone-chat-reference-list">{resultRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
       {admissionRef && <small className="capstone-chat-reference-admission">准入 {admissionRef}</small>}
     </section>}
-    {evidenceRefs.length > 0 && <section className="capstone-chat-reference-card is-evidence" role="group" aria-label="当前运行证据">
-      <div className="capstone-chat-reference-heading"><FileCheck2 aria-hidden="true" /><strong>当前运行证据</strong><span>{evidenceRefs.length} 条</span></div>
-      {!modelSummary && contextId && <div className="capstone-chat-reference-meta">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
-      <div className="capstone-chat-reference-list">{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
-    </section>}
+    {resultRefs.length === 0 && evidenceRefs.length > 0 && contextId && <div className="capstone-chat-context-note">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
+    {/* Evidence is intentionally opened from the answer action bar. Keeping the
+        long evidence identifier out of the default answer preserves the compact
+        assistant-ui reading flow while retaining the current-run admission gate. */}
   </div>
 }
 
