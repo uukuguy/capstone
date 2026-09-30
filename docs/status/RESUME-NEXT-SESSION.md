@@ -6,7 +6,7 @@
 
 - `capstone-thread/1` now persists accepted commands as immutable `Turn + Attempt` targets.
 - Harness runtime events are normalized before persistence; Pi and DSH remain replaceable runtime adapters.
-- Attempt execution now has claim, lease renewal, runtime-event append, terminal commit, stale-lease interruption, and a neutral worker polling seam.
+- Attempt execution now has claim, lease renewal, bounded runtime-event append, terminal commit, stale-lease interruption, and a neutral worker polling seam.
 - The legacy Case App remains the default; no production Authority catalog or live Web Thread wiring has been enabled.
 
 ## Current implementation
@@ -20,11 +20,11 @@
 
 ## Verification
 
-- `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 138 passed, 24 skipped.
+- `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 140 passed, 25 skipped.
 - Postgres Thread integration with `CAPSTONE_TEST_DATABASE_URL` — 3 passed.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
-- Commit: `6339986 feat: execute durable thread attempts through harness workers`.
+- Commits: `6339986` Attempt worker lifecycle; `db3295e` bounded runtime payloads.
 
 ## Immediate next action
 

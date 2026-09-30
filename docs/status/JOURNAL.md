@@ -1316,3 +1316,5 @@ _Recovered pre-merge mainline entries._
 - 07:46 将恢复 baton 的分支描述改为稳定提示，避免后续状态日志提交造成计数漂移 [e77ef9b]
 - 继续完成 Harness Attempt 续租、过期中断与独立 worker 轮询，避免失联运行残留半死状态 [6339986]
 - 08:07 correction: 上条记录补充时间格式；Harness Attempt 续租、过期中断和 worker 轮询已提交 [6339986]
+- 08:09 更新活动 checkpoint，记录 Attempt worker、恢复约束和下一步 Authority runtime factory [0a9ff5a]
+- 08:12 限制 Harness runtime event 与 terminal payload 大小，防止事件账本被异常 runtime 膨胀 [db3295e]
