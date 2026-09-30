@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi.testclient import TestClient
+import pytest
 
 from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_application import ApplicationPiRuntimeFactory
+from capstone_agent.thread_application import PreparedApplicationPiRuntimeFactory
 from capstone_agent.thread_application import ThreadApplicationAssembly
+from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
+from capstone_agent.model_capability_context import ModelCapabilityContextOwner
 from capstone_agent.thread_service import AttemptClaim
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
+from capstone_model_capability_spi import ModelCapabilityDescriptor, ModelCapabilityRegistry
 
 
 class _Session:
@@ -22,6 +29,50 @@ class _Session:
 
     def stop(self) -> None:
         return None
+
+
+class _Handle:
+    def __init__(self, descriptor: ModelCapabilityDescriptor) -> None:
+        self.descriptor = descriptor
+
+    def close(self) -> None:
+        return None
+
+
+class _Contribution:
+    def __init__(self, descriptor: ModelCapabilityDescriptor, model_context: ModelContextSnapshot) -> None:
+        self.descriptor = descriptor
+        self.model_context = model_context
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _Adapter:
+    def __init__(self, descriptor: ModelCapabilityDescriptor) -> None:
+        self.descriptor = descriptor
+        self.contexts: list[ModelContextSnapshot] = []
+
+    def prepare(self, _handle, *, model_context: ModelContextSnapshot) -> _Contribution:
+        self.contexts.append(model_context)
+        return _Contribution(self.descriptor, model_context)
+
+
+def _prepared_owner() -> tuple[ModelCapabilityContextOwner, _Adapter]:
+    descriptor = ModelCapabilityDescriptor("static", "1.0.0")
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    catalog.register_profile(
+        ModelCapabilityProfileInfo(descriptor, "Static", ("pandapower",)),
+        lambda: _Handle(descriptor),
+    )
+    owner = ModelCapabilityContextOwner(catalog)
+    adapter = _Adapter(descriptor)
+    owner.register_adapter(descriptor.reference, adapter)
+    registry.seal()
+    owner.seal()
+    return owner, adapter
 
 
 class _CreatorService:
@@ -176,3 +227,45 @@ def test_assembly_runtime_worker_and_sse_share_one_thread_contract() -> None:
     assert "event: command_accepted" in stream.text
     assert "event: attempt_started" in stream.text
     assert "event: attempt_completed" in stream.text
+
+
+def test_prepared_application_factory_passes_context_to_session_without_closing_it_on_stop() -> None:
+    owner, adapter = _prepared_owner()
+    claim = replace(
+        _claim(),
+        model_context=replace(_claim().model_context, enabled_profiles=(("static", "1.0.0"),)),
+    )
+    received = []
+    factory = PreparedApplicationPiRuntimeFactory(
+        owner,
+        lambda claim, context: received.append((claim, context)) or _Session(),
+    )
+    runtime = factory(claim)
+    runtime.start()
+    assert runtime.prompt("inspect", on_event=lambda _event: None) == "answer"
+    runtime.stop()
+    assert received[0][0].attempt.attempt_id == "attempt_1"
+    assert received[0][1].model_context == claim.model_context
+    assert len(adapter.contexts) == 1
+    assert not received[0][1].closed
+    owner.close_run("thr_application", "run_application")
+    assert received[0][1].closed
+
+
+def test_prepared_application_factory_does_not_start_session_after_preparation_failure() -> None:
+    owner, _ = _prepared_owner()
+    called = []
+
+    def fail_session(_claim, _context):
+        called.append(True)
+        raise RuntimeError("session setup failed")
+
+    factory = PreparedApplicationPiRuntimeFactory(owner, fail_session)
+    claim = replace(
+        _claim(),
+        model_context=replace(_claim().model_context, enabled_profiles=(("static", "1.0.0"),)),
+    )
+    with pytest.raises(RuntimeError, match="session setup failed"):
+        factory(claim)
+    assert called == [True]
+    owner.close()

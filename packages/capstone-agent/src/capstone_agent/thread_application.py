@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from .harness import HarnessPiClient, HarnessRuntime, PiPromptSession
+from .model_capability_context import (
+    ModelCapabilityContextOwner,
+    PreparedModelCapabilityContext,
+)
 from .thread_catalog import AuthorityThreadModelCatalog
 from .thread_service import (
     AttemptClaim,
@@ -40,6 +44,39 @@ class ApplicationPiRuntimeFactory:
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         return HarnessPiClient(
             self._session_factory(claim), runtime_mode=self._runtime_mode,
+        )
+
+
+class PreparedApplicationPiRuntimeFactory:
+    """Borrow a Run-owned prepared context for one Pi Attempt.
+
+    The session factory receives the exact immutable context snapshot and its
+    prepared contributions.  Stopping the Attempt's session never closes the
+    context; the owning Run must call ``ModelCapabilityContextOwner.close_run``
+    after the context is no longer active.
+    """
+
+    def __init__(
+        self,
+        context_owner: ModelCapabilityContextOwner,
+        session_factory: Callable[
+            [AttemptClaim, PreparedModelCapabilityContext], PiPromptSession
+        ],
+        *,
+        runtime_mode: str = "capstone",
+    ) -> None:
+        if not isinstance(context_owner, ModelCapabilityContextOwner):
+            raise TypeError("context_owner must be a ModelCapabilityContextOwner")
+        if not callable(session_factory):
+            raise TypeError("session_factory must be callable")
+        self._context_owner = context_owner
+        self._session_factory = session_factory
+        self._runtime_mode = runtime_mode
+
+    def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
+        context = self._context_owner.prepare(claim)
+        return HarnessPiClient(
+            self._session_factory(claim, context), runtime_mode=self._runtime_mode,
         )
 
 
@@ -99,4 +136,8 @@ class ThreadApplicationAssembly:
         return ThreadCreator(service, self.catalog, self.capability_catalog)
 
 
-__all__ = ["ApplicationPiRuntimeFactory", "ThreadApplicationAssembly"]
+__all__ = [
+    "ApplicationPiRuntimeFactory",
+    "PreparedApplicationPiRuntimeFactory",
+    "ThreadApplicationAssembly",
+]
