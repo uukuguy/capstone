@@ -1414,3 +1414,4 @@ _Recovered pre-merge mainline entries._
 - 03:33 固化当前 Web Thread 恢复 baton 与结构快照，记录真实双轮验证及下一阶段无障碍验收 [b02cd57]
 - 04:02 Thread Web 增加运行中动态活动、步骤耗时、Attempt 最终耗时与终态映射，满足运行反馈合同 [ef626c4]
 - 04:02 本地真实 Thread 浏览器验证：运行中显示 5.4s，完成回答保留 15.4s；114 个 App 测试通过
+- 04:03 更新恢复 baton 与结构快照，记录动态时长实现及下一阶段 Phase D–E 验收边界 [3201f6d]
