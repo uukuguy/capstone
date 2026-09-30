@@ -579,6 +579,11 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-empty { min-height: 190px; padding: 24px 16px; }
 .capstone-chat-empty strong { font-size: 16px; font-weight: 650; }
 .capstone-chat-empty span { font-size: 12px; }
+.capstone-chat-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; max-width: 660px; }
+.capstone-chat-suggestion { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px 6px 11px; border: 1px solid #cfe2d9; border-radius: 999px; background: linear-gradient(180deg, #ffffff 0%, #f7fbf9 100%); box-shadow: 0 2px 7px #3156480d; color: #4f7770; font: 10px/1.3 Inter, "PingFang SC", sans-serif; cursor: pointer; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease; }
+.capstone-chat-suggestion::after { content: "↗"; color: #83a79d; font: 11px/1 Inter, sans-serif; }
+.capstone-chat-suggestion:hover, .capstone-chat-suggestion:focus-visible { border-color: #63aa98; background: linear-gradient(180deg, #f7fffb 0%, #eaf7f0 100%); box-shadow: 0 4px 12px #2d80651c; color: #176f64; outline: none; transform: translateY(-1px); }
+.capstone-chat-suggestion:hover::after, .capstone-chat-suggestion:focus-visible::after { color: #258b79; }
 .capstone-chat-message { display: block; max-width: min(86%, 720px); }
 .capstone-chat-message.is-assistant { align-self: flex-start; max-width: min(96%, 760px); }
 .capstone-chat-message.is-user { align-self: flex-end; }

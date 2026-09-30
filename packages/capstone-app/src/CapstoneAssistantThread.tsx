@@ -17,6 +17,12 @@ import type { EventEnvelope } from './threadProtocol'
 
 type SendMode = 'automatic' | 'ordinary' | 'professional'
 
+const EMPTY_PROMPTS = [
+  'IEEE-39 有哪些母线和线路？',
+  '对 IEEE-39 执行一次交流潮流。',
+  '筛查负载率最高的三条线路。',
+] as const
+
 export type ChatActivity = {
   id: string
   label: string
@@ -438,6 +444,13 @@ function ComposerSurface({ disabled, isRunning, editRequest }: { disabled: boole
   </ComposerPrimitive.Root>
 }
 
+function EmptyThreadState() {
+  const aui = useAui()
+  return <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><div className="capstone-chat-suggestions" aria-label="示例问题">
+    {EMPTY_PROMPTS.map((prompt) => <button key={prompt} type="button" className="capstone-chat-suggestion" onClick={() => aui.composer.setText(prompt)}>{prompt}</button>)}
+  </div></div>
+}
+
 export type CapstoneAssistantThreadProps = {
   events: readonly EventEnvelope[]
   disabled: boolean
@@ -476,10 +489,10 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
-          {messages.length === 0 && <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><span>可以先问模型状态，也可以直接发起潮流、约束或线路筛查分析。</span></div>}
+          {messages.length === 0 && <EmptyThreadState />}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} /> }} />
         </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
-          {messages.length === 0 && <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><span>可以先问模型状态，也可以直接发起潮流、约束或线路筛查分析。</span></div>}
+          {messages.length === 0 && <EmptyThreadState />}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} /> }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
