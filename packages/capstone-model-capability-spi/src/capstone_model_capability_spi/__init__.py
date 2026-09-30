@@ -167,10 +167,15 @@ class ModelCapabilityRegistry:
             if not callable(getattr(handle, "close", None)):
                 raise ValueError("resolved profile handle is not closeable")
             return handle
-        except Exception:
+        except BaseException as error:
             close = getattr(handle, "close", None)
             if callable(close):
-                close()
+                try:
+                    close()
+                except BaseException as cleanup_error:
+                    raise BaseExceptionGroup(
+                        "profile validation and cleanup failed", [error, cleanup_error],
+                    ) from None
             raise
 
     def resolve_selection(
@@ -178,14 +183,26 @@ class ModelCapabilityRegistry:
     ) -> tuple[ModelCapabilityProfileHandle, ...]:
         if not isinstance(selection, ModelCapabilitySelection):
             raise TypeError("selection must be a ModelCapabilitySelection")
+        # Validate the complete set before factories allocate context resources.
+        for reference in selection.enabled_profiles:
+            if reference not in self._registrations:
+                raise KeyError(reference)
         handles: list[ModelCapabilityProfileHandle] = []
         try:
             for reference in selection.enabled_profiles:
                 handles.append(self.resolve(reference))
             return tuple(handles)
-        except Exception:
+        except BaseException as error:
+            cleanup_errors: list[BaseException] = []
             for handle in reversed(handles):
-                handle.close()
+                try:
+                    handle.close()
+                except BaseException as cleanup_error:
+                    cleanup_errors.append(cleanup_error)
+            if cleanup_errors:
+                raise BaseExceptionGroup(
+                    "profile preparation and cleanup failed", [error, *cleanup_errors],
+                ) from None
             raise
 
 

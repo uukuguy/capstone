@@ -207,7 +207,11 @@ CAPSTONE_PORT ?= 8766
 trajectory: build-workbench
 	uv run --project packages/grid-agent grid-agent trajectory serve --host 127.0.0.1 --port "$(PORT)" --runs-root runs
 
-test: test-agent test-simulator test-tools test-capstone-agent test-capstone-app test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+test: test-agent test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench
+
+.PHONY: test-model-capability-spi
+test-model-capability-spi:
+	uv run --project packages/capstone-model-capability-spi pytest packages/capstone-model-capability-spi/tests -q
 
 test-capstone-agent:
 	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q

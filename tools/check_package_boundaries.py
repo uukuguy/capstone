@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def check_boundaries(root: Path) -> list[str]:
-    violations: list[str] = []
+    violations: list[str] = check_model_capability_spi(root)
     for source_root, forbidden_modules in FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -303,6 +303,35 @@ def check_boundaries(root: Path) -> list[str]:
                 )
             )
 
+    return violations
+
+
+def check_model_capability_spi(root: Path) -> list[str]:
+    """The public profile SPI is independently installable and stdlib-only."""
+    package = root / "packages/capstone-model-capability-spi"
+    violations: list[str] = []
+    for path in sorted((package / "src").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                modules = [node.module]
+            else:
+                continue
+            for module in modules:
+                name = module.split(".", 1)[0]
+                if name not in sys.stdlib_module_names and name != "capstone_model_capability_spi":
+                    violations.append(
+                        f"{path.relative_to(root).as_posix()} imports non-stdlib module {module}"
+                    )
+    manifest = package / "pyproject.toml"
+    if manifest.exists():
+        project = tomllib.loads(manifest.read_text(encoding="utf-8")).get("project", {})
+        if project.get("dependencies") or any(project.get("optional-dependencies", {}).values()):
+            violations.append(
+                f"{manifest.relative_to(root).as_posix()} must have no runtime dependencies"
+            )
     return violations
 
 

@@ -101,7 +101,7 @@ def test_registry_closes_mismatched_handle_before_failing() -> None:
     assert wrong.closed is True
 
 
-def test_registry_rejects_duplicate_selection_without_auto_conflict_detection() -> None:
+def test_registry_allows_multiple_profiles_without_semantic_conflict_detection() -> None:
     registry = ModelCapabilityRegistry()
     first = _descriptor("first")
     second = _descriptor("second")
@@ -114,3 +114,57 @@ def test_registry_rejects_duplicate_selection_without_auto_conflict_detection() 
     )
     for handle in handles:
         handle.close()
+
+
+def test_unknown_selection_is_rejected_before_any_factory_runs() -> None:
+    registry = ModelCapabilityRegistry()
+    descriptor = _descriptor()
+    created: list[object] = []
+    registry.register(descriptor, lambda: created.append(_Handle(descriptor)) or created[-1])
+    with pytest.raises(KeyError):
+        registry.resolve_selection(ModelCapabilitySelection((
+            descriptor.reference, ("missing", "1.0.0"),
+        )))
+    assert created == []
+
+
+def test_preparation_failure_attempts_all_cleanup_even_if_close_fails() -> None:
+    registry = ModelCapabilityRegistry()
+    first = _Handle(_descriptor("first"))
+
+    class BrokenClose(_Handle):
+        def close(self) -> None:
+            self.closed = True
+            raise RuntimeError("close failed")
+
+    second = BrokenClose(_descriptor("second"))
+
+    def unavailable():
+        raise ValueError("preparation failed")
+
+    third = _descriptor("third")
+    registry.register(first.descriptor, lambda: first)
+    registry.register(second.descriptor, lambda: second)
+    registry.register(third, unavailable)
+    with pytest.raises(ExceptionGroup) as error:
+        registry.resolve_selection(ModelCapabilitySelection((
+            first.descriptor.reference, second.descriptor.reference, third.reference,
+        )))
+    assert first.closed and second.closed
+    assert [str(item) for item in error.value.exceptions] == [
+        "preparation failed", "close failed",
+    ]
+
+
+def test_mismatched_handle_cleanup_preserves_both_failures() -> None:
+    class WrongHandle(_Handle):
+        def close(self) -> None:
+            raise RuntimeError("close failed")
+
+    registry = ModelCapabilityRegistry()
+    requested = _descriptor()
+    registry.register(requested, lambda: WrongHandle(_descriptor("wrong")))
+    with pytest.raises(ExceptionGroup) as error:
+        registry.resolve(requested.reference)
+    assert isinstance(error.value.exceptions[0], ValueError)
+    assert str(error.value.exceptions[1]) == "close failed"

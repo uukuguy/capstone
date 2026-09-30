@@ -30,7 +30,9 @@
 - `npm test --prefix packages/capstone-app` — 14 files, 91 tests passed; `npm run check` and production build passed.
 - Latest Web projection check — 14 files, 92 tests passed; TypeScript check passed.
 - Latest Python Thread check — 147 passed, 25 skipped; assembly-to-Worker-to-SSE and missing-authorization coverage passed.
-- `uv run --project packages/capstone-model-capability-spi pytest packages/capstone-model-capability-spi/tests/test_spi.py -q` — 10 passed.
+- `make test-model-capability-spi` — 13 passed; preparation rollback attempts every close and preserves cleanup errors.
+- Package boundary checker tests — 61 passed; stdlib-only imports and zero runtime dependencies enforced for the SPI.
+- SPI wheel/sdist build passed under `.capstone-agent/build/model-capability-spi`.
 - Postgres Thread integration with `CAPSTONE_TEST_DATABASE_URL` — 3 passed.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.

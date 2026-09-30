@@ -10,6 +10,42 @@ ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "tools/check_package_boundaries.py"
 
 
+@pytest.mark.parametrize("module", ["capstone_agent", "capability_agent", "httpx", "pypsa"])
+def test_model_capability_spi_rejects_non_stdlib_imports(tmp_path: Path, module: str) -> None:
+    source = tmp_path / "packages/capstone-model-capability-spi/src/capstone_model_capability_spi"
+    source.mkdir(parents=True)
+    (source / "bad.py").write_text(f"import {module}\n", encoding="utf-8")
+    result = run_checker(tmp_path)
+    assert result.returncode == 1
+    assert f"imports non-stdlib module {module}" in result.stderr
+
+
+def test_model_capability_spi_allows_stdlib_and_own_relative_imports(tmp_path: Path) -> None:
+    source = tmp_path / "packages/capstone-model-capability-spi/src/capstone_model_capability_spi"
+    source.mkdir(parents=True)
+    (source / "good.py").write_text(
+        "from dataclasses import dataclass\nfrom .contracts import Descriptor\n",
+        encoding="utf-8",
+    )
+    assert run_checker(tmp_path).returncode == 0
+
+
+@pytest.mark.parametrize("declaration", [
+    'dependencies = ["capability-agent-kernel==0.1.0"]',
+    '[project.optional-dependencies]\nruntime = ["httpx"]',
+])
+def test_model_capability_spi_rejects_runtime_dependencies(tmp_path: Path, declaration: str) -> None:
+    package = tmp_path / "packages/capstone-model-capability-spi"
+    package.mkdir(parents=True)
+    (package / "pyproject.toml").write_text(
+        '[project]\nname = "capstone-model-capability-spi"\n' + declaration + "\n",
+        encoding="utf-8",
+    )
+    result = run_checker(tmp_path)
+    assert result.returncode == 1
+    assert "must have no runtime dependencies" in result.stderr
+
+
 def test_domain_resource_dependency_pins_authority_package_version() -> None:
     simulator = tomllib.loads((ROOT / "packages/grid-simulator/pyproject.toml").read_text())
     domain = tomllib.loads((ROOT / "packages/pandapower-domain-pack/pyproject.toml").read_text())

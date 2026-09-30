@@ -1330,3 +1330,6 @@ _Recovered pre-merge mainline entries._
 - 08:49 更新活动 checkpoint，记录 stale Attempt snapshot fencing 与 143/25 Python 回归 [70b47f3]
 - 08:28 最终验证通过：Python 143 passed/25 skipped，Web 92 tests，TypeScript/build、包边界和 diff 检查通过
 - 08:28 correction: 上条验证记录追加在 08:49 checkpoint 后，仅修正日志顺序说明，不改验证结果
+- 08:31 记录最终 Thread/Harness 验证提交，保留当前工作树仅有用户 `.gitignore` 未暂存变更 [4b50df3]
+- 08:44 将 Authority 模型目录与 Pi runtime 工厂绑定为统一应用装配，覆盖 hosted API、Worker、SSE 和未授权访问 [32db913]
+- 08:46 新增无领域依赖的 Model Capability Profile SPI，固定精确选择、sealed registry 与可关闭 handle，避免配置漂移 [1028946]
