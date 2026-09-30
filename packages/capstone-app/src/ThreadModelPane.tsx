@@ -33,6 +33,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
   elementReference, onModelTargetChange, onSwitchModel, onSelectPage }: ThreadModelPaneProps) {
   const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
+  const modelDiagram = snapshot.activeModelContext.modelId === 'ieee39' ? previewDiagram : null
   return <section className="thread-model-pane" aria-label="电网模型区">
     <div className="thread-model-heading"><div><span className="eyebrow">MODEL / OVERVIEW</span><h2>电网模型</h2></div><span className="thread-context-state">{isHistorical ? '历史查看' : '当前'}</span></div>
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
@@ -67,8 +68,8 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
         label={pageId === activePage ? `${modelLabel(snapshot.activeModelContext.modelId)} · 当前模型` : `${pageId} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
     </div>
     <div className="thread-network-card">
-      <NetworkView view={null} previewDiagram={previewDiagram} modelName={modelLabel(snapshot.activeModelContext.modelId)} focusKey={viewedPage}
-        unavailable={!previewDiagram} previewUnavailable={!previewDiagram} historyFocusIds={[]} />
+      <NetworkView view={null} previewDiagram={modelDiagram} modelName={modelLabel(snapshot.activeModelContext.modelId)} focusKey={viewedPage}
+        unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />
     </div>
     <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot.activeModelContext.id}</strong></div><div><span>SELECTION</span><strong>{snapshot.activeModelContext.selectionRevision}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
     {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
