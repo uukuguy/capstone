@@ -1333,3 +1333,13 @@ _Recovered pre-merge mainline entries._
 - 08:31 记录最终 Thread/Harness 验证提交，保留当前工作树仅有用户 `.gitignore` 未暂存变更 [4b50df3]
 - 08:44 将 Authority 模型目录与 Pi runtime 工厂绑定为统一应用装配，覆盖 hosted API、Worker、SSE 和未授权访问 [32db913]
 - 08:46 新增无领域依赖的 Model Capability Profile SPI，固定精确选择、sealed registry 与可关闭 handle，避免配置漂移 [1028946]
+- 08:55 加固 Profile 准备回滚并接入标准库依赖门禁，防止资源泄漏与 SPI 耦合 [bc10460]
+- 08:58 将完整 ModelContextSnapshot 固化到 Attempt，Worker 遇到缺失或漂移时中断，避免用新 revision 续接旧请求 [6cf70e9]
+- 09:02 接入 Capstone Model Capability Catalog，按模型 revision、实现族、空选择解析精确 Profile，并保持语义冲突由用户判断 [5ef7cea]
+- 09:05 验证 Capstone 153/27、SPI 13、包边界 61 全部通过，确认 Catalog 与 SPI 依赖边界稳定
+- 09:09 将启用 Profile 引用写入 Thread ModelContext，并同步 Web 严格解析，保证 Worker 使用同一能力选择 [c9795e8]
+- 09:10 最终回归通过：Python 156/27，Web check/build 与 93 测试、包边界和 diff 检查通过
+- 09:10 更新活动 checkpoint，记录 ModelContext Profile selection 已贯通及下一步应用装配适配 [3a995bd]
+- 09:12 加强 Postgres Thread 快照的 Profile selection 解析，持久化损坏时拒绝静默降级 [28b525e]
+- 09:40 引入 Run-owned Model Capability Context，原子准备、Attempt 借用与严格回收，避免运行时快照漂移 [4d1d274]
+- 09:48 接入无领域依赖的 ApplicationProfile 过渡桥，并为 pandapower/PyPSA 组合根提供显式能力注册入口 [dcace18]
