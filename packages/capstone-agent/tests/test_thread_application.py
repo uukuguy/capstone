@@ -141,6 +141,21 @@ def test_family_runtime_factory_dispatches_from_immutable_model_context() -> Non
         FamilyRuntimeFactory({"pandapower": lambda claim: pandapower})(pypsa_claim)
 
 
+def test_composite_application_assembly_uses_family_dispatcher() -> None:
+    class Catalog:
+        default_model_id = "ieee39"
+        def resolve(self, model_id):
+            return _claim().model_context
+
+    catalog = Catalog()
+    assembly = ThreadApplicationAssembly.from_composite_authority(
+        catalog=catalog,
+        runtime_factories={"pandapower": lambda claim: _Runtime()},
+    )
+    assert assembly.catalog is catalog
+    assert assembly.runtime_factory(_claim()) is not None
+
+
 def test_application_factory_wraps_injected_session_as_harness_runtime() -> None:
     received: list[AttemptClaim] = []
     factory = ApplicationPiRuntimeFactory(

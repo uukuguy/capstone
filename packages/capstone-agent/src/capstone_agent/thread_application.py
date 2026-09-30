@@ -188,6 +188,30 @@ class ThreadApplicationAssembly:
         )
 
     @classmethod
+    def from_composite_authority(
+        cls,
+        *,
+        catalog: ThreadModelCatalog,
+        runtime_factories: Mapping[str, RuntimeFactory],
+        capability_catalog: ThreadCapabilityCatalog | None = None,
+        runtime_capabilities: RuntimeCapabilityRegistry | None = None,
+    ) -> "ThreadApplicationAssembly":
+        """Build one application assembly over several family adapters.
+
+        Each factory owns its Authority/Domain Pack environment.  The neutral
+        worker sees only the family dispatcher and the immutable model context.
+        Prepared multi-family Context owners can be layered by a caller when
+        those environments share a compatible process boundary.
+        """
+
+        return cls(
+            catalog=catalog,
+            runtime_factory=FamilyRuntimeFactory(runtime_factories),
+            capability_catalog=capability_catalog,
+            runtime_capabilities=runtime_capabilities,
+        )
+
+    @classmethod
     def from_prepared_authority(
         cls,
         *,
