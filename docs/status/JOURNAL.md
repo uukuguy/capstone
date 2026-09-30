@@ -1391,3 +1391,4 @@ _Recovered pre-merge mainline entries._
 - 15:18 将 hosted API 接入 grid-agent 注册模型目录，真实创建 Thread 并钉住 Authority revision [cc750f8]
 - 15:19 更新恢复 baton，确认本地真实 Thread 创建已可手工验证，Attempt runtime 仍列为后续边界 [e4601c6]
 - 16:01 Redesigned the Thread Web route with a copied light model pane, authoritative topology preview, and assistant-ui projection [03063ff]
+- 16:02 Updated the active recovery baton with the Thread UI checkpoint and the remaining hosted Attempt runtime boundary [704e680]
