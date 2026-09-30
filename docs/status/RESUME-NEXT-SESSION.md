@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:03 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:12 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -42,7 +42,9 @@
   — Kernel public `prepare_application` bridge, independent workspace,
   Authority model binding, revision gate, and endpoint cleanup.
 - `packages/grid-agent/src/grid_agent/application/thread_capabilities.py` —
-  explicit pandapower migration registration.
+  explicit pandapower migration registration, prepared Kernel validation,
+  opt-in Thread assembly/session builder, and per-binding result/evidence
+  ownership with conservative admission aggregation.
 - `packages/pypsa-agent/src/pypsa_agent/thread_capabilities.py` — explicit
   PyPSA migration registration.
 - `packages/capstone-agent/src/capstone_agent/harness.py` — bounded tool
@@ -52,7 +54,7 @@
 
 ## Verification
 
-- Capstone Python suite: 185 passed, 27 skipped.
+- Capstone Python suite: 189 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; Harness/Thread application tests:
   17 passed; Capstone suite: 189 passed, 27 skipped. The full Grid suite
@@ -69,14 +71,14 @@
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC
   descriptor/session builder; `45abb24` bounded Harness provenance;
   `afc932e` provider-free Thread worker fixture; `1eecfa1` application
-  result/evidence admission gate.
+  result/evidence admission gate; `0690078` per-binding admission ownership.
 
 ## Immediate next action
 
-1. Expand the prepared pandapower admission adapter to validate multi-binding
-   result ownership and current-run evidence through the Domain Pack policy.
-2. Add the corresponding explicit PyPSA composition hook, keeping its model
+1. Add the corresponding explicit PyPSA composition hook, keeping its model
    identifiers and authority binder application-owned.
+2. Exercise both application profiles through a shared controlled Thread
+   worker fixture; verify current-run result/evidence ownership end to end.
 3. Add public control-command execution only after result/evidence admission
    and current-run binding are enforced.
 
