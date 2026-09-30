@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 12:43 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 13:41 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -70,10 +70,21 @@
   selection, emits `selection_reverted`, and fails the Attempt with a bounded
   `capability_context_preparation_failed` result. A failed replacement cannot
   leave a new selection active without prepared resources.
+- `switch_model` is a durable control command resolved through the application
+  model catalog. It stages `pending_model_switch` and emits
+  `model_context_change_pending`; the next normal Turn creates a new immutable
+  ModelContext, resets its selection revision, and moves the active grid page
+  to the selected model. Preparation failure restores the prior context and
+  page with `model_context_reverted`; rollback is fenced to the activating
+  Turn so a later Attempt cannot revert a successful switch.
+- Selection controls are rejected while a model switch is pending. Browser
+  `threadProtocol` and `ThreadProjectionStore` now parse/project pending model
+  and selection changes, activation, and context rollback through the same
+  typed read model.
 
 ## Verification
 
-- Capstone Python suite: 203 passed, 27 skipped.
+- Capstone Python suite: 209 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
   including a professional Attempt with admitted result/evidence refs;
@@ -86,9 +97,14 @@
   raised the Context tests to 13 focused cases.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
-- Changed-file pyright — 0 errors.
+- Changed Python-file pyright — 0 errors; App TypeScript check and 95 Vitest
+  tests passed.
 - Cross-package Thread regression is green after the shared bridge move.
-- Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
+- Full `make test` reached 838 passed and one pre-existing
+  `grid-agent` checked-in schema drift failure; no failure came from the
+  Thread/App changes.
+- Commit: `0ab2799` model switch controls, Turn-fenced context rollback, and
+  Web pending/activation projection. Earlier commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC
@@ -101,9 +117,9 @@
 
 ## Immediate next action
 
-1. Add the public model-switch control path using the same prepare-before-
-   activate and rollback contract, then expose pending/failed context state in
-   the shared Web/TUI/CLI projections.
+1. Add public API/CLI command helpers and TUI controls for `switch_model`,
+   reusing the typed Thread command/receipt contract and showing pending,
+   activation, and rollback events with model/page provenance.
 
 ## Recovery constraints
 

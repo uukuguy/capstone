@@ -1379,3 +1379,5 @@ _Recovered pre-merge mainline entries._
 - 12:34 回归通过：Capstone 201 passed/27 skipped，包边界、changed-source pyright 与 diff 检查通过
 - 12:43 增加 selection preparation 失败回滚：恢复旧 revision 并记录 selection_reverted，避免表面激活残废运行 [4afee0d]
 - 12:43 回归通过：Capstone 203 passed/27 skipped，包边界、changed-source pyright 与 diff 检查通过
+- 13:41 增加 model switch 控制：下一 Turn 激活新 ModelContext，准备失败按 Turn 回滚，并同步 Web pending/事件投影 [0ab2799]
+- 13:41 回归通过：Capstone 209 passed/27 skipped、App 95 passed，包边界与 TypeScript 检查通过；全仓库仍有既有 schema 漂移失败
