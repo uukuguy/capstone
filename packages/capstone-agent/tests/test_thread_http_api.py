@@ -119,6 +119,26 @@ def test_thread_sse_reuses_the_same_event_cursor() -> None:
         assert "event: command_accepted" in stream.text
 
 
+def test_thread_sse_cursor_gap_returns_resync_snapshot() -> None:
+    service = _service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_sse_gap_001",
+        "idempotency_key": "idem_sse_gap_001", "thread_id": "thr_demo_39",
+        "run_id": "run_001", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    service.compact_before(1)
+
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        response = client.get(
+            "/api/v1/threads/thr_demo_39/events/stream?after=0", headers=_auth(),
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "resync_required"
+    assert response.json()["snapshot"]["last_event_seq"] == 1
+
+
 def test_thread_rejects_unknown_command_kind_without_emitting_an_acceptance_event() -> None:
     service = _service()
     command = {
