@@ -1047,17 +1047,17 @@ class PostgresThreadService:
         from .thread_protocol import AttemptSnapshot, ModelContextSnapshot, RunSnapshot
 
         attempt = None if row["current_attempt"] is None else AttemptSnapshot.from_document(row["current_attempt"])
+        selection = ModelCapabilitySelection.from_document({
+            "schema": "capstone-model-capability-selection/1",
+            "enabled_profiles": row.get("enabled_profiles") or [],
+        })
         return ThreadSnapshot(
             thread_id=row["thread_id"],
             run=RunSnapshot(row["run_id"], row["run_state"]),
             active_model_context=ModelContextSnapshot(
                 row["model_context_id"], row["model_id"], row["model_revision"],
                 row["implementation_family"], row["selection_revision"],
-                tuple(
-                    (entry["profile_id"], entry["profile_version"])
-                    for entry in (row.get("enabled_profiles") or [])
-                    if isinstance(entry, dict)
-                ),
+                selection.enabled_profiles,
             ),
             active_grid_page_id=row["active_grid_page_id"], current_attempt=attempt,
             last_event_seq=row["last_event_seq"], base_event_seq=row["base_event_seq"],
