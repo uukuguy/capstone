@@ -11,6 +11,7 @@ from .model_capability_context import (
     ModelCapabilityContextOwner,
     PreparedModelCapabilityContext,
 )
+from .model_capability import CapstoneModelCapabilityCatalog
 from .thread_catalog import AuthorityThreadModelCatalog
 from .thread_service import (
     AttemptClaim,
@@ -94,6 +95,7 @@ class ThreadApplicationAssembly:
     catalog: ThreadModelCatalog
     runtime_factory: RuntimeFactory
     capability_catalog: ThreadCapabilityCatalog | None = None
+    capability_context_owner: ModelCapabilityContextOwner | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -102,6 +104,10 @@ class ThreadApplicationAssembly:
             raise TypeError("Thread application catalog must declare default_model_id")
         if not callable(self.runtime_factory):
             raise TypeError("Thread application runtime_factory must be callable")
+        if self.capability_context_owner is not None and not isinstance(
+            self.capability_context_owner, ModelCapabilityContextOwner,
+        ):
+            raise TypeError("Thread application capability context owner is invalid")
 
     @classmethod
     def from_authority(
@@ -129,6 +135,36 @@ class ThreadApplicationAssembly:
             session_factory, runtime_mode=runtime_mode,
         )
         return cls(catalog=catalog, runtime_factory=runtime_factory)
+
+    @classmethod
+    def from_prepared_authority(
+        cls,
+        *,
+        default_model_id: str,
+        model_resolver: Callable[[str], Mapping[str, Any]],
+        capability_catalog: CapstoneModelCapabilityCatalog,
+        capability_context_owner: ModelCapabilityContextOwner,
+        session_factory: Callable[
+            [AttemptClaim, PreparedModelCapabilityContext], PiPromptSession
+        ],
+        runtime_mode: str = "capstone",
+    ) -> "ThreadApplicationAssembly":
+        """Pair model authority, exact Profile catalog, Context owner, and Pi."""
+
+        if capability_context_owner.catalog is not capability_catalog:
+            raise ValueError("capability catalog and context owner must be paired")
+        catalog = AuthorityThreadModelCatalog(
+            default_model_id=default_model_id, resolver=model_resolver,
+        )
+        runtime_factory = PreparedApplicationPiRuntimeFactory(
+            capability_context_owner, session_factory, runtime_mode=runtime_mode,
+        )
+        return cls(
+            catalog=catalog,
+            runtime_factory=runtime_factory,
+            capability_catalog=capability_catalog,
+            capability_context_owner=capability_context_owner,
+        )
 
     def thread_creator(self, service: ThreadService) -> ThreadCreator:
         """Create the persistence adapter for this exact application pair."""

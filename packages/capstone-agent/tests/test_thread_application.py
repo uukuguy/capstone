@@ -269,3 +269,22 @@ def test_prepared_application_factory_does_not_start_session_after_preparation_f
         factory(claim)
     assert called == [True]
     owner.close()
+
+
+def test_prepared_authority_assembly_keeps_catalog_owner_and_runtime_paired() -> None:
+    owner, _ = _prepared_owner()
+    assembly = ThreadApplicationAssembly.from_prepared_authority(
+        default_model_id="ieee39",
+        model_resolver=lambda model_id: {
+            "model_id": model_id,
+            "revision_ref": "revision:sha256:" + "b" * 64,
+            "implementation_family": "pandapower",
+        },
+        capability_catalog=owner.catalog,
+        capability_context_owner=owner,
+        session_factory=lambda _claim, _context: _Session(),
+    )
+    assert assembly.capability_context_owner is owner
+    assert assembly.capability_catalog is owner.catalog
+    assert isinstance(assembly.runtime_factory, PreparedApplicationPiRuntimeFactory)
+    owner.close()
