@@ -155,4 +155,5 @@ def test_retry_control_reclaims_a_fresh_attempt_and_replays_the_instruction() ->
     assert seen == [retry.target["attempt_id"]]
     events = service.read_events("thr_worker", 0).events
     assert events[-1].event_type == "attempt_completed"
+    assert events[-1].turn_id == first.attempt.turn_id
     assert events[-1].attempt_id == retry.target["attempt_id"]

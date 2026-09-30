@@ -140,6 +140,7 @@ def test_retry_control_creates_a_new_attempt_from_an_interrupted_turn() -> None:
 
     assert receipt.status == "accepted"
     assert receipt.target is not None
+    assert receipt.target["turn_id"] == claim.attempt.turn_id
     assert receipt.target["attempt_id"] != claim.attempt.attempt_id
     current = service.snapshot("thr_attempts").current_attempt
     assert current is not None and current.phase == "accepted"

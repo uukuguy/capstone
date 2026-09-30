@@ -305,7 +305,7 @@ class InMemoryThreadService:
                         receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
                     else:
                         token = secrets.token_hex(8)
-                        turn_id = "turn_" + token
+                        turn_id = prior["attempt"].turn_id
                         attempt_id = "attempt_" + token
                         attempt = AttemptSnapshot(
                             turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
@@ -714,10 +714,10 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     lease_token text,
     lease_deadline timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (thread_id, turn_id),
     UNIQUE (thread_id, command_id)
 );
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
     ON capstone_thread_attempts(created_at, attempt_id)
     WHERE phase = 'accepted' AND lease_token IS NULL;
@@ -899,7 +899,7 @@ class PostgresThreadService:
                             receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
                         else:
                             token = secrets.token_hex(8)
-                            turn_id = "turn_" + token
+                            turn_id = prior["turn_id"]
                             attempt_id = "attempt_" + token
                             attempt = AttemptSnapshot(
                                 turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
