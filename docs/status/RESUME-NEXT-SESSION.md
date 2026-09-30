@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 12:15 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 12:31 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -57,8 +57,15 @@
 - `cancel_live_attempt` is a durable control command: it targets the live
   Attempt, emits a request event, and becomes `attempt_cancelled` at a Harness
   heartbeat safe point. `retry_new_attempt` creates a fresh immutable Attempt
-  from an interrupted, failed, or cancelled predecessor after model-context
-  fencing; it never resumes or mutates the predecessor.
+  in the predecessor's logical Turn from an interrupted, failed, or cancelled
+  predecessor after model-context fencing; it never resumes or mutates the
+  predecessor.
+- Profile controls (`enable_profile`, `disable_profile`, and
+  `replace_selection`) now validate against the exact application capability
+  catalog, persist `selection_change_pending`, and activate the staged set at
+  the next new Turn boundary. The active Model Context keeps its identity and
+  advances `selection_revision`; the prepared Context owner keys resources by
+  that revision.
 
 ## Verification
 
@@ -90,10 +97,10 @@
 
 ## Immediate next action
 
-1. Implement selection control commands (`enable_profile`, `disable_profile`,
-   `replace_selection`) as a pending Context revision. Running Attempts keep
-   their pinned selection; the new revision applies only after a terminal
-   Attempt, with exact catalog admission and no semantic-overlap inference.
+1. Connect selection activation to the application preparation lifecycle:
+   prepare the replacement profile contribution set before retiring the old
+   revision, and expose preparation failure as a durable bounded control
+   outcome while preserving the old effective selection.
 
 ## Recovery constraints
 
