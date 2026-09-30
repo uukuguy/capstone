@@ -85,6 +85,18 @@ def test_attempt_lease_is_required_for_append_and_finish() -> None:
         service.finish_attempt(forged, phase="failed", payload={"error": "lost"})
 
 
+def test_runtime_event_payload_is_bounded_before_persistence() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+
+    with pytest.raises(ValueError, match="too large"):
+        service.append_runtime_event(
+            claim, event_type="assistant_message_update", payload={"text": "x" * 70_000},
+        )
+
+
 def test_attempt_lease_can_be_renewed_and_expired_attempt_is_interrupted(monkeypatch: pytest.MonkeyPatch) -> None:
     service = _service()
     service.submit_command(_command())

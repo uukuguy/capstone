@@ -35,6 +35,7 @@ from .thread_protocol import (
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_COMMAND_BYTES = 64 * 1024
+_MAX_EVENT_BYTES = 64 * 1024
 _COMMAND_FIELDS = frozenset({
     "schema", "command_id", "idempotency_key", "thread_id", "run_id",
     "kind", "expected_event_seq", "payload",
@@ -122,6 +123,12 @@ def _validate_json(value: Any, *, name: str) -> None:
         json.dumps(value, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError):
         raise ThreadProtocolError(f"{name} is not JSON") from None
+
+
+def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
+    _validate_json(value, name=name)
+    if len(_canonical(value).encode("utf-8")) > maximum:
+        raise ThreadProtocolError(f"{name} is too large")
 
 
 def _admission_rejection(command: Mapping[str, Any]) -> str | None:
@@ -321,7 +328,7 @@ class InMemoryThreadService:
         visibility: str = "public",
     ) -> EventEnvelope:
         _identifier(event_type, name="event_type")
-        _validate_json(payload, name="event.payload")
+        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
         with self._lock:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
@@ -340,7 +347,7 @@ class InMemoryThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_json(payload, name="attempt.payload")
+        _validate_bounded_json(payload, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
         with self._lock:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
@@ -822,7 +829,7 @@ class PostgresThreadService:
         visibility: str = "public",
     ) -> EventEnvelope:
         _identifier(event_type, name="event_type")
-        _validate_json(payload, name="event.payload")
+        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
         if visibility not in {"public", "diagnostic"}:
             raise ThreadProtocolError("event visibility is invalid")
         with self._connect() as connection:
@@ -861,7 +868,7 @@ class PostgresThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_json(payload, name="attempt.payload")
+        _validate_bounded_json(payload, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
         with self._connect() as connection:
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
