@@ -146,4 +146,31 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.resyncRequired).toBe(true)
     await expect(store.catchUp()).rejects.toThrow('resync_required')
   })
+
+  it('projects streamed Attempt lifecycle events into the shared snapshot', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'command_accepted', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const, payload: {},
+        }
+        yield {
+          eventId: 'evt_2', eventSeq: 2, eventType: 'attempt_started', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:02Z', visibility: 'public' as const, payload: {},
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+
+    await store.consumeEvents()
+
+    expect(store.state.eventSeq).toBe(2)
+    expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
+  })
 })

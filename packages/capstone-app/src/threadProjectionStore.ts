@@ -1,4 +1,4 @@
-import { parseThreadSnapshot, type CommandReceipt, type EventPage, type ThreadSnapshot } from './threadProtocol'
+import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot } from './threadProtocol'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -129,9 +129,26 @@ export class ThreadProjectionStore {
     try {
       const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq)
       if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
-      this.current = { ...this.current, eventSeq: page.nextEventSeq }
+      this.applyPage(page)
       return page
     } catch (error) {
+      this.current = { ...this.current, connection: 'resync_required', resyncRequired: true }
+      throw error
+    }
+  }
+
+  async consumeEvents(signal?: AbortSignal): Promise<void> {
+    if (this.current.resyncRequired || this.current.connection === 'resync_required') {
+      throw new Error('thread is resync_required')
+    }
+    const snapshot = this.current.snapshot
+    if (!snapshot) throw new Error('thread snapshot is not loaded')
+    try {
+      for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal)) {
+        this.applyEvent(event)
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw error
       this.current = { ...this.current, connection: 'resync_required', resyncRequired: true }
       throw error
     }
@@ -187,5 +204,40 @@ export class ThreadProjectionStore {
       this.current = { ...this.current, connection: 'reconnecting' }
       throw error
     }
+  }
+
+  private applyPage(page: EventPage): void {
+    for (const event of page.events) this.applyEvent(event)
+    if (this.current.eventSeq !== page.nextEventSeq) {
+      this.current = { ...this.current, eventSeq: page.nextEventSeq }
+    }
+  }
+
+  private applyEvent(event: EventEnvelope): void {
+    const snapshot = this.current.snapshot
+    if (!snapshot || event.threadId !== snapshot.threadId || event.eventSeq !== this.current.eventSeq + 1) {
+      throw new Error('event stream is not contiguous')
+    }
+    let currentAttempt = snapshot.currentAttempt
+    const identity = event.turnId && event.attemptId && event.modelContextId
+      ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }
+      : null
+    if (event.eventType === 'command_accepted' && identity) {
+      currentAttempt = { ...identity, phase: 'accepted' }
+    } else if (event.eventType === 'attempt_started' && identity) {
+      currentAttempt = { ...identity, phase: 'running' }
+    } else if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' ||
+      event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
+      if (!currentAttempt || !event.attemptId || currentAttempt.attemptId === event.attemptId) currentAttempt = null
+    }
+    const projected = parseThreadSnapshot({
+      ...snapshot.toDocument(),
+      current_attempt: currentAttempt ? {
+        turn_id: currentAttempt.turnId, attempt_id: currentAttempt.attemptId,
+        phase: currentAttempt.phase, target_model_context_id: currentAttempt.targetModelContextId,
+      } : null,
+      last_event_seq: event.eventSeq,
+    })
+    this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq }
   }
 }
