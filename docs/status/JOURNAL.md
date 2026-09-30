@@ -1368,3 +1368,4 @@ _Recovered pre-merge mainline entries._
 - 11:46 强化 PyPSA worker fixture，验证专业 Attempt 的结果/证据引用经 admission 后提交 [4209d8d]
 - 11:47 更新活动恢复 baton，记录 PyPSA admission lineage 验证 [59649b8]
 - 11:48 跨包回归通过：Capstone 189/27、Grid Thread 5、PyPSA 19，边界检查通过
+- 11:49 固化跨包回归记录，保留 control command 作为下一实现边界 [f824ffe]

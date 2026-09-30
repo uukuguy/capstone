@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:47 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:50 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -71,6 +71,7 @@
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
 - Changed-file pyright — 0 errors.
+- Cross-package Thread regression is green after the shared bridge move.
 - Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
@@ -84,8 +85,8 @@
 
 ## Immediate next action
 
-1. Add public control-command execution only after result/evidence admission
-   and current-run binding are enforced.
+1. Implement the first public control-command execution path (cancel/retry)
+   against the same Thread command envelope, with durable lifecycle events.
 
 ## Recovery constraints
 
