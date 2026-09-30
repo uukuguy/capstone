@@ -1356,3 +1356,5 @@ _Recovered pre-merge mainline entries._
 - 10:44 更新活动 checkpoint，记录受控 Pi RPC builder 与下一步 fixture worker/evidence 验证 [1af066d]
 - 10:49 Harness 透传受限工具 provenance 与 evidence refs，便于 Web/TUI 排错且不持久化原始结果 [45abb24]
 - 10:50 以 provider-free Pi fixture 验证 prepared Thread worker 的 RPC、流式事件和 terminal answer [afc932e]
+- 10:51 更新活动 checkpoint，明确 Thread result/evidence admission 是接入生产业务前的下一道硬门 [384d15d]
+- 11:03 将 Thread 完成门控改为应用 admission 决策，拒绝把 runtime evidence ref 冒充已验证证据 [1eecfa1]

@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 10:50 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:03 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -47,14 +47,16 @@
   PyPSA migration registration.
 - `packages/capstone-agent/src/capstone_agent/harness.py` — bounded tool
   capability, binding, projector, result, and evidence provenance for UI
-  diagnostics.
+  diagnostics; professional/tool attempts now require an application-owned
+  `AdmittedAttemptAnswer` before terminal completion.
 
 ## Verification
 
 - Capstone Python suite: 185 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid Thread capability tests: 5 passed; Harness tests: 6 passed; selected
-  application tests: 7 passed. The full Grid suite reached 874 passed but
+- Grid Thread capability tests: 5 passed; Harness/Thread application tests:
+  17 passed; Capstone suite: 189 passed, 27 skipped. The full Grid suite
+  reached 874 passed but
   exposed two unrelated
   failures in checked-in schema drift and a provider-backed offline answer.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
@@ -66,13 +68,13 @@
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC
   descriptor/session builder; `45abb24` bounded Harness provenance;
-  `afc932e` provider-free Thread worker fixture.
+  `afc932e` provider-free Thread worker fixture; `1eecfa1` application
+  result/evidence admission gate.
 
 ## Immediate next action
 
-1. Add an application-owned Thread turn admission contract: tool results and
-   evidence refs must be validated against the current prepared Authority
-   context before `attempt_completed` is persisted.
+1. Expand the prepared pandapower admission adapter to validate multi-binding
+   result ownership and current-run evidence through the Domain Pack policy.
 2. Add the corresponding explicit PyPSA composition hook, keeping its model
    identifiers and authority binder application-owned.
 3. Add public control-command execution only after result/evidence admission
