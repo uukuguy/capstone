@@ -1442,3 +1442,4 @@ _Recovered pre-merge mainline entries._
 - 06:55 hosted ownership structural state 已同步 [e438475]
 - 06:56 活跃恢复检查点改写为 M1 完成、M2 复合模型目录待启动，保留边界断言约束 [pending]
 - 06:57 活跃恢复检查点已提交，下一步进入 M2 复合模型目录 [e8e17e6]
+- 06:58 M1 恢复检查点提交完成，工作树仍仅有用户既有 `.gitignore` 修改 [223d195]
