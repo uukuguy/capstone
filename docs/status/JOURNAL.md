@@ -1353,3 +1353,6 @@ _Recovered pre-merge mainline entries._
 - 10:34 增加 opt-in pandapower Thread 装配，启动 Pi 前校验 Kernel 工具目录与 Authority 绑定 [afe9805]
 - 10:35 更新活动 checkpoint，记录 Pi session builder seam、聚焦验证与下一步真实 Thread worker [740c868]
 - 10:43 增加 Pi RPC session builder，落盘受控 runtime descriptor 并在进程启动前校验工具与 Authority 资源 [d02c8fb]
+- 10:44 更新活动 checkpoint，记录受控 Pi RPC builder 与下一步 fixture worker/evidence 验证 [1af066d]
+- 10:49 Harness 透传受限工具 provenance 与 evidence refs，便于 Web/TUI 排错且不持久化原始结果 [45abb24]
+- 10:50 以 provider-free Pi fixture 验证 prepared Thread worker 的 RPC、流式事件和 terminal answer [afc932e]

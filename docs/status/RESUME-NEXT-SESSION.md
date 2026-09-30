@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 10:43 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 10:50 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -45,13 +45,17 @@
   explicit pandapower migration registration.
 - `packages/pypsa-agent/src/pypsa_agent/thread_capabilities.py` — explicit
   PyPSA migration registration.
+- `packages/capstone-agent/src/capstone_agent/harness.py` — bounded tool
+  capability, binding, projector, result, and evidence provenance for UI
+  diagnostics.
 
 ## Verification
 
 - Capstone Python suite: 185 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid Thread capability tests: 4 passed; selected application tests: 7
-  passed. The full Grid suite reached 874 passed but exposed two unrelated
+- Grid Thread capability tests: 5 passed; Harness tests: 6 passed; selected
+  application tests: 7 passed. The full Grid suite reached 874 passed but
+  exposed two unrelated
   failures in checked-in schema drift and a provider-backed offline answer.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
   raised the Context tests to 13 focused cases.
@@ -61,17 +65,18 @@
   capability registration hooks; `a11fbb0` paired prepared assembly;
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC
-  descriptor/session builder.
+  descriptor/session builder; `45abb24` bounded Harness provenance;
+  `afc932e` provider-free Thread worker fixture.
 
 ## Immediate next action
 
-1. Exercise the opt-in pandapower Thread worker composition root end to end
-   with a controlled Pi fixture, including tool invocation, result admission,
-   and current-run evidence.
+1. Add an application-owned Thread turn admission contract: tool results and
+   evidence refs must be validated against the current prepared Authority
+   context before `attempt_completed` is persisted.
 2. Add the corresponding explicit PyPSA composition hook, keeping its model
    identifiers and authority binder application-owned.
-3. Add public tool provenance and control-command execution only after a
-   selected Domain Pack and Authority path passes the same gates.
+3. Add public control-command execution only after result/evidence admission
+   and current-run binding are enforced.
 
 ## Recovery constraints
 
