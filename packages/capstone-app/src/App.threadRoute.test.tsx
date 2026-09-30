@@ -9,7 +9,7 @@ describe('Thread fixture entry point', () => {
     window.history.replaceState({}, '', '/?thread-fixture=idle-ieee39')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Thread / IEEE-39' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(screen.queryByText('案例库')).toBeNull()
   })
 

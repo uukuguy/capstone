@@ -8,8 +8,9 @@ describe('ThreadFixtureApp', () => {
   it('renders an idle Thread with the current IEEE-39 model and ordinary controls', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
-    expect(await screen.findByRole('heading', { name: 'Thread / IEEE-39' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: '电网模型' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
+    expect(screen.getByText('电网分析工作台')).toBeTruthy()
+    expect(screen.queryByText('CAPSTONE / AGENT WORKSPACE')).toBeNull()
     expect(screen.getByRole('heading', { name: '对话 Thread' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
@@ -23,7 +24,7 @@ describe('ThreadFixtureApp', () => {
   it('submits a model switch from the grid pane through the Thread command path', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
-    await screen.findByRole('heading', { name: 'Thread / IEEE-39' })
+    await screen.findByRole('region', { name: '电网模型区' })
     fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
 

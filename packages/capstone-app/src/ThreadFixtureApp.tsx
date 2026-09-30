@@ -6,12 +6,9 @@ import CapstoneAssistantThread from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { NetworkDiagram } from './types'
+import { PageHeader } from './AppHeader'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
-
-function connectionLabel(state: ThreadProjectionState['connection']): string {
-  return { live: '实时连接', reconnecting: '正在重连', resync_required: '需要重新同步', offline: '离线', connecting: '正在连接' }[state]
-}
 
 function phaseLabel(phase: string | undefined): string {
   return {
@@ -27,10 +24,6 @@ function eventLabel(eventType: string): string {
     model_context_change_pending: '模型切换已挂起', model_context_activated: '模型上下文已激活',
     model_context_reverted: '模型切换已回滚', selection_change_pending: '能力选择已挂起',
   }[eventType] || eventType.replaceAll('_', ' ')
-}
-
-function modelLabel(modelId: string | undefined): string {
-  return { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39' }[modelId || ''] || modelId || '当前模型'
 }
 
 function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
@@ -106,10 +99,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const events = store.publicEvents
 
   if (!loading && error && !snapshot) {
-    return <div className="thread-fixture-shell"><header className="thread-fixture-topbar">
-      <div className="thread-brand"><span className="thread-brand-mark">◆</span><strong>CAPSTONE</strong><span>THREAD WORKSPACE</span></div>
-      <div className="thread-connection is-offline"><i />连接失败</div>
-    </header><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
+    return <div className="thread-app-shell"><PageHeader /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
   }
 
   function sync() {
@@ -141,12 +131,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   return <div className="thread-app-shell">
-    <header className="thread-app-topbar">
-      <div className="thread-app-brand"><span className="thread-app-mark" aria-hidden="true"><i /><i /><i /><i /></span><strong>CAPSTONE</strong><span>THREAD WORKSPACE</span></div>
-      <div className={`thread-app-connection is-${projection.connection}`}><i />{connectionLabel(projection.connection)}</div>
-    </header>
+    <PageHeader />
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
-      <div className="thread-app-title"><div><span className="eyebrow">CAPSTONE / AGENT WORKSPACE</span><h1>Thread / {modelLabel(snapshot.activeModelContext.modelId)}</h1></div><span className="thread-run-chip">RUN {snapshot.run.runId}</span></div>
       <div className="thread-app-columns">
         <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}

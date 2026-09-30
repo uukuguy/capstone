@@ -33,7 +33,7 @@ describe('ThreadLiveEntry', () => {
 
     render(<ThreadLiveEntry threadId="thr_demo_39" />)
 
-    expect(await screen.findByRole('heading', { name: 'Thread / IEEE-39' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(screen.getByText('pandapower · revision 7')).toBeTruthy()
   })
 
@@ -55,7 +55,7 @@ describe('ThreadLiveEntry', () => {
 
     render(<ThreadLiveEntry threadId="new" />)
 
-    expect(await screen.findByRole('heading', { name: 'Thread / IEEE-39' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(fetcher).toHaveBeenCalledWith('/api/v1/threads', expect.objectContaining({ method: 'POST' }))
   })
 })

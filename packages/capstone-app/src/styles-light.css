@@ -298,40 +298,26 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 /* Thread route: a copied light model pane plus assistant-ui presentation. */
 .thread-app-shell { min-height: 100vh; background: #eef3f1; color: #172d32; }
-.thread-app-topbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 0 clamp(18px, 3vw, 42px); background: #fff; border-bottom: 1px solid #dbe5e1; box-shadow: 0 1px 12px #243e3910; }
-.thread-app-brand { display: flex; align-items: center; gap: 11px; color: #6a827d; font: 700 10px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .13em; }
-.thread-app-brand strong { color: #132e33; font: 800 14px/1 Inter, sans-serif; letter-spacing: .2em; }
-.thread-app-mark { display: grid; grid-template-columns: repeat(2, 8px); gap: 2px; transform: rotate(45deg); }
-.thread-app-mark i { width: 8px; height: 8px; display: block; border: 2px solid #117b73; }
-.thread-app-mark i:nth-child(1), .thread-app-mark i:nth-child(4) { background: #117b73; }
-.thread-app-connection { display: flex; align-items: center; gap: 8px; color: #54736d; font: 700 10px/1 "SFMono-Regular", Consolas, monospace; }
-.thread-app-connection i { width: 7px; height: 7px; display: block; border-radius: 50%; background: #168f80; box-shadow: 0 0 0 4px #2d9c8330; }
-.thread-app-connection.is-resync_required i { background: #c9654e; box-shadow: 0 0 0 4px #c9654e2e; }
-.thread-app-connection.is-reconnecting i, .thread-app-connection.is-connecting i { background: #c38b41; box-shadow: 0 0 0 4px #c38b412e; }
 .thread-app-main { width: min(1540px, 100%); min-height: calc(100vh - 58px); margin: 0 auto; padding: 25px clamp(18px, 3vw, 44px) 42px; }
-.thread-app-title { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid #d4e1db; }
-.thread-app-title h1 { margin: 7px 0 0; color: #173438; font-size: clamp(24px, 2.1vw, 34px); letter-spacing: -.045em; font-weight: 720; }
-.thread-run-chip { color: #27736b; border: 1px solid #b8d2c8; background: #edf7f2; border-radius: 3px; padding: 7px 9px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
-.thread-app-columns { display: grid; grid-template-columns: minmax(480px, 1.08fr) minmax(440px, .92fr); margin-top: 22px; border: 1px solid #d2e1db; background: #f8fbf9; box-shadow: 0 10px 28px #31564810; }
+.thread-app-columns { display: grid; grid-template-columns: minmax(480px, 1.08fr) minmax(440px, .92fr); border: 1px solid #d2e1db; background: #f8fbf9; box-shadow: 0 10px 28px #31564810; }
 .thread-model-pane, .thread-chat-pane { min-width: 0; padding: 24px clamp(18px, 2.5vw, 36px) 30px; }
 .thread-model-pane { border-right: 1px solid #d2e1db; background: #eef3f1; }
 .thread-chat-pane { display: flex; flex-direction: column; align-self: start; position: sticky; top: 16px; height: min(860px, calc(100vh - 100px)); overflow: auto; background: #fff; }
-.thread-model-heading, .thread-chat-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
-.thread-model-heading h2, .thread-chat-heading h2 { margin: 7px 0 0; color: #173438; font-size: 21px; letter-spacing: -.03em; font-weight: 700; }
+.thread-chat-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+.thread-chat-heading h2 { margin: 7px 0 0; color: #173438; font-size: 21px; letter-spacing: -.03em; font-weight: 700; }
 .thread-context-state, .thread-run-state { color: #2f7068; border: 1px solid #b9d5ca; border-radius: 3px; padding: 6px 8px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
 .thread-model-intro { margin-bottom: 16px; }
 .thread-model-intro .capstone-intro-art { outline-color: #cbded5; }
 .thread-model-intro > p { margin: 0; padding: 8px 2px 0; border-top: 1px solid #d4e2db; color: #587170; font-size: 10px; line-height: 1.5; }
-.thread-model-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 15px; background: #fff; border: 1px solid #cbded5; border-left: 3px solid #117b73; }
-.thread-model-card strong { display: block; color: #254344; font-size: 15px; }
-.thread-model-card span:not(.thread-model-badge) { display: block; margin-top: 5px; color: #587170; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-model-card { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #fff; border: 1px solid #cbded5; border-left: 3px solid #117b73; }
+.thread-model-card strong { color: #254344; font-size: 14px; white-space: nowrap; }
+.thread-model-card-meta { min-width: 0; overflow: hidden; color: #587170; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .thread-model-badge { color: #28756c; border: 1px solid #a8cfc1; padding: 5px 7px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
 .thread-model-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .thread-model-controls label { display: grid; gap: 5px; color: #5b7771; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
 .thread-model-controls select { min-height: 34px; border: 1px solid #b7d2c8; border-radius: 3px; background: #fff; color: #2c5f5b; padding: 0 9px; font-size: 11px; }
 .thread-model-controls small { align-self: center; color: #9a713e; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
-.thread-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 14px 0 4px; }
+.thread-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0 2px; }
 .thread-page-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; flex: 0 0 auto; padding: 0 10px; border: 1px solid #c5dcd2; background: #fff; color: #52706d; border-radius: 3px; font-size: 10px; text-align: left; }
 .thread-page-button:hover { border-color: #5aa18f; color: #176f65; }
 .thread-page-button.is-active { background: #e9f5ef; border-color: #80bca8; color: #166b61; }
@@ -410,9 +396,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .capstone-chat-viewport { max-height: 420px; }
 }
 @media (max-width: 560px) {
-  .thread-app-brand span:last-child { display: none; }
   .thread-app-main { padding-left: 12px; padding-right: 12px; }
-  .thread-app-title { align-items: flex-start; flex-direction: column; }
   .thread-grid-meta { grid-template-columns: 1fr; }
   .capstone-composer-footer { align-items: flex-start; flex-direction: column; }
 }
