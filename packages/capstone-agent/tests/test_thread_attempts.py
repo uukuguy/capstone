@@ -121,3 +121,17 @@ def test_attempt_lease_can_be_renewed_and_expired_attempt_is_interrupted(monkeyp
 
     with pytest.raises(ThreadExecutionError, match="lease"):
         service.finish_attempt(claim, phase="completed", payload={"answer": "late"})
+
+
+def test_snapshot_never_presents_an_expired_running_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = _service()
+    service.submit_command(_command("cmd_snapshot_expired"))
+    claim = service.claim_attempt("thread-worker", lease_seconds=1)
+    assert claim is not None
+    clock = time.monotonic()
+    monkeypatch.setattr(time, "monotonic", lambda: clock + 2)
+
+    snapshot = service.snapshot("thr_attempts")
+
+    assert snapshot.current_attempt is None
+    assert service.read_events("thr_attempts", 0).events[-1].event_type == "attempt_interrupted"

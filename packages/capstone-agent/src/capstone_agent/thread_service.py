@@ -179,6 +179,7 @@ class InMemoryThreadService:
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
         with self._lock:
             self._check_thread(thread_id)
+            self.interrupt_expired_attempts()
             return self._snapshot
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
@@ -606,6 +607,7 @@ class PostgresThreadService:
         return snapshot
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
+        self.interrupt_expired_attempts()
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM capstone_threads WHERE thread_id = %s", (thread_id,),
