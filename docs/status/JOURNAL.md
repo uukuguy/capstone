@@ -1351,3 +1351,5 @@ _Recovered pre-merge mainline entries._
 - 10:22 接通 Kernel Profile 到真实 Authority 准备：独立 workspace、gridctl context.open、revision 硬校验与回收 [f89e0f4]
 - 10:25 更新 checkpoint，记录真实 Kernel/Authority preparation 与下一步 Pi session builder 绑定 [7a50391]
 - 10:34 增加 opt-in pandapower Thread 装配，启动 Pi 前校验 Kernel 工具目录与 Authority 绑定 [afe9805]
+- 10:35 更新活动 checkpoint，记录 Pi session builder seam、聚焦验证与下一步真实 Thread worker [740c868]
+- 10:43 增加 Pi RPC session builder，落盘受控 runtime descriptor 并在进程启动前校验工具与 Authority 资源 [d02c8fb]
