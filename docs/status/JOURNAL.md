@@ -1366,3 +1366,5 @@ _Recovered pre-merge mainline entries._
 - 11:44 用真实 PyPSA Profile 驱动共享 Thread worker fixture，验证准备上下文与终态提交 [aac8fbd]
 - 11:45 更新活动恢复 baton，推进到公共 control command 之前的 Thread 核心收口 [6b1b205]
 - 11:46 强化 PyPSA worker fixture，验证专业 Attempt 的结果/证据引用经 admission 后提交 [4209d8d]
+- 11:47 更新活动恢复 baton，记录 PyPSA admission lineage 验证 [59649b8]
+- 11:48 跨包回归通过：Capstone 189/27、Grid Thread 5、PyPSA 19，边界检查通过
