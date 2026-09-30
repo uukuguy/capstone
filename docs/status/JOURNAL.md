@@ -1410,3 +1410,4 @@ _Recovered pre-merge mainline entries._
 - 03:08 实现主合同 Web UI：GFM、消息操作栏、工具活动摘要、紧凑 Composer，并以真实 Thread 指令验证 [9f031e9]
 - 03:10 更新 Web UI 恢复 baton，记录 110 个 App 测试、真实 Thread 指令和后续 Phase C–E 边界 [9eabf30]
 - 03:11 固化主合同实现后的恢复日志，保持后续工作从 Phase C–E 继续 [be8d830]
+- 03:32 收紧 populated Thread：13px 正文、GFM 表格、回答级活动步骤和结果证据摘要；真实双轮潮流验证滚动隔离 [5b53bc1]
