@@ -14,7 +14,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
     expect(screen.getByText('CAPABILITY / EVIDENCE / CONTROL')).toBeTruthy()
-    expect(screen.getByText('assistant-ui')).toBeTruthy()
+    expect(screen.getByTestId('assistant-ui-chat')).toBeTruthy()
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
     expect((screen.getByRole('button', { name: '发送普通指令' }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()

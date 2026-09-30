@@ -316,7 +316,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-app-columns { display: grid; grid-template-columns: minmax(480px, 1.08fr) minmax(440px, .92fr); margin-top: 22px; border: 1px solid #d2e1db; background: #f8fbf9; box-shadow: 0 10px 28px #31564810; }
 .thread-model-pane, .thread-chat-pane { min-width: 0; padding: 24px clamp(18px, 2.5vw, 36px) 30px; }
 .thread-model-pane { border-right: 1px solid #d2e1db; background: #eef3f1; }
-.thread-chat-pane { display: flex; flex-direction: column; background: #fff; }
+.thread-chat-pane { display: flex; flex-direction: column; align-self: start; position: sticky; top: 16px; height: min(860px, calc(100vh - 100px)); overflow: auto; background: #fff; }
 .thread-model-heading, .thread-chat-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
 .thread-model-heading h2, .thread-chat-heading h2 { margin: 7px 0 0; color: #173438; font-size: 21px; letter-spacing: -.03em; font-weight: 700; }
 .thread-context-state, .thread-run-state { color: #2f7068; border: 1px solid #b9d5ca; border-radius: 3px; padding: 6px 8px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
@@ -406,6 +406,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (max-width: 820px) {
   .thread-app-columns { display: block; }
   .thread-model-pane { border-right: 0; border-bottom: 1px solid #d2e1db; }
+  .thread-chat-pane { position: static; height: auto; max-height: none; overflow: visible; }
   .capstone-chat-viewport { max-height: 420px; }
 }
 @media (max-width: 560px) {

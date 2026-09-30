@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
   }
   return {
     plugins: [react()],
-    test: { environment: 'jsdom' },
+    test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
     server: {
       proxy: { '/api': localApiProxy, '/health': localApiProxy },
     },

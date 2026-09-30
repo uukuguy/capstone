@@ -47,7 +47,7 @@ export type ThreadWorkspaceProps = {
   previewDiagram?: NetworkDiagram | null
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram = threadPreviewDiagram }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram }: ThreadWorkspaceProps) {
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
     if (client) return new ThreadProjectionStore(client)
@@ -150,7 +150,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       <div className="thread-app-columns">
         <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
-          controlsDisabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram}
+          controlsDisabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
           elementReference={fixture?.local_view.element_reference} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">

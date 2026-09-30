@@ -33,7 +33,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
   elementReference, onModelTargetChange, onSwitchModel, onSelectPage }: ThreadModelPaneProps) {
   const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
-  const modelDiagram = snapshot.activeModelContext.modelId === 'ieee39' ? previewDiagram : null
+  const modelDiagram = !isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId ? previewDiagram : null
   return <section className="thread-model-pane" aria-label="电网模型区">
     <div className="thread-model-heading"><div><span className="eyebrow">MODEL / OVERVIEW</span><h2>电网模型</h2></div><span className="thread-context-state">{isHistorical ? '历史查看' : '当前'}</span></div>
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
@@ -55,7 +55,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
       </div>
       <p>当前 Thread 围绕一个电网模型工作。模型由已注册 authority 提供，工具调用和结果证据随 Run 保留。</p>
     </section>
-    <div className="thread-model-card"><div><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span>{snapshot.activeModelContext.implementationFamily} · revision {snapshot.activeModelContext.modelRevision}</span></div><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+    <div className="thread-model-card"><div><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span title={snapshot.activeModelContext.modelRevision}>{snapshot.activeModelContext.implementationFamily} · revision {snapshot.activeModelContext.modelRevision}</span></div><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
     <div className="thread-model-controls" aria-label="模型上下文控制">
       <label>切换模型<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
         <option value="ieee39">IEEE-39 · pandapower</option><option value="pypsa39">PyPSA-39 · PyPSA</option>
