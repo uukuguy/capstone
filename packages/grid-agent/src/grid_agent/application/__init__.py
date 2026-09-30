@@ -18,6 +18,7 @@ from grid_agent.application.registry import (
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     PANDAPOWER_PROFILE_INFO,
+    PreparedKernelPiRpcSessionBuilder,
     PreparedKernelPiSessionFactory,
     build_pandapower_thread_application,
     register_pandapower_capability,
@@ -28,6 +29,7 @@ __all__ = [
     "PANDAPOWER_PROFILE_DESCRIPTOR",
     "PANDAPOWER_PROFILE_INFO",
     "PandapowerApplicationAcceptanceProfile",
+    "PreparedKernelPiRpcSessionBuilder",
     "PreparedKernelPiSessionFactory",
     "ReadOnlyApplicationPolicy",
     "build_application_registry",

@@ -27,6 +27,19 @@ from capstone_model_capability_spi import ModelCapabilityRegistry, ModelCapabili
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import AttemptClaim
+from capability_agent.runtime.descriptor import (
+    CompositeRuntimeDescriptor,
+    descriptor_from_endpoint,
+    write_runtime_descriptor,
+)
+from capability_agent.runtime.environment import (
+    RuntimeHost,
+    RuntimePaths,
+    build_pi_launch,
+)
+from capability_agent.runtime.models import ResolvedLLM
+from capability_agent.runtime.rpc import PiRpcClient
+from capability_agent.runtime.trace import JsonlTraceWriter
 
 from .profile import build_pandapower_application_profile
 
@@ -84,6 +97,181 @@ class PreparedKernelPiSessionFactory:
         ) or not callable(getattr(session, "stop", None)):
             raise TypeError("prepared Kernel session builder returned an invalid session")
         return session
+
+
+class PreparedKernelPiRpcSessionBuilder:
+    """Materialize one checked Kernel runtime descriptor and Pi RPC client."""
+
+    def __init__(
+        self,
+        *,
+        runtime_host: RuntimeHost,
+        resolved_llm: ResolvedLLM,
+        base_environment: Mapping[str, str] | None = None,
+    ) -> None:
+        if not isinstance(runtime_host, RuntimeHost):
+            raise TypeError("runtime_host must be a RuntimeHost")
+        if not isinstance(resolved_llm, ResolvedLLM):
+            raise TypeError("resolved_llm must be a ResolvedLLM")
+        if base_environment is not None and any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in base_environment.items()
+        ):
+            raise TypeError("base_environment must contain text keys and values")
+        self._runtime_host = runtime_host
+        self._resolved_llm = resolved_llm
+        self._base_environment = None if base_environment is None else dict(base_environment)
+
+    def __call__(
+        self,
+        claim: AttemptClaim,
+        context: PreparedModelCapabilityContext,
+        profiles: tuple[PreparedKernelApplicationProfile, ...],
+    ) -> PiPromptSession:
+        del context
+        if not profiles:
+            raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
+        workspace = profiles[0].workspace
+        descriptors = []
+        binding_runtimes: list[tuple[str, object, object]] = []
+        for profile in profiles:
+            if profile.workspace.root != workspace.root:
+                raise ValueError("prepared Kernel profiles use different workspaces")
+            bindings = getattr(profile.prepared_application, "bindings", None)
+            if not isinstance(bindings, Mapping):
+                raise TypeError("prepared Kernel application bindings are unavailable")
+            for binding_id, binding in sorted(bindings.items()):
+                runtime = getattr(binding, "runtime", None)
+                manifest = getattr(getattr(runtime, "profile", None), "manifest", None)
+                if manifest is None:
+                    manifest = getattr(
+                        getattr(getattr(binding, "binding", None), "profile", None),
+                        "manifest", None,
+                    )
+                if manifest is None:
+                    raise RuntimeError("prepared Domain Pack manifest is unavailable")
+                tool_catalog_path = getattr(runtime, "tool_catalog_path", None)
+                guide_index_path = getattr(runtime, "guide_index_path", None)
+                guide_root_path = getattr(runtime, "guide_root_path", None)
+                if not all(
+                    isinstance(path, Path) and path.is_file()
+                    for path in (tool_catalog_path, guide_index_path)
+                ):
+                    raise RuntimeError("prepared Pi tool resources are unavailable")
+                endpoint = getattr(binding, "endpoint", None)
+                descriptor = descriptor_from_endpoint(
+                    binding_id=binding_id,
+                    workspace=workspace.domain_path(binding_id),
+                    application_workspace_path=workspace.root,
+                    endpoint=endpoint,
+                    protocol=getattr(manifest, "protocol", ""),
+                    protocol_version=getattr(manifest, "protocol_version", ""),
+                    authority_id=getattr(
+                        getattr(runtime, "authority", None), "authority_id", ""
+                    ),
+                    tool_catalog_path=tool_catalog_path,
+                    guide_index_path=guide_index_path,
+                    guide_root_path=guide_root_path,
+                    tool_name_prefix=getattr(manifest, "tool_name_prefix", None),
+                    application_id=profile.profile.manifest.application_id,
+                    run_id=claim.run_id,
+                )
+                descriptors.append(descriptor)
+                binding_runtimes.append((binding_id, runtime, endpoint))
+        binding_ids = [binding_id for binding_id, _, _ in binding_runtimes]
+        if len(binding_ids) != len(set(binding_ids)):
+            raise ValueError("prepared Kernel profiles contain duplicate binding IDs")
+        descriptor_path = workspace.core_path / "pi" / "runtime-descriptor.json"
+        descriptor_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        descriptor = (
+            descriptors[0]
+            if len(descriptors) == 1
+            else CompositeRuntimeDescriptor(tuple(descriptors))
+        )
+        write_runtime_descriptor(descriptor_path, descriptor)
+        search_paths = tuple(
+            dict.fromkeys(Path(path) for item in descriptors for path in item.search_path)
+        )
+        single = len(binding_runtimes) == 1
+        single_runtime = binding_runtimes[0][1] if single else None
+        paths = RuntimePaths(
+            command=self._runtime_host.command,
+            project_pi_dir=self._runtime_host.project_pi_dir,
+            session_dir=workspace.core_path / "pi" / "session",
+            workspace=workspace.root,
+            domain_search_paths=search_paths,
+            extension_path=self._runtime_host.extension_path,
+            tool_catalog_path=(
+                getattr(single_runtime, "tool_catalog_path", None)
+                if single_runtime is not None else None
+            ),
+            guide_index_path=(
+                getattr(single_runtime, "guide_index_path", None)
+                if single_runtime is not None else None
+            ),
+            system_policy_path=self._runtime_host.system_policy_path,
+            runtime_descriptor_path=descriptor_path,
+            binding_id=binding_ids[0] if single else None,
+            extra_environment=self._runtime_host.extra_environment,
+        )
+        launch = build_pi_launch(
+            self._resolved_llm, paths, base_environment=self._base_environment,
+        )
+        trace = JsonlTraceWriter(
+            workspace.core_path / "pi-events.jsonl",
+            secret_values={self._resolved_llm.secret.value}
+            if self._resolved_llm.secret is not None else set(),
+        )
+        client = PiRpcClient(
+            launch,
+            _RpcWorkspace(workspace.root),
+            trace,
+            secret_values={self._resolved_llm.secret.value}
+            if self._resolved_llm.secret is not None else set(),
+            correlation_id=claim.attempt.attempt_id,
+        )
+        return _KernelPiPromptSession(client, trace)
+
+
+class _RpcWorkspace:
+    def __init__(self, root_path: Path) -> None:
+        self.root_path = root_path
+
+
+class _KernelPiPromptSession:
+    """Adapt the Kernel RPC callback shape to the Harness Pi session contract."""
+
+    def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter) -> None:
+        self._client = client
+        self._trace = trace
+
+    @property
+    def command(self) -> object:
+        return self._client.command
+
+    def start(self) -> None:
+        self._client.start()
+
+    def prompt_and_wait(
+        self,
+        question: str,
+        *,
+        on_semantic_event: Callable[[Mapping[str, object]], None],
+        correlation_id: str | None,
+        on_heartbeat: Callable[[], None],
+    ) -> str:
+        return self._client.prompt_and_wait(
+            question,
+            on_semantic_event=lambda event, _sequence: on_semantic_event(event),
+            correlation_id=correlation_id,
+            on_heartbeat=on_heartbeat,
+        )
+
+    def stop(self) -> None:
+        try:
+            self._client.stop()
+        finally:
+            self._trace.close()
 
 
 def build_pandapower_thread_application(
@@ -191,6 +379,7 @@ def register_pandapower_capability(
 __all__ = [
     "PANDAPOWER_PROFILE_DESCRIPTOR",
     "PANDAPOWER_PROFILE_INFO",
+    "PreparedKernelPiRpcSessionBuilder",
     "PreparedKernelPiSessionFactory",
     "build_pandapower_thread_application",
     "register_pandapower_capability",
