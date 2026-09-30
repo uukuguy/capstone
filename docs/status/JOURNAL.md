@@ -1435,3 +1435,4 @@ _Recovered pre-merge mainline entries._
 - 06:41 落盘 M1 主线计划：将 hosted API/Worker 进程根迁入 capstone-agent，grid-agent 保留 pandapower 领域工厂适配 [pending]
 - 06:42 M1 主线计划已提交，下一步按测试先行实现 Capstone hosted seam [4730628]
 - 06:49 M1 hosted seam 与 grid/pypsa 绕行边界断言通过；Capstone 218 passed/27 skipped，边界 67 passed，doctor 与本地重建健康 [pending]
+- 06:50 M1 hosted 进程根迁入 capstone-agent，grid-agent/pypsa-agent 直绕行被包边界断言拒绝 [d6a2657]
