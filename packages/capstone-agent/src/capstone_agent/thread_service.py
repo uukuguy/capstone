@@ -224,8 +224,6 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     text = command["payload"].get("text")
     if not isinstance(text, str) or not text.strip():
         return "message_text_required"
-    if "\n" in text or "\r" in text:
-        return "message_text_multiline"
     return None
 
 

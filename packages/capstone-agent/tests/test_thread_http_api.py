@@ -170,6 +170,25 @@ def test_thread_rejects_message_without_nonempty_text() -> None:
     assert service.read_events("thr_demo_39", 0).events == ()
 
 
+def test_thread_accepts_multiline_message_text() -> None:
+    service = _service()
+    command = {
+        "schema": "capstone-command/1",
+        "command_id": "cmd_multiline_001",
+        "idempotency_key": "idem_multiline_001",
+        "thread_id": "thr_demo_39",
+        "run_id": "run_001",
+        "kind": "send_auto",
+        "expected_event_seq": 0,
+        "payload": {"text": "第一行\n第二行"},
+    }
+
+    receipt = service.submit_command(command)
+
+    assert receipt.status == "accepted"
+    assert service.read_events("thr_demo_39", 0).events[0].payload["payload"] == command["payload"]
+
+
 def test_thread_rejects_non_json_command_payload_as_protocol_error() -> None:
     service = _service()
     command = {

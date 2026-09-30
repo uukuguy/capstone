@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope } from './threadProtocol'
@@ -256,5 +256,27 @@ describe('CapstoneAssistantThread', () => {
     expect(input.value).toBe('下一条指令草稿')
     expect(screen.queryByRole('button', { name: '发送指令' })).toBeNull()
     expect(screen.getByRole('button', { name: '停止生成' })).toBeTruthy()
+  })
+
+  it('submits pasted multiline composer text intact', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}} />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+
+    fireEvent.change(input, { target: { value: '第一行\n第二行' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 })
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+  })
+
+  it('sends multiline text from the composer action', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}} />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+
+    fireEvent.change(input, { target: { value: '第一行\n第二行' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
   })
 })
