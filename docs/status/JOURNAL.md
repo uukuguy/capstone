@@ -1384,3 +1384,5 @@ _Recovered pre-merge mainline entries._
 - 13:42 更新恢复 baton，记录 model switch 回滚边界、Web 投影与下一步 API/CLI/TUI 控件 [622d2fe]
 - 14:15 统一 Web/Python Thread Command 构造并接入模型切换控制，保证各客户端共享严格信封 [5882f27]
 - 14:16 更新恢复 baton，记录共享命令构造、Web 模型切换控件与分页跟随验证 [cb2517e]
+- 14:24 增加 Textual Thread 双栏 vertical slice，复用严格投影和命令回执，为 CLI/TUI 接入统一入口 [a124892]
+- 15:03 完成 Web Thread 真实入口、持续 SSE、重同步与可重连错误态，补齐新建 IEEE-39 Thread 路由 [d311cba]

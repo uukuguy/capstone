@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 14:15 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 15:03 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -92,10 +92,29 @@
   or another context change is pending, and shows the accepted receipt. The
   page label and local viewed page follow a newly activated model when the
   user was on the current page; a historical page remains read-only.
+- `thread_tui.py` adds the first Textual vertical slice: a two-column grid /
+  conversation workspace, bounded model selector, ordinary/professional
+  composer actions, public event log, and visible command receipts. It accepts
+  only verified `ThreadSnapshot` + `EventPage` values and an injected submit
+  callback; it does not create a second Thread state machine or connect to Pi.
+  Textual is pinned as `>=8,<9` in the capstone-agent package and its locked
+  transitive dependencies.
+- The Web Thread workspace is now a live route, not only a fixture: the legacy
+  App header links to `?thread=new`; the route stores a session-only operator
+  token, creates the default IEEE-39 Thread when the private API exposes its
+  creator, loads the verified snapshot and event page, and consumes follow-mode
+  SSE through the same `ThreadProjectionStore`. Existing `?thread=<id>` routes
+  restore a Thread, while `?thread-fixture=...` remains provider-free UI
+  regression coverage.
+- Host SSE keeps the connection open with cursor polling and heartbeats,
+  emits a typed `resync_required` frame when retention creates a cursor gap,
+  and preserves the one-shot stream behavior for existing clients. The Web
+  distinguishes transient reconnectable failures from verified resync failures.
 
 ## Verification
 
 - Capstone Python suite: 214 passed, 27 skipped.
+- TUI/command/fixture focused tests: 12 passed.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
   including a professional Attempt with admitted result/evidence refs;
@@ -109,13 +128,20 @@
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
 - Changed Python-file pyright — 0 errors; App TypeScript check, production
-  build, and 98 Vitest tests passed.
+  build, and 103 Vitest tests passed.
+- Focused live Thread API coverage: 8 tests passed, including snapshot/event
+  access, command idempotency, SSE, and cursor-gap recovery.
+- The repository-wide `make check-types` still reports 23 pre-existing errors
+  outside this change; the new TUI sources pass pyright with the capstone-agent
+  environment (0 errors).
 - Cross-package Thread regression is green after the shared bridge move.
 - Full `make test` reached 838 passed and one pre-existing
   `grid-agent` checked-in schema drift failure; no failure came from the
   Thread/App changes.
-- Commit: `5882f27` shared Thread command builders, Web model switch control,
-  and current-page follow behavior. Prior model switch commit: `0ab2799`
+- Commit: `d311cba` completed the live Web Thread workspace, HTTP/SSE route,
+  new IEEE-39 entry, and reconnect/resync states. Prior commit: `5882f27`
+  shared Thread command builders, Web model switch control, and current-page
+  follow behavior. Earlier model switch commit: `0ab2799`
   (Turn-fenced context rollback and Web pending/activation projection).
   Earlier commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
@@ -130,9 +156,11 @@
 
 ## Immediate next action
 
-1. Add public API/CLI command helpers and TUI controls for `switch_model`,
-   reusing the typed Thread command/receipt contract and showing pending,
-   activation, and rollback events with model/page provenance.
+1. Start the local App for manual Web verification, then add the real API
+   composition wiring needed by the local/hosted entry point to provide its
+   registered Thread creator and worker runtime.
+2. Continue with public CLI/TUI commands using the same typed Thread client,
+   receipt, cursor, and projection contracts.
 
 ## Recovery constraints
 
