@@ -1439,3 +1439,5 @@ _Recovered pre-merge mainline entries._
 - 06:51 hosted 根边界状态记录已提交 [14e7796]
 - 06:52 边界验证记录提交完成，工作树仅保留用户既有 `.gitignore` 修改 [714c3b0]
 - 06:54 更新 CURRENT-STATE：明确 capstone-agent 唯一 hosted 应用根，grid/pypsa-agent 仅为受断言约束的迁移适配层 [pending]
+- 06:55 hosted ownership structural state 已同步 [e438475]
+- 06:56 活跃恢复检查点改写为 M1 完成、M2 复合模型目录待启动，保留边界断言约束 [pending]

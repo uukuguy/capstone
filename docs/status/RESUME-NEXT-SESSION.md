@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-01 05:18 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-01 06:56 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -19,6 +19,10 @@
 - `PreparedApplicationPiRuntimeFactory` passes the prepared Context to an
   application-owned Pi session factory. Session stop does not release Run
   resources.
+- `capstone_agent.hosted` now owns hosted API/Worker mode dispatch. The
+  historical `grid-agent` and `pypsa-agent` packages are adapter layers only;
+  source-level assertions reject direct hosted/CLI process roots and workers
+  that bypass Capstone.
 - `grid-agent` and `pypsa-agent` now expose explicit migration registration
   hooks for their existing complete Application Profiles. Both provide opt-in
   Thread composition roots over the shared prepared Kernel/Pi bridge in
@@ -123,14 +127,15 @@
   emits a typed `resync_required` frame when retention creates a cursor gap,
   and preserves the one-shot stream behavior for existing clients. The Web
   distinguishes transient reconnectable failures from verified resync failures.
-- `grid-agent.hosted` is now the API composition root used by the local and
-  container entrypoint. It injects a registered pandapower Thread application,
-  catalog, default Profile and prepared Pi session factory into the neutral
-  hosted CLI. The worker uses the matching `grid_agent.hosted_worker` assembly.
+- `capstone_agent.hosted` is the API/Worker process root used by the local and
+  container entrypoint through a typed assembly factory. `grid-agent.hosted`
+  remains the pandapower compatibility factory adapter; its worker delegates to
+  `capstone_agent.hosted`, and package boundary checks enforce the same rule for
+  PyPSA.
 
 ## Verification
 
-- Capstone Python suite: 214 passed, 27 skipped.
+- Capstone Python suite: 218 passed, 27 skipped.
 - TUI/command/fixture focused tests: 12 passed.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
@@ -142,7 +147,8 @@
   failures in checked-in schema drift and a provider-backed offline answer.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
   raised the Context tests to 13 focused cases.
-- `python tools/check_package_boundaries.py` — passed.
+- `python tools/check_package_boundaries.py` — passed, including hosted-root
+  bypass assertions for grid-agent and pypsa-agent.
 - `git diff --check` — passed.
 - Changed Python-file pyright — 0 errors; App TypeScript check, production
   build, and 103 Vitest tests passed.
@@ -173,9 +179,13 @@
 
 ## Immediate next action
 
-1. Continue Phase D–E of the Web UI primary contract: richer grouped tool/evidence details, domain result cards, and screenshot/accessibility acceptance for populated, failed, cancelled, and reconnecting runs.
-2. Keep using the real scripted pandapower instructions for deterministic Thread/App smoke; do not substitute guessed grid values.
-3. Continue with public CLI/TUI commands using the same typed Thread client, receipt, cursor, and projection contracts.
+1. Start M2: move from the pandapower compatibility factory to a Capstone-owned
+   composite model/authority catalog with real PyPSA model identities and
+   family-specific Profile/runtime dispatch.
+2. Keep using the real scripted pandapower instructions for deterministic
+   Thread/App smoke; do not substitute guessed grid values.
+3. Preserve the shared typed Thread client, receipt, cursor, and projection
+   contracts while M2 changes only application assembly.
 
 ## Recovery constraints
 
@@ -187,3 +197,5 @@
 - Never claim an Attempt completed if terminal persistence failed; stale leases
   must be interrupted before a clean retry.
 - Preserve unrelated unstaged `.gitignore` addition `.codegraph/`.
+- Keep the boundary checker green; a new grid/pypsa hosted or worker entrypoint
+  must delegate through `capstone_agent.hosted` / `capstone_agent.worker`.
