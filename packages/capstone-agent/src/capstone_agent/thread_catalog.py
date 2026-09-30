@@ -64,6 +64,9 @@ class CompositeThreadModelCatalog:
     def list_models(self) -> tuple[ThreadModelDescriptor, ...]:
         return tuple(self.resolve(model_id) for model_id in self.list_model_ids())
 
+    def list_entries(self) -> tuple[ThreadModelCatalogEntry, ...]:
+        return tuple(_catalog_entry(model) for model in self.list_models())
+
 
 class AuthorityThreadModelCatalog:
     """Convert one selected Authority's model record into a safe descriptor.
@@ -88,6 +91,9 @@ class AuthorityThreadModelCatalog:
 
     def list_model_ids(self) -> tuple[str, ...]:
         return self._model_ids
+
+    def list_entries(self) -> tuple[ThreadModelCatalogEntry, ...]:
+        return tuple(_catalog_entry(self.resolve(model_id)) for model_id in self._model_ids)
 
     def resolve(self, model_id: str | None) -> ThreadModelDescriptor:
         selected = self.default_model_id if model_id is None else model_id
@@ -127,6 +133,16 @@ class AuthorityThreadModelCatalog:
             display_name=metadata["display_name"],
             diagram_provider_id=metadata["diagram_provider_id"],
         )
+
+
+def _catalog_entry(model: ThreadModelDescriptor) -> ThreadModelCatalogEntry:
+    return ThreadModelCatalogEntry(
+        model_id=model.model_id,
+        authority_model_ref=model.authority_model_ref or model.model_id,
+        display_name=model.display_name or model.model_id,
+        diagram_provider_id=model.diagram_provider_id or model.implementation_family,
+        implementation_family=model.implementation_family,
+    )
 
 
 __all__ = [

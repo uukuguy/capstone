@@ -1448,3 +1448,4 @@ _Recovered pre-merge mainline entries._
 - M2 模型目录与运行时分派实现已提交：真实 PyPSA ID、复合 Authority、通用 Pi/DSH capability registry [c28c2a2]
 - M2 复合 ApplicationAssembly 已接入 family dispatcher，确保多 Authority 注册可实际组装 [027ebc8]
 - M2 PyPSA catalog 类型检查与重复测试清理完成，保持真实模型注册可审计 [5630f6e]
+- M2 增加层级模型 ID 到安全电网分页的 ThreadCreator 回归覆盖 [449c3cc]

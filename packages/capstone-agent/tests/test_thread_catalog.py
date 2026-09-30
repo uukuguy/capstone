@@ -70,6 +70,7 @@ def test_authority_catalog_accepts_real_pypsa_model_id_and_metadata() -> None:
     assert resolved.authority_model_ref == "pypsa-model:scigrid_de"
     assert resolved.diagram_provider_id == "pypsa-authority"
     assert catalog.list_model_ids() == ("pypsa-example/scigrid_de",)
+    assert catalog.list_entries()[0].display_name == "SciGrid-DE"
 
 
 def test_composite_catalog_routes_by_registered_model_id_and_rejects_duplicates() -> None:
@@ -89,6 +90,9 @@ def test_composite_catalog_routes_by_registered_model_id_and_rejects_duplicates(
     composite.register(pandapower)
     composite.register(pypsa)
     assert composite.list_model_ids() == ("ieee39", "pypsa-example/scigrid_de")
+    assert [entry.implementation_family for entry in composite.list_entries()] == [
+        "pandapower", "pypsa",
+    ]
     assert composite.resolve("pypsa-example/scigrid_de").implementation_family == "pypsa"
     with pytest.raises(ValueError, match="duplicate"):
         composite.register(pandapower)
