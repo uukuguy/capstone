@@ -15,6 +15,7 @@ from capstone_agent.registry import build_registry
 from capstone_agent.progress import summarize_answer
 from capstone_agent.server import create_app
 from capstone_agent.session import WorkerRegistry, WorkerSession
+from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import ThreadCreator, ThreadModelCatalog
 from capstone_agent.thread_worker import RuntimeFactory, serve_thread_attempts
 
@@ -144,6 +145,7 @@ def main(
     error_stream: TextIO | None = None,
     thread_catalog: ThreadModelCatalog | None = None,
     thread_runtime_factory: RuntimeFactory | None = None,
+    thread_application: ThreadApplicationAssembly | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +168,13 @@ def main(
     output = output_stream or sys.stdout
     errors = error_stream or sys.stderr
     try:
+        if thread_application is not None:
+            if thread_catalog is not None or thread_runtime_factory is not None:
+                raise ValueError(
+                    "thread_application cannot be combined with individual Thread bindings",
+                )
+            thread_catalog = thread_application.catalog
+            thread_runtime_factory = thread_application.runtime_factory
         if args.command == "run":
             _run(args.request, selected_registry, output, errors)
         elif args.command == "chat":
@@ -216,8 +225,12 @@ def main(
                     wake_worker=wake_worker,
                     thread_service=thread_service,
                     thread_creator=(
-                        ThreadCreator(thread_service, thread_catalog)
-                        if thread_catalog is not None else None
+                        thread_application.thread_creator(thread_service)
+                        if thread_application is not None
+                        else (
+                            ThreadCreator(thread_service, thread_catalog)
+                            if thread_catalog is not None else None
+                        )
                     ),
                 )
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,

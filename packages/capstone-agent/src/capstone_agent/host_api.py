@@ -23,6 +23,7 @@ from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
 from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
+from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_protocol import ThreadProtocolError
 from capstone_agent.thread_service import (
     ThreadCreator,
@@ -54,11 +55,18 @@ def create_host_app(
     wake_worker: Callable[[], object] | None = None,
     thread_service: ThreadService | None = None,
     thread_creator: ThreadCreator | None = None,
+    thread_application: ThreadApplicationAssembly | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
     if public_demo and (not public_provider or not public_model):
         raise ValueError("public demo provider configuration is incomplete")
+    if thread_application is not None:
+        if thread_creator is not None:
+            raise ValueError("thread_application cannot be combined with thread_creator")
+        if thread_service is None:
+            raise ValueError("thread_service is required for thread_application")
+        thread_creator = thread_application.thread_creator(thread_service)
     demo_token = (hmac.new(operator_token.encode(), b"capstone-public-demo-v1",
                            hashlib.sha256).hexdigest() if public_demo else None)
     catalog = build_catalog(registry, repo_root or Path(__file__).resolve().parents[4])
