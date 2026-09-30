@@ -255,6 +255,64 @@ def test_application_profile_bridge_registers_trusted_factory_and_exposes_profil
     del log
 
 
+def test_application_profile_bridge_prepares_external_runtime_before_context_activation():
+    log = []
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    descriptor = ModelCapabilityDescriptor("prepared-profile", "1.0.0")
+    profile = {"application_id": "legacy"}
+
+    class Prepared:
+        def close(self):
+            log.append("prepared:close")
+
+    prepared = Prepared()
+    register_application_profile(
+        owner, catalog,
+        ModelCapabilityProfileInfo(descriptor, "Prepared", ("pandapower",)),
+        lambda: profile,
+        prepare_profile=lambda selected, context: log.append(
+            ("prepared", selected, context.id)
+        ) or prepared,
+    )
+    registry.seal()
+    owner.seal()
+    context = owner.prepare(_claim(profiles=(descriptor.reference,)))
+    contribution = context.contributions[0]
+    assert contribution.profile is profile
+    assert contribution.prepared is prepared
+    assert log == [("prepared", profile, "ctx_1")]
+    owner.close()
+    assert log[-1] == "prepared:close"
+
+
+def test_external_profile_preparation_failure_closes_the_allocated_handle():
+    log = []
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    descriptor = ModelCapabilityDescriptor("failed-profile", "1.0.0")
+
+    class Profile:
+        def close(self):
+            log.append("profile:close")
+
+    register_application_profile(
+        owner, catalog,
+        ModelCapabilityProfileInfo(descriptor, "Failed", ("pandapower",)),
+        lambda: Profile(),
+        prepare_profile=lambda _profile, _context: (_ for _ in ()).throw(
+            RuntimeError("authority preparation failed")
+        ),
+    )
+    registry.seal()
+    owner.seal()
+    with pytest.raises(RuntimeError, match="authority preparation failed"):
+        owner.prepare(_claim(profiles=(descriptor.reference,)))
+    assert log == ["profile:close"]
+
+
 def test_application_profile_bridge_rejects_catalog_mismatch_and_factory_failure():
     owner, _ = _owner([], seal=False)
     other = CapstoneModelCapabilityCatalog(ModelCapabilityRegistry())

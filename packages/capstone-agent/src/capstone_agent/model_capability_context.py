@@ -80,18 +80,35 @@ class ApplicationProfileCapabilityContribution:
     descriptor: ModelCapabilityDescriptor
     model_context: ModelContextSnapshot
     profile: object
+    prepared: object
+    _closed: bool = False
 
     def close(self) -> None:
-        # The handle owns profile lifetime; contribution close is deliberately
-        # idempotent and does not double-close the application object.
-        return None
+        if self._closed:
+            return
+        self._closed = True
+        # The handle owns the profile declaration; the contribution owns the
+        # external workspace/credential/Authority preparation result.
+        if self.prepared is self.profile:
+            return
+        close = getattr(self.prepared, "close", None)
+        if callable(close):
+            close()
 
 
 class ApplicationProfileCapabilityAdapter:
     """Adapt the bridge handle into a context-scoped profile contribution."""
 
-    def __init__(self, descriptor: ModelCapabilityDescriptor) -> None:
+    def __init__(
+        self,
+        descriptor: ModelCapabilityDescriptor,
+        *,
+        prepare_profile: Callable[[object, ModelContextSnapshot], object] | None = None,
+    ) -> None:
         self.descriptor = descriptor
+        if prepare_profile is not None and not callable(prepare_profile):
+            raise TypeError("prepare_profile must be callable")
+        self._prepare_profile = prepare_profile
 
     def prepare(
         self,
@@ -103,8 +120,13 @@ class ApplicationProfileCapabilityAdapter:
             raise TypeError("application profile handle is invalid")
         if handle.closed:
             raise RuntimeError("application profile handle is closed")
+        prepared = (
+            handle.profile
+            if self._prepare_profile is None
+            else self._prepare_profile(handle.profile, model_context)
+        )
         return ApplicationProfileCapabilityContribution(
-            self.descriptor, model_context, handle.profile,
+            self.descriptor, model_context, handle.profile, prepared,
         )
 
 
@@ -115,6 +137,7 @@ def register_application_profile(
     profile_factory: Callable[[], object],
     *,
     trust_source: str = "trusted-application-bootstrap",
+    prepare_profile: Callable[[object, ModelContextSnapshot], object] | None = None,
 ) -> None:
     """Register one externally assembled legacy profile without domain imports."""
 
@@ -131,7 +154,9 @@ def register_application_profile(
     )
     owner.register_adapter(
         info.descriptor.reference,
-        ApplicationProfileCapabilityAdapter(info.descriptor),
+        ApplicationProfileCapabilityAdapter(
+            info.descriptor, prepare_profile=prepare_profile,
+        ),
     )
 
 

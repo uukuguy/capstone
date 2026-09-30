@@ -50,3 +50,24 @@ Files: `thread_application.py` and `test_thread_application.py`.
 Run the Capstone Python suite, SPI tests, and package boundary checker. Record
 the tested seam and remaining concrete Domain Pack adapter work in the live
 checkpoint. Stage only task-owned paths; preserve the user's `.gitignore` edit.
+
+## Task 4 — prepare the existing Kernel runtime behind the bridge
+
+Files: `capstone_agent/kernel_capability_preparation.py`, the bridge module,
+and focused tests in Capstone and the existing application environment.
+
+1. Add a typed application-private Authority model binding with exact model,
+   revision, family, binding ID and opaque reference. These values never
+   expose raw Authority models or credentials to a Thread document.
+2. Use Kernel public `ApplicationWorkspace.create`, `domain_registry`, and
+   `prepare_application` to prepare all selected Domain Pack bindings before
+   calling the application-injected Authority model binder.
+3. Reject a missing/foreign model binding or revision drift and close every
+   endpoint. Preserve failed workspaces for diagnostics; a clean preparation
+   uses a fresh exclusive workspace.
+4. The bridge contribution owns the closeable prepared runtime. Declaration
+   bridges remain migration-only; no production session may treat a declaration
+   as completed Authority preparation.
+5. Verify a real provider-free pandapower preparation through its public
+   executor, including IEEE-39 revision pinning and rollback. Provider calls
+   and deployment changes remain outside this check.

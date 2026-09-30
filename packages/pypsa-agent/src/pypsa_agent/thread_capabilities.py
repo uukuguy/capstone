@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner, register_application_profile
 from capstone_model_capability_spi import ModelCapabilityDescriptor
+from capstone_agent.thread_protocol import ModelContextSnapshot
 
 from .profile import build_profile
 
@@ -20,6 +23,8 @@ PYPSA_PROFILE_INFO = ModelCapabilityProfileInfo(
 def register_pypsa_capability(
     catalog: CapstoneModelCapabilityCatalog,
     owner: ModelCapabilityContextOwner,
+    *,
+    prepare_profile: Callable[[object, ModelContextSnapshot], object] | None = None,
 ) -> None:
     """Register the current trusted two-binding profile for app assembly."""
 
@@ -29,6 +34,7 @@ def register_pypsa_capability(
         PYPSA_PROFILE_INFO,
         build_profile,
         trust_source="pypsa-agent-migration-assembly",
+        prepare_profile=prepare_profile,
     )
 
 

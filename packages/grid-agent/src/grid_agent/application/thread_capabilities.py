@@ -6,9 +6,12 @@ does not call it implicitly; a future Capstone composition root may opt in.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner, register_application_profile
 from capstone_model_capability_spi import ModelCapabilityDescriptor
+from capstone_agent.thread_protocol import ModelContextSnapshot
 
 from .profile import build_pandapower_application_profile
 
@@ -26,6 +29,8 @@ PANDAPOWER_PROFILE_INFO = ModelCapabilityProfileInfo(
 def register_pandapower_capability(
     catalog: CapstoneModelCapabilityCatalog,
     owner: ModelCapabilityContextOwner,
+    *,
+    prepare_profile: Callable[[object, ModelContextSnapshot], object] | None = None,
 ) -> None:
     """Register the current trusted profile for an explicit app assembly."""
 
@@ -35,6 +40,7 @@ def register_pandapower_capability(
         PANDAPOWER_PROFILE_INFO,
         build_pandapower_application_profile,
         trust_source="grid-agent-migration-assembly",
+        prepare_profile=prepare_profile,
     )
 
 
