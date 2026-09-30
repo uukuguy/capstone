@@ -21,6 +21,17 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()
   })
 
+  it('keeps identifiers in a compact diagnostics disclosure instead of the main heading', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    expect(screen.getByText('THREAD')).toBeTruthy()
+    expect(screen.queryByText('THREAD / RUN run_001')).toBeNull()
+    expect(screen.getByRole('button', { name: '查看 Thread 详情' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '查看 Thread 详情' }))
+    expect(screen.getByText('run_001')).toBeTruthy()
+  })
+
   it('submits a model switch from the grid pane through the Thread command path', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 

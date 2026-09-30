@@ -63,12 +63,12 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
     const previous = grouped.get(id)
     const status = event.eventType === 'tool_started'
       ? 'running'
-      : event.eventType === 'tool_failed' ? 'failed' : event.eventType === 'tool_cancelled' ? 'cancelled' : 'completed'
+      : event.eventType === 'tool_failed' || event.payload.ok === false ? 'failed' : event.eventType === 'tool_cancelled' ? 'cancelled' : 'completed'
     const startedAt = previous?.startedAt || (event.eventType === 'tool_started' ? event.occurredAt : undefined)
     grouped.set(id, {
       id,
-      label: TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' '),
-      source: activitySource(event),
+      label: typeof event.payload.tool_name === 'string' || typeof event.payload.capability === 'string' ? TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' ') : previous?.label || toolName(event),
+      source: typeof event.payload.binding_id === 'string' || typeof event.payload.capability === 'string' ? activitySource(event) : previous?.source || activitySource(event),
       status,
       ...(startedAt ? { startedAt } : {}),
       ...((event.eventType === 'tool_started' ? previous?.finishedAt : event.occurredAt) ? { finishedAt: event.eventType === 'tool_started' ? previous?.finishedAt : event.occurredAt } : {}),
@@ -119,11 +119,27 @@ function durationBetween(startedAt: string | undefined, finishedAt: string | und
   return Math.max(0, finish - start)
 }
 
+function terminalDetail(event: EventEnvelope): string | undefined {
+  const candidates = [event.payload.message, event.payload.error, event.payload.reason]
+  const detail = candidates.find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  return detail?.trim()
+}
+
+function terminalContent(event: EventEnvelope): string {
+  if (event.eventType === 'attempt_failed') {
+    const detail = terminalDetail(event)
+    return detail ? `**执行失败**\n\n${detail}` : '**执行失败**\n\n本次 Attempt 未完成。可以查看运行过程后重新运行。'
+  }
+  if (event.eventType === 'attempt_cancelled') return '**本次 Attempt 已取消**\n\n可以修改指令后重新发送。'
+  return '**本次 Attempt 已中断**\n\n可以查看运行过程，并在确认模型上下文后重新运行。'
+}
+
 export function projectAssistantMessages(events: readonly EventEnvelope[]): ThreadMessageLike[] {
   const messages: ThreadMessageLike[] = []
   const assistantByAttempt = new Map<string, ThreadMessageLike & { content: string }>()
   const instructionByAttempt = new Map<string, { text: string; mode: SendMode }>()
   const startedAtByAttempt = new Map<string, string>()
+  const contextByAttempt = new Map<string, { modelContextId?: string; selectionRevision?: string }>()
   const ensureAssistant = (key: string, startedAt?: string) => {
     if (startedAt) startedAtByAttempt.set(key, startedAt)
     const existing = assistantByAttempt.get(key)
@@ -140,6 +156,14 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
     return message
   }
   for (const event of events) {
+    const eventKey = event.attemptId || event.turnId
+    if (eventKey && (event.modelContextId || event.selectionRevision)) {
+      const previous = contextByAttempt.get(eventKey)
+      contextByAttempt.set(eventKey, {
+        modelContextId: event.modelContextId || previous?.modelContextId,
+        selectionRevision: event.selectionRevision || previous?.selectionRevision,
+      })
+    }
     if (event.eventType === 'command_accepted' && (event.payload.kind === 'send_auto' || event.payload.kind === 'send_ordinary' || event.payload.kind === 'send_professional')) {
       const text = payloadText(event, true)
       if (text) {
@@ -165,9 +189,12 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
       const answer = event.eventType === 'attempt_completed' && typeof event.payload.answer === 'string'
         ? event.payload.answer
         : ''
+      const terminalAnswer = event.eventType === 'attempt_completed' ? answer : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
-      if (message && !message.content && answer) {
-        message.content = answer
+      if (message && !message.content && terminalAnswer) {
+        message.content = terminalAnswer
+      } else if (message && event.eventType !== 'attempt_completed') {
+        message.content += `\n\n${terminalAnswer}`
       }
       if (message) {
         const status = event.eventType === 'attempt_completed'
@@ -183,9 +210,11 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
             toolCount: relatedTools,
-            modelContextId: event.modelContextId,
-            selectionRevision: event.selectionRevision,
+            modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
+            selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
             instruction: key ? instructionByAttempt.get(key)?.text : undefined,
+            terminalPhase: event.eventType.replace(/^attempt_/, ''),
+            errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
             finishedAt: event.occurredAt,
             durationMs: durationBetween(typeof custom.startedAt === 'string' ? custom.startedAt : key ? startedAtByAttempt.get(key) : undefined, event.occurredAt),
@@ -204,7 +233,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
       role: 'assistant' as const,
       content: `本次 Attempt ${label}。可以查看运行过程，并在确认模型上下文后重新运行。`,
       status: { type: 'incomplete' as const, reason: event.eventType === 'attempt_failed' ? 'error' as const : event.eventType === 'attempt_cancelled' ? 'cancelled' as const : 'other' as const },
-      metadata: { custom: { attemptId: key, source: 'capstone-harness', toolCount: events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length, instruction: instructionByAttempt.get(key)?.text, modelContextId: event.modelContextId, selectionRevision: event.selectionRevision, startedAt: startedAtByAttempt.get(key), finishedAt: event.occurredAt, durationMs: durationBetween(startedAtByAttempt.get(key), event.occurredAt) } },
+      metadata: { custom: { attemptId: key, source: 'capstone-harness', toolCount: events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length, instruction: instructionByAttempt.get(key)?.text, modelContextId: event.modelContextId || contextByAttempt.get(key)?.modelContextId, selectionRevision: event.selectionRevision || contextByAttempt.get(key)?.selectionRevision, startedAt: startedAtByAttempt.get(key), finishedAt: event.occurredAt, durationMs: durationBetween(startedAtByAttempt.get(key), event.occurredAt) } },
     }
     messages.push(message)
     assistantByAttempt.set(key, message)
@@ -295,7 +324,7 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
   return <span className={`capstone-chat-duration${running ? ' is-running' : ''}`} aria-live="polite">{running ? '运行中' : '运行'} {formatDuration(elapsed)}</span>
 }
 
-function AttemptActivity({ activities, running, open, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; open: boolean; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+function AttemptActivity({ activities, running, phase, open, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -305,21 +334,36 @@ function AttemptActivity({ activities, running, open, startedAt, durationMs, det
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
   if (activities.length === 0) return null
+  const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   return <details ref={detailsRef} className="capstone-chat-activity capstone-chat-activity-attached" open={open}>
-    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : '已完成'} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
+    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
     <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
   </details>
 }
 
-function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string } }) {
+function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, contextId, selectionRevision }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; contextId?: string; selectionRevision?: string }) {
   if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
-  const admitted = Boolean(admission && typeof admission === 'object' && 'status' in admission && (admission as { status?: unknown }).status === 'admitted')
+  const admitted = Boolean(admission && typeof admission === 'object' && (
+    (typeof (admission as { status?: unknown }).status === 'string'
+      && (admission as { status?: unknown }).status === 'admitted')
+    || (typeof (admission as { mode?: unknown }).mode === 'string'
+      && typeof (admission as { assurance?: unknown }).assurance === 'string')
+  ))
+  const admissionRef = admission && typeof admission === 'object' && 'admission_ref' in admission && typeof (admission as { admission_ref?: unknown }).admission_ref === 'string'
+    ? (admission as { admission_ref: string }).admission_ref : undefined
   return <div className="capstone-chat-artifacts" aria-label="当前运行结果引用">
-    <span className="capstone-chat-artifacts-label"><FileCheck2 aria-hidden="true" /> 当前运行</span>
-    {modelSummary && <span title={modelSummary.modelRevision}>{modelSummary.modelId} · {modelSummary.implementationFamily}</span>}
-    {resultRefs.length > 0 && <span>结果 {resultRefs.length}</span>}
-    {evidenceRefs.length > 0 && <span>证据 {evidenceRefs.length}</span>}
-    {admitted && <span className="is-admitted">已准入</span>}
+    {resultRefs.length > 0 && <section className="capstone-chat-reference-card is-result" role="group" aria-label="当前运行结果">
+      <div className="capstone-chat-reference-heading"><Activity aria-hidden="true" /><strong>当前运行结果</strong><span>{resultRefs.length} 份</span>{admitted && <em>已准入</em>}</div>
+      {modelSummary && <div className="capstone-chat-reference-meta">{modelSummary.modelId} · {modelSummary.implementationFamily} · revision {modelSummary.modelRevision}</div>}
+      {!modelSummary && contextId && <div className="capstone-chat-reference-meta">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
+      <div className="capstone-chat-reference-list">{resultRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
+      {admissionRef && <small className="capstone-chat-reference-admission">准入 {admissionRef}</small>}
+    </section>}
+    {evidenceRefs.length > 0 && <section className="capstone-chat-reference-card is-evidence" role="group" aria-label="当前运行证据">
+      <div className="capstone-chat-reference-heading"><FileCheck2 aria-hidden="true" /><strong>当前运行证据</strong><span>{evidenceRefs.length} 条</span></div>
+      {!modelSummary && contextId && <div className="capstone-chat-reference-meta">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
+      <div className="capstone-chat-reference-list">{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
+    </section>}
   </div>
 }
 
@@ -340,6 +384,9 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
   const startedAt = typeof custom?.startedAt === 'string' ? custom.startedAt : undefined
   const durationMs = typeof custom?.durationMs === 'number' ? custom.durationMs : undefined
   const toolCount = typeof custom?.toolCount === 'number' ? custom.toolCount : 0
+  const contextId = typeof custom?.modelContextId === 'string' ? custom.modelContextId : undefined
+  const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
+  const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
   const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
   useEffect(() => {
@@ -353,7 +400,8 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
       return next
     })
   }
-  return <MessagePrimitive.Root className={`capstone-chat-message is-${role}`}>
+  const messageState = status?.type === 'running' ? 'running' : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type
+  return <MessagePrimitive.Root className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
       <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
       {hasText
@@ -362,9 +410,9 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
     </div>
     {role === 'user' && typeof custom?.receipt === 'string' && <div className="capstone-chat-receipt"><Check aria-hidden="true" /> {custom.receipt}</div>}
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
-    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={modelSummary} />}
+    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
     {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={evidenceRefs} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
-    {role === 'assistant' && <AttemptActivity activities={activities} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
@@ -375,7 +423,7 @@ function ComposerSurface({ mode, disabled, isRunning, editRequest }: { mode: Sen
     if (editRequest) aui.composer.setText(editRequest.text)
   }, [aui, editRequest])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
-    <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled} submitMode="ctrlEnter" />
+    <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="ctrlEnter" />
     <div className="capstone-composer-footer"><span>Enter 换行 · ⌘/Ctrl + Enter 发送</span><div className="capstone-composer-actions">
       {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成"><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : !disabled && !isEmpty ? <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title={mode === 'professional' ? '发送专业请求' : '发送指令'}><SendHorizontal aria-hidden="true" /></ComposerPrimitive.Send> : null}
     </div></div>
@@ -433,8 +481,8 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
         </details>}
         <div className="capstone-chat-composer">
           <div className="capstone-chat-mode" role="group" aria-label="指令模式">
-            <button type="button" className={mode === 'automatic' ? 'is-selected' : ''} onClick={() => setMode('automatic')} disabled={disabled}>自动识别</button>
-            <button type="button" className={mode === 'professional' ? 'is-selected' : ''} onClick={() => setMode('professional')} disabled={disabled}>专业分析</button>
+            <button type="button" className={mode === 'automatic' ? 'is-selected' : ''} aria-pressed={mode === 'automatic'} onClick={() => setMode('automatic')} disabled={disabled}>自动识别</button>
+            <button type="button" className={mode === 'professional' ? 'is-selected' : ''} aria-pressed={mode === 'professional'} onClick={() => setMode('professional')} disabled={disabled}>专业分析</button>
           </div>
           <ComposerSurface mode={mode} disabled={disabled} isRunning={isRunning} editRequest={editRequest} />
         </div>

@@ -531,6 +531,32 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .capstone-assistant-thread { height: auto; min-height: 0; }
 }
 
+/* Keep reference cards and diagnostics above all legacy light-theme overrides. */
+.capstone-chat-artifacts { display: grid; align-items: stretch; gap: 6px; margin-top: 9px; }
+.capstone-chat-reference-card { display: grid; }
+
+/* Compact diagnostics and authoritative result/evidence cards. */
+.thread-diagnostics-toggle { min-height: 24px; padding: 0 7px; border: 1px solid #c8ddd4; border-radius: 999px; background: #fff; color: #4a7770; font-size: 10px; cursor: pointer; }
+.thread-diagnostics-toggle:hover, .thread-diagnostics-toggle:focus-visible { border-color: #65a994; background: #eff8f4; color: #176f65; outline: none; }
+.thread-diagnostics { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: -2px 0 8px; padding: 7px 9px; border: 1px solid #dce9e3; border-radius: 7px; background: #f7fbf9; color: #6b8780; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.thread-diagnostics code { color: #3e6962; overflow-wrap: anywhere; }
+.capstone-chat-message.is-failed .capstone-chat-body { border-left: 2px solid #c5765d; padding-left: 10px; }
+.capstone-chat-message.is-cancelled .capstone-chat-body, .capstone-chat-message.is-interrupted .capstone-chat-body { border-left: 2px solid #bf995c; padding-left: 10px; }
+.capstone-chat-message.is-failed .capstone-chat-role { color: #a55545; }
+.capstone-chat-message.is-cancelled .capstone-chat-role, .capstone-chat-message.is-interrupted .capstone-chat-role { color: #97703b; }
+.capstone-chat-artifacts { display: grid; gap: 6px; margin-top: 9px; }
+.capstone-chat-reference-card { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid #dce9e3; border-radius: 8px; background: #fbfdfc; color: #5f7d75; font-size: 10px; line-height: 1.4; }
+.capstone-chat-reference-card.is-result { border-left: 2px solid #70b39d; }
+.capstone-chat-reference-card.is-evidence { border-left: 2px solid #9bb9d4; }
+.capstone-chat-reference-heading { display: flex; align-items: center; gap: 6px; color: #39766b; }
+.capstone-chat-reference-heading svg { width: 14px; height: 14px; }
+.capstone-chat-reference-heading span { color: #839b95; }
+.capstone-chat-reference-heading em { margin-left: auto; padding: 2px 5px; border: 1px solid #abd4c5; border-radius: 999px; background: #f1faf5; color: #277b67; font-size: 9px; font-style: normal; }
+.capstone-chat-reference-meta { color: #78938b; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.capstone-chat-reference-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.capstone-chat-reference-list code { max-width: 100%; padding: 3px 5px; border: 1px solid #d7e6df; border-radius: 4px; background: #fff; color: #5f7d75; font: 10px/1.3 "SFMono-Regular", Consolas, monospace; overflow-wrap: anywhere; }
+.capstone-chat-reference-admission { color: #849a94; font: 9px/1.35 "SFMono-Regular", Consolas, monospace; overflow-wrap: anywhere; }
+
 /* Mainstream assistant-ui chat treatment: compact messages, readable Markdown,
    quiet metadata, and a sticky pill composer. Domain-specific panels remain
    outside this surface so the conversation keeps the familiar ChatGPT/Grok
@@ -663,3 +689,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .thread-chat-pane { height: auto; min-height: 620px; }
   .capstone-assistant-thread { height: auto; min-height: 0; }
 }
+
+/* Final reference-card cascade. */
+.capstone-chat-artifacts { display: grid; align-items: stretch; gap: 6px; margin-top: 9px; }
+.capstone-chat-reference-card { display: grid; }

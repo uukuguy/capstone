@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-01 04:08 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-01 04:34 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -28,15 +28,16 @@
 
 ## Latest Web Thread checkpoint
 
-- Commit `ef626c4` keeps the legacy three-column App and `RunPanel` unchanged. The Thread route uses a separate light two-column shell: a copied model pane on the left and an assistant-ui conversation surface on the right, with compact populated-run rendering, answer-level activity, and live Attempt timing.
+- The legacy three-column App and `RunPanel` remain unchanged. The Thread route uses a separate light two-column shell: a copied model pane on the left and an assistant-ui conversation surface on the right, with compact populated-run rendering, answer-level activity, live Attempt timing, terminal state styling, and compact Thread diagnostics.
 - `ThreadModelPane.tsx` copies the legacy hero image treatment and reuses the existing `NetworkView` renderer. Fixture mode uses a bounded IEEE-39 preview; live mode fetches the registered `gridctl` diagram (`39` buses / `46` branches) through `CapstoneClient.caseDiagram`.
-- `CapstoneAssistantThread.tsx` uses `useExternalStoreRuntime` over the Capstone public event projection. It maps nested `command_accepted`, `attempt_started`, streaming text, and terminal answers into messages; assistant answers use controlled GFM Markdown, compact hover/focus action icons, assistant-ui style generation/stop states, and compact running/final duration labels. Tool events are grouped into readable activity steps with binding/capability provenance and per-step terminal duration. Automatic routing is the default, with an optional professional override.
+- `CapstoneAssistantThread.tsx` uses `useExternalStoreRuntime` over the Capstone public event projection. It maps nested `command_accepted`, `attempt_started`, streaming text, and terminal answers into messages; assistant answers use controlled GFM Markdown, compact hover/focus action icons, assistant-ui style generation/stop states, and compact running/final duration labels. Tool events are grouped into readable activity steps with binding/capability provenance and per-step terminal duration. Result/evidence cards are rendered only from current-run admitted references, and Attempt model context is recovered from earlier public events when a terminal event omits it. Failed, cancelled, and interrupted Attempts receive explicit terminal copy and retry affordances. Automatic routing is the default, with an optional professional override.
 - The Thread route preserves the original App header, compact model controls, registered topology, and viewport-filling two-column layout. The legacy App remains available unchanged.
 - Commit `f57c182` injects the full pandapower Thread application into both hosted API and worker (`grid_agent.hosted_worker`). New Threads receive the registered default Profile and execute via the prepared Kernel/Pi Harness.
-- Latest verification: App 114 tests; TypeScript/build, package boundaries and diff checks pass. Local API and worker were rebuilt from the current backend source and are healthy. A real browser Thread run showed `正在执行 1 个步骤 · 运行中 5.4s`, then retained `运行 15.4s` on the completed answer. Earlier two-turn pandapower validation still confirms GFM tables, answer-owned result/evidence rows, grouped tool activity, independent message scrolling, and a visible Composer.
+- Latest verification: App 122 tests; TypeScript/build, package boundaries and diff checks pass. Local API and worker were rebuilt from the current backend source and are healthy. Real browser validation captured empty, running, multi-turn, completed-table, and interrupted states under `output/playwright/`; a running Thread showed `正在执行 8 个步骤 · 运行中 16.1s`, and completed answers retained `运行 12.3s` / `运行 17.9s`. The two-turn pandapower run confirms GFM table rendering, answer-owned evidence, grouped tool provenance, independent message scrolling, compact diagnostics, and a visible Composer.
 - A real new Thread (`thr_ad750d83909b8e382a01`) completed a model query with admitted evidence and a full answer. The former accepted-only Thread failed closed during preparation because it predates Profile registration; create a new Thread for user trial.
 - The approved Web UI primary contract is `docs/superpowers/specs/2026-10-01-capstone-thread-web-ui-main-contract.md`. It makes typography density and runtime timing hard gates: assistant body 13–14px, headings 18–22px, body never above 14px except controlled headings, compact state hierarchy, Markdown/GFM, per-answer grouped tool activity, dynamic Attempt duration, and sticky Composer.
 - Answer-level retry now carries the owning Attempt instruction, so regenerating an older turn cannot accidentally submit the latest turn's text.
+- Focused UI coverage now includes Result/Evidence cards, failure/cancel/interrupted terminal projections, failed tool provenance, stale model-label protection, running draft preservation, and compact Thread ID disclosure.
 
 ## Current implementation
 

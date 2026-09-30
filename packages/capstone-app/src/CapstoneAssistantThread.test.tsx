@@ -128,9 +128,8 @@ describe('CapstoneAssistantThread', () => {
 
     expect(screen.getByRole('button', { name: '查看证据' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '查看运行过程' })).toBeTruthy()
-    expect(screen.getByLabelText('当前运行结果引用').textContent).toContain('结果 1')
-    expect(screen.getByLabelText('当前运行结果引用').textContent).toContain('证据 1')
-    expect(screen.queryByText('evidence:run_1:powerflow')).toBeNull()
+    expect(screen.getByRole('group', { name: '当前运行结果' }).textContent).toContain('1 份')
+    expect(screen.getByRole('group', { name: '当前运行证据' }).textContent).toContain('1 条')
   })
 
   it('keeps repeated tool calls and each conversation activity separate', () => {
@@ -156,5 +155,87 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '查看运行过程' }))
     expect(first.querySelector('details')?.open).toBe(true)
     expect(second.querySelector('details')?.open).toBe(false)
+  })
+
+  it('renders result and evidence cards from current-run admission metadata', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_professional', payload: { text: '运行潮流' } }, 'attempt_cards'),
+      event('attempt_completed', 2, {
+        answer: '潮流已收敛。',
+        result_refs: ['result:run_1:powerflow'],
+        evidence_refs: ['evidence:run_1:powerflow'],
+        admission: { mode: 'authority_backed', assurance: 'lineage_verified', admission_ref: 'admission:run_1' },
+      }, 'attempt_cards'),
+    ]
+    expect((projectAssistantMessages(events)[1].metadata as { custom?: { admission?: unknown } }).custom?.admission).toEqual(expect.objectContaining({ mode: 'authority_backed' }))
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    expect(screen.getByRole('group', { name: '当前运行结果' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: '当前运行证据' })).toBeTruthy()
+    expect(screen.getByText('已准入')).toBeTruthy()
+    expect(screen.getByText(/admission:run_1/)).toBeTruthy()
+  })
+
+  it('shows a terminal failure with the next action instead of a generation placeholder', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_failed'),
+      event('attempt_failed', 2, { error_code: 'solver_failed', message: '潮流求解器未收敛。' }, 'attempt_failed'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={async () => {}} />)
+
+    expect(screen.getByText('执行失败')).toBeTruthy()
+    expect(screen.getByText('潮流求解器未收敛。')).toBeTruthy()
+    expect(screen.queryByText('正在生成回答…')).toBeNull()
+    expect(screen.getByRole('button', { name: '重新运行回答' })).toBeTruthy()
+  })
+
+  it('keeps partial text but makes cancellation explicit and stops incomplete tool steps', () => {
+    const events = [
+      event('attempt_started', 1, {}, 'attempt_cancelled'),
+      event('tool_started', 2, { tool_name: 'grid_context_open', tool_call_id: 'pending_tool' }, 'attempt_cancelled'),
+      event('assistant_text_delta', 3, { text: '已读取部分模型。' }, 'attempt_cancelled'),
+      event('attempt_cancelled', 4, {}, 'attempt_cancelled'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText('已读取部分模型。')).toBeTruthy()
+    expect(screen.getByText('本次 Attempt 已取消')).toBeTruthy()
+    expect(screen.getByText(/已取消 · 1 个步骤/)).toBeTruthy()
+    expect(screen.queryByText(/已完成 1 个步骤/)).toBeNull()
+  })
+
+  it('projects tool ok=false as a failure and retains completed provenance', () => {
+    const activities = projectAssistantActivity([
+      event('tool_started', 1, { tool_call_id: 'call_fail', tool_name: 'grid_context_open', binding_id: 'grid', capability: 'context.open' }, 'attempt_1'),
+      event('tool_completed', 2, { tool_call_id: 'call_fail', ok: false }, 'attempt_1'),
+    ])
+    expect(activities[0]).toMatchObject({ status: 'failed', label: '打开模型上下文', source: 'grid · context.open' })
+  })
+
+  it('does not label an old answer with the newly selected model', () => {
+    const terminal = { ...event('attempt_completed', 1, { answer: '旧模型结果。', evidence_refs: ['evidence:old'] }, 'attempt_old'), modelContextId: 'ctx_old' }
+    render(<CapstoneAssistantThread events={[terminal]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
+      modelSummary={{ modelId: 'pypsa39', implementationFamily: 'pypsa', modelRevision: 'new_revision', contextId: 'ctx_new' }} />)
+    expect(screen.queryByText(/pypsa39/)).toBeNull()
+    expect(screen.getByText(/ctx_old/)).toBeTruthy()
+  })
+
+  it('carries attempt model context into a terminal result card when the terminal event omits it', () => {
+    const started = { ...event('attempt_started', 1, {}, 'attempt_context'), modelContextId: 'ctx_current', selectionRevision: 'sel_4' }
+    render(<CapstoneAssistantThread events={[
+      started,
+      event('attempt_completed', 2, { answer: '潮流已收敛。', result_refs: ['result:current'], evidence_refs: ['evidence:current'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'attempt_context'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
+      modelSummary={{ modelId: 'ieee39', implementationFamily: 'pandapower', modelRevision: 'revision:current', contextId: 'ctx_current' }} />)
+
+    expect(screen.getByText(/ieee39 · pandapower · revision revision:current/)).toBeTruthy()
+  })
+
+  it('allows drafting during a running attempt while keeping send unavailable', () => {
+    render(<CapstoneAssistantThread events={[event('attempt_started', 1, {}, 'attempt_live')]} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    expect(input.disabled).toBe(false)
+    fireEvent.change(input, { target: { value: '下一条指令草稿' } })
+    expect(input.value).toBe('下一条指令草稿')
+    expect(screen.queryByRole('button', { name: '发送指令' })).toBeNull()
+    expect(screen.getByRole('button', { name: '停止生成' })).toBeTruthy()
   })
 })
