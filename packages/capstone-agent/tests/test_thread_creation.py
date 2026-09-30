@@ -61,6 +61,22 @@ def test_thread_creator_defaults_to_registered_ieee39_and_pins_revision() -> Non
     assert service.created == snapshot
 
 
+def test_thread_creator_derives_a_safe_page_id_for_hierarchical_model() -> None:
+    service = _Service()
+
+    class Catalog(_Catalog):
+        default_model_id = "pypsa-example/scigrid_de"
+
+        def resolve(self, model_id: str | None) -> ThreadModelDescriptor:
+            assert model_id == self.default_model_id
+            return ThreadModelDescriptor(
+                self.default_model_id, "revision:sha256:" + "b" * 64, "pypsa",
+            )
+
+    snapshot = ThreadCreator(service, Catalog()).create()
+    assert snapshot.active_grid_page_id == "page_pypsa-example__scigrid_de"
+
+
 def test_thread_creator_persists_selected_profile_references_in_model_context() -> None:
     service = _Service()
     registry = ModelCapabilityRegistry()
