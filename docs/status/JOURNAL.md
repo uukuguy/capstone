@@ -1362,3 +1362,5 @@ _Recovered pre-merge mainline entries._
 - 11:12 按工具 provenance 将 Thread result/evidence refs 归属到 binding，支持多 binding admission 保守聚合 [0690078]
 - 11:13 更新活动 checkpoint，记录多 binding admission ownership 与下一步 PyPSA/共享 fixture [3cdd4ad]
 - 11:42 将 Kernel/Pi 装配桥下沉至 capstone-agent，并为 PyPSA 增加显式 Thread 组合根 [5d6d569]
+- 11:43 更新活动恢复 baton，记录共享装配验证结果与下一步 Thread worker fixture [a09e984]
+- 11:44 用真实 PyPSA Profile 驱动共享 Thread worker fixture，验证准备上下文与终态提交 [aac8fbd]

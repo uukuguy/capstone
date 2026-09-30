@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:42 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:45 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -59,7 +59,7 @@
 
 - Capstone Python suite: 189 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid Thread capability tests: 5 passed; PyPSA package tests: 18 passed;
+- Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed;
   Harness/Thread application tests:
   17 passed; Capstone suite: 189 passed, 27 skipped. The full Grid suite
   reached 874 passed but
@@ -77,13 +77,12 @@
   descriptor/session builder; `45abb24` bounded Harness provenance;
   `afc932e` provider-free Thread worker fixture; `1eecfa1` application
   result/evidence admission gate; `0690078` per-binding admission ownership;
-  `5d6d569` shared prepared Kernel/Pi assembly and explicit PyPSA Thread root.
+  `5d6d569` shared prepared Kernel/Pi assembly and explicit PyPSA Thread root;
+  `aac8fbd` PyPSA Profile shared-worker fixture.
 
 ## Immediate next action
 
-1. Exercise both application profiles through a shared controlled Thread
-   worker fixture; verify current-run result/evidence ownership end to end.
-2. Add public control-command execution only after result/evidence admission
+1. Add public control-command execution only after result/evidence admission
    and current-run binding are enforced.
 
 ## Recovery constraints
