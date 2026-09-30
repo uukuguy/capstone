@@ -99,7 +99,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const events = store.publicEvents
 
   if (!loading && error && !snapshot) {
-    return <div className="thread-app-shell"><PageHeader /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
+    return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
   }
 
   function sync() {
@@ -131,7 +131,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   return <div className="thread-app-shell">
-    <PageHeader />
+    <PageHeader className="thread-page-header" showThreadEntry={false} />
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
         <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}

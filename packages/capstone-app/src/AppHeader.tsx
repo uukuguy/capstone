@@ -2,11 +2,11 @@ function Mark() {
   return <span className="mark" aria-hidden="true"><i /><i /><i /><i /></span>
 }
 
-export function PageHeader() {
-  return <header className="topbar">
+export function PageHeader({ className = '', showThreadEntry = true }: { className?: string; showThreadEntry?: boolean }) {
+  return <header className={`topbar ${className}`.trim()}>
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
       <span className="brand-subtitle">电网分析工作台</span></div>
-    <a className="thread-entry-link" href="?thread=new">打开 Thread</a>
+    {showThreadEntry && <a className="thread-entry-link" href="?thread=new">打开 Thread</a>}
     <a className="project-link" href="https://github.com/uukuguy/capstone"
       target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 CAPSTONE 项目源代码">
       <svg className="project-link-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">

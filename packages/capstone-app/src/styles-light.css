@@ -298,6 +298,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 /* Thread route: a copied light model pane plus assistant-ui presentation. */
 .thread-app-shell { min-height: 100vh; background: #eef3f1; color: #172d32; }
+.thread-page-header { max-width: calc(1540px - clamp(36px, 6vw, 88px)); }
 .thread-app-main { width: min(1540px, 100%); min-height: calc(100vh - 58px); margin: 0 auto; padding: 25px clamp(18px, 3vw, 44px) 42px; }
 .thread-app-columns { display: grid; grid-template-columns: minmax(480px, 1.08fr) minmax(440px, .92fr); border: 1px solid #d2e1db; background: #f8fbf9; box-shadow: 0 10px 28px #31564810; }
 .thread-model-pane, .thread-chat-pane { min-width: 0; padding: 24px clamp(18px, 2.5vw, 36px) 30px; }
