@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 10:06 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 10:24 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -35,6 +35,9 @@
   Run-owned prepared Context, contribution bridge, rollback and cleanup.
 - `packages/capstone-agent/src/capstone_agent/thread_application.py` —
   injected Authority/Pi assembly and paired prepared-session runtime factory.
+- `packages/capstone-agent/src/capstone_agent/kernel_capability_preparation.py`
+  — Kernel public `prepare_application` bridge, independent workspace,
+  Authority model binding, revision gate, and endpoint cleanup.
 - `packages/grid-agent/src/grid_agent/application/thread_capabilities.py` —
   explicit pandapower migration registration.
 - `packages/pypsa-agent/src/pypsa_agent/thread_capabilities.py` — explicit
@@ -42,22 +45,23 @@
 
 ## Verification
 
-- Capstone Python suite: 172 passed, 27 skipped.
+- Capstone Python suite: 185 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid application tests: 42 passed; PyPSA tests: 17 passed.
+- Grid application tests: 43 passed; PyPSA tests: 17 passed.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
   raised the Context tests to 13 focused cases.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
 - Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
-  capability registration hooks; `a11fbb0` paired prepared assembly.
+  capability registration hooks; `a11fbb0` paired prepared assembly;
+  `f89e0f4` real Kernel/Authority preparation bridge.
 
 ## Immediate next action
 
-1. Add a prepared-session application adapter that consumes the selected
-   `ApplicationProfileCapabilityContribution` and performs external
-   workspace/credential/Authority preparation before Pi starts.
-2. Bind that adapter into one explicit Capstone composition root, keeping the
+1. Bind the prepared Kernel contribution into one explicit Pi session builder;
+   it must consume the prepared tool catalog and Authority endpoint before Pi
+   starts, and expose no raw objects to Thread/Web.
+2. Add one opt-in end-to-end Thread worker composition root, keeping the
    default compatibility CLI and Web Case route unchanged until an end-to-end
    Thread run proves model, tool, result, and evidence admission.
 3. Add public tool provenance and control-command execution only after this

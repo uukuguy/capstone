@@ -1347,3 +1347,5 @@ _Recovered pre-merge mainline entries._
 - 09:56 回归通过：Capstone 171 passed/27 skipped，Grid application 42、PyPSA 17、SPI 13，包边界与 diff 检查通过
 - 09:58 更新 checkpoint 验证数字，记录 Capstone 171/27 回归通过 [85a3f00]
 - 10:05 将 prepared Context owner 与 ThreadApplicationAssembly 成对绑定，防止模型目录、Profile、Pi runtime 错配 [a11fbb0]
+- 10:07 更新 checkpoint，记录 prepared assembly 成对绑定与 Capstone 172/27 回归 [49ab613]
+- 10:22 接通 Kernel Profile 到真实 Authority 准备：独立 workspace、gridctl context.open、revision 硬校验与回收 [f89e0f4]
