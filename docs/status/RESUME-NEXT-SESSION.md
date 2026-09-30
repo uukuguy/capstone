@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 15:18 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 16:01 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -25,6 +25,14 @@
   `capstone-agent`; the concrete Pi RPC builder writes a bounded runtime
   descriptor and closes the trace on session stop without starting Pi during
   assembly.
+
+## Latest Web Thread checkpoint
+
+- Commit `03063ff` keeps the legacy three-column App and `RunPanel` unchanged. The Thread route now uses a separate light two-column shell: a copied model pane on the left and an assistant-ui conversation surface on the right.
+- `ThreadModelPane.tsx` copies the legacy hero image treatment and reuses the existing `NetworkView` renderer. Fixture mode uses a bounded IEEE-39 preview; live mode fetches the registered `gridctl` diagram (`39` buses / `46` branches) through `CapstoneClient.caseDiagram`.
+- `CapstoneAssistantThread.tsx` uses `useExternalStoreRuntime` over the Capstone public event projection. It maps nested `command_accepted` payloads and `assistant_text_delta` events into user/assistant messages, keeps tool activity visible, and sends ordinary/professional commands through the existing Thread command path.
+- App verification: 105 Vitest tests passed, TypeScript check/build passed, package boundary check passed, and `make capstone-local-rebuild` completed.
+- Live worker runtime factory is still not wired in the hosted composition, so the Web can create Threads, load diagrams, submit accepted commands, and follow SSE, while Attempt execution remains the next backend boundary.
 
 ## Current implementation
 
