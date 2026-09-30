@@ -1364,3 +1364,5 @@ _Recovered pre-merge mainline entries._
 - 11:42 将 Kernel/Pi 装配桥下沉至 capstone-agent，并为 PyPSA 增加显式 Thread 组合根 [5d6d569]
 - 11:43 更新活动恢复 baton，记录共享装配验证结果与下一步 Thread worker fixture [a09e984]
 - 11:44 用真实 PyPSA Profile 驱动共享 Thread worker fixture，验证准备上下文与终态提交 [aac8fbd]
+- 11:45 更新活动恢复 baton，推进到公共 control command 之前的 Thread 核心收口 [6b1b205]
+- 11:46 强化 PyPSA worker fixture，验证专业 Attempt 的结果/证据引用经 admission 后提交 [4209d8d]

@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:45 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 11:47 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -59,7 +59,8 @@
 
 - Capstone Python suite: 189 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
-- Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed;
+- Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
+  including a professional Attempt with admitted result/evidence refs;
   Harness/Thread application tests:
   17 passed; Capstone suite: 189 passed, 27 skipped. The full Grid suite
   reached 874 passed but
@@ -78,7 +79,8 @@
   `afc932e` provider-free Thread worker fixture; `1eecfa1` application
   result/evidence admission gate; `0690078` per-binding admission ownership;
   `5d6d569` shared prepared Kernel/Pi assembly and explicit PyPSA Thread root;
-  `aac8fbd` PyPSA Profile shared-worker fixture.
+  `aac8fbd` PyPSA Profile shared-worker fixture; `4209d8d` PyPSA admission
+  lineage worker fixture.
 
 ## Immediate next action
 
