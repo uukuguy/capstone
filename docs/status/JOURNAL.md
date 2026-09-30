@@ -1437,3 +1437,5 @@ _Recovered pre-merge mainline entries._
 - 06:49 M1 hosted seam 与 grid/pypsa 绕行边界断言通过；Capstone 218 passed/27 skipped，边界 67 passed，doctor 与本地重建健康 [pending]
 - 06:50 M1 hosted 进程根迁入 capstone-agent，grid-agent/pypsa-agent 直绕行被包边界断言拒绝 [d6a2657]
 - 06:51 hosted 根边界状态记录已提交 [14e7796]
+- 06:52 边界验证记录提交完成，工作树仅保留用户既有 `.gitignore` 修改 [714c3b0]
+- 06:54 更新 CURRENT-STATE：明确 capstone-agent 唯一 hosted 应用根，grid/pypsa-agent 仅为受断言约束的迁移适配层 [pending]
