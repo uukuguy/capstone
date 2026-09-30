@@ -1403,3 +1403,4 @@ _Recovered pre-merge mainline entries._
 - 01:44 修复 fixture 发送后事件未投影，确保用户消息和 Harness 响应可见 [cee6ba7]
 - 02:10 修复 hosted worker 未装配 Thread Harness、补齐最终回答投影，并优化 assistant-ui 生成态与聊天样式 [f57c182]
 - 02:25 将 Web Thread 对话区字体密度、assistant-ui 结构、Markdown、工具摘要和 Composer 验收固化为主合同 [pending]
+- 02:26 更正：Web Thread UI 主合同已提交，包含字体密度硬规范与实现验收门 [d8f3601]
