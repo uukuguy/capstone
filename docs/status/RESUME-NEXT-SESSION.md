@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-01 04:02 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-01 04:08 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -36,6 +36,7 @@
 - Latest verification: App 114 tests; TypeScript/build, package boundaries and diff checks pass. Local API and worker were rebuilt from the current backend source and are healthy. A real browser Thread run showed `正在执行 1 个步骤 · 运行中 5.4s`, then retained `运行 15.4s` on the completed answer. Earlier two-turn pandapower validation still confirms GFM tables, answer-owned result/evidence rows, grouped tool activity, independent message scrolling, and a visible Composer.
 - A real new Thread (`thr_ad750d83909b8e382a01`) completed a model query with admitted evidence and a full answer. The former accepted-only Thread failed closed during preparation because it predates Profile registration; create a new Thread for user trial.
 - The approved Web UI primary contract is `docs/superpowers/specs/2026-10-01-capstone-thread-web-ui-main-contract.md`. It makes typography density and runtime timing hard gates: assistant body 13–14px, headings 18–22px, body never above 14px except controlled headings, compact state hierarchy, Markdown/GFM, per-answer grouped tool activity, dynamic Attempt duration, and sticky Composer.
+- Answer-level retry now carries the owning Attempt instruction, so regenerating an older turn cannot accidentally submit the latest turn's text.
 
 ## Current implementation
 
