@@ -219,6 +219,8 @@ export class ThreadProjectionStore {
       throw new Error('event stream is not contiguous')
     }
     let currentAttempt = snapshot.currentAttempt
+    const previousActivePage = snapshot.activeGridPageId
+    let viewedGridPageId = this.current.viewedGridPageId
     const document = snapshot.toDocument()
     const payload = record(event.payload)
     if (event.eventType === 'model_context_change_pending') {
@@ -239,6 +241,7 @@ export class ThreadProjectionStore {
       if (typeof page === 'string') document.active_grid_page_id = page
       delete document.pending_model_switch
       delete document.pending_selection
+      if (viewedGridPageId === previousActivePage && typeof page === 'string') viewedGridPageId = page
     } else if (event.eventType === 'selection_activated') {
       const activeContext = record(document.active_model_context)
       activeContext.selection_revision = event.selectionRevision
@@ -271,6 +274,6 @@ export class ThreadProjectionStore {
       } : null,
       last_event_seq: event.eventSeq,
     })
-    this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq }
+    this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
   }
 }

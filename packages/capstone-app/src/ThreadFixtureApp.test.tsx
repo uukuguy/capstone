@@ -16,6 +16,16 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()
   })
 
+  it('submits a model switch from the grid pane through the Thread command path', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('heading', { name: 'Thread / IEEE-39' })
+    fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
+    fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
+
+    expect(await screen.findByText('switch_model · accepted')).toBeTruthy()
+  })
+
   it('keeps live cancellation visible while the grid pane is historical', async () => {
     render(<ThreadFixtureApp fixtureId="historical-live-attempt" />)
 

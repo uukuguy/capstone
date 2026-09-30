@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
+import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 
 const snapshot = {
   schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo_39',
@@ -36,6 +36,18 @@ function command(): ThreadCommand {
 }
 
 describe('CapstoneThreadClient', () => {
+  it('builds a model switch command with the verified cursor and caller identity', () => {
+    expect(buildThreadCommand({
+      threadId: 'thr_demo_39', runId: 'run_001', kind: 'switch_model',
+      expectedEventSeq: 7, commandId: 'cmd_switch_001', idempotencyKey: 'idem_switch_001',
+      payload: { model_id: 'pypsa39' },
+    })).toEqual({
+      schema: 'capstone-command/1', command_id: 'cmd_switch_001', idempotency_key: 'idem_switch_001',
+      thread_id: 'thr_demo_39', run_id: 'run_001', kind: 'switch_model', expected_event_seq: 7,
+      payload: { model_id: 'pypsa39' },
+    })
+  })
+
   it('creates a Thread and validates its pinned snapshot', async () => {
     const transport: ThreadTransport = {
       createThread: vi.fn().mockResolvedValue(snapshot),
@@ -82,6 +94,21 @@ describe('CapstoneThreadClient', () => {
       commandId: 'cmd_1', idempotencyKey: 'idem_1', status: 'accepted',
     })
     expect(transport.sendCommand).toHaveBeenCalledWith(value, undefined)
+  })
+
+  it('submits a model switch through the same typed command transport', async () => {
+    const transport: ThreadTransport = {
+      getSnapshot: vi.fn(), readEvents: vi.fn(), sendCommand: vi.fn().mockResolvedValue(receipt),
+    }
+
+    await new CapstoneThreadClient(transport).switchModel(
+      'thr_demo_39', 'run_001', 'pypsa39', 7,
+      { commandId: 'cmd_switch_001', idempotencyKey: 'idem_switch_001' },
+    )
+
+    expect(transport.sendCommand).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'switch_model', expected_event_seq: 7, payload: { model_id: 'pypsa39' },
+    }), undefined)
   })
 
   it('does not turn an invalid receipt into an accepted command', async () => {

@@ -327,6 +327,10 @@ button.reference-chip:hover { background: #235043; color: white; }
 .thread-model-card strong { display: block; color: #e9f2ed; font-size: 15px; }
 .thread-model-card span:not(.thread-model-badge) { display: block; margin-top: 5px; color: #8fa9a6; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
 .thread-model-badge { color: #9fe4d3; border: 1px solid #3b776d; padding: 5px 7px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
+.thread-model-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.thread-model-controls label { display: grid; gap: 5px; color: #7fa39d; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
+.thread-model-controls select { min-height: 34px; border: 1px solid #31534f; border-radius: 3px; background: #0e2024; color: #c8e2da; padding: 0 9px; font-size: 10px; }
+.thread-model-controls small { align-self: center; color: #d7b882; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
 .thread-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 14px 0 4px; }
 .thread-page-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; flex: 0 0 auto; padding: 0 10px;
   border: 1px solid #2a464a; background: #0e2024; color: #91aaa7; border-radius: 3px; font-size: 10px; text-align: left; }

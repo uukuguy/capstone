@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
+import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 
@@ -20,7 +20,13 @@ function eventLabel(eventType: string): string {
   return {
     grid_page_registered: '已登记电网模型页', grid_page_viewed: '切换到历史电网页',
     attempt_progress: 'Attempt 进度更新', command_accepted: '命令已接收',
+    model_context_change_pending: '模型切换已挂起', model_context_activated: '模型上下文已激活',
+    model_context_reverted: '模型切换已回滚', selection_change_pending: '能力选择已挂起',
   }[eventType] || eventType.replaceAll('_', ' ')
+}
+
+function modelLabel(modelId: string | undefined): string {
+  return { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39' }[modelId || ''] || modelId || '当前模型'
 }
 
 function NetworkCanvas({ pageId, historical }: { pageId: string | null; historical: boolean }) {
@@ -58,6 +64,7 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
+  const [modelTarget, setModelTarget] = useState('pypsa39')
   const commandNumber = useRef(0)
 
   useEffect(() => {
@@ -85,8 +92,11 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
   const attempt = snapshot?.currentAttempt
   const isActive = Boolean(attempt && ACTIVE_PHASES.has(attempt.phase))
   const isInterrupted = attempt?.phase === 'interrupted'
+  const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
-  const pages = isHistorical ? ['page_ieee39', 'page_scigrid_2'] : ['page_ieee39']
+  const pages = isHistorical
+    ? Array.from(new Set([activePage || 'page_ieee39', viewedPage || 'page_scigrid_2']))
+    : [activePage || 'page_ieee39']
   const eventDocument = fixture.events && typeof fixture.events === 'object' && !Array.isArray(fixture.events)
     ? fixture.events as Record<string, unknown> : {}
   const fixtureEvents = Array.isArray(eventDocument.events) ? eventDocument.events as Record<string, unknown>[] : []
@@ -98,12 +108,11 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
   async function dispatch(kind: string, payload: Record<string, unknown> = {}) {
     if (!snapshot) return
     commandNumber.current += 1
-    const command: ThreadCommand = {
-      schema: 'capstone-command/1', command_id: `cmd_ui_${commandNumber.current}`,
-      idempotency_key: `idem_ui_${kind}_${commandNumber.current}`, thread_id: snapshot.threadId,
-      run_id: snapshot.run.runId, kind, expected_event_seq: projection.eventSeq,
-      payload,
-    }
+    const command: ThreadCommand = buildThreadCommand({
+      threadId: snapshot.threadId, runId: snapshot.run.runId, kind,
+      expectedEventSeq: projection.eventSeq, commandId: `cmd_ui_${commandNumber.current}`,
+      idempotencyKey: `idem_ui_${kind}_${commandNumber.current}`, payload,
+    })
     try {
       const receipt = await store.dispatch(command)
       setNotice(`${kind} · ${receipt.status}`); sync()
@@ -126,12 +135,19 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
       <div className={`thread-connection is-${projection.connection}`}><i />{connectionLabel(projection.connection)}</div>
     </header>
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : <main className="thread-workspace">
-      <h1 className="thread-workspace-title">Thread / IEEE-39</h1>
+      <h1 className="thread-workspace-title">Thread / {modelLabel(snapshot?.activeModelContext.modelId)}</h1>
       <section className="thread-grid-pane" aria-label="电网模型区">
         <div className="thread-pane-heading"><div><span className="eyebrow">MODEL / CURRENT GRID</span><h2>电网模型</h2></div><span className="thread-context-state">{isHistorical ? '历史查看' : '当前'}</span></div>
-        <div className="thread-model-card"><div><strong>IEEE-39</strong><span>pandapower · revision 7</span></div><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+        <div className="thread-model-card"><div><strong>{modelLabel(snapshot?.activeModelContext.modelId)}</strong><span>{snapshot?.activeModelContext.implementationFamily || 'pandapower'} · revision {snapshot?.activeModelContext.modelRevision || '—'}</span></div><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+        <div className="thread-model-controls" aria-label="模型上下文控制">
+          <label>切换模型<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => setModelTarget(event.target.value)} disabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'}>
+            <option value="ieee39">IEEE-39 · pandapower</option><option value="pypsa39">PyPSA-39 · PyPSA</option>
+          </select></label>
+          <button type="button" className="thread-control-button" disabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live' || modelTarget === snapshot?.activeModelContext.modelId} onClick={() => void dispatch('switch_model', { model_id: modelTarget })}>切换模型</button>
+          {contextChangePending && <small>切换将在下一 Turn 激活</small>}
+        </div>
         <div className="thread-page-tabs" aria-label="电网模型分页">
-          {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage} label={pageId === 'page_ieee39' ? 'IEEE-39 · 当前模型' : 'SciGrid-2 · 事件历史'} onClick={() => selectPage(pageId)} />)}
+          {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage} label={pageId === activePage ? `${modelLabel(snapshot?.activeModelContext.modelId)} · 当前模型` : pageId === 'page_scigrid_2' ? 'SciGrid-2 · 事件历史' : `${pageId} · 事件历史`} onClick={() => selectPage(pageId)} />)}
         </div>
         <NetworkCanvas pageId={viewedPage} historical={isHistorical} />
         <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot?.activeModelContext.id || '—'}</strong></div><div><span>SELECTION</span><strong>{snapshot?.activeModelContext.selectionRevision || '—'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projection.eventSeq}</strong></div></div>

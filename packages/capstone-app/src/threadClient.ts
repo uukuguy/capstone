@@ -25,6 +25,33 @@ export interface ThreadTransport {
   readonly connectionState?: ThreadTransportState
 }
 
+const commandIdentifierPattern = /^[a-z][a-z0-9_-]{0,63}$/
+
+export function buildThreadCommand(input: {
+  threadId: string
+  runId?: string
+  kind: string
+  expectedEventSeq: number
+  commandId: string
+  idempotencyKey: string
+  payload: Record<string, unknown>
+}): ThreadCommand {
+  for (const [name, value] of [
+    ['threadId', input.threadId], ['commandId', input.commandId], ['idempotencyKey', input.idempotencyKey], ['kind', input.kind],
+  ] as const) {
+    if (!commandIdentifierPattern.test(value)) throw new Error(`${name} is invalid`)
+  }
+  if (input.runId !== undefined && !commandIdentifierPattern.test(input.runId)) throw new Error('runId is invalid')
+  if (!Number.isSafeInteger(input.expectedEventSeq) || input.expectedEventSeq < 0) throw new Error('expectedEventSeq is invalid')
+  return {
+    schema: 'capstone-command/1', command_id: input.commandId,
+    idempotency_key: input.idempotencyKey, thread_id: input.threadId,
+    ...(input.runId === undefined ? {} : { run_id: input.runId }),
+    kind: input.kind, expected_event_seq: input.expectedEventSeq,
+    payload: { ...input.payload },
+  }
+}
+
 export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
 
@@ -50,6 +77,17 @@ export class CapstoneThreadClient {
 
   async send(command: ThreadCommand, signal?: AbortSignal): Promise<CommandReceipt> {
     return parseCommandReceipt(await this.transport.sendCommand(command, signal))
+  }
+
+  async switchModel(
+    threadId: string, runId: string, modelId: string, expectedEventSeq: number,
+    identity: { commandId: string; idempotencyKey: string }, signal?: AbortSignal,
+  ): Promise<CommandReceipt> {
+    return this.send(buildThreadCommand({
+      threadId, runId, kind: 'switch_model', expectedEventSeq,
+      commandId: identity.commandId, idempotencyKey: identity.idempotencyKey,
+      payload: { model_id: modelId },
+    }), signal)
   }
 
   async *events(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope> {

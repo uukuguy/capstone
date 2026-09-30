@@ -211,6 +211,7 @@ describe('ThreadProjectionStore', () => {
 
     expect(store.state.snapshot?.activeModelContext.modelId).toBe('pypsa39')
     expect(store.state.snapshot?.activeGridPageId).toBe('page_pypsa39')
+    expect(store.state.viewedGridPageId).toBe('page_pypsa39')
     expect(store.state.snapshot?.pendingModelSwitch).toBeUndefined()
   })
 })
