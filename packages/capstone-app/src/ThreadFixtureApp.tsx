@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
-import CapstoneAssistantThread from './CapstoneAssistantThread'
+import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { NetworkDiagram } from './types'
@@ -15,15 +15,6 @@ function phaseLabel(phase: string | undefined): string {
     running: '正在运行', waiting: '等待确认', interrupted: '已中断', cancelled: '已取消',
     completed: '已完成', failed: '执行失败',
   }[phase || ''] || '空闲'
-}
-
-function eventLabel(eventType: string): string {
-  return {
-    grid_page_registered: '已登记电网模型页', grid_page_viewed: '切换到历史电网页',
-    attempt_progress: 'Attempt 进度更新', command_accepted: '命令已接收',
-    model_context_change_pending: '模型切换已挂起', model_context_activated: '模型上下文已激活',
-    model_context_reverted: '模型切换已回滚', selection_change_pending: '能力选择已挂起',
-  }[eventType] || eventType.replaceAll('_', ' ')
 }
 
 function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
@@ -97,6 +88,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
   const events = store.publicEvents
+  const lastConversationText = [...events].reverse().find((event) => event.eventType === 'command_accepted' && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
+  const lastConversationPayload = lastConversationText?.payload.payload
+  const lastConversationInstruction = lastConversationPayload && typeof lastConversationPayload === 'object' && !Array.isArray(lastConversationPayload) && typeof (lastConversationPayload as Record<string, unknown>).text === 'string'
+    ? String((lastConversationPayload as Record<string, unknown>).text) : null
 
   if (!loading && error && !snapshot) {
     return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
@@ -116,7 +111,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     })
     try {
       const receipt = await store.dispatch(command)
-      setNotice(`${kind} · ${receipt.status}`); sync()
+      const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
+      setNotice(conversational ? null : `${kind} · ${receipt.status}`); sync()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '命令未提交'); sync()
     }
@@ -141,13 +137,14 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
           <div className="thread-chat-heading"><div><span className="eyebrow">THREAD / RUN {snapshot.run.runId}</span><h2>对话 Thread</h2></div><span className="thread-run-state">{snapshot.run.state}</span></div>
-          <div className={`thread-state-notice${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>
+          {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
-          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={events.filter((event) => ['tool_started', 'tool_completed', 'attempt_progress'].includes(event.eventType)).map((event) => `${eventLabel(event.eventType)} · capstone-harness`)}
+          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)}
             onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
-            onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }} />
+            onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
+            onRegenerate={async () => { if (lastConversationInstruction) await dispatch('send_auto', { text: lastConversationInstruction }) }} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
               {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}

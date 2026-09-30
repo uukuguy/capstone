@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import CapstoneAssistantThread, { projectAssistantMessages } from './CapstoneAssistantThread'
+import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope } from './threadProtocol'
 
 afterEach(cleanup)
@@ -56,5 +56,29 @@ describe('CapstoneAssistantThread', () => {
       ['assistant', [{ type: 'text', text: '当前模型为 IEEE-39。' }]],
     ])
     expect(messages[1].status).toEqual({ type: 'complete', reason: 'stop' })
+  })
+
+  it('groups tool events into readable activity steps', () => {
+    expect(projectAssistantActivity([
+      event('tool_started', 1, { tool_name: 'grid_model_list', capability: 'model.list', binding_id: 'grid' }, 'attempt_1'),
+      event('tool_completed', 2, { tool_name: 'grid_model_list', capability: 'model.list', binding_id: 'grid' }, 'attempt_1'),
+      event('tool_started', 3, { tool_name: 'grid_context_get', capability: 'context.get', binding_id: 'grid' }, 'attempt_1'),
+    ])).toEqual([
+      { id: 'grid_model_list', label: '读取模型目录', source: 'grid · model.list', status: 'completed' },
+      { id: 'grid_context_get', label: '读取模型上下文', source: 'grid · context.get', status: 'running' },
+    ])
+  })
+
+  it('renders Markdown and mainstream message actions', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '查看当前模型' } }),
+      event('attempt_completed', 2, { answer: '## 当前模型\n\n| 项目 | 值 |\n| --- | --- |\n| 母线 | 39 |' }, 'attempt_1'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={async () => {}} />)
+
+    expect(screen.getByRole('heading', { name: '当前模型' })).toBeTruthy()
+    expect(screen.getByRole('cell', { name: '39' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重新运行回答' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '发送指令' })).toBeTruthy()
   })
 })
