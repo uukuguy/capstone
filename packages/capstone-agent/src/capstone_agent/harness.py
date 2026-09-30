@@ -9,7 +9,10 @@ identities and event sequence numbers around that seam.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol
+
+from .thread_service import AttemptClaim, ThreadExecutionService
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -17,6 +20,13 @@ RuntimeEventSink = Callable[[dict[str, object]], None]
 
 class HarnessRuntimeUnavailable(RuntimeError):
     """The requested replaceable runtime is not installed or enabled."""
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessAttemptResult:
+    status: str
+    answer: str | None
+    error_code: str | None
 
 
 class PiPromptSession(Protocol):
@@ -29,6 +39,18 @@ class PiPromptSession(Protocol):
         on_semantic_event: Callable[[Mapping[str, object]], None],
         correlation_id: str | None,
         on_heartbeat: Callable[[], None],
+    ) -> str: ...
+
+    def stop(self) -> None: ...
+
+
+class HarnessRuntime(Protocol):
+    def start(self) -> None: ...
+
+    def prompt(
+        self, question: str, *, on_event: RuntimeEventSink,
+        correlation_id: str | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
     ) -> str: ...
 
     def stop(self) -> None: ...
@@ -120,6 +142,7 @@ class HarnessPiClient:
     def prompt(
         self, question: str, *, on_event: RuntimeEventSink,
         correlation_id: str | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
     ) -> str:
         def emit(native: Mapping[str, object]) -> None:
             on_event(normalize_runtime_event(native, runtime_mode=self.runtime_mode))
@@ -128,7 +151,7 @@ class HarnessPiClient:
             question,
             on_semantic_event=emit,
             correlation_id=correlation_id,
-            on_heartbeat=lambda: None,
+            on_heartbeat=on_heartbeat or (lambda: None),
         )
 
     def stop(self) -> None:
@@ -144,15 +167,89 @@ class HarnessDSHClient:
     def start(self) -> None:
         raise HarnessRuntimeUnavailable("DSH Harness runtime is not installed")
 
-    def prompt(self, question: str, *, on_event: RuntimeEventSink, correlation_id: str | None = None) -> str:
-        del question, on_event, correlation_id
+    def prompt(
+        self, question: str, *, on_event: RuntimeEventSink,
+        correlation_id: str | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
+    ) -> str:
+        del question, on_event, correlation_id, on_heartbeat
         raise HarnessRuntimeUnavailable("DSH Harness runtime is not installed")
 
     def stop(self) -> None:
         return None
 
 
+class HarnessAttemptRunner:
+    """Run one claimed Attempt and commit only a terminal, bounded outcome."""
+
+    def __init__(
+        self, service: ThreadExecutionService, runtime: HarnessRuntime,
+        *, lease_seconds: int = 30,
+    ) -> None:
+        if lease_seconds < 1:
+            raise ValueError("attempt worker lease is invalid")
+        self._service = service
+        self._runtime = runtime
+        self._lease_seconds = lease_seconds
+
+    def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
+        try:
+            self._runtime.start()
+            answer = self._runtime.prompt(
+                claim.instruction,
+                correlation_id=claim.attempt.attempt_id,
+                on_event=lambda event: self._persist_event(claim, event),
+                on_heartbeat=lambda: self._renew_lease(claim),
+            )
+            if not isinstance(answer, str):
+                raise TypeError("runtime answer is invalid")
+            bounded_answer = answer[:64_000]
+            self._service.finish_attempt(
+                claim, phase="completed", payload={"answer": bounded_answer},
+            )
+            return HarnessAttemptResult("completed", bounded_answer, None)
+        except Exception:
+            self._finish_failed(claim)
+            return HarnessAttemptResult("failed", None, "runtime_failed")
+        finally:
+            try:
+                self._runtime.stop()
+            except Exception:
+                pass
+
+    def _persist_event(self, claim: AttemptClaim, event: Mapping[str, object]) -> None:
+        event_type = event.get("event_type")
+        runtime_mode = event.get("runtime_mode")
+        visibility = event.get("visibility", "diagnostic")
+        payload = event.get("payload")
+        if not isinstance(event_type, str) or not isinstance(runtime_mode, str):
+            raise ValueError("runtime event is invalid")
+        if not isinstance(payload, Mapping):
+            raise ValueError("runtime event payload is invalid")
+        self._service.append_runtime_event(
+            claim,
+            event_type=event_type,
+            payload={"runtime_mode": runtime_mode, **dict(payload)},
+            visibility=visibility if isinstance(visibility, str) else "diagnostic",
+        )
+
+    def _renew_lease(self, claim: AttemptClaim) -> None:
+        if not self._service.renew_attempt(claim, self._lease_seconds):
+            raise RuntimeError("attempt lease is unavailable")
+
+    def _finish_failed(self, claim: AttemptClaim) -> None:
+        try:
+            self._service.finish_attempt(
+                claim, phase="failed", payload={"error_code": "runtime_failed"},
+            )
+        except Exception as exc:
+            # The durable service remains the source of truth. If its terminal
+            # write failed, do not claim that the Attempt was safely finished.
+            raise RuntimeError("attempt terminal persistence failed") from exc
+
+
 __all__ = [
-    "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeUnavailable",
+    "HarnessAttemptResult", "HarnessAttemptRunner", "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeUnavailable",
     "PiPromptSession", "normalize_runtime_event",
+    "HarnessRuntime",
 ]

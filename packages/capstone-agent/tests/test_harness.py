@@ -4,10 +4,12 @@ import pytest
 
 from capstone_agent.harness import (
     HarnessDSHClient,
+    HarnessAttemptRunner,
     HarnessPiClient,
     HarnessRuntimeUnavailable,
     normalize_runtime_event,
 )
+from capstone_agent.thread_service import InMemoryThreadService
 
 
 class _PiSession:
@@ -28,6 +30,19 @@ class _PiSession:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+def _thread_service() -> InMemoryThreadService:
+    return InMemoryThreadService.from_document({
+        "schema": "capstone-thread-snapshot/1", "thread_id": "thr_harness",
+        "run": {"run_id": "run_harness", "state": "open"},
+        "active_model_context": {
+            "id": "ctx_ieee39", "model_id": "ieee39", "model_revision": "revision:sha256:" + "a" * 64,
+            "implementation_family": "pandapower", "selection_revision": "sel_0",
+        },
+        "active_grid_page_id": "page_ieee39", "current_attempt": None,
+        "last_event_seq": 0, "base_event_seq": 0,
+    })
 
 
 def test_pi_client_normalizes_native_events_and_preserves_answer() -> None:
@@ -66,3 +81,45 @@ def test_dsh_client_is_an_explicitly_unavailable_shell() -> None:
     client = HarnessDSHClient()
     with pytest.raises(HarnessRuntimeUnavailable, match="DSH"):
         client.start()
+
+
+def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_001",
+        "idempotency_key": "idem_harness_001", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(service, HarnessPiClient(_PiSession())).run(claim)
+
+    assert result.status == "completed"
+    assert result.answer == "answer"
+    assert service.snapshot("thr_harness").current_attempt is None
+    assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+
+
+def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_heartbeat",
+        "idempotency_key": "idem_harness_heartbeat", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=1)
+    assert claim is not None
+
+    class _HeartbeatSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            callback = kwargs["on_heartbeat"]
+            assert callable(callback)
+            callback()
+            return super().prompt_and_wait(question, **kwargs)
+
+    result = HarnessAttemptRunner(
+        service, HarnessPiClient(_HeartbeatSession()), lease_seconds=30,
+    ).run(claim)
+    assert result.status == "completed"

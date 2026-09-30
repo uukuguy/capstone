@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import secrets
+import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import RLock
@@ -21,6 +22,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from .thread_protocol import (
+    AttemptSnapshot,
     CommandReceipt,
     EventEnvelope,
     EventPage,
@@ -52,6 +54,10 @@ class ThreadResyncRequired(RuntimeError):
         self.snapshot = snapshot
 
 
+class ThreadExecutionError(RuntimeError):
+    """An Attempt cannot be claimed or mutated by the supplied worker lease."""
+
+
 class ThreadService(Protocol):
     """Persistence and admission operations required by the HTTP projection."""
 
@@ -62,6 +68,39 @@ class ThreadService(Protocol):
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
+
+
+@dataclass(frozen=True, slots=True)
+class AttemptClaim:
+    """One immutable Attempt leased to exactly one Harness worker."""
+
+    thread_id: str
+    run_id: str
+    attempt: AttemptSnapshot
+    kind: str
+    instruction: str
+    model_context_id: str
+    selection_revision: str
+    lease_token: str
+
+
+class ThreadExecutionService(ThreadService, Protocol):
+    """Durable Attempt operations used by the Harness worker."""
+
+    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None: ...
+
+    def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
+
+    def interrupt_expired_attempts(self) -> int: ...
+
+    def append_runtime_event(
+        self, claim: AttemptClaim, *, event_type: str, payload: Mapping[str, Any],
+        visibility: str = "public",
+    ) -> EventEnvelope: ...
+
+    def finish_attempt(
+        self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
+    ) -> ThreadSnapshot: ...
 
 
 def _identifier(value: Any, *, name: str) -> str:
@@ -117,6 +156,7 @@ class InMemoryThreadService:
         self._events: list[EventEnvelope] = []
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
+        self._attempts: dict[str, dict[str, Any]] = {}
         self._lock = RLock()
 
     @classmethod
@@ -176,13 +216,24 @@ class InMemoryThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
+            if self._snapshot.current_attempt is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                return receipt
 
             event_seq = self._snapshot.last_event_seq + 1
+            token = secrets.token_hex(8)
+            turn_id = "turn_" + token
+            attempt_id = "attempt_" + token
+            attempt = AttemptSnapshot(
+                turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
+                target_model_context_id=self._snapshot.active_model_context.id,
+            )
             event = EventEnvelope(
                 event_id="evt_" + secrets.token_hex(8), event_seq=event_seq,
                 event_type="command_accepted", event_version=1,
                 thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
-                turn_id=None, attempt_id=None,
+                turn_id=turn_id, attempt_id=attempt_id,
                 model_context_id=self._snapshot.active_model_context.id,
                 selection_revision=self._snapshot.active_model_context.selection_revision,
                 occurred_at=_now(), visibility="public",
@@ -190,11 +241,148 @@ class InMemoryThreadService:
                          "payload": parsed["payload"]},
             )
             self._events.append(event)
-            self._snapshot = replace(self._snapshot, last_event_seq=event_seq)
-            receipt = self._receipt(parsed, status="accepted", accepted_event_seq=event_seq)
+            self._snapshot = replace(
+                self._snapshot, current_attempt=attempt, last_event_seq=event_seq,
+            )
+            self._attempts[attempt_id] = {
+                "attempt": attempt, "kind": parsed["kind"],
+                "instruction": parsed["payload"]["text"], "lease_token": None,
+                "lease_deadline": None,
+            }
+            receipt = self._receipt(
+                parsed, status="accepted", accepted_event_seq=event_seq,
+                target={"turn_id": turn_id, "attempt_id": attempt_id},
+            )
             self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
             self._command_ids.add(parsed["command_id"])
             return receipt
+
+    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
+        if not worker_id or lease_seconds < 1:
+            raise ValueError("attempt worker lease is invalid")
+        with self._lock:
+            for attempt_id, record in self._attempts.items():
+                if record["attempt"].phase != "accepted" or record["lease_token"] is not None:
+                    continue
+                token = secrets.token_hex(16)
+                accepted = record["attempt"]
+                running = replace(accepted, phase="running")
+                record["attempt"] = running
+                record["lease_token"] = token
+                record["lease_deadline"] = time.monotonic() + lease_seconds
+                event = self._append_event(
+                    event_type="attempt_started", attempt=running,
+                    payload={"attempt_id": running.attempt_id},
+                )
+                self._snapshot = replace(self._snapshot, current_attempt=running, last_event_seq=event.event_seq)
+                return AttemptClaim(
+                    thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
+                    attempt=running, kind=record["kind"], instruction=record["instruction"],
+                    model_context_id=self._snapshot.active_model_context.id,
+                    selection_revision=self._snapshot.active_model_context.selection_revision,
+                    lease_token=token,
+                )
+            return None
+
+    def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
+        if lease_seconds < 1:
+            raise ValueError("attempt worker lease is invalid")
+        with self._lock:
+            record = self._require_claim(claim)
+            if record["attempt"].phase != "running":
+                raise ThreadExecutionError("attempt is not running")
+            record["lease_deadline"] = time.monotonic() + lease_seconds
+            return True
+
+    def interrupt_expired_attempts(self) -> int:
+        cutoff = time.monotonic()
+        interrupted = 0
+        with self._lock:
+            for record in self._attempts.values():
+                deadline = record.get("lease_deadline")
+                if record["attempt"].phase != "running" or deadline is None or deadline > cutoff:
+                    continue
+                terminal = replace(record["attempt"], phase="interrupted")
+                record["attempt"] = terminal
+                record["lease_token"] = None
+                record["lease_deadline"] = None
+                event = self._append_event(
+                    event_type="attempt_interrupted", attempt=terminal,
+                    payload={"reason": "lease_expired"},
+                )
+                self._snapshot = replace(
+                    self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                )
+                interrupted += 1
+        return interrupted
+
+    def append_runtime_event(
+        self, claim: AttemptClaim, *, event_type: str, payload: Mapping[str, Any],
+        visibility: str = "public",
+    ) -> EventEnvelope:
+        _identifier(event_type, name="event_type")
+        _validate_json(payload, name="event.payload")
+        with self._lock:
+            record = self._require_claim(claim)
+            if record["attempt"].phase != "running":
+                raise ThreadExecutionError("attempt is not running")
+            if visibility not in {"public", "diagnostic"}:
+                raise ThreadProtocolError("event visibility is invalid")
+            event = self._append_event(
+                event_type=event_type, attempt=record["attempt"],
+                payload=dict(payload), visibility=visibility,
+            )
+            self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
+            return event
+
+    def finish_attempt(
+        self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
+    ) -> ThreadSnapshot:
+        if phase not in {"completed", "failed", "cancelled", "interrupted"}:
+            raise ValueError("attempt terminal phase is invalid")
+        _validate_json(payload, name="attempt.payload")
+        with self._lock:
+            record = self._require_claim(claim)
+            if record["attempt"].phase != "running":
+                raise ThreadExecutionError("attempt is not running")
+            terminal = replace(record["attempt"], phase=phase)
+            record["attempt"] = terminal
+            record["lease_token"] = None
+            event = self._append_event(
+                event_type="attempt_" + phase,
+                attempt=terminal, payload=dict(payload),
+            )
+            self._snapshot = replace(
+                self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+            )
+            return self._snapshot
+
+    def _require_claim(self, claim: AttemptClaim) -> dict[str, Any]:
+        if claim.thread_id != self._snapshot.thread_id:
+            raise ThreadExecutionError("attempt thread is invalid")
+        record = self._attempts.get(claim.attempt.attempt_id)
+        if (record is None or record["lease_token"] != claim.lease_token
+                or record.get("lease_deadline") is None
+                or record["lease_deadline"] <= time.monotonic()):
+            raise ThreadExecutionError("attempt lease is unavailable")
+        return record
+
+    def _append_event(
+        self, *, event_type: str, attempt: AttemptSnapshot,
+        payload: Mapping[str, Any], visibility: str = "public",
+    ) -> EventEnvelope:
+        event = EventEnvelope(
+            event_id="evt_" + secrets.token_hex(8),
+            event_seq=self._snapshot.last_event_seq + 1,
+            event_type=event_type, event_version=1,
+            thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
+            turn_id=attempt.turn_id, attempt_id=attempt.attempt_id,
+            model_context_id=self._snapshot.active_model_context.id,
+            selection_revision=self._snapshot.active_model_context.selection_revision,
+            occurred_at=_now(), visibility=visibility, payload=dict(payload),
+        )
+        self._events.append(event)
+        return event
 
     def compact_before(self, base_event_seq: int) -> None:
         with self._lock:
@@ -248,12 +436,13 @@ class InMemoryThreadService:
     def _receipt(
         self, command: Mapping[str, Any], *, status: str,
         accepted_event_seq: int | None = None, rejection: str | None = None,
+        target: dict[str, Any] | None = None,
     ) -> CommandReceipt:
         return CommandReceipt(
             command_id=command["command_id"], idempotency_key=command["idempotency_key"],
             thread_id=command["thread_id"], run_id=self._snapshot.run.run_id,
             status=status, accepted_event_seq=accepted_event_seq,
-            rejection=rejection, target=None,
+            rejection=rejection, target=target,
         )
 
 
@@ -342,6 +531,26 @@ CREATE TABLE IF NOT EXISTS capstone_thread_commands (
     PRIMARY KEY (thread_id, idempotency_key),
     UNIQUE (thread_id, command_id)
 );
+CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
+    attempt_id text PRIMARY KEY,
+    thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
+    run_id text NOT NULL,
+    turn_id text NOT NULL,
+    command_id text NOT NULL,
+    kind text NOT NULL,
+    instruction text NOT NULL,
+    model_context_id text NOT NULL,
+    selection_revision text NOT NULL,
+    phase text NOT NULL CHECK (phase IN ('accepted', 'running', 'waiting', 'committing', 'cancelled', 'interrupted', 'completed', 'failed')),
+    lease_token text,
+    lease_deadline timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (thread_id, turn_id),
+    UNIQUE (thread_id, command_id)
+);
+CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
+    ON capstone_thread_attempts(created_at, attempt_id)
+    WHERE phase = 'accepted' AND lease_token IS NULL;
 """
 
 
@@ -443,13 +652,22 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            elif snapshot.current_attempt is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
             else:
                 event_seq = snapshot.last_event_seq + 1
+                token = secrets.token_hex(8)
+                turn_id = "turn_" + token
+                attempt_id = "attempt_" + token
+                attempt = AttemptSnapshot(
+                    turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
+                    target_model_context_id=snapshot.active_model_context.id,
+                )
                 event = EventEnvelope(
                     event_id="evt_" + secrets.token_hex(8), event_seq=event_seq,
                     event_type="command_accepted", event_version=1,
                     thread_id=snapshot.thread_id, run_id=snapshot.run.run_id,
-                    turn_id=None, attempt_id=None,
+                    turn_id=turn_id, attempt_id=attempt_id,
                     model_context_id=snapshot.active_model_context.id,
                     selection_revision=snapshot.active_model_context.selection_revision,
                     occurred_at=_now(), visibility="public",
@@ -468,10 +686,23 @@ class PostgresThreadService:
                      event.visibility, Jsonb(event.payload)),
                 )
                 connection.execute(
-                    "UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s",
-                    (event_seq, snapshot.thread_id),
+                    """INSERT INTO capstone_thread_attempts
+                       (attempt_id, thread_id, run_id, turn_id, command_id, kind,
+                        instruction, model_context_id, selection_revision, phase)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                    (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
+                     parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
+                     snapshot.active_model_context.id,
+                     snapshot.active_model_context.selection_revision),
                 )
-                receipt = self._receipt(parsed, status="accepted", accepted_event_seq=event_seq)
+                connection.execute(
+                    "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
+                    (Jsonb(attempt.to_document()), event_seq, snapshot.thread_id),
+                )
+                receipt = self._receipt(
+                    parsed, status="accepted", accepted_event_seq=event_seq,
+                    target={"turn_id": turn_id, "attempt_id": attempt_id},
+                )
             connection.execute(
                 """INSERT INTO capstone_thread_commands
                    (thread_id, idempotency_key, request_hash, command_id, receipt)
@@ -480,6 +711,225 @@ class PostgresThreadService:
                  parsed["command_id"], Jsonb(receipt.to_document())),
             )
             return receipt
+
+    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
+        if not worker_id or lease_seconds < 1:
+            raise ValueError("attempt worker lease is invalid")
+        token = secrets.token_hex(16)
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT attempt_id FROM capstone_thread_attempts
+                   WHERE phase = 'accepted' AND lease_token IS NULL
+                   ORDER BY created_at, attempt_id LIMIT 1 FOR UPDATE SKIP LOCKED""",
+            ).fetchone()
+            if row is None:
+                return None
+            attempt_row = connection.execute(
+                "SELECT * FROM capstone_thread_attempts WHERE attempt_id = %s FOR UPDATE",
+                (row["attempt_id"],),
+            ).fetchone()
+            assert attempt_row is not None
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (attempt_row["thread_id"],),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(attempt_row["thread_id"])
+            current = thread["current_attempt"]
+            if not isinstance(current, dict) or current.get("attempt_id") != attempt_row["attempt_id"]:
+                raise ThreadExecutionError("attempt snapshot is inconsistent")
+            running = AttemptSnapshot.from_document({**current, "phase": "running"})
+            updated = connection.execute(
+                """UPDATE capstone_thread_attempts
+                   SET phase = 'running', lease_token = %s,
+                       lease_deadline = now() + (%s * interval '1 second')
+                   WHERE attempt_id = %s AND phase = 'accepted' AND lease_token IS NULL
+                   RETURNING *""",
+                (token, lease_seconds, attempt_row["attempt_id"]),
+            ).fetchone()
+            if updated is None:
+                return None
+            event = self._make_attempt_event(
+                thread, running, event_seq=thread["last_event_seq"] + 1,
+                event_type="attempt_started", payload={"attempt_id": running.attempt_id},
+            )
+            self._insert_event(connection, event)
+            connection.execute(
+                "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
+                (Jsonb(running.to_document()), event.event_seq, thread["thread_id"]),
+            )
+            return AttemptClaim(
+                thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
+                kind=updated["kind"], instruction=updated["instruction"],
+                model_context_id=thread["model_context_id"],
+                selection_revision=thread["selection_revision"], lease_token=token,
+            )
+
+    def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
+        if lease_seconds < 1:
+            raise ValueError("attempt worker lease is invalid")
+        with self._connect() as connection:
+            updated = connection.execute(
+                """UPDATE capstone_thread_attempts
+                   SET lease_deadline = clock_timestamp() + (%s * interval '1 second')
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
+                     AND lease_deadline > clock_timestamp()
+                   RETURNING attempt_id""",
+                (lease_seconds, claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            return updated is not None
+
+    def interrupt_expired_attempts(self) -> int:
+        interrupted = 0
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT * FROM capstone_thread_attempts
+                   WHERE phase = 'running' AND lease_deadline <= clock_timestamp()
+                   ORDER BY lease_deadline, attempt_id FOR UPDATE SKIP LOCKED""",
+            ).fetchall()
+            for attempt in rows:
+                thread = connection.execute(
+                    "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                    (attempt["thread_id"],),
+                ).fetchone()
+                if thread is None:
+                    raise ThreadExecutionError("attempt thread is unavailable")
+                current = thread["current_attempt"]
+                if not isinstance(current, dict) or current.get("attempt_id") != attempt["attempt_id"]:
+                    raise ThreadExecutionError("attempt snapshot is inconsistent")
+                terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
+                event = self._make_attempt_event(
+                    thread, terminal, event_seq=thread["last_event_seq"] + 1,
+                    event_type="attempt_interrupted", payload={"reason": "lease_expired"},
+                )
+                self._insert_event(connection, event)
+                connection.execute(
+                    """UPDATE capstone_thread_attempts
+                       SET phase = 'interrupted', lease_token = NULL, lease_deadline = NULL
+                       WHERE attempt_id = %s""",
+                    (attempt["attempt_id"],),
+                )
+                connection.execute(
+                    """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s
+                       WHERE thread_id = %s""",
+                    (event.event_seq, thread["thread_id"]),
+                )
+                interrupted += 1
+        return interrupted
+
+    def append_runtime_event(
+        self, claim: AttemptClaim, *, event_type: str, payload: Mapping[str, Any],
+        visibility: str = "public",
+    ) -> EventEnvelope:
+        _identifier(event_type, name="event_type")
+        _validate_json(payload, name="event.payload")
+        if visibility not in {"public", "diagnostic"}:
+            raise ThreadProtocolError("event visibility is invalid")
+        with self._connect() as connection:
+            attempt = connection.execute(
+                """SELECT * FROM capstone_thread_attempts
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
+                     AND lease_deadline > clock_timestamp()
+                   FOR UPDATE""",
+                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            if attempt is None:
+                raise ThreadExecutionError("attempt lease is unavailable")
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (claim.thread_id,),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(claim.thread_id)
+            current = thread["current_attempt"]
+            if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
+                raise ThreadExecutionError("attempt snapshot is inconsistent")
+            running = AttemptSnapshot.from_document(current)
+            event = self._make_attempt_event(
+                thread, running, event_seq=thread["last_event_seq"] + 1,
+                event_type=event_type, payload=dict(payload), visibility=visibility,
+            )
+            self._insert_event(connection, event)
+            connection.execute(
+                "UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s",
+                (event.event_seq, claim.thread_id),
+            )
+            return event
+
+    def finish_attempt(
+        self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
+    ) -> ThreadSnapshot:
+        if phase not in {"completed", "failed", "cancelled", "interrupted"}:
+            raise ValueError("attempt terminal phase is invalid")
+        _validate_json(payload, name="attempt.payload")
+        with self._connect() as connection:
+            attempt = connection.execute(
+                """SELECT * FROM capstone_thread_attempts
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s AND phase = 'running'
+                     AND lease_deadline > clock_timestamp()
+                   FOR UPDATE""",
+                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            if attempt is None:
+                raise ThreadExecutionError("attempt lease is unavailable")
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (claim.thread_id,),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(claim.thread_id)
+            current = thread["current_attempt"]
+            if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
+                raise ThreadExecutionError("attempt snapshot is inconsistent")
+            terminal = AttemptSnapshot.from_document({**current, "phase": phase})
+            event = self._make_attempt_event(
+                thread, terminal, event_seq=thread["last_event_seq"] + 1,
+                event_type="attempt_" + phase,
+                payload=dict(payload),
+            )
+            self._insert_event(connection, event)
+            connection.execute(
+                """UPDATE capstone_thread_attempts
+                   SET phase = %s, lease_token = NULL, lease_deadline = NULL
+                   WHERE attempt_id = %s""",
+                (phase, claim.attempt.attempt_id),
+            )
+            updated = connection.execute(
+                """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s
+                   WHERE thread_id = %s RETURNING *""",
+                (event.event_seq, claim.thread_id),
+            ).fetchone()
+            assert updated is not None
+            return self._snapshot_from_row(updated)
+
+    @staticmethod
+    def _make_attempt_event(
+        thread: Mapping[str, Any], attempt: AttemptSnapshot, *, event_seq: int,
+        event_type: str, payload: Mapping[str, Any], visibility: str = "public",
+    ) -> EventEnvelope:
+        return EventEnvelope(
+            event_id="evt_" + secrets.token_hex(8), event_seq=event_seq,
+            event_type=event_type, event_version=1,
+            thread_id=thread["thread_id"], run_id=thread["run_id"],
+            turn_id=attempt.turn_id, attempt_id=attempt.attempt_id,
+            model_context_id=thread["model_context_id"],
+            selection_revision=thread["selection_revision"],
+            occurred_at=_now(), visibility=visibility, payload=dict(payload),
+        )
+
+    @staticmethod
+    def _insert_event(connection: psycopg.Connection[dict[str, Any]], event: EventEnvelope) -> None:
+        connection.execute(
+            """INSERT INTO capstone_thread_events
+               (thread_id, event_seq, event_id, event_type, event_version, run_id,
+                turn_id, attempt_id, model_context_id, selection_revision,
+                occurred_at, visibility, payload)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (event.thread_id, event.event_seq, event.event_id, event.event_type,
+             event.event_version, event.run_id, event.turn_id, event.attempt_id,
+             event.model_context_id, event.selection_revision, event.occurred_at,
+             event.visibility, Jsonb(event.payload)),
+        )
 
     def compact_before(self, thread_id: str, base_event_seq: int) -> None:
         with self._connect() as connection:
@@ -531,9 +981,10 @@ class PostgresThreadService:
     def _receipt(
         command: Mapping[str, Any], *, status: str,
         accepted_event_seq: int | None = None, rejection: str | None = None,
+        target: dict[str, Any] | None = None,
     ) -> CommandReceipt:
         return CommandReceipt(
             command_id=command["command_id"], idempotency_key=command["idempotency_key"],
             thread_id=command["thread_id"], run_id=command.get("run_id"), status=status,
-            accepted_event_seq=accepted_event_seq, rejection=rejection, target=None,
+            accepted_event_seq=accepted_event_seq, rejection=rejection, target=target,
         )
