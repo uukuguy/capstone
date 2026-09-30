@@ -211,11 +211,21 @@ describe('CapstoneAssistantThread', () => {
   })
 
   it('does not label an old answer with the newly selected model', () => {
-    const terminal = { ...event('attempt_completed', 1, { answer: '旧模型结果。', evidence_refs: ['evidence:old'] }, 'attempt_old'), modelContextId: 'ctx_old' }
+    const terminal = { ...event('attempt_completed', 1, { answer: '旧模型结果。', evidence_refs: ['evidence:old'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'attempt_old'), modelContextId: 'ctx_old' }
     render(<CapstoneAssistantThread events={[terminal]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       modelSummary={{ modelId: 'pypsa39', implementationFamily: 'pypsa', modelRevision: 'new_revision', contextId: 'ctx_new' }} />)
     expect(screen.queryByText(/pypsa39/)).toBeNull()
     expect(screen.getByText(/ctx_old/)).toBeTruthy()
+  })
+
+  it('does not render result or evidence references without current-run admission', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '未准入回答。', result_refs: ['result:unadmitted'], evidence_refs: ['evidence:unadmitted'] }, 'attempt_unadmitted'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    expect(screen.queryByRole('group', { name: '当前运行结果' })).toBeNull()
+    expect(screen.queryByRole('group', { name: '当前运行证据' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '查看证据' })).toBeNull()
   })
 
   it('carries attempt model context into a terminal result card when the terminal event omits it', () => {

@@ -341,14 +341,19 @@ function AttemptActivity({ activities, running, phase, open, startedAt, duration
   </details>
 }
 
-function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, contextId, selectionRevision }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; contextId?: string; selectionRevision?: string }) {
-  if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
-  const admitted = Boolean(admission && typeof admission === 'object' && (
+function admissionAccepted(admission: unknown): boolean {
+  return Boolean(admission && typeof admission === 'object' && (
     (typeof (admission as { status?: unknown }).status === 'string'
       && (admission as { status?: unknown }).status === 'admitted')
     || (typeof (admission as { mode?: unknown }).mode === 'string'
       && typeof (admission as { assurance?: unknown }).assurance === 'string')
   ))
+}
+
+function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, contextId, selectionRevision }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; contextId?: string; selectionRevision?: string }) {
+  if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
+  const admitted = admissionAccepted(admission)
+  if (!admitted) return null
   const admissionRef = admission && typeof admission === 'object' && 'admission_ref' in admission && typeof (admission as { admission_ref?: unknown }).admission_ref === 'string'
     ? (admission as { admission_ref: string }).admission_ref : undefined
   return <div className="capstone-chat-artifacts" aria-label="当前运行结果引用">
@@ -387,6 +392,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
   const contextId = typeof custom?.modelContextId === 'string' ? custom.modelContextId : undefined
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
+  const admitted = admissionAccepted(admission)
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
   const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
   useEffect(() => {
@@ -411,7 +417,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
     {role === 'user' && typeof custom?.receipt === 'string' && <div className="capstone-chat-receipt"><Check aria-hidden="true" /> {custom.receipt}</div>}
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={evidenceRefs} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     {role === 'assistant' && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
