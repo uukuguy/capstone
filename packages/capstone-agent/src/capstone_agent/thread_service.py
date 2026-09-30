@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Any, Mapping, Protocol
 
+from capstone_model_capability_spi import ModelCapabilitySelection
+
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -492,16 +494,38 @@ class ThreadModelCatalog(Protocol):
     def resolve(self, model_id: str | None) -> ThreadModelDescriptor: ...
 
 
+class ThreadCapabilityCatalog(Protocol):
+    def resolve(
+        self, model: ThreadModelDescriptor,
+        selection: ModelCapabilitySelection | None = None,
+    ) -> ModelCapabilitySelection: ...
+
+
 class ThreadCreator:
     """Resolve a registered model once, then persist a pinned Thread snapshot."""
 
-    def __init__(self, service: ThreadService, catalog: ThreadModelCatalog) -> None:
+    def __init__(
+        self,
+        service: ThreadService,
+        catalog: ThreadModelCatalog,
+        capability_catalog: ThreadCapabilityCatalog | None = None,
+    ) -> None:
         self._service = service
         self._catalog = catalog
+        self._capability_catalog = capability_catalog
 
-    def create(self, model_id: str | None = None) -> ThreadSnapshot:
+    def create(
+        self,
+        model_id: str | None = None,
+        selection: ModelCapabilitySelection | None = None,
+    ) -> ThreadSnapshot:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
+        )
+        enabled_profiles = (
+            self._capability_catalog.resolve(descriptor, selection).enabled_profiles
+            if self._capability_catalog is not None
+            else (() if selection is None else selection.enabled_profiles)
         )
         token = secrets.token_hex(10)
         context = ModelContextSnapshot(
@@ -509,6 +533,7 @@ class ThreadCreator:
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
             selection_revision="sel_0",
+            enabled_profiles=enabled_profiles,
         )
         snapshot = ThreadSnapshot(
             thread_id="thr_" + token,
@@ -530,12 +555,14 @@ CREATE TABLE IF NOT EXISTS capstone_threads (
     model_revision text NOT NULL,
     implementation_family text NOT NULL,
     selection_revision text NOT NULL,
+    enabled_profiles jsonb NOT NULL DEFAULT '[]'::jsonb,
     active_grid_page_id text NOT NULL,
     current_attempt jsonb,
     base_event_seq integer NOT NULL DEFAULT 0 CHECK (base_event_seq >= 0),
     last_event_seq integer NOT NULL DEFAULT 0 CHECK (last_event_seq >= 0),
     created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS enabled_profiles jsonb NOT NULL DEFAULT '[]'::jsonb;
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -617,12 +644,14 @@ class PostgresThreadService:
                 connection.execute(
                     """INSERT INTO capstone_threads
                     (thread_id, run_id, run_state, model_context_id, model_id, model_revision,
-                     implementation_family, selection_revision, active_grid_page_id,
-                     current_attempt, base_event_seq, last_event_seq)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     implementation_family, selection_revision, enabled_profiles,
+                     active_grid_page_id, current_attempt, base_event_seq, last_event_seq)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
+                     Jsonb(list({"profile_id": profile_id, "profile_version": profile_version}
+                                for profile_id, profile_version in context.enabled_profiles)),
                      snapshot.active_grid_page_id,
                      None if snapshot.current_attempt is None else Jsonb(snapshot.current_attempt.to_document()),
                      snapshot.base_event_seq, snapshot.last_event_seq),
@@ -1024,6 +1053,11 @@ class PostgresThreadService:
             active_model_context=ModelContextSnapshot(
                 row["model_context_id"], row["model_id"], row["model_revision"],
                 row["implementation_family"], row["selection_revision"],
+                tuple(
+                    (entry["profile_id"], entry["profile_version"])
+                    for entry in (row.get("enabled_profiles") or [])
+                    if isinstance(entry, dict)
+                ),
             ),
             active_grid_page_id=row["active_grid_page_id"], current_attempt=attempt,
             last_event_seq=row["last_event_seq"], base_event_seq=row["base_event_seq"],

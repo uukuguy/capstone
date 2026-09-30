@@ -6,6 +6,8 @@ from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
 from capstone_agent.thread_service import ThreadCreator, ThreadModelDescriptor
+from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
+from capstone_model_capability_spi import ModelCapabilityDescriptor, ModelCapabilityRegistry, ModelCapabilitySelection
 
 
 class _Catalog:
@@ -15,6 +17,14 @@ class _Catalog:
         if model_id not in {None, "ieee39"}:
             raise ValueError("model is not registered")
         return ThreadModelDescriptor("ieee39", "revision:sha256:" + "a" * 64, "pandapower")
+
+
+class _Handle:
+    def __init__(self, descriptor: ModelCapabilityDescriptor) -> None:
+        self.descriptor = descriptor
+
+    def close(self) -> None:
+        return None
 
 
 class _Service:
@@ -49,6 +59,22 @@ def test_thread_creator_defaults_to_registered_ieee39_and_pins_revision() -> Non
     assert snapshot.active_model_context.model_revision == "revision:sha256:" + "a" * 64
     assert snapshot.active_grid_page_id == "page_ieee39"
     assert service.created == snapshot
+
+
+def test_thread_creator_persists_selected_profile_references_in_model_context() -> None:
+    service = _Service()
+    registry = ModelCapabilityRegistry()
+    capabilities = CapstoneModelCapabilityCatalog(registry)
+    descriptor = ModelCapabilityDescriptor("static-analysis", "1.0.0")
+    capabilities.register_profile(
+        ModelCapabilityProfileInfo(descriptor, "Static", ("pandapower",)),
+        lambda: _Handle(descriptor),
+    )
+    capabilities.set_family_default("pandapower", ModelCapabilitySelection((descriptor.reference,)))
+
+    snapshot = ThreadCreator(service, _Catalog(), capabilities).create()
+
+    assert snapshot.active_model_context.enabled_profiles == (descriptor.reference,)
 
 
 def test_thread_creator_does_not_treat_an_explicit_empty_model_id_as_default() -> None:

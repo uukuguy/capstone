@@ -31,7 +31,20 @@ describe('browser Thread protocol parser', () => {
 
     expect(snapshot.threadId).toBe('thr_demo_39')
     expect(snapshot.activeModelContext.modelRevision).toBe('7')
+    expect(snapshot.activeModelContext.enabledProfiles).toEqual([])
     expect(snapshot.toDocument().schema).toBe('capstone-thread-snapshot/1')
+  })
+
+  it('parses exact enabled profile references in a model context', () => {
+    const document = validSnapshot()
+    ;(document.active_model_context as Record<string, unknown>).enabled_profiles = {
+      schema: 'capstone-model-capability-selection/1',
+      enabled_profiles: [{ profile_id: 'static-analysis', profile_version: '1.0.0' }],
+    }
+    const snapshot = parseThreadSnapshot(document)
+    expect(snapshot.activeModelContext.enabledProfiles).toEqual([
+      { profileId: 'static-analysis', profileVersion: '1.0.0' },
+    ])
   })
 
   it('rejects an event page gap after the snapshot cursor', () => {

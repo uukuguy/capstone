@@ -77,6 +77,20 @@ class ModelCapabilitySelection:
     def empty(cls) -> "ModelCapabilitySelection":
         return cls()
 
+    @classmethod
+    def from_document(cls, value: object) -> "ModelCapabilitySelection":
+        if not isinstance(value, dict) or value.get("schema") != SELECTION_SCHEMA:
+            raise ValueError("model capability selection schema is invalid")
+        entries = value.get("enabled_profiles")
+        if not isinstance(entries, list):
+            raise ValueError("model capability selection profiles are invalid")
+        references: list[ProfileReference] = []
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {"profile_id", "profile_version"}:
+                raise ValueError("model capability selection profile is invalid")
+            references.append((entry.get("profile_id"), entry.get("profile_version")))  # type: ignore[arg-type]
+        return cls(tuple(references))
+
     def to_document(self) -> dict[str, object]:
         return {
             "schema": SELECTION_SCHEMA,

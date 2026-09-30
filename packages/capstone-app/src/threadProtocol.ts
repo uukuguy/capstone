@@ -5,6 +5,7 @@ export type AttemptPhase = 'created' | 'accepted' | 'running' | 'waiting' | 'com
 export type RunSnapshot = { runId: string; state: RunState }
 export type ModelContextSnapshot = {
   id: string; modelId: string; modelRevision: string; implementationFamily: string; selectionRevision: string
+  enabledProfiles: Array<{ profileId: string; profileVersion: string }>
 }
 export type AttemptSnapshot = {
   turnId: string; attemptId: string; phase: AttemptPhase; targetModelContextId: string
@@ -116,6 +117,25 @@ function optionalIdentifier(value: unknown, name: string): string | undefined {
   return value === undefined || value === null ? undefined : identifier(value, name)
 }
 
+function parseEnabledProfiles(value: unknown): Array<{ profileId: string; profileVersion: string }> {
+  if (value === undefined) return []
+  const document = object(value, 'active_model_context.enabled_profiles')
+  fields(document, new Set(['schema', 'enabled_profiles']), 'active_model_context.enabled_profiles')
+  required(document, ['schema', 'enabled_profiles'], 'active_model_context.enabled_profiles')
+  if (document.schema !== 'capstone-model-capability-selection/1' || !Array.isArray(document.enabled_profiles)) {
+    throw new ThreadProtocolError('active_model_context.enabled_profiles is invalid')
+  }
+  return document.enabled_profiles.map((entry, index) => {
+    const item = object(entry, `active_model_context.enabled_profiles[${index}]`)
+    fields(item, new Set(['profile_id', 'profile_version']), `active_model_context.enabled_profiles[${index}]`)
+    required(item, ['profile_id', 'profile_version'], `active_model_context.enabled_profiles[${index}]`)
+    return {
+      profileId: identifier(item.profile_id, `active_model_context.enabled_profiles[${index}].profile_id`),
+      profileVersion: text(item.profile_version, `active_model_context.enabled_profiles[${index}].profile_version`),
+    }
+  })
+}
+
 function parseRun(value: unknown): RunSnapshot {
   const document = object(value, 'run')
   fields(document, new Set(['run_id', 'state']), 'run')
@@ -127,15 +147,16 @@ function parseRun(value: unknown): RunSnapshot {
 
 function parseContext(value: unknown): ModelContextSnapshot {
   const document = object(value, 'active_model_context')
-  const keys = ['id', 'model_id', 'model_revision', 'implementation_family', 'selection_revision']
+  const keys = ['id', 'model_id', 'model_revision', 'implementation_family', 'selection_revision', 'enabled_profiles']
   fields(document, new Set(keys), 'active_model_context')
-  required(document, keys, 'active_model_context')
+  required(document, keys.filter((key) => key !== 'enabled_profiles'), 'active_model_context')
   return {
     id: identifier(document.id, 'active_model_context.id'),
     modelId: identifier(document.model_id, 'active_model_context.model_id'),
     modelRevision: text(document.model_revision, 'active_model_context.model_revision'),
     implementationFamily: identifier(document.implementation_family, 'active_model_context.implementation_family'),
     selectionRevision: text(document.selection_revision, 'active_model_context.selection_revision'),
+    enabledProfiles: parseEnabledProfiles(document.enabled_profiles),
   }
 }
 
@@ -165,6 +186,14 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
       model_revision: snapshot.activeModelContext.modelRevision,
       implementation_family: snapshot.activeModelContext.implementationFamily,
       selection_revision: snapshot.activeModelContext.selectionRevision,
+      ...(snapshot.activeModelContext.enabledProfiles.length ? {
+        enabled_profiles: {
+          schema: 'capstone-model-capability-selection/1',
+          enabled_profiles: snapshot.activeModelContext.enabledProfiles.map((profile) => ({
+            profile_id: profile.profileId, profile_version: profile.profileVersion,
+          })),
+        },
+      } : {}),
     },
     active_grid_page_id: snapshot.activeGridPageId,
     current_attempt: snapshot.currentAttempt ? {

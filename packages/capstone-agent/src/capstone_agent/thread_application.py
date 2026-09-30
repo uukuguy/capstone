@@ -11,6 +11,7 @@ from .thread_catalog import AuthorityThreadModelCatalog
 from .thread_service import (
     AttemptClaim,
     ThreadCreator,
+    ThreadCapabilityCatalog,
     ThreadModelCatalog,
     ThreadService,
 )
@@ -55,6 +56,7 @@ class ThreadApplicationAssembly:
 
     catalog: ThreadModelCatalog
     runtime_factory: RuntimeFactory
+    capability_catalog: ThreadCapabilityCatalog | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -94,7 +96,7 @@ class ThreadApplicationAssembly:
     def thread_creator(self, service: ThreadService) -> ThreadCreator:
         """Create the persistence adapter for this exact application pair."""
 
-        return ThreadCreator(service, self.catalog)
+        return ThreadCreator(service, self.catalog, self.capability_catalog)
 
 
 __all__ = ["ApplicationPiRuntimeFactory", "ThreadApplicationAssembly"]

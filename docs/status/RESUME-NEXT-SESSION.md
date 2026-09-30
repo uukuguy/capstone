@@ -12,6 +12,7 @@
 - `ThreadApplicationAssembly` now keeps the Authority model catalog and Pi runtime factory as one application-owned pairing; hosted API/CLI can consume the pair without importing Domain Packs.
 - The independent `capstone-model-capability-spi` package now defines exact profile descriptors, immutable selections, trusted sealed registry resolution, and closeable context handles.
 - `CapstoneModelCapabilityCatalog` now applies exact model default, implementation-family default, then empty selection; explicit selections only check exact registration and declared family compatibility.
+- Thread model contexts now carry enabled Profile references (empty remains backward-readable); the Web parser projects the same optional selection shape.
 - `ApplicationPiRuntimeFactory` now wraps the application-selected Pi session factory without importing Domain Packs into `capstone-agent`.
 - Web-side `HttpThreadTransport` and `CapstoneThreadClient` now expose a strict SSE event stream with cursor de-duplication.
 - `ThreadProjectionStore.consumeEvents()` now applies contiguous Attempt lifecycle events to the shared snapshot and freezes on gaps.
@@ -34,6 +35,7 @@
 - Latest Python Thread check — 147 passed, 25 skipped; assembly-to-Worker-to-SSE and missing-authorization coverage passed.
 - Latest Python Thread check — 149 passed, 27 skipped; context snapshot integrity coverage passed. Postgres integration remains environment-gated when `CAPSTONE_TEST_DATABASE_URL` is unset.
 - Latest Python Capstone check — 153 passed, 27 skipped after Model Capability Catalog coverage; the SPI remains a local editable dependency with no runtime imports into the Kernel.
+- Latest checks — Python 156 passed, 27 skipped; Web 93 tests passed, TypeScript check/build passed; selected Profile references round-trip through Thread and Web snapshots.
 - `make test-model-capability-spi` — 13 passed; preparation rollback attempts every close and preserves cleanup errors.
 - Package boundary checker tests — 61 passed; stdlib-only imports and zero runtime dependencies enforced for the SPI.
 - SPI wheel/sdist build passed under `.capstone-agent/build/model-capability-spi`.

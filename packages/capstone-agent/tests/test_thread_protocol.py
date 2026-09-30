@@ -84,6 +84,26 @@ def test_snapshot_round_trips_with_active_context_and_attempt() -> None:
     assert snapshot.to_document()["schema"] == "capstone-thread-snapshot/1"
 
 
+def test_model_context_round_trips_enabled_profile_selection() -> None:
+    document = valid_snapshot()
+    document["active_model_context"]["enabled_profiles"] = {
+        "schema": "capstone-model-capability-selection/1",
+        "enabled_profiles": [
+            {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+        ],
+    }
+    snapshot = ThreadSnapshot.from_document(document)
+    assert snapshot.active_model_context.enabled_profiles == (("static-analysis", "1.0.0"),)
+    assert snapshot.to_document()["active_model_context"]["enabled_profiles"] == document["active_model_context"]["enabled_profiles"]
+
+
+def test_model_context_rejects_null_profile_selection() -> None:
+    document = valid_snapshot()
+    document["active_model_context"]["enabled_profiles"] = None
+    with pytest.raises(ThreadProtocolError):
+        ThreadSnapshot.from_document(document)
+
+
 def test_event_page_rejects_a_gap_after_the_snapshot() -> None:
     with pytest.raises(ThreadProtocolError, match="contiguous"):
         EventPage.from_document(

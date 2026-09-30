@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
+from capstone_model_capability_spi import ModelCapabilitySelection
+
 
 THREAD_PROTOCOL = "capstone-thread/1"
 _SNAPSHOT_SCHEMA = "capstone-thread-snapshot/1"
@@ -105,13 +107,26 @@ class ModelContextSnapshot:
     model_revision: str
     implementation_family: str
     selection_revision: str
+    enabled_profiles: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def from_document(cls, value: Any) -> ModelContextSnapshot:
         document = _document(value, name="active_model_context")
-        allowed = frozenset({"id", "model_id", "model_revision", "implementation_family", "selection_revision"})
+        allowed = frozenset({"id", "model_id", "model_revision", "implementation_family", "selection_revision", "enabled_profiles"})
         _fields(document, allowed, name="active_model_context")
-        _required(document, allowed, name="active_model_context")
+        _required(
+            document,
+            allowed - {"enabled_profiles"},
+            name="active_model_context",
+        )
+        try:
+            selection = (
+                ModelCapabilitySelection.empty()
+                if "enabled_profiles" not in document
+                else ModelCapabilitySelection.from_document(document["enabled_profiles"])
+            )
+        except ValueError as error:
+            raise ThreadProtocolError(str(error)) from None
         return cls(
             id=_identifier(document["id"], name="active_model_context.id"),
             model_id=_identifier(document["model_id"], name="active_model_context.model_id"),
@@ -120,16 +135,20 @@ class ModelContextSnapshot:
                 document["implementation_family"], name="active_model_context.implementation_family"
             ),
             selection_revision=_text(document["selection_revision"], name="active_model_context.selection_revision"),
+            enabled_profiles=selection.enabled_profiles,
         )
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        document = {
             "id": self.id,
             "model_id": self.model_id,
             "model_revision": self.model_revision,
             "implementation_family": self.implementation_family,
             "selection_revision": self.selection_revision,
         }
+        if self.enabled_profiles:
+            document["enabled_profiles"] = ModelCapabilitySelection(self.enabled_profiles).to_document()
+        return document
 
 
 @dataclass(frozen=True, slots=True)
