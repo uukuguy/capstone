@@ -59,15 +59,68 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
   const receipts = new Map<string, Record<string, unknown>>()
   const snapshot = record(fixture.snapshot)
   const run = record(snapshot.run)
-  const events = record(fixture.events)
+  const eventDocument = record(fixture.events)
+  const eventLog = Array.isArray(eventDocument.events) ? [...eventDocument.events] : []
+  let nextEventSeq = typeof eventDocument.next_event_seq === 'number'
+    ? eventDocument.next_event_seq
+    : eventLog.reduce((maximum, event) => Math.max(maximum, record(event).event_seq as number || 0), 0)
+
+  function readEventDocument(afterEventSeq: number): Record<string, unknown> {
+    return {
+      ...eventDocument,
+      after_event_seq: afterEventSeq,
+      next_event_seq: nextEventSeq,
+      has_more: false,
+      events: eventLog.filter((event) => {
+        const seq = record(event).event_seq
+        return typeof seq === 'number' && seq > afterEventSeq
+      }),
+    }
+  }
+
+  function appendMessageProjection(command: ThreadCommand): number | undefined {
+    if (!['send_auto', 'send_ordinary', 'send_professional'].includes(command.kind)) return undefined
+    const text = typeof command.payload.text === 'string' ? command.payload.text : ''
+    if (!text) return undefined
+    const token = `${command.command_id}_${nextEventSeq + 1}`
+    const attemptId = `attempt_fixture_${token}`
+    const turnId = `turn_fixture_${token}`
+    const context = record(snapshot.active_model_context)
+    const base = {
+      thread_id: command.thread_id,
+      run_id: command.run_id || run.run_id,
+      turn_id: turnId,
+      attempt_id: attemptId,
+      model_context_id: context.id,
+      selection_revision: context.selection_revision,
+      occurred_at: new Date().toISOString(),
+      visibility: 'public',
+      event_version: 1,
+    }
+    const append = (event_type: string, payload: Record<string, unknown>) => {
+      nextEventSeq += 1
+      eventLog.push({
+        ...base, event_id: `evt_fixture_${nextEventSeq}`, event_seq: nextEventSeq,
+        event_type, payload,
+      })
+    }
+    append('command_accepted', {
+      command_id: command.command_id, kind: command.kind, payload: command.payload,
+    })
+    append('attempt_started', { attempt_id: attemptId })
+    append('assistant_text_delta', { text: `Fixture 已接收${command.kind === 'send_professional' ? '专业请求' : '自动指令'}：${text}` })
+    append('attempt_completed', { attempt_id: attemptId })
+    return nextEventSeq - 3
+  }
 
   return {
     connectionState: fixtureConnection(fixture),
     getSnapshot: async () => fixture.snapshot,
-    readEvents: async () => fixture.events,
+    readEvents: async (_threadId, afterEventSeq) => readEventDocument(afterEventSeq),
     sendCommand: async (command) => {
       const existing = receipts.get(command.idempotency_key)
       if (existing) return existing
+      const acceptedEventSeq = appendMessageProjection(command)
       const receipt = {
         schema: 'capstone-command-receipt/1',
         command_id: command.command_id,
@@ -75,7 +128,7 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
         thread_id: command.thread_id,
         ...(typeof run.run_id === 'string' ? { run_id: run.run_id } : {}),
         status: 'accepted',
-        ...(typeof events.next_event_seq === 'number' ? { accepted_event_seq: events.next_event_seq } : {}),
+        ...(acceptedEventSeq !== undefined ? { accepted_event_seq: acceptedEventSeq } : {}),
       }
       receipts.set(command.idempotency_key, receipt)
       return receipt
@@ -253,6 +306,7 @@ export class ThreadProjectionStore {
         )),
       }
       this.notify()
+      if (!this.canStreamEvents) await this.catchUp()
       return receipt
     } catch (error) {
       this.current = { ...this.current, connection: 'reconnecting' }

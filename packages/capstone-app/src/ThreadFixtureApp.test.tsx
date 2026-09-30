@@ -31,6 +31,17 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('switch_model · accepted')).toBeTruthy()
   })
 
+  it('projects a sent automatic instruction and fixture response into the chat', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    expect(await screen.findByText('查看当前模型')).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：查看当前模型')).toBeTruthy()
+  })
+
   it('keeps live cancellation visible while the grid pane is historical', async () => {
     render(<ThreadFixtureApp fixtureId="historical-live-attempt" />)
 
