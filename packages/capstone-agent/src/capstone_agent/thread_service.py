@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping, Protocol, cast
 
 from capstone_model_capability_spi import ModelCapabilitySelection
 
@@ -43,6 +43,7 @@ _COMMAND_FIELDS = frozenset({
     "kind", "expected_event_seq", "payload",
 })
 _MESSAGE_COMMAND_KINDS = frozenset({"send_ordinary", "send_professional", "send_control"})
+_CONTROL_COMMAND_KINDS = frozenset({"cancel_live_attempt"})
 
 
 class ThreadNotFound(KeyError):
@@ -103,6 +104,8 @@ class ThreadExecutionService(ThreadService, Protocol):
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
 
+    def cancel_requested(self, claim: AttemptClaim) -> bool: ...
+
     def interrupt_expired_attempts(self) -> int: ...
 
     def append_runtime_event(
@@ -145,6 +148,13 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     """Return a bounded semantic rejection before a command enters the ledger."""
 
+    if command["kind"] in _CONTROL_COMMAND_KINDS:
+        payload = command["payload"]
+        if set(payload) != {"attempt_id"}:
+            return "cancel_target_required"
+        if not isinstance(payload["attempt_id"], str) or not _IDENTIFIER.fullmatch(payload["attempt_id"]):
+            return "cancel_target_invalid"
+        return None
     if command["kind"] not in _MESSAGE_COMMAND_KINDS:
         return "unsupported_command"
     text = command["payload"].get("text")
@@ -175,6 +185,7 @@ class InMemoryThreadService:
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
         self._attempts: dict[str, dict[str, Any]] = {}
+        self._cancel_requests: set[str] = set()
         self._lock = RLock()
 
     @classmethod
@@ -234,6 +245,33 @@ class InMemoryThreadService:
             if self._snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                return receipt
+            if parsed["kind"] == "cancel_live_attempt":
+                current = self._snapshot.current_attempt
+                target = parsed["payload"]["attempt_id"]
+                if current is None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="no_active_attempt")
+                elif current.attempt_id != target:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_target_mismatch")
+                else:
+                    accepted = self._append_event(
+                        event_type="command_accepted", attempt=current,
+                        payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
+                                 "payload": parsed["payload"]},
+                    )
+                    self._snapshot = replace(self._snapshot, last_event_seq=accepted.event_seq)
+                    requested = self._append_event(
+                        event_type="attempt_cancel_requested", attempt=current,
+                        payload={"command_id": parsed["command_id"], "attempt_id": target},
+                    )
+                    self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
+                    self._cancel_requests.add(target)
+                    receipt = self._receipt(
+                        parsed, status="accepted", accepted_event_seq=accepted.event_seq,
+                        target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
+                    )
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
                 return receipt
             if self._snapshot.current_attempt is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
@@ -296,6 +334,7 @@ class InMemoryThreadService:
                         self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
                     )
                     return None
+                assert context is not None
                 token = secrets.token_hex(16)
                 accepted = record["attempt"]
                 running = replace(accepted, phase="running")
@@ -326,6 +365,11 @@ class InMemoryThreadService:
                 raise ThreadExecutionError("attempt is not running")
             record["lease_deadline"] = time.monotonic() + lease_seconds
             return True
+
+    def cancel_requested(self, claim: AttemptClaim) -> bool:
+        with self._lock:
+            self._require_claim(claim)
+            return claim.attempt.attempt_id in self._cancel_requests
 
     def interrupt_expired_attempts(self) -> int:
         cutoff = time.monotonic()
@@ -381,6 +425,7 @@ class InMemoryThreadService:
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
+            self._cancel_requests.discard(claim.attempt.attempt_id)
             event = self._append_event(
                 event_type="attempt_" + phase,
                 attempt=terminal, payload=dict(payload),
@@ -629,7 +674,10 @@ class PostgresThreadService:
         self.dsn = dsn
 
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
-        return psycopg.connect(self.dsn, row_factory=dict_row)
+        return cast(
+            psycopg.Connection[dict[str, Any]],
+            psycopg.connect(self.dsn, row_factory=cast(Any, dict_row)),
+        )
 
     def initialize(self) -> None:
         with self._connect() as connection:
@@ -715,6 +763,35 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            elif parsed["kind"] == "cancel_live_attempt":
+                current = snapshot.current_attempt
+                target = parsed["payload"]["attempt_id"]
+                if current is None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="no_active_attempt")
+                elif current.attempt_id != target:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_target_mismatch")
+                else:
+                    accepted = self._make_attempt_event(
+                        thread, current, event_seq=snapshot.last_event_seq + 1,
+                        event_type="command_accepted",
+                        payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
+                                 "payload": parsed["payload"]},
+                    )
+                    self._insert_event(connection, accepted)
+                    requested = self._make_attempt_event(
+                        thread, current, event_seq=accepted.event_seq + 1,
+                        event_type="attempt_cancel_requested",
+                        payload={"command_id": parsed["command_id"], "attempt_id": target},
+                    )
+                    self._insert_event(connection, requested)
+                    connection.execute(
+                        "UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s",
+                        (requested.event_seq, snapshot.thread_id),
+                    )
+                    receipt = self._receipt(
+                        parsed, status="accepted", accepted_event_seq=accepted.event_seq,
+                        target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
+                    )
             elif snapshot.current_attempt is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
             else:
@@ -870,6 +947,24 @@ class PostgresThreadService:
                 (lease_seconds, claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
             ).fetchone()
             return updated is not None
+
+    def cancel_requested(self, claim: AttemptClaim) -> bool:
+        with self._connect() as connection:
+            active = connection.execute(
+                """SELECT 1 FROM capstone_thread_attempts
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s
+                     AND phase = 'running' AND lease_deadline > clock_timestamp()""",
+                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            if active is None:
+                raise ThreadExecutionError("attempt lease is unavailable")
+            requested = connection.execute(
+                """SELECT 1 FROM capstone_thread_events
+                   WHERE thread_id = %s AND attempt_id = %s
+                     AND event_type = 'attempt_cancel_requested' LIMIT 1""",
+                (claim.thread_id, claim.attempt.attempt_id),
+            ).fetchone()
+            return requested is not None
 
     def interrupt_expired_attempts(self) -> int:
         interrupted = 0

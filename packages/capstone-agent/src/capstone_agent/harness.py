@@ -319,6 +319,8 @@ class HarnessAttemptRunner:
                 on_event=lambda event: self._persist_event(claim, event),
                 on_heartbeat=lambda: self._renew_lease(claim),
             )
+            if self._service.cancel_requested(claim):
+                raise _AttemptCancelled
             if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
                 raise TypeError("runtime answer is invalid")
             candidate = None
@@ -366,6 +368,9 @@ class HarnessAttemptRunner:
         except _AttemptAdmissionError as error:
             self._finish_failed(claim, error.code)
             return HarnessAttemptResult("failed", None, error.code)
+        except _AttemptCancelled:
+            self._finish_cancelled(claim)
+            return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
         except Exception:
             self._finish_failed(claim, "runtime_failed")
             return HarnessAttemptResult("failed", None, "runtime_failed")
@@ -400,6 +405,16 @@ class HarnessAttemptRunner:
     def _renew_lease(self, claim: AttemptClaim) -> None:
         if not self._service.renew_attempt(claim, self._lease_seconds):
             raise RuntimeError("attempt lease is unavailable")
+        if self._service.cancel_requested(claim):
+            raise _AttemptCancelled
+
+    def _finish_cancelled(self, claim: AttemptClaim) -> None:
+        try:
+            self._service.finish_attempt(
+                claim, phase="cancelled", payload={"error_code": "attempt_cancelled"},
+            )
+        except Exception as exc:
+            raise RuntimeError("attempt terminal persistence failed") from exc
 
     def _finish_failed(self, claim: AttemptClaim, error_code: str) -> None:
         try:
@@ -416,6 +431,10 @@ class _AttemptAdmissionError(RuntimeError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
+
+
+class _AttemptCancelled(RuntimeError):
+    """The user requested cancellation at a safe runtime checkpoint."""
 
 
 def _extend_refs(target: list[str], value: object) -> None:

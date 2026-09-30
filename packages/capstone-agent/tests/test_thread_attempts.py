@@ -82,8 +82,9 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
 
     assert claim is not None
     assert claim.attempt.phase == "running"
-    assert service.snapshot("thr_attempts").current_attempt is not None
-    assert service.snapshot("thr_attempts").current_attempt.phase == "running"
+    current = service.snapshot("thr_attempts").current_attempt
+    assert current is not None
+    assert current.phase == "running"
 
     runtime_event = service.append_runtime_event(
         claim, event_type="assistant_text_delta", payload={"text": "ready"},
@@ -94,6 +95,31 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     events = service.read_events("thr_attempts", 0).events
     assert [event.event_type for event in events] == [
         "command_accepted", "attempt_started", "assistant_text_delta", "attempt_completed",
+    ]
+
+
+def test_cancel_control_targets_running_attempt_and_is_replayable() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_cancel_001",
+        "idempotency_key": "idem_cancel_001", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "cancel_live_attempt",
+        "expected_event_seq": 2,
+        "payload": {"attempt_id": claim.attempt.attempt_id},
+    })
+
+    assert receipt.status == "accepted"
+    assert receipt.target == {
+        "turn_id": claim.attempt.turn_id,
+        "attempt_id": claim.attempt.attempt_id,
+    }
+    assert service.cancel_requested(claim)
+    assert [event.event_type for event in service.read_events("thr_attempts", 0).events] == [
+        "command_accepted", "attempt_started", "command_accepted",
+        "attempt_cancel_requested",
     ]
 
 

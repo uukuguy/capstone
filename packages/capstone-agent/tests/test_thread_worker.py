@@ -81,3 +81,36 @@ def test_runtime_factory_failure_finishes_attempt_as_failed() -> None:
     assert result.status == "failed"
     assert service.snapshot("thr_worker").current_attempt is None
     assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_failed"
+
+
+def test_cancel_control_interrupts_runtime_at_heartbeat_and_commits_cancelled() -> None:
+    service = _service()
+    _submit(service)
+
+    class _CancellableRuntime(_Runtime):
+        def prompt(self, question: str, *, on_event, correlation_id=None, on_heartbeat=None) -> str:
+            del on_event, correlation_id
+            assert question == "inspect"
+            assert on_heartbeat is not None
+            claim = service._snapshot.current_attempt
+            assert claim is not None
+            receipt = service.submit_command({
+                "schema": "capstone-command/1", "command_id": "cmd_cancel_worker",
+                "idempotency_key": "idem_cancel_worker", "thread_id": "thr_worker",
+                "run_id": "run_worker", "kind": "cancel_live_attempt",
+                "expected_event_seq": service._snapshot.last_event_seq,
+                "payload": {"attempt_id": claim.attempt_id},
+            })
+            assert receipt.status == "accepted"
+            on_heartbeat()
+            return "unreachable"
+
+    result = run_pending_attempt(
+        service, lambda _claim: _CancellableRuntime(), worker_id="thread-worker",
+    )
+
+    assert result is not None
+    assert result.status == "cancelled"
+    assert result.error_code == "attempt_cancelled"
+    assert service.snapshot("thr_worker").current_attempt is None
+    assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_cancelled"
