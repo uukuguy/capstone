@@ -43,7 +43,7 @@ _COMMAND_FIELDS = frozenset({
     "kind", "expected_event_seq", "payload",
 })
 _MESSAGE_COMMAND_KINDS = frozenset({"send_ordinary", "send_professional", "send_control"})
-_CONTROL_COMMAND_KINDS = frozenset({"cancel_live_attempt"})
+_CONTROL_COMMAND_KINDS = frozenset({"cancel_live_attempt", "retry_new_attempt"})
 
 
 class ThreadNotFound(KeyError):
@@ -150,10 +150,17 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
 
     if command["kind"] in _CONTROL_COMMAND_KINDS:
         payload = command["payload"]
-        if set(payload) != {"attempt_id"}:
-            return "cancel_target_required"
-        if not isinstance(payload["attempt_id"], str) or not _IDENTIFIER.fullmatch(payload["attempt_id"]):
-            return "cancel_target_invalid"
+        if command["kind"] == "cancel_live_attempt":
+            if set(payload) != {"attempt_id"}:
+                return "cancel_target_required"
+            if not isinstance(payload["attempt_id"], str) or not _IDENTIFIER.fullmatch(payload["attempt_id"]):
+                return "cancel_target_invalid"
+        else:
+            if set(payload) not in ({"turn_id"}, {"attempt_id"}):
+                return "retry_target_required"
+            target = next(iter(payload.values()))
+            if not isinstance(target, str) or not _IDENTIFIER.fullmatch(target):
+                return "retry_target_invalid"
         return None
     if command["kind"] not in _MESSAGE_COMMAND_KINDS:
         return "unsupported_command"
@@ -273,6 +280,63 @@ class InMemoryThreadService:
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 self._command_ids.add(parsed["command_id"])
                 return receipt
+            if parsed["kind"] == "retry_new_attempt":
+                if self._snapshot.current_attempt is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+                else:
+                    target_key = next(iter(parsed["payload"]))
+                    target_value = parsed["payload"][target_key]
+                    prior = next(
+                        (
+                            record for record in self._attempts.values()
+                            if (
+                                record["attempt"].turn_id == target_value
+                                if target_key == "turn_id"
+                                else record["attempt"].attempt_id == target_value
+                            )
+                        ),
+                        None,
+                    )
+                    if prior is None:
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_found")
+                    elif prior["attempt"].phase not in {"interrupted", "failed", "cancelled"}:
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_retryable")
+                    elif prior.get("model_context") != self._snapshot.active_model_context:
+                        receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
+                    else:
+                        token = secrets.token_hex(8)
+                        turn_id = "turn_" + token
+                        attempt_id = "attempt_" + token
+                        attempt = AttemptSnapshot(
+                            turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
+                            target_model_context_id=self._snapshot.active_model_context.id,
+                        )
+                        retry_payload = {
+                            "turn_id": prior["attempt"].turn_id,
+                            "retry_of": prior["attempt"].attempt_id,
+                        }
+                        event = self._append_event(
+                            event_type="command_accepted", attempt=attempt,
+                            payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
+                                     "payload": retry_payload},
+                        )
+                        self._snapshot = replace(
+                            self._snapshot, current_attempt=attempt, last_event_seq=event.event_seq,
+                        )
+                        self._attempts[attempt_id] = {
+                            "attempt": attempt, "kind": prior["kind"],
+                            "instruction": prior["instruction"], "lease_token": None,
+                            "lease_deadline": None,
+                            "model_context": self._snapshot.active_model_context,
+                            "command_id": parsed["command_id"],
+                        }
+                        receipt = self._receipt(
+                            parsed, status="accepted", accepted_event_seq=event.event_seq,
+                            target={"turn_id": turn_id, "attempt_id": attempt_id},
+                        )
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
+                return receipt
             if self._snapshot.current_attempt is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -306,6 +370,7 @@ class InMemoryThreadService:
                 "instruction": parsed["payload"]["text"], "lease_token": None,
                 "lease_deadline": None,
                 "model_context": self._snapshot.active_model_context,
+                "command_id": parsed["command_id"],
             }
             receipt = self._receipt(
                 parsed, status="accepted", accepted_event_seq=event_seq,
@@ -792,6 +857,87 @@ class PostgresThreadService:
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
                     )
+            elif parsed["kind"] == "retry_new_attempt":
+                if snapshot.current_attempt is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+                else:
+                    target_key = next(iter(parsed["payload"]))
+                    target_value = parsed["payload"][target_key]
+                    if target_key == "turn_id":
+                        prior = connection.execute(
+                            """SELECT * FROM capstone_thread_attempts
+                               WHERE thread_id = %s AND turn_id = %s
+                               FOR UPDATE""",
+                            (snapshot.thread_id, target_value),
+                        ).fetchone()
+                    else:
+                        prior = connection.execute(
+                            """SELECT * FROM capstone_thread_attempts
+                               WHERE thread_id = %s AND attempt_id = %s
+                               FOR UPDATE""",
+                            (snapshot.thread_id, target_value),
+                        ).fetchone()
+                    if prior is None:
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_found")
+                    elif prior["phase"] not in {"interrupted", "failed", "cancelled"}:
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_retryable")
+                    else:
+                        prior_context = None
+                        try:
+                            if prior["model_context_snapshot"] is not None:
+                                prior_context = ModelContextSnapshot.from_document(
+                                    prior["model_context_snapshot"]
+                                )
+                        except ThreadProtocolError:
+                            prior_context = None
+                        if (
+                            prior_context is None
+                            or prior_context != snapshot.active_model_context
+                            or prior["model_context_id"] != snapshot.active_model_context.id
+                            or prior["selection_revision"] != snapshot.active_model_context.selection_revision
+                        ):
+                            receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
+                        else:
+                            token = secrets.token_hex(8)
+                            turn_id = "turn_" + token
+                            attempt_id = "attempt_" + token
+                            attempt = AttemptSnapshot(
+                                turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
+                                target_model_context_id=snapshot.active_model_context.id,
+                            )
+                            retry_payload = {
+                                "turn_id": prior["turn_id"],
+                                "retry_of": prior["attempt_id"],
+                            }
+                            accepted = self._make_attempt_event(
+                                thread, attempt, event_seq=snapshot.last_event_seq + 1,
+                                event_type="command_accepted",
+                                payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
+                                         "payload": retry_payload},
+                            )
+                            self._insert_event(connection, accepted)
+                            connection.execute(
+                                """INSERT INTO capstone_thread_attempts
+                                   (attempt_id, thread_id, run_id, turn_id, command_id, kind,
+                                    instruction, model_context_id, selection_revision,
+                                    model_context_snapshot, phase)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                                (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
+                                 parsed["command_id"], prior["kind"], prior["instruction"],
+                                 snapshot.active_model_context.id,
+                                 snapshot.active_model_context.selection_revision,
+                                 Jsonb(snapshot.active_model_context.to_document())),
+                            )
+                            connection.execute(
+                                """UPDATE capstone_threads
+                                   SET current_attempt = %s, last_event_seq = %s
+                                   WHERE thread_id = %s""",
+                                (Jsonb(attempt.to_document()), accepted.event_seq, snapshot.thread_id),
+                            )
+                            receipt = self._receipt(
+                                parsed, status="accepted", accepted_event_seq=accepted.event_seq,
+                                target={"turn_id": turn_id, "attempt_id": attempt_id},
+                            )
             elif snapshot.current_attempt is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
             else:

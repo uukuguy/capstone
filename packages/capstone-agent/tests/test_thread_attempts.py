@@ -123,6 +123,34 @@ def test_cancel_control_targets_running_attempt_and_is_replayable() -> None:
     ]
 
 
+def test_retry_control_creates_a_new_attempt_from_an_interrupted_turn() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    service.finish_attempt(claim, phase="interrupted", payload={"reason": "lease_expired"})
+
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_retry_001",
+        "idempotency_key": "idem_retry_001", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "retry_new_attempt",
+        "expected_event_seq": 3,
+        "payload": {"turn_id": claim.attempt.turn_id},
+    })
+
+    assert receipt.status == "accepted"
+    assert receipt.target is not None
+    assert receipt.target["attempt_id"] != claim.attempt.attempt_id
+    current = service.snapshot("thr_attempts").current_attempt
+    assert current is not None and current.phase == "accepted"
+    event = service.read_events("thr_attempts", 0).events[-1]
+    assert event.event_type == "command_accepted"
+    assert event.payload["payload"] == {
+        "turn_id": claim.attempt.turn_id,
+        "retry_of": claim.attempt.attempt_id,
+    }
+
+
 def test_attempt_lease_is_required_for_append_and_finish() -> None:
     service = _service()
     service.submit_command(_command())
