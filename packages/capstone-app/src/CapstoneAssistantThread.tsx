@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -9,7 +9,7 @@ import {
   useAuiState,
   useExternalStoreRuntime,
 } from '@assistant-ui/react'
-import { Activity, Check, Copy, MoreHorizontal, RotateCcw, SendHorizontal, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Activity, Check, Copy, FileCheck2, ListTree, MoreHorizontal, RotateCcw, SendHorizontal, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope } from './threadProtocol'
@@ -41,6 +41,10 @@ function toolName(event: EventEnvelope): string {
     : typeof event.payload.capability === 'string' ? event.payload.capability : event.eventType
 }
 
+function activityId(event: EventEnvelope): string {
+  return typeof event.payload.tool_call_id === 'string' ? event.payload.tool_call_id : toolName(event)
+}
+
 function activitySource(event: EventEnvelope): string {
   const binding = typeof event.payload.binding_id === 'string' ? event.payload.binding_id : 'capstone'
   const capability = typeof event.payload.capability === 'string' ? event.payload.capability : toolName(event)
@@ -51,13 +55,13 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
   const grouped = new Map<string, ChatActivity>()
   for (const event of events) {
     if (!['tool_started', 'tool_completed', 'tool_failed', 'tool_cancelled'].includes(event.eventType)) continue
-    const id = toolName(event)
+    const id = activityId(event)
     const status = event.eventType === 'tool_started'
       ? 'running'
       : event.eventType === 'tool_failed' ? 'failed' : 'completed'
     grouped.set(id, {
       id,
-      label: TOOL_LABELS[id] || id.replaceAll('_', ' '),
+      label: TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' '),
       source: activitySource(event),
       status,
     })
@@ -77,6 +81,10 @@ function commandMode(event: EventEnvelope): SendMode {
   if (event.payload.kind === 'send_professional') return 'professional'
   if (event.payload.kind === 'send_auto') return 'automatic'
   return 'ordinary'
+}
+
+function stringRefs(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []
 }
 
 export function projectAssistantMessages(events: readonly EventEnvelope[]): ThreadMessageLike[] {
@@ -123,12 +131,45 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
           ? { type: 'complete' as const, reason: 'stop' as const }
           : { type: 'incomplete' as const, reason: event.eventType === 'attempt_cancelled' ? 'cancelled' as const : event.eventType === 'attempt_failed' ? 'error' as const : 'other' as const }
         ;(message as unknown as { status?: ThreadMessageLike['status'] }).status = status
+        const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
+        const relatedTools = events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length
+        ;(message as unknown as { metadata?: unknown }).metadata = {
+          custom: {
+            ...custom,
+            resultRefs: stringRefs(event.payload.result_refs),
+            evidenceRefs: stringRefs(event.payload.evidence_refs),
+            admission: event.payload.admission,
+            toolCount: relatedTools,
+          },
+        }
       }
     }
   }
-  return messages.map((message) => message.role === 'assistant' && typeof message.content === 'string'
-    ? { ...message, content: [{ type: 'text' as const, text: message.content }] }
-    : message)
+  for (const event of events) {
+    if (!['attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) continue
+    const key = event.attemptId || event.turnId
+    if (!key || assistantByAttempt.has(key)) continue
+    const label = event.eventType === 'attempt_failed' ? '失败' : event.eventType === 'attempt_cancelled' ? '已取消' : '已中断'
+    const message = {
+      id: `assistant-${key}`,
+      role: 'assistant' as const,
+      content: `本次 Attempt ${label}。可以查看运行过程，并在确认模型上下文后重新运行。`,
+      status: { type: 'incomplete' as const, reason: event.eventType === 'attempt_failed' ? 'error' as const : event.eventType === 'attempt_cancelled' ? 'cancelled' as const : 'other' as const },
+      metadata: { custom: { attemptId: key, source: 'capstone-harness', toolCount: events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length } },
+    }
+    messages.push(message)
+    assistantByAttempt.set(key, message)
+  }
+  return messages.map((message) => {
+    if (message.role !== 'assistant') return message
+    const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
+    const attemptId = typeof custom.attemptId === 'string' ? custom.attemptId : undefined
+    const activities = attemptId ? projectAssistantActivity(events.filter((candidate) => candidate.attemptId === attemptId)) : []
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities } } }
+    return typeof message.content === 'string'
+      ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
+      : withMetadata
+  })
 }
 
 function messageText(message: { content: unknown }): string {
@@ -141,7 +182,7 @@ function messageText(message: { content: unknown }): string {
 }
 
 function MarkdownMessage({ children }: { children?: ReactNode }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{typeof children === 'string' ? children : String(children ?? '')}</ReactMarkdown>
+  return <div className="capstone-chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({ children }) => <div className="capstone-chat-table-scroll"><table>{children}</table></div> }}>{typeof children === 'string' ? children : String(children ?? '')}</ReactMarkdown></div>
 }
 
 async function copyToClipboard(value: string): Promise<boolean> {
@@ -166,8 +207,9 @@ function IconAction({ label, onClick, children }: { label: string; onClick?: () 
   return <button type="button" className="capstone-chat-action" aria-label={label} title={label} onClick={onClick}>{children}</button>
 }
 
-function ChatActions({ role, text, onRegenerate }: { role: string; text: string; onRegenerate?: () => Promise<void> }) {
+function ChatActions({ role, text, evidenceRefs, toolCount, onRegenerate, onShowActivity }: { role: string; text: string; evidenceRefs: string[]; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void }) {
   const [copied, setCopied] = useState(false)
+  const [showEvidence, setShowEvidence] = useState(false)
   const copy = async () => {
     if (await copyToClipboard(text)) {
       setCopied(true)
@@ -177,30 +219,65 @@ function ChatActions({ role, text, onRegenerate }: { role: string; text: string;
   if (role === 'user') {
     return <div className="capstone-chat-actions" aria-label="消息操作"><IconAction label={copied ? '已复制' : '复制指令'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction></div>
   }
-  return <div className="capstone-chat-actions" aria-label="回答操作">
+  return <>
+  <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
     {onRegenerate && <IconAction label="重新运行回答" onClick={() => void onRegenerate()}><RotateCcw /></IconAction>}
+    {evidenceRefs.length > 0 && <IconAction label="查看证据" onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>}
+    {toolCount > 0 && <IconAction label="查看运行过程" onClick={onShowActivity}><ListTree /></IconAction>}
     <IconAction label="回答有帮助"><ThumbsUp /></IconAction>
     <IconAction label="回答需改进"><ThumbsDown /></IconAction>
     <IconAction label="更多回答操作"><MoreHorizontal /></IconAction>
   </div>
+  {showEvidence && <div className="capstone-chat-evidence" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong><div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
+  </>
+}
+
+function AttemptActivity({ activities, running, detailsRef }: { activities: ChatActivity[]; running: boolean; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+  if (activities.length === 0) return null
+  return <details ref={detailsRef} className="capstone-chat-activity capstone-chat-activity-attached" open={running}>
+    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : '已完成'} {activities.length} 个步骤</span><small>查看运行过程</small></summary>
+    <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
+  </details>
+}
+
+function RunArtifacts({ resultRefs, evidenceRefs, admission }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown }) {
+  if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
+  const admitted = Boolean(admission && typeof admission === 'object' && 'status' in admission && (admission as { status?: unknown }).status === 'admitted')
+  return <div className="capstone-chat-artifacts" aria-label="当前运行结果引用">
+    <span className="capstone-chat-artifacts-label"><FileCheck2 aria-hidden="true" /> 当前运行</span>
+    {resultRefs.length > 0 && <span>结果 {resultRefs.length}</span>}
+    {evidenceRefs.length > 0 && <span>证据 {evidenceRefs.length}</span>}
+    {admitted && <span className="is-admitted">已准入</span>}
+  </div>
 }
 
 function ChatMessage({ onRegenerate }: { onRegenerate?: (attemptId: string) => Promise<void> }) {
+  const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
   const id = useAuiState((state) => state.message.id)
+  const status = useAuiState((state) => state.message.status)
+  const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
   const hasText = messageText({ content }).trim().length > 0
   const text = messageText({ content })
   const attemptId = id.replace(/^assistant-/, '')
+  const evidenceRefs = stringRefs(custom?.evidenceRefs)
+  const resultRefs = stringRefs(custom?.resultRefs)
+  const admission = custom?.admission
+  const toolCount = typeof custom?.toolCount === 'number' ? custom.toolCount : 0
+  const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
+  const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   return <MessagePrimitive.Root className={`capstone-chat-message is-${role}`}>
     <div className="capstone-chat-body">
       <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
       {hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
-        : role === 'assistant' && <span className="capstone-chat-placeholder">正在生成回答…</span>}
-      {hasText && <ChatActions role={role} text={text} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId) : undefined} />}
+        : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
+    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={evidenceRefs} toolCount={activities.length || toolCount} onShowActivity={() => { if (activityRef.current) activityRef.current.open = !activityRef.current.open }} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId) : undefined} />}
+    {role === 'assistant' && <AttemptActivity activities={activities} running={status?.type === 'running'} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
@@ -229,6 +306,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
   const messages = useMemo(() => projectAssistantMessages(events), [events])
   const [mode, setMode] = useState<SendMode>('automatic')
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
+  const legacyActivity = activity.some((item) => typeof item === 'string')
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
     convertMessage: (message) => message,
@@ -252,7 +330,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
           {messages.length === 0 && <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><span>可以先问模型状态，也可以直接发起潮流、约束或线路筛查分析。</span></div>}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={onRegenerate} /> }} />
         </ThreadPrimitive.Viewport>}
-        {normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
+        {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
