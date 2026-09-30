@@ -1370,3 +1370,6 @@ _Recovered pre-merge mainline entries._
 - 11:48 跨包回归通过：Capstone 189/27、Grid Thread 5、PyPSA 19，边界检查通过
 - 11:49 固化跨包回归记录，保留 control command 作为下一实现边界 [f824ffe]
 - 11:50 更新活动恢复 baton，下一步转入 cancel/retry control command 生命周期 [c11f590]
+- 11:51 固化当前 control command 边界，保持下一阶段从 cancel/retry 先行 [6538d30]
+- 12:08 实现 cancel_live_attempt：持久请求事件、心跳安全点取消与 attempt_cancelled 终态 [5f3a29f]
+- 12:15 实现 retry_new_attempt：从可重试终态创建新 Attempt，并执行上下文与并发硬门控 [7effdb9]

@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 11:50 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 12:15 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -54,10 +54,15 @@
   capability, binding, projector, result, and evidence provenance for UI
   diagnostics; professional/tool attempts now require an application-owned
   `AdmittedAttemptAnswer` before terminal completion.
+- `cancel_live_attempt` is a durable control command: it targets the live
+  Attempt, emits a request event, and becomes `attempt_cancelled` at a Harness
+  heartbeat safe point. `retry_new_attempt` creates a fresh immutable Attempt
+  from an interrupted, failed, or cancelled predecessor after model-context
+  fencing; it never resumes or mutates the predecessor.
 
 ## Verification
 
-- Capstone Python suite: 189 passed, 27 skipped.
+- Capstone Python suite: 195 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
   including a professional Attempt with admitted result/evidence refs;
@@ -85,8 +90,10 @@
 
 ## Immediate next action
 
-1. Implement the first public control-command execution path (cancel/retry)
-   against the same Thread command envelope, with durable lifecycle events.
+1. Implement selection control commands (`enable_profile`, `disable_profile`,
+   `replace_selection`) as a pending Context revision. Running Attempts keep
+   their pinned selection; the new revision applies only after a terminal
+   Attempt, with exact catalog admission and no semantic-overlap inference.
 
 ## Recovery constraints
 
