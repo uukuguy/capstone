@@ -1376,3 +1376,4 @@ _Recovered pre-merge mainline entries._
 - 12:18 补充 retry worker 回归：新 Attempt 可重新 claim、复用指令并完成终态提交 [f6c3fd8]
 - 12:23 修正 retry 语义：新 Attempt 保留原 Turn，并移除 PostgreSQL 的单 Turn 唯一约束 [ba1651d]
 - 12:31 增加挂起能力选择：catalog 硬校验、下一 Turn 激活 selection revision，并让 Context owner 支持同 Context 换 revision [868b2f6]
+- 12:34 回归通过：Capstone 201 passed/27 skipped，包边界、changed-source pyright 与 diff 检查通过
