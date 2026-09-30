@@ -8,12 +8,27 @@ from capstone_agent.kernel_capability_preparation import (
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
 from capstone_model_capability_spi import ModelCapabilityRegistry
+from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
+    PreparedKernelPiSessionFactory,
+    build_pandapower_thread_application,
     register_pandapower_capability,
 )
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
+
+
+class _Session:
+    def start(self) -> None:
+        return None
+
+    def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+        del question, kwargs
+        return "answer"
+
+    def stop(self) -> None:
+        return None
 
 
 def _claim(revision: str = "revision:sha256:" + "a" * 64) -> AttemptClaim:
@@ -69,3 +84,49 @@ def test_pandapower_profile_prepares_real_grid_authority_before_context_activati
     assert calls[0]["revision_ref"] == revision
     assert context.contributions[0].prepared.model_binding.model_revision == revision
     owner.close()
+
+
+def test_prepared_kernel_pi_factory_exposes_only_prepared_profile_inputs(tmp_path):
+    authority_models = ModelRegistry(Pandapower340Engine())
+    revision = authority_models.trusted_revision_ref("ieee39")
+    calls = []
+
+    def bind(prepared, context):
+        executor = prepared.bindings["grid"].runtime.executor
+        opened = executor.invoke("context.open", {"model_id": context.model_id})
+        return AuthorityModelBinding(
+            "grid", context.model_id, opened["revision_ref"],
+            context.implementation_family, opened["context_ref"],
+        )
+
+    def build_session(claim, context, profiles):
+        calls.append((claim, context, profiles))
+        assert len(profiles) == 1
+        prepared = profiles[0]
+        binding = prepared.prepared_application.bindings["grid"]
+        assert binding.runtime.tool_catalog_path.is_file()
+        assert binding.runtime.guide_index_path.is_file()
+        assert prepared.model_binding.context_ref.startswith("context:")
+        return _Session()
+
+    assembly = build_pandapower_thread_application(
+        default_model_id="ieee39",
+        model_resolver=lambda model_id: {
+            "model_id": model_id,
+            "revision_ref": revision,
+            "implementation_family": "pandapower",
+        },
+        workspace_root=tmp_path,
+        model_binder=bind,
+        session_builder=build_session,
+        default_selection=ModelCapabilitySelection(
+            (PANDAPOWER_PROFILE_DESCRIPTOR.reference,)
+        ),
+    )
+    claim = _claim(revision)
+    runtime = assembly.runtime_factory(claim)
+    runtime.start()
+    assert runtime.prompt("inspect", on_event=lambda _event: None) == "answer"
+    runtime.stop()
+    assert calls[0][0].model_context == claim.model_context
+    assembly.capability_context_owner.close()
