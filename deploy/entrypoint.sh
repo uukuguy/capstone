@@ -6,7 +6,7 @@ case "${1:-}" in
     exec uv run --no-sync --project /app/packages/grid-agent python -m grid_agent.hosted
     ;;
   worker)
-    exec uv run --no-sync --project /app/packages/capstone-agent capstone-agent work-hosted
+    exec uv run --no-sync --project /app/packages/grid-agent python -m grid_agent.hosted_worker
     ;;
   *)
     echo 'usage: entrypoint.sh api|worker' >&2

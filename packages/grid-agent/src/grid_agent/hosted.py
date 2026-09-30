@@ -7,10 +7,27 @@ without making capstone-agent import a domain implementation.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from typing import Any, Mapping
+
 from capstone_agent.cli import main as capstone_main
+from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
+from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
+from capstone_agent.runtime import build_runtime_host
 from capstone_agent.thread_service import ThreadModelDescriptor
+from capstone_model_capability_spi import ModelCapabilitySelection
+from capability_agent.runtime.models import CliLLMOptions
+from capability_agent.runtime.resolver import resolve_llm
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
+
+from grid_agent.application.profile import build_pandapower_application_profile
+from grid_agent.application.thread_capabilities import (
+    PANDAPOWER_PROFILE_DESCRIPTOR,
+    build_pandapower_thread_application,
+)
+from grid_agent.config.catalog import ProviderCatalog
 
 
 class RegisteredPandapowerThreadCatalog:
@@ -31,14 +48,85 @@ class RegisteredPandapowerThreadCatalog:
         )
 
 
+def build_registered_pandapower_thread_application():
+    """Build the hosted pandapower Thread catalog and Pi Harness seam."""
+
+    root = Path(__file__).resolve().parents[4]
+    models = ModelRegistry(Pandapower340Engine())
+
+    def resolve_model(model_id: str) -> Mapping[str, object]:
+        model = models.get(model_id)
+        return {
+            "model_id": model.model_id,
+            "revision_ref": models.trusted_revision_ref(model.model_id),
+            "implementation_family": model.engine,
+        }
+
+    def bind_model(prepared: object, context: Any) -> AuthorityModelBinding:
+        binding = prepared.bindings["grid"]
+        opened = binding.runtime.executor.invoke(
+            "context.open", {"model_id": context.model_id},
+        )
+        return AuthorityModelBinding(
+            "grid", context.model_id, opened["revision_ref"],
+            context.implementation_family, opened["context_ref"],
+        )
+
+    def build_session(claim, context, profiles):
+        from grid_agent.cli.app import _generic_runtime_environment, _runtime_environment
+
+        environment = _generic_runtime_environment(_runtime_environment(root))
+        environment.setdefault(
+            "CAPABILITY_AGENT_LLM_PROVIDER",
+            environment.get("CAPSTONE_PUBLIC_PROVIDER", "deepseek"),
+        )
+        environment.setdefault(
+            "CAPABILITY_AGENT_LLM_MODEL",
+            environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
+        )
+        resolved = resolve_llm(
+            catalog=ProviderCatalog.load(root / "configs/llm-providers.json"),
+            cli=CliLLMOptions(), environ=environment,
+            env_file=root / ".env",
+        )
+        runtime_host = build_runtime_host(
+            root, build_pandapower_application_profile(), environment,
+        )
+        return PreparedKernelPiRpcSessionBuilder(
+            runtime_host=runtime_host, resolved_llm=resolved,
+            base_environment=environment,
+        )(claim, context, profiles)
+
+    workspace_root = Path(
+        os.environ.get("CAPSTONE_RUNS_ROOT", str(root / "runs" / "capstone-agent")),
+    ) / "thread-workspaces"
+    return build_pandapower_thread_application(
+        default_model_id="ieee39",
+        model_resolver=resolve_model,
+        workspace_root=workspace_root,
+        model_binder=bind_model,
+        session_builder=build_session,
+        default_selection=ModelCapabilitySelection(
+            (PANDAPOWER_PROFILE_DESCRIPTOR.reference,),
+        ),
+    )
+
+
 def main() -> int:
     """Start the shared hosted API with the registered pandapower catalog."""
 
-    return capstone_main(["serve-hosted"], thread_catalog=RegisteredPandapowerThreadCatalog())
+    return capstone_main(
+        ["serve-hosted"],
+        thread_application=build_registered_pandapower_thread_application(),
+    )
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["RegisteredPandapowerThreadCatalog", "main"]
+__all__ = [
+    "RegisteredPandapowerThreadCatalog",
+    "build_registered_pandapower_thread_application",
+    "main",
+]

@@ -49,7 +49,23 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
     }
     if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' || event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
       const key = event.attemptId || event.turnId
-      const message = key ? assistantByAttempt.get(key) : undefined
+      let message = key ? assistantByAttempt.get(key) : undefined
+      const answer = event.eventType === 'attempt_completed' && typeof event.payload.answer === 'string'
+        ? event.payload.answer
+        : ''
+      if (!message && key && answer) {
+        message = {
+          id: `assistant-${key}`,
+          role: 'assistant' as const,
+          content: answer,
+          status: { type: 'running' as const },
+          metadata: { custom: { attemptId: key, source: 'capstone-harness' } },
+        }
+        assistantByAttempt.set(key, message)
+        messages.push(message)
+      } else if (message && !message.content && answer) {
+        message.content = answer
+      }
       if (message) {
         const status = event.eventType === 'attempt_completed'
           ? { type: 'complete' as const, reason: 'stop' as const }
@@ -74,9 +90,16 @@ function messageText(message: { content: unknown }): string {
 
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role)
+  const content = useAuiState((state) => state.message.content)
+  const hasText = messageText({ content }).trim().length > 0
   return <MessagePrimitive.Root className={`capstone-chat-message is-${role}`}>
     <div className="capstone-chat-avatar" aria-hidden="true">{role === 'user' ? '你' : 'C'}</div>
-    <div className="capstone-chat-body"><span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE · HARNESS'}</span><MessagePrimitive.Parts components={{ Text: () => <MessagePartPrimitive.Text smooth={false} /> }} /></div>
+    <div className="capstone-chat-body">
+      <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE · HARNESS'}</span>
+      {hasText
+        ? <MessagePrimitive.Parts components={{ Text: () => <MessagePartPrimitive.Text smooth={false} /> }} />
+        : role === 'assistant' && <span className="capstone-chat-placeholder">正在生成回答…</span>}
+    </div>
   </MessagePrimitive.Root>
 }
 
@@ -107,7 +130,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
 
   return <AssistantRuntimeProvider runtime={runtime}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
-      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />assistant-ui <span>· Capstone projection</span></div>
+      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
           {messages.length === 0 && <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><span>可以先问模型状态，也可以直接发起潮流、约束或线路筛查分析。</span></div>}

@@ -36,4 +36,25 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText(/工具已启动/)).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Thread 指令' })).toBeTruthy()
   })
+
+  it('shows an explicit processing state for an assistant message without text yet', () => {
+    render(<CapstoneAssistantThread events={[
+      event('assistant_text_delta', 1, { text: '' }, 'attempt_1'),
+    ]} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    expect(screen.getByText('正在生成回答…')).toBeTruthy()
+  })
+
+  it('projects the authoritative answer when the harness emits it on completion', () => {
+    const messages = projectAssistantMessages([
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '查看当前模型' } }),
+      event('attempt_completed', 2, { answer: '当前模型为 IEEE-39。' }, 'attempt_1'),
+    ])
+
+    expect(messages.map((message) => [message.role, message.content])).toEqual([
+      ['user', '查看当前模型'],
+      ['assistant', [{ type: 'text', text: '当前模型为 IEEE-39。' }]],
+    ])
+    expect(messages[1].status).toEqual({ type: 'complete', reason: 'stop' })
+  })
 })
