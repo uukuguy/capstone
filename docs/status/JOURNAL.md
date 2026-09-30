@@ -1323,3 +1323,5 @@ _Recovered pre-merge mainline entries._
 - 08:27 增加 ApplicationPiRuntimeFactory，统一应用提供的 Pi session 到 Capstone Harness runtime 的装配边界 [9c7662c]
 - 08:31 增加严格 typed Thread SSE client stream，复用事件协议并去重游标，供 Web/TUI 投影使用 [322f8ae]
 - 08:35 让 ThreadProjectionStore 消费 SSE 生命周期并投影 Attempt 状态，避免客户端只移动光标不更新语义快照 [e9d43ee]
+- 08:38 更新活动 checkpoint，记录 SSE 投影和 141/25 Python、92 Web 回归结果 [e3d34ca]
+- 08:41 覆盖 Thread SSE 光标过期时返回 verified resync snapshot，避免客户端错误继续消费旧流 [6e4105b]
