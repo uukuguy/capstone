@@ -1325,3 +1325,5 @@ _Recovered pre-merge mainline entries._
 - 08:35 让 ThreadProjectionStore 消费 SSE 生命周期并投影 Attempt 状态，避免客户端只移动光标不更新语义快照 [e9d43ee]
 - 08:38 更新活动 checkpoint，记录 SSE 投影和 141/25 Python、92 Web 回归结果 [e3d34ca]
 - 08:41 覆盖 Thread SSE 光标过期时返回 verified resync snapshot，避免客户端错误继续消费旧流 [6e4105b]
+- 08:43 更新活动 checkpoint，记录 SSE resync 覆盖和 142/25 Python 回归 [5e0fe8b]
+- 08:47 读取 Thread snapshot 前自动中断过期 Attempt，避免 API/TUI 显示已失联的运行状态 [28ad1b0]

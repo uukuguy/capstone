@@ -24,13 +24,13 @@
 
 ## Verification
 
-- `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 142 passed, 25 skipped after SSE resync coverage.
+- `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 143 passed, 25 skipped after stale-snapshot fencing coverage.
 - `npm test --prefix packages/capstone-app` — 14 files, 91 tests passed; `npm run check` and production build passed.
 - Latest Web projection check — 14 files, 92 tests passed; TypeScript check passed.
 - Postgres Thread integration with `CAPSTONE_TEST_DATABASE_URL` — 3 passed.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
-- Commits: `6339986` Attempt worker lifecycle; `db3295e` bounded runtime payloads; `9909484` hosted injection seam; `9c7662c` Pi runtime assembly; `322f8ae` typed SSE client; `e9d43ee` lifecycle projection; `6e4105b` SSE resync coverage.
+- Commits: `6339986` Attempt worker lifecycle; `db3295e` bounded runtime payloads; `9909484` hosted injection seam; `9c7662c` Pi runtime assembly; `322f8ae` typed SSE client; `e9d43ee` lifecycle projection; `6e4105b` SSE resync coverage; `28ad1b0` stale-snapshot fencing.
 
 ## Immediate next action
 
