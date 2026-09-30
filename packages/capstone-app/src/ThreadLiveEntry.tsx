@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient } from './threadClient'
+import { CapstoneClient } from './api'
 import { HttpThreadTransport } from './threadHttpTransport'
+import { parseNetworkDiagram } from './networkValidation'
+import type { NetworkDiagram } from './types'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 
@@ -34,12 +37,14 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const [createdThreadId, setCreatedThreadId] = useState(threadId === 'new' ? '' : threadId)
   const [creating, setCreating] = useState(threadId === 'new')
   const [error, setError] = useState<string | null>(null)
+  const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || ''
   const transport = useMemo(
     () => token ? new HttpThreadTransport(apiOrigin, token) : null,
     [apiOrigin, token],
   )
   const client = useMemo(() => transport ? new CapstoneThreadClient(transport) : null, [transport])
+  const authorityClient = useMemo(() => token ? new CapstoneClient(apiOrigin, token) : null, [apiOrigin, token])
 
   useEffect(() => {
     if (!client || threadId !== 'new' || createdThreadId) return
@@ -53,8 +58,20 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     return () => { active = false }
   }, [client, createdThreadId, threadId])
 
+  useEffect(() => {
+    if (!authorityClient || !createdThreadId) return
+    let active = true
+    void authorityClient.caseDiagram('pandapower-static-analysis', 'pandapower-scripted-task').then((raw) => {
+      const diagram = parseNetworkDiagram(raw)
+      if (active && diagram) setPreviewDiagram(diagram)
+    }).catch(() => {
+      // The Thread remains usable when the optional topology preview is unavailable.
+    })
+    return () => { active = false }
+  }, [authorityClient, createdThreadId])
+
   if (!token) return <TokenPrompt onSubmit={setToken} />
   if (error) return <main className="thread-token-shell"><div className="thread-token-card" role="alert"><h1>Thread 不可用</h1><p>{error}</p><button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button></div></main>
   if (creating || !client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建 Thread…</main>
-  return <ThreadFixtureApp client={client} threadId={createdThreadId} />
+  return <ThreadFixtureApp client={client} threadId={createdThreadId} previewDiagram={previewDiagram} />
 }

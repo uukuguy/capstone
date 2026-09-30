@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
+import CapstoneAssistantThread from './CapstoneAssistantThread'
+import ThreadModelPane from './ThreadModelPane'
+import { threadPreviewDiagram } from './threadModelDiagram'
+import type { NetworkDiagram } from './types'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -29,25 +33,6 @@ function modelLabel(modelId: string | undefined): string {
   return { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39' }[modelId || ''] || modelId || '当前模型'
 }
 
-function NetworkCanvas({ pageId, historical }: { pageId: string | null; historical: boolean }) {
-  return <div className={`thread-network-canvas${historical ? ' is-historical' : ''}`}>
-    <svg viewBox="0 0 640 360" role="img" aria-label={`${pageId || '当前'} 电网模型图`}>
-      <path className="grid-edge" d="M104 180 L188 94 L310 126 L430 76 L548 162 L470 274 L318 236 L188 274 Z M188 94 L188 274 M310 126 L318 236 M430 76 L470 274 M104 180 L318 236 M548 162 L318 236" />
-      <path className="grid-edge grid-edge-active" d="M188 94 L310 126 L430 76" />
-      {[['104', '180', 'B01'], ['188', '94', 'B07'], ['310', '126', 'B12'], ['430', '76', 'B19'], ['548', '162', 'B24'], ['470', '274', 'B31'], ['318', '236', 'B27'], ['188', '274', 'B34']].map(([x, y, label]) => <g key={label}>
-        <circle className="grid-node" cx={x} cy={y} r="12" /><text x={x} y={Number(y) + 31} textAnchor="middle">{label}</text>
-      </g>)}
-    </svg>
-    <div className="thread-network-legend"><span><i className="legend-dot current" />当前模型投影</span><span><i className="legend-dot muted" />只读历史页</span></div>
-  </div>
-}
-
-function PageButton({ active, historical, label, onClick }: { active: boolean; historical: boolean; label: string; onClick: () => void }) {
-  return <button type="button" className={`thread-page-button${active ? ' is-active' : ''}${historical ? ' is-history' : ''}`} onClick={onClick}>
-    <span className="thread-page-index">{active ? '●' : '○'}</span><span>{label}</span>{historical && <small>历史</small>}
-  </button>
-}
-
 function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
   if (state.connection === 'resync_required') return '服务器与本地事件光标不一致。已冻结命令，必须先重新同步。'
   if (fixture?.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
@@ -59,9 +44,10 @@ export type ThreadWorkspaceProps = {
   fixtureId?: ThreadUiFixtureId
   client?: CapstoneThreadClient
   threadId?: string
+  previewDiagram?: NetworkDiagram | null
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram = threadPreviewDiagram }: ThreadWorkspaceProps) {
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
     if (client) return new ThreadProjectionStore(client)
@@ -70,7 +56,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [client, fixture])
   const threadId = requestedThreadId || (fixture ? String((fixture.snapshot as { thread_id: string }).thread_id) : '')
   const [projection, setProjection] = useState<ThreadProjectionState>(store.state)
-  const [draft, setDraft] = useState(fixture?.local_view.draft || '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -84,7 +69,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const unsubscribe = store.subscribe(() => {
       if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
     })
-    setLoading(true); setError(null); setNotice(null); setDraft(fixture?.local_view.draft ?? '')
+    setLoading(true); setError(null); setNotice(null)
     void (async () => {
       try {
         await store.load(threadId)
@@ -118,9 +103,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const isInterrupted = attempt?.phase === 'interrupted'
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
-  const pages = isHistorical
-    ? Array.from(new Set([activePage || 'page_ieee39', viewedPage || 'page_scigrid_2']))
-    : [activePage || 'page_ieee39']
   const events = store.publicEvents
 
   if (!loading && error && !snapshot) {
@@ -158,54 +140,38 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return <button type="button" className="thread-control-button" disabled={!enabled} onClick={() => void dispatch(kind, payload)}>{label}</button>
   }
 
-  return <div className="thread-fixture-shell">
-    <header className="thread-fixture-topbar">
-      <div className="thread-brand"><span className="thread-brand-mark">◆</span><strong>CAPSTONE</strong><span>THREAD WORKSPACE</span></div>
-      <div className={`thread-connection is-${projection.connection}`}><i />{connectionLabel(projection.connection)}</div>
+  return <div className="thread-app-shell">
+    <header className="thread-app-topbar">
+      <div className="thread-app-brand"><span className="thread-app-mark" aria-hidden="true"><i /><i /><i /><i /></span><strong>CAPSTONE</strong><span>THREAD WORKSPACE</span></div>
+      <div className={`thread-app-connection is-${projection.connection}`}><i />{connectionLabel(projection.connection)}</div>
     </header>
-    {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : <main className="thread-workspace">
-      <h1 className="thread-workspace-title">Thread / {modelLabel(snapshot?.activeModelContext.modelId)}</h1>
-      <section className="thread-grid-pane" aria-label="电网模型区">
-        <div className="thread-pane-heading"><div><span className="eyebrow">MODEL / CURRENT GRID</span><h2>电网模型</h2></div><span className="thread-context-state">{isHistorical ? '历史查看' : '当前'}</span></div>
-        <div className="thread-model-card"><div><strong>{modelLabel(snapshot?.activeModelContext.modelId)}</strong><span>{snapshot?.activeModelContext.implementationFamily || 'pandapower'} · revision {snapshot?.activeModelContext.modelRevision || '—'}</span></div><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
-        <div className="thread-model-controls" aria-label="模型上下文控制">
-          <label>切换模型<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => setModelTarget(event.target.value)} disabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'}>
-            <option value="ieee39">IEEE-39 · pandapower</option><option value="pypsa39">PyPSA-39 · PyPSA</option>
-          </select></label>
-          <button type="button" className="thread-control-button" disabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live' || modelTarget === snapshot?.activeModelContext.modelId} onClick={() => void dispatch('switch_model', { model_id: modelTarget })}>切换模型</button>
-          {contextChangePending && <small>切换将在下一 Turn 激活</small>}
-        </div>
-        <div className="thread-page-tabs" aria-label="电网模型分页">
-          {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage} label={pageId === activePage ? `${modelLabel(snapshot?.activeModelContext.modelId)} · 当前模型` : pageId === 'page_scigrid_2' ? 'SciGrid-2 · 事件历史' : `${pageId} · 事件历史`} onClick={() => selectPage(pageId)} />)}
-        </div>
-        <NetworkCanvas pageId={viewedPage} historical={isHistorical} />
-        <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot?.activeModelContext.id || '—'}</strong></div><div><span>SELECTION</span><strong>{snapshot?.activeModelContext.selectionRevision || '—'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projection.eventSeq}</strong></div></div>
-        {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button></div>}
-        {fixture?.local_view.element_reference && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{fixture.local_view.element_reference.element_kind} / {fixture.local_view.element_reference.element_id}</strong><small>{fixture.local_view.element_reference.model_id} · revision {fixture.local_view.element_reference.model_revision}</small></div>}
-      </section>
-      <section className="thread-conversation-pane" aria-label="Thread 对话区">
-        <div className="thread-pane-heading"><div><span className="eyebrow">THREAD / RUN {snapshot?.run.runId || '—'}</span><h2>对话 Thread</h2></div><span className="thread-run-state">{snapshot?.run.state || '—'}</span></div>
-        <div className={`thread-state-notice${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>
-        {error && <div className="thread-inline-error" role="alert">{error}</div>}
-        {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
-        <div className="thread-events" aria-label="Thread 事件">
-          <div className="thread-message is-system"><span className="thread-message-role">SYSTEM · CONTEXT</span><p>当前模型已绑定 <strong>{snapshot?.activeModelContext.implementationFamily}</strong>，工具选择 revision <strong>{snapshot?.activeModelContext.selectionRevision}</strong>。</p></div>
-          {events.map((event) => <div className="thread-message" key={event.eventId}><span className="thread-message-role">EVENT · #{event.eventSeq}</span><p>{eventLabel(event.eventType)}</p><small>来源：capstone-harness · public projection</small></div>)}
-          {isInterrupted && <div className="thread-message is-warning"><span className="thread-message-role">ATTEMPT · INTERRUPTED</span><p>本次 Attempt 已中断</p><small>重试将创建新 Attempt，不覆盖旧 Attempt。</small></div>}
-        </div>
-        <div className="thread-composer">
-          <textarea aria-label="Thread 指令" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={!canSendText} placeholder={canSendText ? '围绕当前电网模型输入指令…' : '当前状态暂不可提交新指令'} rows={3} />
-          <div className="thread-composer-footer"><span>Cursor #{projection.eventSeq} · Context {snapshot?.activeModelContext.id || '—'}</span><div className="thread-send-actions">{canSendText && <><button type="button" className="thread-secondary-button" onClick={() => void dispatch('send_ordinary', { text: draft })} disabled={!draft.trim()}>发送普通指令</button><button type="button" className="thread-primary-button" onClick={() => void dispatch('send_professional', { text: draft })} disabled={!draft.trim()}>发送专业请求</button></>}</div></div>
-        </div>
-        <div className="thread-control-row" aria-label="Thread 控制">
-          {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
-            {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}
-            {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
-            {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
-            {(isActive || isInterrupted) && <button type="button" className="thread-control-button" onClick={() => setNotice('回放入口将在真实事件流接入后启用')}>打开回放</button>}
-          </>}
-        </div>
-      </section>
-    </main>}
+    {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
+      <div className="thread-app-title"><div><span className="eyebrow">CAPSTONE / AGENT WORKSPACE</span><h1>Thread / {modelLabel(snapshot.activeModelContext.modelId)}</h1></div><span className="thread-run-chip">RUN {snapshot.run.runId}</span></div>
+      <div className="thread-app-columns">
+        <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
+          projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
+          controlsDisabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram}
+          elementReference={fixture?.local_view.element_reference} onModelTargetChange={setModelTarget}
+          onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
+        <section className="thread-chat-pane" aria-label="Thread 对话区">
+          <div className="thread-chat-heading"><div><span className="eyebrow">THREAD / RUN {snapshot.run.runId}</span><h2>对话 Thread</h2></div><span className="thread-run-state">{snapshot.run.state}</span></div>
+          <div className={`thread-state-notice${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>
+          {error && <div className="thread-inline-error" role="alert">{error}</div>}
+          {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
+          {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
+          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={events.filter((event) => ['tool_started', 'tool_completed', 'attempt_progress'].includes(event.eventType)).map((event) => `${eventLabel(event.eventType)} · capstone-harness`)}
+            onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_ordinary', { text }) }}
+            onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }} />
+          <div className="thread-control-row" aria-label="Thread 控制">
+            {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
+              {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}
+              {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
+              {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
+              {(isActive || isInterrupted) && <button type="button" className="thread-control-button" onClick={() => setNotice('回放入口将在真实事件流接入后启用')}>打开回放</button>}
+            </>}
+          </div>
+        </section>
+      </div>
+    </main> : null}
   </div>
 }
