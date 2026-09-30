@@ -114,3 +114,45 @@ def test_cancel_control_interrupts_runtime_at_heartbeat_and_commits_cancelled() 
     assert result.error_code == "attempt_cancelled"
     assert service.snapshot("thr_worker").current_attempt is None
     assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_cancelled"
+
+
+def test_retry_control_reclaims_a_fresh_attempt_and_replays_the_instruction() -> None:
+    service = _service()
+    _submit(service)
+    first = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert first is not None
+    service.finish_attempt(first, phase="interrupted", payload={"reason": "lease_expired"})
+
+    retry = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_retry_worker",
+        "idempotency_key": "idem_retry_worker", "thread_id": "thr_worker",
+        "run_id": "run_worker", "kind": "retry_new_attempt",
+        "expected_event_seq": service.snapshot("thr_worker").last_event_seq,
+        "payload": {"attempt_id": first.attempt.attempt_id},
+    })
+    assert retry.status == "accepted"
+    assert retry.target is not None
+    assert retry.target["attempt_id"] != first.attempt.attempt_id
+
+    seen: list[str] = []
+
+    class _RetryRuntime(_Runtime):
+        def prompt(self, question: str, *, on_event, correlation_id=None, on_heartbeat=None) -> str:
+            del on_event, correlation_id, on_heartbeat
+            assert question == "inspect"
+            return "retried"
+
+    def factory(claim):
+        seen.append(claim.attempt.attempt_id)
+        return _RetryRuntime()
+
+    result = run_pending_attempt(
+        service, factory, worker_id="thread-worker",
+    )
+
+    assert result is not None
+    assert result.status == "completed"
+    assert seen == [retry.target["attempt_id"]]
+    events = service.read_events("thr_worker", 0).events
+    assert events[-1].event_type == "attempt_completed"
+    assert events[-1].attempt_id == retry.target["attempt_id"]
