@@ -73,6 +73,7 @@ class PreparedApplicationPiRuntimeFactory:
         self._context_owner = context_owner
         self._session_factory = session_factory
         self._runtime_mode = runtime_mode
+        self.rollback_selection_on_failure = True
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.prepare(claim)

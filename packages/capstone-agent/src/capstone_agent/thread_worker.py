@@ -33,10 +33,19 @@ def run_pending_attempt(
     try:
         runtime = runtime_factory(claim)
     except Exception:
+        error_code = "runtime_unavailable"
+        if getattr(runtime_factory, "rollback_selection_on_failure", False):
+            error_code = "capability_context_preparation_failed"
+            try:
+                service.rollback_selection_if_preparation_failed(
+                    claim, error_code=error_code,
+                )
+            except Exception:
+                pass
         service.finish_attempt(
-            claim, phase="failed", payload={"error_code": "runtime_unavailable"},
+            claim, phase="failed", payload={"error_code": error_code},
         )
-        return HarnessAttemptResult("failed", None, "runtime_unavailable")
+        return HarnessAttemptResult("failed", None, error_code)
     return HarnessAttemptRunner(service, runtime, lease_seconds=lease_seconds).run(claim)
 
 

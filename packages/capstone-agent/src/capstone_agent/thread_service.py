@@ -111,6 +111,10 @@ class ThreadExecutionService(ThreadService, Protocol):
 
     def cancel_requested(self, claim: AttemptClaim) -> bool: ...
 
+    def rollback_selection_if_preparation_failed(
+        self, claim: AttemptClaim, *, error_code: str,
+    ) -> bool: ...
+
     def interrupt_expired_attempts(self) -> int: ...
 
     def append_runtime_event(
@@ -536,6 +540,53 @@ class InMemoryThreadService:
             self._require_claim(claim)
             return claim.attempt.attempt_id in self._cancel_requests
 
+    def rollback_selection_if_preparation_failed(
+        self, claim: AttemptClaim, *, error_code: str,
+    ) -> bool:
+        _identifier(error_code, name="selection.error_code")
+        with self._lock:
+            record = self._require_claim(claim)
+            if record["attempt"].phase != "running":
+                raise ThreadExecutionError("attempt is not running")
+            active = self._snapshot.active_model_context
+            if (
+                active.id != claim.model_context.id
+                or active.selection_revision != claim.model_context.selection_revision
+            ):
+                return False
+            activation = next(
+                (
+                    event for event in reversed(self._events)
+                    if event.event_type == "selection_activated"
+                    and event.selection_revision == active.selection_revision
+                ),
+                None,
+            )
+            if activation is None:
+                return False
+            previous_document = activation.payload.get("previous_selection")
+            previous_revision = activation.payload.get("previous_selection_revision")
+            if not isinstance(previous_document, dict) or not isinstance(previous_revision, str):
+                return False
+            try:
+                previous = ModelCapabilitySelection.from_document(previous_document)
+            except ValueError:
+                return False
+            restored = replace(
+                active, selection_revision=previous_revision,
+                enabled_profiles=previous.enabled_profiles,
+            )
+            event = self._append_control_event(
+                event_type="selection_reverted",
+                payload={"error_code": error_code, "restored_selection": previous_document},
+                context=restored,
+            )
+            self._snapshot = replace(
+                self._snapshot, active_model_context=restored,
+                last_event_seq=event.event_seq,
+            )
+            return True
+
     def interrupt_expired_attempts(self) -> int:
         cutoff = time.monotonic()
         interrupted = 0
@@ -670,6 +721,8 @@ class InMemoryThreadService:
             event_type="selection_activated",
             payload={
                 "command_id": pending.command_id,
+                "previous_selection_revision": context.selection_revision,
+                "previous_selection": ModelCapabilitySelection(context.enabled_profiles).to_document(),
                 "selection": ModelCapabilitySelection(pending.enabled_profiles).to_document(),
             },
             context=active,
@@ -1375,6 +1428,75 @@ class PostgresThreadService:
             ).fetchone()
             return requested is not None
 
+    def rollback_selection_if_preparation_failed(
+        self, claim: AttemptClaim, *, error_code: str,
+    ) -> bool:
+        _identifier(error_code, name="selection.error_code")
+        with self._connect() as connection:
+            attempt = connection.execute(
+                """SELECT 1 FROM capstone_thread_attempts
+                   WHERE attempt_id = %s AND thread_id = %s AND lease_token = %s
+                     AND phase = 'running' AND lease_deadline > clock_timestamp()""",
+                (claim.attempt.attempt_id, claim.thread_id, claim.lease_token),
+            ).fetchone()
+            if attempt is None:
+                raise ThreadExecutionError("attempt lease is unavailable")
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (claim.thread_id,),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(claim.thread_id)
+            snapshot = self._snapshot_from_row(thread)
+            active = snapshot.active_model_context
+            if (
+                active.id != claim.model_context.id
+                or active.selection_revision != claim.model_context.selection_revision
+            ):
+                return False
+            row = connection.execute(
+                """SELECT payload FROM capstone_thread_events
+                   WHERE thread_id = %s AND event_type = 'selection_activated'
+                     AND selection_revision = %s
+                   ORDER BY event_seq DESC LIMIT 1""",
+                (claim.thread_id, active.selection_revision),
+            ).fetchone()
+            if row is None or not isinstance(row["payload"], dict):
+                return False
+            previous_document = row["payload"].get("previous_selection")
+            previous_revision = row["payload"].get("previous_selection_revision")
+            if not isinstance(previous_document, dict) or not isinstance(previous_revision, str):
+                return False
+            try:
+                previous = ModelCapabilitySelection.from_document(previous_document)
+            except ValueError:
+                return False
+            restored = replace(
+                active, selection_revision=previous_revision,
+                enabled_profiles=previous.enabled_profiles,
+            )
+            event = self._make_control_event(
+                thread, restored, event_seq=snapshot.last_event_seq + 1,
+                event_type="selection_reverted",
+                payload={"error_code": error_code, "restored_selection": previous_document},
+            )
+            self._insert_event(connection, event)
+            connection.execute(
+                """UPDATE capstone_threads
+                   SET selection_revision = %s, enabled_profiles = %s,
+                       pending_selection = NULL, last_event_seq = %s
+                   WHERE thread_id = %s""",
+                (
+                    restored.selection_revision,
+                    Jsonb([
+                        {"profile_id": profile_id, "profile_version": profile_version}
+                        for profile_id, profile_version in restored.enabled_profiles
+                    ]),
+                    event.event_seq, claim.thread_id,
+                ),
+            )
+            return True
+
     def interrupt_expired_attempts(self) -> int:
         interrupted = 0
         with self._connect() as connection:
@@ -1561,10 +1683,12 @@ class PostgresThreadService:
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
             event_type="selection_activated",
-            payload={
-                "command_id": pending.command_id,
-                "selection": ModelCapabilitySelection(pending.enabled_profiles).to_document(),
-            },
+                            payload={
+                                "command_id": pending.command_id,
+                                "previous_selection_revision": context.selection_revision,
+                                "previous_selection": ModelCapabilitySelection(context.enabled_profiles).to_document(),
+                                "selection": ModelCapabilitySelection(pending.enabled_profiles).to_document(),
+                            },
         )
         self._insert_event(connection, event)
         connection.execute(

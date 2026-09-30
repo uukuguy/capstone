@@ -250,6 +250,32 @@ def test_selection_control_fails_closed_without_an_exact_catalog() -> None:
     assert service.read_events("thr_attempts", 0).events == ()
 
 
+def test_selection_preparation_failure_restores_the_previous_effective_revision() -> None:
+    service = _selection_service()
+    staged = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_enable_restore",
+        "idempotency_key": "idem_enable_restore", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "enable_profile", "expected_event_seq": 0,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+    assert staged.status == "accepted"
+    service.submit_command({
+        **_command("cmd_turn_after_selection"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+    })
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    assert claim.model_context.selection_revision == "sel_1"
+
+    assert service.rollback_selection_if_preparation_failed(
+        claim, error_code="capability_context_preparation_failed",
+    )
+    restored = service.snapshot("thr_attempts")
+    assert restored.active_model_context.selection_revision == "sel_0"
+    assert restored.active_model_context.enabled_profiles == ()
+    assert service.read_events("thr_attempts", 0).events[-1].event_type == "selection_reverted"
+
+
 def test_attempt_lease_is_required_for_append_and_finish() -> None:
     service = _service()
     service.submit_command(_command())

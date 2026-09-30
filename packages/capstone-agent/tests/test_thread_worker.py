@@ -157,3 +157,48 @@ def test_retry_control_reclaims_a_fresh_attempt_and_replays_the_instruction() ->
     assert events[-1].event_type == "attempt_completed"
     assert events[-1].turn_id == first.attempt.turn_id
     assert events[-1].attempt_id == retry.target["attempt_id"]
+
+
+def test_prepared_context_failure_rolls_back_new_selection_before_attempt_failure() -> None:
+    service = _service()
+
+    class _Catalog:
+        def resolve(self, model, selection):
+            return selection
+
+    service.set_capability_catalog(_Catalog())
+    staged = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_worker_profile",
+        "idempotency_key": "idem_worker_profile", "thread_id": "thr_worker",
+        "run_id": "run_worker", "kind": "enable_profile", "expected_event_seq": 0,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+    assert staged.status == "accepted"
+    next_turn = service.submit_command({
+        **{
+            "schema": "capstone-command/1", "command_id": "cmd_worker_profile_turn",
+            "idempotency_key": "idem_worker_profile_turn", "thread_id": "thr_worker",
+            "run_id": "run_worker", "kind": "send_ordinary",
+            "payload": {"text": "inspect"},
+        },
+        "expected_event_seq": service.snapshot("thr_worker").last_event_seq,
+    })
+    assert next_turn.status == "accepted"
+
+    class _PreparationFailureFactory:
+        rollback_selection_on_failure = True
+
+        def __call__(self, _claim):
+            raise RuntimeError("profile preparation failed")
+
+    result = run_pending_attempt(
+        service, _PreparationFailureFactory(), worker_id="thread-worker",
+    )
+
+    assert result is not None
+    assert result.status == "failed"
+    assert result.error_code == "capability_context_preparation_failed"
+    snapshot = service.snapshot("thr_worker")
+    assert snapshot.current_attempt is None
+    assert snapshot.active_model_context.selection_revision == "sel_0"
+    assert service.read_events("thr_worker", 0).events[-2].event_type == "selection_reverted"
