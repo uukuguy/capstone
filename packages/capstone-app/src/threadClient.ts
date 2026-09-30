@@ -59,6 +59,10 @@ export class CapstoneThreadClient {
     return this.transport.connectionState ?? 'live'
   }
 
+  get supportsEventStream(): boolean {
+    return this.transport.streamEvents !== undefined
+  }
+
   async create(modelId?: string, signal?: AbortSignal): Promise<ThreadSnapshot> {
     if (!this.transport.createThread) throw new Error('Thread transport does not support creation')
     return parseThreadSnapshot(await this.transport.createThread(modelId, signal))

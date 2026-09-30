@@ -80,6 +80,6 @@ describe('HttpThreadTransport', () => {
     for await (const event of transport.streamEvents('thr_demo_39', 1)) events.push(event)
 
     expect(events.map((item) => item.eventSeq)).toEqual([2, 3])
-    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_demo_39/events/stream?after=1')
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_demo_39/events/stream?after=1&follow=1')
   })
 })

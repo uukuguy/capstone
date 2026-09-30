@@ -48,18 +48,29 @@ function PageButton({ active, historical, label, onClick }: { active: boolean; h
   </button>
 }
 
-function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture): string {
+function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
   if (state.connection === 'resync_required') return '服务器与本地事件光标不一致。已冻结命令，必须先重新同步。'
-  if (fixture.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
-  if (fixture.fixture_id === 'historical-live-attempt') return '当前正在查看历史页，但 live Attempt 仍在运行。取消控制始终保留在对话区。'
+  if (fixture?.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
+  if (fixture?.fixture_id === 'historical-live-attempt') return '当前正在查看历史页，但 live Attempt 仍在运行。取消控制始终保留在对话区。'
   return '围绕当前电网模型发送普通指令或专业分析请求。每个命令都会绑定当前 Run 和事件光标。'
 }
 
-export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFixtureId }) {
-  const fixture = useMemo(() => threadUiFixture(fixtureId), [fixtureId])
-  const store = useMemo(() => new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture))), [fixture])
+export type ThreadWorkspaceProps = {
+  fixtureId?: ThreadUiFixtureId
+  client?: CapstoneThreadClient
+  threadId?: string
+}
+
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId }: ThreadWorkspaceProps) {
+  const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
+  const store = useMemo(() => {
+    if (client) return new ThreadProjectionStore(client)
+    if (fixture) return new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+    throw new Error('Thread workspace requires a client or fixture')
+  }, [client, fixture])
+  const threadId = requestedThreadId || (fixture ? String((fixture.snapshot as { thread_id: string }).thread_id) : '')
   const [projection, setProjection] = useState<ThreadProjectionState>(store.state)
-  const [draft, setDraft] = useState(fixture.local_view.draft)
+  const [draft, setDraft] = useState(fixture?.local_view.draft || '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -69,21 +80,34 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
 
   useEffect(() => {
     let active = true
-    setLoading(true); setError(null); setNotice(null); setDraft(fixture.local_view.draft)
+    const abort = new AbortController()
+    const unsubscribe = store.subscribe(() => {
+      if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
+    })
+    setLoading(true); setError(null); setNotice(null); setDraft(fixture?.local_view.draft ?? '')
     void (async () => {
       try {
-        await store.load('thr_demo_39')
-        if (fixture.local_view.viewed_grid_page_id !== 'page_ieee39') store.viewGridPage(fixture.local_view.viewed_grid_page_id)
+        await store.load(threadId)
+        if (fixture?.local_view.viewed_grid_page_id && fixture.local_view.viewed_grid_page_id !== store.state.snapshot?.activeGridPageId) {
+          store.viewGridPage(fixture.local_view.viewed_grid_page_id)
+        }
         if (!store.state.resyncRequired) await store.catchUp()
         if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
+        if (active && store.canStreamEvents) {
+          void store.consumeEvents(abort.signal).catch((cause) => {
+            if (active && !(cause instanceof DOMException && cause.name === 'AbortError')) {
+              setError(cause instanceof Error ? cause.message : 'Thread 事件流不可用')
+            }
+          })
+        }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : 'Thread 投影不可用')
       } finally {
         if (active) setLoading(false)
       }
     })()
-    return () => { active = false }
-  }, [fixture, reload, store])
+    return () => { active = false; abort.abort(); unsubscribe() }
+  }, [fixture, reload, store, threadId])
 
   const snapshot = projection.snapshot
   const activePage = snapshot?.activeGridPageId || null
@@ -97,9 +121,14 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
   const pages = isHistorical
     ? Array.from(new Set([activePage || 'page_ieee39', viewedPage || 'page_scigrid_2']))
     : [activePage || 'page_ieee39']
-  const eventDocument = fixture.events && typeof fixture.events === 'object' && !Array.isArray(fixture.events)
-    ? fixture.events as Record<string, unknown> : {}
-  const fixtureEvents = Array.isArray(eventDocument.events) ? eventDocument.events as Record<string, unknown>[] : []
+  const events = store.publicEvents
+
+  if (!loading && error && !snapshot) {
+    return <div className="thread-fixture-shell"><header className="thread-fixture-topbar">
+      <div className="thread-brand"><span className="thread-brand-mark">◆</span><strong>CAPSTONE</strong><span>THREAD WORKSPACE</span></div>
+      <div className="thread-connection is-offline"><i />连接失败</div>
+    </header><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
+  }
 
   function sync() {
     setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
@@ -152,7 +181,7 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
         <NetworkCanvas pageId={viewedPage} historical={isHistorical} />
         <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot?.activeModelContext.id || '—'}</strong></div><div><span>SELECTION</span><strong>{snapshot?.activeModelContext.selectionRevision || '—'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projection.eventSeq}</strong></div></div>
         {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button></div>}
-        {fixture.local_view.element_reference && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{fixture.local_view.element_reference.element_kind} / {fixture.local_view.element_reference.element_id}</strong><small>{fixture.local_view.element_reference.model_id} · revision {fixture.local_view.element_reference.model_revision}</small></div>}
+        {fixture?.local_view.element_reference && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{fixture.local_view.element_reference.element_kind} / {fixture.local_view.element_reference.element_id}</strong><small>{fixture.local_view.element_reference.model_id} · revision {fixture.local_view.element_reference.model_revision}</small></div>}
       </section>
       <section className="thread-conversation-pane" aria-label="Thread 对话区">
         <div className="thread-pane-heading"><div><span className="eyebrow">THREAD / RUN {snapshot?.run.runId || '—'}</span><h2>对话 Thread</h2></div><span className="thread-run-state">{snapshot?.run.state || '—'}</span></div>
@@ -161,7 +190,7 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
         {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
         <div className="thread-events" aria-label="Thread 事件">
           <div className="thread-message is-system"><span className="thread-message-role">SYSTEM · CONTEXT</span><p>当前模型已绑定 <strong>{snapshot?.activeModelContext.implementationFamily}</strong>，工具选择 revision <strong>{snapshot?.activeModelContext.selectionRevision}</strong>。</p></div>
-          {fixtureEvents.map((event) => <div className="thread-message" key={String(event.event_id)}><span className="thread-message-role">EVENT · #{String(event.event_seq)}</span><p>{eventLabel(String(event.event_type))}</p><small>来源：capstone-harness · public projection</small></div>)}
+          {events.map((event) => <div className="thread-message" key={event.eventId}><span className="thread-message-role">EVENT · #{event.eventSeq}</span><p>{eventLabel(event.eventType)}</p><small>来源：capstone-harness · public projection</small></div>)}
           {isInterrupted && <div className="thread-message is-warning"><span className="thread-message-role">ATTEMPT · INTERRUPTED</span><p>本次 Attempt 已中断</p><small>重试将创建新 Attempt，不覆盖旧 Attempt。</small></div>}
         </div>
         <div className="thread-composer">
@@ -169,7 +198,7 @@ export default function ThreadFixtureApp({ fixtureId }: { fixtureId: ThreadUiFix
           <div className="thread-composer-footer"><span>Cursor #{projection.eventSeq} · Context {snapshot?.activeModelContext.id || '—'}</span><div className="thread-send-actions">{canSendText && <><button type="button" className="thread-secondary-button" onClick={() => void dispatch('send_ordinary', { text: draft })} disabled={!draft.trim()}>发送普通指令</button><button type="button" className="thread-primary-button" onClick={() => void dispatch('send_professional', { text: draft })} disabled={!draft.trim()}>发送专业请求</button></>}</div></div>
         </div>
         <div className="thread-control-row" aria-label="Thread 控制">
-          {projection.connection === 'resync_required' ? <>{<button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button>}<button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : <>
+          {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
             {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}
             {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
             {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}

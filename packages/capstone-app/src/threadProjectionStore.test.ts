@@ -174,6 +174,42 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
   })
 
+  it('records public events and notifies the workspace projection subscriber', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'assistant_text_delta', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', occurredAt: '2026-09-30T00:00:01Z',
+          visibility: 'public' as const, payload: { text: 'ready' },
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    let updates = 0
+    store.subscribe(() => { updates += 1 })
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+
+    expect(store.publicEvents.map((event) => event.eventSeq)).toEqual([1])
+    expect(updates).toBeGreaterThanOrEqual(2)
+  })
+
+  it('keeps a transient stream failure reconnectable instead of requiring resync', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        throw new Error('socket closed')
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+
+    await expect(store.consumeEvents()).rejects.toThrow('socket closed')
+    expect(store.state.connection).toBe('reconnecting')
+    expect(store.state.resyncRequired).toBe(false)
+  })
+
   it('projects a model context switch and clears its staged state', async () => {
     const streamTransport: ThreadTransport = {
       ...createFixtureTransport(idleFixture),

@@ -4,6 +4,7 @@ import { runAutomaticSession } from './autoRun'
 import { commandKey } from './commandKey'
 import { NetworkView } from './NetworkView'
 import ThreadFixtureApp from './ThreadFixtureApp'
+import ThreadLiveEntry from './ThreadLiveEntry'
 import type { ThreadUiFixtureId } from './threadUiFixtures'
 import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
@@ -52,6 +53,7 @@ function PageHeader() {
   return <header className="topbar">
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
       <span className="brand-subtitle">电网分析工作台</span></div>
+    <a className="thread-entry-link" href="?thread=new">打开 Thread</a>
     <a className="project-link" href="https://github.com/uukuguy/capstone"
       target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 CAPSTONE 项目源代码">
       <svg className="project-link-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -798,11 +800,14 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 }
 
 export default function App({ clientFactory = defaultClientFactory }: Props) {
-  const fixtureRoute = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('thread-fixture')
+  const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+  const fixtureRoute = params?.get('thread-fixture')
+  const liveThreadRoute = params?.get('thread')
   const fixtureIds = new Set<ThreadUiFixtureId>(['idle-ieee39', 'historical-live-attempt', 'resync-required', 'interrupted-attempt'])
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} />
   }
+  if (liveThreadRoute) return <ThreadLiveEntry threadId={liveThreadRoute} />
   const [client, setClient] = useState<CapstoneClient | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)

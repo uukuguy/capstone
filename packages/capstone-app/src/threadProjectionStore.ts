@@ -47,6 +47,13 @@ function resyncSnapshot(error: unknown): ThreadSnapshot | null {
   }
 }
 
+function requiresResync(error: unknown): boolean {
+  if (resyncSnapshot(error)) return true
+  return error instanceof Error && (
+    error.message.includes('contiguous') || error.message.includes('does not match')
+  )
+}
+
 /** A checked-fixture transport for the first Web/TUI projection prototype. */
 export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTransport {
   const receipts = new Map<string, Record<string, unknown>>()
@@ -83,11 +90,30 @@ export class ThreadProjectionStore {
   }
 
   private loadedThreadId: string | null = null
+  private readonly eventLog: EventEnvelope[] = []
+  private readonly listeners = new Set<() => void>()
 
   constructor(private readonly client: CapstoneThreadClient) {}
 
   get state(): ThreadProjectionState {
     return this.current
+  }
+
+  get publicEvents(): readonly EventEnvelope[] {
+    return this.eventLog.filter((event) => event.visibility === 'public')
+  }
+
+  get canStreamEvents(): boolean {
+    return this.client.supportsEventStream
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener()
   }
 
   async load(threadId: string): Promise<void> {
@@ -109,13 +135,18 @@ export class ThreadProjectionStore {
         resyncRequired: connection === 'resync_required',
         viewedGridPageId: previousView ?? snapshot.activeGridPageId,
       }
+      this.eventLog.length = 0
+      this.notify()
       this.loadedThreadId = threadId
     } catch (error) {
       const snapshot = resyncSnapshot(error)
       this.current = {
-        ...this.current, connection: 'resync_required', resyncRequired: true,
+        ...this.current,
+        connection: snapshot ? 'resync_required' : 'offline',
+        resyncRequired: Boolean(snapshot),
         ...(snapshot ? { snapshot, eventSeq: snapshot.lastEventSeq } : {}),
       }
+      this.notify()
       throw error
     }
   }
@@ -130,9 +161,17 @@ export class ThreadProjectionStore {
       const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq)
       if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
       this.applyPage(page)
+      this.notify()
       return page
     } catch (error) {
-      this.current = { ...this.current, connection: 'resync_required', resyncRequired: true }
+      const snapshot = resyncSnapshot(error)
+      this.current = {
+        ...this.current,
+        connection: requiresResync(error) ? 'resync_required' : 'reconnecting',
+        resyncRequired: requiresResync(error),
+        ...(snapshot ? { snapshot, eventSeq: snapshot.lastEventSeq } : {}),
+      }
+      this.notify()
       throw error
     }
   }
@@ -149,7 +188,18 @@ export class ThreadProjectionStore {
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw error
-      this.current = { ...this.current, connection: 'resync_required', resyncRequired: true }
+      const snapshot = resyncSnapshot(error)
+      this.current = {
+        ...this.current,
+        connection: requiresResync(error) ? 'resync_required' : 'reconnecting',
+        resyncRequired: requiresResync(error),
+        ...(snapshot ? {
+          snapshot, eventSeq: snapshot.lastEventSeq,
+          viewedGridPageId: snapshot.activeGridPageId,
+        } : {}),
+      }
+      if (snapshot) this.eventLog.length = 0
+      this.notify()
       throw error
     }
   }
@@ -157,12 +207,14 @@ export class ThreadProjectionStore {
   viewGridPage(pageId: string): void {
     if (!pageId) throw new Error('grid page id is required')
     this.current = { ...this.current, viewedGridPageId: pageId }
+    this.notify()
   }
 
   returnLiveGridPage(): void {
     const snapshot = this.current.snapshot
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     this.current = { ...this.current, viewedGridPageId: snapshot.activeGridPageId }
+    this.notify()
   }
 
   async dispatch(command: ThreadCommand): Promise<CommandReceipt> {
@@ -187,6 +239,7 @@ export class ThreadProjectionStore {
         ...this.current,
         pendingCommands: [...this.current.pendingCommands, { command }],
       }
+      this.notify()
     }
     try {
       const receipt = await this.client.send(command)
@@ -199,9 +252,11 @@ export class ThreadProjectionStore {
           entry.command.idempotency_key === command.idempotency_key ? { ...entry, receipt } : entry
         )),
       }
+      this.notify()
       return receipt
     } catch (error) {
       this.current = { ...this.current, connection: 'reconnecting' }
+      this.notify()
       throw error
     }
   }
@@ -275,5 +330,7 @@ export class ThreadProjectionStore {
       last_event_seq: event.eventSeq,
     })
     this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
+    this.eventLog.push(event)
+    this.notify()
   }
 }

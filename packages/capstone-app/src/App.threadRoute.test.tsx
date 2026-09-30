@@ -12,4 +12,14 @@ describe('Thread fixture entry point', () => {
     expect(await screen.findByRole('heading', { name: 'Thread / IEEE-39' })).toBeTruthy()
     expect(screen.queryByText('案例库')).toBeNull()
   })
+
+  it('opens the live Thread entry without bootstrapping the legacy Case API', async () => {
+    window.history.replaceState({}, '', '/?thread=thr_demo_39')
+    sessionStorage.removeItem('capstone.thread.operatorToken')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '连接 Thread' })).toBeTruthy()
+    expect(screen.getByLabelText('Operator token')).toBeTruthy()
+    expect(screen.queryByText('案例库')).toBeNull()
+  })
 })

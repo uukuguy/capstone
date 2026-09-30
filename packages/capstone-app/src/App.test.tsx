@@ -393,6 +393,7 @@ describe('operator workflow', () => {
     const projectLink = screen.getByRole('link', { name: '在 GitHub 查看 CAPSTONE 项目源代码' })
     expect(projectLink.getAttribute('href')).toBe('https://github.com/uukuguy/capstone')
     expect(projectLink.getAttribute('target')).toBe('_blank')
+    expect(screen.getByRole('link', { name: '打开 Thread' }).getAttribute('href')).toBe('?thread=new')
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByText('pandapower')).toBeTruthy()
     expect(screen.getByText('PyPSA')).toBeTruthy()

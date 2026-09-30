@@ -90,7 +90,7 @@ export class HttpThreadTransport implements ThreadTransport {
     threadId: string, afterEventSeq: number, signal?: AbortSignal,
   ): AsyncGenerator<EventEnvelope> {
     const response = await this.streamRequest(
-      `${this.resourcePath}/${encodeURIComponent(threadId)}/events/stream?after=${afterEventSeq}`,
+      `${this.resourcePath}/${encodeURIComponent(threadId)}/events/stream?after=${afterEventSeq}&follow=1`,
       signal,
     )
     if (!response.body) throw new Error('Thread 事件流不可用')
@@ -110,7 +110,12 @@ export class HttpThreadTransport implements ThreadTransport {
           buffer = buffer.slice(boundary + 2)
           const data = frame.split('\n').find((line) => line.startsWith('data: '))
           if (!data) continue
-          const event = parseEventEnvelope(JSON.parse(data.slice(6)) as unknown)
+          const eventName = frame.split('\n').find((line) => line.startsWith('event: '))?.slice(7)
+          const payload = JSON.parse(data.slice(6)) as unknown
+          if (eventName === 'resync_required') {
+            throw new ThreadTransportError(409, 'Thread SSE requires resync.', payload)
+          }
+          const event = parseEventEnvelope(payload)
           if (event.threadId !== threadId) throw new Error('Thread 事件身份无效')
           if (event.eventSeq <= cursor) continue
           cursor = event.eventSeq

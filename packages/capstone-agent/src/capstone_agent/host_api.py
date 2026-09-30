@@ -246,10 +246,11 @@ def create_host_app(
 
         @app.get("/api/v1/threads/{thread_id}/events/stream")
         async def stream_thread_events(thread_id: str, request: Request,
-                                       after: Annotated[int, Query(ge=0)] = 0):
+                                       after: Annotated[int, Query(ge=0)] = 0,
+                                       follow: Annotated[bool, Query()] = False):
             require_private_thread(request)
             try:
-                page = thread_service.read_events(thread_id, after)
+                initial_page = thread_service.read_events(thread_id, after)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadResyncRequired as error:
@@ -260,12 +261,43 @@ def create_host_app(
                 })
 
             async def events():
-                if not page.events:
-                    yield ": keepalive\n\n"
-                    return
-                for event in page.events:
-                    payload = json.dumps(event.to_document(), ensure_ascii=False)
-                    yield f"id: {event.event_seq}\nevent: {event.event_type}\ndata: {payload}\n\n"
+                cursor = after
+                page = initial_page
+                first_page = True
+                last_heartbeat = asyncio.get_running_loop().time()
+                while True:
+                    if not first_page:
+                        try:
+                            page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor)
+                        except ThreadNotFound:
+                            return
+                        except ThreadResyncRequired as error:
+                            payload = json.dumps({
+                                "error": "resync_required",
+                                "base_event_seq": error.snapshot.base_event_seq,
+                                "snapshot": error.snapshot.to_document(),
+                            }, ensure_ascii=False)
+                            yield f"event: resync_required\ndata: {payload}\n\n"
+                            return
+                    first_page = False
+                    if page.events:
+                        for event in page.events:
+                            cursor = event.event_seq
+                            payload = json.dumps(event.to_document(), ensure_ascii=False)
+                            yield f"id: {event.event_seq}\nevent: {event.event_type}\ndata: {payload}\n\n"
+                        if not follow:
+                            return
+                        continue
+                    if not follow:
+                        yield ": keepalive\n\n"
+                        return
+                    if await request.is_disconnected():
+                        return
+                    now = asyncio.get_running_loop().time()
+                    if now - last_heartbeat >= 15:
+                        yield ": keepalive\n\n"
+                        last_heartbeat = now
+                    await asyncio.sleep(0.25)
 
             return StreamingResponse(events(), media_type="text/event-stream")
 
