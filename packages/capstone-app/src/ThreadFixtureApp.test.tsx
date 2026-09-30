@@ -11,7 +11,7 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(screen.getByText('电网分析工作台')).toBeTruthy()
     expect(screen.queryByText('CAPSTONE / AGENT WORKSPACE')).toBeNull()
-    expect(screen.getByRole('heading', { name: '对话 Thread' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '智能体对话' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '工业专业框架与 AI 智能体应用的连接示意' })).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
     expect(screen.getByText('CAPABILITY / EVIDENCE / CONTROL')).toBeTruthy()
