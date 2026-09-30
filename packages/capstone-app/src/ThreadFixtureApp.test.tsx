@@ -57,6 +57,7 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="historical-live-attempt" />)
 
     expect(await screen.findByText('历史页 · 只读视图')).toBeTruthy()
+    expect(screen.queryByRole('alert', { name: 'event stream is not contiguous' })).toBeNull()
     expect((screen.getByRole('button', { name: '取消当前计算' }) as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
     await waitFor(() => expect(screen.queryByText('历史页 · 只读视图')).toBeNull())

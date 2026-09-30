@@ -285,7 +285,7 @@ function IconAction({ label, onClick, expanded, children }: { label: string; onC
   return <button type="button" className="capstone-chat-action" aria-label={label} title={label} onClick={onClick} {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}>{children}</button>
 }
 
-function ChatActions({ role, text, evidenceRefs, toolCount, onRegenerate, onShowActivity, onEditInstruction, activityOpen }: { role: string; text: string; evidenceRefs: string[]; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean }) {
+function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, toolCount, onRegenerate, onShowActivity, onEditInstruction, activityOpen }: { role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const copy = async () => {
@@ -307,7 +307,7 @@ function ChatActions({ role, text, evidenceRefs, toolCount, onRegenerate, onShow
     <IconAction label="回答需改进"><ThumbsDown /></IconAction>
     <IconAction label="更多回答操作"><MoreHorizontal /></IconAction>
   </div>
-  {showEvidence && <div className="capstone-chat-evidence" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong><div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
+  {showEvidence && <div className="capstone-chat-evidence" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong>{contextId && <small>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</small>}<div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
   </>
 }
 
@@ -364,7 +364,6 @@ function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, conte
       <div className="capstone-chat-reference-list">{resultRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
       {admissionRef && <small className="capstone-chat-reference-admission">准入 {admissionRef}</small>}
     </section>}
-    {resultRefs.length === 0 && evidenceRefs.length > 0 && contextId && <div className="capstone-chat-context-note">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
     {/* Evidence is intentionally opened from the answer action bar. Keeping the
         long evidence identifier out of the default answer preserves the compact
         assistant-ui reading flow while retaining the current-run admission gate. */}
@@ -413,10 +412,9 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
-    {role === 'user' && typeof custom?.receipt === 'string' && <div className="capstone-chat-receipt"><Check aria-hidden="true" /> {custom.receipt}</div>}
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     {role === 'assistant' && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }

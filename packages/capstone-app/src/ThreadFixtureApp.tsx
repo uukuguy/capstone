@@ -62,10 +62,16 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     void (async () => {
       try {
         await store.load(threadId)
+        // React StrictMode mounts effects twice in development. An old load
+        // must not continue into catch-up and race the active projection.
+        if (!active) return
         if (fixture?.local_view.viewed_grid_page_id && fixture.local_view.viewed_grid_page_id !== store.state.snapshot?.activeGridPageId) {
           store.viewGridPage(fixture.local_view.viewed_grid_page_id)
         }
-        if (!store.state.resyncRequired) await store.catchUp()
+        if (!store.state.resyncRequired) {
+          await store.catchUp()
+          if (!active) return
+        }
         if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
         if (active && store.canStreamEvents) {
           void store.consumeEvents(abort.signal).catch((cause) => {

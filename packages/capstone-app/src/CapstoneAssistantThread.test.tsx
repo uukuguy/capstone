@@ -219,6 +219,8 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={[terminal]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       modelSummary={{ modelId: 'pypsa39', implementationFamily: 'pypsa', modelRevision: 'new_revision', contextId: 'ctx_new' }} />)
     expect(screen.queryByText(/pypsa39/)).toBeNull()
+    expect(screen.queryByText(/ctx_old/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
     expect(screen.getByText(/ctx_old/)).toBeTruthy()
   })
 
