@@ -35,6 +35,23 @@ Domain Pack、Authority 或当前运行证据准入契约。旧的 Thread/TUI/CL
 因此，下一阶段不是继续堆叠状态卡，而是以 assistant-ui 的成熟 Thread 骨架为基础，
 重做信息层级、字体密度、Markdown 内容层和运行反馈。
 
+## 1.1 主流对话界面从哪里继承
+
+本项目不另起一套聊天框视觉语言。对话区默认沿用 assistant-ui 官方 GPT、Perplexity、Grok、
+Claude 和 Gemini 示例已经验证的主流模式；Capstone 只增加领域所需的模型上下文、工具活动、
+结果卡片和证据入口。官方示例明确展示了以下模式：
+
+- GPT：居中空状态、固定底部 Composer、用户消息操作栏、助手 Copy/反馈/重新生成操作栏。
+- Perplexity：紧凑阅读宽度、模式/模型选择器、粘性 follow-up Composer。
+- Grok：pill Composer、附件入口、模型下拉、输入为空/有文本/运行中时动态切换尾部动作、
+  消息计时提示和 hover 操作栏。
+- Claude：无头像、轻量用户气泡、扁平 Composer、hover/focus 才出现的小图标操作栏。
+- Gemini：头像-free 助手 Markdown、右侧灰色用户气泡、单行 Composer 和 disabled/ready/stop
+  三态发送按钮。
+
+因此，以下做法被禁止：为 Capstone 自创一套厚重的消息卡、永久显示大头像、把每个工具事件做成
+独立大卡片、用大块页签代替 Composer 内的模式选择、用文字按钮代替精致图标操作。
+
 ## 2. 不可违反的架构边界
 
 - CapstoneThreadClient、ThreadProjectionStore 和 typed public events 是状态真相。
@@ -142,6 +159,32 @@ CSS px 为基准：
 - 电网结果后续使用受控 ResultCard：指标、单位、模型 revision、结果来源和证据引用分开显示。
 - 拓扑定位、结果表、证据回放通过显式操作联动左栏，不将大型图形塞进消息气泡。
 
+## 5.1 消息气泡下的精致操作栏
+
+每条消息的操作栏是必要的产品细节，不是后续可有可无的装饰：
+
+- 用户消息：编辑、复制。
+- 助手消息：复制、重新运行、赞成、反对、查看证据、查看运行过程、更多。
+- 默认隐藏，hover 或键盘 focus 时淡入；不能影响消息布局高度。
+- 使用统一 SVG 图标和 tooltip，禁止使用 emoji、文字堆叠或没有含义的圆点。
+- 图标按钮视觉尺寸 28–32px，点击区域至少 36px；每个按钮必须有 aria-label。
+- 复制后显示短暂的 Copied 状态；重新运行必须创建新的 Attempt，不得修改旧 Attempt。
+- 证据和工具过程按钮只有在 projection 提供对应引用时显示；不能显示空操作按钮。
+- 运行时间、首 token 时间和 token/s 可以通过 tooltip 或详情显示，默认不占用消息正文空间。
+
+## 5.2 Composer 的主流交互细节
+
+Composer 采用 GPT/Perplexity/Grok/Gemini 的共同模式，而不是当前的大矩形表单：
+
+- 使用圆角 pill 或 16–24px 圆角容器、细边框或 ring，避免厚重阴影和大面积白色面板。
+- 输入区是主体，按钮围绕输入区底部对齐；输入内容增加时 Composer 可增高但有最大高度。
+- 左侧保留一个可扩展的加号/附件入口；当前阶段没有附件能力时可以隐藏，但不改变整体布局模式。
+- 模式选择、模型信息和 Domain Pack 状态使用紧凑 pill/dropdown，不使用两个大块页签。
+- 右侧主动作是图标优先：空输入为 disabled、可发送为 send、运行中为 stop；状态转换要有轻量动画。
+- `data-empty` 和 `data-running` 这类状态驱动视觉切换，不能由多个互相冲突的 React 布尔值拼接。
+- 输入框下方只保留一条轻量键盘提示或可靠性提示，不再占据一整行大面积空间。
+- Composer 必须在空状态和已有消息状态复用同一组件，只改变位置和宽度。
+
 ## 6. Composer 合同
 
 采用 assistant-ui 示例中的 sticky footer 和多状态 primary action 模式：
@@ -225,7 +268,8 @@ assistant-ui 的 ChatGPT/Perplexity 示例作为结构参考；Capstone 的颜�
 ## 10. 明确不做
 
 - 不把现有三栏 Case App 一次性重写。
-- 不直接复制 assistant-ui 示例的品牌、黑白配色或营销元素。
+- 不复制 assistant-ui 示例的品牌、产品名称、营销文案或配色；但对话布局、Composer、消息气泡、
+  hover/focus 操作栏、图标按钮和状态切换必须优先沿用这些示例的成熟模式，不得另起一套。
 - 不在本阶段引入任意 Generative UI；先完成受控 Markdown、工具摘要和 ResultCard。
 - 不把模型隐藏思维链直接展示给用户；可展示受控阶段摘要和工具活动。
 - 不为逐工具增加独立开关；能力选择仍以 Domain Pack/Profile 层级为边界。

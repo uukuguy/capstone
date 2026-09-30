@@ -1405,3 +1405,4 @@ _Recovered pre-merge mainline entries._
 - 02:25 将 Web Thread 对话区字体密度、assistant-ui 结构、Markdown、工具摘要和 Composer 验收固化为主合同 [pending]
 - 02:26 更正：Web Thread UI 主合同已提交，包含字体密度硬规范与实现验收门 [d8f3601]
 - 02:28 更新恢复 baton，下一步锁定 Web UI Phase A/B：密度收敛与 Markdown/GFM [033faea]
+- 02:34 收紧 Web UI 主合同：对话区继承 assistant-ui GPT/Perplexity/Grok/Claude/Gemini 主流模式，补齐图标操作栏与 Composer 细节 [pending]
