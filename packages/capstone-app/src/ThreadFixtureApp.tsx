@@ -17,6 +17,10 @@ function phaseLabel(phase: string | undefined): string {
   }[phase || ''] || '空闲'
 }
 
+function connectionLabel(connection: ThreadProjectionState['connection']): string {
+  return connection === 'live' ? '实时连接' : connection === 'reconnecting' ? '重连中' : connection === 'resync_required' ? '需重同步' : connection === 'connecting' ? '连接中' : '离线'
+}
+
 function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
   if (state.connection === 'resync_required') return '服务器与本地事件光标不一致。已冻结命令，必须先重新同步。'
   if (fixture?.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
@@ -136,12 +140,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           elementReference={fixture?.local_view.element_reference} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
-          <div className="thread-chat-heading"><div><span className="eyebrow">THREAD / RUN {snapshot.run.runId}</span><h2>对话 Thread</h2></div><span className="thread-run-state">{snapshot.run.state}</span></div>
+          <div className="thread-chat-heading"><div><span className="eyebrow">THREAD / RUN {snapshot.run.runId}</span><h2>对话 Thread</h2></div><div className="thread-chat-heading-meta"><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span><span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span><span className="thread-run-state">{snapshot.run.state}</span></div></div>
           {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)}
+            modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
             onRegenerate={async () => { if (lastConversationInstruction) await dispatch('send_auto', { text: lastConversationInstruction }) }} />

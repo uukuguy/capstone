@@ -105,7 +105,7 @@ Claude 和 Gemini 示例已经验证的主流模式；Capstone 只增加领域�
     ✓ 获取模型约束           model.constraints.describe
     ✓ 校验证据引用           current-run admission
 
-每一步最多展示：人类可读名称、状态、来源 Pack/能力、耗时和结果/证据入口。
+每一步最多展示：人类可读名称、状态、来源 Pack/能力、耗时和结果/证据入口。Attempt 运行中必须即时显示已运行时长，并随运行持续更新；Attempt 结束后保留最终运行时长。
 活动摘要必须挂在产生它的助手回答下面，不能作为整个 Thread 的全局尾栏；这样多轮对话中每个专业指令都能独立展开和排错。默认只显示当前 Attempt 的最后摘要；历史工具事件通过该回答展开查看。
 
 ## 4. 字体、密度和可读性硬规范
@@ -171,7 +171,7 @@ CSS px 为基准：
 - 图标按钮视觉尺寸 28–32px，点击区域至少 36px；每个按钮必须有 aria-label。
 - 复制后显示短暂的 Copied 状态；重新运行必须创建新的 Attempt，不得修改旧 Attempt。
 - 证据和工具过程按钮只有在 projection 提供对应引用时显示；不能显示空操作按钮。
-- 运行时间、首 token 时间和 token/s 可以通过 tooltip 或详情显示，默认不占用消息正文空间。
+- 运行时间必须在运行中的 Attempt 下即时显示并持续更新；完成、失败、取消和中断后保留最终运行时长。首 token 时间和 token/s 可以通过 tooltip 或详情显示，默认不占用消息正文空间。
 
 ## 5.2 Composer 的主流交互细节
 
@@ -208,8 +208,8 @@ Composer 采用 GPT/Perplexity/Grok/Gemini 的共同模式，而不是当前的�
 | --- | --- | --- |
 | idle | 标题栏徽标 | 无需大卡片 |
 | accepted | 用户消息下 receipt | 诊断抽屉 |
-| running | Attempt 活动摘要 + 停止 | 展开工具步骤 |
-| completed | 助手回答 + 操作栏 | 结果/证据抽屉 |
+| running | Attempt 活动摘要 + 动态运行时长 + 停止 | 展开工具步骤 |
+| completed | 助手回答 + 最终运行时长 + 操作栏 | 结果/证据抽屉 |
 | failed | 助手错误状态 + 重试动作 | 错误详情 |
 | cancelled/interrupted | 终态说明 + 新 Attempt 动作 | Attempt 详情 |
 | reconnecting/resync | 顶部恢复条，冻结发送 | 连接/诊断抽屉 |
@@ -251,7 +251,8 @@ assistant-ui 的 ChatGPT/Perplexity 示例作为结构参考；Capstone 的颜�
 
 - 聚合 tool events 为 Attempt activity summary/stepper。
 - 完成 running、completed、failed、cancelled、interrupted、reconnecting 状态。
-- 验收：用户能从界面判断当前阶段、来源能力和下一步操作。
+- 运行中的 Attempt 显示动态运行时长，终态回答保留最终运行时长。
+- 验收：用户能从界面判断当前阶段、来源能力、运行耗时和下一步操作。
 
 ### Phase D — 回答操作和领域卡片
 
@@ -282,6 +283,7 @@ assistant-ui 的 ChatGPT/Perplexity 示例作为结构参考；Capstone 的颜�
 1. 字体和密度通过第 4 节硬规范，截图中不再出现当前的巨大标题和巨大正文。
 2. 真实助手回答以可读 Markdown/GFM 呈现。
 3. 工具过程从原始事件变成可理解、可折叠、带来源的活动摘要，并附在对应助手回答下。
-4. Composer 固定在对话区底部，发送、停止、重试和草稿行为正确。
-5. 普通问答和专业电网分析都显示正确的模型、Run、Attempt 和证据边界。
-6. 视觉回归截图和 focused tests、TypeScript/build、package boundary checks 全部通过。
+4. 运行中的工具过程即时可见并显示动态运行时长；完成回答保留最终运行时长。
+5. Composer 固定在对话区底部，发送、停止、重试和草稿行为正确。
+6. 普通问答和专业电网分析都显示正确的模型、Run、Attempt 和证据边界。
+7. 视觉回归截图和 focused tests、TypeScript/build、package boundary checks 全部通过。
