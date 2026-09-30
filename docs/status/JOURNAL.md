@@ -1345,3 +1345,5 @@ _Recovered pre-merge mainline entries._
 - 09:48 接入无领域依赖的 ApplicationProfile 过渡桥，并为 pandapower/PyPSA 组合根提供显式能力注册入口 [dcace18]
 - 09:51 更新活动 checkpoint，记录 Context 生命周期与 pandapower/PyPSA 显式注册入口及下一步真实运行时适配 [3ba5f96]
 - 09:56 回归通过：Capstone 171 passed/27 skipped，Grid application 42、PyPSA 17、SPI 13，包边界与 diff 检查通过
+- 09:58 更新 checkpoint 验证数字，记录 Capstone 171/27 回归通过 [85a3f00]
+- 10:05 将 prepared Context owner 与 ThreadApplicationAssembly 成对绑定，防止模型目录、Profile、Pi runtime 错配 [a11fbb0]

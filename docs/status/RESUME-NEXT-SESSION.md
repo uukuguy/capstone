@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 09:57 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 10:06 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -34,7 +34,7 @@
 - `packages/capstone-agent/src/capstone_agent/model_capability_context.py` —
   Run-owned prepared Context, contribution bridge, rollback and cleanup.
 - `packages/capstone-agent/src/capstone_agent/thread_application.py` —
-  injected Authority/Pi assembly and prepared-session runtime factory.
+  injected Authority/Pi assembly and paired prepared-session runtime factory.
 - `packages/grid-agent/src/grid_agent/application/thread_capabilities.py` —
   explicit pandapower migration registration.
 - `packages/pypsa-agent/src/pypsa_agent/thread_capabilities.py` — explicit
@@ -42,7 +42,7 @@
 
 ## Verification
 
-- Capstone Python suite: 171 passed, 27 skipped.
+- Capstone Python suite: 172 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid application tests: 42 passed; PyPSA tests: 17 passed.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
@@ -50,7 +50,7 @@
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
 - Commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
-  capability registration hooks.
+  capability registration hooks; `a11fbb0` paired prepared assembly.
 
 ## Immediate next action
 
