@@ -1327,3 +1327,6 @@ _Recovered pre-merge mainline entries._
 - 08:41 覆盖 Thread SSE 光标过期时返回 verified resync snapshot，避免客户端错误继续消费旧流 [6e4105b]
 - 08:43 更新活动 checkpoint，记录 SSE resync 覆盖和 142/25 Python 回归 [5e0fe8b]
 - 08:47 读取 Thread snapshot 前自动中断过期 Attempt，避免 API/TUI 显示已失联的运行状态 [28ad1b0]
+- 08:49 更新活动 checkpoint，记录 stale Attempt snapshot fencing 与 143/25 Python 回归 [70b47f3]
+- 08:28 最终验证通过：Python 143 passed/25 skipped，Web 92 tests，TypeScript/build、包边界和 diff 检查通过
+- 08:28 correction: 上条验证记录追加在 08:49 checkpoint 后，仅修正日志顺序说明，不改验证结果
