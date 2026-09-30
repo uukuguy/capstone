@@ -1386,3 +1386,4 @@ _Recovered pre-merge mainline entries._
 - 14:16 更新恢复 baton，记录共享命令构造、Web 模型切换控件与分页跟随验证 [cb2517e]
 - 14:24 增加 Textual Thread 双栏 vertical slice，复用严格投影和命令回执，为 CLI/TUI 接入统一入口 [a124892]
 - 15:03 完成 Web Thread 真实入口、持续 SSE、重同步与可重连错误态，补齐新建 IEEE-39 Thread 路由 [d311cba]
+- 15:04 更新恢复 baton，记录 Web 完成边界、验证结果与本地手工试用前置条件 [c9c37a8]
