@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from pathlib import Path
+from typing import cast
 
+from capstone_agent.kernel_capability_preparation import (
+    AuthorityModelBinding,
+    KernelApplicationProfilePreparer,
+)
+from capstone_agent.kernel_pi_session import (
+    PreparedKernelPiSessionFactory,
+    PreparedKernelSessionBuilder,
+)
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner, register_application_profile
 from capstone_model_capability_spi import ModelCapabilityDescriptor
+from capstone_model_capability_spi import ModelCapabilityRegistry, ModelCapabilitySelection
 from capstone_agent.thread_protocol import ModelContextSnapshot
+from capstone_agent.thread_application import ThreadApplicationAssembly
 
 from .profile import build_profile
 
@@ -38,8 +50,59 @@ def register_pypsa_capability(
     )
 
 
+def build_pypsa_thread_application(
+    *,
+    default_model_id: str,
+    model_resolver: Callable[[str], Mapping[str, object]],
+    workspace_root: Path,
+    model_binder: Callable[[object, ModelContextSnapshot], AuthorityModelBinding],
+    session_builder: PreparedKernelSessionBuilder,
+    default_selection: ModelCapabilitySelection | None = None,
+    runtime_mode: str = "capstone",
+) -> ThreadApplicationAssembly:
+    """Build an opt-in Thread assembly for the existing PyPSA profile.
+
+    PyPSA model identifiers and Authority binding stay application-owned.  The
+    helper only wires the registered profile into the neutral prepared Context
+    and Pi session seam; it does not alter the existing PyPSA application path.
+    """
+
+    if not isinstance(workspace_root, Path):
+        raise TypeError("workspace_root must be a Path")
+    if default_selection is not None and not isinstance(
+        default_selection, ModelCapabilitySelection
+    ):
+        raise TypeError("default_selection must be a ModelCapabilitySelection")
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    preparer = KernelApplicationProfilePreparer(
+        workspace_root=workspace_root, model_binder=model_binder,
+    )
+    register_pypsa_capability(
+        catalog,
+        owner,
+        prepare_profile=cast(
+            Callable[[object, ModelContextSnapshot], object], preparer,
+        ),
+    )
+    if default_selection is not None:
+        catalog.set_family_default("pypsa", default_selection)
+    registry.seal()
+    owner.seal()
+    return ThreadApplicationAssembly.from_prepared_authority(
+        default_model_id=default_model_id,
+        model_resolver=model_resolver,
+        capability_catalog=catalog,
+        capability_context_owner=owner,
+        session_factory=PreparedKernelPiSessionFactory(session_builder),
+        runtime_mode=runtime_mode,
+    )
+
+
 __all__ = [
     "PYPSA_PROFILE_DESCRIPTOR",
     "PYPSA_PROFILE_INFO",
+    "build_pypsa_thread_application",
     "register_pypsa_capability",
 ]
