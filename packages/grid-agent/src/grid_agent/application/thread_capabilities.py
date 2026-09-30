@@ -40,7 +40,11 @@ from capability_agent.runtime.environment import (
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
-from capability_agent.domain.answer_admission import AnswerAdmissionInput, AnswerAdmissionPolicy
+from capability_agent.domain.answer_admission import (
+    AnswerAdmissionInput,
+    AnswerAdmissionPolicy,
+    aggregate_answer_admission,
+)
 
 from .profile import build_pandapower_application_profile
 
@@ -289,39 +293,66 @@ def _build_kernel_admission(
     profiles: tuple[PreparedKernelApplicationProfile, ...],
 ):
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
-        decisions = []
+        binding_map: dict[str, object] = {}
         for profile in profiles:
             bindings = getattr(profile.prepared_application, "bindings", None)
             if not isinstance(bindings, Mapping):
                 raise ValueError("prepared bindings are unavailable")
-            for binding in bindings.values():
-                runtime = getattr(binding, "runtime", None)
-                domain_profile = getattr(runtime, "profile", None)
-                authority = getattr(runtime, "authority", None)
-                create_policy = getattr(domain_profile, "create_answer_admission_policy", None)
-                if not callable(create_policy):
-                    raise ValueError("Domain Pack answer admission policy is unavailable")
-                policy = create_policy(authority)
-                decision = cast(AnswerAdmissionPolicy, policy).admit(
-                    AnswerAdmissionInput(
-                        question=claim.instruction,
-                        answer_output=answer,
-                        result_refs=tuple(result_refs),
-                        evidence_refs=tuple(evidence_refs),
-                        authority_attempted=bool(tool_events),
-                    )
+            for binding_id, binding in bindings.items():
+                if binding_id in binding_map:
+                    raise ValueError("duplicate prepared binding ID")
+                binding_map[binding_id] = binding
+
+        owners: dict[str, str] = {}
+        for event in tool_events:
+            binding_id = event.get("binding_id")
+            if binding_id is None and len(binding_map) == 1:
+                binding_id = next(iter(binding_map))
+            if not isinstance(binding_id, str) or binding_id not in binding_map:
+                raise ValueError("tool provenance has no prepared binding owner")
+            for field in ("result_refs", "evidence_refs"):
+                refs = event.get(field)
+                if not isinstance(refs, (list, tuple)):
+                    continue
+                for reference in refs:
+                    if not isinstance(reference, str) or not reference:
+                        continue
+                    previous = owners.setdefault(reference, binding_id)
+                    if previous != binding_id:
+                        raise ValueError("runtime reference has conflicting binding owners")
+        if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
+            raise ValueError("admitted reference has no tool provenance owner")
+
+        decisions = []
+        for binding_id, binding in binding_map.items():
+            runtime = getattr(binding, "runtime", None)
+            domain_profile = getattr(runtime, "profile", None)
+            authority = getattr(runtime, "authority", None)
+            create_policy = getattr(domain_profile, "create_answer_admission_policy", None)
+            if not callable(create_policy):
+                raise ValueError("Domain Pack answer admission policy is unavailable")
+            policy = cast(AnswerAdmissionPolicy, create_policy(authority))
+            decision = policy.admit(
+                AnswerAdmissionInput(
+                    question=claim.instruction,
+                    answer_output=answer,
+                    result_refs=tuple(ref for ref in result_refs if owners.get(ref) == binding_id),
+                    evidence_refs=tuple(ref for ref in evidence_refs if owners.get(ref) == binding_id),
+                    authority_attempted=any(
+                        event.get("binding_id", binding_id) == binding_id
+                        for event in tool_events
+                    ),
                 )
-                decisions.append(decision)
-        if len(decisions) != 1:
-            raise ValueError("multiple Domain Pack admission aggregation is not enabled")
-        decision = decisions[0]
-        capabilities = getattr(
-            getattr(getattr(profiles[0].prepared_application, "bindings", {}).get("grid"), "runtime", None),
-            "profile", None,
-        )
-        allowed = getattr(capabilities, "answer_admission_capabilities", None)
-        if not isinstance(allowed, frozenset) or decision.mode not in allowed:
-            raise ValueError("Domain Pack admission mode is not declared")
+            )
+            if decision.answer_output != answer:
+                raise ValueError("Domain Pack admission changed the answer text")
+            allowed = getattr(domain_profile, "answer_admission_capabilities", None)
+            if not isinstance(allowed, frozenset) or decision.mode not in allowed:
+                raise ValueError("Domain Pack admission mode is not declared")
+            decisions.append(decision)
+        if not decisions:
+            raise ValueError("no prepared Domain Pack admission policy")
+        decision = aggregate_answer_admission(tuple(decisions), answer)
         return AdmittedAttemptAnswer(
             decision.answer_output,
             decision.mode,
