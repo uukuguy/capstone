@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 13:41 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 14:15 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -81,10 +81,21 @@
   `threadProtocol` and `ThreadProjectionStore` now parse/project pending model
   and selection changes, activation, and context rollback through the same
   typed read model.
+- `ThreadCommandFactory` in `capstone-agent` and `buildThreadCommand` in the
+  App now build the same strict `capstone-command/1` envelope. They validate
+  identity and event cursors but do not submit commands or own cursor state.
+  The fixture Web workspace uses the shared builder for ordinary, professional,
+  control, profile, and model commands; `CapstoneThreadClient.switchModel` is
+  available for a typed model-switch call.
+- The Web grid pane exposes a model-context switch control. It renders the
+  active model family/revision, disables switching while historical, running,
+  or another context change is pending, and shows the accepted receipt. The
+  page label and local viewed page follow a newly activated model when the
+  user was on the current page; a historical page remains read-only.
 
 ## Verification
 
-- Capstone Python suite: 209 passed, 27 skipped.
+- Capstone Python suite: 214 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid Thread capability tests: 5 passed; PyPSA package tests: 19 passed,
   including a professional Attempt with admitted result/evidence refs;
@@ -97,14 +108,16 @@
   raised the Context tests to 13 focused cases.
 - `python tools/check_package_boundaries.py` — passed.
 - `git diff --check` — passed.
-- Changed Python-file pyright — 0 errors; App TypeScript check and 95 Vitest
-  tests passed.
+- Changed Python-file pyright — 0 errors; App TypeScript check, production
+  build, and 98 Vitest tests passed.
 - Cross-package Thread regression is green after the shared bridge move.
 - Full `make test` reached 838 passed and one pre-existing
   `grid-agent` checked-in schema drift failure; no failure came from the
   Thread/App changes.
-- Commit: `0ab2799` model switch controls, Turn-fenced context rollback, and
-  Web pending/activation projection. Earlier commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
+- Commit: `5882f27` shared Thread command builders, Web model switch control,
+  and current-page follow behavior. Prior model switch commit: `0ab2799`
+  (Turn-fenced context rollback and Web pending/activation projection).
+  Earlier commits: `4d1d274` prepared Context lifecycle; `dcace18` legacy Profile
   capability registration hooks; `a11fbb0` paired prepared assembly;
   `f89e0f4` real Kernel/Authority preparation bridge; `afe9805` opt-in
   pandapower Thread Pi session builder seam; `d02c8fb` concrete Pi RPC

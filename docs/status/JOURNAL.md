@@ -1382,3 +1382,4 @@ _Recovered pre-merge mainline entries._
 - 13:41 增加 model switch 控制：下一 Turn 激活新 ModelContext，准备失败按 Turn 回滚，并同步 Web pending/事件投影 [0ab2799]
 - 13:41 回归通过：Capstone 209 passed/27 skipped、App 95 passed，包边界与 TypeScript 检查通过；全仓库仍有既有 schema 漂移失败
 - 13:42 更新恢复 baton，记录 model switch 回滚边界、Web 投影与下一步 API/CLI/TUI 控件 [622d2fe]
+- 14:15 统一 Web/Python Thread Command 构造并接入模型切换控制，保证各客户端共享严格信封 [5882f27]
