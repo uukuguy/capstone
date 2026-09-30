@@ -1445,3 +1445,5 @@ _Recovered pre-merge mainline entries._
 - 06:58 M1 恢复检查点提交完成，工作树仍仅有用户既有 `.gitignore` 修改 [223d195]
 - M2 计划已提交：真实模型目录、复合注册、按实现族运行时分派与 PyPSA 身份收敛 [5f5b2c6]
 - M1 正式代码评审完成：补强 hosted AST 委派断言并修复测试类型问题，无高严重度缺陷 [2e4174d]
+- M2 模型目录与运行时分派实现已提交：真实 PyPSA ID、复合 Authority、通用 Pi/DSH capability registry [c28c2a2]
+- M2 复合 ApplicationAssembly 已接入 family dispatcher，确保多 Authority 注册可实际组装 [027ebc8]

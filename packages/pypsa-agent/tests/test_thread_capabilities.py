@@ -91,18 +91,6 @@ def test_pypsa_thread_model_catalog_exposes_real_authority_ids():
     assert catalog.resolve("pypsa-example/scigrid_de").model_id == "pypsa-example/scigrid_de"
 
 
-def test_pypsa_thread_model_catalog_exposes_real_authority_ids():
-    catalog = build_pypsa_thread_model_catalog(
-        model_resolver=lambda model_id: {
-            "model_id": model_id,
-            "revision_ref": "revision:sha256:" + "a" * 64,
-            "implementation_family": "pypsa",
-        },
-    )
-    assert "pypsa-example/scigrid_de" in catalog.list_model_ids()
-    assert catalog.resolve("pypsa-example/scigrid_de").model_id == "pypsa-example/scigrid_de"
-
-
 def test_pypsa_thread_application_is_an_explicit_opt_in_composition_root(tmp_path):
     assembly = build_pypsa_thread_application(
         default_model_id="scigrid",

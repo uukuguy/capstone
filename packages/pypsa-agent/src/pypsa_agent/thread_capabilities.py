@@ -42,7 +42,7 @@ def build_pypsa_thread_model_catalog(
     """Expose the Authority's real catalog IDs to the Capstone Thread seam."""
 
     model_ids = tuple(
-        entry["catalog_id"] for entry in list_registered_models()
+        cast(str, entry["catalog_id"]) for entry in list_registered_models()
         if isinstance(entry.get("catalog_id"), str)
     )
     return AuthorityThreadModelCatalog(
