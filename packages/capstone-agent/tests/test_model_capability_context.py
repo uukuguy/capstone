@@ -5,7 +5,12 @@ from dataclasses import replace
 import pytest
 
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
-from capstone_agent.model_capability_context import ModelCapabilityContextOwner
+from capstone_agent.model_capability_context import (
+    ApplicationProfileCapabilityContribution,
+    ApplicationProfileCapabilityHandle,
+    ModelCapabilityContextOwner,
+    register_application_profile,
+)
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
 from capstone_model_capability_spi import ModelCapabilityDescriptor, ModelCapabilityRegistry
@@ -224,3 +229,49 @@ def test_adapter_registration_rejects_unknown_duplicate_and_invalid_entries():
     )
     with pytest.raises(TypeError):
         owner.register_adapter(descriptor.reference, object())
+
+
+def test_application_profile_bridge_registers_trusted_factory_and_exposes_profile_to_context():
+    log = []
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    descriptor = ModelCapabilityDescriptor("legacy-profile", "1.0.0")
+    profile = {"application_id": "legacy", "version": "1"}
+    register_application_profile(
+        owner, catalog,
+        ModelCapabilityProfileInfo(descriptor, "Legacy", ("pandapower",)),
+        lambda: profile,
+    )
+    registry.seal()
+    owner.seal()
+    context = owner.prepare(_claim(profiles=(descriptor.reference,)))
+    contribution = context.contributions[0]
+    assert isinstance(contribution, ApplicationProfileCapabilityContribution)
+    assert contribution.profile is profile
+    assert isinstance(context.handles[0], ApplicationProfileCapabilityHandle)
+    owner.close()
+    assert context.closed
+    del log
+
+
+def test_application_profile_bridge_rejects_catalog_mismatch_and_factory_failure():
+    owner, _ = _owner([], seal=False)
+    other = CapstoneModelCapabilityCatalog(ModelCapabilityRegistry())
+    descriptor = ModelCapabilityDescriptor("legacy-profile", "1.0.0")
+    with pytest.raises(ValueError, match="same catalog"):
+        register_application_profile(
+            owner, other,
+            ModelCapabilityProfileInfo(descriptor, "Legacy", ("pandapower",)),
+            lambda: object(),
+        )
+    descriptor = ModelCapabilityDescriptor("legacy-profile", "1.0.0")
+    register_application_profile(
+        owner, owner.catalog,
+        ModelCapabilityProfileInfo(descriptor, "Legacy", ("pandapower",)),
+        lambda: (_ for _ in ()).throw(RuntimeError("profile factory failed")),
+    )
+    owner.catalog.registry.seal()
+    owner.seal()
+    with pytest.raises(RuntimeError, match="profile factory failed"):
+        owner.prepare(_claim(profiles=(descriptor.reference,)))

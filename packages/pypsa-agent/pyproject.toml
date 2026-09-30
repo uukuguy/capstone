@@ -8,6 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
   "capstone-agent==0.1.0",
+  "capstone-model-capability-spi==0.1.0",
   "capability-agent-kernel==0.1.0",
   "pypsa-network-modeling-domain-pack==0.1.0",
   "pypsa-power-operations-domain-pack==0.1.0",
@@ -21,6 +22,7 @@ packages = ["src/pypsa_agent"]
 
 [tool.uv.sources]
 capstone-agent = { path = "../capstone-agent", editable = true }
+capstone-model-capability-spi = { path = "../capstone-model-capability-spi", editable = true }
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
 pypsa-model-authority = { path = "../pypsa-model-authority", editable = true }
 pypsa-network-modeling-domain-pack = { path = "../pypsa-network-modeling-domain-pack", editable = true }

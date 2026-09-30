@@ -144,6 +144,7 @@ source = { editable = "../capstone-agent" }
 dependencies = [
     { name = "boto3" },
     { name = "capability-agent-kernel" },
+    { name = "capstone-model-capability-spi" },
     { name = "fastapi" },
     { name = "google-cloud-storage" },
     { name = "psycopg", extra = ["binary"] },
@@ -155,6 +156,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.40,<2" },
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
+    { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "google-cloud-storage", specifier = ">=3.14,<4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
@@ -167,6 +169,16 @@ dev = [
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pytest", specifier = ">=9,<10" },
 ]
+
+[[package]]
+name = "capstone-model-capability-spi"
+version = "0.1.0"
+source = { editable = "../capstone-model-capability-spi" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9,<10" }]
 
 [[package]]
 name = "certifi"
@@ -2002,6 +2014,7 @@ source = { editable = "." }
 dependencies = [
     { name = "capability-agent-kernel" },
     { name = "capstone-agent" },
+    { name = "capstone-model-capability-spi" },
     { name = "pypsa-network-modeling-domain-pack" },
     { name = "pypsa-power-operations-domain-pack" },
 ]
@@ -2015,6 +2028,7 @@ dev = [
 requires-dist = [
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
     { name = "capstone-agent", editable = "../capstone-agent" },
+    { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
     { name = "pypsa-network-modeling-domain-pack", editable = "../pypsa-network-modeling-domain-pack" },
     { name = "pypsa-power-operations-domain-pack", editable = "../pypsa-power-operations-domain-pack" },
 ]

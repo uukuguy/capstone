@@ -18,7 +18,7 @@ from capstone_model_capability_spi import (
     ModelCapabilitySelection,
 )
 
-from .model_capability import CapstoneModelCapabilityCatalog
+from .model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, ThreadModelDescriptor
 
@@ -45,6 +45,94 @@ class ModelCapabilityAdapter(Protocol):
         *,
         model_context: ModelContextSnapshot,
     ) -> PreparedModelCapabilityContribution: ...
+
+
+@dataclass(slots=True)
+class ApplicationProfileCapabilityHandle:
+    """Bridge handle for a legacy Kernel ``ApplicationProfile`` object.
+
+    The type is intentionally structural: ``capstone-agent`` does not import
+    the Kernel's application classes.  The selected application may retain the
+    object as a declaration and prepare its authority/runtime resources later.
+    """
+
+    descriptor: ModelCapabilityDescriptor
+    profile: object
+    _closed: bool = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        close = getattr(self.profile, "close", None)
+        if callable(close):
+            close()
+
+
+@dataclass(slots=True)
+class ApplicationProfileCapabilityContribution:
+    """Context contribution carrying one application profile declaration."""
+
+    descriptor: ModelCapabilityDescriptor
+    model_context: ModelContextSnapshot
+    profile: object
+
+    def close(self) -> None:
+        # The handle owns profile lifetime; contribution close is deliberately
+        # idempotent and does not double-close the application object.
+        return None
+
+
+class ApplicationProfileCapabilityAdapter:
+    """Adapt the bridge handle into a context-scoped profile contribution."""
+
+    def __init__(self, descriptor: ModelCapabilityDescriptor) -> None:
+        self.descriptor = descriptor
+
+    def prepare(
+        self,
+        handle: ModelCapabilityProfileHandle,
+        *,
+        model_context: ModelContextSnapshot,
+    ) -> ApplicationProfileCapabilityContribution:
+        if not isinstance(handle, ApplicationProfileCapabilityHandle):
+            raise TypeError("application profile handle is invalid")
+        if handle.closed:
+            raise RuntimeError("application profile handle is closed")
+        return ApplicationProfileCapabilityContribution(
+            self.descriptor, model_context, handle.profile,
+        )
+
+
+def register_application_profile(
+    owner: "ModelCapabilityContextOwner",
+    catalog: CapstoneModelCapabilityCatalog,
+    info: ModelCapabilityProfileInfo,
+    profile_factory: Callable[[], object],
+    *,
+    trust_source: str = "trusted-application-bootstrap",
+) -> None:
+    """Register one externally assembled legacy profile without domain imports."""
+
+    if owner.catalog is not catalog:
+        raise ValueError("owner and catalog must use the same catalog")
+    if not callable(profile_factory):
+        raise TypeError("profile_factory must be callable")
+    catalog.register_profile(
+        info,
+        lambda: ApplicationProfileCapabilityHandle(
+            info.descriptor, profile_factory(),
+        ),
+        trust_source=trust_source,
+    )
+    owner.register_adapter(
+        info.descriptor.reference,
+        ApplicationProfileCapabilityAdapter(info.descriptor),
+    )
 
 
 @dataclass(slots=True)
@@ -254,8 +342,12 @@ def _flatten_group(error: BaseException) -> list[BaseException]:
 
 
 __all__ = [
+    "ApplicationProfileCapabilityAdapter",
+    "ApplicationProfileCapabilityContribution",
+    "ApplicationProfileCapabilityHandle",
     "ModelCapabilityAdapter",
     "ModelCapabilityContextOwner",
     "PreparedModelCapabilityContext",
     "PreparedModelCapabilityContribution",
+    "register_application_profile",
 ]
