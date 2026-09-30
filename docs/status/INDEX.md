@@ -29,6 +29,7 @@
 | [PyPSA model-library implementation plan](../superpowers/plans/2026-09-26-pypsa-model-library-and-cases.md) | Local model library and scripted-case acceptance; container and frontend work remains deferred. |
 | [Capstone framework](../architecture/capstone-framework.md) | Layer contracts, current-run evidence and guide-access assurance boundaries. |
 | [Agent interaction discussion record](../superpowers/specs/2026-09-29-agent-interaction-discussion.md) | 🟡 Active discussion record for capstone-agent/harness, Thread/Run/Turn/Case, Pi/DSH runtime paths, model context, events, and three-pane App redesign; not an approved implementation spec. |
+| [Web Thread UI primary contract](../superpowers/specs/2026-10-01-capstone-thread-web-ui-main-contract.md) | Approved Web conversation contract: typography density, assistant-ui structure, Markdown answers, activity summaries, Composer behavior, and visual acceptance gates. |
 
 ## Climb storage and configuration
 
