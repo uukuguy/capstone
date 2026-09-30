@@ -77,6 +77,34 @@ def test_normalizer_drops_unbounded_native_payloads() -> None:
     }
 
 
+def test_normalizer_preserves_bounded_tool_provenance_and_evidence_refs() -> None:
+    event = normalize_runtime_event(
+        {
+            "type": "tool_result",
+            "toolCallId": "call-1",
+            "toolName": "grid_powerflow_run",
+            "capability": "analysis.powerflow.ac.run",
+            "capability_key": {"binding_id": "grid", "capability_id": "powerflow"},
+            "projector_id": "pandapower.powerflow",
+            "result": {"details": {"result_kind": "powerflow", "secret": "drop"}},
+            "evidence_refs": ["evidence:sha256:" + "a" * 64, "x" * 10000],
+        },
+        runtime_mode="capstone",
+    )
+
+    assert event["event_type"] == "tool_completed"
+    assert event["payload"] == {
+        "tool_call_id": "call-1",
+        "tool_name": "grid_powerflow_run",
+        "capability": "analysis.powerflow.ac.run",
+        "binding_id": "grid",
+        "capability_id": "powerflow",
+        "projector_id": "pandapower.powerflow",
+        "result_kind": "powerflow",
+        "evidence_refs": ["evidence:sha256:" + "a" * 64, "x" * 512],
+    }
+
+
 def test_dsh_client_is_an_explicitly_unavailable_shell() -> None:
     client = HarnessDSHClient()
     with pytest.raises(HarnessRuntimeUnavailable, match="DSH"):

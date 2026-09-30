@@ -62,6 +62,7 @@ _EVENT_TYPES = {
     "message_end": ("assistant_message_end", "public"),
     "tool_execution_start": ("tool_started", "public"),
     "tool_execution_end": ("tool_completed", "public"),
+    "tool_result": ("tool_completed", "public"),
     "agent_end": ("runtime_completed", "public"),
     "application_turn_completed": ("runtime_completed", "public"),
     "auto_retry_start": ("runtime_retry_started", "diagnostic"),
@@ -107,10 +108,43 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         value = event.get(source)
         if isinstance(value, str) and value and target not in payload:
             payload[target] = value[:256]
-    ok = event.get("ok")
+    details = _tool_details(event)
+    ok = event.get("ok", details.get("ok"))
     if isinstance(ok, bool):
         payload["ok"] = ok
+    for source, target in (
+        ("capability", "capability"),
+        ("projector_id", "projector_id"),
+        ("result_kind", "result_kind"),
+    ):
+        value = event.get(source, details.get(source))
+        if isinstance(value, str) and value:
+            payload[target] = value[:512]
+    capability_key = event.get("capability_key", details.get("capability_key"))
+    if isinstance(capability_key, Mapping):
+        for source, target in (
+            ("binding_id", "binding_id"), ("bindingId", "binding_id"),
+            ("capability_id", "capability_id"), ("capabilityId", "capability_id"),
+        ):
+            value = capability_key.get(source)
+            if isinstance(value, str) and value and target not in payload:
+                payload[target] = value[:256]
+    refs = event.get("evidence_refs", details.get("evidence_refs"))
+    if isinstance(refs, (list, tuple)):
+        bounded = [ref[:512] for ref in refs if isinstance(ref, str) and ref][:128]
+        if bounded:
+            payload["evidence_refs"] = bounded
     return payload
+
+
+def _tool_details(event: Mapping[str, object]) -> Mapping[str, object]:
+    result = event.get("result")
+    if isinstance(result, Mapping):
+        details = result.get("details")
+        if isinstance(details, Mapping):
+            return details
+    details = event.get("details")
+    return details if isinstance(details, Mapping) else {}
 
 
 def _small_runtime_payload(event: Mapping[str, object]) -> dict[str, object]:
