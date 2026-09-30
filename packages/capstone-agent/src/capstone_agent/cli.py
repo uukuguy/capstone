@@ -15,6 +15,8 @@ from capstone_agent.registry import build_registry
 from capstone_agent.progress import summarize_answer
 from capstone_agent.server import create_app
 from capstone_agent.session import WorkerRegistry, WorkerSession
+from capstone_agent.thread_service import ThreadCreator, ThreadModelCatalog
+from capstone_agent.thread_worker import RuntimeFactory, serve_thread_attempts
 
 
 REQUEST_SCHEMA = "capstone-client-request/1.0"
@@ -140,6 +142,8 @@ def main(
     argv: list[str] | None = None, *, registry: WorkerRegistry | None = None,
     input_stream: TextIO | None = None, output_stream: TextIO | None = None,
     error_stream: TextIO | None = None,
+    thread_catalog: ThreadModelCatalog | None = None,
+    thread_runtime_factory: RuntimeFactory | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -190,11 +194,10 @@ def main(
             ledger = Ledger(settings.database_url)
             ledger.initialize()
             artifacts = build_artifacts(settings, ledger)
+            thread_service = PostgresThreadService(settings.database_url)
+            thread_service.initialize()
             if args.command == "serve-hosted":
                 import uvicorn
-
-                thread_service = PostgresThreadService(settings.database_url)
-                thread_service.initialize()
 
                 wake_worker = None
                 if settings.worker_wake_url:
@@ -212,10 +215,27 @@ def main(
                     artifacts=artifacts,
                     wake_worker=wake_worker,
                     thread_service=thread_service,
+                    thread_creator=(
+                        ThreadCreator(thread_service, thread_catalog)
+                        if thread_catalog is not None else None
+                    ),
                 )
                 uvicorn.run(app, host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False)
             else:
+                thread_stop = None
+                thread_scheduler = None
+                if thread_runtime_factory is not None:
+                    import threading
+
+                    thread_stop = threading.Event()
+                    thread_scheduler = threading.Thread(
+                        target=serve_thread_attempts,
+                        args=(thread_service, thread_runtime_factory),
+                        kwargs={"stop_event": thread_stop},
+                        name="capstone-thread-worker", daemon=True,
+                    )
+                    thread_scheduler.start()
                 if settings.worker_wake_url:
                     import threading
                     import uvicorn
@@ -241,10 +261,20 @@ def main(
                         stop_event.set()
                         wake_event.set()
                         scheduler.join(timeout=3)
+                        if thread_stop is not None:
+                            thread_stop.set()
+                            if thread_scheduler is not None:
+                                thread_scheduler.join(timeout=3)
                 else:
-                    serve_forever(ledger, selected_registry, artifacts,
-                                  idle_seconds=settings.session_idle_seconds,
-                                  max_sessions=settings.worker_max_sessions)
+                    try:
+                        serve_forever(ledger, selected_registry, artifacts,
+                                      idle_seconds=settings.session_idle_seconds,
+                                      max_sessions=settings.worker_max_sessions)
+                    finally:
+                        if thread_stop is not None:
+                            thread_stop.set()
+                            if thread_scheduler is not None:
+                                thread_scheduler.join(timeout=3)
     except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
         print(f"capstone-agent error: {type(exc).__name__}", file=errors, flush=True)
         return 1
