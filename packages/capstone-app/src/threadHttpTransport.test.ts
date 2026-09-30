@@ -59,4 +59,27 @@ describe('HttpThreadTransport', () => {
       status: 409, body: { error: 'resync_required', base_event_seq: 3 },
     })
   })
+
+  it('streams strict Thread events and ignores duplicate SSE cursors', async () => {
+    const encoder = new TextEncoder()
+    const payload = (sequence: number) => JSON.stringify({
+      event_id: `evt_${sequence}`, event_seq: sequence, event_type: 'attempt_progress',
+      event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+      occurred_at: '2026-09-30T00:00:00Z', visibility: 'public', payload: { phase: 'running' },
+    })
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`: keepalive\n\nid: 2\nevent: attempt_progress\ndata: ${payload(2)}\n\n`))
+        controller.enqueue(encoder.encode(`id: 2\nevent: attempt_progress\ndata: ${payload(2)}\n\nid: 3\ndata: ${payload(3)}\n\n`))
+        controller.close()
+      },
+    })
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, { status: 200 }))
+    const transport = new HttpThreadTransport('', 'token-1', fetcher)
+    const events = []
+    for await (const event of transport.streamEvents('thr_demo_39', 1)) events.push(event)
+
+    expect(events.map((item) => item.eventSeq)).toEqual([2, 3])
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_demo_39/events/stream?after=1')
+  })
 })

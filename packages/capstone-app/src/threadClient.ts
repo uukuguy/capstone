@@ -1,6 +1,6 @@
 import {
   parseCommandReceipt, parseEventPage, parseThreadSnapshot,
-  type CommandReceipt, type EventPage, type ThreadSnapshot,
+  type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
 } from './threadProtocol'
 
 export type ThreadCommand = {
@@ -21,6 +21,7 @@ export interface ThreadTransport {
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
+  streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
   readonly connectionState?: ThreadTransportState
 }
 
@@ -49,5 +50,10 @@ export class CapstoneThreadClient {
 
   async send(command: ThreadCommand, signal?: AbortSignal): Promise<CommandReceipt> {
     return parseCommandReceipt(await this.transport.sendCommand(command, signal))
+  }
+
+  async *events(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope> {
+    if (!this.transport.streamEvents) throw new Error('Thread transport does not support SSE')
+    for await (const event of this.transport.streamEvents(threadId, afterEventSeq, signal)) yield event
   }
 }

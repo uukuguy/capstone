@@ -204,7 +204,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   return { ...snapshot, toDocument: () => snapshotDocument(snapshot) }
 }
 
-function parseEvent(value: unknown): EventEnvelope {
+export function parseEventEnvelope(value: unknown): EventEnvelope {
   const document = object(value, 'event')
   const keys = ['event_id', 'event_seq', 'event_type', 'event_version', 'thread_id', 'run_id', 'turn_id', 'attempt_id', 'model_context_id', 'selection_revision', 'occurred_at', 'visibility', 'payload']
   fields(document, new Set(keys), 'event')
@@ -235,7 +235,7 @@ export function parseEventPage(value: unknown, expectedAfterSeq?: number): Event
   if (expectedAfterSeq !== undefined && afterEventSeq !== expectedAfterSeq) throw new ThreadProtocolError('event page does not start at expected cursor')
   if (typeof document.has_more !== 'boolean' || !Array.isArray(document.events)) throw new ThreadProtocolError('event_page pagination is invalid')
   const threadId = identifier(document.thread_id, 'event_page.thread_id')
-  const events = document.events.map(parseEvent)
+  const events = document.events.map(parseEventEnvelope)
   let expectedSeq = afterEventSeq + 1
   for (const event of events) {
     if (event.threadId !== threadId) throw new ThreadProtocolError('event thread_id does not match page')

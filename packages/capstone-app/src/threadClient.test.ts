@@ -91,4 +91,22 @@ describe('CapstoneThreadClient', () => {
 
     await expect(new CapstoneThreadClient(transport).send(command())).rejects.toThrow('missing field')
   })
+
+  it('exposes the transport SSE stream as typed events', async () => {
+    const transport: ThreadTransport = {
+      getSnapshot: vi.fn(), readEvents: vi.fn(), sendCommand: vi.fn(),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'command_accepted', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', occurredAt: '2026-09-30T00:00:00Z',
+          visibility: 'public', payload: {},
+        }
+      },
+    }
+    const values = []
+    for await (const event of new CapstoneThreadClient(transport).events('thr_demo_39', 0)) {
+      values.push(event)
+    }
+    expect(values[0]?.eventSeq).toBe(1)
+  })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  parseCommandReceipt, parseEventPage, parseThreadSnapshot, ThreadProtocolError,
+  parseCommandReceipt, parseEventEnvelope, parseEventPage, parseThreadSnapshot, ThreadProtocolError,
 } from './threadProtocol'
 
 function validSnapshot(): Record<string, unknown> {
@@ -58,5 +58,11 @@ describe('browser Thread protocol parser', () => {
 
     expect(receipt.commandId).toBe('cmd_switch_005')
     expect(receipt.status).toBe('accepted')
+  })
+
+  it('parses one SSE event with the same strict event contract', () => {
+    expect(parseEventEnvelope(event(2))).toMatchObject({
+      eventId: 'evt_2', eventSeq: 2, threadId: 'thr_demo_39', eventType: 'attempt_progress',
+    })
   })
 })
