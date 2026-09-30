@@ -11,6 +11,7 @@
 - Hosted CLI now accepts an application-injected Thread catalog and runtime factory; without them production Thread execution remains disabled.
 - `ThreadApplicationAssembly` now keeps the Authority model catalog and Pi runtime factory as one application-owned pairing; hosted API/CLI can consume the pair without importing Domain Packs.
 - The independent `capstone-model-capability-spi` package now defines exact profile descriptors, immutable selections, trusted sealed registry resolution, and closeable context handles.
+- `CapstoneModelCapabilityCatalog` now applies exact model default, implementation-family default, then empty selection; explicit selections only check exact registration and declared family compatibility.
 - `ApplicationPiRuntimeFactory` now wraps the application-selected Pi session factory without importing Domain Packs into `capstone-agent`.
 - Web-side `HttpThreadTransport` and `CapstoneThreadClient` now expose a strict SSE event stream with cursor de-duplication.
 - `ThreadProjectionStore.consumeEvents()` now applies contiguous Attempt lifecycle events to the shared snapshot and freezes on gaps.
@@ -32,6 +33,7 @@
 - Latest Web projection check — 14 files, 92 tests passed; TypeScript check passed.
 - Latest Python Thread check — 147 passed, 25 skipped; assembly-to-Worker-to-SSE and missing-authorization coverage passed.
 - Latest Python Thread check — 149 passed, 27 skipped; context snapshot integrity coverage passed. Postgres integration remains environment-gated when `CAPSTONE_TEST_DATABASE_URL` is unset.
+- Latest Python Capstone check — 153 passed, 27 skipped after Model Capability Catalog coverage; the SPI remains a local editable dependency with no runtime imports into the Kernel.
 - `make test-model-capability-spi` — 13 passed; preparation rollback attempts every close and preserves cleanup errors.
 - Package boundary checker tests — 61 passed; stdlib-only imports and zero runtime dependencies enforced for the SPI.
 - SPI wheel/sdist build passed under `.capstone-agent/build/model-capability-spi`.
@@ -42,8 +44,8 @@
 
 ## Immediate next action
 
-1. Add the Capstone-side Model Capability Catalog/Adapter that maps a model implementation family to exact SPI profile selections and trusted factories.
-2. Keep that adapter outside `capstone-agent`'s neutral Domain Pack boundary; add provider-free preparation coverage before enabling hosted production Thread execution.
+1. Add the trusted application profile adapter that registers the current pandapower/PyPSA Domain Pack assemblies with this catalog without moving those imports into neutral runtime modules.
+2. Prepare selected profile handles at a Turn boundary and make the Attempt runtime factory consume that immutable prepared context.
 3. Supply one real selected application adapter at the deployment composition root: resolve IEEE-39 from the registered Authority and create the prepared Pi session for each claimed Attempt.
 
 ## Recovery constraints

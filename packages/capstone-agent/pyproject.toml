@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
   "boto3>=1.40,<2",
   "capability-agent-kernel==0.1.0",
+  "capstone-model-capability-spi==0.1.0",
   "fastapi>=0.139,<1",
   "google-cloud-storage>=3.14,<4",
   "psycopg[binary]>=3.2,<4",
@@ -27,3 +28,4 @@ packages = ["src/capstone_agent"]
 
 [tool.uv.sources]
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+capstone-model-capability-spi = { path = "../capstone-model-capability-spi", editable = true }

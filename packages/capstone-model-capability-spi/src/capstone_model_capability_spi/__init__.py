@@ -153,6 +153,16 @@ class ModelCapabilityRegistry:
             for _, registration in sorted(self._registrations.items())
         )
 
+    def is_registered(self, reference: ProfileReference) -> bool:
+        return reference in self._registrations
+
+    def validate_selection(self, selection: ModelCapabilitySelection) -> None:
+        if not isinstance(selection, ModelCapabilitySelection):
+            raise TypeError("selection must be a ModelCapabilitySelection")
+        for reference in selection.enabled_profiles:
+            if reference not in self._registrations:
+                raise KeyError(reference)
+
     def resolve(self, reference: ProfileReference) -> ModelCapabilityProfileHandle:
         if not isinstance(reference, tuple) or len(reference) != 2:
             raise ValueError("profile reference is invalid")
@@ -184,9 +194,7 @@ class ModelCapabilityRegistry:
         if not isinstance(selection, ModelCapabilitySelection):
             raise TypeError("selection must be a ModelCapabilitySelection")
         # Validate the complete set before factories allocate context resources.
-        for reference in selection.enabled_profiles:
-            if reference not in self._registrations:
-                raise KeyError(reference)
+        self.validate_selection(selection)
         handles: list[ModelCapabilityProfileHandle] = []
         try:
             for reference in selection.enabled_profiles:
