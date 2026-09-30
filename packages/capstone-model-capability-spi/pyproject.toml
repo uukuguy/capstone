@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "capstone-model-capability-spi"
+version = "0.1.0"
+description = "Neutral exact-selection SPI for Capstone model capability profiles"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=9,<10"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/capstone_model_capability_spi"]
