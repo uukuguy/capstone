@@ -53,12 +53,14 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('Fixture 已接收自动指令：查看当前模型')).toBeTruthy()
   })
 
-  it('keeps live cancellation visible while the grid pane is historical', async () => {
+  it('keeps live cancellation in the composer while the grid pane is historical', async () => {
     render(<ThreadFixtureApp fixtureId="historical-live-attempt" />)
 
     expect(await screen.findByText('历史页 · 只读视图')).toBeTruthy()
     expect(screen.queryByRole('alert', { name: 'event stream is not contiguous' })).toBeNull()
-    expect((screen.getByRole('button', { name: '取消当前计算' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole('button', { name: '停止生成' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '取消当前计算' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '打开回放' })).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
     await waitFor(() => expect(screen.queryByText('历史页 · 只读视图')).toBeNull())
     expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()

@@ -427,7 +427,7 @@ function ComposerSurface({ disabled, isRunning, editRequest }: { disabled: boole
   }, [aui, editRequest])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
     <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
-    <div className="capstone-composer-footer"><div className="capstone-composer-actions">
+    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏"><span className="capstone-composer-context">自动路由</span></div><div className="capstone-composer-actions">
       {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成"><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : !disabled && !isEmpty ? <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令"><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send> : null}
     </div></div>
   </ComposerPrimitive.Root>

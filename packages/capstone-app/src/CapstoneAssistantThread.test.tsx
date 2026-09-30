@@ -35,6 +35,8 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('当前模型为 IEEE-39。')).toBeTruthy()
     expect(screen.getByText(/工具已启动/)).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Thread 指令' })).toBeTruthy()
+    expect(screen.getByLabelText('输入工具栏')).toBeTruthy()
+    expect(screen.getByText('自动路由')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '自动识别' })).toBeNull()
     expect(screen.queryByRole('button', { name: '专业分析' })).toBeNull()
     expect(screen.queryByText(/⌘\/Ctrl/)).toBeNull()

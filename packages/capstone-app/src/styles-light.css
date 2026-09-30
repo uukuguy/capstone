@@ -589,7 +589,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-message.is-user .capstone-chat-role { display: none; }
 .capstone-chat-receipt { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: #8aa39d; font-size: 10px; line-height: 1.35; }
 .capstone-chat-receipt svg { width: 12px; height: 12px; color: #54a18d; }
-.capstone-chat-body, .capstone-chat-body p, .capstone-chat-markdown { font-size: 12px; line-height: 1.55; }
+.capstone-chat-body, .capstone-chat-body p, .capstone-chat-markdown { font-size: 11px; line-height: 1.55; }
 .capstone-chat-body p { margin: 0 0 10px; color: #294948; white-space: normal; }
 .capstone-chat-body p:last-child { margin-bottom: 0; }
 .capstone-chat-markdown h1, .capstone-chat-markdown h2, .capstone-chat-markdown h3 { margin: 12px 0 7px; color: #173f40; line-height: 1.35; letter-spacing: -.015em; }
@@ -611,7 +611,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-action { display: inline-grid; place-items: center; min-width: 36px; min-height: 36px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #78918b; cursor: pointer; }
 .capstone-chat-action:hover, .capstone-chat-action:focus-visible { background: #eef6f2; color: #18786c; outline: none; }
 .capstone-chat-action svg { width: 15px; height: 15px; stroke-width: 1.8; }
-.capstone-chat-placeholder { font-size: 12px; line-height: 1.55; }
+.capstone-chat-placeholder { font-size: 11px; line-height: 1.55; }
 .capstone-chat-placeholder.is-terminal { color: #986d59; }
 .capstone-chat-duration { display: inline-flex; align-items: center; margin-top: 6px; color: #829b94; font-size: 10px; line-height: 1.35; }
 .capstone-chat-duration.is-running { color: #238a79; }
@@ -643,8 +643,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-composer { flex: 0 0 auto; padding: 10px 12px 12px; border-top: 1px solid #e5eee9; background: #fff; }
 .capstone-composer-root { border: 1px solid #c9ded5; border-radius: 20px; background: #fff; box-shadow: 0 2px 9px #3156480b; }
 .capstone-composer-root:focus-within { border-color: #63aa98; box-shadow: 0 0 0 3px #4ca88f18; }
-.capstone-composer-root textarea { min-height: 48px; max-height: 156px; resize: vertical; padding: 10px 13px 8px; font-size: 13px; line-height: 1.45; }
-.capstone-composer-footer { display: flex; align-items: center; flex-direction: row; justify-content: flex-end; min-height: 0; padding: 3px 8px 7px; border-top: 0; }
+.capstone-composer-root textarea { min-height: 36px; max-height: 156px; resize: vertical; padding: 7px 13px 4px; font-size: 12px; line-height: 1.45; }
+.capstone-composer-footer { display: flex; align-items: center; flex-direction: row; justify-content: space-between; min-height: 0; padding: 2px 8px 6px; border-top: 0; }
+.capstone-composer-toolbar { display: flex; align-items: center; gap: 7px; min-height: 26px; color: #78938b; font: 10px/1.3 "SFMono-Regular", Consolas, monospace; }
+.capstone-composer-context { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border: 1px solid #dce9e3; border-radius: 999px; background: #fbfdfc; }
 .capstone-composer-actions { display: flex; align-items: center; gap: 3px; }
 .capstone-chat-send, .capstone-chat-stop { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 50%; }
 .capstone-chat-send { background: #117b73; color: #fff; }
@@ -667,12 +669,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-assistant-thread { height: 0; min-height: 0; }
 .capstone-chat-runtime, .capstone-chat-viewport { min-height: 0; }
 .capstone-chat-viewport { overflow-y: auto; gap: 14px; padding-top: 14px; }
-.capstone-chat-body, .capstone-chat-body p, .capstone-chat-markdown { font-size: 12px; line-height: 1.55; }
-.capstone-chat-message.is-user .capstone-chat-body { font-size: 12px; }
+.capstone-chat-body, .capstone-chat-body p, .capstone-chat-markdown { font-size: 11px; line-height: 1.55; }
+.capstone-chat-message.is-user .capstone-chat-body { font-size: 11px; }
 .capstone-chat-markdown h1 { font-size: 16px; }
 .capstone-chat-markdown h2 { font-size: 14px; }
 .capstone-chat-markdown h3 { font-size: 13px; }
-.capstone-chat-markdown table { font-size: 11px; line-height: 1.4; }
+.capstone-chat-markdown table { font-size: 10px; line-height: 1.4; }
 .capstone-chat-table-scroll { max-width: 100%; overflow-x: auto; }
 .capstone-chat-table-scroll table { min-width: 420px; }
 .capstone-chat-markdown th, .capstone-chat-markdown td { padding: 5px 7px; }

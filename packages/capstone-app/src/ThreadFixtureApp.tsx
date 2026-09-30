@@ -155,10 +155,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             onRegenerate={async (_attemptId, instruction) => { if (instruction) await dispatch('send_auto', { text: instruction }) }} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
-              {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}
               {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
-              {(isActive || isInterrupted) && <button type="button" className="thread-control-button" onClick={() => setNotice('回放入口将在真实事件流接入后启用')}>打开回放</button>}
             </>}
           </div>
         </section>
