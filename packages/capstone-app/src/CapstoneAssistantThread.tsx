@@ -11,7 +11,7 @@ import {
 } from '@assistant-ui/react'
 import type { EventEnvelope } from './threadProtocol'
 
-type SendMode = 'ordinary' | 'professional'
+type SendMode = 'automatic' | 'ordinary' | 'professional'
 
 function payloadText(event: EventEnvelope, nested = false): string {
   const source = nested && event.payload.payload && typeof event.payload.payload === 'object' && !Array.isArray(event.payload.payload)
@@ -22,14 +22,16 @@ function payloadText(event: EventEnvelope, nested = false): string {
 }
 
 function commandMode(event: EventEnvelope): SendMode {
-  return event.payload.kind === 'send_professional' ? 'professional' : 'ordinary'
+  if (event.payload.kind === 'send_professional') return 'professional'
+  if (event.payload.kind === 'send_auto') return 'automatic'
+  return 'ordinary'
 }
 
 export function projectAssistantMessages(events: readonly EventEnvelope[]): ThreadMessageLike[] {
   const messages: ThreadMessageLike[] = []
   const assistantByAttempt = new Map<string, ThreadMessageLike & { content: string }>()
   for (const event of events) {
-    if (event.eventType === 'command_accepted' && (event.payload.kind === 'send_ordinary' || event.payload.kind === 'send_professional')) {
+    if (event.eventType === 'command_accepted' && (event.payload.kind === 'send_auto' || event.payload.kind === 'send_ordinary' || event.payload.kind === 'send_professional')) {
       const text = payloadText(event, true)
       if (text) messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId } } })
       continue
@@ -90,7 +92,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
-  const [mode, setMode] = useState<SendMode>('ordinary')
+  const [mode, setMode] = useState<SendMode>('automatic')
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
     convertMessage: (message) => message,
@@ -119,13 +121,13 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
         </div>}
         <div className="capstone-chat-composer">
           <div className="capstone-chat-mode" role="group" aria-label="指令模式">
-            <button type="button" className={mode === 'ordinary' ? 'is-selected' : ''} onClick={() => setMode('ordinary')} disabled={disabled}>普通对话</button>
+            <button type="button" className={mode === 'automatic' ? 'is-selected' : ''} onClick={() => setMode('automatic')} disabled={disabled}>自动识别</button>
             <button type="button" className={mode === 'professional' ? 'is-selected' : ''} onClick={() => setMode('professional')} disabled={disabled}>专业分析</button>
           </div>
           <ComposerPrimitive.Root className="capstone-composer-root">
             <ComposerPrimitive.Input aria-label="Thread 指令" placeholder={disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled} submitMode="ctrlEnter" />
             <div className="capstone-composer-footer"><span>Enter 换行 · ⌘/Ctrl + Enter 发送</span>
-              {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop">停止</ComposerPrimitive.Cancel> : !disabled ? <ComposerPrimitive.Send className="capstone-chat-send">{mode === 'ordinary' ? '发送普通指令' : '发送专业请求'}</ComposerPrimitive.Send> : null}
+              {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop">停止</ComposerPrimitive.Cancel> : !disabled ? <ComposerPrimitive.Send className="capstone-chat-send">{mode === 'professional' ? '发送专业请求' : '发送指令'}</ComposerPrimitive.Send> : null}
             </div>
           </ComposerPrimitive.Root>
         </div>

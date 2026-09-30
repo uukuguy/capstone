@@ -32,7 +32,7 @@ def test_idle_fixture_exposes_business_commands() -> None:
     projection = run_fixture(load_fixture("idle-ieee39"))
 
     assert projection.enabled_commands == frozenset({
-        "send_ordinary",
+        "send_auto",
         "send_professional",
         "model_switch",
         "replace_selection",

@@ -34,7 +34,7 @@ describe('ThreadLiveEntry', () => {
     render(<ThreadLiveEntry threadId="thr_demo_39" />)
 
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
-    expect(screen.getByText('pandapower · revision 7')).toBeTruthy()
+    expect(screen.getAllByText('pandapower').length).toBeGreaterThan(0)
   })
 
   it('creates a default IEEE-39 Thread from the live new-thread route', async () => {

@@ -55,7 +55,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
       <p>当前 Thread 围绕一个电网模型工作。模型由已注册 authority 提供，工具调用和结果证据随 Run 保留。</p>
     </section>
     <div className="thread-model-toolbar" aria-label="模型上下文控制">
-      <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span className="thread-model-card-meta" title={snapshot.activeModelContext.modelRevision}>{snapshot.activeModelContext.implementationFamily} · revision {snapshot.activeModelContext.modelRevision}</span><span className="thread-model-badge">{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+      <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span className="thread-model-card-meta">{snapshot.activeModelContext.implementationFamily}</span><span className="thread-model-badge" title={snapshot.activeModelContext.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
       <label className="thread-model-switch">切换<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
         <option value="ieee39">IEEE-39 · pandapower</option><option value="pypsa39">PyPSA-39 · PyPSA</option>
       </select></label>

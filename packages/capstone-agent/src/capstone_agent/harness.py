@@ -340,7 +340,7 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
-            if candidate is None and (claim.kind != "send_ordinary" or self._tools_observed):
+            if candidate is None and (claim.kind not in {"send_auto", "send_ordinary"} or self._tools_observed):
                 raise _AttemptAdmissionError("answer_admission_unavailable")
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs

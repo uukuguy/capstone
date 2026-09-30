@@ -64,6 +64,9 @@ class ThreadCommandFactory:
     def send_ordinary(self, text: str, **kwargs: Any) -> dict[str, Any]:
         return self._message("send_ordinary", text, **kwargs)
 
+    def send_auto(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        return self._message("send_auto", text, **kwargs)
+
     def send_professional(self, text: str, **kwargs: Any) -> dict[str, Any]:
         return self._message("send_professional", text, **kwargs)
 

@@ -91,7 +91,7 @@ def _commands(*, transport: str, run_state: str, execution: str, view: str, atte
 
     commands: set[str] = {"open_replay"}
     if execution == "idle" and view == "live":
-        commands.update({"send_ordinary", "send_professional", "model_switch", "replace_selection", "launch_case"})
+        commands.update({"send_auto", "send_professional", "model_switch", "replace_selection", "launch_case"})
     elif execution == "approval_wait":
         commands.update({"approve", "deny", "cancel_live_attempt"})
     elif execution == "active":
@@ -101,7 +101,7 @@ def _commands(*, transport: str, run_state: str, execution: str, view: str, atte
 
     if view == "historical":
         commands.add("return_live")
-        commands.difference_update({"send_ordinary", "send_professional", "model_switch", "replace_selection", "launch_case"})
+        commands.difference_update({"send_auto", "send_ordinary", "send_professional", "model_switch", "replace_selection", "launch_case"})
     return frozenset(commands)
 
 

@@ -54,7 +54,7 @@ const fixtures: Record<ThreadUiFixtureId, ThreadUiFixture> = {
     fixture_id: 'idle-ieee39', snapshot: baseSnapshot,
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 0, has_more: false, events: [] },
     local_view: { viewed_grid_page_id: 'page_ieee39', replay: null, draft: '' },
-    assertions: { transport_state: 'live', enabled_commands: ['send_ordinary', 'send_professional', 'model_switch', 'replace_selection', 'launch_case'] },
+    assertions: { transport_state: 'live', enabled_commands: ['send_auto', 'send_professional', 'model_switch', 'replace_selection', 'launch_case'] },
   }),
   'historical-live-attempt': fixture({
     fixture_id: 'historical-live-attempt',

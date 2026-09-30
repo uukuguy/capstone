@@ -44,7 +44,7 @@ _COMMAND_FIELDS = frozenset({
     "schema", "command_id", "idempotency_key", "thread_id", "run_id",
     "kind", "expected_event_seq", "payload",
 })
-_MESSAGE_COMMAND_KINDS = frozenset({"send_ordinary", "send_professional", "send_control"})
+_MESSAGE_COMMAND_KINDS = frozenset({"send_auto", "send_ordinary", "send_professional", "send_control"})
 _CONTROL_COMMAND_KINDS = frozenset({
     "cancel_live_attempt", "retry_new_attempt",
     "enable_profile", "disable_profile", "replace_selection",

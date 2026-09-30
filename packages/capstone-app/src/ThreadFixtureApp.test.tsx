@@ -17,7 +17,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByText('CAPABILITY / EVIDENCE / CONTROL')).toBeTruthy()
     expect(screen.getByTestId('assistant-ui-chat')).toBeTruthy()
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
-    expect((screen.getByRole('button', { name: '发送普通指令' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()
   })
 
@@ -47,7 +47,7 @@ describe('ThreadFixtureApp', () => {
     expect((await screen.findAllByText('需要重新同步')).length).toBeGreaterThan(0)
     expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '重新同步' }) as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.queryByRole('button', { name: '发送普通指令' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '发送指令' })).toBeNull()
   })
 
   it('exposes a new Attempt retry after interruption', async () => {

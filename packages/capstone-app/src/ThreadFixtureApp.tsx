@@ -30,7 +30,7 @@ function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | nul
   if (state.connection === 'resync_required') return '服务器与本地事件光标不一致。已冻结命令，必须先重新同步。'
   if (fixture?.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
   if (fixture?.fixture_id === 'historical-live-attempt') return '当前正在查看历史页，但 live Attempt 仍在运行。取消控制始终保留在对话区。'
-  return '围绕当前电网模型发送普通指令或专业分析请求。每个命令都会绑定当前 Run 和事件光标。'
+  return '围绕当前电网模型发送指令或专业分析请求。默认自动识别意图，每个命令都会绑定当前 Run 和事件光标。'
 }
 
 export type ThreadWorkspaceProps = {
@@ -146,7 +146,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={events.filter((event) => ['tool_started', 'tool_completed', 'attempt_progress'].includes(event.eventType)).map((event) => `${eventLabel(event.eventType)} · capstone-harness`)}
-            onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_ordinary', { text }) }}
+            onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
