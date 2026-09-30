@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
-from capstone_agent.cli import main as capstone_main
+from capstone_agent.hosted import run_hosted_api
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
 from capstone_agent.runtime import build_runtime_host
@@ -113,12 +113,9 @@ def build_registered_pandapower_thread_application():
 
 
 def main() -> int:
-    """Start the shared hosted API with the registered pandapower catalog."""
+    """Delegate API process control to the Capstone application host."""
 
-    return capstone_main(
-        ["serve-hosted"],
-        thread_application=build_registered_pandapower_thread_application(),
-    )
+    return run_hosted_api(build_registered_pandapower_thread_application)
 
 
 if __name__ == "__main__":

@@ -241,6 +241,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def check_boundaries(root: Path) -> list[str]:
     violations: list[str] = check_model_capability_spi(root)
+    violations.extend(check_application_host_boundaries(root))
     for source_root, forbidden_modules in FORBIDDEN_IMPORTS_BY_SOURCE_ROOT.items():
         absolute_source_root = root / source_root
         if absolute_source_root.exists():
@@ -303,6 +304,69 @@ def check_boundaries(root: Path) -> list[str]:
                 )
             )
 
+    return violations
+
+
+def check_application_host_boundaries(root: Path) -> list[str]:
+    """Keep historical domain packages behind the Capstone application host.
+
+    ``grid-agent`` and ``pypsa-agent`` may retain compatibility workers and
+    domain adapters, but they must not grow a second hosted/API process root.
+    The assertion is intentionally source based so a new bypass fails the
+    package gate before it can become a deployable entry point.
+    """
+
+    violations: list[str] = []
+    package_roots = (
+        root / "packages/grid-agent/src/grid_agent",
+        root / "packages/pypsa-agent/src/pypsa_agent",
+    )
+    for source_root in package_roots:
+        if not source_root.exists():
+            continue
+        for path in sorted(source_root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            modules = tuple(imported_modules(tree))
+            for module in modules:
+                if module == "capstone_agent.cli" or module.startswith("capstone_agent.cli."):
+                    violations.append(
+                        f"{path.relative_to(root).as_posix()} bypasses capstone-agent hosted root via {module}"
+                    )
+
+            relative = path.relative_to(source_root).as_posix()
+            if relative not in {"hosted.py", "hosted_worker.py"}:
+                continue
+            if not any(
+                module == "capstone_agent.hosted"
+                or module.startswith("capstone_agent.hosted.")
+                for module in modules
+            ):
+                violations.append(
+                    f"{path.relative_to(root).as_posix()} must delegate to capstone_agent.hosted"
+                )
+            expected_runner = (
+                "run_hosted_worker" if relative == "hosted_worker.py" else "run_hosted_api"
+            )
+            if expected_runner not in path.read_text(encoding="utf-8"):
+                violations.append(
+                    f"{path.relative_to(root).as_posix()} must use {expected_runner}"
+                )
+
+        worker = source_root / "worker.py"
+        if worker.exists():
+            modules = tuple(
+                imported_modules(
+                    ast.parse(worker.read_text(encoding="utf-8"), filename=str(worker))
+                )
+            )
+            if not any(
+                module == "capstone_agent.worker"
+                or module.startswith("capstone_agent.worker.")
+                for module in modules
+            ):
+                violations.append(
+                    f"{worker.relative_to(root).as_posix()} must delegate execution to capstone_agent.worker"
+                )
     return violations
 
 

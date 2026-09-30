@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from capstone_agent.cli import main as capstone_main
+from capstone_agent.hosted import run_hosted_worker
 
 from grid_agent.hosted import build_registered_pandapower_thread_application
 
 
 def main() -> int:
-    return capstone_main(
-        ["work-hosted"],
-        thread_application=build_registered_pandapower_thread_application(),
-    )
+    return run_hosted_worker(build_registered_pandapower_thread_application)
 
 
 if __name__ == "__main__":

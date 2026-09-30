@@ -549,6 +549,32 @@ def test_absent_future_roots_pass(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_hosted_domain_adapter_must_delegate_to_capstone_host(tmp_path: Path) -> None:
+    source = tmp_path / "packages/grid-agent/src/grid_agent"
+    source.mkdir(parents=True)
+    (source / "hosted.py").write_text(
+        "from capstone_agent.cli import main\n",
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert "bypasses capstone-agent hosted root" in result.stderr
+    assert "must delegate to capstone_agent.hosted" in result.stderr
+
+
+def test_domain_worker_must_delegate_to_capstone_worker(tmp_path: Path) -> None:
+    source = tmp_path / "packages/pypsa-agent/src/pypsa_agent"
+    source.mkdir(parents=True)
+    (source / "worker.py").write_text("def main():\n    return None\n", encoding="utf-8")
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert "pypsa_agent/worker.py must delegate execution to capstone_agent.worker" in result.stderr
+
+
 def run_checker(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(CHECKER), "--root", str(root)],

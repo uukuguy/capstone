@@ -1433,3 +1433,5 @@ _Recovered pre-merge mainline entries._
 - 06:22 将对话栏标题改为智能体对话，避免主标题混用内部协议术语 [f99b298]
 - 06:27 将空状态示例改为精致可点击的问题标签，点击只填入 Composer 便于编辑后发送 [c4a6e0a]
 - 06:41 落盘 M1 主线计划：将 hosted API/Worker 进程根迁入 capstone-agent，grid-agent 保留 pandapower 领域工厂适配 [pending]
+- 06:42 M1 主线计划已提交，下一步按测试先行实现 Capstone hosted seam [4730628]
+- 06:49 M1 hosted seam 与 grid/pypsa 绕行边界断言通过；Capstone 218 passed/27 skipped，边界 67 passed，doctor 与本地重建健康 [pending]
