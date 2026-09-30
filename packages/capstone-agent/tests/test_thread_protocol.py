@@ -124,6 +124,27 @@ def test_snapshot_round_trips_a_pending_selection_without_changing_active_contex
     assert snapshot.to_document()["pending_selection"] == document["pending_selection"]
 
 
+def test_snapshot_round_trips_a_pending_model_switch() -> None:
+    document = valid_snapshot()
+    document["pending_model_switch"] = {
+        "command_id": "cmd_model_007",
+        "model_id": "pypsa39",
+        "model_revision": "revision:sha256:" + "b" * 64,
+        "implementation_family": "pypsa",
+        "selection": {
+            "schema": "capstone-model-capability-selection/1",
+            "enabled_profiles": [],
+        },
+    }
+
+    snapshot = ThreadSnapshot.from_document(document)
+
+    assert snapshot.pending_model_switch is not None
+    assert snapshot.pending_model_switch.model_id == "pypsa39"
+    assert snapshot.pending_model_switch.implementation_family == "pypsa"
+    assert snapshot.to_document()["pending_model_switch"] == document["pending_model_switch"]
+
+
 def test_event_page_rejects_a_gap_after_the_snapshot() -> None:
     with pytest.raises(ThreadProtocolError, match="contiguous"):
         EventPage.from_document(

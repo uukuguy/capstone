@@ -219,6 +219,39 @@ export class ThreadProjectionStore {
       throw new Error('event stream is not contiguous')
     }
     let currentAttempt = snapshot.currentAttempt
+    const document = snapshot.toDocument()
+    const payload = record(event.payload)
+    if (event.eventType === 'model_context_change_pending') {
+      document.pending_model_switch = {
+        command_id: payload.command_id,
+        model_id: payload.model_id,
+        model_revision: payload.model_revision,
+        implementation_family: payload.implementation_family,
+        selection: payload.selection,
+      }
+      delete document.pending_selection
+    } else if (event.eventType === 'selection_change_pending') {
+      document.pending_selection = { command_id: payload.command_id, selection: payload.selection }
+    } else if (event.eventType === 'model_context_activated' || event.eventType === 'model_context_reverted') {
+      const context = payload.model_context ?? payload.restored_context
+      if (context) document.active_model_context = context
+      const page = payload.active_grid_page_id ?? payload.restored_grid_page_id
+      if (typeof page === 'string') document.active_grid_page_id = page
+      delete document.pending_model_switch
+      delete document.pending_selection
+    } else if (event.eventType === 'selection_activated') {
+      const activeContext = record(document.active_model_context)
+      activeContext.selection_revision = event.selectionRevision
+      activeContext.enabled_profiles = payload.selection
+      document.active_model_context = activeContext
+      delete document.pending_selection
+    } else if (event.eventType === 'selection_reverted') {
+      const activeContext = record(document.active_model_context)
+      activeContext.selection_revision = event.selectionRevision
+      activeContext.enabled_profiles = payload.restored_selection
+      document.active_model_context = activeContext
+      delete document.pending_selection
+    }
     const identity = event.turnId && event.attemptId && event.modelContextId
       ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }
       : null
@@ -231,7 +264,7 @@ export class ThreadProjectionStore {
       if (!currentAttempt || !event.attemptId || currentAttempt.attemptId === event.attemptId) currentAttempt = null
     }
     const projected = parseThreadSnapshot({
-      ...snapshot.toDocument(),
+      ...document,
       current_attempt: currentAttempt ? {
         turn_id: currentAttempt.turnId, attempt_id: currentAttempt.attemptId,
         phase: currentAttempt.phase, target_model_context_id: currentAttempt.targetModelContextId,

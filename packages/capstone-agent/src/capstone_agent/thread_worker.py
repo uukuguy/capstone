@@ -37,9 +37,15 @@ def run_pending_attempt(
         if getattr(runtime_factory, "rollback_selection_on_failure", False):
             error_code = "capability_context_preparation_failed"
             try:
-                service.rollback_selection_if_preparation_failed(
-                    claim, error_code=error_code,
+                rollback = getattr(
+                    service, "rollback_context_if_preparation_failed", None,
                 )
+                if callable(rollback):
+                    rollback(claim, error_code=error_code)
+                else:
+                    service.rollback_selection_if_preparation_failed(
+                        claim, error_code=error_code,
+                    )
             except Exception:
                 pass
         service.finish_attempt(

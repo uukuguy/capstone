@@ -24,6 +24,29 @@ class _SelectionCatalog:
         return selection
 
 
+class _AnySelectionCatalog:
+    def resolve(
+        self,
+        model: ThreadModelDescriptor,
+        selection: ModelCapabilitySelection | None = None,
+    ) -> ModelCapabilitySelection:
+        del model
+        return ModelCapabilitySelection.empty() if selection is None else selection
+
+
+class _ModelCatalog:
+    default_model_id = "ieee39"
+
+    def resolve(self, model_id: str | None) -> ThreadModelDescriptor:
+        if model_id == "pypsa39":
+            return ThreadModelDescriptor(
+                "pypsa39", "revision:sha256:" + "b" * 64, "pypsa",
+            )
+        return ThreadModelDescriptor(
+            "ieee39", "revision:sha256:" + "a" * 64, "pandapower",
+        )
+
+
 def _service() -> InMemoryThreadService:
     return InMemoryThreadService.from_document({
         "schema": "capstone-thread-snapshot/1",
@@ -50,6 +73,20 @@ def _selection_service() -> InMemoryThreadService:
         "active_grid_page_id": "page_ieee39",
         "current_attempt": None, "last_event_seq": 0, "base_event_seq": 0,
     }, capability_catalog=_SelectionCatalog())
+
+
+def _model_service() -> InMemoryThreadService:
+    return InMemoryThreadService.from_document({
+        "schema": "capstone-thread-snapshot/1",
+        "thread_id": "thr_attempts",
+        "run": {"run_id": "run_attempts", "state": "open"},
+        "active_model_context": {
+            "id": "ctx_ieee39", "model_id": "ieee39", "model_revision": "revision:sha256:" + "a" * 64,
+            "implementation_family": "pandapower", "selection_revision": "sel_0",
+        },
+        "active_grid_page_id": "page_ieee39",
+        "current_attempt": None, "last_event_seq": 0, "base_event_seq": 0,
+    }, capability_catalog=_AnySelectionCatalog(), model_catalog=_ModelCatalog())
 
 
 def _command(command_id: str = "cmd_attempt_001") -> dict[str, object]:
@@ -274,6 +311,107 @@ def test_selection_preparation_failure_restores_the_previous_effective_revision(
     assert restored.active_model_context.selection_revision == "sel_0"
     assert restored.active_model_context.enabled_profiles == ()
     assert service.read_events("thr_attempts", 0).events[-1].event_type == "selection_reverted"
+
+
+def test_model_switch_stages_and_activates_a_new_context_at_the_next_turn_boundary() -> None:
+    service = _model_service()
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_switch_001",
+        "idempotency_key": "idem_switch_001", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "switch_model", "expected_event_seq": 0,
+        "payload": {"model_id": "pypsa39"},
+    })
+
+    assert receipt.status == "accepted"
+    before = service.snapshot("thr_attempts")
+    assert before.active_model_context.model_id == "ieee39"
+    assert before.pending_model_switch is not None
+    assert before.pending_model_switch.model_id == "pypsa39"
+
+    next_turn = service.submit_command({
+        **_command("cmd_switch_turn"),
+        "expected_event_seq": before.last_event_seq,
+    })
+
+    assert next_turn.status == "accepted"
+    after = service.snapshot("thr_attempts")
+    assert after.pending_model_switch is None
+    assert after.active_model_context.model_id == "pypsa39"
+    assert after.active_model_context.implementation_family == "pypsa"
+    assert after.active_model_context.id != before.active_model_context.id
+    assert [event.event_type for event in service.read_events("thr_attempts", 0).events] == [
+        "command_accepted", "model_context_change_pending", "model_context_activated",
+        "command_accepted",
+    ]
+
+
+def test_model_switch_preparation_failure_restores_previous_context_and_grid_page() -> None:
+    service = _model_service()
+    staged = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_switch_restore",
+        "idempotency_key": "idem_switch_restore", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "switch_model", "expected_event_seq": 0,
+        "payload": {"model_id": "pypsa39"},
+    })
+    assert staged.status == "accepted"
+    before = service.snapshot("thr_attempts")
+    service.submit_command({
+        **_command("cmd_turn_after_switch"),
+        "expected_event_seq": before.last_event_seq,
+    })
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    assert claim.model_context.model_id == "pypsa39"
+
+    assert service.rollback_context_if_preparation_failed(
+        claim, error_code="capability_context_preparation_failed",
+    )
+    restored = service.snapshot("thr_attempts")
+    assert restored.active_model_context.model_id == "ieee39"
+    assert restored.active_model_context.id == "ctx_ieee39"
+    assert restored.active_grid_page_id == "page_ieee39"
+    assert service.read_events("thr_attempts", 0).events[-1].event_type == "model_context_reverted"
+
+
+def test_selection_is_rejected_while_another_model_switch_is_pending() -> None:
+    service = _model_service()
+    service.submit_command({
+        **_command("cmd_switch_pending"), "kind": "switch_model",
+        "payload": {"model_id": "pypsa39"},
+    })
+    receipt = service.submit_command({
+        **_command("cmd_profile_pending"), "kind": "enable_profile",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "context_change_pending"
+    assert service.snapshot("thr_attempts").pending_selection is None
+
+
+def test_later_preparation_failure_cannot_roll_back_a_completed_model_switch() -> None:
+    service = _model_service()
+    service.submit_command({
+        **_command("cmd_switch_success"), "kind": "switch_model",
+        "payload": {"model_id": "pypsa39"},
+    })
+    service.submit_command({
+        **_command("cmd_first_switched_turn"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+    })
+    first = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert first is not None
+    service.finish_attempt(first, phase="completed", payload={"answer": "ready"})
+    service.submit_command({
+        **_command("cmd_later_switched_turn"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+    })
+    later = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert later is not None
+    assert not service.rollback_context_if_preparation_failed(
+        later, error_code="capability_context_preparation_failed",
+    )
+    assert service.snapshot("thr_attempts").active_model_context == first.model_context
 
 
 def test_attempt_lease_is_required_for_append_and_finish() -> None:

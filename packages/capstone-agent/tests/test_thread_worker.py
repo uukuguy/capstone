@@ -3,7 +3,8 @@ from __future__ import annotations
 from threading import Event
 
 from capstone_agent.harness import HarnessAttemptResult
-from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.thread_service import InMemoryThreadService, ThreadModelDescriptor
+from capstone_agent.thread_protocol import ThreadSnapshot
 from capstone_agent.thread_worker import run_pending_attempt, serve_thread_attempts
 
 
@@ -202,3 +203,54 @@ def test_prepared_context_failure_rolls_back_new_selection_before_attempt_failur
     assert snapshot.current_attempt is None
     assert snapshot.active_model_context.selection_revision == "sel_0"
     assert service.read_events("thr_worker", 0).events[-2].event_type == "selection_reverted"
+
+
+def test_model_preparation_failure_commits_valid_snapshot_and_original_attempt_lineage() -> None:
+    service = _service()
+
+    class _Models:
+        default_model_id = "ieee39"
+
+        def resolve(self, model_id):
+            assert model_id == "pypsa39"
+            return ThreadModelDescriptor("pypsa39", "revision:sha256:" + "b" * 64, "pypsa")
+
+    service.set_model_catalog(_Models())
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_worker_switch",
+        "idempotency_key": "idem_worker_switch", "thread_id": "thr_worker",
+        "run_id": "run_worker", "kind": "switch_model", "expected_event_seq": 0,
+        "payload": {"model_id": "pypsa39"},
+    })
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_worker_switch_turn",
+        "idempotency_key": "idem_worker_switch_turn", "thread_id": "thr_worker",
+        "run_id": "run_worker", "kind": "send_ordinary",
+        "expected_event_seq": service.snapshot("thr_worker").last_event_seq,
+        "payload": {"text": "inspect"},
+    })
+
+    class _PreparationFailureFactory:
+        rollback_selection_on_failure = True
+
+        def __call__(self, claim):
+            assert claim.model_context.model_id == "pypsa39"
+            raise RuntimeError("preparation failed")
+
+    original_rollback = service.rollback_context_if_preparation_failed
+
+    def observed_rollback(claim, *, error_code):
+        result = original_rollback(claim, error_code=error_code)
+        # Every snapshot visible after a public store operation must be valid.
+        ThreadSnapshot.from_document(service.snapshot("thr_worker").to_document())
+        return result
+
+    service.rollback_context_if_preparation_failed = observed_rollback
+    result = run_pending_attempt(service, _PreparationFailureFactory(), worker_id="thread-worker")
+    assert result is not None and result.status == "failed"
+    snapshot = ThreadSnapshot.from_document(service.snapshot("thr_worker").to_document())
+    assert snapshot.active_model_context.model_id == "ieee39"
+    events = service.read_events("thr_worker", 0).events
+    assert [event.event_type for event in events[-2:]] == ["model_context_reverted", "attempt_failed"]
+    activated = next(event for event in events if event.event_type == "model_context_activated")
+    assert events[-1].model_context_id == activated.model_context_id

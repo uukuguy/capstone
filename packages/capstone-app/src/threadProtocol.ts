@@ -7,6 +7,12 @@ export type ModelContextSnapshot = {
   id: string; modelId: string; modelRevision: string; implementationFamily: string; selectionRevision: string
   enabledProfiles: Array<{ profileId: string; profileVersion: string }>
 }
+export type ProfileReference = { profileId: string; profileVersion: string }
+export type PendingSelectionSnapshot = { commandId: string; enabledProfiles: ProfileReference[] }
+export type PendingModelSwitchSnapshot = {
+  commandId: string; modelId: string; modelRevision: string; implementationFamily: string
+  enabledProfiles: ProfileReference[]
+}
 export type AttemptSnapshot = {
   turnId: string; attemptId: string; phase: AttemptPhase; targetModelContextId: string
 }
@@ -18,6 +24,8 @@ export type ThreadSnapshot = {
   currentAttempt: AttemptSnapshot | null
   lastEventSeq: number
   baseEventSeq: number
+  pendingSelection?: PendingSelectionSnapshot
+  pendingModelSwitch?: PendingModelSwitchSnapshot
   toDocument: () => Record<string, unknown>
 }
 
@@ -145,18 +153,38 @@ function parseRun(value: unknown): RunSnapshot {
   return { runId: identifier(document.run_id, 'run.run_id'), state }
 }
 
-function parseContext(value: unknown): ModelContextSnapshot {
-  const document = object(value, 'active_model_context')
+function parseContext(value: unknown, name = 'active_model_context'): ModelContextSnapshot {
+  const document = object(value, name)
   const keys = ['id', 'model_id', 'model_revision', 'implementation_family', 'selection_revision', 'enabled_profiles']
-  fields(document, new Set(keys), 'active_model_context')
-  required(document, keys.filter((key) => key !== 'enabled_profiles'), 'active_model_context')
+  fields(document, new Set(keys), name)
+  required(document, keys.filter((key) => key !== 'enabled_profiles'), name)
   return {
-    id: identifier(document.id, 'active_model_context.id'),
-    modelId: identifier(document.model_id, 'active_model_context.model_id'),
-    modelRevision: text(document.model_revision, 'active_model_context.model_revision'),
-    implementationFamily: identifier(document.implementation_family, 'active_model_context.implementation_family'),
-    selectionRevision: text(document.selection_revision, 'active_model_context.selection_revision'),
+    id: identifier(document.id, `${name}.id`),
+    modelId: identifier(document.model_id, `${name}.model_id`),
+    modelRevision: text(document.model_revision, `${name}.model_revision`),
+    implementationFamily: identifier(document.implementation_family, `${name}.implementation_family`),
+    selectionRevision: text(document.selection_revision, `${name}.selection_revision`),
     enabledProfiles: parseEnabledProfiles(document.enabled_profiles),
+  }
+}
+
+function parsePendingSelection(value: unknown): PendingSelectionSnapshot {
+  const document = object(value, 'pending_selection')
+  fields(document, new Set(['command_id', 'selection']), 'pending_selection')
+  required(document, ['command_id', 'selection'], 'pending_selection')
+  return { commandId: identifier(document.command_id, 'pending_selection.command_id'), enabledProfiles: parseEnabledProfiles(document.selection) }
+}
+
+function parsePendingModelSwitch(value: unknown): PendingModelSwitchSnapshot {
+  const document = object(value, 'pending_model_switch')
+  fields(document, new Set(['command_id', 'model_id', 'model_revision', 'implementation_family', 'selection']), 'pending_model_switch')
+  required(document, ['command_id', 'model_id', 'model_revision', 'implementation_family', 'selection'], 'pending_model_switch')
+  return {
+    commandId: identifier(document.command_id, 'pending_model_switch.command_id'),
+    modelId: identifier(document.model_id, 'pending_model_switch.model_id'),
+    modelRevision: text(document.model_revision, 'pending_model_switch.model_revision'),
+    implementationFamily: identifier(document.implementation_family, 'pending_model_switch.implementation_family'),
+    enabledProfiles: parseEnabledProfiles(document.selection),
   }
 }
 
@@ -204,14 +232,25 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     } : null,
     last_event_seq: snapshot.lastEventSeq,
     base_event_seq: snapshot.baseEventSeq,
+    ...(snapshot.pendingSelection ? { pending_selection: {
+      command_id: snapshot.pendingSelection.commandId,
+      selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: snapshot.pendingSelection.enabledProfiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) },
+    } } : {}),
+    ...(snapshot.pendingModelSwitch ? { pending_model_switch: {
+      command_id: snapshot.pendingModelSwitch.commandId,
+      model_id: snapshot.pendingModelSwitch.modelId,
+      model_revision: snapshot.pendingModelSwitch.modelRevision,
+      implementation_family: snapshot.pendingModelSwitch.implementationFamily,
+      selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: snapshot.pendingModelSwitch.enabledProfiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) },
+    } } : {}),
   }
 }
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys, 'snapshot')
+  required(document, keys.filter((key) => key !== 'pending_selection' && key !== 'pending_model_switch'), 'snapshot')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
@@ -229,6 +268,8 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     currentAttempt,
     lastEventSeq,
     baseEventSeq,
+    ...(document.pending_selection == null ? {} : { pendingSelection: parsePendingSelection(document.pending_selection) }),
+    ...(document.pending_model_switch == null ? {} : { pendingModelSwitch: parsePendingModelSwitch(document.pending_model_switch) }),
   }
   return { ...snapshot, toDocument: () => snapshotDocument(snapshot) }
 }

@@ -47,6 +47,18 @@ describe('browser Thread protocol parser', () => {
     ])
   })
 
+  it('accepts staged model and profile context changes', () => {
+    const document = validSnapshot()
+    document.pending_model_switch = {
+      command_id: 'cmd_switch_006', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
+      implementation_family: 'pypsa',
+      selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
+    }
+    const snapshot = parseThreadSnapshot(document)
+    expect(snapshot.pendingModelSwitch?.modelId).toBe('pypsa39')
+    expect(snapshot.toDocument().pending_model_switch).toMatchObject({ model_id: 'pypsa39' })
+  })
+
   it('rejects an event page gap after the snapshot cursor', () => {
     expect(() => parseEventPage({
       schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39',

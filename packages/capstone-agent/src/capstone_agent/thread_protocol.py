@@ -181,6 +181,48 @@ class PendingSelectionSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class PendingModelSwitchSnapshot:
+    """A resolved model target waiting for the next Turn boundary."""
+
+    command_id: str
+    model_id: str
+    model_revision: str
+    implementation_family: str
+    enabled_profiles: tuple[tuple[str, str], ...]
+
+    @classmethod
+    def from_document(cls, value: Any) -> PendingModelSwitchSnapshot:
+        document = _document(value, name="pending_model_switch")
+        allowed = frozenset({
+            "command_id", "model_id", "model_revision", "implementation_family", "selection",
+        })
+        _fields(document, allowed, name="pending_model_switch")
+        _required(document, allowed, name="pending_model_switch")
+        try:
+            selection = ModelCapabilitySelection.from_document(document["selection"])
+        except ValueError as error:
+            raise ThreadProtocolError(str(error)) from None
+        return cls(
+            command_id=_identifier(document["command_id"], name="pending_model_switch.command_id"),
+            model_id=_identifier(document["model_id"], name="pending_model_switch.model_id"),
+            model_revision=_text(document["model_revision"], name="pending_model_switch.model_revision"),
+            implementation_family=_identifier(
+                document["implementation_family"], name="pending_model_switch.implementation_family"
+            ),
+            enabled_profiles=selection.enabled_profiles,
+        )
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "command_id": self.command_id,
+            "model_id": self.model_id,
+            "model_revision": self.model_revision,
+            "implementation_family": self.implementation_family,
+            "selection": ModelCapabilitySelection(self.enabled_profiles).to_document(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class AttemptSnapshot:
     turn_id: str
     attempt_id: str
@@ -224,6 +266,7 @@ class ThreadSnapshot:
     last_event_seq: int
     base_event_seq: int
     pending_selection: PendingSelectionSnapshot | None = None
+    pending_model_switch: PendingModelSwitchSnapshot | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> ThreadSnapshot:
@@ -231,9 +274,10 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
+            "pending_model_switch",
         })
         _fields(document, allowed, name="snapshot")
-        _required(document, allowed - {"pending_selection"}, name="snapshot")
+        _required(document, allowed - {"pending_selection", "pending_model_switch"}, name="snapshot")
         if document["schema"] != _SNAPSHOT_SCHEMA:
             raise ThreadProtocolError("snapshot.schema is invalid")
         last_event_seq = _sequence(document["last_event_seq"], name="snapshot.last_event_seq")
@@ -249,6 +293,11 @@ class ThreadSnapshot:
             if document.get("pending_selection") is None
             else PendingSelectionSnapshot.from_document(document["pending_selection"])
         )
+        pending_model_switch = (
+            None
+            if document.get("pending_model_switch") is None
+            else PendingModelSwitchSnapshot.from_document(document["pending_model_switch"])
+        )
         return cls(
             thread_id=_identifier(document["thread_id"], name="snapshot.thread_id"),
             run=RunSnapshot.from_document(document["run"]),
@@ -258,6 +307,7 @@ class ThreadSnapshot:
             last_event_seq=last_event_seq,
             base_event_seq=base_event_seq,
             pending_selection=pending,
+            pending_model_switch=pending_model_switch,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -273,6 +323,8 @@ class ThreadSnapshot:
         }
         if self.pending_selection is not None:
             document["pending_selection"] = self.pending_selection.to_document()
+        if self.pending_model_switch is not None:
+            document["pending_model_switch"] = self.pending_model_switch.to_document()
         return document
 
 

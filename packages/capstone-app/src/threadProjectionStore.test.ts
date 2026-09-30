@@ -173,4 +173,44 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.eventSeq).toBe(2)
     expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
   })
+
+  it('projects a model context switch and clears its staged state', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'command_accepted', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', occurredAt: '2026-09-30T00:00:01Z',
+          visibility: 'public' as const, payload: { kind: 'switch_model' },
+        }
+        yield {
+          eventId: 'evt_2', eventSeq: 2, eventType: 'model_context_change_pending', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:02Z', visibility: 'public' as const,
+          payload: {
+            command_id: 'cmd_switch', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
+            implementation_family: 'pypsa', selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
+          },
+        }
+        yield {
+          eventId: 'evt_3', eventSeq: 3, eventType: 'model_context_activated', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_pypsa39_1', selectionRevision: 'sel_0',
+          occurredAt: '2026-09-30T00:00:03Z', visibility: 'public' as const,
+          payload: {
+            model_context: {
+              id: 'ctx_pypsa39_1', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
+              implementation_family: 'pypsa', selection_revision: 'sel_0',
+            }, active_grid_page_id: 'page_pypsa39',
+          },
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+
+    expect(store.state.snapshot?.activeModelContext.modelId).toBe('pypsa39')
+    expect(store.state.snapshot?.activeGridPageId).toBe('page_pypsa39')
+    expect(store.state.snapshot?.pendingModelSwitch).toBeUndefined()
+  })
 })
