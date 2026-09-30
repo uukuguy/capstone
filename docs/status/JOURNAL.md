@@ -1429,3 +1429,4 @@ _Recovered pre-merge mainline entries._
 - 05:20 Composer 改为单一自动路由输入并保留 textarea 高度调整；验证 Enter/Shift+Enter 与本地重建 [3626359]
 - 06:00 接受 Thread 多行消息并将侧栏消息压缩到 12px 密度；App/API 测试、构建、本地健康检查通过 [119dbb9]
 - 06:12 固定 Composer 操作栏高度，空输入保留禁用发送钮并移除外部取消/回放按钮 [a7b6d96]
+- 06:18 保持 Thread Composer 自动聚焦，发送/停止按钮不抢焦点并在状态切换后恢复可输入焦点 [8d36266]
