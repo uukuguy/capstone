@@ -72,7 +72,7 @@ describe('ThreadFixtureApp', () => {
     expect((await screen.findAllByText('需要重新同步')).length).toBeGreaterThan(0)
     expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '重新同步' }) as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.queryByRole('button', { name: '发送指令' })).toBeNull()
+    expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('exposes a new Attempt retry after interruption', async () => {

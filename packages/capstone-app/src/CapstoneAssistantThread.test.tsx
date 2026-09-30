@@ -116,7 +116,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('cell', { name: '39' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '重新运行回答' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '发送指令' })).toBeNull()
+    expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '继续分析' } })
     expect(screen.getByRole('button', { name: '发送指令' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '编辑指令' }))
@@ -269,6 +269,16 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 })
 
     await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+  })
+
+  it('keeps a stable composer action footprint while the input is empty', async () => {
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    const send = screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement
+
+    expect(send.disabled).toBe(true)
+    fireEvent.change(input, { target: { value: '查看当前模型' } })
+    expect(send.disabled).toBe(false)
   })
 
   it('sends multiline text from the composer action', async () => {
