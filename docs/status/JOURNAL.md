@@ -1451,3 +1451,4 @@ _Recovered pre-merge mainline entries._
 - M2 增加层级模型 ID 到安全电网分页的 ThreadCreator 回归覆盖 [449c3cc]
 - M2 复合目录新增 bounded model entries，供 Web/TUI/CLI 使用真实显示名与图区 provider [e31e262]
 - M2 代码评审完成：无 Critical/High/Medium 阻断，确认下一里程碑接入 Pi/DSH capability materialization [e31e262]
+- M2 评审报告已落盘，批准进入 M3；generic Pi/DSH capability materialization 保留为下一里程碑 [ddb1f91]
