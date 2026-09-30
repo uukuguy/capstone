@@ -1311,3 +1311,8 @@ _Recovered pre-merge mainline entries._
 - 07:38 更新活动恢复 baton，记录 Harness runtime seam 已落盘，下一步接入 Attempt 执行而非直接暴露原生 Pi 事件 [3b6f4f8]
 - 07:43 为 Thread 命令加入有限 JSON 校验与 64 KiB 上限，修复非 JSON payload 可能导致 500 或账本膨胀的问题 [d233f7b]
 - 07:43 capstone-agent 全量回归通过 130 passed/23 skipped，包边界检查与 git diff --check 通过 [d233f7b]
+- 07:44 更新活动恢复 baton，记录命令 payload 安全边界与当前分支进度 [b03b08a]
+- 07:45 修正活动恢复 baton 的分支计数，保持下一次 resume 可定位当前提交 [b41f633]
+- 07:46 将恢复 baton 的分支描述改为稳定提示，避免后续状态日志提交造成计数漂移 [e77ef9b]
+- 继续完成 Harness Attempt 续租、过期中断与独立 worker 轮询，避免失联运行残留半死状态 [6339986]
+- 08:07 correction: 上条记录补充时间格式；Harness Attempt 续租、过期中断和 worker 轮询已提交 [6339986]

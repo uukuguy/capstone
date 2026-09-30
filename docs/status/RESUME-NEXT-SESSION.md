@@ -1,96 +1,40 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 07:43 CST. Session remains active.
+> Updated: 2026-09-30 08:08 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- The strict `capstone-thread/1` client foundation is implemented: typed snapshot/event/receipt parsing, `CapstoneThreadClient`, `ThreadProjectionStore`, fixture runner, and four recovery-oriented fixtures.
-- A fixture-backed Web two-column Thread workspace is available for UI validation, and `HttpThreadTransport` is ready for the future real server contract. The legacy Case App remains the default route and is untouched.
-- The server-side HTTP/SSE projection, isolated Postgres Thread store, and injected model-pinned Thread creation route are implemented and tested; the neutral `AuthorityThreadModelCatalog` now validates Authority identity records without importing a Domain Pack.
-- Thread command admission now rejects unsupported command kinds and empty/multiline message payloads before emitting `command_accepted`; actual Harness Attempt execution is still pending.
-- `capstone_agent.harness` now provides an injected `HarnessPiClient` with bounded native-event normalization and an explicit unavailable `HarnessDSHClient` shell; it is not yet connected to durable Attempt execution.
-- Thread command payloads are now finite JSON (64 KiB maximum) and invalid payloads fail as protocol errors instead of reaching the route as server errors.
+- `capstone-thread/1` now persists accepted commands as immutable `Turn + Attempt` targets.
+- Harness runtime events are normalized before persistence; Pi and DSH remain replaceable runtime adapters.
+- Attempt execution now has claim, lease renewal, runtime-event append, terminal commit, stale-lease interruption, and a neutral worker polling seam.
+- The legacy Case App remains the default; no production Authority catalog or live Web Thread wiring has been enabled.
 
-## Where things stand
+## Current implementation
 
-- Branch: `main`; use `git log` for the current ahead count because the checkpoint itself is append-only state.
-- Task work is committed through `d233f7b`; the journal records Thread creation, HTTP/SSE projection, Postgres persistence, public-demo isolation, client creation, model-catalog normalization, command admission, runtime adapter normalization, and bounded command payloads.
-- Working tree also contains the append-only journal and this active checkpoint; the unrelated user change in `.gitignore` (`.codegraph/`) remains unstaged and must be preserved.
-- Verification completed:
-  - `npm test --prefix packages/capstone-app` — 14 files, 86 tests passed.
-  - `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 130 passed, 23 skipped.
-  - `npm run check --prefix packages/capstone-app` — passed.
-  - `npm run build --prefix packages/capstone-app` — passed.
-  - `make doctor` — passed.
-  - `git diff --check` — passed.
-- Fixture route examples:
-  - `/?thread-fixture=idle-ieee39`
-  - `/?thread-fixture=historical-live-attempt`
-  - `/?thread-fixture=resync-required`
-  - `/?thread-fixture=interrupted-attempt`
-- `create_host_app` accepts an explicit `ThreadService`, exposes `/api/v1/threads` creation plus snapshot/event/command/SSE routes, and hosted startup initializes the isolated Postgres Thread tables. Creation still requires an application-injected Authority-backed `ThreadModelCatalog`; `AuthorityThreadModelCatalog` is the neutral adapter, and no fake revision is used.
-- Thread routes reject public demo credentials until a separately bounded registered-demo Thread scope is defined; the existing Case demo remains available only through its compatibility paths.
-- `CapstoneThreadClient.create()` and `HttpThreadTransport.createThread()` now consume the same pinned snapshot contract as later loads; the fixture UI still remains fixture-backed until a live Web route is wired.
-- Existing backend ledger records are not sufficient to fabricate the new Thread contract: they do not contain the required model-context/grid-page identity and Harness command semantics.
+- `packages/capstone-agent/src/capstone_agent/thread_protocol.py` — strict snapshot, event-page, and receipt contracts.
+- `packages/capstone-agent/src/capstone_agent/thread_service.py` — InMemory/Postgres Thread stores, admission, Attempt lifecycle, leases, and expired Attempt interruption.
+- `packages/capstone-agent/src/capstone_agent/thread_catalog.py` — injected Authority identity adapter; no Domain Pack imports.
+- `packages/capstone-agent/src/capstone_agent/harness.py` — Pi/DSH runtime seam, bounded event normalization, Attempt runner, heartbeat lease renewal.
+- `packages/capstone-agent/src/capstone_agent/thread_worker.py` — one-at-a-time Attempt tick and polling loop with injected runtime factory.
+- `packages/capstone-app/src/threadHttpTransport.ts` and `threadProjectionStore.ts` — public client transport/projection, still not the default App route.
 
-## What this session delivered
+## Verification
 
-- Python Thread protocol and fixtures:
-  - `packages/capstone-agent/src/capstone_agent/thread_protocol.py`
-  - `packages/capstone-agent/tests/fixtures/thread-ui/`
-  - `packages/capstone-agent/src/capstone_agent/thread_fixture_runner.py`
-- Browser protocol and client boundary:
-  - `packages/capstone-app/src/threadProtocol.ts`
-  - `packages/capstone-app/src/threadClient.ts`
-  - `packages/capstone-app/src/threadProjectionStore.ts`
-- Fixture-backed Web prototype:
-  - `packages/capstone-app/src/ThreadFixtureApp.tsx`
-  - `packages/capstone-app/src/threadUiFixtures.ts`
-  - isolated Thread workspace styles in `packages/capstone-app/src/styles.css`
-  - query entry in `packages/capstone-app/src/App.tsx`
-- Configurable HTTP transport:
-  - `packages/capstone-app/src/threadHttpTransport.ts`
-  - JSON snapshot/event-page/command transport with `Idempotency-Key`; protocol validation remains in the client layer.
-- Interrupted-Attempt control correction:
-  - historical pages expose return-to-current-model;
-  - interrupted current attempts expose replay/retry controls;
-  - current model page does not show the historical-only return action.
-- Design and plan records remain under:
-  - `docs/superpowers/specs/`
-  - `docs/superpowers/plans/`
-  - `design-system/capstone-agent/MASTER.md`
+- `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests --ignore=packages/capstone-agent/tests/test_registered_workers.py -q` — 138 passed, 24 skipped.
+- Postgres Thread integration with `CAPSTONE_TEST_DATABASE_URL` — 3 passed.
+- `python tools/check_package_boundaries.py` — passed.
+- `git diff --check` — passed.
+- Commit: `6339986 feat: execute durable thread attempts through harness workers`.
 
-## Next steps (immediate, action-level)
+## Immediate next action
 
-1. Wire the hosted application’s selected Authority to `AuthorityThreadModelCatalog`, including the exact registered IEEE-39 revision and implementation family, without adding a forbidden capstone-agent → Domain Pack import.
-2. Add authorization and integration tests for catalog selection, Thread creation, event-page cursors, SSE reconnect, and `resync_required` after compaction.
-3. Implement Harness command execution beyond admission: route ordinary/professional turns, model switches, package selection, and immutable Attempt creation through the approved control boundary, using `HarnessPiClient` events.
-4. Keep the legacy Case App as the default until Thread creation, execution, and recovery tests pass. Then wire the Web workspace to `HttpThreadTransport` behind an explicit route/configuration.
-5. Add the Textual Python TUI as another projection client. Reuse the public Thread snapshot/event/command semantics; do not duplicate business state in widgets.
-6. Add the single `capstone` executable/TUI mode only after the shared server/client contract is stable. Preserve `capstone run` final-JSON and `--events` JSONL behavior separately from the frozen `grid-agent` compatibility envelope.
+1. Add an application-owned runtime factory and worker startup path that selects the registered Authority/model context without importing Domain Packs into `capstone-agent`.
+2. Add authorization and integration coverage for catalog-backed Thread creation, worker execution, SSE reconnect, and compaction resync.
+3. Keep production Thread execution disabled until the exact Authority catalog and runtime factory are injected by the application.
 
-## Don't go down these paths again (ruled out)
+## Recovery constraints
 
-- Do not map legacy `/api/v1/sessions` into `capstone-thread/1` by inventing missing model context, grid-page identity, or authority evidence.
-- Do not connect the browser or TUI directly to Pi/DSH native runtime channels. They remain replaceable Harness runtime adapters.
-- Do not make native runtime events the public contract; `capstone-harness` must normalize and enrich the bounded public event stream.
-- Do not replace the legacy Case App before the real Thread route and recovery behavior are verified.
-- Do not treat fixture success as production readiness; the current Web route is a deliberate prototype.
-- Do not stage or revert the unrelated `.gitignore` `.codegraph/` change.
-
-## Ready-to-paste commands / configs
-
-```sh
-npm test --prefix packages/capstone-app
-npm run check --prefix packages/capstone-app
-npm run build --prefix packages/capstone-app
-make doctor
-make capstone-app-dev
-
-# Fixture prototype
-open 'http://localhost:5173/?thread-fixture=idle-ieee39'
-
-# Inspect state at the next session start
-git status --short --branch
-git log -8 --oneline
-```
+- Never map legacy sessions into Thread snapshots by inventing model revision, grid page, or evidence.
+- Never expose native Pi/DSH events directly to Web/TUI clients.
+- Never claim an Attempt completed if terminal persistence failed; stale leases must be interrupted before a clean retry.
+- Preserve the unrelated unstaged `.gitignore` addition `.codegraph/`.
