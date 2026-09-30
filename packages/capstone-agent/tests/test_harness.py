@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from capstone_agent.harness import (
+    AdmittedAttemptAnswer,
     HarnessDSHClient,
     HarnessAttemptRunner,
     HarnessPiClient,
@@ -121,12 +122,135 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     })
     claim = service.claim_attempt("worker", lease_seconds=30)
     assert claim is not None
-    result = HarnessAttemptRunner(service, HarnessPiClient(_PiSession())).run(claim)
+    result = HarnessAttemptRunner(service, HarnessPiClient(
+        _PiSession(), admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+            answer, "limited", "limited",
+        ),
+    )).run(claim)
 
     assert result.status == "completed"
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
     assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+
+
+def test_professional_attempt_persists_only_application_admitted_refs() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_evidence",
+        "idempotency_key": "idem_harness_evidence", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "analyze"},
+    })
+
+    class _EvidenceSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({
+                "type": "tool_result", "toolCallId": "call-1",
+                "toolName": "grid_powerflow_run", "capability": "analysis.run",
+                "ok": True, "result_refs": ["result:sha256:" + "a" * 64],
+                "evidence_refs": ["evidence:sha256:" + "b" * 64],
+            })
+            return "grounded answer"
+
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(service, HarnessPiClient(
+        _EvidenceSession(), admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+            answer, "authority_backed", "lineage_verified",
+            ("result:sha256:" + "a" * 64,), ("evidence:sha256:" + "b" * 64,),
+        ),
+    )).run(claim)
+
+    assert result.status == "completed"
+    assert result.result_refs == ("result:sha256:" + "a" * 64,)
+    assert result.evidence_refs == ("evidence:sha256:" + "b" * 64,)
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["result_refs"] == list(result.result_refs)
+    assert terminal.payload["evidence_refs"] == list(result.evidence_refs)
+
+
+def test_professional_attempt_without_application_admission_fails_closed() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_no_evidence",
+        "idempotency_key": "idem_harness_no_evidence", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "analyze"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+
+    class _NoEvidenceSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({
+                "type": "tool_execution_start",
+                "toolCallId": "call-no-evidence",
+                "toolName": "grid_powerflow_run",
+            })
+            return "ungrounded answer"
+
+    result = HarnessAttemptRunner(
+        service, HarnessPiClient(_NoEvidenceSession())
+    ).run(claim)
+
+    assert result.status == "failed"
+    assert result.error_code == "answer_admission_unavailable"
+    assert service.read_events("thr_harness", 0).events[-1].payload["error_code"] == (
+        "answer_admission_unavailable"
+    )
+
+
+def test_application_admission_is_persisted_before_professional_completion() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_admit",
+        "idempotency_key": "idem_harness_admit", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "analyze"},
+    })
+
+    class _AdmittedSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({
+                "type": "tool_result", "toolCallId": "call-admit",
+                "toolName": "grid_powerflow_run", "ok": True,
+                "evidence_refs": ["evidence:sha256:" + "c" * 64],
+            })
+            return "admitted answer"
+
+        def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
+            assert claim.kind == "send_professional"
+            assert answer == "admitted answer"
+            assert result_refs == ()
+            assert evidence_refs == ("evidence:sha256:" + "c" * 64,)
+            assert tool_events
+            return AdmittedAttemptAnswer(
+                "validated answer", "authority_backed", "lineage_verified",
+                evidence_refs=("evidence:sha256:" + "c" * 64,),
+            )
+
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    session = _AdmittedSession()
+    result = HarnessAttemptRunner(service, HarnessPiClient(
+        session, admission=session.admit_attempt,
+    )).run(claim)
+
+    assert result.status == "completed"
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["admission"] == {
+        "mode": "authority_backed", "assurance": "lineage_verified",
+    }
+    assert terminal.payload["answer"] == "validated answer"
 
 
 def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
@@ -148,6 +272,10 @@ def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
             return super().prompt_and_wait(question, **kwargs)
 
     result = HarnessAttemptRunner(
-        service, HarnessPiClient(_HeartbeatSession()), lease_seconds=30,
+        service, HarnessPiClient(
+            _HeartbeatSession(), admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+                answer, "limited", "limited",
+            ),
+        ), lease_seconds=30,
     ).run(claim)
     assert result.status == "completed"

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
-from .harness import HarnessPiClient, HarnessRuntime, PiPromptSession
+from .harness import AttemptAdmission, HarnessPiClient, HarnessRuntime, PiPromptSession
 from .model_capability_context import (
     ModelCapabilityContextOwner,
     PreparedModelCapabilityContext,
@@ -76,8 +76,12 @@ class PreparedApplicationPiRuntimeFactory:
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.prepare(claim)
+        session = self._session_factory(claim, context)
+        admission = getattr(session, "admit_attempt", None)
         return HarnessPiClient(
-            self._session_factory(claim, context), runtime_mode=self._runtime_mode,
+            session,
+            runtime_mode=self._runtime_mode,
+            admission=cast(AttemptAdmission, admission) if callable(admission) else None,
         )
 
 

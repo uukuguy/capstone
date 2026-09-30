@@ -16,6 +16,48 @@ from .thread_service import AttemptClaim, ThreadExecutionService
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
+AttemptAdmission = Callable[
+    [AttemptClaim, str, tuple[str, ...], tuple[str, ...], tuple[Mapping[str, object], ...]],
+    "AdmittedAttemptAnswer",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class AdmittedAttemptAnswer:
+    """Trusted application decision; native runtime references are not admission."""
+
+    answer: str
+    mode: str
+    assurance: str
+    result_refs: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    diagnostic_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.answer, str) or not self.answer.strip() or len(self.answer) > 64_000:
+            raise ValueError("admitted answer is invalid")
+        if (self.mode, self.assurance) not in {
+            ("authority_backed", "lineage_verified"),
+            ("offline_information", "deterministic_information"),
+            ("offline_information", "guide_access_verified"),
+            ("limited", "limited"),
+        }:
+            raise ValueError("answer admission assurance is invalid")
+        for name in ("result_refs", "evidence_refs"):
+            refs = getattr(self, name)
+            if not isinstance(refs, tuple) or len(refs) > 128 or any(
+                not isinstance(ref, str) or not ref or len(ref) > 512 for ref in refs
+            ) or len(set(refs)) != len(refs):
+                raise ValueError("admitted references are invalid")
+        if not isinstance(self.diagnostic_codes, tuple) or len(self.diagnostic_codes) > 64 or any(
+            not isinstance(code, str) or not code or len(code) > 256
+            for code in self.diagnostic_codes
+        ) or len(set(self.diagnostic_codes)) != len(self.diagnostic_codes):
+            raise ValueError("admission diagnostic codes are invalid")
+        if self.mode == "authority_backed" and not self.evidence_refs:
+            raise ValueError("authority-backed admission requires evidence")
+        if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
+            raise ValueError("offline admission must not create run evidence")
 
 
 class HarnessRuntimeUnavailable(RuntimeError):
@@ -27,6 +69,9 @@ class HarnessAttemptResult:
     status: str
     answer: str | None
     error_code: str | None
+    result_refs: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    admission: Mapping[str, object] | None = None
 
 
 class PiPromptSession(Protocol):
@@ -134,6 +179,16 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         bounded = [ref[:512] for ref in refs if isinstance(ref, str) and ref][:128]
         if bounded:
             payload["evidence_refs"] = bounded
+    result_refs = event.get("result_refs", details.get("result_refs"))
+    if isinstance(result_refs, (list, tuple)):
+        bounded_results = [
+            ref[:512] for ref in result_refs if isinstance(ref, str) and ref
+        ][:128]
+        if bounded_results:
+            payload["result_refs"] = bounded_results
+    result_ref = event.get("result_ref", details.get("result_ref"))
+    if isinstance(result_ref, str) and result_ref and "result_refs" not in payload:
+        payload["result_refs"] = [result_ref[:512]]
     return payload
 
 
@@ -164,11 +219,32 @@ class HarnessPiClient:
 
     runtime_name = "pi"
 
-    def __init__(self, session: PiPromptSession, *, runtime_mode: str = "capstone") -> None:
+    def __init__(
+        self,
+        session: PiPromptSession,
+        *,
+        runtime_mode: str = "capstone",
+        admission: AttemptAdmission | None = None,
+    ) -> None:
         if runtime_mode not in {"capstone", "pi_reference"}:
             raise ValueError("Pi runtime mode is invalid")
         self._session = session
         self.runtime_mode = runtime_mode
+        self._admission = admission
+
+    def admit_attempt(
+        self,
+        claim: AttemptClaim,
+        answer: str,
+        result_refs: tuple[str, ...],
+        evidence_refs: tuple[str, ...],
+        tool_events: tuple[Mapping[str, object], ...],
+    ) -> AdmittedAttemptAnswer | None:
+        if self._admission is None:
+            return None
+        return self._admission(
+            claim, answer, result_refs, evidence_refs, tool_events,
+        )
 
     def start(self) -> None:
         self._session.start()
@@ -225,8 +301,16 @@ class HarnessAttemptRunner:
         self._service = service
         self._runtime = runtime
         self._lease_seconds = lease_seconds
+        self._tools_observed = False
+        self._result_refs: list[str] = []
+        self._evidence_refs: list[str] = []
+        self._tool_events: list[Mapping[str, object]] = []
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
+        self._tools_observed = False
+        self._result_refs.clear()
+        self._evidence_refs.clear()
+        self._tool_events.clear()
         try:
             self._runtime.start()
             answer = self._runtime.prompt(
@@ -235,15 +319,55 @@ class HarnessAttemptRunner:
                 on_event=lambda event: self._persist_event(claim, event),
                 on_heartbeat=lambda: self._renew_lease(claim),
             )
-            if not isinstance(answer, str):
+            if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
                 raise TypeError("runtime answer is invalid")
-            bounded_answer = answer[:64_000]
+            candidate = None
+            admit = getattr(self._runtime, "admit_attempt", None)
+            if callable(admit):
+                try:
+                    candidate = admit(
+                        claim, answer, tuple(self._result_refs),
+                        tuple(self._evidence_refs), tuple(self._tool_events),
+                    )
+                except Exception:
+                    raise _AttemptAdmissionError("answer_admission_failed") from None
+            if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
+                raise _AttemptAdmissionError("answer_admission_invalid")
+            if candidate is not None and (
+                not set(candidate.result_refs).issubset(self._result_refs)
+                or not set(candidate.evidence_refs).issubset(self._evidence_refs)
+            ):
+                raise _AttemptAdmissionError("answer_admission_invalid")
+            if candidate is None and (claim.kind != "send_ordinary" or self._tools_observed):
+                raise _AttemptAdmissionError("answer_admission_unavailable")
+            result_refs = () if candidate is None else candidate.result_refs
+            evidence_refs = () if candidate is None else candidate.evidence_refs
+            admitted_answer = answer if candidate is None else candidate.answer
+            admission: dict[str, object] | None = None if candidate is None else {
+                "mode": candidate.mode, "assurance": candidate.assurance,
+            }
+            if candidate is not None and candidate.diagnostic_codes:
+                if admission is None:
+                    raise _AttemptAdmissionError("answer_admission_invalid")
+                admission["diagnostic_codes"] = list(candidate.diagnostic_codes)
+            terminal_payload: dict[str, object] = {
+                "answer": admitted_answer,
+                "result_refs": list(result_refs),
+                "evidence_refs": list(evidence_refs),
+            }
+            if admission is not None:
+                terminal_payload["admission"] = admission
             self._service.finish_attempt(
-                claim, phase="completed", payload={"answer": bounded_answer},
+                claim, phase="completed", payload=terminal_payload,
             )
-            return HarnessAttemptResult("completed", bounded_answer, None)
+            return HarnessAttemptResult(
+                "completed", admitted_answer, None, result_refs, evidence_refs, admission,
+            )
+        except _AttemptAdmissionError as error:
+            self._finish_failed(claim, error.code)
+            return HarnessAttemptResult("failed", None, error.code)
         except Exception:
-            self._finish_failed(claim)
+            self._finish_failed(claim, "runtime_failed")
             return HarnessAttemptResult("failed", None, "runtime_failed")
         finally:
             try:
@@ -260,6 +384,12 @@ class HarnessAttemptRunner:
             raise ValueError("runtime event is invalid")
         if not isinstance(payload, Mapping):
             raise ValueError("runtime event payload is invalid")
+        if event_type in {"tool_started", "tool_completed"}:
+            self._tools_observed = True
+        _extend_refs(self._result_refs, payload.get("result_refs"))
+        _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
+        if event_type == "tool_completed":
+            self._tool_events.append(dict(payload))
         self._service.append_runtime_event(
             claim,
             event_type=event_type,
@@ -271,10 +401,10 @@ class HarnessAttemptRunner:
         if not self._service.renew_attempt(claim, self._lease_seconds):
             raise RuntimeError("attempt lease is unavailable")
 
-    def _finish_failed(self, claim: AttemptClaim) -> None:
+    def _finish_failed(self, claim: AttemptClaim, error_code: str) -> None:
         try:
             self._service.finish_attempt(
-                claim, phase="failed", payload={"error_code": "runtime_failed"},
+                claim, phase="failed", payload={"error_code": error_code},
             )
         except Exception as exc:
             # The durable service remains the source of truth. If its terminal
@@ -282,8 +412,26 @@ class HarnessAttemptRunner:
             raise RuntimeError("attempt terminal persistence failed") from exc
 
 
+class _AttemptAdmissionError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _extend_refs(target: list[str], value: object) -> None:
+    if not isinstance(value, (list, tuple)):
+        return
+    for reference in value:
+        if isinstance(reference, str) and reference and reference not in target:
+            target.append(reference[:512])
+            if len(target) >= 128:
+                return
+
+
 __all__ = [
     "HarnessAttemptResult", "HarnessAttemptRunner", "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeUnavailable",
     "PiPromptSession", "normalize_runtime_event",
     "HarnessRuntime",
+    "AttemptAdmission",
+    "AdmittedAttemptAnswer",
 ]

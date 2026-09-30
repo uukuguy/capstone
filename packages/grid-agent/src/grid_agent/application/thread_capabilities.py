@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import cast
 
-from capstone_agent.harness import PiPromptSession
+from capstone_agent.harness import AdmittedAttemptAnswer, PiPromptSession
 from capstone_agent.kernel_capability_preparation import (
     AuthorityModelBinding,
     KernelApplicationProfilePreparer,
@@ -40,6 +40,7 @@ from capability_agent.runtime.environment import (
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.domain.answer_admission import AnswerAdmissionInput, AnswerAdmissionPolicy
 
 from .profile import build_pandapower_application_profile
 
@@ -230,7 +231,11 @@ class PreparedKernelPiRpcSessionBuilder:
             if self._resolved_llm.secret is not None else set(),
             correlation_id=claim.attempt.attempt_id,
         )
-        return _KernelPiPromptSession(client, trace)
+        return _KernelPiPromptSession(
+            client,
+            trace,
+            admission=_build_kernel_admission(profiles),
+        )
 
 
 class _RpcWorkspace:
@@ -241,9 +246,10 @@ class _RpcWorkspace:
 class _KernelPiPromptSession:
     """Adapt the Kernel RPC callback shape to the Harness Pi session contract."""
 
-    def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter) -> None:
+    def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission) -> None:
         self._client = client
         self._trace = trace
+        self._admission = admission
 
     @property
     def command(self) -> object:
@@ -267,11 +273,65 @@ class _KernelPiPromptSession:
             on_heartbeat=on_heartbeat,
         )
 
+    def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
+        return self._admission(
+            claim, answer, result_refs, evidence_refs, tool_events,
+        )
+
     def stop(self) -> None:
         try:
             self._client.stop()
         finally:
             self._trace.close()
+
+
+def _build_kernel_admission(
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+):
+    def admit(claim, answer, result_refs, evidence_refs, tool_events):
+        decisions = []
+        for profile in profiles:
+            bindings = getattr(profile.prepared_application, "bindings", None)
+            if not isinstance(bindings, Mapping):
+                raise ValueError("prepared bindings are unavailable")
+            for binding in bindings.values():
+                runtime = getattr(binding, "runtime", None)
+                domain_profile = getattr(runtime, "profile", None)
+                authority = getattr(runtime, "authority", None)
+                create_policy = getattr(domain_profile, "create_answer_admission_policy", None)
+                if not callable(create_policy):
+                    raise ValueError("Domain Pack answer admission policy is unavailable")
+                policy = create_policy(authority)
+                decision = cast(AnswerAdmissionPolicy, policy).admit(
+                    AnswerAdmissionInput(
+                        question=claim.instruction,
+                        answer_output=answer,
+                        result_refs=tuple(result_refs),
+                        evidence_refs=tuple(evidence_refs),
+                        authority_attempted=bool(tool_events),
+                    )
+                )
+                decisions.append(decision)
+        if len(decisions) != 1:
+            raise ValueError("multiple Domain Pack admission aggregation is not enabled")
+        decision = decisions[0]
+        capabilities = getattr(
+            getattr(getattr(profiles[0].prepared_application, "bindings", {}).get("grid"), "runtime", None),
+            "profile", None,
+        )
+        allowed = getattr(capabilities, "answer_admission_capabilities", None)
+        if not isinstance(allowed, frozenset) or decision.mode not in allowed:
+            raise ValueError("Domain Pack admission mode is not declared")
+        return AdmittedAttemptAnswer(
+            decision.answer_output,
+            decision.mode,
+            decision.assurance,
+            tuple(result_refs),
+            tuple(evidence_refs),
+            tuple(decision.diagnostic_codes),
+        )
+
+    return admit
 
 
 def build_pandapower_thread_application(
