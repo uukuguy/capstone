@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-30 09:50 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-09-30 09:57 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -42,7 +42,7 @@
 
 ## Verification
 
-- Capstone Python suite: 169 passed, 27 skipped.
+- Capstone Python suite: 171 passed, 27 skipped.
 - Model Capability SPI: 13 passed.
 - Grid application tests: 42 passed; PyPSA tests: 17 passed.
 - Focused Context/Thread application tests: 18 passed; bridge coverage then
