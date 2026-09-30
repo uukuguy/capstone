@@ -1318,3 +1318,8 @@ _Recovered pre-merge mainline entries._
 - 08:07 correction: 上条记录补充时间格式；Harness Attempt 续租、过期中断和 worker 轮询已提交 [6339986]
 - 08:09 更新活动 checkpoint，记录 Attempt worker、恢复约束和下一步 Authority runtime factory [0a9ff5a]
 - 08:12 限制 Harness runtime event 与 terminal payload 大小，防止事件账本被异常 runtime 膨胀 [db3295e]
+- 08:15 刷新活动 checkpoint，记录 bounded runtime payload 与 140/25 回归结果 [94bb586]
+- 08:20 为 hosted CLI 暴露注入式 Thread catalog/runtime factory，保持 Domain Pack 由应用装配 [9909484]
+- 08:27 增加 ApplicationPiRuntimeFactory，统一应用提供的 Pi session 到 Capstone Harness runtime 的装配边界 [9c7662c]
+- 08:31 增加严格 typed Thread SSE client stream，复用事件协议并去重游标，供 Web/TUI 投影使用 [322f8ae]
+- 08:35 让 ThreadProjectionStore 消费 SSE 生命周期并投影 Attempt 状态，避免客户端只移动光标不更新语义快照 [e9d43ee]
