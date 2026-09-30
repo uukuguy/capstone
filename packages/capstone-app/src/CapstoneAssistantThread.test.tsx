@@ -281,6 +281,11 @@ describe('CapstoneAssistantThread', () => {
     expect(send.disabled).toBe(false)
   })
 
+  it('keeps the composer input focused when the Thread is ready for input', () => {
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Thread 指令' }))
+  })
+
   it('sends multiline text from the composer action', async () => {
     const onSend = vi.fn().mockResolvedValue(undefined)
     render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}} />)
