@@ -323,7 +323,7 @@ function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary }: { r
   </div>
 }
 
-function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRegenerate?: (attemptId: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string } }) {
+function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string } }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
@@ -336,6 +336,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
   const evidenceRefs = stringRefs(custom?.evidenceRefs)
   const resultRefs = stringRefs(custom?.resultRefs)
   const admission = custom?.admission
+  const instruction = typeof custom?.instruction === 'string' ? custom.instruction : undefined
   const startedAt = typeof custom?.startedAt === 'string' ? custom.startedAt : undefined
   const durationMs = typeof custom?.durationMs === 'number' ? custom.durationMs : undefined
   const toolCount = typeof custom?.toolCount === 'number' ? custom.toolCount : 0
@@ -362,7 +363,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
     {role === 'user' && typeof custom?.receipt === 'string' && <div className="capstone-chat-receipt"><Check aria-hidden="true" /> {custom.receipt}</div>}
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={modelSummary} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={evidenceRefs} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId) : undefined} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={evidenceRefs} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     {role === 'assistant' && <AttemptActivity activities={activities} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
@@ -388,7 +389,7 @@ export type CapstoneAssistantThreadProps = {
   activity: readonly (ChatActivity | string)[]
   onSend: (mode: SendMode, text: string) => Promise<void>
   onCancel: () => Promise<void>
-  onRegenerate?: (attemptId: string) => Promise<void>
+  onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
 }
 

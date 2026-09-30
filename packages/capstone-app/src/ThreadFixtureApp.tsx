@@ -92,11 +92,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
   const events = store.publicEvents
-  const lastConversationText = [...events].reverse().find((event) => event.eventType === 'command_accepted' && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
-  const lastConversationPayload = lastConversationText?.payload.payload
-  const lastConversationInstruction = lastConversationPayload && typeof lastConversationPayload === 'object' && !Array.isArray(lastConversationPayload) && typeof (lastConversationPayload as Record<string, unknown>).text === 'string'
-    ? String((lastConversationPayload as Record<string, unknown>).text) : null
-
   if (!loading && error && !snapshot) {
     return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
   }
@@ -149,7 +144,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
-            onRegenerate={async () => { if (lastConversationInstruction) await dispatch('send_auto', { text: lastConversationInstruction }) }} />
+            onRegenerate={async (_attemptId, instruction) => { if (instruction) await dispatch('send_auto', { text: instruction }) }} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
               {isActive && controlButton('取消当前计算', 'cancel_live_attempt', projection.connection === 'live', { attempt_id: attempt?.attemptId })}
