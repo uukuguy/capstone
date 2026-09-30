@@ -1417,3 +1417,4 @@ _Recovered pre-merge mainline entries._
 - 04:03 更新恢复 baton 与结构快照，记录动态时长实现及下一阶段 Phase D–E 验收边界 [3201f6d]
 - 04:04 浏览器视觉回归通过 1440/1200/600px：双栏高度、独立聊天区与移动端堆叠布局均可用
 - 04:07 修正多轮回答重试按所属 Attempt 指令重跑，避免误用最近一轮指令 [abcef02]
+- 04:08 刷新活动恢复 baton，补录按 Attempt 重试语义与当前 Phase D–E 边界 [1c7f7f1]
