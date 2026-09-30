@@ -139,7 +139,7 @@ class ModelContextSnapshot:
         )
 
     def to_document(self) -> dict[str, Any]:
-        document = {
+        document: dict[str, Any] = {
             "id": self.id,
             "model_id": self.model_id,
             "model_revision": self.model_revision,
@@ -149,6 +149,35 @@ class ModelContextSnapshot:
         if self.enabled_profiles:
             document["enabled_profiles"] = ModelCapabilitySelection(self.enabled_profiles).to_document()
         return document
+
+
+@dataclass(frozen=True, slots=True)
+class PendingSelectionSnapshot:
+    """A validated profile set waiting for the next Turn boundary."""
+
+    command_id: str
+    enabled_profiles: tuple[tuple[str, str], ...]
+
+    @classmethod
+    def from_document(cls, value: Any) -> PendingSelectionSnapshot:
+        document = _document(value, name="pending_selection")
+        allowed = frozenset({"command_id", "selection"})
+        _fields(document, allowed, name="pending_selection")
+        _required(document, allowed, name="pending_selection")
+        try:
+            selection = ModelCapabilitySelection.from_document(document["selection"])
+        except ValueError as error:
+            raise ThreadProtocolError(str(error)) from None
+        return cls(
+            command_id=_identifier(document["command_id"], name="pending_selection.command_id"),
+            enabled_profiles=selection.enabled_profiles,
+        )
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "command_id": self.command_id,
+            "selection": ModelCapabilitySelection(self.enabled_profiles).to_document(),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,16 +223,17 @@ class ThreadSnapshot:
     current_attempt: AttemptSnapshot | None
     last_event_seq: int
     base_event_seq: int
+    pending_selection: PendingSelectionSnapshot | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> ThreadSnapshot:
         document = _document(value, name="snapshot")
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
-            "current_attempt", "last_event_seq", "base_event_seq",
+            "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
         })
         _fields(document, allowed, name="snapshot")
-        _required(document, allowed, name="snapshot")
+        _required(document, allowed - {"pending_selection"}, name="snapshot")
         if document["schema"] != _SNAPSHOT_SCHEMA:
             raise ThreadProtocolError("snapshot.schema is invalid")
         last_event_seq = _sequence(document["last_event_seq"], name="snapshot.last_event_seq")
@@ -214,6 +244,11 @@ class ThreadSnapshot:
         attempt = None if document["current_attempt"] is None else AttemptSnapshot.from_document(document["current_attempt"])
         if attempt is not None and attempt.target_model_context_id != context.id:
             raise ThreadProtocolError("current_attempt target context does not match active context")
+        pending = (
+            None
+            if document.get("pending_selection") is None
+            else PendingSelectionSnapshot.from_document(document["pending_selection"])
+        )
         return cls(
             thread_id=_identifier(document["thread_id"], name="snapshot.thread_id"),
             run=RunSnapshot.from_document(document["run"]),
@@ -222,10 +257,11 @@ class ThreadSnapshot:
             current_attempt=attempt,
             last_event_seq=last_event_seq,
             base_event_seq=base_event_seq,
+            pending_selection=pending,
         )
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        document: dict[str, Any] = {
             "schema": _SNAPSHOT_SCHEMA,
             "thread_id": self.thread_id,
             "run": self.run.to_document(),
@@ -235,6 +271,9 @@ class ThreadSnapshot:
             "last_event_seq": self.last_event_seq,
             "base_event_seq": self.base_event_seq,
         }
+        if self.pending_selection is not None:
+            document["pending_selection"] = self.pending_selection.to_document()
+        return document
 
 
 @dataclass(frozen=True, slots=True)

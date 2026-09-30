@@ -202,7 +202,7 @@ class ModelCapabilityContextOwner:
             raise TypeError("catalog must be a CapstoneModelCapabilityCatalog")
         self.catalog = catalog
         self._adapters: dict[tuple[str, str], ModelCapabilityAdapter] = {}
-        self._contexts: dict[tuple[str, str, str], PreparedModelCapabilityContext] = {}
+        self._contexts: dict[tuple[str, str, str, str], PreparedModelCapabilityContext] = {}
         self._sealed = False
         self._closed = False
         self._lock = RLock()
@@ -244,7 +244,10 @@ class ModelCapabilityContextOwner:
         if not isinstance(claim, AttemptClaim):
             raise TypeError("claim must be an AttemptClaim")
         model_context = claim.model_context
-        key = (claim.thread_id, claim.run_id, model_context.id)
+        key = (
+            claim.thread_id, claim.run_id, model_context.id,
+            model_context.selection_revision,
+        )
         references = tuple(model_context.enabled_profiles)
         with self._lock:
             if self._closed:

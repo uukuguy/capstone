@@ -104,6 +104,26 @@ def test_model_context_rejects_null_profile_selection() -> None:
         ThreadSnapshot.from_document(document)
 
 
+def test_snapshot_round_trips_a_pending_selection_without_changing_active_context() -> None:
+    document = valid_snapshot()
+    document["pending_selection"] = {
+        "command_id": "cmd_profile_006",
+        "selection": {
+            "schema": "capstone-model-capability-selection/1",
+            "enabled_profiles": [
+                {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+            ],
+        },
+    }
+
+    snapshot = ThreadSnapshot.from_document(document)
+
+    assert snapshot.pending_selection is not None
+    assert snapshot.pending_selection.command_id == "cmd_profile_006"
+    assert snapshot.pending_selection.enabled_profiles == (("static-analysis", "1.0.0"),)
+    assert snapshot.to_document()["pending_selection"] == document["pending_selection"]
+
+
 def test_event_page_rejects_a_gap_after_the_snapshot() -> None:
     with pytest.raises(ThreadProtocolError, match="contiguous"):
         EventPage.from_document(

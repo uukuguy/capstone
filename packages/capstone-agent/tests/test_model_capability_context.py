@@ -141,6 +141,31 @@ def test_context_identity_drift_is_rejected_before_preparing_again():
     owner.close()
 
 
+def test_selection_revision_prepares_a_replacement_context_for_the_same_model_context():
+    log = []
+    owner, _ = _owner(log, second=_Adapter(log))
+    first_claim = _claim()
+    first = owner.prepare(first_claim)
+    changed_claim = replace(
+        first_claim,
+        attempt=replace(first_claim.attempt, attempt_id="attempt_2"),
+        selection_revision="sel_2",
+        model_context=replace(
+            first_claim.model_context,
+            selection_revision="sel_2",
+            enabled_profiles=(("static", "1.0.0"), ("extra", "1.0.0")),
+        ),
+    )
+
+    second = owner.prepare(changed_claim)
+
+    assert second is not first
+    assert second.model_context.selection_revision == "sel_2"
+    assert len(second.contributions) == 2
+    owner.close_run("thr_1", "run_1")
+    assert first.closed and second.closed
+
+
 def test_missing_adapter_is_rejected_before_any_factory_allocates():
     log = []
     owner, _ = _owner(log, seal=False)

@@ -4,11 +4,24 @@ import pytest
 
 from dataclasses import replace
 import time
+from capstone_model_capability_spi import ModelCapabilitySelection
 
 from capstone_agent.thread_service import (
     InMemoryThreadService,
+    ThreadModelDescriptor,
     ThreadExecutionError,
 )
+
+
+class _SelectionCatalog:
+    def resolve(
+        self,
+        model: ThreadModelDescriptor,
+        selection: ModelCapabilitySelection | None = None,
+    ) -> ModelCapabilitySelection:
+        assert model.implementation_family == "pandapower"
+        assert selection is not None
+        return selection
 
 
 def _service() -> InMemoryThreadService:
@@ -23,6 +36,20 @@ def _service() -> InMemoryThreadService:
         "active_grid_page_id": "page_ieee39",
         "current_attempt": None, "last_event_seq": 0, "base_event_seq": 0,
     })
+
+
+def _selection_service() -> InMemoryThreadService:
+    return InMemoryThreadService.from_document({
+        "schema": "capstone-thread-snapshot/1",
+        "thread_id": "thr_attempts",
+        "run": {"run_id": "run_attempts", "state": "open"},
+        "active_model_context": {
+            "id": "ctx_ieee39", "model_id": "ieee39", "model_revision": "revision:sha256:" + "a" * 64,
+            "implementation_family": "pandapower", "selection_revision": "sel_0",
+        },
+        "active_grid_page_id": "page_ieee39",
+        "current_attempt": None, "last_event_seq": 0, "base_event_seq": 0,
+    }, capability_catalog=_SelectionCatalog())
 
 
 def _command(command_id: str = "cmd_attempt_001") -> dict[str, object]:
@@ -150,6 +177,77 @@ def test_retry_control_creates_a_new_attempt_from_an_interrupted_turn() -> None:
         "turn_id": claim.attempt.turn_id,
         "retry_of": claim.attempt.attempt_id,
     }
+
+
+def test_selection_control_stages_and_activates_on_the_next_turn_boundary() -> None:
+    service = _selection_service()
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_enable_001",
+        "idempotency_key": "idem_enable_001", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "enable_profile", "expected_event_seq": 0,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+
+    assert receipt.status == "accepted"
+    before = service.snapshot("thr_attempts")
+    assert before.active_model_context.selection_revision == "sel_0"
+    assert before.active_model_context.enabled_profiles == ()
+    assert before.pending_selection is not None
+    assert before.pending_selection.enabled_profiles == (("static-analysis", "1.0.0"),)
+
+    next_turn = service.submit_command({
+        **_command("cmd_next_turn"),
+        "expected_event_seq": before.last_event_seq,
+    })
+
+    assert next_turn.status == "accepted"
+    after = service.snapshot("thr_attempts")
+    assert after.pending_selection is None
+    assert after.active_model_context.selection_revision == "sel_1"
+    assert after.active_model_context.enabled_profiles == (("static-analysis", "1.0.0"),)
+    assert [event.event_type for event in service.read_events("thr_attempts", 0).events] == [
+        "command_accepted", "selection_change_pending", "selection_activated",
+        "command_accepted",
+    ]
+
+
+def test_selection_controls_compose_against_the_pending_selection() -> None:
+    service = _selection_service()
+    first = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_enable_a",
+        "idempotency_key": "idem_enable_a", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "enable_profile", "expected_event_seq": 0,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+    assert first.status == "accepted"
+    second = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_enable_b",
+        "idempotency_key": "idem_enable_b", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "enable_profile",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"profile_id": "state-estimation", "profile_version": "1.0.0"},
+    })
+
+    assert second.status == "accepted"
+    pending = service.snapshot("thr_attempts").pending_selection
+    assert pending is not None
+    assert pending.enabled_profiles == (
+        ("static-analysis", "1.0.0"), ("state-estimation", "1.0.0"),
+    )
+
+
+def test_selection_control_fails_closed_without_an_exact_catalog() -> None:
+    service = _service()
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_enable_unbound",
+        "idempotency_key": "idem_enable_unbound", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "enable_profile", "expected_event_seq": 0,
+        "payload": {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    })
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "selection_catalog_unavailable"
+    assert service.read_events("thr_attempts", 0).events == ()
 
 
 def test_attempt_lease_is_required_for_append_and_finish() -> None:
