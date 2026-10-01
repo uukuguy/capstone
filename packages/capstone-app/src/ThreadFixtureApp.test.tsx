@@ -46,6 +46,27 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('switch_model · accepted')).toBeTruthy()
   })
 
+  it('renders catalog-driven Profiles in a compact control and submits one selection command', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: /选择 Profile/ }))
+    expect(screen.getByText('Pandapower Static Analysis')).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pandapower Static Analysis' }))
+    fireEvent.click(screen.getByRole('button', { name: '应用 Profile 选择' }))
+
+    expect(await screen.findByText('replace_selection · accepted')).toBeTruthy()
+  })
+
+  it('keeps the trace control compact and independently togglable', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    const trace = screen.getByRole('button', { name: '隐藏运行过程' })
+    fireEvent.click(trace)
+    expect(screen.getByRole('button', { name: '显示运行过程' })).toBeTruthy()
+  })
+
   it('projects a sent automatic instruction and fixture response into the chat', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 

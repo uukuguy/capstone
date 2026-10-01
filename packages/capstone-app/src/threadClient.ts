@@ -2,6 +2,7 @@ import {
   parseCommandReceipt, parseEventPage, parseThreadSnapshot,
   type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
 } from './threadProtocol'
+import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
 
 export type ThreadCommand = {
   schema: 'capstone-command/1'
@@ -19,6 +20,7 @@ export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' |
 export interface ThreadTransport {
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
+  getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
   streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
@@ -70,6 +72,11 @@ export class CapstoneThreadClient {
 
   async load(threadId: string, signal?: AbortSignal): Promise<ThreadSnapshot> {
     return parseThreadSnapshot(await this.transport.getSnapshot(threadId, signal))
+  }
+
+  async catalog(threadId: string, signal?: AbortSignal): Promise<ThreadCatalog> {
+    if (!this.transport.getCatalog) return { models: [], profiles: [] }
+    return parseThreadCatalog(await this.transport.getCatalog(threadId, signal))
   }
 
   async readAfter(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<EventPage> {

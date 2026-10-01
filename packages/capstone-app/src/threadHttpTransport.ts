@@ -69,6 +69,10 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`, { signal })
   }
 
+  getCatalog(threadId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/catalog`, { signal })
+  }
+
   createThread(modelId?: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(this.resourcePath, {
       method: 'POST', signal, body: JSON.stringify(modelId ? { model_id: modelId } : {}),

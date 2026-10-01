@@ -19,6 +19,9 @@ const idleFixture = {
     after_event_seq: 0, next_event_seq: 0, has_more: false, events: [],
   },
   assertions: { transport_state: 'live' },
+  catalog: {
+    schema: 'capstone-thread-catalog/1', models: [], profiles: [],
+  },
 }
 
 const historicalFixture = {
@@ -74,6 +77,7 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.eventSeq).toBe(0)
     expect(store.state.viewedGridPageId).toBe('page_ieee39')
     expect(store.state.resyncRequired).toBe(false)
+    expect(store.state.catalog).toEqual({ models: [], profiles: [] })
   })
 
   it('catches up contiguously without changing the local historical page', async () => {

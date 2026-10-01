@@ -22,6 +22,14 @@ describe('HttpThreadTransport', () => {
     expect((fetcher.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer token-1')
   })
 
+  it('reads the bounded Thread control catalog from the Thread resource', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({ catalog: true }), { status: 200 }))
+    const transport = new HttpThreadTransport('https://api.example.com/', 'token-1', fetcher)
+
+    await expect(transport.getCatalog('thr_demo_39')).resolves.toEqual({ catalog: true })
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.com/api/v1/threads/thr_demo_39/catalog', expect.objectContaining({ credentials: 'omit' }))
+  })
+
   it('creates a Thread through the same resource root', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({
       schema: 'capstone-thread-snapshot/1', thread_id: 'thr_new',

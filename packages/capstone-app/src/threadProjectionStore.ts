@@ -1,4 +1,5 @@
 import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot } from './threadProtocol'
+import type { ThreadCatalog } from './threadCatalog'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -17,6 +18,7 @@ export type ThreadProjectionState = {
   resyncRequired: boolean
   pendingCommands: readonly PendingThreadCommand[]
   viewedGridPageId: string | null
+  catalog: ThreadCatalog | null
 }
 
 export type ThreadFixtureDocument = {
@@ -24,6 +26,7 @@ export type ThreadFixtureDocument = {
   events: unknown
   assertions?: { transport_state?: unknown }
   local_view?: { viewed_grid_page_id?: unknown; draft?: unknown; replay?: unknown }
+  catalog?: unknown
 }
 
 function fixtureConnection(fixture: ThreadFixtureDocument): ThreadTransportState {
@@ -116,6 +119,7 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
   return {
     connectionState: fixtureConnection(fixture),
     getSnapshot: async () => fixture.snapshot,
+    getCatalog: async () => fixture.catalog ?? { schema: 'capstone-thread-catalog/1', models: [], profiles: [] },
     readEvents: async (_threadId, afterEventSeq) => readEventDocument(afterEventSeq),
     sendCommand: async (command) => {
       const existing = receipts.get(command.idempotency_key)
@@ -139,7 +143,7 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
 export class ThreadProjectionStore {
   private current: ThreadProjectionState = {
     connection: 'offline', snapshot: null, eventSeq: 0, resyncRequired: false,
-    pendingCommands: [], viewedGridPageId: null,
+    pendingCommands: [], viewedGridPageId: null, catalog: null,
   }
 
   private loadedThreadId: string | null = null
@@ -179,6 +183,13 @@ export class ThreadProjectionStore {
     }
     try {
       const snapshot = await this.client.load(threadId)
+      let catalog: ThreadCatalog | null = null
+      try {
+        catalog = await this.client.catalog(threadId)
+      } catch {
+        // A legacy API may not expose the optional catalog yet. The active
+        // snapshot remains authoritative and the Thread stays usable.
+      }
       const connection = this.client.connectionState
       this.current = {
         ...this.current,
@@ -187,6 +198,7 @@ export class ThreadProjectionStore {
         eventSeq: snapshot.lastEventSeq,
         resyncRequired: connection === 'resync_required',
         viewedGridPageId: previousView ?? snapshot.activeGridPageId,
+        catalog,
       }
       this.eventLog.length = 0
       this.notify()

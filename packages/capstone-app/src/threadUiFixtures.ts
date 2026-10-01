@@ -24,6 +24,18 @@ const baseSnapshot = {
   last_event_seq: 0, base_event_seq: 0,
 }
 
+const baseCatalog = {
+  schema: 'capstone-thread-catalog/1',
+  models: [
+    { model_id: 'ieee39', authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'pandapower', implementation_family: 'pandapower' },
+    { model_id: 'pypsa39', authority_model_ref: 'pypsa:pypsa39', display_name: 'PyPSA-39', diagram_provider_id: 'pypsa', implementation_family: 'pypsa' },
+  ],
+  profiles: [
+    { profile_id: 'pandapower-static-analysis', profile_version: '1.0.1', display_name: 'Pandapower Static Analysis', implementation_families: ['pandapower'] },
+    { profile_id: 'pypsa-business-cases', profile_version: '1.0.0', display_name: 'PyPSA Business Cases', implementation_families: ['pypsa'] },
+  ],
+}
+
 const historicalEvents = [
   {
     event_id: 'evt_181', event_seq: 181, event_type: 'grid_page_registered', event_version: 1,
@@ -53,6 +65,7 @@ const fixtures: Record<ThreadUiFixtureId, ThreadUiFixture> = {
   'idle-ieee39': fixture({
     fixture_id: 'idle-ieee39', snapshot: baseSnapshot,
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 0, has_more: false, events: [] },
+    catalog: baseCatalog,
     local_view: { viewed_grid_page_id: 'page_ieee39', replay: null, draft: '' },
     assertions: { transport_state: 'live', enabled_commands: ['send_auto', 'send_professional', 'model_switch', 'replace_selection', 'launch_case'] },
   }),
@@ -60,12 +73,14 @@ const fixtures: Record<ThreadUiFixtureId, ThreadUiFixture> = {
     fixture_id: 'historical-live-attempt',
     snapshot: { ...baseSnapshot, current_attempt: { turn_id: 'turn_004', attempt_id: 'attempt_004a', phase: 'running', target_model_context_id: 'ctx_ieee39_7' }, last_event_seq: 180, base_event_seq: 180 },
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 180, next_event_seq: 183, has_more: false, events: historicalEvents },
+    catalog: baseCatalog,
     local_view: { viewed_grid_page_id: 'page_scigrid_2', replay: null, draft: '停止当前计算' },
     assertions: { transport_state: 'live', enabled_commands: ['cancel_live_attempt', 'send_control', 'return_live', 'open_replay'] },
   }),
   'resync-required': fixture({
     fixture_id: 'resync-required', snapshot: { ...baseSnapshot, last_event_seq: 200, base_event_seq: 200 },
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 200, next_event_seq: 200, has_more: false, events: [] },
+    catalog: baseCatalog,
     local_view: { viewed_grid_page_id: 'page_ieee39', replay: null, draft: '继续查看潮流结果' },
     assertions: { transport_state: 'resync_required', enabled_commands: ['reconnect', 'resync', 'help', 'exit'] },
   }),
@@ -73,6 +88,7 @@ const fixtures: Record<ThreadUiFixtureId, ThreadUiFixture> = {
     fixture_id: 'interrupted-attempt',
     snapshot: { ...baseSnapshot, current_attempt: { turn_id: 'turn_008', attempt_id: 'attempt_008a', phase: 'interrupted', target_model_context_id: 'ctx_ieee39_7' }, last_event_seq: 50, base_event_seq: 50 },
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 50, next_event_seq: 50, has_more: false, events: [] },
+    catalog: baseCatalog,
     local_view: { viewed_grid_page_id: 'page_ieee39', replay: null, draft: '',
       element_reference: { model_id: 'ieee39', model_revision: '6', element_kind: 'branch', element_id: 'line_12' } },
     assertions: { transport_state: 'live', enabled_commands: ['retry_new_attempt', 'open_replay', 'return_live'] },

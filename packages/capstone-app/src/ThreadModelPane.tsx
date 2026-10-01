@@ -1,5 +1,6 @@
 import { NetworkView } from './NetworkView'
 import type { ThreadSnapshot } from './threadProtocol'
+import type { ThreadCatalogModel } from './threadCatalog'
 import type { NetworkDiagram } from './types'
 
 function modelLabel(modelId: string | undefined): string {
@@ -23,6 +24,7 @@ export type ThreadModelPaneProps = {
   controlsDisabled: boolean
   previewDiagram: NetworkDiagram | null
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
+  modelOptions: ThreadCatalogModel[]
   onModelTargetChange: (value: string) => void
   onSwitchModel: () => void
   onSelectPage: (pageId: string) => void
@@ -31,7 +33,7 @@ export type ThreadModelPaneProps = {
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHistorical,
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
-  elementReference, onModelTargetChange, onSwitchModel, onSelectPage }: ThreadModelPaneProps) {
+  elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage }: ThreadModelPaneProps) {
   const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
   const modelDiagram = !isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId ? previewDiagram : null
   return <section className="thread-model-pane" aria-label="电网模型区">
@@ -57,7 +59,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
     <div className="thread-model-toolbar" aria-label="模型上下文控制">
       <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span className="thread-model-card-meta">{snapshot.activeModelContext.implementationFamily}</span><span className="thread-model-badge" title={snapshot.activeModelContext.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
       <label className="thread-model-switch">切换<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
-        <option value="ieee39">IEEE-39 · pandapower</option><option value="pypsa39">PyPSA-39 · PyPSA</option>
+        {modelOptions.map((model) => <option key={model.modelId} value={model.modelId}>{model.displayName} · {model.implementationFamily}</option>)}
       </select></label>
       <button type="button" className="thread-control-button" disabled={controlsDisabled || modelTarget === snapshot.activeModelContext.modelId} onClick={onSwitchModel}>切换模型</button>
       {contextChangePending && <small>切换将在下一 Turn 激活</small>}

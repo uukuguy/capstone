@@ -27,6 +27,10 @@ const receipt = {
   thread_id: 'thr_demo_39', run_id: 'run_001', status: 'accepted', accepted_event_seq: 1,
 }
 
+const catalog = {
+  schema: 'capstone-thread-catalog/1', models: [], profiles: [],
+}
+
 function command(): ThreadCommand {
   return {
     schema: 'capstone-command/1', command_id: 'cmd_1', idempotency_key: 'idem_1',
@@ -71,6 +75,18 @@ describe('CapstoneThreadClient', () => {
 
     expect(result.activeGridPageId).toBe('page_ieee39')
     expect(transport.getSnapshot).toHaveBeenCalledWith('thr_demo_39', undefined)
+  })
+
+  it('loads a typed control catalog through the Thread transport', async () => {
+    const transport: ThreadTransport = {
+      getSnapshot: vi.fn(), getCatalog: vi.fn().mockResolvedValue(catalog),
+      readEvents: vi.fn(), sendCommand: vi.fn(),
+    }
+
+    await expect(new CapstoneThreadClient(transport).catalog('thr_demo_39')).resolves.toEqual({
+      models: [], profiles: [],
+    })
+    expect(transport.getCatalog).toHaveBeenCalledWith('thr_demo_39', undefined)
   })
 
   it('forwards the cursor and validates a contiguous event page', async () => {

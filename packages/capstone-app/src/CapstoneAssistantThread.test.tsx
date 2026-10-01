@@ -115,7 +115,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('heading', { name: '当前模型' }).closest('.capstone-chat-markdown')).toBeTruthy()
     expect(screen.getByRole('cell', { name: '39' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '重新运行回答' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
     expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '继续分析' } })
     expect(screen.getByRole('button', { name: '发送指令' })).toBeTruthy()
@@ -194,7 +194,20 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('执行失败')).toBeTruthy()
     expect(screen.getByText('潮流求解器未收敛。')).toBeTruthy()
     expect(screen.queryByText('正在生成回答…')).toBeNull()
-    expect(screen.getByRole('button', { name: '重新运行回答' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
+  })
+
+  it('retries the failed Attempt identity and hides retry while another Attempt runs', async () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined)
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_failed'),
+      event('attempt_failed', 2, { error_code: 'solver_failed' }, 'attempt_failed'),
+    ]
+    const { rerender } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
+    fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
+    await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_failed', '运行潮流'))
+    rerender(<CapstoneAssistantThread events={events} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
+    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
   })
 
   it('keeps partial text but makes cancellation explicit and stops incomplete tool steps', () => {

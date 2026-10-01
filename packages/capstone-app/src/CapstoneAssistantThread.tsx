@@ -306,7 +306,7 @@ function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, t
   return <>
   <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
-    {onRegenerate && <IconAction label="重新运行回答" onClick={() => void onRegenerate()}><RotateCcw /></IconAction>}
+    {onRegenerate && <IconAction label="重试本次指令" onClick={() => void onRegenerate()}><RotateCcw /></IconAction>}
     {evidenceRefs.length > 0 && <IconAction label="查看证据" expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>}
     {toolCount > 0 && <IconAction label="查看运行过程" expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>}
     <IconAction label="回答有帮助"><ThumbsUp /></IconAction>
@@ -376,7 +376,7 @@ function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, conte
   </div>
 }
 
-function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string } }) {
+function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivity = true }: { onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
@@ -420,12 +420,12 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary }: { onRege
     </div>
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
-    {role === 'assistant' && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ disabled, isRunning, editRequest }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number } }) {
+function ComposerSurface({ disabled, isRunning, editRequest, controls }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; controls?: ReactNode }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -438,7 +438,7 @@ function ComposerSurface({ disabled, isRunning, editRequest }: { disabled: boole
   }, [disabled, isRunning])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
     <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
-    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏"><span className="capstone-composer-context">自动路由</span></div><div className="capstone-composer-actions">
+    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏"><span className="capstone-composer-context">自动路由</span>{controls}</div><div className="capstone-composer-actions">
       {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
     </div></div>
   </ComposerPrimitive.Root>
@@ -460,10 +460,12 @@ export type CapstoneAssistantThreadProps = {
   onCancel: () => Promise<void>
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
+  composerControls?: ReactNode
+  showActivity?: boolean
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary, composerControls, showActivity = true }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
@@ -490,17 +492,17 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={!disabled ? onRegenerate : undefined} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={!disabled ? onRegenerate : undefined} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} controls={composerControls} />
         </div>
       </ThreadPrimitive.Root>
     </div>
