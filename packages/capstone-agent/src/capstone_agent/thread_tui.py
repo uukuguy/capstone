@@ -19,6 +19,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Footer, Header, Input, RichLog, Select, Static
 
 from .thread_commands import ThreadCommandFactory
+from .thread_http import ThreadResyncRequired
 from .thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
 
 
@@ -140,6 +141,8 @@ class ThreadTuiApp(App[None]):
         self._event_cursor = events.next_event_seq
         self._event_ids = {event.event_id for event in events.events}
         self._poll_timer: object | None = None
+        self._network_busy = False
+        self._recovery_required = False
 
     def compose(self) -> ComposeResult:
         model = self.snapshot.active_model_context
@@ -190,11 +193,17 @@ class ThreadTuiApp(App[None]):
             event_log.write("暂无公开事件 · 等待当前 Thread")
         self._refresh_controls()
         if self.session is not None:
-            self._poll_timer = self.set_interval(self.poll_interval, self._poll_session)
+            self._poll_timer = self.set_interval(self.poll_interval, self._schedule_poll)
 
-    def _poll_session(self) -> None:
-        if self.session is None:
+    def _schedule_poll(self) -> None:
+        if self.session is None or self._network_busy:
             return
+        self._network_busy = True
+        self._refresh_controls()
+        self.run_worker(self._poll_worker, group="thread-session", exclusive=True, thread=True)
+
+    def _poll_worker(self) -> None:
+        assert self.session is not None
         try:
             snapshot = self.session.snapshot()
             page = self.session.events(after=self._event_cursor)
@@ -204,9 +213,52 @@ class ThreadTuiApp(App[None]):
                 or page.next_event_seq > snapshot.last_event_seq
             ):
                 raise RuntimeError("Thread projection cursor requires resync")
-            self._apply_projection(snapshot, page)
+            self.call_from_thread(self._finish_poll, snapshot, page)
+        except ThreadResyncRequired as error:
+            try:
+                pages = self._recover_worker(error.snapshot)
+            except Exception as recovery_error:
+                self.call_from_thread(self._mark_sync_error, recovery_error)
+            else:
+                self.call_from_thread(self._finish_recovery, error.snapshot, pages)
         except Exception as error:  # transport errors are rendered at the UI boundary
-            self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__}")
+            self.call_from_thread(self._mark_sync_error, error)
+
+    def _recover_worker(self, snapshot: ThreadSnapshot) -> tuple[EventPage, ...]:
+        assert self.session is not None
+        pages: list[EventPage] = []
+        cursor = snapshot.base_event_seq
+        for _ in range(64):
+            page = self.session.events(after=cursor)
+            if page.thread_id != snapshot.thread_id or page.after_event_seq != cursor or page.next_event_seq < cursor:
+                raise RuntimeError("Thread resync returned a non-contiguous event page")
+            pages.append(page)
+            cursor = page.next_event_seq
+            if not page.has_more:
+                break
+        else:
+            raise RuntimeError("Thread resync exceeded the bounded page limit")
+        if cursor != snapshot.last_event_seq:
+            raise RuntimeError("Thread resync snapshot and events did not converge")
+        return tuple(pages)
+
+    def _finish_poll(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
+        self._network_busy = False
+        self._apply_projection(snapshot, page)
+
+    def _finish_recovery(self, snapshot: ThreadSnapshot, pages: tuple[EventPage, ...]) -> None:
+        self._event_cursor = snapshot.base_event_seq
+        self._network_busy = False
+        self._recovery_required = False
+        for page in pages:
+            self._apply_projection(snapshot, page)
+        self.query_one("#feedback", Static).update("Thread 已完成重同步")
+
+    def _mark_sync_error(self, error: Exception) -> None:
+        self._network_busy = False
+        self._recovery_required = True
+        self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__} · 已冻结命令")
+        self._refresh_controls()
 
     def _apply_projection(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
         if snapshot.thread_id != self.snapshot.thread_id or page.thread_id != snapshot.thread_id:
@@ -224,6 +276,7 @@ class ThreadTuiApp(App[None]):
         self.query_one("#state-status", Static).update(
             f"连接 · live\nRun · {snapshot.run.state}\nCursor · #{snapshot.last_event_seq}"
         )
+        self._recovery_required = False
         self._refresh_controls()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -242,7 +295,7 @@ class ThreadTuiApp(App[None]):
         # A model/profile change is staged for the next Turn. It must not
         # freeze the current conversation; only a live Attempt owns the
         # execution slot and blocks another message.
-        blocked = self.snapshot.current_attempt is not None
+        blocked = self.snapshot.current_attempt is not None or self._network_busy or self._recovery_required
         historical = False
         self.query_one("#send-ordinary", Button).disabled = blocked or historical
         self.query_one("#send-professional", Button).disabled = blocked or historical
@@ -289,6 +342,20 @@ class ThreadTuiApp(App[None]):
         self._submit(command, None)
 
     def _submit(self, command: dict[str, Any], input_widget: Input | None) -> None:
+        if self._recovery_required:
+            self.query_one("#feedback", Static).update("Thread 需要重同步，命令已冻结")
+            return
+        if self._network_busy:
+            self.query_one("#feedback", Static).update("正在同步 Thread，请稍候")
+            return
+        if self.session is not None:
+            self._network_busy = True
+            self._refresh_controls()
+            self.run_worker(
+                lambda: self._submit_worker(command, input_widget),
+                group="thread-session", exclusive=True, thread=True,
+            )
+            return
         try:
             receipt = self.submit_command(command)
         except Exception as error:  # UI boundary renders a bounded failure only.
@@ -299,8 +366,26 @@ class ThreadTuiApp(App[None]):
         self.query_one("#feedback", Static).update(f"{command['kind']} · {status}{suffix}")
         if input_widget is not None and status == "accepted":
             input_widget.value = ""
-        if status == "accepted" and self.session is not None:
-            self._poll_session()
+
+    def _submit_worker(self, command: dict[str, Any], input_widget: Input | None) -> None:
+        try:
+            receipt = self.submit_command(command)
+        except ThreadResyncRequired as error:
+            self.call_from_thread(self._mark_sync_error, error)
+        except Exception as error:  # transport errors are rendered at the UI boundary
+            self.call_from_thread(self._mark_sync_error, error)
+        else:
+            self.call_from_thread(self._finish_submit, command, input_widget, receipt)
+
+    def _finish_submit(self, command: dict[str, Any], input_widget: Input | None, receipt: CommandReceipt) -> None:
+        self._network_busy = False
+        suffix = f" · {receipt.rejection}" if receipt.rejection else ""
+        self.query_one("#feedback", Static).update(f"{command['kind']} · {receipt.status}{suffix}")
+        if input_widget is not None and receipt.status == "accepted":
+            input_widget.value = ""
+        self._refresh_controls()
+        if receipt.status == "accepted":
+            self._schedule_poll()
 
 
 def run_tui(

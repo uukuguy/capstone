@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .thread_commands import ThreadCommandFactory
+from .thread_catalog import ThreadCatalogProjection
 from .thread_protocol import CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
 
 
@@ -120,6 +121,10 @@ class HttpThreadSession:
             raise RuntimeError("snapshot run identity does not match session")
         self.run_id = snapshot.run.run_id
         return snapshot
+
+    def catalog(self) -> ThreadCatalogProjection:
+        thread_id, _ = self._require_identity()
+        return ThreadCatalogProjection.from_document(self._request("GET", f"/api/v1/threads/{thread_id}/catalog"))
 
     def events(self, *, after: int = 0) -> EventPage:
         thread_id, _ = self._require_identity()

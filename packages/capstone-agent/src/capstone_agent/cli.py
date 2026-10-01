@@ -203,9 +203,17 @@ def main(
             token_path = args.operator_token_file or root / ".capstone-agent" / "auth" / "server.token"
             with HttpThreadSession(args.api_origin, _read_operator_token(token_path)) as session:
                 snapshot = session.create(args.model_id)
+                catalog = session.catalog()
+                model_options = tuple(
+                    (entry.model_id, entry.display_name)
+                    for entry in catalog.models
+                )
+                active_model_id = snapshot.active_model_context.model_id
+                if not any(model_id == active_model_id for model_id, _ in model_options):
+                    model_options = (*model_options, (active_model_id, active_model_id))
                 run_tui_session(
                     session,
-                    model_options=((snapshot.active_model_context.model_id, snapshot.active_model_context.model_id),),
+                    model_options=model_options,
                 )
         elif args.command == "serve":
             if args.host not in {"127.0.0.1", "localhost", "::1"}:
