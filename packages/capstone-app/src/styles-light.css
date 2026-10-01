@@ -682,10 +682,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 /* Keep advanced routing controls out of the primary composer path. */
 .thread-settings-menu { position: relative; }
-.thread-settings-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 27px; padding: 0 7px; border: 1px solid #dce9e3; border-radius: 999px; background: transparent; color: #6b8981; font-size: 10px; cursor: pointer; list-style: none; }
+.thread-settings-trigger { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 2px; border: 0; background: transparent; color: #78938b; font-size: 10px; cursor: pointer; list-style: none; }
 .thread-settings-trigger::-webkit-details-marker { display: none; }
 .thread-settings-trigger svg { width: 13px; height: 13px; }
-.thread-settings-trigger:hover, .thread-settings-trigger:focus-visible { border-color: #9fcabb; color: #287a6d; }
+.thread-settings-trigger:hover, .thread-settings-trigger:focus-visible { color: #287a6d; }
 .thread-settings-popover { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; display: grid; gap: 6px; width: min(268px, 76vw); padding: 8px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; }
 .thread-routing-status { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; border-radius: 8px; background: #f5faf7; color: #456b63; }
 .thread-routing-dot { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 5px; border-radius: 50%; background: #2c9b89; box-shadow: 0 0 0 3px #2c9b8922; }

@@ -69,6 +69,16 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('button', { name: '显示运行过程' })).toBeTruthy()
   })
 
+  it('closes the flat input settings menu when focus moves outside it', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
+    expect(document.querySelector('.thread-settings-menu[open]')).toBeTruthy()
+    fireEvent.click(document.body)
+    expect(document.querySelector('.thread-settings-menu[open]')).toBeNull()
+  })
+
   it('projects a sent automatic instruction and fixture response into the chat', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 

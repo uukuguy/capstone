@@ -1490,3 +1490,4 @@ _Recovered pre-merge mainline entries._
 - M5 TUI 网络调用改后台 worker、失败冻结恢复，并接入共享 typed catalog，修复模型切换旁路 [3ef143d]
 - TUI 设计边界与 M5 恢复/catalog 修复已形成独立可恢复记录 [a20b3b1]
 - M5 恢复接力更新为最新共享 catalog、后台 worker 与本地镜像健康证据 [5c08b3d]
+- Composer 将自动路由、Profile、过程控制收进单一设置菜单，降低输入区视觉噪声 [65918c3]

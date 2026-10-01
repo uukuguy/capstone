@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ListTree, Settings2, SlidersHorizontal } from 'lucide-react'
 import type { ThreadCatalog, ThreadCatalogProfile } from './threadCatalog'
 import type { ProfileReference } from './threadProtocol'
@@ -25,10 +25,23 @@ export default function ThreadControls({ catalog, activeFamily, activeProfiles, 
     [activeFamily, catalog?.profiles],
   )
   const selectedProfiles = pendingProfileSelection || activeProfiles
+  const settingsRef = useRef<HTMLDetailsElement>(null)
   const [draft, setDraft] = useState(selectedProfiles)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [open, setOpen] = useState(false)
   useEffect(() => setDraft(selectedProfiles), [pendingProfileSelection, activeProfiles])
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target
+      if (settingsRef.current?.open && target instanceof Node && !settingsRef.current.contains(target)) {
+        settingsRef.current.removeAttribute('open')
+        setSettingsOpen(false)
+        setOpen(false)
+      }
+    }
+    document.addEventListener('click', closeOnOutsideClick, true)
+    return () => document.removeEventListener('click', closeOnOutsideClick, true)
+  }, [])
 
   function toggleProfile(profile: ThreadCatalogProfile): void {
     const reference = { profileId: profile.profileId, profileVersion: profile.profileVersion }
@@ -39,7 +52,7 @@ export default function ThreadControls({ catalog, activeFamily, activeProfiles, 
   }
 
   return <div className="thread-compact-controls" aria-label="Thread 紧凑控制">
-    <details className="thread-settings-menu" open={settingsOpen} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
+    <details ref={settingsRef} className="thread-settings-menu" open={settingsOpen} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
       <summary className="thread-settings-trigger" role="button" aria-label="输入设置" title="输入设置"><Settings2 aria-hidden="true" /><span>设置</span><ChevronDown aria-hidden="true" /></summary>
       <div className="thread-settings-popover" role="group" aria-label="输入设置">
         <div className="thread-routing-status"><span className="thread-routing-dot" aria-hidden="true" /><div><strong>自动路由</strong><small>按指令自动选择对话或专业分析</small></div></div>
