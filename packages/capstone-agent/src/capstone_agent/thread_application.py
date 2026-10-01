@@ -22,7 +22,7 @@ from .thread_service import (
 )
 from .thread_worker import RuntimeFactory
 from .runtime_capabilities import RuntimeCapabilityRegistry
-from .turn_router import TurnRouter
+from .turn_router import DefaultTurnRouter, TurnRouter
 
 
 class FamilyRuntimeFactory:
@@ -140,6 +140,7 @@ class ThreadApplicationAssembly:
     capability_context_owner: ModelCapabilityContextOwner | None = None
     runtime_capabilities: RuntimeCapabilityRegistry | None = None
     turn_router: TurnRouter | None = None
+    ordinary_conversation_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -158,6 +159,8 @@ class ThreadApplicationAssembly:
             raise TypeError("Thread application runtime capabilities are invalid")
         if self.turn_router is not None and not callable(getattr(self.turn_router, "plan", None)):
             raise TypeError("Thread application turn router is invalid")
+        if type(self.ordinary_conversation_enabled) is not bool:
+            raise TypeError("ordinary conversation policy is invalid")
 
     @classmethod
     def from_authority(
@@ -169,6 +172,7 @@ class ThreadApplicationAssembly:
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
+        ordinary_conversation_enabled: bool = True,
     ) -> "ThreadApplicationAssembly":
         """Build an assembly from application-owned Authority and Pi seams.
 
@@ -190,6 +194,7 @@ class ThreadApplicationAssembly:
         return cls(
             catalog=catalog, runtime_factory=runtime_factory,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
+            ordinary_conversation_enabled=ordinary_conversation_enabled,
         )
 
     @classmethod
@@ -201,6 +206,7 @@ class ThreadApplicationAssembly:
         capability_catalog: ThreadCapabilityCatalog | None = None,
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
+        ordinary_conversation_enabled: bool = True,
     ) -> "ThreadApplicationAssembly":
         """Build one application assembly over several family adapters.
 
@@ -215,6 +221,7 @@ class ThreadApplicationAssembly:
             runtime_factory=FamilyRuntimeFactory(runtime_factories),
             capability_catalog=capability_catalog,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
+            ordinary_conversation_enabled=ordinary_conversation_enabled,
         )
 
     @classmethod
@@ -231,6 +238,7 @@ class ThreadApplicationAssembly:
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
+        ordinary_conversation_enabled: bool = True,
     ) -> "ThreadApplicationAssembly":
         """Pair model authority, exact Profile catalog, Context owner, and Pi."""
 
@@ -249,6 +257,14 @@ class ThreadApplicationAssembly:
             capability_catalog=capability_catalog,
             capability_context_owner=capability_context_owner,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
+            ordinary_conversation_enabled=ordinary_conversation_enabled,
+        )
+
+    def turn_router_for_worker(self) -> TurnRouter:
+        """Return the application policy used by the hosted Thread worker."""
+
+        return self.turn_router or DefaultTurnRouter(
+            ordinary_conversation_enabled=self.ordinary_conversation_enabled,
         )
 
     def thread_creator(self, service: ThreadService) -> ThreadCreator:

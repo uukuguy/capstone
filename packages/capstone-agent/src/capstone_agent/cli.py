@@ -248,7 +248,7 @@ def main(
                         kwargs={
                             "stop_event": thread_stop,
                             "turn_router": (
-                                thread_application.turn_router
+                                thread_application.turn_router_for_worker()
                                 if thread_application is not None else None
                             ),
                         },
