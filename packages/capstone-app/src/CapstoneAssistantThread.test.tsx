@@ -210,6 +210,21 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
   })
 
+  it('keeps interrupted retry available while hiding terminal activity when trace is off', async () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined)
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '继续分析' } }, 'attempt_interrupted'),
+      event('tool_completed', 2, { tool_name: 'grid_context_get', capability: 'context.get', binding_id: 'grid' }, 'attempt_interrupted'),
+      event('assistant_text_delta', 3, { text: '已完成部分分析。' }, 'attempt_interrupted'),
+      event('attempt_interrupted', 4, {}, 'attempt_interrupted'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={true} isRunning={false} activity={[]} showActivity={false} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
+    expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '查看运行过程' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
+    await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_interrupted', '继续分析'))
+  })
+
   it('keeps partial text but makes cancellation explicit and stops incomplete tool steps', () => {
     const events = [
       event('attempt_started', 1, {}, 'attempt_cancelled'),

@@ -291,7 +291,7 @@ function IconAction({ label, onClick, expanded, children }: { label: string; onC
   return <button type="button" className="capstone-chat-action" aria-label={label} title={label} onClick={onClick} {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}>{children}</button>
 }
 
-function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, toolCount, onRegenerate, onShowActivity, onEditInstruction, activityOpen }: { role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean }) {
+function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, toolCount, onRegenerate, onShowActivity, onEditInstruction, activityOpen, showActivity }: { role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean; showActivity?: boolean }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const copy = async () => {
@@ -308,7 +308,7 @@ function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, t
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
     {onRegenerate && <IconAction label="重试本次指令" onClick={() => void onRegenerate()}><RotateCcw /></IconAction>}
     {evidenceRefs.length > 0 && <IconAction label="查看证据" expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>}
-    {toolCount > 0 && <IconAction label="查看运行过程" expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>}
+    {showActivity !== false && toolCount > 0 && <IconAction label="查看运行过程" expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>}
     <IconAction label="回答有帮助"><ThumbsUp /></IconAction>
     <IconAction label="回答需改进"><ThumbsDown /></IconAction>
     <IconAction label="更多回答操作"><MoreHorizontal /></IconAction>
@@ -420,7 +420,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivi
     </div>
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
@@ -492,10 +492,10 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={!disabled ? onRegenerate : undefined} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={!disabled ? onRegenerate : undefined} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>

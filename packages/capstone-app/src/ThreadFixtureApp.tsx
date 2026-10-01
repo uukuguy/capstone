@@ -103,16 +103,18 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const isInterrupted = attempt?.phase === 'interrupted'
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
+  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
-    if (fromCatalog.length > 0) return fromCatalog
-    return snapshot ? [{
+    const active = snapshot ? {
       modelId: snapshot.activeModelContext.modelId,
       authorityModelRef: snapshot.activeModelContext.modelId,
       displayName: snapshot.activeModelContext.modelId,
       diagramProviderId: snapshot.activeModelContext.implementationFamily,
       implementationFamily: snapshot.activeModelContext.implementationFamily,
-    }] : []
+    } : null
+    if (!active || fromCatalog.some((model) => model.modelId === active.modelId)) return fromCatalog
+    return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
   if (!loading && error && !snapshot) {
@@ -152,9 +154,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     <PageHeader className="thread-page-header" showThreadEntry={false} />
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
-        <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
+          <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
-          controlsDisabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
+          controlsDisabled={isHistorical || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
@@ -167,12 +169,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
             composerControls={<ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || isActive || contextChangePending || projection.connection !== 'live'} traceVisible={traceVisible}
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || projection.connection !== 'live'} traceVisible={traceVisible}
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
-            onRegenerate={async (attemptId) => { await dispatch('retry_new_attempt', { attempt_id: attemptId }) }} />
+            onRegenerate={canRetry ? async (attemptId) => { await dispatch('retry_new_attempt', { attempt_id: attemptId }) } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
               {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
