@@ -50,6 +50,7 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
     fireEvent.click(screen.getByRole('button', { name: /选择 Profile/ }))
     expect(screen.getByText('Pandapower Static Analysis')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Pandapower Static Analysis' }))
@@ -62,6 +63,7 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
     const trace = screen.getByRole('button', { name: '隐藏运行过程' })
     fireEvent.click(trace)
     expect(screen.getByRole('button', { name: '显示运行过程' })).toBeTruthy()

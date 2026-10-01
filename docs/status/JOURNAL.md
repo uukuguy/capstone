@@ -1489,3 +1489,4 @@ _Recovered pre-merge mainline entries._
 - 当前 Python Textual TUI 冻结为协议参考客户端，正式客户端后续按传输无关契约重选一流交互框架 [ab8f207]
 - M5 TUI 网络调用改后台 worker、失败冻结恢复，并接入共享 typed catalog，修复模型切换旁路 [3ef143d]
 - TUI 设计边界与 M5 恢复/catalog 修复已形成独立可恢复记录 [a20b3b1]
+- M5 恢复接力更新为最新共享 catalog、后台 worker 与本地镜像健康证据 [5c08b3d]
