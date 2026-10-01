@@ -179,8 +179,8 @@
 
 ## Immediate next action
 
-1. Complete M3 review and integration verification for the bounded
-   `TurnRouter`/`TurnPlan` path. Keep the generic runtime capability registry
+1. Begin M4 Composer/Profile/model controls after the completed M3
+   `TurnRouter`/`TurnPlan` review. Keep the generic runtime capability registry
    as the source for Pi/DSH skills, MCP, and plugins; do not turn it into a
    pandapower-only classifier.
 2. Keep using the real scripted pandapower instructions for deterministic
