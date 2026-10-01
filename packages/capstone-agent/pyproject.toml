@@ -12,6 +12,7 @@ dependencies = [
   "capstone-model-capability-spi==0.1.0",
   "fastapi>=0.139,<1",
   "google-cloud-storage>=3.14,<4",
+  "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
   "python-dotenv>=1.2,<2",
   "textual>=8,<9",
@@ -22,7 +23,7 @@ dependencies = [
 capstone-agent = "capstone_agent.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=9,<10", "httpx>=0.28,<1"]
+dev = ["pytest>=9,<10"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/capstone_agent"]

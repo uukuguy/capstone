@@ -8,10 +8,11 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from validation.thread.http_runner import HttpThreadSession
 from validation.thread.m5_contract import M5CheckResult, M5RunSummary
-from validation.thread.m5_matrix import run_application_matrix
+from validation.thread.m5_matrix import MatrixSession, run_application_matrix
 
 
 def main() -> int:
@@ -27,7 +28,7 @@ def main() -> int:
     else:
         try:
             with HttpThreadSession(origin, token) as session:
-                checks = run_application_matrix(application_id, session)
+                checks = run_application_matrix(application_id, cast(MatrixSession, session))
             report_origin = origin
         except Exception as error:
             checks = (M5CheckResult("live_thread_matrix", "failed", {"reason": type(error).__name__}),)

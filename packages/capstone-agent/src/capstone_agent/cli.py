@@ -139,6 +139,17 @@ def _operator_token(root: Path) -> str:
     return token
 
 
+def _read_operator_token(path: Path) -> str:
+    """Read an operator token from ignored local auth state without exposing it."""
+
+    if path.is_symlink() or path.stat().st_mode & 0o077:
+        raise ValueError("operator token file permissions are unsafe")
+    token = path.read_text(encoding="utf-8").strip()
+    if not token:
+        raise ValueError("operator token file is empty")
+    return token
+
+
 def main(
     argv: list[str] | None = None, *, registry: WorkerRegistry | None = None,
     input_stream: TextIO | None = None, output_stream: TextIO | None = None,
@@ -157,6 +168,10 @@ def main(
     chat.add_argument("--case")
     chat.add_argument("--provider")
     chat.add_argument("--model")
+    tui = commands.add_parser("tui", help="Open the Textual Thread workspace")
+    tui.add_argument("--api-origin", default=os.environ.get("CAPSTONE_API_ORIGIN", "http://127.0.0.1:8767"))
+    tui.add_argument("--operator-token-file", type=Path)
+    tui.add_argument("--model-id")
     serve = commands.add_parser("serve", help="Start the local HTTP/SSE service")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8766)
@@ -180,6 +195,18 @@ def main(
         elif args.command == "chat":
             _chat(args.application, args.mode, args.case, args.provider, args.model,
                   selected_registry, source, output, errors)
+        elif args.command == "tui":
+            from capstone_agent.thread_http import HttpThreadSession
+            from capstone_agent.thread_tui import run_tui_session
+
+            root = Path(__file__).resolve().parents[4]
+            token_path = args.operator_token_file or root / ".capstone-agent" / "auth" / "server.token"
+            with HttpThreadSession(args.api_origin, _read_operator_token(token_path)) as session:
+                snapshot = session.create(args.model_id)
+                run_tui_session(
+                    session,
+                    model_options=((snapshot.active_model_context.model_id, snapshot.active_model_context.model_id),),
+                )
         elif args.command == "serve":
             if args.host not in {"127.0.0.1", "localhost", "::1"}:
                 raise ValueError("server must bind to loopback")

@@ -40,17 +40,18 @@
 ### Task 2: Build real HTTP Thread acceptance helpers
 
 **Files:**
-- Create: `validation/thread/http_runner.py`
+- Create: `packages/capstone-agent/src/capstone_agent/thread_http.py`
+- Modify: `validation/thread/http_runner.py`
 - Test: `validation/test_m5_http_runner.py`
 - Modify: `packages/capstone-agent/tests/test_thread_http_api.py` only if a missing API contract is exposed
 
 **Interfaces:**
-- `HttpThreadSession` uses `httpx.Client` with `Authorization: Bearer <token>` supplied only from the environment and exposes `create(model_id)`, `snapshot()`, `catalog()`, `events(after)`, and `command(kind, payload)`.
+- Production `HttpThreadSession` uses `httpx.Client` with `Authorization: Bearer <token>` supplied by the caller from protected runtime state and exposes `create(model_id)`, `snapshot()`, `events(after)`, and `command(kind, payload)`; validation adds the catalog projection without making the runtime package depend on validation code.
 - Every response is parsed through the existing Python Thread protocol constructors; raw JSON is never returned to checks.
 - `wait_for_terminal(session, timeout_seconds)` polls typed snapshot/events and fails on timeout, missing terminal event, or non-contiguous cursor.
 
 - [x] Write fake-transport tests for auth headers, catalog/snapshot parsing, command identity/idempotency, and resync responses.
-- [x] Implement the helper on top of the existing typed Thread protocol.
+- [x] Implement the production helper on top of the existing typed Thread protocol and layer the validation catalog extension over it.
 - [x] Run focused tests and pyright.
 
 ### Task 3: Add pandapower and PyPSA matrix checks
@@ -87,7 +88,7 @@
 
 - [x] Add the TUI regression proving staged model changes do not freeze the current conversation.
 - [x] Run App tests (135), build, Capstone Thread/TUI focused tests, and focused matrix tests.
-- [ ] Add live lifecycle/recovery parity checks; the TUI still needs a live HTTP/SSE adapter before this row can be closed.
+- [ ] Add live lifecycle/recovery parity checks; the TUI now has a transport-neutral bridge and `capstone-agent tui` HTTP entry point, but the live dual-Authority hosted composition is still missing.
 
 ### Task 5: Run the real local matrix and publish verification evidence
 
@@ -102,7 +103,7 @@
 - Verification report records exact source revision, API/worker image digest, selected application origins, command lines, pass/skip/fail counts, and artifact paths without token values.
 - M5 is complete only when provider-free checks, App tests/build, Capstone tests, boundary checks, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` pass; missing PyPSA live deployment remains an explicit skipped capability with a successor item.
 
-- [x] Run focused unit/App gates, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` from current source (image `sha256:a6ab7113a1edc4d64763e34024d858c47cab8f3573106d06215048bb4be595da`).
+- [x] Run focused unit/App gates, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` from current source (image `sha256:2b8d1ade8210b921b630fd62565a34c78e81aab94117868ae473e889e276d9a9`).
 - [x] Run `make validate-thread-m5` without credentials; it produced an explicit ignored `skipped` report without echoing secrets.
 - [ ] Run both Authority families through provider-free live Thread APIs and capture browser/TUI parity evidence.
 - [ ] Dispatch independent code review; fix all Important/Critical findings.
