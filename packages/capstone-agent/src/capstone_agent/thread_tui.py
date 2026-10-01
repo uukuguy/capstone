@@ -11,7 +11,8 @@ the production HTTP/SSE adapter can bridge it from an async transport later.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -23,6 +24,48 @@ from .thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
 
 ModelOption = tuple[str, str]
 SubmitCommand = Callable[[dict[str, Any]], CommandReceipt]
+
+
+class ThreadCommandSession(Protocol):
+    """Minimal typed session required by the live TUI bridge.
+
+    HTTP, in-process, and test adapters can implement this protocol without
+    making the Textual presentation depend on a transport library.
+    """
+
+    def snapshot(self) -> ThreadSnapshot: ...
+    def events(self, *, after: int = 0) -> EventPage: ...
+    def command(
+        self, kind: str, payload: dict[str, Any], *, expected_event_seq: int,
+        command_id: str, idempotency_key: str,
+    ) -> CommandReceipt: ...
+
+
+@dataclass(slots=True)
+class ThreadTuiSessionAdapter:
+    """Adapt the public command session contract to the TUI command shape."""
+
+    session: ThreadCommandSession
+
+    def submit(self, command: dict[str, Any]) -> CommandReceipt:
+        required = {"kind", "payload", "expected_event_seq", "command_id", "idempotency_key"}
+        if set(command) != required:
+            raise ValueError("TUI command shape is invalid")
+        kind = command["kind"]
+        payload = command["payload"]
+        expected_event_seq = command["expected_event_seq"]
+        command_id = command["command_id"]
+        idempotency_key = command["idempotency_key"]
+        if (
+            not isinstance(kind, str) or not isinstance(payload, dict)
+            or type(expected_event_seq) is not int or expected_event_seq < 0
+            or not isinstance(command_id, str) or not isinstance(idempotency_key, str)
+        ):
+            raise ValueError("TUI command fields are invalid")
+        return self.session.command(
+            kind, payload, expected_event_seq=expected_event_seq,
+            command_id=command_id, idempotency_key=idempotency_key,
+        )
 
 
 def _model_label(model_id: str) -> str:
@@ -72,6 +115,8 @@ class ThreadTuiApp(App[None]):
         submit_command: SubmitCommand,
         *,
         model_options: Sequence[ModelOption] = (("ieee39", "IEEE-39 · pandapower"),),
+        session: ThreadCommandSession | None = None,
+        poll_interval: float = 0.25,
     ) -> None:
         super().__init__()
         if events.thread_id != snapshot.thread_id:
@@ -86,8 +131,15 @@ class ThreadTuiApp(App[None]):
         self.snapshot = snapshot
         self.events = events
         self.submit_command = submit_command
+        self.session = session
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be positive")
+        self.poll_interval = poll_interval
         self.model_options = tuple(model_options)
         self._command_number = 0
+        self._event_cursor = events.next_event_seq
+        self._event_ids = {event.event_id for event in events.events}
+        self._poll_timer: object | None = None
 
     def compose(self) -> ComposeResult:
         model = self.snapshot.active_model_context
@@ -136,6 +188,38 @@ class ThreadTuiApp(App[None]):
                 event_log.write(_event_line(event))
         else:
             event_log.write("暂无公开事件 · 等待当前 Thread")
+        self._refresh_controls()
+        if self.session is not None:
+            self._poll_timer = self.set_interval(self.poll_interval, self._poll_session)
+
+    def _poll_session(self) -> None:
+        if self.session is None:
+            return
+        try:
+            snapshot = self.session.snapshot()
+            page = self.session.events(after=self._event_cursor)
+            if page.thread_id != snapshot.thread_id or page.after_event_seq != self._event_cursor:
+                raise RuntimeError("Thread projection cursor requires resync")
+            self._apply_projection(snapshot, page)
+        except Exception as error:  # transport errors are rendered at the UI boundary
+            self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__}")
+
+    def _apply_projection(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
+        if snapshot.thread_id != self.snapshot.thread_id or page.thread_id != snapshot.thread_id:
+            raise ValueError("Thread projection identity does not match the TUI session")
+        if page.after_event_seq != self._event_cursor:
+            raise ValueError("Thread event cursor is not contiguous")
+        event_log = self.query_one("#events-log", RichLog)
+        for event in page.events:
+            if event.event_id not in self._event_ids:
+                event_log.write(_event_line(event))
+                self._event_ids.add(event.event_id)
+        self._event_cursor = page.next_event_seq
+        self.snapshot = snapshot
+        self.events = page
+        self.query_one("#state-status", Static).update(
+            f"连接 · live\nRun · {snapshot.run.state}\nCursor · #{snapshot.last_event_seq}"
+        )
         self._refresh_controls()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -211,6 +295,8 @@ class ThreadTuiApp(App[None]):
         self.query_one("#feedback", Static).update(f"{command['kind']} · {status}{suffix}")
         if input_widget is not None and status == "accepted":
             input_widget.value = ""
+        if status == "accepted" and self.session is not None:
+            self._poll_session()
 
 
 def run_tui(
@@ -227,4 +313,24 @@ def run_tui(
     ).run()
 
 
-__all__ = ["ModelOption", "SubmitCommand", "ThreadTuiApp", "run_tui"]
+def run_tui_session(
+    session: ThreadCommandSession, *,
+    model_options: Sequence[ModelOption] = (("ieee39", "IEEE-39 · pandapower"),),
+    poll_interval: float = 0.25,
+) -> None:
+    """Run Textual against a live typed Thread session adapter."""
+
+    snapshot = session.snapshot()
+    events = session.events(after=snapshot.last_event_seq)
+    if events.thread_id != snapshot.thread_id or events.after_event_seq != snapshot.last_event_seq:
+        raise ValueError("initial Thread projection is not contiguous")
+    ThreadTuiApp(
+        snapshot, events, ThreadTuiSessionAdapter(session).submit,
+        model_options=model_options, session=session, poll_interval=poll_interval,
+    ).run()
+
+
+__all__ = [
+    "ModelOption", "SubmitCommand", "ThreadCommandSession", "ThreadTuiSessionAdapter",
+    "ThreadTuiApp", "run_tui", "run_tui_session",
+]

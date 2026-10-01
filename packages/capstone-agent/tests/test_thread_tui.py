@@ -6,7 +6,7 @@ from typing import Any
 from textual.widgets import Button, Input, Select, Static
 
 from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
-from capstone_agent.thread_tui import ThreadTuiApp
+from capstone_agent.thread_tui import ThreadTuiApp, ThreadTuiSessionAdapter
 
 
 def _snapshot() -> ThreadSnapshot:
@@ -109,3 +109,68 @@ async def _test_tui_keeps_message_controls_available_while_next_turn_controls_ar
         app.query_one("#command-input", Input).value = "查看当前模型"
         await pilot.click("#send-professional")
     assert submitted[0]["kind"] == "send_professional"
+
+
+def test_tui_session_adapter_preserves_typed_command_identity() -> None:
+    calls: list[tuple[str, dict[str, Any], int, str, str]] = []
+
+    class _Session:
+        def snapshot(self) -> ThreadSnapshot:
+            return _snapshot()
+
+        def events(self, *, after: int = 0) -> EventPage:
+            return _events()
+
+        def command(self, kind: str, payload: dict[str, Any], *, expected_event_seq: int, command_id: str, idempotency_key: str) -> CommandReceipt:
+            calls.append((kind, payload, expected_event_seq, command_id, idempotency_key))
+            return _receipt({"kind": kind, "payload": payload, "expected_event_seq": expected_event_seq, "command_id": command_id, "idempotency_key": idempotency_key, "thread_id": "thr_demo_39"})
+
+    command = {
+        "kind": "send_professional", "payload": {"text": "查看模型"}, "expected_event_seq": 3,
+        "command_id": "cmd_1", "idempotency_key": "idem_1",
+    }
+    receipt = ThreadTuiSessionAdapter(_Session()).submit(command)
+    assert receipt.status == "accepted"
+    assert calls == [("send_professional", {"text": "查看模型"}, 3, "cmd_1", "idem_1")]
+
+
+def test_tui_live_session_refreshes_snapshot_and_event_cursor() -> None:
+    asyncio.run(_test_tui_live_session_refreshes_snapshot_and_event_cursor())
+
+
+async def _test_tui_live_session_refreshes_snapshot_and_event_cursor() -> None:
+    class _Session:
+        def __init__(self) -> None:
+            self.latest = _snapshot()
+            self.polled = False
+
+        def snapshot(self) -> ThreadSnapshot:
+            if self.polled:
+                return ThreadSnapshot.from_document({
+                    **self.latest.to_document(), "last_event_seq": 1,
+                })
+            return self.latest
+
+        def events(self, *, after: int = 0) -> EventPage:
+            if after == 0 and self.polled:
+                return EventPage.from_document({
+                    "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
+                    "after_event_seq": 0, "next_event_seq": 1, "has_more": False, "events": [{
+                        "event_id": "evt_1", "event_seq": 1, "event_type": "attempt_started", "event_version": 1,
+                        "thread_id": "thr_demo_39", "run_id": "run_001", "turn_id": "turn_001",
+                        "attempt_id": "attempt_001", "model_context_id": "ctx_ieee39_7", "selection_revision": "sel_2",
+                        "occurred_at": "2026-10-01T00:00:00+00:00", "visibility": "public", "payload": {},
+                    }],
+                }, expected_after_seq=0)
+            return _events()
+
+        def command(self, kind: str, payload: dict[str, Any], *, expected_event_seq: int, command_id: str, idempotency_key: str) -> CommandReceipt:
+            raise AssertionError("command is not part of this refresh test")
+
+    session = _Session()
+    app = ThreadTuiApp(_snapshot(), _events(), lambda command: _receipt(command), session=session, poll_interval=0.05)
+    async with app.run_test(size=(120, 40)) as pilot:
+        session.polled = True
+        await pilot.pause(0.08)
+        assert app._event_cursor == 1
+        assert app.events.next_event_seq == 1
