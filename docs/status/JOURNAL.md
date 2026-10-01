@@ -1468,3 +1468,5 @@ _Recovered pre-merge mainline entries._
 - 09:40 M5 统一验收合同与执行计划落盘：真实 pandapower/PyPSA、Web/TUI、生命周期和恢复矩阵 [b5815e0]
 - M5 typed catalog、HTTP 会话、Attempt 证据矩阵与 TUI pending 控件回归已落盘，提供无 Provider 可审计验收入口 [a4acef7]
 - M5 矩阵会话协议签名修正并通过 focused tests 与 pyright，确保真实 HTTP 会话可直接接入 [a4acef7]
+- M5 修正后的 MatrixSession 类型契约已提交，避免 HTTP 会话适配器在静态检查中被误拒 [eb53c11]
+- M5 状态更新：focused gates 与当前源码重建通过，但 Compose 仍是 Provider-backed pandapower-only，真实双 Authority 与 live TUI 继续作为阻塞项。

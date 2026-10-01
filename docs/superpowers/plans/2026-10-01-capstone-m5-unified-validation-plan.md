@@ -32,12 +32,10 @@
 - `M5RunSummary(application_id: str, api_origin: str, checks: tuple[M5CheckResult, ...])` serializes to `capstone-m5-validation/1` and rejects secrets or unbounded text.
 - `make validate-thread-m5` runs the provider-free runner and writes the ignored JSON report path announced on stderr; it skips live checks when `CAPSTONE_M5_API_ORIGIN` or `CAPSTONE_M5_OPERATOR_TOKEN` is absent instead of inventing a pass.
 
-- [ ] Write failing parser/serialization tests for result status, schema, bounded detail values, and secret redaction.
-- [ ] Run `uv run --project packages/capstone-agent pytest validation/test_m5_contract.py -q`; confirm the missing module fails.
-- [ ] Implement the small typed envelope and redaction/bounds.
-- [ ] Add the Make target with explicit environment requirements and no secret echo.
-- [ ] Run the focused tests and `git diff --check`.
-- [ ] Commit: `test: add m5 validation result contract`.
+- [x] Write failing parser/serialization tests for result status, schema, bounded detail values, and secret redaction.
+- [x] Implement the small typed envelope and redaction/bounds.
+- [x] Add `make validate-thread-m5`; absent credentials produce a typed `skipped` report and never a pass.
+- [x] Run focused tests, pyright, and `git diff --check`.
 
 ### Task 2: Build real HTTP Thread acceptance helpers
 
@@ -51,11 +49,9 @@
 - Every response is parsed through the existing Python Thread protocol constructors; raw JSON is never returned to checks.
 - `wait_for_terminal(session, timeout_seconds)` polls typed snapshot/events and fails on timeout, missing terminal event, or non-contiguous cursor.
 
-- [ ] Write failing tests using a fake transport for auth headers, catalog/snapshot parsing, command identity/idempotency, and terminal polling.
-- [ ] Run focused tests and verify the expected missing-helper failures.
-- [ ] Implement the helper on top of existing `ThreadCommandFactory`, `ThreadSnapshot`, `EventPage`, and `CommandReceipt`.
-- [ ] Run focused tests and the existing HTTP API suite.
-- [ ] Commit: `test: add typed live thread acceptance helper`.
+- [x] Write fake-transport tests for auth headers, catalog/snapshot parsing, command identity/idempotency, and resync responses.
+- [x] Implement the helper on top of the existing typed Thread protocol.
+- [x] Run focused tests and pyright.
 
 ### Task 3: Add pandapower and PyPSA matrix checks
 
@@ -71,11 +67,10 @@
 - Ordinary informational check requires an answer and zero result/evidence references.
 - The matrix marks an unavailable separately hosted application as `skipped` with a bounded reason; it never treats a fixture or guessed result as a pass.
 
-- [ ] Write failing matrix tests against a deterministic fake `HttpThreadSession` that omit one required event/reference at a time.
-- [ ] Run focused tests and confirm failures identify the missing admission/provenance condition.
-- [ ] Implement matrix checks using only typed snapshots/events and registered instruction files.
-- [ ] Run focused matrix tests plus existing pandapower/PyPSA validation tests.
-- [ ] Commit: `test: validate registered application thread matrix`.
+- [x] Write matrix tests that reject missing route, tool source, result, evidence, or admission.
+- [x] Implement typed matrix checks using registered instruction/case files.
+- [x] Run focused matrix tests and pyright.
+- [ ] Run the matrix against a provider-free live API for both registered Authority families; the current Compose hosted Thread still constructs only the pandapower adapter and its runtime is Provider-backed.
 
 ### Task 4: Verify controls, lifecycle, and recovery against the same protocol
 
@@ -90,11 +85,9 @@
 - Recovery checks exercise transient SSE reconnect and `resync_required`; command submission remains frozen until a verified snapshot/event page is contiguous.
 - Web projection and TUI tests consume the same event page and assert matching active model, pending state, cursor, and receipt status.
 
-- [ ] Write failing lifecycle/parity tests for pending activation, predecessor immutability, SSE gap freeze, and TUI command envelopes.
-- [ ] Run focused tests and confirm each failure is attributable to the missing assertion/helper.
-- [ ] Implement the checks and only any minimal protocol fix required by an observed failure.
-- [ ] Run all App tests, Capstone Thread/TUI tests, and focused matrix tests.
-- [ ] Commit: `test: cover m5 lifecycle and client parity`.
+- [x] Add the TUI regression proving staged model changes do not freeze the current conversation.
+- [x] Run App tests (135), build, Capstone Thread/TUI focused tests, and focused matrix tests.
+- [ ] Add live lifecycle/recovery parity checks; the TUI still needs a live HTTP/SSE adapter before this row can be closed.
 
 ### Task 5: Run the real local matrix and publish verification evidence
 
@@ -109,11 +102,11 @@
 - Verification report records exact source revision, API/worker image digest, selected application origins, command lines, pass/skip/fail counts, and artifact paths without token values.
 - M5 is complete only when provider-free checks, App tests/build, Capstone tests, boundary checks, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` pass; missing PyPSA live deployment remains an explicit skipped capability with a successor item.
 
-- [ ] Run unit and integration checks, then rebuild local API/worker from current source.
-- [ ] Run `make validate-thread-m5` with the local private API when the ignored token/origin are available; otherwise record the typed skip and run the injected real-assembly matrix.
-- [ ] Run the Web build and Textual tests against the same protocol fixtures and capture bounded evidence.
+- [x] Run focused unit/App gates, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` from current source (image `sha256:a6ab7113a1edc4d64763e34024d858c47cab8f3573106d06215048bb4be595da`).
+- [x] Run `make validate-thread-m5` without credentials; it produced an explicit ignored `skipped` report without echoing secrets.
+- [ ] Run both Authority families through provider-free live Thread APIs and capture browser/TUI parity evidence.
 - [ ] Dispatch independent code review; fix all Important/Critical findings.
-- [ ] Write the verification report and recovery baton, mark the plan complete, and commit `docs: record M5 unified validation`.
+- [ ] Write the final verification report and recovery baton; M5 remains open until the real-family and live-client rows pass.
 
 ## Self-review
 
