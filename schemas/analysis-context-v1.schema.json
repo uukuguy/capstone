@@ -908,6 +908,18 @@
           "default": null,
           "title": "Answer Sha256"
         },
+        "answer_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer Summary"
+        },
         "consumed_refs": {
           "items": {
             "type": "string"
