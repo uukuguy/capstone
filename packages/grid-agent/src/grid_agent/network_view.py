@@ -59,9 +59,13 @@ def build_grid_network_view(
                     continue
                 identifier = f"line:{item.get('pandapower_index')}"
                 number = item.get("loading_percent")
-                if (identifier in branch_ids and type(number) in (int, float)
-                        and math.isfinite(number)):
-                    values.append({"id": identifier, "value": float(number)})
+                if (identifier not in branch_ids
+                        or not isinstance(number, (int, float))
+                        or isinstance(number, bool)):
+                    continue
+                numeric = float(number)
+                if math.isfinite(numeric):
+                    values.append({"id": identifier, "value": numeric})
             if values:
                 overlay = {"metric": "loading_percent", "unit": "%",
                            "source_ref": ref, "values": values}

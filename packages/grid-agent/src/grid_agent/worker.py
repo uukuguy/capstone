@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from capstone_agent.worker import PreparedWorker, read_verified_reference, serve_application
 from capstone_agent.prompt_hints import build_case_prompt_decorator
@@ -20,6 +20,16 @@ from grid_agent.network_view import build_grid_network_view
 ROOT = Path(__file__).resolve().parents[4]
 APPLICATION_ID = "pandapower-static-analysis"
 CASES = frozenset({"pandapower-scripted-task", "pandapower-scripted-test"})
+
+
+def _mapping(value: object) -> Mapping[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    return cast(Mapping[str, object], value)
+
+
+def _string(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _turn_ordinal(turn_id: object) -> int | None:
@@ -230,30 +240,40 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
             (ROOT / "validation" / "application" / f"{provider_case_id}.json")
             .read_text(encoding="utf-8")
         )
-        questions = case_document.get("questions", ())
+        raw_questions = case_document.get("questions", ())
+        questions: tuple[object, ...] = (
+            tuple(raw_questions) if isinstance(raw_questions, list) else ()
+        )
+        question_items = tuple(
+            item for raw in questions if (item := _mapping(raw)) is not None
+        )
         instructions = tuple(
-            item.get("text") for item in questions
-            if isinstance(item, Mapping) and isinstance(item.get("text"), str)
+            text for item in question_items
+            if isinstance(text := item.get("text"), str)
         )
         workflows = tuple(
             tuple(
-                step.get("capability")
-                for step in item.get("steps", ())
-                if isinstance(step, Mapping) and isinstance(step.get("capability"), str)
+                capability for raw_step in steps
+                if (step := _mapping(raw_step)) is not None
+                for capability in (_string(step.get("capability")),)
+                if capability is not None
             )
-            for item in questions
-            if isinstance(item, Mapping)
+            for item in question_items
+            if isinstance(steps := item.get("steps", ()), list)
         )
         model_id = next(
             (
-                step.get("arguments", {}).get("model_id")
-                for item in questions
-                if isinstance(item, Mapping)
-                for step in item.get("steps", ())
-                if isinstance(step, Mapping)
-                and step.get("capability") == "context.open"
-                and isinstance(step.get("arguments"), Mapping)
-                and isinstance(step["arguments"].get("model_id"), str)
+                model_id
+                for item in question_items
+                for steps in (item.get("steps", ()),)
+                if isinstance(steps, list)
+                for raw_step in steps
+                if (step := _mapping(raw_step)) is not None
+                if step.get("capability") == "context.open"
+                for arguments in (step.get("arguments"),)
+                if (arguments_mapping := _mapping(arguments)) is not None
+                for model_id in (arguments_mapping.get("model_id"),)
+                if isinstance(model_id, str)
             ),
             provider_case_id,
         )

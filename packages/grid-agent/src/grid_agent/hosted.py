@@ -63,7 +63,10 @@ def build_registered_pandapower_thread_application():
         }
 
     def bind_model(prepared: object, context: Any) -> AuthorityModelBinding:
-        binding = prepared.bindings["grid"]
+        bindings = getattr(prepared, "bindings", None)
+        if not isinstance(bindings, Mapping) or "grid" not in bindings:
+            raise TypeError("prepared application has no grid binding")
+        binding = bindings["grid"]
         opened = binding.runtime.executor.invoke(
             "context.open", {"model_id": context.model_id},
         )

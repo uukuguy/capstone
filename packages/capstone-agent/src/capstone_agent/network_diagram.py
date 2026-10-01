@@ -33,9 +33,12 @@ def _text(value: object, limit: int = 200) -> str:
 def _number(value: object, *, nullable: bool = False) -> float | None:
     if nullable and value is None:
         return None
-    if type(value) not in (int, float) or not math.isfinite(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError("network diagram number is invalid")
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("network diagram number is invalid")
+    return number
 
 
 def _digest(value: object) -> str:
@@ -180,6 +183,8 @@ def normalize_network_projection(value: object, *, admitted_refs: Sequence[str])
     if view["schema"] != "capstone-network-view/2.0":
         raise ValueError("network projection schema is invalid")
     ordinal = view["ordinal"]
+    if type(ordinal) is not int:
+        raise ValueError("network layer ordinal is invalid")
     diagram = normalize_network_diagram(view["diagram"])
     layer = normalize_network_layer(view["layer"], diagram, ordinal,
                                     admitted_refs=admitted_refs)

@@ -15,6 +15,7 @@ from threading import RLock
 from typing import Any
 
 from capability_agent.application.composition import prepare_application
+from capability_agent.application.composition import CredentialBroker
 from capability_agent.application.profile import ApplicationProfile
 from capability_agent.application.workspace import ApplicationWorkspace
 
@@ -96,7 +97,7 @@ class KernelApplicationProfilePreparer:
         *,
         workspace_root: Path,
         model_binder: Callable[[object, ModelContextSnapshot], AuthorityModelBinding],
-        credentials: object | None = None,
+        credentials: CredentialBroker | None = None,
     ) -> None:
         if not isinstance(workspace_root, Path):
             raise TypeError("workspace_root must be a Path")
@@ -104,7 +105,9 @@ class KernelApplicationProfilePreparer:
             raise TypeError("model_binder must be callable")
         self.workspace_root = workspace_root
         self.model_binder = model_binder
-        self.credentials = credentials if credentials is not None else EmptyCredentialBroker()
+        self.credentials: CredentialBroker = (
+            credentials if credentials is not None else EmptyCredentialBroker()
+        )
 
     def __call__(
         self,

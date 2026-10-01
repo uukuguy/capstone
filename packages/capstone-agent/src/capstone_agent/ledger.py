@@ -6,7 +6,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 from psycopg.rows import dict_row
@@ -155,7 +155,10 @@ class Ledger:
         self.dsn = dsn
 
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
-        return psycopg.connect(self.dsn, row_factory=dict_row)
+        return cast(
+            psycopg.Connection[dict[str, Any]],
+            psycopg.connect(self.dsn, row_factory=cast(Any, dict_row)),
+        )
 
     def initialize(self) -> None:
         with self._connect() as connection:

@@ -38,9 +38,10 @@ def parse_answer_bundle(value: str) -> AnswerBundle:
     decoded = _decode_json_object(candidate)
     if decoded is None:
         return AnswerBundle(raw, None, ("answer_bundle_unavailable",))
-    if not isinstance(decoded, dict) or not isinstance(decoded.get("answer"), str):
+    raw_answer = decoded.get("answer")
+    if not isinstance(raw_answer, str):
         return AnswerBundle(raw, None, ("answer_bundle_invalid",))
-    answer = decoded["answer"].strip()
+    answer = raw_answer.strip()
     if not answer:
         return AnswerBundle(raw, None, ("answer_bundle_invalid",))
     summary = decoded.get("summary")

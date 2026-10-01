@@ -54,16 +54,14 @@ def extract_tool_failures(
         ) or _diagnostic_text(error_mapping, "error_message", "message", "detail")
         if not message or message == "capability returned a bounded failure":
             message = "工具返回受限失败"
+        turn_id = _diagnostic_text(diagnostic, "turn_id")
+        observation_ref = _diagnostic_text(diagnostic, "observation_ref")
         failure = ToolFailure(
             capability_id=_bounded_text(capability),
             message=_bounded_text(message),
             code=_bounded_text(code) if code else None,
-            turn_id=_bounded_text(_diagnostic_text(diagnostic, "turn_id"))
-            if _diagnostic_text(diagnostic, "turn_id")
-            else None,
-            observation_ref=_bounded_text(_diagnostic_text(diagnostic, "observation_ref"))
-            if _diagnostic_text(diagnostic, "observation_ref")
-            else None,
+            turn_id=_bounded_text(turn_id) if turn_id else None,
+            observation_ref=_bounded_text(observation_ref) if observation_ref else None,
         )
         identity = (failure.capability_id, failure.code, failure.message, failure.turn_id)
         if identity not in seen:

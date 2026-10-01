@@ -36,9 +36,12 @@ def _count(value: object) -> int:
 def _coordinate(value: object) -> float | None:
     if value is None:
         return None
-    if type(value) not in (int, float) or not math.isfinite(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError("network coordinate is invalid")
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("network coordinate is invalid")
+    return number
 
 
 def normalize_network_view(value: object) -> dict[str, Any]:
@@ -119,10 +122,13 @@ def normalize_network_view(value: object) -> dict[str, Any]:
             identifier = _text(item["id"])
             number = item["value"]
             if (identifier not in allowed or identifier in seen
-                    or type(number) not in (int, float) or not math.isfinite(number)):
+                    or not isinstance(number, (int, float)) or isinstance(number, bool)):
+                raise ValueError("network overlay element is invalid")
+            numeric = float(number)
+            if not math.isfinite(numeric):
                 raise ValueError("network overlay element is invalid")
             seen.add(identifier)
-            selected_values.append({"id": identifier, "value": float(number)})
+            selected_values.append({"id": identifier, "value": numeric})
         overlay = {"metric": metric, "unit": _METRICS[metric],
                    "source_ref": _text(raw_overlay["source_ref"], limit=2048),
                    "values": selected_values}

@@ -266,7 +266,7 @@ def _operator_diagram_get(
         raise _failure("diagram_too_large", "operator diagram exceeds component bounds", phase="validate")
 
     def finite(value: object) -> float | None:
-        if type(value) not in (int, float):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
             return None
         number = float(value)
         return number if math.isfinite(number) else None
