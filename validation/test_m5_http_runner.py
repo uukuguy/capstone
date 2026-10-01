@@ -103,6 +103,19 @@ def test_http_session_rejects_run_identity_change_after_create() -> None:
             session.snapshot()
 
 
+def test_http_session_rejects_event_page_identity_mismatch() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "schema": "capstone-thread-events/1", "thread_id": "thr_other",
+            "after_event_seq": 0, "next_event_seq": 0, "has_more": False, "events": [],
+        })
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        session = HttpThreadSession("http://localhost", "secret", client=client, thread_id="thr_demo_39", run_id="run_001")
+        with pytest.raises(RuntimeError, match="event page thread identity"):
+            session.events()
+
+
 def test_wait_for_terminal_requires_matching_terminal_event() -> None:
     document = _snapshot()
     document["current_attempt"] = {
@@ -123,3 +136,36 @@ def test_wait_for_terminal_requires_matching_terminal_event() -> None:
 
     with pytest.raises(TimeoutError, match="did not reach"):
         wait_for_terminal(_NoTerminalSession(), timeout_seconds=0.01)  # type: ignore[arg-type]
+
+
+def test_wait_for_terminal_does_not_accept_stale_running_snapshot() -> None:
+    document = _snapshot()
+    document["current_attempt"] = {
+        "turn_id": "turn_001", "attempt_id": "attempt_001", "phase": "running",
+        "target_model_context_id": "ctx_ieee39_7",
+    }
+    snapshot = ThreadSnapshot.from_document(document)
+    terminal_event = EventPage.from_document({
+        "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
+        "after_event_seq": 0, "next_event_seq": 1, "has_more": False, "events": [{
+            "event_id": "evt_1", "event_seq": 1, "event_type": "attempt_completed", "event_version": 1,
+            "thread_id": "thr_demo_39", "run_id": "run_001", "turn_id": "turn_001",
+            "attempt_id": "attempt_001", "model_context_id": "ctx_ieee39_7", "selection_revision": "sel_2",
+            "occurred_at": "2026-10-01T00:00:00+00:00", "visibility": "public", "payload": {},
+        }],
+    }, expected_after_seq=0)
+
+    class _StaleSession:
+        def snapshot(self) -> ThreadSnapshot:
+            return snapshot
+
+        def events(self, *, after: int = 0) -> EventPage:
+            if after == 0:
+                return terminal_event
+            return EventPage.from_document({
+                "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
+                "after_event_seq": after, "next_event_seq": after, "has_more": False, "events": [],
+            }, expected_after_seq=after)
+
+    with pytest.raises(TimeoutError, match="did not reach"):
+        wait_for_terminal(_StaleSession(), timeout_seconds=0.01)  # type: ignore[arg-type]

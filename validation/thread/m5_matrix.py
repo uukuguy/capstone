@@ -174,6 +174,10 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
         expected_profile_version = cast(str, expectation["profile_version"])
         expected_model_ids = cast(frozenset[str], expectation["model_ids"])
         family = snapshot.active_model_context.implementation_family
+        active_model = next(
+            (model for model in catalog.models if model.model_id == snapshot.active_model_context.model_id),
+            None,
+        )
         family_models = [
             model for model in catalog.models
             if model.implementation_family == expected_family and model.model_id in expected_model_ids
@@ -184,7 +188,16 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
             and profile.profile_version == expected_profile_version
             and expected_family in profile.implementation_families
         ]
-        if family != expected_family or snapshot.active_model_context.model_id not in expected_model_ids or not family_models or not family_profiles:
+        active_profile = (expected_profile_id, expected_profile_version)
+        if (
+            family != expected_family
+            or snapshot.active_model_context.model_id not in expected_model_ids
+            or active_model is None
+            or active_model.implementation_family != expected_family
+            or not family_models
+            or not family_profiles
+            or active_profile not in snapshot.active_model_context.enabled_profiles
+        ):
             results.append(M5CheckResult(
                 "catalog", "failed",
                 {"reason": "catalog or active model does not match the registered application expectation", "implementation_family": family},

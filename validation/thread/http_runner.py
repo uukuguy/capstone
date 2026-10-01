@@ -145,7 +145,12 @@ class HttpThreadSession:
                 self.run_id = snapshot.run.run_id
                 raise ThreadResyncRequired(snapshot) from error
             raise
-        return EventPage.from_document(document, expected_after_seq=after)
+        page = EventPage.from_document(document, expected_after_seq=after)
+        if page.thread_id != thread_id:
+            raise RuntimeError("event page thread identity does not match session")
+        if self.run_id is not None and any(event.run_id != self.run_id for event in page.events):
+            raise RuntimeError("event page run identity does not match session")
+        return page
 
     def command(
         self, kind: str, payload: dict[str, Any], *, expected_event_seq: int | None = None,
@@ -180,15 +185,19 @@ def wait_for_terminal(
     if target_attempt_id is None:
         raise RuntimeError("no active Attempt to wait for")
     cursor = initial.last_event_seq
+    terminal_seen = False
     while time.monotonic() < deadline:
         page = session.events(after=cursor)
         cursor = page.next_event_seq
-        if any(
+        terminal_seen = terminal_seen or any(
             event.attempt_id == target_attempt_id
             and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}
             for event in page.events
-        ):
-            return session.snapshot()
+        )
+        if terminal_seen:
+            snapshot = session.snapshot()
+            if snapshot.current_attempt is None or snapshot.current_attempt.attempt_id != target_attempt_id:
+                return snapshot
         time.sleep(0.05)
     raise TimeoutError("Thread attempt did not reach a terminal snapshot before timeout")
 
