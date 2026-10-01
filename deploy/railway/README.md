@@ -29,6 +29,11 @@ its `PORT` to `8766`. Set the API health check path to `/health/ready` and expos
 its generated HTTPS domain. A local SciGRID run peaked near 1.1 GiB; allow
 headroom and check Railway metrics before setting a Worker memory cap.
 
+`CAPSTONE_HOSTED_APPLICATION` selects the application assembly for both roles and
+defaults to `pandapower`. Set it to `pypsa` only when the API and Worker are
+deployed as the same isolated PyPSA stage; do not pair a PyPSA API with a
+pandapower Worker or share mutable run data between application stages.
+
 Railway Hobby cannot configure credentials for a private container registry, so
 the current source-build topology remains supported. When a registry is
 available, promote the exact verified backend image digest from cloud-dev to
@@ -64,6 +69,7 @@ bucket variable references or protected values in the project UI:
 | `DATABASE_URL` | PostgreSQL connection URL, shared by API and worker |
 | `CAPSTONE_OPERATOR_TOKEN` | Same private operator token in both roles |
 | `CAPSTONE_PUBLIC_DEMO` | `true` on the API for automatic public demonstration access |
+| `CAPSTONE_HOSTED_APPLICATION` | `pandapower` by default; use `pypsa` only for an isolated PyPSA API/Worker stage |
 | `CAPSTONE_PUBLIC_PROVIDER` | `deepseek` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
 | `CAPSTONE_PUBLIC_MODEL` | `deepseek-flash` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
 | `CAPSTONE_SESSION_IDLE_SECONDS` | `600` on the worker; release a session after ten minutes waiting for the next instruction |

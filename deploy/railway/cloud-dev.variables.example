@@ -3,6 +3,7 @@
 
 DATABASE_URL=<set-in-railway>
 CAPSTONE_OPERATOR_TOKEN=<set-in-railway>
+CAPSTONE_HOSTED_APPLICATION=pandapower
 # The cloud-dev App has no login flow; keep this true for an internal App smoke
 # target. Set false only when running API-only/operator tests without the App.
 CAPSTONE_PUBLIC_DEMO=true

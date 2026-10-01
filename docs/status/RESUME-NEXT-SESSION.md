@@ -23,7 +23,7 @@
 - Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd`, `7edc905`, `7bece3c`, `9a505f9`, `2d80311`, `e74a1e2`, `b3edcef`, `ab8f207`, `3ef143d`, `a20b3b1` (typed adapters, hard-gated matrix, production HTTP client, recovery-safe reference TUI, shared catalog, and transport-independent client boundary).
 - Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with API image `sha256:a7d96ff6ff3e4f9f4c0be56ff9211105dba9e7e1e5ac1b410672d7ae96828222` and API `/health/ready` healthy. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
-- The current Compose hosted Thread is still assembled by the pandapower compatibility adapter and uses the Provider-backed runtime. PyPSA has a Thread assembly helper but no equivalent hosted API/worker entry. These are real M5 blockers, not acceptable skipped passes.
+- Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. The remaining M5 blockers are provider-free live acceptance, lifecycle/recovery parity, and final independent review; a composition root alone is not a validation pass.
 - The current Python Textual TUI is frozen as a protocol/reference client. It is intentionally not the production visual/interaction target; after the M5 protocol gates, create a separate first-class `capstone` client interaction contract and framework evaluation before further UI work.
 
 ## Next action: M5 unified validation
@@ -32,7 +32,7 @@
 2. Run a registered PyPSA model Thread through the same `CapstoneThreadClient` and verify family-specific model/Profile catalog behavior and one-model-one-page projection.
 3. Exercise ordinary informational questions with the default ordinary policy and verify no simulator evidence is created for offline answers.
 4. Exercise model switching, Profile selection, failure/cancel/retry, SSE reconnect/resync, and the Textual TUI session bridge against the same typed Thread protocol.
-5. Add the provider-free hosted conformance entry points for both registered Authority families, exercise `capstone-agent tui` against the HTTP/SSE composition root, capture browser/TUI evidence, then run the complete gates before the next design milestone.
+5. Exercise both hosted composition roots with provider-free Thread conformance, run `capstone-agent tui` against the HTTP/SSE roots, capture browser/TUI evidence, then run the complete gates before the next design milestone.
 
 ## Recovery constraints
 
