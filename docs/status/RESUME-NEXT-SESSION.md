@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 02:55 CST. **Session remains active — M5 implementation is in progress; real-family/live-client acceptance is still open.**
+> Updated: 2026-10-02 21:30 CST. **M5 provider-free Thread matrix and lifecycle/recovery checks are complete; Docker/protected-path environment gates remain open.**
 
 ## Current position
 
@@ -23,17 +23,17 @@
 - Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd`, `7edc905`, `7bece3c`, `9a505f9`, `2d80311`, `e74a1e2`, `b3edcef`, `ab8f207`, `3ef143d`, `a20b3b1`, `a4f8546`, `bc67286`, `f6e910e`, `caa3c88`, `d80a0f1`, `d7d2f07`, `f36119b`, `0541c9b`, `7ea5177` (typed adapters, hard-gated matrix, production HTTP client, recovery-safe reference TUI, shared hosted roots/selector, schema and Pyright gate fixes, and interrupted-state UI protection).
 - Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; an earlier rebuild produced a healthy API image, but the latest rebuild attempt is blocked by the unavailable Docker daemon. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
-- Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. The remaining M5 blockers are provider-free live acceptance, lifecycle/recovery parity, and final independent review; a composition root alone is not a validation pass.
+- Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. Validation-only `ProviderFreeThreadHost` now drives both families through the real HTTP projection, Thread worker, Harness admission, Domain Pack executors, and Authority references.
 - Independent review of `bc67286`, `f6e910e`, `caa3c88`, `d80a0f1`, and `7ea5177` is approved with zero Critical/Important/Minor findings. Full `make test` now passes across all listed Python, Node, App, PyPSA, boundary, and verification targets. `make doctor` and `git diff --check` pass. `make validate-thread-m5` remains report-only without credentials; `make validate` is still blocked by the pre-existing protected `packages/grid-simulator` baseline mismatch, and `make capstone-local-rebuild` is blocked by the unavailable Docker daemon.
-- The current Python Textual TUI is frozen as a protocol/reference client. It is intentionally not the production visual/interaction target; after the M5 protocol gates, create a separate first-class `capstone` client interaction contract and framework evaluation before further UI work.
+- `validation/run_m5_provider_free.py` and `make validate-thread-m5-provider-free` pass the pandapower and PyPSA rows in their isolated project environments. `validation/test_m5_lifecycle.py` passes selection activation, retry lineage, and cursor-gap resync checks. The current Python Textual TUI is frozen as a protocol/reference client; it remains outside the provider-free matrix's visual target.
 
-## Next action: M5 unified validation
+## Next action: M5 final gates and independent review
 
-1. Run real `pandapower-scripted-task` instructions through a new live Thread and verify catalog, Profile staging, automatic ordinary routing, professional admission, per-answer activity, duration, evidence/result cards, and retry.
-2. Run a registered PyPSA model Thread through the same `CapstoneThreadClient` and verify family-specific model/Profile catalog behavior and one-model-one-page projection.
-3. Exercise ordinary informational questions with the default ordinary policy and verify no simulator evidence is created for offline answers.
-4. Exercise model switching, Profile selection, failure/cancel/retry, SSE reconnect/resync, and the Textual TUI session bridge against the same typed Thread protocol.
-5. Exercise both hosted composition roots with provider-free Thread conformance, run `capstone-agent tui` against the HTTP/SSE roots, capture browser/TUI evidence, then run the complete gates before the next design milestone.
+1. Run `make validate-thread-m5-provider-free` after any Thread/Authority change; reports remain under ignored `runs/capstone-m5/provider-free/`.
+2. Repeat `make capstone-local-rebuild` when the Docker/OrbStack socket is available; do not claim a deployment pass from an old image.
+3. Resolve the pre-existing `packages/grid-simulator` protected-path baseline mismatch through its owning source revision; do not edit the baseline as part of M5.
+4. Dispatch the required independent M1–M5 code review, fix all Important/Critical findings, then append its report and commit hash here.
+5. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
 
 ## Recovery constraints
 

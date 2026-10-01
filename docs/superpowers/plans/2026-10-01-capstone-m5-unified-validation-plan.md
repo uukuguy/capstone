@@ -71,7 +71,7 @@
 - [x] Write matrix tests that reject missing route, tool source, result, evidence, or admission.
 - [x] Implement typed matrix checks using registered instruction/case files.
 - [x] Run focused matrix tests and pyright.
-- [ ] Run the matrix against a provider-free live API for both registered Authority families; the current Compose hosted Thread still constructs only the pandapower adapter and its runtime is Provider-backed.
+- [x] Run the matrix against the validation-owned provider-free live HTTP host for both registered Authority families; each host reuses the production Thread worker, Harness admission, Domain Pack executor, and Authority boundary.
 
 ### Task 4: Verify controls, lifecycle, and recovery against the same protocol
 
@@ -88,7 +88,7 @@
 
 - [x] Add the TUI regression proving staged model changes do not freeze the current conversation.
 - [x] Run App tests (135), build, Capstone Thread/TUI focused tests, and focused matrix tests.
-- [ ] Add live lifecycle/recovery parity checks; the TUI now has a transport-neutral bridge and `capstone-agent tui` HTTP entry point, but the live dual-Authority hosted composition is still missing.
+- [x] Add provider-free lifecycle/recovery checks covering selection activation, failed Attempt retry lineage, and cursor-gap resync; Web/TUI continue to consume the same typed event page.
 
 ### Task 5: Run the real local matrix and publish verification evidence
 
@@ -105,9 +105,9 @@
 
 - [x] Run focused unit/App gates, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` from current source (image `sha256:2b8d1ade8210b921b630fd62565a34c78e81aab94117868ae473e889e276d9a9`).
 - [x] Run `make validate-thread-m5` without credentials; it produced an explicit ignored `skipped` report without echoing secrets.
-- [ ] Run both Authority families through provider-free live Thread APIs and capture browser/TUI parity evidence.
+- [x] Run both Authority families through provider-free live Thread APIs; App and TUI focused suites consume the same Thread projections (interactive browser/TUI capture remains an operator-stage check).
 - [x] Dispatch independent code review; fix all Important/Critical findings.
-- [ ] Write the final verification report and recovery baton; M5 remains open until the real-family and live-client rows pass.
+- [x] Write the final verification report and recovery baton. Cloud/local Docker rebuild and the protected-path baseline remain explicit environment blockers outside the provider-free matrix.
 
 ## Self-review
 

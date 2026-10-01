@@ -309,6 +309,11 @@ validate-application:
 validate-thread-m5:
 	PYTHONPATH=. uv run --project packages/capstone-agent python validation/run_m5.py
 
+validate-thread-m5-provider-free:
+	mkdir -p runs/capstone-m5/provider-free
+	PYTHONPATH=. uv run --project packages/grid-agent python validation/run_m5_provider_free.py --application pandapower-static-analysis --root runs/capstone-m5/provider-free/pandapower
+	PYTHONPATH=. uv run --project packages/pypsa-agent python validation/run_m5_provider_free.py --application pypsa-business-cases --root runs/capstone-m5/provider-free/pypsa
+
 check-package-boundaries:
 	python3 tools/check_package_boundaries.py
 
