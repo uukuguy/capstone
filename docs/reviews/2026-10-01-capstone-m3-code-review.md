@@ -39,7 +39,7 @@ bounded context size before event persistence.
 ## Verification
 
 - Focused Harness/worker/router/application tests: 33 passed.
-- Full Capstone package suite: 241 passed, 27 skipped.
+- Full Capstone package suite: 243 passed, 27 skipped.
 - Pyright on changed M3 sources: 0 errors.
 - `python3.14 tools/check_package_boundaries.py`: passed.
 - `make doctor`: passed.
