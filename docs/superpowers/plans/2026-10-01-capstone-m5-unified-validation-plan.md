@@ -106,7 +106,7 @@
 - [x] Run focused unit/App gates, `make doctor`, `git diff --check`, and `make capstone-local-rebuild` from current source (image `sha256:2b8d1ade8210b921b630fd62565a34c78e81aab94117868ae473e889e276d9a9`).
 - [x] Run `make validate-thread-m5` without credentials; it produced an explicit ignored `skipped` report without echoing secrets.
 - [ ] Run both Authority families through provider-free live Thread APIs and capture browser/TUI parity evidence.
-- [ ] Dispatch independent code review; fix all Important/Critical findings.
+- [x] Dispatch independent code review; fix all Important/Critical findings.
 - [ ] Write the final verification report and recovery baton; M5 remains open until the real-family and live-client rows pass.
 
 ## Self-review
