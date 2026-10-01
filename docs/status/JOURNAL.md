@@ -1477,3 +1477,5 @@ _Recovered pre-merge mainline entries._
 - M5 校验边界、HTTP 限流与 PyPSA 目录接线已修复，防止伪通过并保留真实模型清单 [fc75f7d]
 - M5 校验修复日志已落盘，确保恢复链条包含边界修复提交 [40949cd]
 - M5 当前状态与恢复接力已更新，记录真实阻塞项和重建证据 [a91a312]
+- M5 HTTP run 身份、PyPSA 默认模型与测试类型边界已收紧 [ce6ac5c]
+- M5 矩阵绑定应用/Profile 期望并拒绝 fallback/失败工具伪成功 [9e960c4]

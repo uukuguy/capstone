@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-01 10:35 CST. **Session remains active — M5 implementation is in progress; real-family/live-client acceptance is still open.**
+> Updated: 2026-10-01 10:55 CST. **Session remains active — M5 implementation is in progress; real-family/live-client acceptance is still open.**
 
 ## Current position
 
@@ -21,7 +21,7 @@
 ## M5 implementation checkpoint
 
 - Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd` (typed adapters, hard-gated matrix, PyPSA catalog wiring, bounded HTTP and redaction fixes).
-- Focused M5 checks: 26 passed; changed-source pyright 0 errors; PyPSA Thread capability tests 4 passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with worker image `sha256:9c0d0831ef086a2a7b386853db6fa0affc0076a7ded17864544d4faf0fd3a3f6` and API `/health/ready` healthy.
+- Focused M5 checks: 28 passed; changed-source pyright and ruff passed; PyPSA Thread capability tests 5 passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with worker image `sha256:a0a4f8e1b00960ad49222e0ca56256ee611fb69b78bcfb89df8ed9c163d03028` and API `/health/ready` healthy.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - The current Compose hosted Thread is still assembled by the pandapower compatibility adapter and uses the Provider-backed runtime. PyPSA has a Thread assembly helper but no equivalent hosted API/worker entry. These are real M5 blockers, not acceptable skipped passes.
 
