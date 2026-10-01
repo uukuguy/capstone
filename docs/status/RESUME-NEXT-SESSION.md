@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 21:30 CST. **M5 provider-free Thread matrix and lifecycle/recovery checks are complete; Docker/protected-path environment gates remain open.**
+> Updated: 2026-10-02 22:30 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, and independent M1–M5 review are complete; Docker/protected-path environment gates remain open.**
 
 ## Current position
 
@@ -24,16 +24,16 @@
 - Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; an earlier rebuild produced a healthy API image, but the latest rebuild attempt is blocked by the unavailable Docker daemon. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. Validation-only `ProviderFreeThreadHost` now drives both families through the real HTTP projection, Thread worker, Harness admission, Domain Pack executors, and Authority references.
-- Independent review of `bc67286`, `f6e910e`, `caa3c88`, `d80a0f1`, and `7ea5177` is approved with zero Critical/Important/Minor findings. Full `make test` now passes across all listed Python, Node, App, PyPSA, boundary, and verification targets. `make doctor` and `git diff --check` pass. `make validate-thread-m5` remains report-only without credentials; `make validate` is still blocked by the pre-existing protected `packages/grid-simulator` baseline mismatch, and `make capstone-local-rebuild` is blocked by the unavailable Docker daemon.
+- Independent M1–M5 review is recorded at `docs/reviews/2026-10-02-capstone-m1-m5-independent-code-review.md`; its two Important and two Minor findings were fixed in `497338d` and the remediation is documented. Full `make test` previously passed across the listed Python, Node, App, PyPSA, boundary, and verification targets. `make doctor`, `make check-types-validation`, and `git diff --check` pass. `make validate-thread-m5` remains report-only without credentials; `make validate` is still blocked by the pre-existing protected `packages/grid-simulator` baseline mismatch, and `make capstone-local-rebuild` is blocked by the unavailable Docker daemon.
 - `validation/run_m5_provider_free.py` and `make validate-thread-m5-provider-free` pass the pandapower and PyPSA rows in their isolated project environments. `validation/test_m5_lifecycle.py` passes selection activation, retry lineage, and cursor-gap resync checks. The current Python Textual TUI is frozen as a protocol/reference client; it remains outside the provider-free matrix's visual target.
 
-## Next action: M5 final gates and independent review
+## Next action: environment-gated release verification
 
 1. Run `make validate-thread-m5-provider-free` after any Thread/Authority change; reports remain under ignored `runs/capstone-m5/provider-free/`.
 2. Repeat `make capstone-local-rebuild` when the Docker/OrbStack socket is available; do not claim a deployment pass from an old image.
 3. Resolve the pre-existing `packages/grid-simulator` protected-path baseline mismatch through its owning source revision; do not edit the baseline as part of M5.
-4. Dispatch the required independent M1–M5 code review, fix all Important/Critical findings, then append its report and commit hash here.
-5. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
+4. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
+5. Require an independent code review before declaring every future M stage complete.
 
 ## Recovery constraints
 

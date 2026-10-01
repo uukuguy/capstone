@@ -46,3 +46,7 @@ Repository-wide `make validate` remains blocked by the pre-existing protected `p
 ## Final recommendation
 
 **APPROVE after remediation**, subject to the documented environment gates. Every future M stage must dispatch an independent code review before the stage is declared complete.
+
+## Follow-up review
+
+An independent follow-up review against remediation commit `497338d` returned **APPROVE**. It confirmed the retry guard, persisted provider-free summaries, validation Pyright gate, and Harness cleanup. PostgreSQL integration execution remains environment-blocked because no local PostgreSQL is available at `/tmp:5432`; the SQL path was reviewed statically.
