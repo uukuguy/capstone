@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import re
 from typing import Protocol
 
 from .thread_service import AttemptClaim
@@ -21,6 +22,7 @@ class DecisionUnavailable(RuntimeError):
 _ROUTES = frozenset({"ordinary", "professional"})
 _MAX_HINT = 160
 _MAX_CONTEXT = 1024
+_MAX_ROUTING_TEXT = 2_048
 _DOMAIN_HINTS = (
     "电网", "潮流", "线路", "母线", "变压器", "拓扑", "约束", "越限",
     "n-1", "pandapower", "pypsa", "负载率", "短路", "孤岛", "收敛",
@@ -124,10 +126,19 @@ def routing_input_for_claim(claim: AttemptClaim) -> RoutingInput:
     return RoutingInput(
         turn_id=claim.attempt.turn_id,
         attempt_id=claim.attempt.attempt_id,
-        instruction=claim.instruction[:16_384],
+        instruction=_sanitize_instruction(claim.instruction),
         command_kind=claim.kind,
         context_snapshot=_context_snapshot(claim),
     )
+
+
+def _sanitize_instruction(instruction: str) -> str:
+    """Keep classifier input useful while excluding common secret/path forms."""
+
+    text = " ".join(instruction.split())[:_MAX_ROUTING_TEXT]
+    text = re.sub(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*\S+", r"\1=[redacted]", text)
+    text = re.sub(r"(?<!\w)/(?:[^\s/]+/)+[^\s]+", "[path]", text)
+    return text
 
 
 class DefaultTurnRouter:

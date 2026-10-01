@@ -55,7 +55,7 @@ def test_auto_router_uses_fixture_and_keeps_context_bounded() -> None:
 
 
 def test_jev_is_disabled_by_default_and_enabled_classifier_is_input_bounded() -> None:
-    service, claim = _claim()
+    service, claim = _claim(text="api_key=supersecret /Users/private/file " + "x" * 5000)
     seen: list[str] = []
     router = JevDecisionRouter(lambda text: seen.append(text) or "ordinary")
     with pytest.raises(DecisionUnavailable, match="disabled"):
@@ -63,7 +63,9 @@ def test_jev_is_disabled_by_default_and_enabled_classifier_is_input_bounded() ->
     router.enabled = True
     plan = router.plan(routing_input_for_claim(claim))
     assert plan.route == "ordinary"
-    assert seen == ["hello"]
+    assert len(seen[0]) <= 2048
+    assert "supersecret" not in seen[0]
+    assert "/Users/private/file" not in seen[0]
     del service
 
 
