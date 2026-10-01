@@ -1459,3 +1459,6 @@ _Recovered pre-merge mainline entries._
 - M3 修复评审发现的显式路由降级、专业 limited admission、Jev 配置快照、公开回退事件与普通 Pi policy 合并 [5ac70d0]
 - M3 评审验证数更新为 Capstone 243 passed/27 skipped，最新本地 API/worker 重建并健康 [9d68fdf]
 - M3 完成后恢复接力转入 M4 Composer、Profile 与模型控件，保留通用 Pi/DSH capability registry 边界 [59cf6b9]
+- 09:18 M4 后端 Thread catalog projection 与受保护 catalog API 已提交，供 Web/TUI 使用真实模型/Profile 元数据 [fed5aec]
+- 09:19 M4 Web typed catalog、compact Profile/过程控件、模型选择和 Attempt 重试入口已提交，保留单一自动路由 Composer [a4262bf]
+- 09:20 收紧 Thread Profile catalog 全局 128 项上限，避免多实现族累积超出 Web 协议边界 [7d50c11]

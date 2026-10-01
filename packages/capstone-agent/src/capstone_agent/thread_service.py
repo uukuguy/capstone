@@ -171,18 +171,26 @@ def _thread_catalog_document(
     families: set[str] = set()
     list_entries = getattr(model_catalog, "list_entries", None)
     if callable(list_entries):
-        for entry in tuple(list_entries())[:128]:
-            values = {
-                "model_id": getattr(entry, "model_id", None),
-                "authority_model_ref": getattr(entry, "authority_model_ref", None),
-                "display_name": getattr(entry, "display_name", None),
-                "diagram_provider_id": getattr(entry, "diagram_provider_id", None),
-                "implementation_family": getattr(entry, "implementation_family", None),
-            }
-            if not all(isinstance(value, str) and value.strip() for value in values.values()):
+        for entry in tuple(cast(Any, list_entries)())[:128]:
+            model_id = getattr(entry, "model_id", None)
+            authority_model_ref = getattr(entry, "authority_model_ref", None)
+            display_name = getattr(entry, "display_name", None)
+            diagram_provider_id = getattr(entry, "diagram_provider_id", None)
+            implementation_family = getattr(entry, "implementation_family", None)
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in (model_id, authority_model_ref, display_name, diagram_provider_id, implementation_family)
+            ):
                 continue
-            families.add(values["implementation_family"])
-            models.append(values)
+            family_name = cast(str, implementation_family)
+            families.add(family_name)
+            models.append({
+                "model_id": model_id,
+                "authority_model_ref": authority_model_ref,
+                "display_name": display_name,
+                "diagram_provider_id": diagram_provider_id,
+                "implementation_family": implementation_family,
+            })
 
     profiles: dict[tuple[str, str], dict[str, object]] = {}
     list_profiles = getattr(capability_catalog, "profiles_for_family", None)
@@ -190,7 +198,7 @@ def _thread_catalog_document(
         for family in sorted(families):
             if len(profiles) >= 128:
                 break
-            for info in tuple(list_profiles(family)):
+            for info in tuple(cast(Any, list_profiles)(family)):
                 if len(profiles) >= 128:
                     break
                 descriptor = getattr(info, "descriptor", None)
