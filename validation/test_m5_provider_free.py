@@ -5,7 +5,16 @@ from pathlib import Path
 import pytest
 
 from validation.thread.m5_matrix import run_application_matrix
-from validation.thread.provider_free_host import ProviderFreeThreadHost
+from validation.thread.provider_free_host import ProviderFreeThreadHost, _refs
+
+
+def test_provider_free_host_forwards_only_authority_declared_references() -> None:
+    assert _refs({"payload": "no authority references"}) == ((), ())
+    assert _refs({"evidence_ref": "evidence:authority"}) == ((), ("evidence:authority",))
+    assert _refs({
+        "result_refs": ["result:authority"],
+        "evidence_refs": ["evidence:authority"],
+    }) == (("result:authority",), ("evidence:authority",))
 
 
 @pytest.mark.parametrize(

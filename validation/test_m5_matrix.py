@@ -26,6 +26,17 @@ def test_professional_projection_requires_explicit_tool_source_and_evidence() ->
     assert result.status == "passed"
 
 
+def test_professional_projection_accepts_evidence_only_authority_tool() -> None:
+    events = (
+        _event("attempt_started", {}, 1),
+        _event("turn_route_selected", {"route": "professional"}, 2),
+        _event("tool_completed", {"binding_id": "grid", "capability_id": "topology.branch.endpoints.get", "ok": True, "result_refs": [], "evidence_refs": ["evidence:1"]}, 3),
+        _event("attempt_completed", {"answer": "端点为母线 6 和 11", "result_refs": [], "evidence_refs": ["evidence:1"], "admission": {"mode": "authority_backed"}}, 4),
+    )
+    result = validate_attempt_projection(events, attempt_id="attempt_001", route="professional", implementation_family="pandapower", authority_backed=True)
+    assert result.status == "passed"
+
+
 def test_professional_projection_rejects_terminal_references_not_emitted_by_current_tools() -> None:
     events = (
         _event("attempt_started", {}, 1),

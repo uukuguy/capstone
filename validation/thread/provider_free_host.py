@@ -8,7 +8,6 @@ executors remain the same code used by a hosted process.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -37,11 +36,6 @@ PANDAPOWER_CASE = ROOT / "validation" / "application" / "pandapower-scripted-tas
 PYPSA_CASES = ROOT / "validation" / "pypsa-cases" / "cases.json"
 
 
-def _ref(prefix: str, value: object) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
-    return f"{prefix}{hashlib.sha256(encoded).hexdigest()}"
-
-
 def _refs(result: Mapping[str, object]) -> tuple[tuple[str, ...], tuple[str, ...]]:
     result_refs: list[str] = []
     evidence_refs: list[str] = []
@@ -51,13 +45,12 @@ def _refs(result: Mapping[str, object]) -> tuple[tuple[str, ...], tuple[str, ...
     explicit_many = result.get("result_refs")
     if isinstance(explicit_many, (list, tuple)):
         result_refs.extend(ref for ref in explicit_many if isinstance(ref, str) and ref)
+    evidence_one = result.get("evidence_ref")
+    if isinstance(evidence_one, str) and evidence_one:
+        evidence_refs.append(evidence_one)
     evidence = result.get("evidence_refs")
     if isinstance(evidence, (list, tuple)):
         evidence_refs.extend(ref for ref in evidence if isinstance(ref, str) and ref)
-    if not result_refs:
-        result_refs.append(_ref("result:sha256:", result))
-    if not evidence_refs:
-        evidence_refs.append(_ref("evidence:sha256:", {"result": result_refs, "payload": result}))
     return tuple(dict.fromkeys(result_refs)), tuple(dict.fromkeys(evidence_refs))
 
 
@@ -105,6 +98,7 @@ class _ScriptedPiSession:
         self._context_ref: str | None = self._state.get("context_ref") if isinstance(self._state.get("context_ref"), str) else None
         self._model_ref: str | None = self._state.get("model_ref") if isinstance(self._state.get("model_ref"), str) else None
         self._result_ref: str | None = self._state.get("result_ref") if isinstance(self._state.get("result_ref"), str) else None
+        self._evidence_ref: str | None = self._state.get("evidence_ref") if isinstance(self._state.get("evidence_ref"), str) else None
         self._turn_index = int(self._state.get("turn_index", 0))
         self._started = False
         self._stopped = False
@@ -170,6 +164,14 @@ class _ScriptedPiSession:
                 raise ValueError(f"validation capability is not published: {capability}")
             arguments = self._arguments(capability, step.get("arguments"))
             self._invoke(capability, arguments, correlation_id, on_semantic_event)
+            if capability == "result.branches.rank" and self._evidence_ref is not None:
+                # A derived ranking returns the source result reference. Retrieve
+                # its persisted evidence explicitly so professional admission can
+                # cite an Authority-declared evidence reference in this Attempt.
+                self._invoke(
+                    "evidence.get", {"evidence_ref": self._evidence_ref},
+                    correlation_id, on_semantic_event,
+                )
             on_heartbeat()
         self._turn_index += 1
         self._state.update({
@@ -177,6 +179,7 @@ class _ScriptedPiSession:
             "context_ref": self._context_ref,
             "model_ref": self._model_ref,
             "result_ref": self._result_ref,
+            "evidence_ref": self._evidence_ref,
         })
         return self._answer()
 
@@ -243,6 +246,8 @@ class _ScriptedPiSession:
             self._model_ref = result.get("model_ref") if isinstance(result.get("model_ref"), str) else self._model_ref
         if isinstance(result.get("result_ref"), str):
             self._result_ref = result["result_ref"]
+        if evidence_refs:
+            self._evidence_ref = evidence_refs[0]
 
     def _answer(self) -> str:
         if self._family == "pandapower":

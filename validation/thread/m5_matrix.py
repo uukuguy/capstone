@@ -88,9 +88,14 @@ def validate_attempt_projection(
         return M5CheckResult("attempt.result_refs", "failed", {"reason": "invalid result refs", "attempt_id": attempt_id})
     if not isinstance(evidence, list) or not all(isinstance(ref, str) and ref for ref in evidence):
         return M5CheckResult("attempt.evidence_refs", "failed", {"reason": "invalid evidence refs", "attempt_id": attempt_id})
-    if authority_backed and (not tools or not refs or not evidence or not isinstance(admission, dict) or admission.get("mode") != "authority_backed"):
+    if authority_backed and (
+        not tools
+        or not refs and not evidence
+        or not isinstance(admission, dict)
+        or admission.get("mode") != "authority_backed"
+    ):
         return M5CheckResult("attempt.admission", "failed", {
-            "reason": "authority-backed attempt lacks tool, result, evidence, or admission", "attempt_id": attempt_id,
+            "reason": "authority-backed attempt lacks tool, result/evidence lineage, or admission", "attempt_id": attempt_id,
         })
     if not authority_backed and (refs or evidence):
         return M5CheckResult("attempt.offline_refs", "failed", {"reason": "ordinary answer emitted simulator refs", "attempt_id": attempt_id})

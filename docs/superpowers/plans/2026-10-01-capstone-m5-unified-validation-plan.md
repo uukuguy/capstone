@@ -63,12 +63,12 @@
 
 **Interfaces:**
 - `run_application_matrix(application_id: str, session: HttpThreadSession) -> tuple[M5CheckResult, ...]` runs only registered instructions and records bounded event/result/evidence references.
-- Pandapower checks use instructions from `validation/application/pandapower-scripted-task.json` and require model catalog, automatic route, professional admission, tool source, duration, current-run result/evidence, and replay equality.
+- Pandapower checks use instructions from `validation/application/pandapower-scripted-task.json` and require model catalog, automatic route, professional admission, tool source, duration, current-run result/evidence lineage, and replay equality.
 - PyPSA checks use one case from `validation/pypsa-cases/cases.json`, require PyPSA family/Profile metadata, authority-backed terminal admission, and no pandapower-only labels.
 - Ordinary informational check requires an answer and zero result/evidence references.
 - The matrix marks an unavailable separately hosted application as `skipped` with a bounded reason; it never treats a fixture or guessed result as a pass.
 
-- [x] Write matrix tests that reject missing route, tool source, result, evidence, or admission.
+- [x] Write matrix tests that reject missing route, tool source, result/evidence lineage, or admission; evidence-only topology and result-only derived queries remain valid when the Authority declares that shape.
 - [x] Implement typed matrix checks using registered instruction/case files.
 - [x] Run focused matrix tests and pyright.
 - [x] Run the matrix against the validation-owned provider-free live HTTP host for both registered Authority families; each host reuses the production Thread worker, Harness admission, Domain Pack executor, and Authority boundary.
