@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from capstone_agent.thread_protocol import EventEnvelope, EventPage, ThreadSnapshot
 
@@ -19,6 +19,21 @@ from .m5_contract import M5CheckResult
 ROOT = Path(__file__).resolve().parents[2]
 PANDAPOWER_CASE = ROOT / "validation" / "application" / "pandapower-scripted-task.json"
 PYPSA_CASES = ROOT / "validation" / "pypsa-cases" / "cases.json"
+
+_APPLICATION_EXPECTATIONS: dict[str, dict[str, object]] = {
+    "pandapower-static-analysis": {
+        "implementation_family": "pandapower",
+        "profile_id": "pandapower-static-analysis",
+        "profile_version": "1.0.1",
+        "model_ids": frozenset({"ieee39"}),
+    },
+    "pypsa-business-cases": {
+        "implementation_family": "pypsa",
+        "profile_id": "pypsa-business-cases",
+        "profile_version": "1.0.0",
+        "model_ids": frozenset({"regional-six-bus", "pypsa-example/scigrid_de"}),
+    },
+}
 
 
 class MatrixSession(Protocol):
@@ -42,12 +57,13 @@ def validate_attempt_projection(
     events: tuple[EventEnvelope, ...], *, attempt_id: str, route: str,
     implementation_family: str, authority_backed: bool,
     expected_thread_id: str | None = None, expected_run_id: str | None = None,
-    expected_model_context_id: str | None = None,
+    expected_model_context_id: str | None = None, allow_fallback: bool = False,
 ) -> M5CheckResult:
     """Check one terminal Attempt without trusting model-authored text."""
 
     scoped = tuple(event for event in events if event.attempt_id == attempt_id)
-    selected = [event for event in scoped if event.event_type in {"turn_route_selected", "turn_route_fallback"}]
+    selected_types = {"turn_route_selected", "turn_route_fallback"} if allow_fallback else {"turn_route_selected"}
+    selected = [event for event in scoped if event.event_type in selected_types]
     terminal = next((event for event in reversed(scoped) if event.event_type == "attempt_completed"), None)
     tools = [event for event in scoped if event.event_type == "tool_completed"]
     if not selected or _event_payload(selected[-1]).get("route") != route:
@@ -82,6 +98,8 @@ def validate_attempt_projection(
         ref for tool in tools for ref in _event_payload(tool).get("result_refs", [])
         if isinstance(ref, str) and ref
     }
+    if any(_event_payload(tool).get("ok") is not True for tool in tools):
+        return M5CheckResult("attempt.tool_result", "failed", {"reason": "professional Attempt contains a failed tool completion", "attempt_id": attempt_id})
     observed_evidence = {
         ref for tool in tools for ref in _event_payload(tool).get("evidence_refs", [])
         if isinstance(ref, str) and ref
@@ -113,6 +131,7 @@ def validate_attempt_projection(
 def validate_ordinary_projection(events: tuple[EventEnvelope, ...], *, attempt_id: str) -> M5CheckResult:
     return validate_attempt_projection(
         events, attempt_id=attempt_id, route="ordinary", implementation_family="ordinary", authority_backed=False,
+        allow_fallback=True,
     )
 
 
@@ -147,14 +166,30 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
     try:
         snapshot = session.create()
         catalog = session.catalog()
+        expectation = _APPLICATION_EXPECTATIONS.get(application_id)
+        if expectation is None:
+            return (M5CheckResult("catalog", "failed", {"reason": "no M5 expectation is registered", "application_id": application_id}),)
+        expected_family = cast(str, expectation["implementation_family"])
+        expected_profile_id = cast(str, expectation["profile_id"])
+        expected_profile_version = cast(str, expectation["profile_version"])
+        expected_model_ids = cast(frozenset[str], expectation["model_ids"])
         family = snapshot.active_model_context.implementation_family
-        family_models = [model for model in catalog.models if model.implementation_family == family]
-        family_profiles = [profile for profile in catalog.profiles if family in profile.implementation_families]
-        if not family_models or not family_profiles:
+        family_models = [
+            model for model in catalog.models
+            if model.implementation_family == expected_family and model.model_id in expected_model_ids
+        ]
+        family_profiles = [
+            profile for profile in catalog.profiles
+            if profile.profile_id == expected_profile_id
+            and profile.profile_version == expected_profile_version
+            and expected_family in profile.implementation_families
+        ]
+        if family != expected_family or snapshot.active_model_context.model_id not in expected_model_ids or not family_models or not family_profiles:
             results.append(M5CheckResult(
                 "catalog", "failed",
-                {"reason": "catalog does not expose the active implementation family", "implementation_family": family},
+                {"reason": "catalog or active model does not match the registered application expectation", "implementation_family": family},
             ))
+            return tuple(results)
         else:
             results.append(M5CheckResult(
                 "catalog", "passed",
@@ -172,7 +207,7 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
             snapshot, events = _wait_attempt(session, attempt_id, receipt.accepted_event_seq or cursor, timeout_seconds)
             results.append(validate_attempt_projection(
                 events, attempt_id=attempt_id, route="professional",
-                implementation_family=snapshot.active_model_context.implementation_family,
+                implementation_family=expected_family,
                 authority_backed=True,
                 expected_thread_id=snapshot.thread_id,
                 expected_run_id=snapshot.run.run_id,
