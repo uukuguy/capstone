@@ -79,3 +79,31 @@ async def _test_tui_model_switch_uses_selected_model_and_shows_receipt() -> None
 
     assert submitted[0]["kind"] == "switch_model"
     assert submitted[0]["payload"] == {"model_id": "pypsa39"}
+
+
+def test_tui_keeps_message_controls_available_while_next_turn_controls_are_pending() -> None:
+    asyncio.run(_test_tui_keeps_message_controls_available_while_next_turn_controls_are_pending())
+
+
+async def _test_tui_keeps_message_controls_available_while_next_turn_controls_are_pending() -> None:
+    submitted: list[dict[str, Any]] = []
+
+    def submit(command: dict[str, Any]) -> CommandReceipt:
+        submitted.append(command)
+        return _receipt(command)
+
+    snapshot = ThreadSnapshot.from_document({
+        **_snapshot().to_document(),
+        "pending_model_switch": {
+            "command_id": "cmd_switch_1", "model_id": "pypsa39", "model_revision": "1",
+            "implementation_family": "pypsa", "selection": {
+                "schema": "capstone-model-capability-selection/1", "enabled_profiles": [],
+            },
+        },
+    })
+    app = ThreadTuiApp(snapshot, _events(), submit, model_options=(("ieee39", "IEEE-39"), ("pypsa39", "PyPSA-39")))
+    async with app.run_test(size=(120, 40)) as pilot:
+        assert not app.query_one("#send-professional").disabled
+        app.query_one("#command-input").value = "查看当前模型"
+        await pilot.click("#send-professional")
+    assert submitted[0]["kind"] == "send_professional"

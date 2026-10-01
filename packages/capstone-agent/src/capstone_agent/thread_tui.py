@@ -151,10 +151,10 @@ class ThreadTuiApp(App[None]):
             self._submit_message("send_professional")
 
     def _refresh_controls(self) -> None:
-        blocked = self.snapshot.current_attempt is not None or (
-            self.snapshot.pending_model_switch is not None
-            or self.snapshot.pending_selection is not None
-        )
+        # A model/profile change is staged for the next Turn. It must not
+        # freeze the current conversation; only a live Attempt owns the
+        # execution slot and blocks another message.
+        blocked = self.snapshot.current_attempt is not None
         historical = False
         self.query_one("#send-ordinary", Button).disabled = blocked or historical
         self.query_one("#send-professional", Button).disabled = blocked or historical

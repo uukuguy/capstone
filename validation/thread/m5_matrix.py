@@ -1,0 +1,128 @@
+"""Typed, provider-free checks for real Thread application projections."""
+
+from __future__ import annotations
+
+import json
+import time
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any, Protocol
+
+from capstone_agent.thread_protocol import EventEnvelope, EventPage, ThreadSnapshot
+
+from .http_runner import HttpThreadSession, ThreadResyncRequired
+from .m5_contract import M5CheckResult
+
+
+ROOT = Path(__file__).resolve().parents[2]
+PANDAPOWER_CASE = ROOT / "validation" / "application" / "pandapower-scripted-task.json"
+PYPSA_CASES = ROOT / "validation" / "pypsa-cases" / "cases.json"
+
+
+class MatrixSession(Protocol):
+    def create(self, model_id: str | None = None) -> ThreadSnapshot: ...
+    def snapshot(self) -> ThreadSnapshot: ...
+    def command(self, kind: str, payload: dict[str, Any], **kwargs: Any) -> Any: ...
+    def events(self, *, after: int = 0) -> EventPage: ...
+
+
+def _event_payload(event: EventEnvelope) -> Mapping[str, Any]:
+    return event.payload
+
+
+def validate_attempt_projection(
+    events: tuple[EventEnvelope, ...], *, attempt_id: str, route: str,
+    implementation_family: str, authority_backed: bool,
+) -> M5CheckResult:
+    """Check one terminal Attempt without trusting model-authored text."""
+
+    scoped = tuple(event for event in events if event.attempt_id == attempt_id)
+    selected = [event for event in scoped if event.event_type == "turn_route_selected"]
+    terminal = next((event for event in reversed(scoped) if event.event_type == "attempt_completed"), None)
+    tools = [event for event in scoped if event.event_type == "tool_completed"]
+    if not selected or _event_payload(selected[-1]).get("route") != route:
+        return M5CheckResult("attempt.route", "failed", {"reason": "missing route selection", "attempt_id": attempt_id})
+    if terminal is None:
+        return M5CheckResult("attempt.terminal", "failed", {"reason": "missing attempt_completed", "attempt_id": attempt_id})
+    payload = _event_payload(terminal)
+    answer = payload.get("answer")
+    refs = payload.get("result_refs")
+    evidence = payload.get("evidence_refs")
+    admission = payload.get("admission")
+    if not isinstance(answer, str) or not answer.strip():
+        return M5CheckResult("attempt.answer", "failed", {"reason": "empty answer", "attempt_id": attempt_id})
+    if not isinstance(refs, list) or not all(isinstance(ref, str) and ref for ref in refs):
+        return M5CheckResult("attempt.result_refs", "failed", {"reason": "invalid result refs", "attempt_id": attempt_id})
+    if not isinstance(evidence, list) or not all(isinstance(ref, str) and ref for ref in evidence):
+        return M5CheckResult("attempt.evidence_refs", "failed", {"reason": "invalid evidence refs", "attempt_id": attempt_id})
+    if authority_backed and (not tools or not refs or not evidence or not isinstance(admission, dict) or admission.get("mode") != "authority_backed"):
+        return M5CheckResult("attempt.admission", "failed", {
+            "reason": "authority-backed attempt lacks tool, result, evidence, or admission", "attempt_id": attempt_id,
+        })
+    if not authority_backed and (refs or evidence):
+        return M5CheckResult("attempt.offline_refs", "failed", {"reason": "ordinary answer emitted simulator refs", "attempt_id": attempt_id})
+    for tool in tools:
+        key = _event_payload(tool).get("capability_key")
+        if not isinstance(key, dict) or key.get("binding_id") in {None, ""} or key.get("capability_id") in {None, ""}:
+            return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool source is not explicit", "attempt_id": attempt_id})
+        if key.get("implementation_family", implementation_family) != implementation_family:
+            return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool family mismatch", "attempt_id": attempt_id})
+    return M5CheckResult("attempt", "passed", {
+        "attempt_id": attempt_id, "implementation_family": implementation_family,
+        "tool_count": len(tools), "result_ref_count": len(refs), "evidence_ref_count": len(evidence),
+    })
+
+
+def _registered_questions(application_id: str) -> tuple[tuple[str, str], ...]:
+    if application_id == "pandapower-static-analysis":
+        document = json.loads(PANDAPOWER_CASE.read_text(encoding="utf-8"))
+        return tuple((item["id"], item["text"]) for item in document["questions"])
+    if application_id == "pypsa-business-cases":
+        document = json.loads(PYPSA_CASES.read_text(encoding="utf-8"))
+        case = next(item for item in document["cases"] if item["status"] == "runnable")
+        return ((case["id"], case["question"]),)
+    raise ValueError(f"unsupported M5 application: {application_id}")
+
+
+def _wait_attempt(session: MatrixSession, attempt_id: str, cursor: int, timeout_seconds: float) -> tuple[ThreadSnapshot, tuple[EventEnvelope, ...]]:
+    deadline = time.monotonic() + timeout_seconds
+    collected: list[EventEnvelope] = []
+    while time.monotonic() < deadline:
+        page = session.events(after=cursor)
+        collected.extend(page.events)
+        cursor = page.next_event_seq
+        if any(event.attempt_id == attempt_id and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"} for event in collected):
+            return session.snapshot(), tuple(collected)
+        time.sleep(0.05)
+    raise TimeoutError(f"attempt {attempt_id} did not reach a terminal event")
+
+
+def run_application_matrix(application_id: str, session: MatrixSession, *, timeout_seconds: float = 30.0) -> tuple[M5CheckResult, ...]:
+    """Run only registered questions against a live provider-free application."""
+
+    results: list[M5CheckResult] = []
+    try:
+        snapshot = session.create()
+        questions = _registered_questions(application_id)
+        for question_id, text in questions:
+            cursor = snapshot.last_event_seq
+            receipt = session.command("send_professional", {"text": text}, expected_event_seq=cursor)
+            target = getattr(receipt, "target", None)
+            attempt_id = target.get("attempt_id") if isinstance(target, dict) else None
+            if not isinstance(attempt_id, str):
+                results.append(M5CheckResult(f"{question_id}.acceptance", "failed", {"reason": "receipt has no attempt target"}))
+                continue
+            snapshot, events = _wait_attempt(session, attempt_id, receipt.accepted_event_seq or cursor, timeout_seconds)
+            results.append(validate_attempt_projection(
+                events, attempt_id=attempt_id, route="professional",
+                implementation_family=snapshot.active_model_context.implementation_family,
+                authority_backed=True,
+            ))
+        return tuple(results)
+    except ThreadResyncRequired as error:
+        return (M5CheckResult("matrix.recovery", "failed", {"reason": "resync required during matrix", "base_event_seq": error.snapshot.base_event_seq}),)
+    except Exception as error:
+        return (M5CheckResult("matrix.execution", "failed", {"reason": type(error).__name__}),)
+
+
+__all__ = ["run_application_matrix", "validate_attempt_projection"]
