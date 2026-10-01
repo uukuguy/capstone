@@ -188,7 +188,11 @@ def _thread_catalog_document(
     list_profiles = getattr(capability_catalog, "profiles_for_family", None)
     if callable(list_profiles):
         for family in sorted(families):
-            for info in tuple(list_profiles(family))[:128]:
+            if len(profiles) >= 128:
+                break
+            for info in tuple(list_profiles(family)):
+                if len(profiles) >= 128:
+                    break
                 descriptor = getattr(info, "descriptor", None)
                 profile_id = getattr(descriptor, "profile_id", None)
                 profile_version = getattr(descriptor, "profile_version", None)
