@@ -146,6 +146,54 @@ def _registered_questions(application_id: str) -> tuple[tuple[str, str], ...]:
     raise ValueError(f"unsupported M5 application: {application_id}")
 
 
+def _validate_catalog_expectation(
+    application_id: str, snapshot: ThreadSnapshot, catalog: ThreadCatalog,
+) -> M5CheckResult:
+    expectation = _APPLICATION_EXPECTATIONS.get(application_id)
+    if expectation is None:
+        return M5CheckResult(
+            "catalog", "failed",
+            {"reason": "no M5 expectation is registered", "application_id": application_id},
+        )
+    expected_family = cast(str, expectation["implementation_family"])
+    expected_profile_id = cast(str, expectation["profile_id"])
+    expected_profile_version = cast(str, expectation["profile_version"])
+    expected_model_ids = cast(frozenset[str], expectation["model_ids"])
+    active_context = snapshot.active_model_context
+    active_model = next((model for model in catalog.models if model.model_id == active_context.model_id), None)
+    family_models = [
+        model for model in catalog.models
+        if model.implementation_family == expected_family and model.model_id in expected_model_ids
+    ]
+    family_profiles = [
+        profile for profile in catalog.profiles
+        if profile.profile_id == expected_profile_id
+        and profile.profile_version == expected_profile_version
+        and expected_family in profile.implementation_families
+    ]
+    if (
+        active_context.implementation_family != expected_family
+        or active_context.model_id not in expected_model_ids
+        or active_model is None
+        or active_model.implementation_family != expected_family
+        or not family_models
+        or not family_profiles
+        or (expected_profile_id, expected_profile_version) not in active_context.enabled_profiles
+    ):
+        return M5CheckResult(
+            "catalog", "failed",
+            {
+                "reason": "catalog or active model/profile does not match the registered application expectation",
+                "implementation_family": active_context.implementation_family,
+                "model_id": active_context.model_id,
+            },
+        )
+    return M5CheckResult(
+        "catalog", "passed",
+        {"implementation_family": expected_family, "model_count": len(family_models), "profile_count": len(family_profiles)},
+    )
+
+
 def _wait_attempt(session: MatrixSession, attempt_id: str, cursor: int, timeout_seconds: float) -> tuple[ThreadSnapshot, tuple[EventEnvelope, ...]]:
     deadline = time.monotonic() + timeout_seconds
     collected: list[EventEnvelope] = []
@@ -166,48 +214,12 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
     try:
         snapshot = session.create()
         catalog = session.catalog()
-        expectation = _APPLICATION_EXPECTATIONS.get(application_id)
-        if expectation is None:
-            return (M5CheckResult("catalog", "failed", {"reason": "no M5 expectation is registered", "application_id": application_id}),)
-        expected_family = cast(str, expectation["implementation_family"])
-        expected_profile_id = cast(str, expectation["profile_id"])
-        expected_profile_version = cast(str, expectation["profile_version"])
-        expected_model_ids = cast(frozenset[str], expectation["model_ids"])
-        family = snapshot.active_model_context.implementation_family
-        active_model = next(
-            (model for model in catalog.models if model.model_id == snapshot.active_model_context.model_id),
-            None,
-        )
-        family_models = [
-            model for model in catalog.models
-            if model.implementation_family == expected_family and model.model_id in expected_model_ids
-        ]
-        family_profiles = [
-            profile for profile in catalog.profiles
-            if profile.profile_id == expected_profile_id
-            and profile.profile_version == expected_profile_version
-            and expected_family in profile.implementation_families
-        ]
-        active_profile = (expected_profile_id, expected_profile_version)
-        if (
-            family != expected_family
-            or snapshot.active_model_context.model_id not in expected_model_ids
-            or active_model is None
-            or active_model.implementation_family != expected_family
-            or not family_models
-            or not family_profiles
-            or active_profile not in snapshot.active_model_context.enabled_profiles
-        ):
-            results.append(M5CheckResult(
-                "catalog", "failed",
-                {"reason": "catalog or active model does not match the registered application expectation", "implementation_family": family},
-            ))
+        catalog_check = _validate_catalog_expectation(application_id, snapshot, catalog)
+        results.append(catalog_check)
+        if catalog_check.status != "passed":
             return tuple(results)
-        else:
-            results.append(M5CheckResult(
-                "catalog", "passed",
-                {"implementation_family": family, "model_count": len(family_models), "profile_count": len(family_profiles)},
-            ))
+        expectation = _APPLICATION_EXPECTATIONS[application_id]
+        expected_family = cast(str, expectation["implementation_family"])
         questions = _registered_questions(application_id)
         for question_id, text in questions:
             cursor = snapshot.last_event_seq

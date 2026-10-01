@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from capstone_agent.thread_protocol import EventEnvelope
-from validation.thread.m5_matrix import validate_attempt_projection, validate_ordinary_projection
+from capstone_agent.thread_protocol import EventEnvelope, ThreadSnapshot
+from validation.thread.catalog import ThreadCatalog
+from validation.thread.m5_matrix import _validate_catalog_expectation, validate_attempt_projection, validate_ordinary_projection
 
 
 def _event(event_type: str, payload: dict[str, object], seq: int) -> EventEnvelope:
@@ -75,3 +74,36 @@ def test_ordinary_projection_requires_a_route_and_no_authority_references() -> N
     )
     result = validate_ordinary_projection(events, attempt_id="attempt_001")
     assert result.status == "passed"
+
+
+def test_catalog_gate_requires_exact_active_model_and_enabled_profile() -> None:
+    snapshot = ThreadSnapshot.from_document({
+        "schema": "capstone-thread-snapshot/1", "thread_id": "thr_demo", "run": {"run_id": "run_1", "state": "open"},
+        "active_model_context": {
+            "id": "ctx_1", "model_id": "pypsa-example/scigrid_de", "model_revision": "1",
+            "implementation_family": "pypsa", "selection_revision": "sel_1",
+        },
+        "active_grid_page_id": "page_1", "current_attempt": None, "last_event_seq": 0, "base_event_seq": 0,
+    })
+    catalog = ThreadCatalog.from_document({
+        "schema": "capstone-thread-catalog/1",
+        "models": [{
+            "model_id": "regional-six-bus", "authority_model_ref": "pypsa:regional-six-bus",
+            "display_name": "Regional", "diagram_provider_id": "pypsa", "implementation_family": "pypsa",
+        }],
+        "profiles": [{
+            "profile_id": "pypsa-business-cases", "profile_version": "1.0.0", "display_name": "Business",
+            "implementation_families": ["pypsa"],
+        }],
+    })
+    assert _validate_catalog_expectation("pypsa-business-cases", snapshot, catalog).status == "failed"
+
+    valid = ThreadSnapshot.from_document({
+        **snapshot.to_document(),
+        "active_model_context": {
+            **snapshot.active_model_context.to_document(),
+            "model_id": "regional-six-bus",
+            "enabled_profiles": {"schema": "capstone-model-capability-selection/1", "enabled_profiles": [{"profile_id": "pypsa-business-cases", "profile_version": "1.0.0"}]},
+        },
+    })
+    assert _validate_catalog_expectation("pypsa-business-cases", valid, catalog).status == "passed"

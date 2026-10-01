@@ -1481,3 +1481,4 @@ _Recovered pre-merge mainline entries._
 - M5 矩阵绑定应用/Profile 期望并拒绝 fallback/失败工具伪成功 [9e960c4]
 - M5 身份门控与重建镜像证据已更新，继续保留实时双 Authority 阻塞项 [eb09744]
 - M5 活动模型/Profile、事件页 Thread/Run 身份与终止快照持久化门槛已补齐，防止错配伪通过 [7edc905]
+- TUI 已增加传输无关的实时 Thread 会话桥，轮询快照/事件并保持连续游标，仍待 HTTP/SSE 组合根 [7bece3c]
