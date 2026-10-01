@@ -1457,3 +1457,4 @@ _Recovered pre-merge mainline entries._
 - M3 Router 改用脱敏 RoutingInput 并记录 bounded confidence，避免分类器接触 Attempt/运行时对象 [7b050b3]
 - M3 Jev/分类器输入增加长度、路径与常见凭据脱敏，避免实验路由器接收不必要的敏感文本 [7a8658e]
 - M3 修复评审发现的显式路由降级、专业 limited admission、Jev 配置快照、公开回退事件与普通 Pi policy 合并 [5ac70d0]
+- M3 评审验证数更新为 Capstone 243 passed/27 skipped，最新本地 API/worker 重建并健康 [9d68fdf]
