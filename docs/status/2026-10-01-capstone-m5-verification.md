@@ -53,15 +53,21 @@ retry with a new immutable Attempt ID and preserved Turn ID, and cursor-gap
   continues to validate and annotate the answer without rewriting reader-facing
   text. The focused transport/admission regression and the full E2E suite pass.
 
-## Environment blockers
+## Release gate status
 
-- `make validate` remains blocked by the pre-existing protected-path baseline
-  mismatch for `packages/grid-simulator`; the baseline was not changed.
-- The protected-path baseline mismatch remains: `packages/grid-simulator`
-  currently hashes to `cbebe148440804c2e32e231a348dd27be44d1158`, while the
-  checked-in baseline expects `fc8aab68f7522b5a33b91ed634e5f93f068835f9`.
-- `make validate` therefore remains blocked by the protected baseline check;
-  the current source and baseline were not altered during this recheck.
+- `make validate`: passed, including protected paths, offline/scripted/application
+  validation, and the `24/24 (100%)` capability matrix.
+- `make check-release`: passed end to end, including Pyright (0 errors), all
+  package suites, 39 E2E tests, 3 registered-worker tests, clean-wheel install
+  smokes for grid and PyPSA, npm package self-tests, and source-setup checks.
+- The protected `packages/grid-simulator` digest is now recorded by the separate
+  baseline commit `61c183e`; the current expected tree is
+  `6c4baa0fcafee336956f963e5d9af510d1b90dc4`.
+- The clean-wheel closure fix `962e991` includes
+  `capstone-model-capability-spi`, which is required by the application wheel.
+- npm install reports three existing dependency audit warnings and four blocked
+  install scripts; these are warnings from the isolated smoke environment and do
+  not fail the release gate.
 - Interactive browser/TUI screenshots remain an operator-stage check; both
   clients consume the same typed Thread snapshot/event page and their focused
   projection suites passed.
@@ -69,5 +75,6 @@ retry with a new immutable Attempt ID and preserved Turn ID, and cursor-gap
 ## Recovery baton
 
 The provider-free zero-step offline answer contract is resolved. Rerun the
-provider-free matrix after any Authority or Thread protocol change. Do not
-update the protected-path baseline without its owning source revision.
+provider-free matrix after any Authority or Thread protocol change. Protected
+source digests are current; future digest changes still require their owning
+source revision and a separate baseline-only commit.

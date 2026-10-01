@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 12:15 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, independent review, and E2E are complete; current-source rebuild is healthy, while only the protected baseline gate remains open.**
+> Updated: 2026-10-02 15:05 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, independent review, E2E, validation, and full release gates are complete.**
 
 ## Current position
 
@@ -24,15 +24,14 @@
 - Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright passed; `make doctor` passed; the current-source rebuild produced a healthy API image and API/worker pair. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. Validation-only `ProviderFreeThreadHost` now drives both families through the real HTTP projection, Thread worker, Harness admission, Domain Pack executors, and Authority references.
-- Independent M1–M5 review is recorded at `docs/reviews/2026-10-02-capstone-m1-m5-independent-code-review.md`; its two Important and two Minor findings were fixed in `497338d` and the remediation is documented. `make doctor`, `make check-types-validation`, `git diff --check`, and the focused validation regression pass. The current-source `make capstone-local-rebuild` passes with API/worker digest `sha256:774057c2dcae2c054e9f8e8f6080f42076d97a0904d08c7aab4d42c49ff03876`; API, worker, PostgreSQL, object storage, and the App are healthy. `make test-e2e` passes 39 tests after making the provider-free zero-step model answer explicit. `make validate` remains blocked by the protected `packages/grid-simulator` baseline mismatch.
+- Independent M1–M5 review is recorded at `docs/reviews/2026-10-02-capstone-m1-m5-independent-code-review.md`; its two Important and two Minor findings were fixed in `497338d` and the remediation is documented. `make doctor`, `make check-types-validation`, `git diff --check`, and the focused validation regression pass. The current-source `make capstone-local-rebuild` passes with API/worker digest `sha256:774057c2dcae2c054e9f8e8f6080f42076d97a0904d08c7aab4d42c49ff03876`; API, worker, PostgreSQL, object storage, and the App are healthy. `make test-e2e` passes 39 tests after making the provider-free zero-step model answer explicit. `make validate` and `make check-release` now pass; clean-wheel package closure includes `capstone-model-capability-spi` via `962e991`, and the protected simulator baseline is current via `61c183e`.
 - `validation/run_m5_provider_free.py` and `make validate-thread-m5-provider-free` pass the pandapower and PyPSA rows in their isolated project environments. `validation/test_m5_lifecycle.py` passes selection activation, retry lineage, and cursor-gap resync checks. The current Python Textual TUI is frozen as a protocol/reference client; it remains outside the provider-free matrix's visual target.
 
-## Next action: resolve the protected baseline gate
+## Next action: keep the release boundary stable
 
 1. Run `make validate-thread-m5-provider-free` after any Thread/Authority change; reports remain under ignored `runs/capstone-m5/provider-free/`.
-2. Resolve the pre-existing `packages/grid-simulator` protected-path baseline mismatch through its owning source revision; do not edit the baseline as part of M5.
-3. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
-4. Require an independent code review before declaring every future M stage complete.
+2. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
+3. Require an independent code review before declaring every future M stage complete.
 
 ## Recovery constraints
 
