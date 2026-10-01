@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import cast
+
+from capstone_agent.model_capability import CapstoneModelCapabilityCatalog
+from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 import pypsa_agent.hosted as hosted
 import pypsa_agent.hosted_worker as hosted_worker
 
@@ -7,11 +11,13 @@ import pypsa_agent.hosted_worker as hosted_worker
 def test_registered_pypsa_thread_application_uses_the_capstone_host() -> None:
     assembly = hosted.build_registered_pypsa_thread_application()
 
-    assert assembly.catalog.default_model_id == "regional-six-bus"
-    assert "regional-six-bus" in assembly.catalog.list_model_ids()
+    catalog = cast(AuthorityThreadModelCatalog, assembly.catalog)
+    assert catalog.default_model_id == "regional-six-bus"
+    assert "regional-six-bus" in catalog.list_model_ids()
+    capability_catalog = cast(CapstoneModelCapabilityCatalog, assembly.capability_catalog)
     assert any(
         profile.descriptor.profile_id == "pypsa-business-cases"
-        for profile in assembly.capability_catalog.profiles_for_family("pypsa")
+        for profile in capability_catalog.profiles_for_family("pypsa")
     )
 
 

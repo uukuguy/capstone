@@ -250,6 +250,16 @@ describe('CapstoneAssistantThread', () => {
     expect(summary.closest('details')?.classList.contains('is-interrupted')).toBe(true)
   })
 
+  it('keeps a terminal-only interrupted replay visibly dangerous', () => {
+    render(<CapstoneAssistantThread events={[
+      event('tool_completed', 1, { tool_name: 'grid_context_open', binding_id: 'grid', capability: 'context.open' }, 'attempt_terminal_only'),
+      event('attempt_interrupted', 2, {}, 'attempt_terminal_only'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    const summary = screen.getByText(/已中断 · 1 个步骤/)
+    expect(summary.closest('details')?.classList.contains('is-interrupted')).toBe(true)
+  })
+
   it('projects tool ok=false as a failure and retains completed provenance', () => {
     const activities = projectAssistantActivity([
       event('tool_started', 1, { tool_call_id: 'call_fail', tool_name: 'grid_context_open', binding_id: 'grid', capability: 'context.open' }, 'attempt_1'),
