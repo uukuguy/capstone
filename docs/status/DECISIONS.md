@@ -1,5 +1,12 @@
 # Architectural Decisions
 
+## 2026-10-01 — CLI/TUI is a transport client, not a Python application boundary
+
+- **Decision:** the public `capstone` CLI/TUI is a client of the Capstone HTTP/JSON/SSE Thread contract. It must not be structurally tied to Python, Pi, DSH, Domain Packs, Authorities, or Provider credentials.
+- **Implementation staging:** the current Textual implementation and `capstone-agent tui` command are the reference client while the contract stabilizes. A future Rust, Go, TypeScript, or single-file client may replace or complement it without changing the server application.
+- **Boundary:** `capstone-agent` remains the server-side application host and may provide a transitional client entry point, but client code must use typed snapshots, event pages, and command envelopes only.
+- **Rationale:** once the CLI requires a running API service, embedding the application runtime in the CLI adds coupling without capability. Independent clients can serve local, cloud, and future language-specific terminal workflows against one recovery and authentication contract.
+
 ## 2026-09-29 — Freeze grid-agent application growth under the unified Capstone application
 
 - **Decision:** `capstone-agent` is the canonical application host for all new CLI/TUI, Thread, Run, current-model, Case-batch, API, Web, and Pi/DSH runtime-switching capabilities. `grid-agent` application-level behavior is frozen.
@@ -68,7 +75,7 @@
 - **Web runtime:** production Web uses assistant-ui with a Capstone-owned `CapstoneThreadClient` over the public read/command protocol. `@assistant-ui/react-pi` is retained only for Pi comparison experiments; browsers never connect directly to Pi/DSH clients or native runtime channels.
 - **Web transport staging:** v1 uses HTTP JSON plus SSE and cursor recovery. WebSocket is reserved for an advanced version with true bidirectional/high-frequency flows such as human-in-the-loop steering, voice/multimodal input, collaboration, or interactive simulation; it never replaces the event ledger or recovery protocol.
 - **Capstone CLI:** one public `capstone` executable defaults to `tui`; explicit `tui`, `chat`, and headless `run` modes share the Thread/Harness protocol. `capstone-tui` is a mode name, and frozen `grid-agent` compatibility commands remain separate.
-- **TUI and external clients:** v1 TUI uses Textual Python inside `capstone-agent`; other language frameworks remain future options behind `capstone serve`. A single-file external client may use HTTP JSON + SSE and the public recovery/auth contracts, but never embeds runtime/domain/authority internals or Provider credentials.
+- **TUI and external clients:** the v1 reference TUI uses Textual Python inside `capstone-agent` during contract stabilization; this is an implementation staging choice, not a public client binding. Other language frameworks and a single-file client may use HTTP JSON + SSE and the public recovery/auth contracts, but never embed runtime/domain/authority internals or Provider credentials.
 - **Headless output:** `capstone run` emits one final JSON object by default, with progress and diagnostics on stderr; `--events` explicitly emits canonical JSONL events. Frozen `grid-agent` compatibility commands keep their separate exact stdout envelope.
 - **TUI projection:** Textual uses one `ThreadProjectionStore` for snapshots, events, cursor/reconnect state, and command receipts. Widgets only render and dispatch commands; local state is limited to presentation details such as focus and scroll position.
 - **TUI workspace/pages:** the primary layout is two columns, grid workspace left and Thread conversation right, with hideable drawers for navigation, capabilities, evidence, and diagnostics. A new Thread creates its default IEEE-39 page immediately with explicit loading/ready/unavailable projection status. There is exactly one page per distinct Grid Model identity in a Thread; `active_grid_page_id` selects and highlights the current model wherever it appears. New models append and become active; reopening an existing model reuses its page, while an explicit revision/Context change updates that page without duplication or reordering. Concurrent v1 model execution remains disabled.

@@ -198,7 +198,11 @@ class ThreadTuiApp(App[None]):
         try:
             snapshot = self.session.snapshot()
             page = self.session.events(after=self._event_cursor)
-            if page.thread_id != snapshot.thread_id or page.after_event_seq != self._event_cursor:
+            if (
+                page.thread_id != snapshot.thread_id
+                or page.after_event_seq != self._event_cursor
+                or page.next_event_seq > snapshot.last_event_seq
+            ):
                 raise RuntimeError("Thread projection cursor requires resync")
             self._apply_projection(snapshot, page)
         except Exception as error:  # transport errors are rendered at the UI boundary
@@ -322,7 +326,11 @@ def run_tui_session(
 
     snapshot = session.snapshot()
     events = session.events(after=snapshot.last_event_seq)
-    if events.thread_id != snapshot.thread_id or events.after_event_seq != snapshot.last_event_seq:
+    if (
+        events.thread_id != snapshot.thread_id
+        or events.after_event_seq != snapshot.last_event_seq
+        or events.next_event_seq > snapshot.last_event_seq
+    ):
         raise ValueError("initial Thread projection is not contiguous")
     ThreadTuiApp(
         snapshot, events, ThreadTuiSessionAdapter(session).submit,
