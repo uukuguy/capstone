@@ -24,6 +24,7 @@
 - Focused M5 checks: HTTP/projection checks 12 passed, TUI checks 5 passed, catalog matrix checks 6 passed; changed-source pyright and ruff passed; PyPSA Thread capability tests 5 passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with API image `sha256:d690d706ededddf1533c799dd5a95d8bac0f67a53db14142052a822a685d7589` and API `/health/ready` healthy.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - The current Compose hosted Thread is still assembled by the pandapower compatibility adapter and uses the Provider-backed runtime. PyPSA has a Thread assembly helper but no equivalent hosted API/worker entry. These are real M5 blockers, not acceptable skipped passes.
+- The current Python Textual TUI is frozen as a protocol/reference client. It is intentionally not the production visual/interaction target; after the M5 protocol gates, create a separate first-class `capstone` client interaction contract and framework evaluation before further UI work.
 
 ## Next action: M5 unified validation
 

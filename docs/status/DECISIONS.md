@@ -7,6 +7,13 @@
 - **Boundary:** `capstone-agent` remains the server-side application host and may provide a transitional client entry point, but client code must use typed snapshots, event pages, and command envelopes only.
 - **Rationale:** once the CLI requires a running API service, embedding the application runtime in the CLI adds coupling without capability. Independent clients can serve local, cloud, and future language-specific terminal workflows against one recovery and authentication contract.
 
+## 2026-10-01 — Current Python TUI is a protocol reference, not the final client
+
+- **Decision:** the current Textual TUI is frozen as a functional protocol/reference client only. Its present layout and visual treatment are not the target Capstone client and must not be expanded by incremental styling.
+- **Target:** the production `capstone` client must provide a first-class terminal interaction experience: dense but readable conversation, streaming progress, keyboard-first navigation, command palette and contextual controls, model-page coordination, bounded diagnostics, and high-quality grid visualization with graceful terminal fallback.
+- **Implementation consequence:** finish protocol correctness and recovery tests in the reference TUI, then design and evaluate the independent client framework before production UI implementation. Candidate frameworks may be non-Python; the client remains bound only to the public Thread HTTP/JSON/SSE contract.
+- **Rationale:** a low-level Textual shell is useful for proving event and command semantics, but polishing its current structure would lock in the wrong information hierarchy and waste effort before the interaction model and rendering strategy are settled.
+
 ## 2026-09-29 — Freeze grid-agent application growth under the unified Capstone application
 
 - **Decision:** `capstone-agent` is the canonical application host for all new CLI/TUI, Thread, Run, current-model, Case-batch, API, Web, and Pi/DSH runtime-switching capabilities. `grid-agent` application-level behavior is frozen.

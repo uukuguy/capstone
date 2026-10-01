@@ -1485,3 +1485,4 @@ _Recovered pre-merge mainline entries._
 - M5 catalog 门槛改为精确校验活动模型、实现族与已启用 Profile，并加入回归测试防止目录旁路 [9a505f9]
 - `capstone-agent tui` 已接入正式 HTTP Thread 客户端，验证层改为扩展适配器，并同步锁文件与重建证据 [2d80311]
 - TUI 轮询新增事件页/快照收敛门控，并记录 CLI/TUI 与 Python 解耦的架构决策 [e74a1e2]
+- M5 恢复接力更新 TUI 收敛门控后的最新本地镜像摘要与健康证据 [b3edcef]
