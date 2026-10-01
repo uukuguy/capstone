@@ -16,6 +16,7 @@
 | `2026-09-22-capstone-review.md` | 企业业务能力包视角的历史评审基线；后续修复和验收见优化计划。 |
 | `2026-09-22-capstone-opensource-research.md` | 企业业务 API/framework 的历史选型研究；HTTP 测试实验已完成，其他候选仍待独立决策。 |
 | `capstone-scope-cleanup-backlog.md` | 超纲实现清理候选、实际位置与风险；静态产物缺口已由7e9b10c补齐，当前不执行删除。 |
+| `2026-10-01-capstone-m5-verification.md` | M5 provider-free 双 Authority 验证、当前源码重建结果及剩余 E2E/baseline 门禁。 |
 
 ## External execution anchors
 

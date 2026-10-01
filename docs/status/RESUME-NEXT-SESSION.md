@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 22:30 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, and independent M1–M5 review are complete; Docker/protected-path environment gates remain open.**
+> Updated: 2026-10-02 05:07 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, and independent M1–M5 review are complete; current-source rebuild is healthy, while E2E and protected baseline gates remain open.**
 
 ## Current position
 
@@ -24,13 +24,13 @@
 - Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; an earlier rebuild produced a healthy API image, but the latest rebuild attempt is blocked by the unavailable Docker daemon. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. Validation-only `ProviderFreeThreadHost` now drives both families through the real HTTP projection, Thread worker, Harness admission, Domain Pack executors, and Authority references.
-- Independent M1–M5 review is recorded at `docs/reviews/2026-10-02-capstone-m1-m5-independent-code-review.md`; its two Important and two Minor findings were fixed in `497338d` and the remediation is documented. Full `make test` previously passed across the listed Python, Node, App, PyPSA, boundary, and verification targets. `make doctor`, `make check-types-validation`, and `git diff --check` pass. `make validate-thread-m5` remains report-only without credentials; `make validate` is still blocked by the pre-existing protected `packages/grid-simulator` baseline mismatch, and `make capstone-local-rebuild` is blocked by the unavailable Docker daemon.
+- Independent M1–M5 review is recorded at `docs/reviews/2026-10-02-capstone-m1-m5-independent-code-review.md`; its two Important and two Minor findings were fixed in `497338d` and the remediation is documented. `make doctor`, `make check-types-validation`, and `git diff --check` pass. The current-source `make capstone-local-rebuild` passes with API/worker digest `sha256:774057c2dcae2c054e9f8e8f6080f42076d97a0904d08c7aab4d42c49ff03876`; API, worker, PostgreSQL, object storage, and the App are healthy. `make test-e2e` reports 38 passed and one zero-step offline-answer contract failure. `make validate` remains blocked by the protected `packages/grid-simulator` baseline mismatch.
 - `validation/run_m5_provider_free.py` and `make validate-thread-m5-provider-free` pass the pandapower and PyPSA rows in their isolated project environments. `validation/test_m5_lifecycle.py` passes selection activation, retry lineage, and cursor-gap resync checks. The current Python Textual TUI is frozen as a protocol/reference client; it remains outside the provider-free matrix's visual target.
 
-## Next action: environment-gated release verification
+## Next action: resolve the E2E validation contract failure
 
 1. Run `make validate-thread-m5-provider-free` after any Thread/Authority change; reports remain under ignored `runs/capstone-m5/provider-free/`.
-2. Repeat `make capstone-local-rebuild` when the Docker/OrbStack socket is available; do not claim a deployment pass from an old image.
+2. Resolve `test_real_boundary_renders_natural_language_offline_knowledge` in the provider-free validation contract, then rerun `make test-e2e`.
 3. Resolve the pre-existing `packages/grid-simulator` protected-path baseline mismatch through its owning source revision; do not edit the baseline as part of M5.
 4. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
 5. Require an independent code review before declaring every future M stage complete.

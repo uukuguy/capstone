@@ -43,21 +43,33 @@ retry with a new immutable Attempt ID and preserved Turn ID, and cursor-gap
   environments (the opposite Authority row is skipped in each isolated env).
 - `make doctor`: passed.
 - `git diff --check`: passed.
+- `make capstone-local-rebuild`: passed from the current source; API and worker
+  are healthy and use image digest
+  `sha256:774057c2dcae2c054e9f8e8f6080f42076d97a0904d08c7aab4d42c49ff03876`.
+- The local App is reachable on port 5173 and the API readiness endpoint is
+  healthy. PostgreSQL accepts connections inside the Compose container.
+- `make test-e2e`: 38 passed, 1 failed. The failure is
+  `test_real_boundary_renders_natural_language_offline_knowledge`: the
+  provider-free scripted transport returns its generic zero-step answer instead
+  of the test's expected natural-language offline text. This is a validation
+  harness/test-contract issue, not a Docker or database failure.
 
 ## Environment blockers
 
 - `make validate` remains blocked by the pre-existing protected-path baseline
   mismatch for `packages/grid-simulator`; the baseline was not changed.
-- `make capstone-local-rebuild` could not complete because the local Docker/
-  OrbStack socket became unavailable after one BuildKit EOF; no deployment pass
-  is claimed.
+- The protected-path baseline mismatch remains: `packages/grid-simulator`
+  currently hashes to `cbebe148440804c2e32e231a348dd27be44d1158`, while the
+  checked-in baseline expects `fc8aab68f7522b5a33b91ed634e5f93f068835f9`.
+- `make validate` therefore remains blocked by the protected baseline check;
+  the current source and baseline were not altered during this recheck.
 - Interactive browser/TUI screenshots remain an operator-stage check; both
   clients consume the same typed Thread snapshot/event page and their focused
   projection suites passed.
 
 ## Recovery baton
 
-The next M5 follow-up is to rerun the provider-free command after any Authority
-or Thread protocol change, then repeat the Docker rebuild when the local runtime
-is available. Do not update the protected-path baseline without its owning
-source revision.
+The next M5 follow-up is to resolve the provider-free zero-step offline answer
+contract, rerun E2E, and then rerun the provider-free matrix after any Authority
+or Thread protocol change. Do not update the protected-path baseline without its
+owning source revision.
