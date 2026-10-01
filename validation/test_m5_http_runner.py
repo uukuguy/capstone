@@ -3,7 +3,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from validation.thread.http_runner import HttpThreadSession, ThreadResyncRequired
+from capstone_agent.thread_protocol import EventPage, ThreadSnapshot
+from validation.thread.http_runner import HttpThreadSession, ThreadResyncRequired, wait_for_terminal
 
 
 def _snapshot() -> dict[str, object]:
@@ -84,3 +85,25 @@ def test_http_session_rejects_receipt_identity_mismatch() -> None:
         session = HttpThreadSession("http://localhost", "secret", client=client, thread_id="thr_demo_39", run_id="run_001")
         with pytest.raises(RuntimeError, match="receipt identity"):
             session.command("send_ordinary", {"text": "hello"}, command_id="cmd_001", idempotency_key="idem_001")
+
+
+def test_wait_for_terminal_requires_matching_terminal_event() -> None:
+    document = _snapshot()
+    document["current_attempt"] = {
+        "turn_id": "turn_001", "attempt_id": "attempt_001", "phase": "running",
+        "target_model_context_id": "ctx_ieee39_7",
+    }
+    snapshot = ThreadSnapshot.from_document(document)
+
+    class _NoTerminalSession:
+        def snapshot(self) -> ThreadSnapshot:
+            return snapshot
+
+        def events(self, *, after: int = 0) -> EventPage:
+            return EventPage.from_document({
+                "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
+                "after_event_seq": after, "next_event_seq": after, "has_more": False, "events": [],
+            }, expected_after_seq=after)
+
+    with pytest.raises(TimeoutError, match="did not reach"):
+        wait_for_terminal(_NoTerminalSession(), timeout_seconds=0.01)  # type: ignore[arg-type]

@@ -38,7 +38,14 @@ def main() -> int:
     report_path = report_dir / f"m5-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
     report_path.write_text(json.dumps(summary.to_document(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"M5 validation report: {report_path}", file=sys.stderr)
-    return 1 if any(check.status == "failed" for check in checks) else 0
+    if any(check.status == "failed" for check in checks):
+        return 1
+    if any(check.status == "skipped" for check in checks):
+        # A missing live credential is an environment/setup failure.  An
+        # explicit opt-in is available for local report generation, but the
+        # Make target must never turn an unexecuted matrix into a green gate.
+        return 0 if os.environ.get("CAPSTONE_M5_ALLOW_SKIP") == "1" else 2
+    return 0
 
 
 if __name__ == "__main__":

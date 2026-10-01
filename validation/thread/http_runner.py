@@ -40,15 +40,15 @@ def _origin(value: str) -> str:
     return value.rstrip("/")
 
 
-def _decode(response: httpx.Response) -> Any:
-    if len(response.content) > MAX_JSON_BYTES:
-        raise ThreadHttpError(response.status_code, "Thread response exceeds the bounded JSON limit")
+def _decode(status_code: int, is_success: bool, content: bytes) -> Any:
+    if len(content) > MAX_JSON_BYTES:
+        raise ThreadHttpError(status_code, "Thread response exceeds the bounded JSON limit")
     try:
-        body = response.json()
+        body = json.loads(content)
     except (json.JSONDecodeError, ValueError) as error:
-        raise ThreadHttpError(response.status_code, "Thread response is not JSON") from error
-    if not response.is_success:
-        raise ThreadHttpError(response.status_code, f"Thread request failed ({response.status_code})", body)
+        raise ThreadHttpError(status_code, "Thread response is not JSON") from error
+    if not is_success:
+        raise ThreadHttpError(status_code, f"Thread request failed ({status_code})", body)
     return body
 
 
@@ -86,8 +86,22 @@ class HttpThreadSession:
         extra_headers = kwargs.pop("headers", None)
         if extra_headers:
             headers.update(extra_headers)
-        response = self.client.request(method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs)
-        return _decode(response)
+        if json_body is not None:
+            try:
+                request_size = len(json.dumps(json_body, ensure_ascii=False, allow_nan=False).encode())
+            except (TypeError, ValueError) as error:
+                raise ThreadHttpError(400, "Thread request JSON is invalid") from error
+            if request_size > MAX_JSON_BYTES:
+                raise ThreadHttpError(413, "Thread request exceeds the bounded JSON limit")
+        with self.client.stream(
+            method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs,
+        ) as response:
+            content = bytearray()
+            for chunk in response.iter_bytes():
+                content.extend(chunk)
+                if len(content) > MAX_JSON_BYTES:
+                    raise ThreadHttpError(response.status_code, "Thread response exceeds the bounded JSON limit")
+            return _decode(response.status_code, response.is_success, bytes(content))
 
     def create(self, model_id: str | None = None) -> ThreadSnapshot:
         body = {} if model_id is None else {"model_id": model_id}
@@ -150,15 +164,27 @@ class HttpThreadSession:
         return receipt
 
 
-def wait_for_terminal(session: HttpThreadSession, *, timeout_seconds: float = 30.0) -> ThreadSnapshot:
+def wait_for_terminal(
+    session: HttpThreadSession, *, attempt_id: str | None = None,
+    timeout_seconds: float = 30.0,
+) -> ThreadSnapshot:
     deadline = time.monotonic() + timeout_seconds
-    cursor = session.snapshot().last_event_seq
+    initial = session.snapshot()
+    target_attempt_id = attempt_id
+    if target_attempt_id is None and initial.current_attempt is not None:
+        target_attempt_id = initial.current_attempt.attempt_id
+    if target_attempt_id is None:
+        raise RuntimeError("no active Attempt to wait for")
+    cursor = initial.last_event_seq
     while time.monotonic() < deadline:
-        snapshot = session.snapshot()
-        if snapshot.current_attempt is None:
-            return snapshot
         page = session.events(after=cursor)
         cursor = page.next_event_seq
+        if any(
+            event.attempt_id == target_attempt_id
+            and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}
+            for event in page.events
+        ):
+            return session.snapshot()
         time.sleep(0.05)
     raise TimeoutError("Thread attempt did not reach a terminal snapshot before timeout")
 

@@ -22,7 +22,11 @@ def _details(value: object, depth: int = 0) -> object:
     if isinstance(value, float) and math.isfinite(value):
         return value
     if isinstance(value, str) and len(value) <= 2048:
-        return re.sub(r"(?i)bearer\s+\S+", "Bearer [redacted]", value)
+        return re.sub(
+            r"(?i)(?:bearer\s+\S+|(?:operator[-_ ]?token|provider[-_ ]?key|api[-_]?key|secret|password|credential)\s*[:=]\s*\S+)",
+            "[redacted]",
+            value,
+        )
     if isinstance(value, (tuple, list)) and len(value) <= 128:
         return [_details(item, depth + 1) for item in value]
     if isinstance(value, dict) and len(value) <= 64:
@@ -30,7 +34,7 @@ def _details(value: object, depth: int = 0) -> object:
         for key, item in value.items():
             if not isinstance(key, str) or not key or len(key) > 128:
                 raise M5ValidationError("details key is invalid")
-            output[key] = "[redacted]" if re.search(r"(?i)token|secret|password|authorization|api.?key", key) else _details(item, depth + 1)
+            output[key] = "[redacted]" if re.search(r"(?i)token|secret|password|authorization|api.?key|credential|operator|provider|auth", key) else _details(item, depth + 1)
         return output
     raise M5ValidationError("details value is invalid or exceeds limit")
 

@@ -110,9 +110,14 @@ def build_pypsa_thread_application(
         catalog.set_family_default("pypsa", default_selection)
     registry.seal()
     owner.seal()
+    model_catalog = build_pypsa_thread_model_catalog(
+        model_resolver=model_resolver,
+        default_model_id=default_model_id,
+    )
     return ThreadApplicationAssembly.from_prepared_authority(
         default_model_id=default_model_id,
         model_resolver=model_resolver,
+        model_catalog=model_catalog,
         capability_catalog=catalog,
         capability_context_owner=owner,
         session_factory=PreparedKernelPiSessionFactory(session_builder),

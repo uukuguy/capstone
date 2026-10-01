@@ -30,11 +30,11 @@
 **Interfaces:**
 - `M5CheckResult(name: str, status: Literal["passed", "skipped", "failed"], details: dict[str, object])` serializes to bounded JSON.
 - `M5RunSummary(application_id: str, api_origin: str, checks: tuple[M5CheckResult, ...])` serializes to `capstone-m5-validation/1` and rejects secrets or unbounded text.
-- `make validate-thread-m5` runs the provider-free runner and writes the ignored JSON report path announced on stderr; it skips live checks when `CAPSTONE_M5_API_ORIGIN` or `CAPSTONE_M5_OPERATOR_TOKEN` is absent instead of inventing a pass.
+- `make validate-thread-m5` runs the provider-free runner and writes the ignored JSON report path announced on stderr; it records a typed `skipped` check when `CAPSTONE_M5_API_ORIGIN` or `CAPSTONE_M5_OPERATOR_TOKEN` is absent and exits nonzero unless `CAPSTONE_M5_ALLOW_SKIP=1` is explicitly set for report-only work.
 
 - [x] Write failing parser/serialization tests for result status, schema, bounded detail values, and secret redaction.
 - [x] Implement the small typed envelope and redaction/bounds.
-- [x] Add `make validate-thread-m5`; absent credentials produce a typed `skipped` report and never a pass.
+- [x] Add `make validate-thread-m5`; absent credentials produce a typed `skipped` report and a nonzero setup failure by default.
 - [x] Run focused tests, pyright, and `git diff --check`.
 
 ### Task 2: Build real HTTP Thread acceptance helpers

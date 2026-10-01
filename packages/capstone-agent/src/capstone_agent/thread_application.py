@@ -230,6 +230,7 @@ class ThreadApplicationAssembly:
         *,
         default_model_id: str,
         model_resolver: Callable[[str], Mapping[str, Any]],
+        model_catalog: ThreadModelCatalog | None = None,
         capability_catalog: CapstoneModelCapabilityCatalog,
         capability_context_owner: ModelCapabilityContextOwner,
         session_factory: Callable[
@@ -244,9 +245,16 @@ class ThreadApplicationAssembly:
 
         if capability_context_owner.catalog is not capability_catalog:
             raise ValueError("capability catalog and context owner must be paired")
-        catalog = AuthorityThreadModelCatalog(
-            default_model_id=default_model_id, resolver=model_resolver,
-        )
+        if model_catalog is None:
+            catalog = AuthorityThreadModelCatalog(
+                default_model_id=default_model_id, resolver=model_resolver,
+            )
+        else:
+            if model_catalog.default_model_id != default_model_id:
+                raise ValueError("model catalog default does not match application default")
+            if not callable(getattr(model_catalog, "resolve", None)):
+                raise TypeError("model catalog must implement resolve")
+            catalog = model_catalog
         runtime_factory = PreparedApplicationPiRuntimeFactory(
             capability_context_owner, session_factory, runtime_mode=runtime_mode,
             runtime_capabilities=runtime_capabilities,

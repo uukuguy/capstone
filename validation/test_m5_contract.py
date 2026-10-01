@@ -21,6 +21,22 @@ def test_m5_summary_serializes_bounded_schema_and_redacts_secret_keys() -> None:
     assert json.dumps(document, ensure_ascii=False).find("do-not-store") == -1
 
 
+def test_m5_details_redact_provider_and_operator_values() -> None:
+    result = M5CheckResult(
+        "runtime",
+        "failed",
+        {
+            "operator_token": "operator-secret",
+            "provider_key": "provider-secret",
+            "message": "provider-key=provider-secret",
+        },
+    )
+    document = result.to_document()
+    encoded = json.dumps(document, ensure_ascii=False)
+    assert "operator-secret" not in encoded
+    assert "provider-secret" not in encoded
+
+
 def test_m5_contract_rejects_unbounded_or_invalid_values() -> None:
     with pytest.raises(M5ValidationError, match="status"):
         M5CheckResult("catalog", "unknown", {})  # type: ignore[arg-type]

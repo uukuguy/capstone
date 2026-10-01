@@ -11,7 +11,8 @@ from typing import Any, Protocol
 
 from capstone_agent.thread_protocol import EventEnvelope, EventPage, ThreadSnapshot
 
-from .http_runner import HttpThreadSession, ThreadResyncRequired
+from .catalog import ThreadCatalog
+from .http_runner import ThreadResyncRequired
 from .m5_contract import M5CheckResult
 
 
@@ -22,6 +23,7 @@ PYPSA_CASES = ROOT / "validation" / "pypsa-cases" / "cases.json"
 
 class MatrixSession(Protocol):
     def create(self, model_id: str | None = None) -> ThreadSnapshot: ...
+    def catalog(self) -> ThreadCatalog: ...
     def snapshot(self) -> ThreadSnapshot: ...
     def command(
         self, kind: str, payload: dict[str, Any], *,
@@ -39,6 +41,8 @@ def _event_payload(event: EventEnvelope) -> Mapping[str, Any]:
 def validate_attempt_projection(
     events: tuple[EventEnvelope, ...], *, attempt_id: str, route: str,
     implementation_family: str, authority_backed: bool,
+    expected_thread_id: str | None = None, expected_run_id: str | None = None,
+    expected_model_context_id: str | None = None,
 ) -> M5CheckResult:
     """Check one terminal Attempt without trusting model-authored text."""
 
@@ -51,6 +55,13 @@ def validate_attempt_projection(
     if terminal is None:
         return M5CheckResult("attempt.terminal", "failed", {"reason": "missing attempt_completed", "attempt_id": attempt_id})
     payload = _event_payload(terminal)
+    for event in scoped:
+        if expected_thread_id is not None and event.thread_id != expected_thread_id:
+            return M5CheckResult("attempt.identity", "failed", {"reason": "event thread identity mismatch", "attempt_id": attempt_id})
+        if expected_run_id is not None and event.run_id != expected_run_id:
+            return M5CheckResult("attempt.identity", "failed", {"reason": "event run identity mismatch", "attempt_id": attempt_id})
+        if expected_model_context_id is not None and event.model_context_id != expected_model_context_id:
+            return M5CheckResult("attempt.identity", "failed", {"reason": "event model context mismatch", "attempt_id": attempt_id})
     answer = payload.get("answer")
     refs = payload.get("result_refs")
     evidence = payload.get("evidence_refs")
@@ -67,12 +78,23 @@ def validate_attempt_projection(
         })
     if not authority_backed and (refs or evidence):
         return M5CheckResult("attempt.offline_refs", "failed", {"reason": "ordinary answer emitted simulator refs", "attempt_id": attempt_id})
+    observed_results = {
+        ref for tool in tools for ref in _event_payload(tool).get("result_refs", [])
+        if isinstance(ref, str) and ref
+    }
+    observed_evidence = {
+        ref for tool in tools for ref in _event_payload(tool).get("evidence_refs", [])
+        if isinstance(ref, str) and ref
+    }
+    if authority_backed and (
+        not set(refs).issubset(observed_results)
+        or not set(evidence).issubset(observed_evidence)
+    ):
+        return M5CheckResult("attempt.references", "failed", {"reason": "terminal references were not observed in current Attempt tools", "attempt_id": attempt_id})
     for tool in tools:
-        key = _event_payload(tool).get("capability_key")
-        if not isinstance(key, dict) or key.get("binding_id") in {None, ""} or key.get("capability_id") in {None, ""}:
+        tool_payload = _event_payload(tool)
+        if not isinstance(tool_payload.get("binding_id"), str) or not tool_payload["binding_id"] or not isinstance(tool_payload.get("capability_id"), str) or not tool_payload["capability_id"]:
             return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool source is not explicit", "attempt_id": attempt_id})
-        if key.get("implementation_family", implementation_family) != implementation_family:
-            return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool family mismatch", "attempt_id": attempt_id})
     started = next((event for event in scoped if event.event_type == "attempt_started"), None)
     if started is None:
         return M5CheckResult("attempt.duration", "failed", {"reason": "missing attempt_started", "attempt_id": attempt_id})
@@ -124,6 +146,20 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
     results: list[M5CheckResult] = []
     try:
         snapshot = session.create()
+        catalog = session.catalog()
+        family = snapshot.active_model_context.implementation_family
+        family_models = [model for model in catalog.models if model.implementation_family == family]
+        family_profiles = [profile for profile in catalog.profiles if family in profile.implementation_families]
+        if not family_models or not family_profiles:
+            results.append(M5CheckResult(
+                "catalog", "failed",
+                {"reason": "catalog does not expose the active implementation family", "implementation_family": family},
+            ))
+        else:
+            results.append(M5CheckResult(
+                "catalog", "passed",
+                {"implementation_family": family, "model_count": len(family_models), "profile_count": len(family_profiles)},
+            ))
         questions = _registered_questions(application_id)
         for question_id, text in questions:
             cursor = snapshot.last_event_seq
@@ -138,6 +174,9 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
                 events, attempt_id=attempt_id, route="professional",
                 implementation_family=snapshot.active_model_context.implementation_family,
                 authority_backed=True,
+                expected_thread_id=snapshot.thread_id,
+                expected_run_id=snapshot.run.run_id,
+                expected_model_context_id=snapshot.active_model_context.id,
             ))
         snapshot = session.snapshot()
         cursor = snapshot.last_event_seq

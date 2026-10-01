@@ -108,6 +108,7 @@ def test_pypsa_thread_application_is_an_explicit_opt_in_composition_root(tmp_pat
     )
     assert isinstance(assembly, ThreadApplicationAssembly)
     assert assembly.catalog.default_model_id == "scigrid"
+    assert "pypsa-example/scigrid_de" in assembly.catalog.list_model_ids()
     assert assembly.capability_context_owner is not None
     assembly.capability_context_owner.close()
 
