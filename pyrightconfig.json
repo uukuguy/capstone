@@ -2,6 +2,7 @@
   "include": [
     "packages/capability-agent-kernel/src",
     "packages/capstone-agent/src",
+    "packages/capstone-model-capability-spi/src",
     "packages/pypsa-agent/src",
     "packages/pandapower-domain-pack/src",
     "packages/inventory-domain-pack/src",
@@ -17,6 +18,7 @@
   "extraPaths": [
     "packages/capability-agent-kernel/src",
     "packages/capstone-agent/src",
+    "packages/capstone-model-capability-spi/src",
     "packages/pypsa-agent/src",
     "packages/pandapower-domain-pack/src",
     "packages/inventory-domain-pack/src",
