@@ -1453,3 +1453,4 @@ _Recovered pre-merge mainline entries._
 - M2 代码评审完成：无 Critical/High/Medium 阻断，确认下一里程碑接入 Pi/DSH capability materialization [e31e262]
 - M2 评审报告已落盘，批准进入 M3；generic Pi/DSH capability materialization 保留为下一里程碑 [ddb1f91]
 - M3 TurnRouter、TurnPlan 与 Jev 可选安全降级已接入 Harness，普通对话默认可用并保留专业 admission 门控 [a24f5bd]
+- M3 将 ordinary_conversation_enabled 作为 ApplicationAssembly 策略注入 hosted worker，避免配置只存在于默认实现 [12c6c0f]
