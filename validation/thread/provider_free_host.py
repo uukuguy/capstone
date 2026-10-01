@@ -11,13 +11,14 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from fastapi.testclient import TestClient
 
 from capability_agent.application.context_store import ApplicationContextStore
 from capstone_agent.host_api import create_host_app
+from capstone_agent.ledger import Ledger
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding, PreparedKernelApplicationProfile
 from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.thread_application import ThreadApplicationAssembly
@@ -80,7 +81,7 @@ class _ScriptedPiSession:
         if len(profiles) != 1:
             raise ValueError("M5 provider-free session expects one prepared profile")
         profile = profiles[0]
-        prepared = profile.prepared_application
+        prepared = cast(Any, profile.prepared_application)
         bindings = getattr(prepared, "bindings", None)
         if not isinstance(bindings, Mapping):
             raise ValueError("prepared bindings are unavailable")
@@ -95,16 +96,21 @@ class _ScriptedPiSession:
             core=CoreToolCatalog.default(namespace="agent_"), domains=domains,
         )
         self._tools = {tool.key.capability_id: tool for tool in self._catalog.domain_tools}
-        self._context_ref: str | None = self._state.get("context_ref") if isinstance(self._state.get("context_ref"), str) else None
-        self._model_ref: str | None = self._state.get("model_ref") if isinstance(self._state.get("model_ref"), str) else None
-        self._result_ref: str | None = self._state.get("result_ref") if isinstance(self._state.get("result_ref"), str) else None
-        self._evidence_ref: str | None = self._state.get("evidence_ref") if isinstance(self._state.get("evidence_ref"), str) else None
-        self._turn_index = int(self._state.get("turn_index", 0))
+        context_ref = self._state.get("context_ref")
+        model_ref = self._state.get("model_ref")
+        result_ref = self._state.get("result_ref")
+        evidence_ref = self._state.get("evidence_ref")
+        turn_index = self._state.get("turn_index")
+        self._context_ref: str | None = context_ref if isinstance(context_ref, str) else None
+        self._model_ref: str | None = model_ref if isinstance(model_ref, str) else None
+        self._result_ref: str | None = result_ref if isinstance(result_ref, str) else None
+        self._evidence_ref: str | None = evidence_ref if isinstance(evidence_ref, str) else None
+        self._turn_index = turn_index if isinstance(turn_index, int) else 0
         self._started = False
         self._stopped = False
         self._calls: list[Mapping[str, object]] = []
         self._instructions = self._build_instructions()
-        self._handoff = None
+        self._handoff: Any = None
         if family == "pypsa":
             from capability_agent.application.reference_handoff import ReferenceHandoffService
             cached_handoff = self._state.get("handoff")
@@ -120,7 +126,15 @@ class _ScriptedPiSession:
     def _build_instructions(self) -> tuple[tuple[str, tuple[Mapping[str, object], ...]], ...]:
         if self._family == "pandapower":
             document = _load_pandapower_questions()
-            return tuple((str(item["text"]), tuple(step for step in item.get("steps", ()) if isinstance(step, Mapping))) for item in document)
+            def steps_for(item: Mapping[str, object]) -> tuple[Mapping[str, object], ...]:
+                raw_steps = item.get("steps", ())
+                if not isinstance(raw_steps, (list, tuple)):
+                    return ()
+                return tuple(cast(Mapping[str, object], step) for step in raw_steps if isinstance(step, Mapping))
+            return tuple(
+                (str(item["text"]), steps_for(item))
+                for item in document
+            )
         case = _load_pypsa_case()
         intro = case.get("introduction")
         question = case.get("question")
@@ -196,7 +210,7 @@ class _ScriptedPiSession:
                 arguments = {"catalog_id": case["model_id"]}
             elif capability == "model.derive_series":
                 case = _load_pypsa_case()
-                scenario = case["scenario"]
+                scenario = cast(Mapping[str, object], case["scenario"])
                 arguments = {
                     "model_ref": self._model_ref, "load_id": scenario["load_id"],
                     "p_set_mw": scenario["variant_mw"],
@@ -212,7 +226,7 @@ class _ScriptedPiSession:
                     capability=capability,
                 )
                 arguments = {"reference": self._model_ref, "handoff_ref": receipt.receipt_ref}
-        return arguments
+        return cast(dict[str, object], arguments)
 
     def _invoke(self, capability: str, arguments: dict[str, object], turn_id: str, callback: Callable[[Mapping[str, object]], None]) -> None:
         tool = self._tools[capability]
@@ -278,7 +292,10 @@ class _BootstrapService(InMemoryThreadService):
             return snapshot
 
 
-class _Ledger:
+class _Ledger(Ledger):
+    def __init__(self) -> None:
+        pass
+
     def ping(self) -> bool:
         return True
 
@@ -338,7 +355,7 @@ class ProviderFreeThreadHost:
             def resolver(model_id: str) -> Mapping[str, object]:
                 model = models.get(model_id)
                 return {"model_id": model.model_id, "revision_ref": models.trusted_revision_ref(model.model_id), "implementation_family": model.engine, "authority_model_ref": f"pandapower:{model.model_id}", "display_name": model.model_id, "diagram_provider_id": "pandapower"}
-            def binder(prepared: object, context: Any) -> AuthorityModelBinding:
+            def binder(prepared: Any, context: Any) -> AuthorityModelBinding:
                 binding = prepared.bindings["grid"]
                 opened = binding.runtime.executor.invoke("context.open", {"model_id": context.model_id})
                 return AuthorityModelBinding("grid", context.model_id, opened["revision_ref"], context.implementation_family, opened["context_ref"])
@@ -356,7 +373,7 @@ class ProviderFreeThreadHost:
         def resolver(model_id: str) -> Mapping[str, object]:
             descriptor = catalog.resolve(model_id)
             return {"model_id": descriptor.model_id, "revision_ref": descriptor.model_revision, "implementation_family": descriptor.implementation_family, "authority_model_ref": descriptor.authority_model_ref, "display_name": descriptor.display_name, "diagram_provider_id": descriptor.diagram_provider_id}
-        def binder(prepared: object, context: Any) -> AuthorityModelBinding:
+        def binder(prepared: Any, context: Any) -> AuthorityModelBinding:
             binding = prepared.bindings["source"]
             opened = binding.runtime.executor.invoke("model.open", {"catalog_id": context.model_id})
             return AuthorityModelBinding("source", context.model_id, context.model_revision, context.implementation_family, opened["model_ref"])

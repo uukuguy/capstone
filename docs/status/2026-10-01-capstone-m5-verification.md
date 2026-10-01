@@ -27,6 +27,7 @@ Results:
   model and operations tools; ordinary Attempt passed; no pandapower-only labels
   were required.
 - Reports are written under ignored `runs/capstone-m5/provider-free/`.
+- Each provider-free row now persists `m5-provider-free-summary.json` beneath its supplied artifact root; stdout remains the same bounded JSON projection and stderr announces the exact report path.
 
 ## Lifecycle and recovery
 

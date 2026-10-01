@@ -216,6 +216,36 @@ def test_retry_control_creates_a_new_attempt_from_an_interrupted_turn() -> None:
     }
 
 
+def test_retry_control_rejects_a_turn_after_a_retry_commits() -> None:
+    service = _service()
+    service.submit_command(_command())
+    first = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert first is not None
+    service.finish_attempt(first, phase="failed", payload={"error_code": "runtime_failed"})
+
+    retry = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_retry_committed_001",
+        "idempotency_key": "idem_retry_committed_001", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "retry_new_attempt",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"turn_id": first.attempt.turn_id},
+    })
+    assert retry.status == "accepted"
+    second = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert second is not None
+    service.finish_attempt(second, phase="completed", payload={"answer": "retried"})
+
+    rejected = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_retry_committed_002",
+        "idempotency_key": "idem_retry_committed_002", "thread_id": "thr_attempts",
+        "run_id": "run_attempts", "kind": "retry_new_attempt",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"turn_id": first.attempt.turn_id},
+    })
+    assert rejected.status == "rejected"
+    assert rejected.rejection == "retry_turn_committed"
+
+
 def test_selection_control_stages_and_activates_on_the_next_turn_boundary() -> None:
     service = _selection_service()
     receipt = service.submit_command({

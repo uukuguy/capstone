@@ -543,6 +543,12 @@ class InMemoryThreadService:
                     )
                     if prior is None:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_found")
+                    elif any(
+                        record["attempt"].turn_id == prior["attempt"].turn_id
+                        and record["attempt"].phase == "completed"
+                        for record in self._attempts.values()
+                    ):
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_turn_committed")
                     elif prior["attempt"].phase not in {"interrupted", "failed", "cancelled"}:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_retryable")
                     elif prior.get("model_context") != self._snapshot.active_model_context:
@@ -1489,8 +1495,10 @@ class PostgresThreadService:
                     target_value = parsed["payload"][target_key]
                     if target_key == "turn_id":
                         prior = connection.execute(
-                            """SELECT * FROM capstone_thread_attempts
+                               """SELECT * FROM capstone_thread_attempts
                                WHERE thread_id = %s AND turn_id = %s
+                               ORDER BY created_at DESC, attempt_id DESC
+                               LIMIT 1
                                FOR UPDATE""",
                             (snapshot.thread_id, target_value),
                         ).fetchone()
@@ -1503,6 +1511,13 @@ class PostgresThreadService:
                         ).fetchone()
                     if prior is None:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_found")
+                    elif connection.execute(
+                        """SELECT 1 FROM capstone_thread_attempts
+                           WHERE thread_id = %s AND turn_id = %s AND phase = 'completed'
+                           LIMIT 1""",
+                        (snapshot.thread_id, prior["turn_id"]),
+                    ).fetchone() is not None:
+                        receipt = self._receipt(parsed, status="rejected", rejection="retry_turn_committed")
                     elif prior["phase"] not in {"interrupted", "failed", "cancelled"}:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_retryable")
                     else:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
@@ -321,7 +321,7 @@ class HarnessAttemptRunner:
             }:
                 try:
                     plan = self._turn_router.plan(routing_input_for_claim(claim))
-                except DecisionUnavailable as error:
+                except DecisionUnavailable:
                     self._finish_failed(claim, "ordinary_conversation_disabled")
                     return HarnessAttemptResult("failed", None, "ordinary_conversation_disabled")
                 self._persist_plan(claim, plan)

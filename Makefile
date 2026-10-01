@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider validate-thread-m5 test-kernel test-domain-package test-generic-tools check-types check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
+.PHONY: help setup setup-agent setup-capstone setup-capstone-app setup-simulator setup-pypsa setup-tools setup-workbench build-workbench build-capstone-app test-workbench test-capstone-app check-workbench install-pi auth-import-pi auth-login doctor run run-llm analysis analysis-generic application capstone-client capstone-agent-run capstone-agent-case capstone-agent-pandapower-task capstone-agent-pandapower-test capstone-agent-pypsa-regional capstone-agent-pypsa-scigrid capstone-agent-pypsa-ac-dc capstone-agent-chat capstone-agent-serve capstone-app-dev capstone-local-rebuild report trajectory test test-agent test-capstone-agent test-capstone-client test-makefile-application test-local-rebuild test-verification-targets test-inventory test-inventory-service test-inventory-domain test-inventory-pi test-pypsa test-simulator test-tools test-e2e validate validate-application validate-provider validate-thread-m5 test-kernel test-domain-package test-generic-tools check-types check-types-validation check-fast check-integration check-release check-runtime-risk check-package-boundaries check-application-boundaries check-protected-paths test-packages test-source-setup test-pi-capture-runtime list-pypsa-models install-pypsa-models list-pypsa-cases run-pypsa-case
 
 help:
 	@echo "Grid Static Analysis commands"
@@ -277,6 +277,9 @@ test-tools: check-runtime-risk
 
 check-types: check-workbench
 	uv run --project packages/grid-agent pyright
+
+check-types-validation:
+	uv run --project packages/grid-agent pyright -p pyrightconfig.validation.json
 
 check-fast: check-package-boundaries check-types test
 
