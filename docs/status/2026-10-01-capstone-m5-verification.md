@@ -48,11 +48,10 @@ retry with a new immutable Attempt ID and preserved Turn ID, and cursor-gap
   `sha256:774057c2dcae2c054e9f8e8f6080f42076d97a0904d08c7aab4d42c49ff03876`.
 - The local App is reachable on port 5173 and the API readiness endpoint is
   healthy. PostgreSQL accepts connections inside the Compose container.
-- `make test-e2e`: 38 passed, 1 failed. The failure is
-  `test_real_boundary_renders_natural_language_offline_knowledge`: the
-  provider-free scripted transport returns its generic zero-step answer instead
-  of the test's expected natural-language offline text. This is a validation
-  harness/test-contract issue, not a Docker or database failure.
+- `make test-e2e`: 39 passed. The provider-free scripted transport now accepts
+  an explicit model answer for zero-step informational questions; admission
+  continues to validate and annotate the answer without rewriting reader-facing
+  text. The focused transport/admission regression and the full E2E suite pass.
 
 ## Environment blockers
 
@@ -69,7 +68,6 @@ retry with a new immutable Attempt ID and preserved Turn ID, and cursor-gap
 
 ## Recovery baton
 
-The next M5 follow-up is to resolve the provider-free zero-step offline answer
-contract, rerun E2E, and then rerun the provider-free matrix after any Authority
-or Thread protocol change. Do not update the protected-path baseline without its
-owning source revision.
+The provider-free zero-step offline answer contract is resolved. Rerun the
+provider-free matrix after any Authority or Thread protocol change. Do not
+update the protected-path baseline without its owning source revision.
