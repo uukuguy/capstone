@@ -1456,3 +1456,4 @@ _Recovered pre-merge mainline entries._
 - M3 将 ordinary_conversation_enabled 作为 ApplicationAssembly 策略注入 hosted worker，避免配置只存在于默认实现 [12c6c0f]
 - M3 Router 改用脱敏 RoutingInput 并记录 bounded confidence，避免分类器接触 Attempt/运行时对象 [7b050b3]
 - M3 Jev/分类器输入增加长度、路径与常见凭据脱敏，避免实验路由器接收不必要的敏感文本 [7a8658e]
+- M3 修复评审发现的显式路由降级、专业 limited admission、Jev 配置快照、公开回退事件与普通 Pi policy 合并 [5ac70d0]
