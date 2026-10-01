@@ -239,6 +239,17 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByText(/已完成 1 个步骤/)).toBeNull()
   })
 
+  it('marks an interrupted run summary with the danger state', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_started', 1, {}, 'attempt_interrupted'),
+      event('tool_started', 2, { tool_name: 'grid_context_open', binding_id: 'grid', capability: 'context.open' }, 'attempt_interrupted'),
+      event('attempt_interrupted', 3, {}, 'attempt_interrupted'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    const summary = screen.getByText(/已中断 · 1 个步骤/)
+    expect(summary.closest('details')?.classList.contains('is-interrupted')).toBe(true)
+  })
+
   it('projects tool ok=false as a failure and retains completed provenance', () => {
     const activities = projectAssistantActivity([
       event('tool_started', 1, { tool_call_id: 'call_fail', tool_name: 'grid_context_open', binding_id: 'grid', capability: 'context.open' }, 'attempt_1'),
