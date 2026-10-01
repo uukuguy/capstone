@@ -174,3 +174,88 @@ async def _test_tui_live_session_refreshes_snapshot_and_event_cursor() -> None:
         await pilot.pause(0.08)
         assert app._event_cursor == 1
         assert app.events.next_event_seq == 1
+
+
+def _paged_event(after: int, next_seq: int, *, has_more: bool) -> EventPage:
+    return EventPage.from_document({
+        "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
+        "after_event_seq": after, "next_event_seq": next_seq, "has_more": has_more,
+        "events": [{
+            "event_id": f"evt_{next_seq}", "event_seq": next_seq,
+            "event_type": "attempt_progress", "event_version": 1,
+            "thread_id": "thr_demo_39", "run_id": "run_001",
+            "turn_id": "turn_001", "attempt_id": "attempt_001",
+            "model_context_id": "ctx_ieee39_7", "selection_revision": "sel_2",
+            "occurred_at": "2026-10-01T00:00:00+00:00", "visibility": "public",
+            "payload": {"phase": "running"},
+        }],
+    }, expected_after_seq=after)
+
+
+def test_tui_live_poll_applies_all_event_pages_before_advancing_snapshot() -> None:
+    asyncio.run(_test_tui_live_poll_applies_all_event_pages_before_advancing_snapshot())
+
+
+async def _test_tui_live_poll_applies_all_event_pages_before_advancing_snapshot() -> None:
+    class _Session:
+        def __init__(self) -> None:
+            self.polled = False
+            self.requested: list[int] = []
+
+        def snapshot(self) -> ThreadSnapshot:
+            return ThreadSnapshot.from_document({
+                **_snapshot().to_document(), "last_event_seq": 2 if self.polled else 0,
+            })
+
+        def events(self, *, after: int = 0) -> EventPage:
+            if not self.polled:
+                return _events()
+            self.requested.append(after)
+            if after == 0:
+                return _paged_event(0, 1, has_more=True)
+            if after == 1:
+                return _paged_event(1, 2, has_more=False)
+            raise AssertionError(f"unexpected cursor {after}")
+
+        def command(self, kind: str, payload: dict[str, Any], *, expected_event_seq: int, command_id: str, idempotency_key: str) -> CommandReceipt:
+            raise AssertionError("no command expected")
+
+    session = _Session()
+    app = ThreadTuiApp(_snapshot(), _events(), lambda command: _receipt(command), session=session, poll_interval=0.05)
+    async with app.run_test(size=(120, 40)) as pilot:
+        session.polled = True
+        await pilot.pause(0.08)
+        assert session.requested[:2] == [0, 1]
+        assert app._event_cursor == app.snapshot.last_event_seq == 2
+        assert app.events.next_event_seq == 2
+        assert len(app._event_ids) == 2
+
+
+def test_tui_live_poll_freezes_on_incomplete_event_pages() -> None:
+    asyncio.run(_test_tui_live_poll_freezes_on_incomplete_event_pages())
+
+
+async def _test_tui_live_poll_freezes_on_incomplete_event_pages() -> None:
+    class _Session:
+        def __init__(self) -> None:
+            self.polled = False
+
+        def snapshot(self) -> ThreadSnapshot:
+            return ThreadSnapshot.from_document({
+                **_snapshot().to_document(), "last_event_seq": 2 if self.polled else 0,
+            })
+
+        def events(self, *, after: int = 0) -> EventPage:
+            return _paged_event(0, 1, has_more=False) if self.polled else _events()
+
+        def command(self, kind: str, payload: dict[str, Any], *, expected_event_seq: int, command_id: str, idempotency_key: str) -> CommandReceipt:
+            raise AssertionError("no command expected")
+
+    session = _Session()
+    app = ThreadTuiApp(_snapshot(), _events(), lambda command: _receipt(command), session=session, poll_interval=0.05)
+    async with app.run_test(size=(120, 40)) as pilot:
+        session.polled = True
+        await pilot.pause(0.08)
+        assert app._event_cursor == app.snapshot.last_event_seq == 0
+        assert app._recovery_required
+        assert app.query_one("#send-professional", Button).disabled

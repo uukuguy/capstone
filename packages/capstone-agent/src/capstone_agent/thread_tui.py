@@ -206,14 +206,8 @@ class ThreadTuiApp(App[None]):
         assert self.session is not None
         try:
             snapshot = self.session.snapshot()
-            page = self.session.events(after=self._event_cursor)
-            if (
-                page.thread_id != snapshot.thread_id
-                or page.after_event_seq != self._event_cursor
-                or page.next_event_seq > snapshot.last_event_seq
-            ):
-                raise RuntimeError("Thread projection cursor requires resync")
-            self.call_from_thread(self._finish_poll, snapshot, page)
+            pages = self._read_pages(snapshot, self._event_cursor)
+            self.call_from_thread(self._finish_poll, snapshot, pages)
         except ThreadResyncRequired as error:
             try:
                 pages = self._recover_worker(error.snapshot)
@@ -225,33 +219,39 @@ class ThreadTuiApp(App[None]):
             self.call_from_thread(self._mark_sync_error, error)
 
     def _recover_worker(self, snapshot: ThreadSnapshot) -> tuple[EventPage, ...]:
+        return self._read_pages(snapshot, snapshot.base_event_seq, resync=True)
+
+    def _read_pages(self, snapshot: ThreadSnapshot, cursor: int, *, resync: bool = False) -> tuple[EventPage, ...]:
         assert self.session is not None
         pages: list[EventPage] = []
-        cursor = snapshot.base_event_seq
         for _ in range(64):
             page = self.session.events(after=cursor)
             if page.thread_id != snapshot.thread_id or page.after_event_seq != cursor or page.next_event_seq < cursor:
-                raise RuntimeError("Thread resync returned a non-contiguous event page")
+                prefix = "Thread resync" if resync else "Thread projection"
+                raise RuntimeError(f"{prefix} returned a non-contiguous event page")
+            if page.next_event_seq > snapshot.last_event_seq:
+                raise RuntimeError("Thread event page is ahead of its snapshot cursor")
             pages.append(page)
             cursor = page.next_event_seq
+            if cursor == snapshot.last_event_seq:
+                if page.has_more:
+                    raise RuntimeError("Thread event pages extend beyond the snapshot cursor")
+                return tuple(pages)
             if not page.has_more:
                 break
-        else:
-            raise RuntimeError("Thread resync exceeded the bounded page limit")
-        if cursor != snapshot.last_event_seq:
+        if resync:
             raise RuntimeError("Thread resync snapshot and events did not converge")
-        return tuple(pages)
+        raise RuntimeError("Thread projection snapshot and events did not converge")
 
-    def _finish_poll(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
+    def _finish_poll(self, snapshot: ThreadSnapshot, pages: tuple[EventPage, ...]) -> None:
         self._network_busy = False
-        self._apply_projection(snapshot, page)
+        self._apply_projection_pages(snapshot, pages)
 
     def _finish_recovery(self, snapshot: ThreadSnapshot, pages: tuple[EventPage, ...]) -> None:
         self._event_cursor = snapshot.base_event_seq
         self._network_busy = False
         self._recovery_required = False
-        for page in pages:
-            self._apply_projection(snapshot, page)
+        self._apply_projection_pages(snapshot, pages)
         self.query_one("#feedback", Static).update("Thread 已完成重同步")
 
     def _mark_sync_error(self, error: Exception) -> None:
@@ -261,18 +261,28 @@ class ThreadTuiApp(App[None]):
         self._refresh_controls()
 
     def _apply_projection(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
-        if snapshot.thread_id != self.snapshot.thread_id or page.thread_id != snapshot.thread_id:
+        self._apply_projection_pages(snapshot, (page,))
+
+    def _apply_projection_pages(self, snapshot: ThreadSnapshot, pages: tuple[EventPage, ...]) -> None:
+        if not pages:
+            raise ValueError("Thread projection returned no event page")
+        if snapshot.thread_id != self.snapshot.thread_id or any(page.thread_id != snapshot.thread_id for page in pages):
             raise ValueError("Thread projection identity does not match the TUI session")
-        if page.after_event_seq != self._event_cursor:
-            raise ValueError("Thread event cursor is not contiguous")
+        cursor = self._event_cursor
         event_log = self.query_one("#events-log", RichLog)
-        for event in page.events:
-            if event.event_id not in self._event_ids:
-                event_log.write(_event_line(event))
-                self._event_ids.add(event.event_id)
-        self._event_cursor = page.next_event_seq
+        for page in pages:
+            if page.thread_id != snapshot.thread_id or page.after_event_seq != cursor:
+                raise ValueError("Thread event cursor is not contiguous")
+            for event in page.events:
+                if event.event_id not in self._event_ids:
+                    event_log.write(_event_line(event))
+                    self._event_ids.add(event.event_id)
+            cursor = page.next_event_seq
+        if cursor != snapshot.last_event_seq:
+            raise ValueError("Thread projection pages do not converge on snapshot")
+        self._event_cursor = cursor
         self.snapshot = snapshot
-        self.events = page
+        self.events = pages[-1]
         self.query_one("#state-status", Static).update(
             f"连接 · live\nRun · {snapshot.run.state}\nCursor · #{snapshot.last_event_seq}"
         )
