@@ -257,6 +257,12 @@ class ThreadTuiApp(App[None]):
     def _mark_sync_error(self, error: Exception) -> None:
         self._network_busy = False
         self._recovery_required = True
+        # A worker may finish while Textual is tearing down the screen (for
+        # example when a test exits its run_test context). Preserve the
+        # recovery state, but do not attempt to address widgets that no longer
+        # exist.
+        if not getattr(self, "_screen_stack", None):
+            return
         self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__} · 已冻结命令")
         self._refresh_controls()
 

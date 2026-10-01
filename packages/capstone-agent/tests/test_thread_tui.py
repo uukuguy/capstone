@@ -235,6 +235,15 @@ def test_tui_live_poll_freezes_on_incomplete_event_pages() -> None:
     asyncio.run(_test_tui_live_poll_freezes_on_incomplete_event_pages())
 
 
+def test_tui_sync_error_before_screen_mount_does_not_raise() -> None:
+    app = ThreadTuiApp(_snapshot(), _events(), lambda command: _receipt(command))
+
+    app._mark_sync_error(RuntimeError("event pages did not converge"))
+
+    assert app._recovery_required
+    assert not app._network_busy
+
+
 async def _test_tui_live_poll_freezes_on_incomplete_event_pages() -> None:
     class _Session:
         def __init__(self) -> None:
