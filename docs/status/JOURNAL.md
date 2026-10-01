@@ -1474,3 +1474,4 @@ _Recovered pre-merge mainline entries._
 - M5 矩阵增加普通自动路由零证据校验、Attempt 时长和 fallback 事件支持，补齐验收硬门槛。
 - M5 普通路由、时长与 fallback 校验实现已提交，避免专业与普通回答的证据规则混淆 [0b847b8]
 - M5 矩阵硬门槛 journal 已提交，保留恢复所需的连续状态记录 [786dd51]
+- M5 校验边界、HTTP 限流与 PyPSA 目录接线已修复，防止伪通过并保留真实模型清单 [fc75f7d]
