@@ -34,11 +34,11 @@
 - Add `GET /api/v1/threads/{thread_id}/catalog`; it must enforce the same private Thread authorization and 404 behavior as the snapshot route.
 - Keep catalogs that do not implement listing methods valid; return an empty list instead of inventing entries.
 
-- [ ] Write failing tests for model/Profile catalog projection and the authenticated HTTP route.
-- [ ] Run the focused pytest tests and confirm they fail because the route/projection is absent.
-- [ ] Implement the smallest public projection using `list_entries()` and `profiles_for_family()` when supplied by the application-owned catalogs.
-- [ ] Run the focused tests and the existing thread catalog tests.
-- [ ] Commit: `feat: expose bounded thread control catalog`.
+- [x] Write failing tests for model/Profile catalog projection and the authenticated HTTP route.
+- [x] Run the focused pytest tests and confirm they fail because the route/projection is absent.
+- [x] Implement the smallest public projection using `list_entries()` and `profiles_for_family()` when supplied by the application-owned catalogs.
+- [x] Run the focused tests and the existing thread catalog tests.
+- [x] Commit: `feat: expose bounded thread control catalog`.
 
 ### Task 2: Parse and transport the catalog in the Web client
 
@@ -56,11 +56,11 @@
 - `ThreadTransport.getCatalog(threadId)` and `CapstoneThreadClient.catalog(threadId)` are optional-compatible additions; failure to load the catalog leaves the Thread usable with an empty catalog.
 - `ThreadProjectionState.catalog` is always a parsed catalog or `null`, never raw JSON.
 
-- [ ] Write failing parser, transport URL, and store-loading tests.
-- [ ] Run the focused Vitest tests and confirm the expected missing-interface failures.
-- [ ] Implement strict parsing, HTTP GET, and best-effort store loading.
-- [ ] Run the focused tests and existing projection/client tests.
-- [ ] Commit: `feat: project thread control catalog in web client`.
+- [x] Write failing parser, transport URL, and store-loading tests.
+- [x] Run the focused Vitest tests and confirm the expected missing-interface failures.
+- [x] Implement strict parsing, HTTP GET, and best-effort store loading.
+- [x] Run the focused tests and existing projection/client tests.
+- [x] Commit: `feat: project thread control catalog in web client`.
 
 ### Task 3: Render compact model/Profile controls
 
@@ -80,11 +80,11 @@
 - The Composer footer accepts a compact controls slot. It exposes a trace/activity toggle but no mode tabs or per-tool switches.
 - Model switching remains the existing `switch_model` command and automatically updates the model page from `active_grid_page_id`.
 
-- [ ] Add failing UI tests for catalog-driven model options, Profile replacement payload, pending state, and the compact trace toggle.
-- [ ] Run the focused UI tests and confirm failure before implementation.
-- [ ] Implement the controls with stable empty/running layout, 36px hit targets, SVG icons, and `aria-label`/tooltip text.
-- [ ] Run focused UI tests and the app type check.
-- [ ] Commit: `feat: add compact thread model and profile controls`.
+- [x] Add failing UI tests for catalog-driven model options, Profile replacement payload, pending state, and the compact trace toggle.
+- [x] Run the focused UI tests and confirm failure before implementation.
+- [x] Implement the controls with stable empty/running layout, 36px hit targets, SVG icons, and `aria-label`/tooltip text.
+- [x] Run focused UI tests and the app type check.
+- [x] Commit: `feat: add compact thread model and profile controls`.
 
 ### Task 4: Make retry and activity controls honor Attempt semantics
 
@@ -99,11 +99,11 @@
 - Stop remains `cancel_live_attempt` in the Composer while running; trace visibility only changes projected activity display.
 - Activity summary and final duration remain attached to the corresponding assistant Attempt.
 
-- [ ] Add failing tests that inspect the retry command payload and confirm old Attempt messages remain unchanged.
-- [ ] Run focused UI tests and confirm the expected failure.
-- [ ] Implement command wiring and activity visibility.
-- [ ] Run all Web tests and build.
-- [ ] Commit: `fix: preserve immutable attempt retry semantics in web thread`.
+- [x] Add failing tests that inspect the retry command payload and confirm old Attempt messages remain unchanged.
+- [x] Run focused UI tests and confirm the expected failure.
+- [x] Implement command wiring and activity visibility.
+- [x] Run all Web tests and build.
+- [x] Commit: `fix: preserve immutable attempt retry semantics in web thread`.
 
 ### Task 5: Verify, review, and update the recovery baton
 
@@ -113,11 +113,11 @@
 - Modify: `docs/status/JOURNAL.md`
 - Create: `docs/reviews/2026-10-01-capstone-m4-code-review.md`
 
-- [ ] Run focused Python and Web tests, `npm run check`, `npm run build`, boundary checks, `make doctor`, and `git diff --check`.
-- [ ] Run `make capstone-local-rebuild` because the API source changes.
-- [ ] Dispatch an independent code reviewer with the M4 plan and final diff; fix all Important/Critical findings.
-- [ ] Record exact verification counts, rebuild result, review verdict, and next M5 action in status/JOURNAL.
-- [ ] Commit: `docs: record M4 controls checkpoint`.
+- [x] Run focused Python and Web tests, `npm run check`, `npm run build`, boundary checks, `make doctor`, and `git diff --check`.
+- [x] Run `make capstone-local-rebuild` because the API source changes.
+- [x] Dispatch an independent code reviewer with the M4 plan and final diff; fix all Important/Critical findings.
+- [x] Record exact verification counts, rebuild result, review verdict, and next M5 action in status/JOURNAL.
+- [x] Commit: `docs: record M4 controls checkpoint`.
 
 ## Self-review
 

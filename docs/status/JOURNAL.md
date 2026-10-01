@@ -1462,3 +1462,6 @@ _Recovered pre-merge mainline entries._
 - 09:18 M4 后端 Thread catalog projection 与受保护 catalog API 已提交，供 Web/TUI 使用真实模型/Profile 元数据 [fed5aec]
 - 09:19 M4 Web typed catalog、compact Profile/过程控件、模型选择和 Attempt 重试入口已提交，保留单一自动路由 Composer [a4262bf]
 - 09:20 收紧 Thread Profile catalog 全局 128 项上限，避免多实现族累积超出 Web 协议边界 [7d50c11]
+- 09:23 修复 Thread catalog 投影动态 catalog 的 pyright 类型问题，并保持 focused API tests 通过 [c48c582]
+- 09:30 按 M4 评审修复活动中控件暂存、catalog 当前模型合并、trace 关闭动作和中断 Attempt 重试入口 [15769e5]
+- 09:33 M4 评审修复后全量 Web 135 tests、build、边界检查与 diff 检查通过；M5 统一真实客户端验证成为下一阶段 [15769e5]
