@@ -15,7 +15,10 @@ import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any, Mapping, Protocol, cast
+from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
+
+if TYPE_CHECKING:
+    from .turn_router import TurnPlan
 
 from capstone_model_capability_spi import ModelCapabilitySelection
 
@@ -95,6 +98,7 @@ class AttemptClaim:
     selection_revision: str
     lease_token: str
     model_context: ModelContextSnapshot
+    turn_plan: TurnPlan | None = None
 
     def __post_init__(self) -> None:
         if (

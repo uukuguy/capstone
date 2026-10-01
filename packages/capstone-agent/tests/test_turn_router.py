@@ -47,7 +47,8 @@ def test_auto_router_uses_fixture_and_keeps_context_bounded() -> None:
     assert plan.route == "professional"
     assert plan.source == "fake"
     assert plan.context_snapshot == {
-        "model_id": "ieee39", "implementation_family": "pandapower",
+        "model_id": "ieee39", "model_revision": "revision:sha256:" + "a" * 64,
+        "model_context_id": "ctx_ieee39", "implementation_family": "pandapower",
         "selection_revision": "sel_0", "enabled_profiles": [],
     }
     assert len(str(plan.to_payload())) < 1024

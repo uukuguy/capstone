@@ -11,6 +11,7 @@ from capstone_agent.harness import (
     normalize_runtime_event,
 )
 from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.turn_router import DefaultTurnRouter, FakeDecisionRouter
 
 
 class _PiSession:
@@ -200,9 +201,9 @@ def test_professional_attempt_without_application_admission_fails_closed() -> No
     ).run(claim)
 
     assert result.status == "failed"
-    assert result.error_code == "answer_admission_unavailable"
+    assert result.error_code == "capability_required"
     assert service.read_events("thr_harness", 0).events[-1].payload["error_code"] == (
-        "answer_admission_unavailable"
+        "capability_required"
     )
 
 
@@ -279,3 +280,51 @@ def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
         ), lease_seconds=30,
     ).run(claim)
     assert result.status == "completed"
+
+
+def test_professional_route_rejects_limited_admission() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_limited",
+        "idempotency_key": "idem_harness_limited", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(
+        service,
+        HarnessPiClient(
+            _PiSession(),
+            admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+                answer, "limited", "limited",
+            ),
+        ),
+        turn_router=DefaultTurnRouter(),
+    ).run(claim)
+    assert result.status == "failed"
+    assert result.error_code == "capability_required"
+
+
+def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_explicit",
+        "idempotency_key": "idem_harness_explicit", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(
+        service,
+        HarnessPiClient(
+            _PiSession(),
+            admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+                answer, "limited", "limited",
+            ),
+        ),
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("ordinary")),
+    ).run(claim)
+    assert result.status == "failed"
+    assert result.error_code == "capability_required"

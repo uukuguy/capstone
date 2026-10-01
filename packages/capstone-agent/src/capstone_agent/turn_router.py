@@ -8,8 +8,11 @@ Harness/Domain Pack boundary.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from concurrent.futures import Future
+from dataclasses import dataclass, field, replace
+import json
 import re
+from threading import Thread
 from typing import Protocol
 
 from .thread_service import AttemptClaim
@@ -27,6 +30,35 @@ _DOMAIN_HINTS = (
     "电网", "潮流", "线路", "母线", "变压器", "拓扑", "约束", "越限",
     "n-1", "pandapower", "pypsa", "负载率", "短路", "孤岛", "收敛",
 )
+
+
+@dataclass(frozen=True, slots=True)
+class RouterConfig:
+    mode: str = "off"
+    model: str = "none"
+    schema: str = "capstone-routing-decision/1"
+
+    def __post_init__(self) -> None:
+        if self.mode not in {"off", "heuristic", "jev_active", "jev_shadow"}:
+            raise ValueError("router mode is invalid")
+        if any(not isinstance(value, str) or not value or len(value) > 128
+               for value in (self.model, self.schema)):
+            raise ValueError("router identity is invalid")
+
+    def to_document(self) -> dict[str, object]:
+        return {"mode": self.mode, "model": self.model, "schema": self.schema}
+
+
+def _validate_context(context: Mapping[str, object]) -> None:
+    allowed = {"model_id", "model_revision", "model_context_id", "implementation_family", "selection_revision", "enabled_profiles"}
+    if not isinstance(context, Mapping) or set(context) - allowed:
+        raise ValueError("routing context fields are invalid")
+    try:
+        encoded = json.dumps(dict(context), allow_nan=False, sort_keys=True)
+    except (TypeError, ValueError):
+        raise ValueError("routing context is not JSON") from None
+    if len(encoded.encode("utf-8")) > 16_384:
+        raise ValueError("routing context is too large")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +93,7 @@ class RoutingInput:
             raise ValueError("routing instruction is invalid")
         if self.command_kind not in {"send_auto", "send_ordinary", "send_professional"}:
             raise ValueError("routing command kind is invalid")
+        _validate_context(self.context_snapshot)
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +107,9 @@ class TurnPlan:
     context_snapshot: Mapping[str, object]
     confidence: str | None = None
     fallback: bool = False
+    router_config: RouterConfig = RouterConfig()
+    fallback_reason: str | None = None
+    shadow_decision: Future[TurnPlan] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not self.turn_id or not self.attempt_id or not self.plan_revision:
@@ -84,8 +120,9 @@ class TurnPlan:
             raise ValueError("turn plan capability hint is too long")
         if self.confidence is not None and len(self.confidence) > 32:
             raise ValueError("turn plan confidence is invalid")
-        if len(str(dict(self.context_snapshot))) > _MAX_CONTEXT:
-            raise ValueError("turn plan context snapshot is too large")
+        _validate_context(self.context_snapshot)
+        if not isinstance(self.router_config, RouterConfig):
+            raise ValueError("turn plan router config is invalid")
 
     def to_payload(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -96,11 +133,14 @@ class TurnPlan:
             "plan_revision": self.plan_revision,
             "context_snapshot": dict(self.context_snapshot),
             "fallback": self.fallback,
+            "router_config": self.router_config.to_document(),
         }
         if self.capability_hint is not None:
             payload["capability_hint"] = self.capability_hint
         if self.confidence is not None:
             payload["confidence"] = self.confidence
+        if self.fallback_reason is not None:
+            payload["fallback_reason"] = self.fallback_reason
         return payload
 
 
@@ -116,6 +156,8 @@ def _context_snapshot(claim: AttemptClaim) -> dict[str, object]:
     ]
     return {
         "model_id": context.model_id,
+        "model_revision": context.model_revision,
+        "model_context_id": context.id,
         "implementation_family": context.implementation_family,
         "selection_revision": context.selection_revision,
         "enabled_profiles": profiles,
@@ -149,11 +191,27 @@ class DefaultTurnRouter:
         *,
         decision_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
+        config: RouterConfig | None = None,
     ) -> None:
         if decision_router is self:
             raise ValueError("turn router cannot wrap itself")
         self._decision_router = decision_router
         self.ordinary_conversation_enabled = ordinary_conversation_enabled
+        self.config = config or RouterConfig(mode="jev_active" if decision_router else "off")
+
+    def _shadow(self, routing_input: RoutingInput) -> Future[TurnPlan]:
+        future: Future[TurnPlan] = Future()
+
+        def decide() -> None:
+            try:
+                if self._decision_router is None:
+                    raise DecisionUnavailable("shadow_router_unavailable")
+                future.set_result(self._decision_router.plan(routing_input))
+            except Exception:
+                future.set_exception(DecisionUnavailable("shadow_decision_unavailable"))
+
+        Thread(target=decide, name="capstone-router-shadow", daemon=True).start()
+        return future
 
     def plan(self, routing_input: RoutingInput | AttemptClaim) -> TurnPlan:
         if isinstance(routing_input, AttemptClaim):
@@ -163,7 +221,7 @@ class DefaultTurnRouter:
         elif routing_input.command_kind == "send_ordinary":
             intent = TurnIntent("ordinary", "explicit")
         elif routing_input.command_kind == "send_auto":
-            if self._decision_router is None:
+            if self._decision_router is None or self.config.mode in {"off", "heuristic", "jev_shadow"}:
                 intent = TurnIntent(
                     "professional" if any(
                         hint in routing_input.instruction.lower() for hint in _DOMAIN_HINTS
@@ -173,14 +231,20 @@ class DefaultTurnRouter:
                 try:
                     nested = self._decision_router.plan(routing_input)
                     intent = TurnIntent(nested.route, nested.source, nested.confidence)
-                except (DecisionUnavailable, ValueError, TypeError):
-                    intent = TurnIntent("ordinary", "decision_unavailable")
+                except Exception:
+                    intent = TurnIntent(
+                        "professional" if any(hint in routing_input.instruction.lower() for hint in _DOMAIN_HINTS) else "ordinary",
+                        "decision_unavailable",
+                    )
                     return self._make(routing_input, intent, fallback=True)
         else:
             raise DecisionUnavailable("unsupported_turn_kind")
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:
             raise DecisionUnavailable("ordinary_conversation_disabled")
-        return self._make(routing_input, intent)
+        plan = self._make(routing_input, intent)
+        if self.config.mode == "jev_shadow" and routing_input.command_kind == "send_auto":
+            plan = replace(plan, shadow_decision=self._shadow(routing_input))
+        return plan
 
     def _make(self, routing_input: RoutingInput, intent: TurnIntent, *, fallback: bool = False) -> TurnPlan:
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:
@@ -195,6 +259,8 @@ class DefaultTurnRouter:
             context_snapshot=routing_input.context_snapshot,
             confidence=intent.confidence,
             fallback=fallback,
+            router_config=self.config,
+            fallback_reason="decision_unavailable" if fallback else None,
         )
 
 
@@ -251,4 +317,5 @@ class JevDecisionRouter:
 __all__ = [
     "DecisionUnavailable", "DefaultTurnRouter", "FakeDecisionRouter", "JevDecisionRouter",
     "RoutingInput", "TurnIntent", "TurnPlan", "TurnRouter", "routing_input_for_claim",
+    "RouterConfig",
 ]

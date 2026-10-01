@@ -156,16 +156,23 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         single = len(binding_runtimes) == 1
         single_runtime = binding_runtimes[0][1] if single else None
+        ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
+        system_policy_path = self._runtime_host.system_policy_path
+        if ordinary:
+            system_policy_path = _compose_conversation_policy(
+                workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
+                self._runtime_host.system_policy_path,
+            )
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
-            session_dir=workspace.core_path / "pi" / "session",
+            session_dir=workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "session",
             workspace=workspace.root,
             domain_search_paths=search_paths,
             extension_path=self._runtime_host.extension_path,
             tool_catalog_path=getattr(single_runtime, "tool_catalog_path", None) if single_runtime else None,
             guide_index_path=getattr(single_runtime, "guide_index_path", None) if single_runtime else None,
-            system_policy_path=self._runtime_host.system_policy_path,
+            system_policy_path=system_policy_path,
             runtime_descriptor_path=descriptor_path,
             binding_id=binding_ids[0] if single else None,
             extra_environment=self._runtime_host.extra_environment,
@@ -222,6 +229,23 @@ def _require_prepared_kernel_profile(
     return prepared
 
 
+def _compose_conversation_policy(directory: Path, domain_policy: Path | None) -> Path:
+    """Keep generic Pi behavior while retaining the selected Domain Pack policy."""
+
+    generic = Path(__file__).parent / "resources" / "conversation-policy.md"
+    generic_text = generic.read_text(encoding="utf-8")
+    domain_text = ""
+    if domain_policy is not None:
+        domain_text = domain_policy.read_text(encoding="utf-8")
+    if len(generic_text) + len(domain_text) > 128_000:
+        raise RuntimeError("combined runtime policy is too large")
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = directory / "system-policy.md"
+    path.write_text(generic_text + "\n\n" + domain_text, encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
 class _RpcWorkspace:
     def __init__(self, root_path: Path) -> None:
         self.root_path = root_path
@@ -267,6 +291,9 @@ class _KernelPiPromptSession:
 
 def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
+        if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
+            and not result_refs and not evidence_refs and not tool_events):
+            return AdmittedAttemptAnswer(answer, "offline_information", "general_knowledge")
         binding_map: dict[str, object] = {}
         for profile in profiles:
             bindings = getattr(profile.prepared_application, "bindings", None)

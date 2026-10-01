@@ -263,7 +263,8 @@ class ThreadApplicationAssembly:
     def turn_router_for_worker(self) -> TurnRouter:
         """Return the application policy used by the hosted Thread worker."""
 
-        return self.turn_router or DefaultTurnRouter(
+        return DefaultTurnRouter(
+            decision_router=self.turn_router,
             ordinary_conversation_enabled=self.ordinary_conversation_enabled,
         )
 

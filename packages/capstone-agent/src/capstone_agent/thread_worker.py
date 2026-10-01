@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
+from dataclasses import replace
 
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime
 from .thread_service import AttemptClaim, ThreadExecutionService
-from .turn_router import DefaultTurnRouter, TurnRouter
+from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
 
 
 RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
@@ -32,6 +33,21 @@ def run_pending_attempt(
     claim = service.claim_attempt(worker_id, lease_seconds)
     if claim is None:
         return None
+    router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
+    if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
+        try:
+            plan = router.plan(routing_input_for_claim(claim))
+        except DecisionUnavailable:
+            error_code = "ordinary_conversation_disabled"
+            service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
+            return HarnessAttemptResult("failed", None, error_code)
+        service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
+        service.append_runtime_event(
+            claim, event_type="turn_route_fallback" if plan.fallback else "turn_route_selected",
+            payload={"route": plan.route, "source": plan.source, "plan_revision": plan.plan_revision,
+                     "fallback": plan.fallback},
+        )
+        claim = replace(claim, turn_plan=plan)
     try:
         runtime = runtime_factory(claim)
     except Exception:
@@ -54,7 +70,6 @@ def run_pending_attempt(
             claim, phase="failed", payload={"error_code": error_code},
         )
         return HarnessAttemptResult("failed", None, error_code)
-    router = turn_router if turn_router is not None else DefaultTurnRouter()
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router,
     ).run(claim)

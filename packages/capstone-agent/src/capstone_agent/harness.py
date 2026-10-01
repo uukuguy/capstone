@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
-from .turn_router import DecisionUnavailable, TurnPlan, TurnRouter, routing_input_for_claim
+from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -41,6 +41,7 @@ class AdmittedAttemptAnswer:
             ("authority_backed", "lineage_verified"),
             ("offline_information", "deterministic_information"),
             ("offline_information", "guide_access_verified"),
+            ("offline_information", "general_knowledge"),
             ("limited", "limited"),
         }:
             raise ValueError("answer admission assurance is invalid")
@@ -302,7 +303,7 @@ class HarnessAttemptRunner:
         self._service = service
         self._runtime = runtime
         self._lease_seconds = lease_seconds
-        self._turn_router = turn_router
+        self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
@@ -313,16 +314,16 @@ class HarnessAttemptRunner:
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
-        plan: TurnPlan | None = None
+        plan: TurnPlan | None = claim.turn_plan
         try:
-            if self._turn_router is not None and claim.kind in {
+            if plan is None and claim.kind in {
                 "send_auto", "send_ordinary", "send_professional",
             }:
                 try:
                     plan = self._turn_router.plan(routing_input_for_claim(claim))
                 except DecisionUnavailable as error:
-                    self._finish_failed(claim, "decision_unavailable")
-                    return HarnessAttemptResult("failed", None, str(error) or "decision_unavailable")
+                    self._finish_failed(claim, "ordinary_conversation_disabled")
+                    return HarnessAttemptResult("failed", None, "ordinary_conversation_disabled")
                 self._persist_plan(claim, plan)
             self._runtime.start()
             answer = self._runtime.prompt(
@@ -352,6 +353,12 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
+            if plan is not None and plan.route == "professional" and (
+                candidate is None
+                or candidate.mode != "authority_backed"
+                or not candidate.evidence_refs
+            ):
+                raise _AttemptAdmissionError("capability_required")
             professional_route = plan is not None and plan.route == "professional"
             if candidate is None and (
                 professional_route
@@ -374,6 +381,15 @@ class HarnessAttemptRunner:
                 "result_refs": list(result_refs),
                 "evidence_refs": list(evidence_refs),
             }
+            if plan is not None and plan.shadow_decision is not None:
+                shadow_payload: dict[str, object] = {"status": "pending"}
+                if plan.shadow_decision.done():
+                    try:
+                        shadow = plan.shadow_decision.result()
+                        shadow_payload = {"status": "completed", "route": shadow.route, "source": shadow.source}
+                    except Exception:
+                        shadow_payload = {"status": "unavailable"}
+                self._service.append_runtime_event(claim, event_type="turn_router_shadow", payload=shadow_payload, visibility="diagnostic")
             if admission is not None:
                 terminal_payload["admission"] = admission
             self._service.finish_attempt(
@@ -413,7 +429,7 @@ class HarnessAttemptRunner:
                 "plan_revision": plan.plan_revision,
                 "fallback": plan.fallback,
             },
-            visibility="public" if not plan.fallback else "diagnostic",
+            visibility="public",
         )
 
     def _persist_event(self, claim: AttemptClaim, event: Mapping[str, object]) -> None:
