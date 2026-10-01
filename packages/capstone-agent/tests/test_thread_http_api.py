@@ -5,6 +5,38 @@ from fastapi.testclient import TestClient
 from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.thread_catalog import ThreadModelCatalogEntry
+
+
+class _ModelCatalog:
+    default_model_id = "ieee39"
+
+    def resolve(self, model_id: str | None):
+        raise AssertionError(f"resolve is not needed for catalog projection: {model_id}")
+
+    def list_entries(self):
+        return (
+            ThreadModelCatalogEntry("ieee39", "gridctl:ieee39", "IEEE-39", "pandapower", "pandapower"),
+            ThreadModelCatalogEntry("pypsa-example/scigrid_de", "pypsa:scigrid_de", "SciGrid-DE", "pypsa", "pypsa"),
+        )
+
+
+class _Profile:
+    def __init__(self, profile_id: str, version: str, name: str, families: tuple[str, ...]):
+        self.descriptor = type("Descriptor", (), {"profile_id": profile_id, "profile_version": version})()
+        self.display_name = name
+        self.implementation_families = families
+
+
+class _CapabilityCatalog:
+    def resolve(self, model, selection=None):
+        return selection
+
+    def profiles_for_family(self, family: str):
+        return {
+            "pandapower": (_Profile("pandapower-static-analysis", "1.0.1", "Pandapower Static Analysis", ("pandapower",)),),
+            "pypsa": (_Profile("pypsa-business-cases", "1.0.0", "PyPSA Business Cases", ("pypsa",)),),
+        }.get(family, ())
 
 
 def _service() -> InMemoryThreadService:
@@ -57,6 +89,46 @@ def test_thread_snapshot_and_event_page_are_exposed_as_capstone_protocol() -> No
             "has_more": False,
             "events": [],
         }
+
+
+def test_thread_catalog_projects_registered_models_and_profiles() -> None:
+    service = _service()
+    service.set_model_catalog(_ModelCatalog())
+    service.set_capability_catalog(_CapabilityCatalog())
+
+    catalog = service.catalog("thr_demo_39")
+
+    assert catalog["schema"] == "capstone-thread-catalog/1"
+    assert [entry["model_id"] for entry in catalog["models"]] == [
+        "ieee39", "pypsa-example/scigrid_de",
+    ]
+    assert catalog["profiles"] == [
+        {
+            "profile_id": "pandapower-static-analysis",
+            "profile_version": "1.0.1",
+            "display_name": "Pandapower Static Analysis",
+            "implementation_families": ["pandapower"],
+        },
+        {
+            "profile_id": "pypsa-business-cases",
+            "profile_version": "1.0.0",
+            "display_name": "PyPSA Business Cases",
+            "implementation_families": ["pypsa"],
+        },
+    ]
+
+
+def test_thread_catalog_is_exposed_over_the_authenticated_thread_route() -> None:
+    service = _service()
+    service.set_model_catalog(_ModelCatalog())
+    service.set_capability_catalog(_CapabilityCatalog())
+
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        response = client.get("/api/v1/threads/thr_demo_39/catalog", headers=_auth())
+
+    assert response.status_code == 200
+    assert response.json()["schema"] == "capstone-thread-catalog/1"
+    assert response.json()["models"][1]["display_name"] == "SciGrid-DE"
 
 
 def test_thread_command_is_idempotent_and_emits_a_replayable_event() -> None:

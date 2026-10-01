@@ -209,6 +209,14 @@ def create_host_app(
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
+        @app.get("/api/v1/threads/{thread_id}/catalog")
+        def get_thread_catalog(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                return thread_service.catalog(thread_id)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+
         @app.get("/api/v1/threads/{thread_id}/events")
         def get_thread_events(thread_id: str, request: Request,
                               after: Annotated[int, Query(ge=0)] = 0):

@@ -80,6 +80,8 @@ class ThreadService(Protocol):
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
+    def catalog(self, thread_id: str) -> dict[str, object]: ...
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
@@ -157,6 +159,61 @@ def _next_selection_revision(current: str, event_seq: int) -> str:
 
 def _canonical(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+
+
+def _thread_catalog_document(
+    model_catalog: ThreadModelCatalog | None,
+    capability_catalog: ThreadCapabilityCatalog | None,
+) -> dict[str, object]:
+    """Project only bounded selector metadata from application-owned catalogs."""
+
+    models: list[dict[str, object]] = []
+    families: set[str] = set()
+    list_entries = getattr(model_catalog, "list_entries", None)
+    if callable(list_entries):
+        for entry in tuple(list_entries())[:128]:
+            values = {
+                "model_id": getattr(entry, "model_id", None),
+                "authority_model_ref": getattr(entry, "authority_model_ref", None),
+                "display_name": getattr(entry, "display_name", None),
+                "diagram_provider_id": getattr(entry, "diagram_provider_id", None),
+                "implementation_family": getattr(entry, "implementation_family", None),
+            }
+            if not all(isinstance(value, str) and value.strip() for value in values.values()):
+                continue
+            families.add(values["implementation_family"])
+            models.append(values)
+
+    profiles: dict[tuple[str, str], dict[str, object]] = {}
+    list_profiles = getattr(capability_catalog, "profiles_for_family", None)
+    if callable(list_profiles):
+        for family in sorted(families):
+            for info in tuple(list_profiles(family))[:128]:
+                descriptor = getattr(info, "descriptor", None)
+                profile_id = getattr(descriptor, "profile_id", None)
+                profile_version = getattr(descriptor, "profile_version", None)
+                display_name = getattr(info, "display_name", None)
+                implementation_families = getattr(info, "implementation_families", None)
+                if (
+                    not isinstance(profile_id, str)
+                    or not isinstance(profile_version, str)
+                    or not isinstance(display_name, str)
+                    or not isinstance(implementation_families, tuple)
+                    or not all(isinstance(item, str) and item.strip() for item in implementation_families)
+                ):
+                    continue
+                profiles[(profile_id, profile_version)] = {
+                    "profile_id": profile_id,
+                    "profile_version": profile_version,
+                    "display_name": display_name,
+                    "implementation_families": list(implementation_families),
+                }
+
+    return {
+        "schema": "capstone-thread-catalog/1",
+        "models": models,
+        "profiles": [profiles[key] for key in sorted(profiles)],
+    }
 
 
 def _validate_json(value: Any, *, name: str) -> None:
@@ -304,6 +361,11 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             self.interrupt_expired_attempts()
             return self._snapshot
+
+    def catalog(self, thread_id: str) -> dict[str, object]:
+        with self._lock:
+            self._check_thread(thread_id)
+            return _thread_catalog_document(self._model_catalog, self._capability_catalog)
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
@@ -1246,6 +1308,10 @@ class PostgresThreadService:
         if row is None:
             raise ThreadNotFound(thread_id)
         return self._snapshot_from_row(row)
+
+    def catalog(self, thread_id: str) -> dict[str, object]:
+        self.snapshot(thread_id)
+        return _thread_catalog_document(self._model_catalog, self._capability_catalog)
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
