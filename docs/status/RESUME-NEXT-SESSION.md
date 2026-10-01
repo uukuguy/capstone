@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 02:15 CST. **Session remains active — M5 implementation is in progress; real-family/live-client acceptance is still open.**
+> Updated: 2026-10-02 02:55 CST. **Session remains active — M5 implementation is in progress; real-family/live-client acceptance is still open.**
 
 ## Current position
 
@@ -20,11 +20,11 @@
 
 ## M5 implementation checkpoint
 
-- Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd`, `7edc905`, `7bece3c`, `9a505f9`, `2d80311`, `e74a1e2`, `b3edcef`, `ab8f207`, `3ef143d`, `a20b3b1` (typed adapters, hard-gated matrix, production HTTP client, recovery-safe reference TUI, shared catalog, and transport-independent client boundary).
-- Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with API image `sha256:a7d96ff6ff3e4f9f4c0be56ff9211105dba9e7e1e5ac1b410672d7ae96828222` and API `/health/ready` healthy. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
+- Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd`, `7edc905`, `7bece3c`, `9a505f9`, `2d80311`, `e74a1e2`, `b3edcef`, `ab8f207`, `3ef143d`, `a20b3b1`, `a4f8546`, `bc67286`, `f6e910e`, `caa3c88`, `d80a0f1`, `d7d2f07`, `f36119b`, `0541c9b`, `7ea5177` (typed adapters, hard-gated matrix, production HTTP client, recovery-safe reference TUI, shared hosted roots/selector, schema and Pyright gate fixes, and interrupted-state UI protection).
+- Focused M5 checks: 43 Capstone/validation tests passed; PyPSA Thread capability tests 5 passed; changed-source pyright and ruff passed; `make doctor` passed; an earlier rebuild produced a healthy API image, but the latest rebuild attempt is blocked by the unavailable Docker daemon. Real HTTP smoke verified a typed Thread catalog with the registered IEEE-39 model.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - Both registered families now expose Capstone-owned hosted API/worker entrypoints. `CAPSTONE_HOSTED_APPLICATION=pandapower|pypsa` selects the matching adapter, while each API/Worker pair must remain in one isolated application stage. The remaining M5 blockers are provider-free live acceptance, lifecycle/recovery parity, and final independent review; a composition root alone is not a validation pass.
-- Independent review of `bc67286`, `f6e910e`, `caa3c88`, and `d80a0f1` is approved with zero Critical/Important/Minor findings. `make test` currently has 842 passed and one checked-in schema drift failure; local rebuild retry is blocked by an unavailable Docker daemon.
+- Independent review of `bc67286`, `f6e910e`, `caa3c88`, and `d80a0f1` is approved with zero Critical/Important/Minor findings; review of `7ea5177` is pending. Full `make test` now passes across all listed Python, Node, App, PyPSA, boundary, and verification targets. `make doctor` and `git diff --check` pass. `make validate-thread-m5` remains report-only without credentials; `make validate` is still blocked by the pre-existing protected `packages/grid-simulator` baseline mismatch, and `make capstone-local-rebuild` is blocked by the unavailable Docker daemon.
 - The current Python Textual TUI is frozen as a protocol/reference client. It is intentionally not the production visual/interaction target; after the M5 protocol gates, create a separate first-class `capstone` client interaction contract and framework evaluation before further UI work.
 
 ## Next action: M5 unified validation
