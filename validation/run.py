@@ -285,6 +285,11 @@ class ScriptedApplicationTransport:
                 on_semantic_event=on_semantic_event,
             )
         self._question_index += 1
+        scripted_answer = scripted.get("answer")
+        if scripted_answer is not None:
+            if not isinstance(scripted_answer, str) or not scripted_answer.strip():
+                raise RuntimeError("scripted application answer is invalid")
+            return scripted_answer
         return _render_scripted_answer(self.calls[turn_start:])
 
     def _invoke(
@@ -746,6 +751,9 @@ def _load_application_document(case: Path | Mapping[str, object]) -> Mapping[str
         seen_ids.add(question_id)
         if not isinstance(question.get("text"), str) or not question["text"].strip():
             raise ValueError("application case question text is invalid")
+        answer = question.get("answer")
+        if answer is not None and (not isinstance(answer, str) or not answer.strip()):
+            raise ValueError("application case question answer is invalid")
         steps = question.get("steps")
         if not isinstance(steps, list):
             raise ValueError("application case question steps are invalid")

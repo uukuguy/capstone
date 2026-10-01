@@ -20,13 +20,22 @@ from validation.run import execute_application_case
 ROOT = Path(__file__).resolve().parents[4]
 
 
-def _case(question: str, steps: list[dict[str, object]], run_id: str) -> dict[str, object]:
+def _case(
+    question: str,
+    steps: list[dict[str, object]],
+    run_id: str,
+    *,
+    answer: str | None = None,
+) -> dict[str, object]:
+    question_payload: dict[str, object] = {"id": "admission", "text": question, "steps": steps}
+    if answer is not None:
+        question_payload["answer"] = answer
     return {
         "schema_version": "application-instantiation/1.0",
         "case_id": run_id,
         "application_id": "pandapower-static-analysis",
         "run_id": run_id,
-        "questions": [{"id": "admission", "text": question, "steps": steps}],
+        "questions": [question_payload],
     }
 
 
@@ -153,8 +162,9 @@ def test_no_new_tool_answer_preserves_text_and_continues_to_real_powerflow(
 
 
 def test_real_boundary_renders_natural_language_offline_knowledge(tmp_path: Path) -> None:
+    answer = "交流潮流用于求解稳态运行点的电压、相角和支路功率。"
     execution = execute_application_case(
-        _case("什么是交流潮流？", [], "admission-offline"),
+        _case("什么是交流潮流？", [], "admission-offline", answer=answer),
         runs_root=tmp_path / "runs",
         timeout_seconds=17.0,
     )
@@ -163,7 +173,7 @@ def test_real_boundary_renders_natural_language_offline_knowledge(tmp_path: Path
     assert finalized.status == "success"
     assert admission.mode == "offline_information"
     assert admission.assurance == "deterministic_information"
-    assert "什么是交流潮流" in finalized.answer_output
+    assert finalized.answer_output == answer
 
 
 @pytest.mark.parametrize(

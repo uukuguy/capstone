@@ -34,3 +34,32 @@ def test_scripted_transport_delivers_prompt_heartbeat_without_creating_evidence(
     assert transport.calls == []
     assert transport.current_result_refs == ()
     assert transport.current_evidence_refs == ()
+
+
+def test_scripted_transport_returns_explicit_model_answer_without_creating_evidence() -> None:
+    model_answer = "交流潮流用于求解稳态运行点的电压、相角和支路功率。"
+    case = {
+        "run_id": "scripted-model-answer",
+        "questions": [{
+            "text": "什么是交流潮流？",
+            "steps": [],
+            "answer": model_answer,
+        }],
+    }
+    prepared = SimpleNamespace(
+        bindings={"grid": SimpleNamespace(runtime=SimpleNamespace(capability_documents=()))}
+    )
+    transport = ScriptedApplicationTransport(
+        case, prepared=prepared, catalog=SimpleNamespace(domain_tools=())
+    )
+
+    answer = transport.prompt_and_wait(
+        "什么是交流潮流？",
+        correlation_id="turn-1",
+        on_heartbeat=lambda: None,
+    )
+
+    assert answer == model_answer
+    assert transport.calls == []
+    assert transport.current_result_refs == ()
+    assert transport.current_evidence_refs == ()
