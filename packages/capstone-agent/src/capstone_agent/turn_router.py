@@ -43,6 +43,25 @@ class TurnIntent:
 
 
 @dataclass(frozen=True, slots=True)
+class RoutingInput:
+    """Sanitized router input; runtime objects and raw transcripts never enter it."""
+
+    turn_id: str
+    attempt_id: str
+    instruction: str
+    command_kind: str
+    context_snapshot: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        if not self.turn_id or not self.attempt_id:
+            raise ValueError("routing identity is invalid")
+        if not self.instruction or len(self.instruction) > 16_384:
+            raise ValueError("routing instruction is invalid")
+        if self.command_kind not in {"send_auto", "send_ordinary", "send_professional"}:
+            raise ValueError("routing command kind is invalid")
+
+
+@dataclass(frozen=True, slots=True)
 class TurnPlan:
     turn_id: str
     attempt_id: str
@@ -51,6 +70,7 @@ class TurnPlan:
     plan_revision: str
     capability_hint: str | None
     context_snapshot: Mapping[str, object]
+    confidence: str | None = None
     fallback: bool = False
 
     def __post_init__(self) -> None:
@@ -60,6 +80,8 @@ class TurnPlan:
             raise ValueError("turn plan route is invalid")
         if self.capability_hint is not None and len(self.capability_hint) > _MAX_HINT:
             raise ValueError("turn plan capability hint is too long")
+        if self.confidence is not None and len(self.confidence) > 32:
+            raise ValueError("turn plan confidence is invalid")
         if len(str(dict(self.context_snapshot))) > _MAX_CONTEXT:
             raise ValueError("turn plan context snapshot is too large")
 
@@ -75,11 +97,13 @@ class TurnPlan:
         }
         if self.capability_hint is not None:
             payload["capability_hint"] = self.capability_hint
+        if self.confidence is not None:
+            payload["confidence"] = self.confidence
         return payload
 
 
 class TurnRouter(Protocol):
-    def plan(self, claim: AttemptClaim) -> TurnPlan: ...
+    def plan(self, routing_input: RoutingInput) -> TurnPlan: ...
 
 
 def _context_snapshot(claim: AttemptClaim) -> dict[str, object]:
@@ -96,12 +120,14 @@ def _context_snapshot(claim: AttemptClaim) -> dict[str, object]:
     }
 
 
-def _hint(claim: AttemptClaim) -> str | None:
-    if claim.kind == "send_professional":
-        return "domain_analysis"
-    if claim.kind == "send_ordinary":
-        return "general_conversation"
-    return None
+def routing_input_for_claim(claim: AttemptClaim) -> RoutingInput:
+    return RoutingInput(
+        turn_id=claim.attempt.turn_id,
+        attempt_id=claim.attempt.attempt_id,
+        instruction=claim.instruction[:16_384],
+        command_kind=claim.kind,
+        context_snapshot=_context_snapshot(claim),
+    )
 
 
 class DefaultTurnRouter:
@@ -118,43 +144,45 @@ class DefaultTurnRouter:
         self._decision_router = decision_router
         self.ordinary_conversation_enabled = ordinary_conversation_enabled
 
-    def plan(self, claim: AttemptClaim) -> TurnPlan:
-        if claim.kind == "send_professional":
+    def plan(self, routing_input: RoutingInput | AttemptClaim) -> TurnPlan:
+        if isinstance(routing_input, AttemptClaim):
+            routing_input = routing_input_for_claim(routing_input)
+        if routing_input.command_kind == "send_professional":
             intent = TurnIntent("professional", "explicit")
-        elif claim.kind == "send_ordinary":
+        elif routing_input.command_kind == "send_ordinary":
             intent = TurnIntent("ordinary", "explicit")
-        elif claim.kind == "send_auto":
+        elif routing_input.command_kind == "send_auto":
             if self._decision_router is None:
                 intent = TurnIntent(
                     "professional" if any(
-                        hint in claim.instruction.lower() for hint in _DOMAIN_HINTS
-                    ) else "ordinary",
-                    "heuristic",
+                        hint in routing_input.instruction.lower() for hint in _DOMAIN_HINTS
+                    ) else "ordinary", "heuristic", "bounded_heuristic",
                 )
             else:
                 try:
-                    nested = self._decision_router.plan(claim)
-                    intent = TurnIntent(nested.route, "classifier")
+                    nested = self._decision_router.plan(routing_input)
+                    intent = TurnIntent(nested.route, nested.source, nested.confidence)
                 except (DecisionUnavailable, ValueError, TypeError):
                     intent = TurnIntent("ordinary", "decision_unavailable")
-                    return self._make(claim, intent, fallback=True)
+                    return self._make(routing_input, intent, fallback=True)
         else:
             raise DecisionUnavailable("unsupported_turn_kind")
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:
             raise DecisionUnavailable("ordinary_conversation_disabled")
-        return self._make(claim, intent)
+        return self._make(routing_input, intent)
 
-    def _make(self, claim: AttemptClaim, intent: TurnIntent, *, fallback: bool = False) -> TurnPlan:
+    def _make(self, routing_input: RoutingInput, intent: TurnIntent, *, fallback: bool = False) -> TurnPlan:
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:
             raise DecisionUnavailable("ordinary_conversation_disabled")
         return TurnPlan(
-            turn_id=claim.attempt.turn_id,
-            attempt_id=claim.attempt.attempt_id,
+            turn_id=routing_input.turn_id,
+            attempt_id=routing_input.attempt_id,
             route=intent.route,
             source=intent.source,
             plan_revision="turn-plan-v1",
-            capability_hint=_hint(claim),
-            context_snapshot=_context_snapshot(claim),
+            capability_hint=("domain_analysis" if intent.route == "professional" else "general_conversation"),
+            context_snapshot=routing_input.context_snapshot,
+            confidence=intent.confidence,
             fallback=fallback,
         )
 
@@ -165,18 +193,18 @@ class FakeDecisionRouter:
     def __init__(self, decision: str | Callable[[str], str]) -> None:
         self._decision = decision
 
-    def plan(self, claim: AttemptClaim) -> TurnPlan:
-        value = self._decision(claim.instruction) if callable(self._decision) else self._decision
+    def plan(self, routing_input: RoutingInput) -> TurnPlan:
+        value = self._decision(routing_input.instruction) if callable(self._decision) else self._decision
         if value not in _ROUTES:
             raise DecisionUnavailable("fake_decision_invalid")
         return TurnPlan(
-            turn_id=claim.attempt.turn_id,
-            attempt_id=claim.attempt.attempt_id,
+            turn_id=routing_input.turn_id,
+            attempt_id=routing_input.attempt_id,
             route=value,
             source="fake",
             plan_revision="turn-plan-v1",
             capability_hint=None,
-            context_snapshot=_context_snapshot(claim),
+            context_snapshot=routing_input.context_snapshot,
         )
 
 
@@ -189,27 +217,27 @@ class JevDecisionRouter:
         self.enabled = enabled
         self._classifier = classifier
 
-    def plan(self, claim: AttemptClaim) -> TurnPlan:
+    def plan(self, routing_input: RoutingInput) -> TurnPlan:
         if not self.enabled:
             raise DecisionUnavailable("jev_disabled")
         try:
-            route = self._classifier(claim.instruction[:16_384])
+            route = self._classifier(routing_input.instruction)
         except Exception as error:
             raise DecisionUnavailable("jev_unavailable") from error
         if route not in _ROUTES:
             raise DecisionUnavailable("jev_decision_invalid")
         return TurnPlan(
-            turn_id=claim.attempt.turn_id,
-            attempt_id=claim.attempt.attempt_id,
+            turn_id=routing_input.turn_id,
+            attempt_id=routing_input.attempt_id,
             route=route,
             source="jev",
             plan_revision="turn-plan-v1",
             capability_hint="domain_analysis" if route == "professional" else "general_conversation",
-            context_snapshot=_context_snapshot(claim),
+            context_snapshot=routing_input.context_snapshot,
         )
 
 
 __all__ = [
     "DecisionUnavailable", "DefaultTurnRouter", "FakeDecisionRouter", "JevDecisionRouter",
-    "TurnIntent", "TurnPlan", "TurnRouter",
+    "RoutingInput", "TurnIntent", "TurnPlan", "TurnRouter", "routing_input_for_claim",
 ]

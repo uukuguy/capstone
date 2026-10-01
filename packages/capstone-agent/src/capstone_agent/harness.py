@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
-from .turn_router import DecisionUnavailable, TurnPlan, TurnRouter
+from .turn_router import DecisionUnavailable, TurnPlan, TurnRouter, routing_input_for_claim
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -319,7 +319,7 @@ class HarnessAttemptRunner:
                 "send_auto", "send_ordinary", "send_professional",
             }:
                 try:
-                    plan = self._turn_router.plan(claim)
+                    plan = self._turn_router.plan(routing_input_for_claim(claim))
                 except DecisionUnavailable as error:
                     self._finish_failed(claim, "decision_unavailable")
                     return HarnessAttemptResult("failed", None, str(error) or "decision_unavailable")

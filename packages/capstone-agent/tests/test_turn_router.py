@@ -8,6 +8,7 @@ from capstone_agent.turn_router import (
     DefaultTurnRouter,
     FakeDecisionRouter,
     JevDecisionRouter,
+    routing_input_for_claim,
 )
 
 
@@ -42,9 +43,9 @@ def test_auto_router_uses_fixture_and_keeps_context_bounded() -> None:
     service, claim = _claim()
     plan = DefaultTurnRouter(
         decision_router=FakeDecisionRouter("professional"),
-    ).plan(claim)
+    ).plan(routing_input_for_claim(claim))
     assert plan.route == "professional"
-    assert plan.source == "classifier"
+    assert plan.source == "fake"
     assert plan.context_snapshot == {
         "model_id": "ieee39", "implementation_family": "pandapower",
         "selection_revision": "sel_0", "enabled_profiles": [],
@@ -58,9 +59,9 @@ def test_jev_is_disabled_by_default_and_enabled_classifier_is_input_bounded() ->
     seen: list[str] = []
     router = JevDecisionRouter(lambda text: seen.append(text) or "ordinary")
     with pytest.raises(DecisionUnavailable, match="disabled"):
-        router.plan(claim)
+        router.plan(routing_input_for_claim(claim))
     router.enabled = True
-    plan = router.plan(claim)
+    plan = router.plan(routing_input_for_claim(claim))
     assert plan.route == "ordinary"
     assert seen == ["hello"]
     del service
