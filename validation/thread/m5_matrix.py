@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -42,7 +43,7 @@ def validate_attempt_projection(
     """Check one terminal Attempt without trusting model-authored text."""
 
     scoped = tuple(event for event in events if event.attempt_id == attempt_id)
-    selected = [event for event in scoped if event.event_type == "turn_route_selected"]
+    selected = [event for event in scoped if event.event_type in {"turn_route_selected", "turn_route_fallback"}]
     terminal = next((event for event in reversed(scoped) if event.event_type == "attempt_completed"), None)
     tools = [event for event in scoped if event.event_type == "tool_completed"]
     if not selected or _event_payload(selected[-1]).get("route") != route:
@@ -72,10 +73,25 @@ def validate_attempt_projection(
             return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool source is not explicit", "attempt_id": attempt_id})
         if key.get("implementation_family", implementation_family) != implementation_family:
             return M5CheckResult("attempt.tool_source", "failed", {"reason": "tool family mismatch", "attempt_id": attempt_id})
+    started = next((event for event in scoped if event.event_type == "attempt_started"), None)
+    if started is None:
+        return M5CheckResult("attempt.duration", "failed", {"reason": "missing attempt_started", "attempt_id": attempt_id})
+    try:
+        duration_ms = int((datetime.fromisoformat(terminal.occurred_at.replace("Z", "+00:00")) - datetime.fromisoformat(started.occurred_at.replace("Z", "+00:00"))).total_seconds() * 1000)
+    except ValueError:
+        return M5CheckResult("attempt.duration", "failed", {"reason": "invalid event timestamps", "attempt_id": attempt_id})
+    if duration_ms < 0:
+        return M5CheckResult("attempt.duration", "failed", {"reason": "negative duration", "attempt_id": attempt_id})
     return M5CheckResult("attempt", "passed", {
         "attempt_id": attempt_id, "implementation_family": implementation_family,
-        "tool_count": len(tools), "result_ref_count": len(refs), "evidence_ref_count": len(evidence),
+        "tool_count": len(tools), "result_ref_count": len(refs), "evidence_ref_count": len(evidence), "duration_ms": duration_ms,
     })
+
+
+def validate_ordinary_projection(events: tuple[EventEnvelope, ...], *, attempt_id: str) -> M5CheckResult:
+    return validate_attempt_projection(
+        events, attempt_id=attempt_id, route="ordinary", implementation_family="ordinary", authority_backed=False,
+    )
 
 
 def _registered_questions(application_id: str) -> tuple[tuple[str, str], ...]:
@@ -123,6 +139,16 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
                 implementation_family=snapshot.active_model_context.implementation_family,
                 authority_backed=True,
             ))
+        snapshot = session.snapshot()
+        cursor = snapshot.last_event_seq
+        receipt = session.command("send_auto", {"text": "你好，请简单介绍你能做什么。"}, expected_event_seq=cursor)
+        target = getattr(receipt, "target", None)
+        attempt_id = target.get("attempt_id") if isinstance(target, dict) else None
+        if isinstance(attempt_id, str):
+            _, events = _wait_attempt(session, attempt_id, receipt.accepted_event_seq or cursor, timeout_seconds)
+            results.append(validate_ordinary_projection(events, attempt_id=attempt_id))
+        else:
+            results.append(M5CheckResult("ordinary.acceptance", "failed", {"reason": "receipt has no attempt target"}))
         return tuple(results)
     except ThreadResyncRequired as error:
         return (M5CheckResult("matrix.recovery", "failed", {"reason": "resync required during matrix", "base_event_seq": error.snapshot.base_event_seq}),)
@@ -130,4 +156,4 @@ def run_application_matrix(application_id: str, session: MatrixSession, *, timeo
         return (M5CheckResult("matrix.execution", "failed", {"reason": type(error).__name__}),)
 
 
-__all__ = ["run_application_matrix", "validate_attempt_projection"]
+__all__ = ["run_application_matrix", "validate_attempt_projection", "validate_ordinary_projection"]
