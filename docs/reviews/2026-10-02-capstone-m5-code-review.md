@@ -4,6 +4,9 @@
 
 Reviewed commits `bc67286`, `f6e910e`, `caa3c88`, and `d80a0f1`.
 
+Follow-up review also covered `7ea5177`, which guards the TUI sync-error
+callback when Textual has already unloaded its screen.
+
 ## Verdict
 
 **APPROVE for the reviewed code changes.**
@@ -27,13 +30,20 @@ terminal-only event replays.
 - TypeScript check, Pyright, Ruff, package boundary check, and `git diff --check`: passed.
 - `CAPSTONE_M5_ALLOW_SKIP=1 make validate-thread-m5`: produced an explicit skipped
   report because protected live API credentials were absent.
+- Follow-up TUI focused tests: 8 passed; Pyright, Ruff, and package-boundary checks passed.
 
 ## Remaining M5 gate
 
 M5 remains **OPEN**. Provider-free live Thread matrices for both Authority
 families, lifecycle/recovery parity, and browser/TUI live evidence have not run.
-The latest `make test` run had 842 passed and one pre-existing checked-in-schema
-drift failure (`TurnRecord.answer_summary`). `make capstone-local-rebuild` could
-not complete: one attempt ended with a BuildKit EOF during dependency download,
-and the retry found the local Docker daemon unavailable. No skipped result is
-counted as a live pass.
+The complete `make test` gate now passes. `make validate` remains blocked by the
+pre-existing protected `packages/grid-simulator` baseline mismatch. The latest
+`make capstone-local-rebuild` could not complete because the local Docker daemon
+was unavailable. No skipped result is counted as a live pass.
+
+## Follow-up review of `7ea5177`
+
+**APPROVE** — Critical: 0, Important: 0, Minor: 0.
+
+The callback preserves the recovery freeze state and skips widget access after
+screen teardown; the regression test covers the detached-screen boundary.
