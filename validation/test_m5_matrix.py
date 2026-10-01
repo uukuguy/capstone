@@ -20,7 +20,7 @@ def test_professional_projection_requires_explicit_tool_source_and_evidence() ->
     events = (
         _event("attempt_started", {}, 1),
         _event("turn_route_selected", {"route": "professional"}, 2),
-        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
+        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "ok": True, "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
         _event("attempt_completed", {"answer": "完成", "result_refs": ["result:1"], "evidence_refs": ["evidence:1"], "admission": {"mode": "authority_backed"}}, 4),
     )
     result = validate_attempt_projection(events, attempt_id="attempt_001", route="professional", implementation_family="pandapower", authority_backed=True)
@@ -31,12 +31,30 @@ def test_professional_projection_rejects_terminal_references_not_emitted_by_curr
     events = (
         _event("attempt_started", {}, 1),
         _event("turn_route_selected", {"route": "professional"}, 2),
-        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
+        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "ok": True, "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
         _event("attempt_completed", {"answer": "完成", "result_refs": ["result:foreign"], "evidence_refs": ["evidence:1"], "admission": {"mode": "authority_backed"}}, 4),
     )
     result = validate_attempt_projection(events, attempt_id="attempt_001", route="professional", implementation_family="pandapower", authority_backed=True)
     assert result.name == "attempt.references"
     assert result.status == "failed"
+
+
+def test_professional_projection_rejects_fallback_and_failed_tool_completion() -> None:
+    fallback = (
+        _event("attempt_started", {}, 1),
+        _event("turn_route_fallback", {"route": "professional"}, 2),
+        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "ok": True, "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
+        _event("attempt_completed", {"answer": "完成", "result_refs": ["result:1"], "evidence_refs": ["evidence:1"], "admission": {"mode": "authority_backed"}}, 4),
+    )
+    assert validate_attempt_projection(fallback, attempt_id="attempt_001", route="professional", implementation_family="pandapower", authority_backed=True).status == "failed"
+
+    failed_tool = (
+        _event("attempt_started", {}, 1),
+        _event("turn_route_selected", {"route": "professional"}, 2),
+        _event("tool_completed", {"binding_id": "grid", "capability_id": "context.open", "ok": False, "result_refs": ["result:1"], "evidence_refs": ["evidence:1"]}, 3),
+        _event("attempt_completed", {"answer": "完成", "result_refs": ["result:1"], "evidence_refs": ["evidence:1"], "admission": {"mode": "authority_backed"}}, 4),
+    )
+    assert validate_attempt_projection(failed_tool, attempt_id="attempt_001", route="professional", implementation_family="pandapower", authority_backed=True).name == "attempt.tool_result"
 
 
 def test_professional_projection_rejects_missing_admission_even_with_answer() -> None:

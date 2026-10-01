@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from textual.widgets import Button, Input, Select, Static
+
 from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
 from capstone_agent.thread_tui import ThreadTuiApp
 
@@ -48,7 +50,7 @@ async def _test_tui_submits_professional_command_with_current_cursor() -> None:
 
     app = ThreadTuiApp(_snapshot(), _events(), submit)
     async with app.run_test(size=(120, 40)) as pilot:
-        app.query_one("#command-input").value = "查看当前模型"
+        app.query_one("#command-input", Input).value = "查看当前模型"
         await pilot.click("#send-professional")
 
     assert submitted[0]["kind"] == "send_professional"
@@ -72,10 +74,10 @@ async def _test_tui_model_switch_uses_selected_model_and_shows_receipt() -> None
         model_options=(("ieee39", "IEEE-39 · pandapower"), ("pypsa39", "PyPSA-39 · PyPSA")),
     )
     async with app.run_test(size=(120, 40)) as pilot:
-        select = app.query_one("#model-select")
+        select = app.query_one("#model-select", Select)
         select.value = "pypsa39"
         await pilot.click("#switch-model")
-        assert "accepted" in str(app.query_one("#feedback").content)
+        assert "accepted" in str(app.query_one("#feedback", Static).content)
 
     assert submitted[0]["kind"] == "switch_model"
     assert submitted[0]["payload"] == {"model_id": "pypsa39"}
@@ -103,7 +105,7 @@ async def _test_tui_keeps_message_controls_available_while_next_turn_controls_ar
     })
     app = ThreadTuiApp(snapshot, _events(), submit, model_options=(("ieee39", "IEEE-39"), ("pypsa39", "PyPSA-39")))
     async with app.run_test(size=(120, 40)) as pilot:
-        assert not app.query_one("#send-professional").disabled
-        app.query_one("#command-input").value = "查看当前模型"
+        assert not app.query_one("#send-professional", Button).disabled
+        app.query_one("#command-input", Input).value = "查看当前模型"
         await pilot.click("#send-professional")
     assert submitted[0]["kind"] == "send_professional"

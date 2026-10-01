@@ -87,6 +87,22 @@ def test_http_session_rejects_receipt_identity_mismatch() -> None:
             session.command("send_ordinary", {"text": "hello"}, command_id="cmd_001", idempotency_key="idem_001")
 
 
+def test_http_session_rejects_run_identity_change_after_create() -> None:
+    changed = _snapshot()
+    changed["run"] = {"run_id": "run_other", "state": "open"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/api/v1/threads":
+            return httpx.Response(201, json=_snapshot())
+        return httpx.Response(200, json=changed)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        session = HttpThreadSession("http://localhost", "secret", client=client)
+        session.create()
+        with pytest.raises(RuntimeError, match="run identity"):
+            session.snapshot()
+
+
 def test_wait_for_terminal_requires_matching_terminal_event() -> None:
     document = _snapshot()
     document["current_attempt"] = {

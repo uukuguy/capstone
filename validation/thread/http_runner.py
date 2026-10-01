@@ -119,6 +119,8 @@ class HttpThreadSession:
         snapshot = ThreadSnapshot.from_document(self._request("GET", f"/api/v1/threads/{thread_id}"))
         if snapshot.thread_id != thread_id:
             raise RuntimeError("snapshot identity does not match session")
+        if self.run_id is not None and snapshot.run.run_id != self.run_id:
+            raise RuntimeError("snapshot run identity does not match session")
         self.run_id = snapshot.run.run_id
         return snapshot
 
@@ -138,6 +140,8 @@ class HttpThreadSession:
                     raise ThreadHttpError(409, "resync response is malformed", error.body) from parse_error
                 if snapshot.thread_id != thread_id:
                     raise ThreadHttpError(409, "resync snapshot identity does not match session", error.body)
+                if self.run_id is not None and snapshot.run.run_id != self.run_id:
+                    raise ThreadHttpError(409, "resync snapshot run identity does not match session", error.body)
                 self.run_id = snapshot.run.run_id
                 raise ThreadResyncRequired(snapshot) from error
             raise

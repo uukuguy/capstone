@@ -45,6 +45,8 @@ def build_pypsa_thread_model_catalog(
         cast(str, entry["catalog_id"]) for entry in list_registered_models()
         if isinstance(entry.get("catalog_id"), str)
     )
+    if default_model_id not in model_ids:
+        raise ValueError("default_model_id is not a registered PyPSA model")
     return AuthorityThreadModelCatalog(
         default_model_id=default_model_id,
         model_ids=model_ids,

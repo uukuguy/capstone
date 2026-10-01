@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import cast
+
+import pytest
+
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
@@ -8,6 +12,7 @@ from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
+from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_agent.thread_service import AttemptClaim
 from capstone_model_capability_spi import ModelCapabilityRegistry
 from pypsa_agent.thread_capabilities import (
@@ -91,9 +96,17 @@ def test_pypsa_thread_model_catalog_exposes_real_authority_ids():
     assert catalog.resolve("pypsa-example/scigrid_de").model_id == "pypsa-example/scigrid_de"
 
 
+def test_pypsa_thread_model_catalog_rejects_unregistered_default():
+    with pytest.raises(ValueError, match="registered PyPSA model"):
+        build_pypsa_thread_model_catalog(
+            model_resolver=lambda model_id: {"model_id": model_id, "revision_ref": "revision:sha256:" + "a" * 64, "implementation_family": "pypsa"},
+            default_model_id="scigrid",
+        )
+
+
 def test_pypsa_thread_application_is_an_explicit_opt_in_composition_root(tmp_path):
     assembly = build_pypsa_thread_application(
-        default_model_id="scigrid",
+        default_model_id="regional-six-bus",
         model_resolver=lambda model_id: {
             "model_id": model_id,
             "revision_ref": "revision:sha256:" + "a" * 64,
@@ -107,8 +120,9 @@ def test_pypsa_thread_application_is_an_explicit_opt_in_composition_root(tmp_pat
         session_builder=lambda _claim, _context, _profiles: _Session(),
     )
     assert isinstance(assembly, ThreadApplicationAssembly)
-    assert assembly.catalog.default_model_id == "scigrid"
-    assert "pypsa-example/scigrid_de" in assembly.catalog.list_model_ids()
+    assert assembly.catalog.default_model_id == "regional-six-bus"
+    catalog = cast(AuthorityThreadModelCatalog, assembly.catalog)
+    assert "pypsa-example/scigrid_de" in catalog.list_model_ids()
     assert assembly.capability_context_owner is not None
     assembly.capability_context_owner.close()
 
@@ -124,7 +138,7 @@ def test_pypsa_prepared_profile_runs_through_shared_thread_worker(tmp_path):
 
     revision = "revision:sha256:" + "a" * 64
     assembly = build_pypsa_thread_application(
-        default_model_id="scigrid",
+        default_model_id="regional-six-bus",
         model_resolver=lambda model_id: {
             "model_id": model_id,
             "revision_ref": revision,
