@@ -179,9 +179,10 @@
 
 ## Immediate next action
 
-1. Review the completed M2 model/runtime changes, then begin M3 ordinary
-   conversation and TurnRouter work. Keep the generic runtime capability
-   registry as the source for Pi/DSH skills, MCP, and plugins.
+1. Complete M3 review and integration verification for the bounded
+   `TurnRouter`/`TurnPlan` path. Keep the generic runtime capability registry
+   as the source for Pi/DSH skills, MCP, and plugins; do not turn it into a
+   pandapower-only classifier.
 2. Keep using the real scripted pandapower instructions for deterministic
    Thread/App smoke; do not substitute guessed grid values.
 3. Preserve the shared typed Thread client, receipt, cursor, and projection
@@ -202,3 +203,6 @@
 - M2 model IDs may contain one registered authority namespace slash; derive page
   keys through `page_id_for_model` and never treat a model ID as a filesystem
   path.
+- M3 routing events must be written before runtime start. Classification only
+  selects ordinary/professional routing; result/evidence admission remains the
+  existing Harness/Application gate. Jev stays optional and disabled by default.

@@ -245,7 +245,13 @@ def main(
                     thread_scheduler = threading.Thread(
                         target=serve_thread_attempts,
                         args=(thread_service, thread_runtime_factory),
-                        kwargs={"stop_event": thread_stop},
+                        kwargs={
+                            "stop_event": thread_stop,
+                            "turn_router": (
+                                thread_application.turn_router
+                                if thread_application is not None else None
+                            ),
+                        },
                         name="capstone-thread-worker", daemon=True,
                     )
                     thread_scheduler.start()

@@ -58,6 +58,12 @@ def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None
     assert result.status == "completed"
     assert seen
     assert service.snapshot("thr_worker").current_attempt is None
+    events = service.read_events("thr_worker", 0).events
+    event_types = [event.event_type for event in events]
+    assert event_types.index("turn_plan_created") < event_types.index("attempt_completed")
+    assert event_types[event_types.index("turn_plan_created"):event_types.index("turn_plan_created") + 2] == [
+        "turn_plan_created", "turn_route_selected",
+    ]
 
 
 def test_thread_worker_stops_when_requested() -> None:

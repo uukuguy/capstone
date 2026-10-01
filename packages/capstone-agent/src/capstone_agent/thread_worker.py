@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime
 from .thread_service import AttemptClaim, ThreadExecutionService
+from .turn_router import DefaultTurnRouter, TurnRouter
 
 
 RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
@@ -23,6 +24,7 @@ def run_pending_attempt(
     *,
     worker_id: str,
     lease_seconds: int = 30,
+    turn_router: TurnRouter | None = None,
 ) -> HarnessAttemptResult | None:
     """Run at most one accepted Attempt and return ``None`` when idle."""
 
@@ -52,7 +54,10 @@ def run_pending_attempt(
             claim, phase="failed", payload={"error_code": error_code},
         )
         return HarnessAttemptResult("failed", None, error_code)
-    return HarnessAttemptRunner(service, runtime, lease_seconds=lease_seconds).run(claim)
+    router = turn_router if turn_router is not None else DefaultTurnRouter()
+    return HarnessAttemptRunner(
+        service, runtime, lease_seconds=lease_seconds, turn_router=router,
+    ).run(claim)
 
 
 def serve_thread_attempts(
@@ -63,6 +68,7 @@ def serve_thread_attempts(
     lease_seconds: int = 30,
     poll_seconds: float = 0.25,
     stop_event: threading.Event | None = None,
+    turn_router: TurnRouter | None = None,
 ) -> None:
     """Poll accepted Attempts until ``stop_event`` is set.
 
@@ -77,6 +83,7 @@ def serve_thread_attempts(
         result = run_pending_attempt(
             service, runtime_factory, worker_id=worker_id,
             lease_seconds=lease_seconds,
+            turn_router=turn_router,
         )
         if result is None:
             stop.wait(poll_seconds)

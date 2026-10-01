@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
+from .turn_router import DecisionUnavailable, TurnPlan, TurnRouter
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -294,13 +295,14 @@ class HarnessAttemptRunner:
 
     def __init__(
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
-        *, lease_seconds: int = 30,
+        *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
         self._service = service
         self._runtime = runtime
         self._lease_seconds = lease_seconds
+        self._turn_router = turn_router
         self._tools_observed = False
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
@@ -311,7 +313,17 @@ class HarnessAttemptRunner:
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
+        plan: TurnPlan | None = None
         try:
+            if self._turn_router is not None and claim.kind in {
+                "send_auto", "send_ordinary", "send_professional",
+            }:
+                try:
+                    plan = self._turn_router.plan(claim)
+                except DecisionUnavailable as error:
+                    self._finish_failed(claim, "decision_unavailable")
+                    return HarnessAttemptResult("failed", None, str(error) or "decision_unavailable")
+                self._persist_plan(claim, plan)
             self._runtime.start()
             answer = self._runtime.prompt(
                 claim.instruction,
@@ -340,7 +352,12 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
-            if candidate is None and (claim.kind not in {"send_auto", "send_ordinary"} or self._tools_observed):
+            professional_route = plan is not None and plan.route == "professional"
+            if candidate is None and (
+                professional_route
+                or (plan is None and claim.kind not in {"send_auto", "send_ordinary"})
+                or self._tools_observed
+            ):
                 raise _AttemptAdmissionError("answer_admission_unavailable")
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
@@ -379,6 +396,25 @@ class HarnessAttemptRunner:
                 self._runtime.stop()
             except Exception:
                 pass
+
+    def _persist_plan(self, claim: AttemptClaim, plan: TurnPlan) -> None:
+        self._service.append_runtime_event(
+            claim,
+            event_type="turn_plan_created",
+            payload=plan.to_payload(),
+            visibility="public",
+        )
+        self._service.append_runtime_event(
+            claim,
+            event_type="turn_route_fallback" if plan.fallback else "turn_route_selected",
+            payload={
+                "route": plan.route,
+                "source": plan.source,
+                "plan_revision": plan.plan_revision,
+                "fallback": plan.fallback,
+            },
+            visibility="public" if not plan.fallback else "diagnostic",
+        )
 
     def _persist_event(self, claim: AttemptClaim, event: Mapping[str, object]) -> None:
         event_type = event.get("event_type")
