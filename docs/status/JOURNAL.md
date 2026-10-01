@@ -1454,3 +1454,4 @@ _Recovered pre-merge mainline entries._
 - M2 评审报告已落盘，批准进入 M3；generic Pi/DSH capability materialization 保留为下一里程碑 [ddb1f91]
 - M3 TurnRouter、TurnPlan 与 Jev 可选安全降级已接入 Harness，普通对话默认可用并保留专业 admission 门控 [a24f5bd]
 - M3 将 ordinary_conversation_enabled 作为 ApplicationAssembly 策略注入 hosted worker，避免配置只存在于默认实现 [12c6c0f]
+- M3 Router 改用脱敏 RoutingInput 并记录 bounded confidence，避免分类器接触 Attempt/运行时对象 [7b050b3]
