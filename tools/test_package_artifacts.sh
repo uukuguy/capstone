@@ -25,6 +25,7 @@ python3 tools/check_package_boundaries.py
 python3 tools/check_protected_paths.py
 
 uv build --project packages/capability-agent-kernel --out-dir "$artifact_dir"
+uv build --project packages/capstone-model-capability-spi --out-dir "$artifact_dir"
 uv build --project packages/capstone-agent --out-dir "$artifact_dir"
 uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
@@ -58,6 +59,7 @@ npm pack --prefix "$grid_pack_dir" "$grid_pack_dir" --pack-destination "$artifac
 
 python_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl
+  "$artifact_dir"/capstone_model_capability_spi-*.whl
   "$artifact_dir"/capstone_agent-*.whl
   "$artifact_dir"/grid_simulator-*.whl
   "$artifact_dir"/pandapower_domain_pack-*.whl
@@ -67,6 +69,7 @@ python_wheels=(
 )
 pypsa_wheels=(
   "$artifact_dir"/capability_agent_kernel-*.whl
+  "$artifact_dir"/capstone_model_capability_spi-*.whl
   "$artifact_dir"/capstone_agent-*.whl
   "$artifact_dir"/pypsa_model_authority-*.whl
   "$artifact_dir"/pypsa_network_modeling_domain_pack-*.whl
@@ -76,8 +79,8 @@ pypsa_wheels=(
   "$artifact_dir"/pypsa_agent-*.whl
 )
 
-if [ "${#python_wheels[@]}" -ne 7 ] || [ "${#pypsa_wheels[@]}" -ne 8 ]; then
-  echo "expected seven grid/reference and eight PyPSA wheel inputs" >&2
+if [ "${#python_wheels[@]}" -ne 8 ] || [ "${#pypsa_wheels[@]}" -ne 9 ]; then
+  echo "expected eight grid/reference and nine PyPSA wheel inputs" >&2
   exit 1
 fi
 for wheel in "${python_wheels[@]}" "${pypsa_wheels[@]}"; do
