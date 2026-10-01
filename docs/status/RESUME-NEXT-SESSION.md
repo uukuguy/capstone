@@ -21,7 +21,7 @@
 ## M5 implementation checkpoint
 
 - Commits: `a4acef7`, `eb53c11`, `b42dc60`, `0b847b8`, `786dd51`, `fc75f7d`, `40949cd`, `7edc905`, `7bece3c`, `9a505f9` (typed adapters, hard-gated matrix, exact catalog identity, bounded production HTTP client, and live TUI bridge).
-- Focused M5 checks: HTTP/projection checks 12 passed, TUI checks 5 passed, catalog matrix checks 6 passed; changed-source pyright and ruff passed; PyPSA Thread capability tests 5 passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with API image `sha256:2b8d1ade8210b921b630fd62565a34c78e81aab94117868ae473e889e276d9a9` and API `/health/ready` healthy.
+- Focused M5 checks: HTTP/projection checks 12 passed, TUI checks 5 passed, catalog matrix checks 6 passed; changed-source pyright and ruff passed; PyPSA Thread capability tests 5 passed; `make doctor` passed; current-source `make capstone-local-rebuild` passed with API image `sha256:d690d706ededddf1533c799dd5a95d8bac0f67a53db14142052a822a685d7589` and API `/health/ready` healthy.
 - `make validate-thread-m5` was run without M5 credentials and wrote an explicit skipped report under ignored `runs/capstone-m5/`, then exited `2` as a setup failure. Set `CAPSTONE_M5_ALLOW_SKIP=1` only for report-only work. No provider command was submitted.
 - The current Compose hosted Thread is still assembled by the pandapower compatibility adapter and uses the Provider-backed runtime. PyPSA has a Thread assembly helper but no equivalent hosted API/worker entry. These are real M5 blockers, not acceptable skipped passes.
 
