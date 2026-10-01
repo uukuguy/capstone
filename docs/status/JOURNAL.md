@@ -1466,3 +1466,5 @@ _Recovered pre-merge mainline entries._
 - 09:30 按 M4 评审修复活动中控件暂存、catalog 当前模型合并、trace 关闭动作和中断 Attempt 重试入口 [15769e5]
 - 09:33 M4 评审修复后全量 Web 135 tests、build、边界检查与 diff 检查通过；M5 统一真实客户端验证成为下一阶段 [15769e5]
 - 09:40 M5 统一验收合同与执行计划落盘：真实 pandapower/PyPSA、Web/TUI、生命周期和恢复矩阵 [b5815e0]
+- M5 typed catalog、HTTP 会话、Attempt 证据矩阵与 TUI pending 控件回归已落盘，提供无 Provider 可审计验收入口 [a4acef7]
+- M5 矩阵会话协议签名修正并通过 focused tests 与 pyright，确保真实 HTTP 会话可直接接入 [a4acef7]
