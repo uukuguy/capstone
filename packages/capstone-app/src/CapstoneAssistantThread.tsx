@@ -444,10 +444,10 @@ function ComposerSurface({ disabled, isRunning, editRequest, controls }: { disab
   </ComposerPrimitive.Root>
 }
 
-function EmptyThreadState() {
+function EmptyThreadState({ disabled }: { disabled: boolean }) {
   const aui = useAui()
   return <div className="capstone-chat-empty"><strong>围绕当前电网模型开始对话</strong><div className="capstone-chat-suggestions" aria-label="示例问题">
-    {EMPTY_PROMPTS.map((prompt) => <button key={prompt} type="button" className="capstone-chat-suggestion" onClick={() => aui.composer.setText(prompt)}>{prompt}</button>)}
+    {EMPTY_PROMPTS.map((prompt) => <button key={prompt} type="button" className="capstone-chat-suggestion" disabled={disabled} onClick={() => { aui.composer.setText(prompt); aui.composer.send() }}>{prompt}</button>)}
   </div></div>
 }
 
@@ -491,10 +491,10 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
-          {messages.length === 0 && <EmptyThreadState />}
+          {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
-          {messages.length === 0 && <EmptyThreadState />}
+          {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
