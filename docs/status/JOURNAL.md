@@ -1486,3 +1486,5 @@ _Recovered pre-merge mainline entries._
 - `capstone-agent tui` 已接入正式 HTTP Thread 客户端，验证层改为扩展适配器，并同步锁文件与重建证据 [2d80311]
 - TUI 轮询新增事件页/快照收敛门控，并记录 CLI/TUI 与 Python 解耦的架构决策 [e74a1e2]
 - M5 恢复接力更新 TUI 收敛门控后的最新本地镜像摘要与健康证据 [b3edcef]
+- 当前 Python Textual TUI 冻结为协议参考客户端，正式客户端后续按传输无关契约重选一流交互框架 [ab8f207]
+- M5 TUI 网络调用改后台 worker、失败冻结恢复，并接入共享 typed catalog，修复模型切换旁路 [3ef143d]
