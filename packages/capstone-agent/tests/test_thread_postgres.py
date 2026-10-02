@@ -3,13 +3,18 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Generator
+from unittest.mock import MagicMock
 
 import psycopg
 import pytest
 
 from capstone_agent.thread_service import PostgresThreadService, ThreadResyncRequired
-from capstone_agent.thread_protocol import ThreadSnapshot
-from capstone_agent.thread_application_transition import ApplicationEvent, ThreadApplicationTransition
+from capstone_agent.thread_protocol import CommandReceipt, ThreadSnapshot
+from capstone_agent.thread_application_transition import (
+    ApplicationEvent,
+    ThreadApplicationTransition,
+    application_transition_hash,
+)
 
 
 @pytest.fixture
@@ -45,6 +50,61 @@ def _command(thread_id: str) -> dict[str, object]:
         "run_id": "run_test_001", "kind": "send_ordinary",
         "expected_event_seq": 0, "payload": {"text": "hello"},
     }
+
+
+@pytest.mark.parametrize("same_hash", [True, False])
+def test_postgres_application_transition_rechecks_idempotency_under_thread_lock(
+    monkeypatch: pytest.MonkeyPatch, same_hash: bool,
+) -> None:
+    thread_id = "thr_fake_transition"
+    transition = ThreadApplicationTransition(
+        command={
+            "schema": "capstone-command/1", "command_id": "cmd_fake_transition",
+            "idempotency_key": "idem_fake_transition", "thread_id": thread_id,
+            "run_id": "run_fake_transition", "kind": "case_execution_created",
+            "expected_event_seq": 0, "payload": {"case_id": "demo"},
+        },
+        state={"case_execution": {"case_id": "demo", "status": "running"}},
+        events=(),
+    )
+    stored_receipt = CommandReceipt(
+        command_id="cmd_fake_transition", idempotency_key="idem_fake_transition",
+        thread_id=thread_id, run_id="run_fake_transition", status="accepted",
+        accepted_event_seq=None, rejection=None, target=None,
+    )
+    existing_row = {
+        "request_hash": application_transition_hash(transition) if same_hash else "different",
+        "receipt": stored_receipt.to_document(),
+    }
+
+    def result(row: object) -> MagicMock:
+        cursor = MagicMock()
+        cursor.fetchone.return_value = row
+        return cursor
+
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    connection.execute.side_effect = [
+        result(None),
+        result({"thread_id": thread_id}),
+        result(existing_row),
+    ]
+    service = PostgresThreadService("fake-dsn")
+    monkeypatch.setattr(service, "_connect", lambda: connection)
+    monkeypatch.setattr(
+        service, "_snapshot_from_row",
+        lambda _row: pytest.fail("admission ran after the locked idempotency hit"),
+    )
+
+    receipt = service.apply_application_transition(transition)
+    expected = stored_receipt if same_hash else service._receipt(
+        transition.command, status="rejected", rejection="idempotency_conflict",
+    )
+    assert receipt == expected
+    calls = connection.execute.call_args_list
+    assert len(calls) == 3
+    assert "FOR UPDATE" in calls[1][0][0]
+    assert "idempotency_key" in calls[2][0][0]
 
 
 def test_postgres_thread_store_persists_snapshot_events_and_receipts(

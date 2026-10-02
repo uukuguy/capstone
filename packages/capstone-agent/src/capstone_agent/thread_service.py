@@ -1765,6 +1765,18 @@ class PostgresThreadService:
             ).fetchone()
             if thread is None:
                 raise ThreadNotFound(parsed["thread_id"])
+            # The first lookup is a fast path only. A concurrent transition can
+            # insert the command while this request waits for the thread lock,
+            # so recheck under that lock before admitting or inserting anything.
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
             snapshot = self._snapshot_from_row(thread)
             command_row = connection.execute(
                 "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
