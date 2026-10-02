@@ -60,6 +60,20 @@ def test_application_transition_idempotency_and_cursor(service: InMemoryThreadSe
     )
     assert service.apply_application_transition(conflict).rejection == "idempotency_conflict"
 
+    state_conflict = ThreadApplicationTransition(
+        command=transition.command,
+        state={"case_execution": {"case_id": "demo", "status": "completed"}},
+        events=transition.events,
+    )
+    assert service.apply_application_transition(state_conflict).rejection == "idempotency_conflict"
+
+    events_conflict = ThreadApplicationTransition(
+        command=transition.command,
+        state=transition.state,
+        events=(ApplicationEvent("case_execution_changed", {"case_id": "demo"}),),
+    )
+    assert service.apply_application_transition(events_conflict).rejection == "idempotency_conflict"
+
     stale = ThreadApplicationTransition(
         command={**transition.command, "command_id": "cmd_case_2", "idempotency_key": "idem_case_2"},
         state={"case_execution": {"status": "changed"}}, events=(ApplicationEvent("case_execution_changed", {}),),

@@ -159,6 +159,20 @@ def test_postgres_application_transition_reconstructs_state_and_is_idempotent(
     assert accepted.status == "accepted"
     assert service.apply_application_transition(transition) == accepted
 
+    state_conflict = ThreadApplicationTransition(
+        command=transition.command,
+        state={"case_execution": {"case_id": "demo", "status": "completed"}},
+        events=transition.events,
+    )
+    assert service.apply_application_transition(state_conflict).rejection == "idempotency_conflict"
+
+    events_conflict = ThreadApplicationTransition(
+        command=transition.command,
+        state=transition.state,
+        events=(ApplicationEvent("case_execution_changed", {"case_id": "demo"}),),
+    )
+    assert service.apply_application_transition(events_conflict).rejection == "idempotency_conflict"
+
     fresh = PostgresThreadService(service.dsn)
     assert fresh.snapshot(thread_id).application_state == transition.state
     assert fresh.read_events(thread_id, 0).events[-1].event_type == "case_execution_created"

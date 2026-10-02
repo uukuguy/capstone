@@ -8,6 +8,7 @@ cursor, idempotency, and atomic persistence.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -77,3 +78,20 @@ class ThreadApplicationTransition:
         if len(self.events) > MAX_APPLICATION_EVENTS:
             raise ThreadProtocolError("transition has too many events")
 
+
+def application_transition_hash(transition: ThreadApplicationTransition) -> str:
+    """Return the canonical idempotency hash for a complete transition.
+
+    The command identifies the operation, while the state and ordered event
+    documents are also part of the atomic write.  Binding all three to the
+    idempotency key prevents a retry with the same command from silently
+    changing the application projection.
+    """
+
+    document = {
+        "command": dict(transition.command),
+        "state": None if transition.state is None else dict(transition.state),
+        "events": [event.to_document() for event in transition.events],
+    }
+    canonical = json.dumps(document, ensure_ascii=False, allow_nan=False, sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

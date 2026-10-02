@@ -40,6 +40,7 @@ from .thread_protocol import (
 )
 from .thread_application_transition import (
     ThreadApplicationTransition,
+    application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
 
@@ -649,7 +650,7 @@ class InMemoryThreadService:
         parsed = self._parse_command(transition.command)
         with self._lock:
             self._check_thread(parsed["thread_id"])
-            request_hash = hashlib.sha256(_canonical(transition.command).encode()).hexdigest()
+            request_hash = application_transition_hash(transition)
             existing = self._commands.get(parsed["idempotency_key"])
             if existing is not None:
                 if existing.request_hash != request_hash:
@@ -1747,7 +1748,7 @@ class PostgresThreadService:
         if not isinstance(transition, ThreadApplicationTransition):
             raise ThreadProtocolError("application transition is invalid")
         parsed = InMemoryThreadService._parse_command(transition.command)
-        request_hash = hashlib.sha256(_canonical(transition.command).encode()).hexdigest()
+        request_hash = application_transition_hash(transition)
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT request_hash, receipt FROM capstone_thread_commands "
