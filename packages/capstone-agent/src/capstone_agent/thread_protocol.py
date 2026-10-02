@@ -195,7 +195,8 @@ def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
                 return None
             title = titles[index - 1]
             public_steps.append({"ordinal": index, "title": title, "status": step.get("status"), "duration_ms": step.get("duration_ms"),
-                                 "details": {"turn_id": step.get("turn_id"), "attempt_id": step.get("latest_attempt_id"),
+                                 "details": {"case_execution_id": execution.get("case_execution_id"),
+                                             "turn_id": step.get("turn_id"), "attempt_id": step.get("latest_attempt_id"),
                                              "result_refs": step.get("result_refs", []), "evidence_refs": step.get("evidence_refs", []),
                                              "error_code": step.get("error_code")}})
         actions: list[dict[str, Any]] = []

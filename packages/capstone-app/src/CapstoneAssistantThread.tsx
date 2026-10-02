@@ -14,6 +14,9 @@ import { Activity, ArrowUp, Check, Copy, FileCheck2, ListTree, MoreHorizontal, P
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope } from './threadProtocol'
+import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
+import type { ThreadTransportState } from './threadClient'
+import type { ThreadCatalogCase } from './threadCatalog'
 
 type SendMode = 'automatic' | 'ordinary' | 'professional'
 
@@ -115,6 +118,82 @@ function formatDuration(durationMs: number): string {
   if (seconds < 60) return `${seconds.toFixed(1)}s`
   const minutes = Math.floor(seconds / 60)
   return `${minutes}m ${(seconds - minutes * 60).toFixed(0).padStart(2, '0')}s`
+}
+
+function caseStatusLabel(execution: CaseExecutionSnapshot): string {
+  if (execution.status === 'completed') {
+    const duration = execution.steps.reduce((total, step) => total + (step.durationMs || 0), 0)
+    return `案例已完成 · ${execution.completedSteps} / ${execution.totalSteps} 步${duration > 0 ? ` · 总运行时长 ${formatDuration(duration)}` : ''}`
+  }
+  if (execution.status === 'cancelled') return `案例已停止 · ${execution.completedSteps} / ${execution.totalSteps} 步`
+  if (execution.status === 'blocked') return `案例执行受阻 · ${execution.completedSteps} / ${execution.totalSteps} 步`
+  if (execution.status === 'idle') return '准备开始案例'
+  return `案例执行中 · ${execution.completedSteps} / ${execution.totalSteps}`
+}
+
+function caseStepDuration(step: CaseExecutionSnapshot['steps'][number], running: boolean): number | undefined {
+  if (step.durationMs !== null) return step.durationMs
+  if (!running) return undefined
+  const details = step.details
+  const started = typeof details.startedAt === 'string' ? details.startedAt : typeof details.started_at === 'string' ? details.started_at : undefined
+  return started ? durationBetween(started, new Date().toISOString()) : undefined
+}
+
+function CaseStepDuration({ step, running }: { step: CaseExecutionSnapshot['steps'][number]; running: boolean }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!running || step.durationMs !== null) return undefined
+    const timer = window.setInterval(() => tick((value) => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [running, step.durationMs])
+  const elapsed = caseStepDuration(step, running)
+  return elapsed === undefined ? null : <small className="thread-case-step-duration">{running ? '运行中' : '运行'} {formatDuration(elapsed)}</small>
+}
+
+export type ThreadCaseProgressProps = {
+  execution: CaseExecutionSnapshot
+  connection?: ThreadTransportState | 'connecting'
+  onAction: (actionId: CaseActionSnapshot['actionId']) => void
+}
+
+/** Compact, shared Case lifecycle projection for the Thread conversation. */
+export function ThreadCaseProgress({ execution, connection = 'live', onAction }: ThreadCaseProgressProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const resync = connection === 'resync_required'
+  const connectionReason = resync ? '先重新同步 Thread 后才能操作案例' : undefined
+  const currentStep = execution.currentStep === null ? undefined : execution.steps[execution.currentStep - 1]
+  return <section className={`thread-case-progress is-${execution.status}${resync ? ' is-resync' : ''}`} aria-label="案例执行">
+    <div className="thread-case-heading"><div><span className="eyebrow">CASE</span><strong>{execution.displayName}</strong></div><span className="thread-case-status">{caseStatusLabel(execution)}</span></div>
+    {execution.status === 'blocked' && currentStep && <div className="thread-case-blocked" role="alert"><strong>步骤 {currentStep.ordinal} 未完成</strong><span>运行被中断</span>{execution.disabledReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>}
+    {resync && <div className="thread-case-blocked" role="status"><strong>需要重新同步</strong><span>{connectionReason}</span></div>}
+    <ol className="thread-case-steps">
+      {execution.steps.map((step) => <li key={step.ordinal} className={`is-${step.status}${step.ordinal === execution.currentStep ? ' is-current' : ''}`}>
+        <span className="thread-case-step-mark" aria-hidden="true">{step.status === 'completed' ? '✓' : step.status === 'running' ? '●' : step.status === 'failed' || step.status === 'interrupted' ? '!' : '○'}</span>
+        <span className="thread-case-step-copy"><strong>{step.title}</strong><CaseStepDuration step={step} running={step.status === 'running'} /></span>
+      </li>)}
+    </ol>
+    {execution.disabledReasons.length > 0 && execution.status !== 'blocked' && <div className="thread-case-disabled-reasons" aria-label="案例不可用原因">{execution.disabledReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>}
+    <div className="thread-case-actions" aria-label="案例操作">
+      {execution.actions.map((action) => <button key={action.actionId} type="button" className="thread-case-action" disabled={!action.enabled || resync} title={resync ? connectionReason : undefined} onClick={() => { if (action.actionId === 'view_case_details') setDetailsOpen(true); onAction(action.actionId) }}>{action.label}</button>)}
+    </div>
+    {execution.status === 'completed' && detailsOpen && <div className="thread-case-details"><div className="thread-case-detail-panel" role="region" aria-label="案例过程详情">{execution.steps.map((step) => <article key={step.ordinal}><strong>步骤 {step.ordinal} · {step.title}</strong><dl>{Object.entries(step.details).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'string' ? value : JSON.stringify(value)}</dd></div>)}</dl></article>)}</div></div>}
+  </section>
+}
+
+export type ThreadCasePickerProps = {
+  cases: readonly ThreadCatalogCase[]
+  disabled?: boolean
+  onStart: (caseId: string, caseVersion: string) => void
+}
+
+export function ThreadCasePicker({ cases, disabled = false, onStart }: ThreadCasePickerProps) {
+  const [selected, setSelected] = useState(cases[0] ? `${cases[0].caseId}@${cases[0].caseVersion}` : '')
+  useEffect(() => {
+    if (!cases.some((item) => `${item.caseId}@${item.caseVersion}` === selected)) setSelected(cases[0] ? `${cases[0].caseId}@${cases[0].caseVersion}` : '')
+  }, [cases, selected])
+  const current = cases.find((item) => `${item.caseId}@${item.caseVersion}` === selected)
+  if (cases.length === 0) return null
+  return <section className="thread-case-picker" aria-label="注册案例"><div><span className="eyebrow">REGISTERED CASES</span><strong>选择一个案例开始</strong></div><select aria-label="注册案例" value={selected} disabled={disabled} onChange={(event) => setSelected(event.target.value)}>{cases.map((item) => <option key={`${item.caseId}@${item.caseVersion}`} value={`${item.caseId}@${item.caseVersion}`}>{item.displayName}</option>)}</select>{current && <small>{current.summary} · {current.stepCount} 步</small>}<button type="button" className="thread-case-action thread-case-start" disabled={disabled || !current} onClick={() => current && onStart(current.caseId, current.caseVersion)}>开始案例</button></section>
 }
 
 function durationBetween(startedAt: string | undefined, finishedAt: string | undefined): number | undefined {
@@ -463,10 +542,15 @@ export type CapstoneAssistantThreadProps = {
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
   composerControls?: ReactNode
   showActivity?: boolean
+  caseExecution?: CaseExecutionSnapshot | null
+  caseCatalog?: readonly ThreadCatalogCase[]
+  caseConnection?: ThreadTransportState | 'connecting'
+  onCaseAction?: (actionId: CaseActionSnapshot['actionId']) => void
+  onCaseStart?: (caseId: string, caseVersion: string) => void
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary, composerControls, showActivity = true }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
@@ -491,6 +575,8 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
+        {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
+        {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />

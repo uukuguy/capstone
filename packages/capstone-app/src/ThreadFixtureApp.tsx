@@ -102,8 +102,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const isActive = Boolean(attempt && ACTIVE_PHASES.has(attempt.phase))
   const isInterrupted = attempt?.phase === 'interrupted'
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
-  const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !projection.resyncRequired
-  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !projection.resyncRequired
+  const caseExecution = snapshot?.applicationState?.caseExecution ?? null
+  const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
+  const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !caseActive && !projection.resyncRequired
+  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !caseActive && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
     const active = snapshot ? {
@@ -146,6 +148,41 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     store.viewGridPage(pageId); setNotice(pageId === activePage ? '已返回当前模型页' : '已打开只读历史页'); sync()
   }
 
+  function caseIdentity(): string | undefined {
+    const steps = caseExecution?.steps || []
+    for (const step of steps) {
+      const value = step.details.case_execution_id
+      if (typeof value === 'string' && value) return value
+    }
+    return undefined
+  }
+
+  function caseAction(actionId: 'retry_case_step' | 'cancel_case' | 'start_case' | 'view_case_details'): void {
+    if (actionId === 'view_case_details' || actionId === 'start_case') return
+    if (!caseExecution || !snapshot) return
+    const executionId = caseIdentity()
+    if (!executionId) {
+      setNotice('案例身份尚未同步，请稍后重试')
+      return
+    }
+    if (actionId === 'cancel_case') {
+      void dispatch('cancel_case_execution', { case_execution_id: executionId })
+      return
+    }
+    const ordinal = caseExecution.currentStep
+    const step = ordinal ? caseExecution.steps[ordinal - 1] : undefined
+    const failedAttemptId = step?.details.attempt_id || step?.details.failed_attempt_id
+    if (!ordinal || typeof failedAttemptId !== 'string') {
+      setNotice('案例步骤身份尚未同步，请稍后重试')
+      return
+    }
+    void dispatch('retry_case_step', { case_execution_id: executionId, step_ordinal: ordinal, failed_attempt_id: failedAttemptId })
+  }
+
+  function startCase(caseId: string, caseVersion: string): void {
+    void dispatch('start_case_execution', { case_id: caseId, case_version: caseVersion, strategy_id: 'sequential_batch' })
+  }
+
   function controlButton(label: string, kind: string, enabled: boolean, payload: Record<string, unknown> = {}) {
     return <button type="button" className="thread-control-button" disabled={!enabled} onClick={() => void dispatch(kind, payload)}>{label}</button>
   }
@@ -156,7 +193,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
-          controlsDisabled={isHistorical || contextChangePending || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
+          controlsDisabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
@@ -167,9 +204,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
+            caseExecution={caseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
+            onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={<ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || projection.connection !== 'live'} traceVisible={traceVisible}
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} traceVisible={traceVisible}
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}

@@ -13,9 +13,19 @@ export type ThreadCatalogProfile = {
   implementationFamilies: string[]
 }
 
+export type ThreadCatalogCase = {
+  caseId: string
+  caseVersion: string
+  displayName: string
+  summary: string
+  modelIds: string[]
+  stepCount: number
+}
+
 export type ThreadCatalog = {
   models: ThreadCatalogModel[]
   profiles: ThreadCatalogProfile[]
+  cases?: ThreadCatalogCase[]
 }
 
 export class ThreadCatalogProtocolError extends Error {
@@ -74,14 +84,39 @@ function parseProfile(value: unknown, index: number): ThreadCatalogProfile {
   }
 }
 
+function parseCase(value: unknown, index: number): ThreadCatalogCase {
+  const item = record(value, `catalog.cases[${index}]`)
+  const keys = ['case_id', 'case_version', 'title', 'summary', 'model_ids', 'step_count']
+  fields(item, keys, `catalog.cases[${index}]`); required(item, keys, `catalog.cases[${index}]`)
+  if (!Array.isArray(item.model_ids) || item.model_ids.length > 32 || !item.model_ids.every((model) => typeof model === 'string' && modelIdentifierPattern.test(model))) {
+    throw new ThreadCatalogProtocolError(`catalog.cases[${index}].model_ids is invalid`)
+  }
+  if (!Number.isSafeInteger(item.step_count) || (item.step_count as number) < 1 || (item.step_count as number) > 32) {
+    throw new ThreadCatalogProtocolError(`catalog.cases[${index}].step_count is invalid`)
+  }
+  return {
+    caseId: string(item.case_id, `catalog.cases[${index}].case_id`, identifierPattern),
+    caseVersion: string(item.case_version, `catalog.cases[${index}].case_version`),
+    displayName: string(item.title, `catalog.cases[${index}].title`),
+    summary: string(item.summary, `catalog.cases[${index}].summary`),
+    modelIds: item.model_ids as string[],
+    stepCount: item.step_count as number,
+  }
+}
+
 export function parseThreadCatalog(value: unknown): ThreadCatalog {
   const document = record(value, 'catalog')
-  fields(document, ['schema', 'models', 'profiles'], 'catalog')
+  fields(document, ['schema', 'models', 'profiles', 'cases'], 'catalog')
   required(document, ['schema', 'models', 'profiles'], 'catalog')
   if (document.schema !== 'capstone-thread-catalog/1' || !Array.isArray(document.models) || !Array.isArray(document.profiles)) throw new ThreadCatalogProtocolError('catalog schema is invalid')
   if (document.models.length > 128 || document.profiles.length > 128) throw new ThreadCatalogProtocolError('catalog is too large')
+  const cases = document.cases === undefined ? undefined : (() => {
+    if (!Array.isArray(document.cases) || document.cases.length > 128) throw new ThreadCatalogProtocolError('catalog.cases is invalid')
+    return document.cases.map(parseCase)
+  })()
   return {
     models: document.models.map(parseModel),
     profiles: document.profiles.map(parseProfile),
+    ...(cases === undefined ? {} : { cases }),
   }
 }
