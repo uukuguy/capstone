@@ -94,6 +94,44 @@ def test_snapshot_round_trips_optional_application_state() -> None:
     assert snapshot.to_document()["application_state"] == document["application_state"]
 
 
+def test_snapshot_round_trips_public_case_projection_and_exposes_it_to_python() -> None:
+    document = valid_snapshot()
+    document["application_state"] = {"case_execution": {
+        "display_name": "IEEE-39 潮流与线路筛查", "status": "running",
+        "completed_steps": 0, "total_steps": 1, "current_step": 1,
+        "steps": [{"ordinal": 1, "title": "执行交流潮流", "status": "running", "duration_ms": None, "details": {}}],
+        "actions": [{"action_id": "cancel_case", "label": "停止案例", "enabled": True}],
+        "disabled_reasons": [],
+    }}
+    snapshot = ThreadSnapshot.from_document(document)
+
+    assert snapshot.case_execution_snapshot is not None
+    assert snapshot.case_execution_snapshot.display_name == "IEEE-39 潮流与线路筛查"
+    assert snapshot.to_document()["application_state"] == document["application_state"]
+
+
+def test_malformed_durable_case_state_does_not_crash_projection_accessor() -> None:
+    document = valid_snapshot()
+    document["application_state"] = {"case_execution": ["malformed"]}
+    snapshot = ThreadSnapshot.from_document(document)
+
+    assert snapshot.case_execution_snapshot is None
+    assert snapshot.to_document()["application_state"] == document["application_state"]
+
+
+def test_case_projection_rejects_actions_that_do_not_match_status() -> None:
+    document = valid_snapshot()
+    document["application_state"] = {"case_execution": {
+        "display_name": "案例", "status": "completed", "completed_steps": 1,
+        "total_steps": 1, "current_step": None,
+        "steps": [{"ordinal": 1, "title": "步骤", "status": "completed", "duration_ms": 1, "details": {}}],
+        "actions": [{"action_id": "retry_case_step", "label": "重试此步骤", "enabled": True}],
+        "disabled_reasons": [],
+    }}
+    with pytest.raises(ThreadProtocolError, match="actions"):
+        ThreadSnapshot.from_document(document)
+
+
 def test_snapshot_rejects_oversized_application_state() -> None:
     document = valid_snapshot()
     document["application_state"] = {"large": "x" * (64 * 1024)}

@@ -94,6 +94,16 @@ const attemptPhases = new Set<AttemptPhase>([
 const caseStatuses = new Set<CaseExecutionSnapshot['status']>(['idle', 'created', 'running', 'waiting_step', 'blocked', 'cancelled', 'completed'])
 const caseStepStatuses = new Set<CaseStepSnapshot['status']>(['pending', 'running', 'completed', 'failed', 'cancelled', 'interrupted'])
 const caseActionIds = new Set<CaseActionSnapshot['actionId']>(['start_case', 'retry_case_step', 'cancel_case', 'view_case_details'])
+const maxApplicationStateBytes = 64 * 1024
+const maxCaseTextChars = 256
+const maxCaseDetailsBytes = 16 * 1024
+const maxCaseActions = 4
+const maxCaseReasons = 16
+const maxCaseDurationMs = 86_400_000
+const caseActionMatrix: Record<CaseExecutionSnapshot['status'], readonly CaseActionSnapshot['actionId'][]> = {
+  idle: ['start_case'], created: [], running: ['cancel_case'], waiting_step: ['cancel_case'],
+  blocked: ['retry_case_step', 'cancel_case'], cancelled: [], completed: ['view_case_details'],
+}
 
 function object(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -122,6 +132,12 @@ function text(value: unknown, name: string): string {
   return value
 }
 
+function caseText(value: unknown, name: string): string {
+  const result = text(value, name)
+  if (result.length > maxCaseTextChars) throw new ThreadProtocolError(`${name} is too long`)
+  return result
+}
+
 function sequence(value: unknown, name: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw new ThreadProtocolError(`${name} is invalid`)
   return value as number
@@ -129,6 +145,16 @@ function sequence(value: unknown, name: string): number {
 
 function jsonValue(value: unknown, name: string): void {
   try { JSON.stringify(value) } catch { throw new ThreadProtocolError(`${name} is not JSON`) }
+}
+
+function jsonBytes(value: unknown, name: string): number {
+  try {
+    const encoded = JSON.stringify(value)
+    if (encoded === undefined) throw new Error('undefined')
+    return new TextEncoder().encode(encoded).length
+  } catch {
+    throw new ThreadProtocolError(`${name} is not JSON`)
+  }
 }
 
 function timestamp(value: unknown, name: string): string {
@@ -152,7 +178,7 @@ function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
   if (!Number.isSafeInteger(total) || (total as number) < 1 || (total as number) > 32 || !Number.isSafeInteger(completed) || (completed as number) < 0 || (completed as number) > (total as number)) throw new ThreadProtocolError('application_state.case_execution step counts are invalid')
   const current = document.current_step
   if (current !== null && (!Number.isSafeInteger(current) || (current as number) < 1 || (current as number) > (total as number))) throw new ThreadProtocolError('application_state.case_execution.current_step is invalid')
-  if (!Array.isArray(document.steps) || document.steps.length !== total || !Array.isArray(document.actions) || !Array.isArray(document.disabled_reasons) || document.disabled_reasons.length > 16) throw new ThreadProtocolError('application_state.case_execution arrays are invalid')
+  if (!Array.isArray(document.steps) || document.steps.length !== total || !Array.isArray(document.actions) || document.actions.length > maxCaseActions || !Array.isArray(document.disabled_reasons) || document.disabled_reasons.length > maxCaseReasons) throw new ThreadProtocolError('application_state.case_execution arrays are invalid')
   const steps = document.steps.map((entry, index) => {
     const item = object(entry, `application_state.case_execution.steps[${index}]`)
     fields(item, new Set(['ordinal', 'title', 'status', 'duration_ms', 'details']), `application_state.case_execution.steps[${index}]`)
@@ -160,9 +186,10 @@ function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
     if (item.ordinal !== index + 1 || !Number.isSafeInteger(item.ordinal)) throw new ThreadProtocolError('application_state.case_execution step ordinal is invalid')
     const stepStatus = text(item.status, 'case step.status') as CaseStepSnapshot['status']
     if (!caseStepStatuses.has(stepStatus)) throw new ThreadProtocolError('case step.status is invalid')
-    if (item.duration_ms !== null && (!Number.isSafeInteger(item.duration_ms) || (item.duration_ms as number) < 0)) throw new ThreadProtocolError('case step.duration_ms is invalid')
+    if (item.duration_ms !== null && (!Number.isSafeInteger(item.duration_ms) || (item.duration_ms as number) < 0 || (item.duration_ms as number) > maxCaseDurationMs)) throw new ThreadProtocolError('case step.duration_ms is invalid')
     const details = object(item.details, 'case step.details'); jsonValue(details, 'case step.details')
-    return { ordinal: item.ordinal as number, title: text(item.title, 'case step.title'), status: stepStatus, durationMs: item.duration_ms as number | null, details }
+    if (jsonBytes(details, 'case step.details') > maxCaseDetailsBytes) throw new ThreadProtocolError('case step.details is too large')
+    return { ordinal: item.ordinal as number, title: caseText(item.title, 'case step.title'), status: stepStatus, durationMs: item.duration_ms as number | null, details }
   })
   const actions = document.actions.map((entry, index) => {
     const item = object(entry, `application_state.case_execution.actions[${index}]`)
@@ -170,10 +197,16 @@ function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
     required(item, ['action_id', 'label', 'enabled'], `application_state.case_execution.actions[${index}]`)
     const actionId = identifier(item.action_id, 'case action.action_id') as CaseActionSnapshot['actionId']
     if (!caseActionIds.has(actionId) || typeof item.enabled !== 'boolean') throw new ThreadProtocolError('case action is invalid')
-    return { actionId, label: text(item.label, 'case action.label'), enabled: item.enabled }
+    return { actionId, label: caseText(item.label, 'case action.label'), enabled: item.enabled }
   })
   if (new Set(actions.map((action) => action.actionId)).size !== actions.length) throw new ThreadProtocolError('case actions contain duplicates')
-  return { displayName: text(document.display_name, 'application_state.case_execution.display_name'), status, completedSteps: completed as number, totalSteps: total as number, currentStep: current as number | null, steps, actions, disabledReasons: document.disabled_reasons.map((reason, index) => text(reason, `case disabled_reasons[${index}]`)) }
+  const expectedActions = caseActionMatrix[status]
+  if (actions.map((action) => action.actionId).join('|') !== expectedActions.join('|') || actions.some((action) => !action.enabled)) throw new ThreadProtocolError('application_state.case_execution.actions do not match status')
+  const disabledReasons = document.disabled_reasons.map((reason, index) => caseText(reason, `case disabled_reasons[${index}]`))
+  if (['idle', 'created', 'running', 'waiting_step', 'completed'].includes(status) && disabledReasons.length) throw new ThreadProtocolError('application_state.case_execution.disabled_reasons do not match status')
+  if (status === 'cancelled' && disabledReasons.length && (disabledReasons.length !== 1 || disabledReasons[0] !== '案例已停止')) throw new ThreadProtocolError('application_state.case_execution.disabled_reasons do not match status')
+  if (status === 'blocked' && !disabledReasons.length) throw new ThreadProtocolError('application_state.case_execution.disabled_reasons do not match status')
+  return { displayName: caseText(document.display_name, 'application_state.case_execution.display_name'), status, completedSteps: completed as number, totalSteps: total as number, currentStep: current as number | null, steps, actions, disabledReasons }
 }
 
 export function parseCaseExecutionSnapshot(value: unknown): CaseExecutionSnapshot {
@@ -330,6 +363,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   let applicationState: ThreadSnapshot['applicationState'] | undefined
   if (document.application_state !== undefined && document.application_state !== null) {
     const app = object(document.application_state, 'snapshot.application_state')
+    if (jsonBytes(app, 'snapshot.application_state') > maxApplicationStateBytes) throw new ThreadProtocolError('snapshot.application_state is too large')
     fields(app, new Set(['case_execution']), 'snapshot.application_state')
     required(app, ['case_execution'], 'snapshot.application_state')
     applicationState = { caseExecution: parseCaseExecution(app.case_execution) }

@@ -6,7 +6,7 @@ from typing import Any
 from textual.widgets import Button, Input, Select, Static
 
 from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
-from capstone_agent.thread_tui import ThreadTuiApp, ThreadTuiSessionAdapter
+from capstone_agent.thread_tui import ThreadTuiApp, ThreadTuiSessionAdapter, case_status_lines
 
 
 def _snapshot() -> ThreadSnapshot:
@@ -27,6 +27,24 @@ def _events() -> EventPage:
         "schema": "capstone-thread-events/1", "thread_id": "thr_demo_39",
         "after_event_seq": 0, "next_event_seq": 0, "has_more": False, "events": [],
     }, expected_after_seq=0)
+
+
+def test_case_status_lines_render_shared_actions_and_disabled_reasons() -> None:
+    snapshot = ThreadSnapshot.from_document({
+        **_snapshot().to_document(),
+        "application_state": {"case_execution": {
+            "display_name": "IEEE-39 潮流与线路筛查", "status": "blocked",
+            "completed_steps": 0, "total_steps": 1, "current_step": 1,
+            "steps": [{"ordinal": 1, "title": "执行交流潮流", "status": "interrupted", "duration_ms": None, "details": {}}],
+            "actions": [{"action_id": "retry_case_step", "label": "重试此步骤", "enabled": True}, {"action_id": "cancel_case", "label": "停止案例", "enabled": True}],
+            "disabled_reasons": ["case_context_mismatch"],
+        }},
+    })
+
+    lines = case_status_lines(snapshot)
+
+    assert "操作 · 重试此步骤、停止案例" in lines
+    assert "原因 · case_context_mismatch" in lines
 
 
 def _receipt(command: dict[str, Any]) -> CommandReceipt:

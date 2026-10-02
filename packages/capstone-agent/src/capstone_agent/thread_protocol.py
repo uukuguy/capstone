@@ -19,9 +19,23 @@ _EVENT_PAGE_SCHEMA = "capstone-thread-events/1"
 _RECEIPT_SCHEMA = "capstone-command-receipt/1"
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_APPLICATION_STATE_BYTES = 64 * 1024
+_MAX_CASE_TEXT_CHARS = 256
+_MAX_CASE_DETAILS_BYTES = 16 * 1024
+_MAX_CASE_ACTIONS = 4
+_MAX_CASE_REASONS = 16
+_MAX_CASE_DURATION_MS = 86_400_000
 _CASE_STATUSES = frozenset({"idle", "created", "running", "waiting_step", "blocked", "cancelled", "completed"})
 _CASE_STEP_STATUSES = frozenset({"pending", "running", "completed", "failed", "cancelled", "interrupted"})
 _CASE_ACTION_IDS = frozenset({"start_case", "retry_case_step", "cancel_case", "view_case_details"})
+_CASE_ACTION_MATRIX: dict[str, tuple[str, ...]] = {
+    "idle": ("start_case",),
+    "created": (),
+    "running": ("cancel_case",),
+    "waiting_step": ("cancel_case",),
+    "blocked": ("retry_case_step", "cancel_case"),
+    "cancelled": (),
+    "completed": ("view_case_details",),
+}
 
 
 class ThreadProtocolError(ValueError):
@@ -47,15 +61,17 @@ class CaseStepSnapshot:
         ordinal = document["ordinal"]
         if type(ordinal) is not int or not 1 <= ordinal <= 32:
             raise ThreadProtocolError("case step.ordinal is invalid")
-        title = _text(document["title"], name="case step.title")
+        title = _case_text(document["title"], name="case step.title")
         status = _text(document["status"], name="case step.status")
         if status not in _CASE_STEP_STATUSES:
             raise ThreadProtocolError("case step.status is invalid")
         duration = document["duration_ms"]
-        if duration is not None and (type(duration) is not int or duration < 0 or duration > 86_400_000):
+        if duration is not None and (type(duration) is not int or duration < 0 or duration > _MAX_CASE_DURATION_MS):
             raise ThreadProtocolError("case step.duration_ms is invalid")
         details = _document(document["details"], name="case step.details")
         _json(details, name="case step.details")
+        if len(json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")) > _MAX_CASE_DETAILS_BYTES:
+            raise ThreadProtocolError("case step.details is too large")
         return cls(ordinal, title, status, duration, dict(details))
 
     def to_document(self) -> dict[str, Any]:
@@ -80,7 +96,7 @@ class CaseActionSnapshot:
             raise ThreadProtocolError("case action.action_id is invalid")
         if type(document["enabled"]) is not bool:
             raise ThreadProtocolError("case action.enabled is invalid")
-        return cls(action_id, _text(document["label"], name="case action.label"), document["enabled"])
+        return cls(action_id, _case_text(document["label"], name="case action.label"), document["enabled"])
 
     def to_document(self) -> dict[str, Any]:
         return {"action_id": self.action_id, "label": self.label, "enabled": self.enabled}
@@ -118,7 +134,7 @@ class CaseExecutionSnapshot:
         reasons = document["disabled_reasons"]
         if not isinstance(raw_steps, list) or len(raw_steps) != total:
             raise ThreadProtocolError("case_execution.steps is invalid")
-        if not isinstance(raw_actions, list) or not isinstance(reasons, list) or len(reasons) > 16:
+        if not isinstance(raw_actions, list) or len(raw_actions) > _MAX_CASE_ACTIONS or not isinstance(reasons, list) or len(reasons) > _MAX_CASE_REASONS:
             raise ThreadProtocolError("case_execution actions or disabled_reasons are invalid")
         steps = tuple(CaseStepSnapshot.from_document(item) for item in raw_steps)
         if tuple(step.ordinal for step in steps) != tuple(range(1, total + 1)):
@@ -126,8 +142,17 @@ class CaseExecutionSnapshot:
         actions = tuple(CaseActionSnapshot.from_document(item) for item in raw_actions)
         if len({item.action_id for item in actions}) != len(actions):
             raise ThreadProtocolError("case_execution.actions contain duplicates")
-        return cls(_text(document["display_name"], name="case_execution.display_name"), status, completed, total, current, steps, actions,
-                   tuple(_text(reason, name="case_execution.disabled_reasons") for reason in reasons))
+        expected_actions = _CASE_ACTION_MATRIX[status]
+        if tuple(item.action_id for item in actions) != expected_actions or any(not item.enabled for item in actions):
+            raise ThreadProtocolError("case_execution.actions do not match status")
+        if status in {"idle", "created", "running", "waiting_step", "completed"} and reasons:
+            raise ThreadProtocolError("case_execution.disabled_reasons do not match status")
+        if status == "cancelled" and tuple(reasons) not in {(), ("案例已停止",)}:
+            raise ThreadProtocolError("case_execution.disabled_reasons do not match status")
+        if status == "blocked" and not reasons:
+            raise ThreadProtocolError("case_execution.disabled_reasons do not match status")
+        return cls(_case_text(document["display_name"], name="case_execution.display_name"), status, completed, total, current, steps, actions,
+                   tuple(_case_text(reason, name="case_execution.disabled_reasons") for reason in reasons))
 
     def to_document(self) -> dict[str, Any]:
         return {"display_name": self.display_name, "status": self.status, "completed_steps": self.completed_steps,
@@ -139,7 +164,20 @@ class CaseExecutionSnapshot:
 
 def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
     execution = raw.get("case_execution")
-    if not isinstance(execution, Mapping) or "steps" not in execution or "case_id" not in execution:
+    if not isinstance(execution, Mapping) or "steps" not in execution:
+        return None
+    # A snapshot may already carry the bounded public form. Preserve it so
+    # Python HTTP/TUI clients keep Case state through round trips and resync.
+    if "case_id" not in execution and "display_name" in execution:
+        try:
+            return CaseExecutionSnapshot.from_document(execution)
+        except (ThreadProtocolError, TypeError, ValueError):
+            return None
+    if "case_id" not in execution:
+        return None
+    display_name = execution.get("display_name")
+    titles = execution.get("step_titles")
+    if not isinstance(display_name, str) or not isinstance(titles, list):
         return None
     try:
         steps_raw = execution["steps"]
@@ -149,12 +187,13 @@ def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
         total = len(steps_raw)
         completed = sum(1 for step in steps_raw if isinstance(step, Mapping) and step.get("status") == "completed")
         current = execution.get("current_step")
-        titles = execution.get("step_titles")
         public_steps = []
         for index, step in enumerate(steps_raw, 1):
             if not isinstance(step, Mapping):
                 return None
-            title = titles[index - 1] if isinstance(titles, list) and index <= len(titles) else f"步骤 {index}"
+            if index > len(titles) or not isinstance(titles[index - 1], str):
+                return None
+            title = titles[index - 1]
             public_steps.append({"ordinal": index, "title": title, "status": step.get("status"), "duration_ms": step.get("duration_ms"),
                                  "details": {"turn_id": step.get("turn_id"), "attempt_id": step.get("latest_attempt_id"),
                                              "result_refs": step.get("result_refs", []), "evidence_refs": step.get("evidence_refs", []),
@@ -166,7 +205,13 @@ def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
         elif status == "blocked":
             actions.extend(({"action_id": "retry_case_step", "label": "重试此步骤", "enabled": True},
                             {"action_id": "cancel_case", "label": "停止案例", "enabled": True}))
-            reasons.append("运行被中断")
+            current_step = current if isinstance(current, int) and 1 <= current <= total else None
+            error_code = (
+                steps_raw[current_step - 1].get("error_code")
+                if current_step is not None and isinstance(steps_raw[current_step - 1], Mapping)
+                else None
+            )
+            reasons.append(error_code if isinstance(error_code, str) and error_code else "运行被中断")
         elif status in {"running", "waiting_step"}:
             actions.append({"action_id": "cancel_case", "label": "停止案例", "enabled": True})
         elif status == "completed":
@@ -174,7 +219,7 @@ def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
         elif status == "cancelled":
             reasons.append("案例已停止")
         public_status = "idle" if status == "created" else status
-        return CaseExecutionSnapshot.from_document({"display_name": execution.get("display_name", execution.get("case_id")), "status": public_status,
+        return CaseExecutionSnapshot.from_document({"display_name": display_name, "status": public_status,
             "completed_steps": completed, "total_steps": total, "current_step": current, "steps": public_steps,
             "actions": actions, "disabled_reasons": reasons})
     except (ThreadProtocolError, TypeError, ValueError):
@@ -218,6 +263,13 @@ def _text(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise ThreadProtocolError(f"{name} is invalid")
     return value
+
+
+def _case_text(value: Any, *, name: str) -> str:
+    text = _text(value, name=name)
+    if len(text) > _MAX_CASE_TEXT_CHARS:
+        raise ThreadProtocolError(f"{name} is too long")
+    return text
 
 
 def _sequence(value: Any, *, name: str) -> int:

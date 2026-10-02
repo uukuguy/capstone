@@ -114,15 +114,21 @@ def _step_identity(execution_id: str, ordinal: int) -> tuple[str, str]:
     return f"case_step_{suffix}", f"case_step_idem_{suffix}"
 
 
-def _state(execution: CaseExecution) -> dict[str, Any]:
+def _state(execution: CaseExecution, definition: CaseDefinition | None = None) -> dict[str, Any]:
+    display_name = definition.display_name if definition is not None else "案例执行"
+    step_titles = (
+        [step.title for step in definition.steps]
+        if definition is not None
+        else ["案例步骤" for _ in execution.steps]
+    )
     return {
         "case_execution": {
             **execution.to_document(),
             # These presentation hints are application-owned and ignored by
             # the durable Case state parser. They let every client render the
             # same trusted titles without deriving labels from IDs.
-            "display_name": execution.case_id,
-            "step_titles": [f"步骤 {step.ordinal}" for step in execution.steps],
+            "display_name": display_name,
+            "step_titles": step_titles,
         },
         "context_locked": execution.status in _ACTIVE_STATUSES,
     }
@@ -136,6 +142,8 @@ def _execution_from_snapshot(snapshot: Any) -> CaseExecution | None:
     if raw is None:
         return None
     try:
+        if not isinstance(raw, Mapping):
+            return None
         return CaseExecution.from_document({key: value for key, value in raw.items()
                                             if key not in {"display_name", "step_titles"}})
     except (TypeError, ValueError):
@@ -270,7 +278,7 @@ class CaseExecutionService:
         except (TypeError, ValueError, KeyError):
             return self._block(snapshot, execution, "case_terminal_result_uncertain")
 
-        state = _state(decision.execution)
+        state = _state(decision.execution, definition)
         state["case_step_instruction_digests"] = [
             {"ordinal": item.ordinal, "instruction_digest": item.instruction_digest}
             for item in definition.steps
@@ -395,10 +403,19 @@ class CaseExecutionService:
         return self.thread_service.apply_application_transition(
             ThreadApplicationTransition(
                 command=command,
-                state=dict(state if state is not None else _state(execution)),
+                state=dict(state if state is not None else _state(execution, self._definition_for(execution))),
                 events=(ApplicationEvent(event_type, dict(payload)),),
             ),
         )
+
+    def _definition_for(self, execution: CaseExecution) -> CaseDefinition | None:
+        try:
+            return self._case_catalog.get(execution.case_id, execution.case_revision)
+        except LookupError:
+            try:
+                return self._case_catalog.get(execution.case_id)
+            except LookupError:
+                return None
 
     def _block(self, snapshot: Any, execution: CaseExecution, error_code: str) -> CaseExecution:
         if execution.status in {"blocked", "completed", "cancelled"}:
@@ -573,7 +590,7 @@ class CaseExecutionService:
             },
             suffix=f"started_{ordinal}_{current.attempt_id}",
             state={
-                **_state(started),
+                **_state(started, definition),
                 "case_step_instruction_digests": [
                     {"ordinal": item.ordinal, "instruction_digest": item.instruction_digest}
                     for item in definition.steps
@@ -715,7 +732,7 @@ class CaseExecutionService:
         return ThreadApplicationTransition(
             command=command,
             state={
-                **_state(execution),
+                **_state(execution, definition),
                 "case_step_instruction_digests": [
                     {
                         "ordinal": step.ordinal,
@@ -856,7 +873,7 @@ class CaseExecutionService:
         }
         transition = ThreadApplicationTransition(
             command=transition_command,
-            state=_state(execution),
+            state=_state(execution, self._definition_for(execution)),
             events=(
                 ApplicationEvent(
                     "case_execution_cancelled",
@@ -985,7 +1002,7 @@ class CaseExecutionService:
             ThreadApplicationTransition(
                 command=started_command,
                 state={
-                    **_state(started),
+                    **_state(started, definition),
                     "case_step_instruction_digests": [
                         {
                             "ordinal": item.ordinal,

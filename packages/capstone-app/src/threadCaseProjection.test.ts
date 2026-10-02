@@ -22,6 +22,19 @@ describe('shared Case interaction projection', () => {
     expect(first.steps[0].details.attempt_id).not.toBe(second.steps[0].details.attempt_id)
   })
 
+  it('keeps the Case projection when nested in a Thread snapshot', () => {
+    const snapshot = parseThreadSnapshot({
+      schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo',
+      run: { run_id: 'run_demo', state: 'open' },
+      active_model_context: { id: 'ctx_demo', model_id: 'ieee39', model_revision: '7', implementation_family: 'pandapower', selection_revision: 'sel_1' },
+      active_grid_page_id: 'page_demo', current_attempt: null, last_event_seq: 0, base_event_seq: 0,
+      application_state: { case_execution: caseState('blocked') },
+    })
+
+    expect(snapshot.applicationState?.caseExecution?.displayName).toBe('IEEE-39 潮流与线路筛查')
+    expect((snapshot.toDocument().application_state as Record<string, unknown>).case_execution).toEqual(caseState('blocked'))
+  })
+
   it('rejects malformed Case state in a Thread snapshot', () => {
     expect(() => parseThreadSnapshot({
       schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo', run: { run_id: 'run_demo', state: 'open' },
@@ -29,5 +42,27 @@ describe('shared Case interaction projection', () => {
       active_grid_page_id: 'page_demo', current_attempt: null, last_event_seq: 0, base_event_seq: 0,
       application_state: { case_execution: { ...caseState('attempt_a'), extra: true } },
     })).toThrowError(ThreadProtocolError)
+  })
+
+  it('rejects semantically invalid actions for a completed Case', () => {
+    const document = caseState('completed')
+    document.actions = [{ action_id: 'retry_case_step', label: '重试此步骤', enabled: true }]
+    expect(() => parseCaseExecutionSnapshot(document)).toThrowError(/actions do not match status/)
+  })
+
+  it('enforces the shared duration and application-state bounds', () => {
+    const document = caseState('blocked')
+    document.steps[0].duration_ms = 86_400_001
+    expect(() => parseCaseExecutionSnapshot(document)).toThrowError(/duration_ms/)
+
+    const snapshot = {
+      schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo',
+      run: { run_id: 'run_demo', state: 'open' },
+      active_model_context: { id: 'ctx_demo', model_id: 'ieee39', model_revision: '7', implementation_family: 'pandapower', selection_revision: 'sel_1' },
+      active_grid_page_id: 'page_demo', current_attempt: null, last_event_seq: 0, base_event_seq: 0,
+      application_state: { case_execution: { ...caseState('blocked'), steps: [], disabled_reasons: ['运行被中断'] } },
+    }
+    ;(snapshot.application_state.case_execution as Record<string, unknown>).display_name = 'x'.repeat(70_000)
+    expect(() => parseThreadSnapshot(snapshot)).toThrowError(/too large/)
   })
 })

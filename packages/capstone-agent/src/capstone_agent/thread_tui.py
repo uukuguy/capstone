@@ -83,11 +83,17 @@ def case_status_lines(snapshot: ThreadSnapshot) -> tuple[str, ...]:
     projection = case_projection(snapshot)
     if projection is None:
         return ()
-    lines = (f"{projection.display_name} · {projection.completed_steps} / {projection.total_steps}",)
-    return lines + tuple(
+    lines = [f"{projection.display_name} · {projection.completed_steps} / {projection.total_steps}"]
+    lines.extend(
         f"{'✓' if step.status == 'completed' else '●' if step.status == 'running' else '○'} {step.title} · {step.status}"
         for step in projection.steps
     )
+    enabled = tuple(action.label for action in projection.actions if action.enabled)
+    if enabled:
+        lines.append("操作 · " + "、".join(enabled))
+    if projection.disabled_reasons:
+        lines.append("原因 · " + "、".join(projection.disabled_reasons))
+    return tuple(lines)
 
 
 def _event_line(event: Any) -> str:
@@ -282,8 +288,13 @@ class ThreadTuiApp(App[None]):
         # exist.
         if not getattr(self, "_screen_stack", None):
             return
-        self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__} · 已冻结命令")
-        self._refresh_controls()
+        try:
+            self.query_one("#feedback", Static).update(f"同步失败 · {type(error).__name__} · 已冻结命令")
+            self._refresh_controls()
+        except Exception:
+            # Textual can tear down widgets between the worker callback and
+            # this update; the recovery flags above remain authoritative.
+            return
 
     def _apply_projection(self, snapshot: ThreadSnapshot, page: EventPage) -> None:
         self._apply_projection_pages(snapshot, (page,))
@@ -337,9 +348,13 @@ class ThreadTuiApp(App[None]):
         # execution slot and blocks another message.
         blocked = self.snapshot.current_attempt is not None or self._network_busy or self._recovery_required
         historical = False
-        self.query_one("#send-ordinary", Button).disabled = blocked or historical
-        self.query_one("#send-professional", Button).disabled = blocked or historical
-        self.query_one("#switch-model", Button).disabled = blocked or historical
+        try:
+            self.query_one("#send-ordinary", Button).disabled = blocked or historical
+            self.query_one("#send-professional", Button).disabled = blocked or historical
+            self.query_one("#switch-model", Button).disabled = blocked or historical
+        except Exception:
+            # A worker may finish as the screen is being unmounted.
+            return
 
     def _factory(self) -> ThreadCommandFactory:
         self._command_number += 1

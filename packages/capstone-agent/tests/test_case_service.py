@@ -373,6 +373,18 @@ def test_rejected_case_command_survives_restart_and_reserves_command_id() -> Non
     assert restarted.submit_command(reused_id).rejection == "command_id_conflict"
 
 
+def test_case_projection_uses_registered_case_and_step_titles() -> None:
+    service = CaseExecutionService(_catalog(), _thread_service(model_id="ieee39"))
+    receipt = service.submit_command(start_command("case_demo", seq=0))
+    assert receipt.status == "accepted"
+
+    projection = service.thread_service.snapshot("thr_case").case_execution_snapshot
+
+    assert projection is not None
+    assert projection.display_name == "Demo case"
+    assert tuple(step.title for step in projection.steps) == ("First", "Second")
+
+
 def test_retry_rejects_a_target_that_is_not_the_blocked_case_step(
     case_service: CaseExecutionService,
 ) -> None:

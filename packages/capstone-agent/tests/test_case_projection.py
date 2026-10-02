@@ -43,3 +43,15 @@ def test_case_projection_rejects_unknown_or_malformed_public_fields() -> None:
     document["provider_token"] = "secret"
     with pytest.raises(ThreadProtocolError):
         CaseExecutionSnapshot.from_document(document)
+
+
+def test_case_projection_bounds_duration_and_case_text() -> None:
+    document = fixture("running")
+    document["steps"][0]["duration_ms"] = 86_400_001
+    with pytest.raises(ThreadProtocolError):
+        CaseExecutionSnapshot.from_document(document)
+
+    document = fixture("running")
+    document["display_name"] = "x" * 257
+    with pytest.raises(ThreadProtocolError):
+        CaseExecutionSnapshot.from_document(document)
