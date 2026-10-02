@@ -179,3 +179,39 @@ Final compatibility-fix commit: `fix: restore grid profile presentation compatib
 The pre-existing dirty `docs/status/JOURNAL.md` was left untouched and
 unstaged. Grid-specific presentation now enters only through the explicit
 profile hook; no import-order behavior is used.
+
+## M6 Task 2: Pure CaseExecution state and sequential strategy
+
+Implemented immutable, bounded Case execution state in
+`packages/capstone-agent/src/capstone_agent/case_execution.py`:
+
+- `PinnedCaseContext`, `CaseStepState`, and `CaseExecution` use frozen slotted
+  dataclasses and bounded `to_document`/`from_document` projections.
+- `StepOutcome` provides running and terminal factories, serialisation, and
+  clears partial answer/result/evidence data for non-success outcomes.
+- `SequentialBatchExecutor.advance` waits for running outcomes, requires the
+  exact current terminal attempt ID, preserves completed steps, advances only
+  after committed success, and blocks failed/cancelled/interrupted steps.
+- Initial execution creation remains pure state construction; Turn and Attempt
+  dispatch stay outside this module.
+
+TDD evidence:
+
+```text
+uv run --directory packages/capstone-agent pytest tests/test_case_execution.py -q
+8 passed
+
+uv run --directory packages/capstone-agent pytest tests/test_case_definition.py tests/test_case_execution.py -q
+24 passed
+
+uv run ruff check packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
+All checks passed!
+
+uv run pyright packages/capstone-agent/src/capstone_agent/case_execution.py
+0 errors, 0 warnings, 0 informations
+```
+
+Files added:
+
+- `packages/capstone-agent/src/capstone_agent/case_execution.py`
+- `packages/capstone-agent/tests/test_case_execution.py`
