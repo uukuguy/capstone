@@ -154,3 +154,56 @@ def test_restart_recovers_after_step_turn_commit_before_application_transition()
     assert recovered is not None
     assert recovered.steps[1].status == "running"
     assert recovered.steps[1].turn_id is not None
+
+
+def test_restart_recovers_completed_retry_after_transition_gap() -> None:
+    service = _service()
+    _start(service)
+    failed_attempt = _finish(service, "failed")
+    blocked = service.reconcile("thr_recovery")
+    assert blocked is not None and blocked.status == "blocked"
+    snapshot = service.thread_service.snapshot("thr_recovery")
+    retry = ThreadCommandFactory("thr_recovery", "run_recovery").retry_case_step(
+        blocked.case_execution_id, step_ordinal=1, failed_attempt_id=failed_attempt,
+        expected_event_seq=snapshot.last_event_seq, command_id="retry_gap", idempotency_key="retry_gap",
+    )
+
+    original = service.thread_service.apply_application_transition
+    crashed = False
+
+    def crash_after_retry_attempt_finishes(transition):
+        nonlocal crashed
+        if transition.events[0].event_type == "case_retry_created" and not crashed:
+            crashed = True
+            claim = service.thread_service.claim_attempt("retry-worker", lease_seconds=30)
+            assert claim is not None
+            assert claim.attempt.attempt_id != failed_attempt
+            service.thread_service.finish_attempt(
+                claim, phase="completed",
+                payload={
+                    "answer": "retry answer",
+                    "result_refs": ["result:retry"],
+                    "evidence_refs": ["evidence:retry"],
+                },
+            )
+            raise RuntimeError("simulated process crash")
+        return original(transition)
+
+    service.thread_service.apply_application_transition = crash_after_retry_attempt_finishes
+    try:
+        try:
+            service.submit_command(retry)
+        except RuntimeError:
+            pass
+    finally:
+        service.thread_service.apply_application_transition = original
+
+    recovered = service.reconcile("thr_recovery")
+    assert crashed
+    assert recovered is not None
+    assert recovered.steps[0].status == "completed"
+    assert recovered.steps[0].latest_attempt_id != failed_attempt
+    assert recovered.steps[1].status == "running"
+    assert service.reconcile("thr_recovery") == recovered
+    events = service.thread_service.read_events("thr_recovery", 0).events
+    assert sum(event.event_type == "case_retry_created" for event in events) == 1

@@ -204,9 +204,10 @@ class CaseExecutionService:
             return self._block(snapshot, execution, "case_event_window_uncertain")
 
         # A retry command may have committed a new Attempt before the process
-        # crashed while persisting the application state.  Recover only when its
-        # immutable command event points at the exact blocked Attempt.
-        if execution.status == "blocked" and snapshot.current_attempt is not None:
+        # crashed while persisting the application state.  Recover from the
+        # immutable command event even if the replacement Attempt has already
+        # reached a terminal state and cleared current_attempt.
+        if execution.status == "blocked":
             recovered = self._recover_retry(snapshot, execution, events)
             if recovered is not None:
                 execution = recovered
@@ -419,18 +420,18 @@ class CaseExecutionService:
     def _recover_retry(
         self, snapshot: Any, execution: CaseExecution, events: tuple[Any, ...],
     ) -> CaseExecution | None:
-        if execution.current_step is None or snapshot.current_attempt is None:
+        if execution.current_step is None:
             return None
         ordinal = execution.current_step
         step = execution.steps[ordinal - 1]
         if step.status not in {"failed", "cancelled", "interrupted"}:
             return None
-        current = snapshot.current_attempt
         retry_event = next(
             (
                 event for event in reversed(events)
                 if event.event_type == "command_accepted"
-                and event.attempt_id == current.attempt_id
+                and event.attempt_id is not None
+                and event.turn_id is not None
                 and isinstance(event.payload, Mapping)
                 and event.payload.get("kind") == "retry_new_attempt"
                 and isinstance(event.payload.get("payload"), Mapping)
@@ -440,12 +441,63 @@ class CaseExecutionService:
         )
         if retry_event is None:
             return None
+        retry_payload = retry_event.payload["payload"]
+        retry_attempt_id = retry_event.attempt_id
+        retry_turn_id = retry_event.turn_id
+        if (
+            retry_attempt_id is None
+            or retry_turn_id is None
+            or retry_attempt_id == step.latest_attempt_id
+            or retry_turn_id != step.turn_id
+            or retry_payload.get("turn_id") != retry_turn_id
+            or retry_payload.get("retry_of") != step.latest_attempt_id
+            or retry_event.model_context_id != execution.context.model_context_id
+            or retry_event.selection_revision != execution.context.selection_revision
+        ):
+            return None
+
+        current = snapshot.current_attempt
+        terminal = None
+        if current is None:
+            terminal = next(
+                (
+                    event for event in reversed(events)
+                    if event.attempt_id == retry_attempt_id
+                    and event.turn_id == retry_turn_id
+                    and event.event_type in {
+                        "attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted",
+                    }
+                ),
+                None,
+            )
+            if terminal is None:
+                return None
+            if (
+                terminal.model_context_id != execution.context.model_context_id
+                or terminal.selection_revision != execution.context.selection_revision
+            ):
+                return None
+            try:
+                terminal_outcome = self._outcome_from_terminal(terminal)
+            except (TypeError, ValueError, KeyError):
+                return None
+            if terminal_outcome.attempt_id != retry_attempt_id:
+                return None
+        else:
+            if (
+                current.attempt_id != retry_attempt_id
+                or current.turn_id != retry_turn_id
+                or current.target_model_context_id != execution.context.model_context_id
+                or current.phase not in {"accepted", "running"}
+            ):
+                return None
+
         resumed = replace(
             execution,
             status="waiting_step",
             steps=tuple(
-                replace(item, status="running", turn_id=current.turn_id,
-                        latest_attempt_id=current.attempt_id, answer=None,
+                replace(item, status="running", turn_id=retry_turn_id,
+                        latest_attempt_id=retry_attempt_id, answer=None,
                         result_refs=(), evidence_refs=(), duration_ms=None,
                         error_code=None)
                 if item.ordinal == ordinal else item
@@ -457,11 +509,11 @@ class CaseExecutionService:
             {
                 "case_execution_id": execution.case_execution_id,
                 "step_ordinal": ordinal,
-                "turn_id": current.turn_id,
-                "attempt_id": current.attempt_id,
+                "turn_id": retry_turn_id,
+                "attempt_id": retry_attempt_id,
                 "retry_of": step.latest_attempt_id,
             },
-            suffix=f"retry_{ordinal}_{current.attempt_id}",
+            suffix=f"retry_{ordinal}_{retry_attempt_id}",
         )
         return _execution_from_snapshot(self.thread_service.snapshot(snapshot.thread_id)) or resumed
 
