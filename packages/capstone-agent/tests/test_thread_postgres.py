@@ -107,6 +107,40 @@ def test_postgres_application_transition_rechecks_idempotency_under_thread_lock(
     assert "idempotency_key" in calls[2][0][0]
 
 
+def test_postgres_application_transition_rejects_existing_command_without_duplicate_insert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    thread_id = "thr_fake_command_conflict"
+    transition = ThreadApplicationTransition(
+        command={
+            "schema": "capstone-command/1", "command_id": "cmd_existing",
+            "idempotency_key": "idem_new", "thread_id": thread_id,
+            "run_id": "run_fake", "kind": "case_execution_created",
+            "expected_event_seq": 0, "payload": {"case_id": "demo"},
+        },
+        state={"case_execution": {"case_id": "demo", "status": "running"}},
+        events=(),
+    )
+
+    def result(row: object) -> MagicMock:
+        cursor = MagicMock()
+        cursor.fetchone.return_value = row
+        return cursor
+
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    connection.execute.side_effect = [
+        result(None), result({"thread_id": thread_id}), result(None), result({"exists": 1}),
+    ]
+    service = PostgresThreadService("fake-dsn")
+    monkeypatch.setattr(service, "_connect", lambda: connection)
+    monkeypatch.setattr(service, "_snapshot_from_row", lambda _row: _snapshot(thread_id))
+
+    receipt = service.apply_application_transition(transition)
+    assert receipt.rejection == "command_id_conflict"
+    assert len(connection.execute.call_args_list) == 4
+
+
 def test_postgres_thread_store_persists_snapshot_events_and_receipts(
     postgres_thread_service: tuple[PostgresThreadService, str],
 ) -> None:

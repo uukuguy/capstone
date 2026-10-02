@@ -1782,7 +1782,10 @@ class PostgresThreadService:
                 (parsed["thread_id"], parsed["command_id"]),
             ).fetchone()
             if command_row is not None:
-                receipt = self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+                # The command identity is protected by a durable unique key.
+                # Do not insert a second receipt with the same command_id; the
+                # rejection is deterministic and can be recomputed on retry.
+                return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
