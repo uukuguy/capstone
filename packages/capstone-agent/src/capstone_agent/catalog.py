@@ -17,7 +17,26 @@ _GRID_CASES = {
     "pandapower-scripted-task": ("IEEE-39 潮流与线路筛查", "在登记网络内打开模型、求解交流潮流并筛查线路。"),
     "pandapower-scripted-test": ("IEEE-39 约束与单支路校核", "读取模型约束并对已解析线路执行静态校核。"),
 }
+_GRID_STEP_TITLES = {
+    "open-and-resolve-topology": "打开与解析拓扑",
+    "reuse-context-for-powerflow": "执行交流潮流",
+    "reuse-result-for-ranking": "筛查线路负载率",
+    "open-and-describe-constraints": "打开并读取模型约束",
+    "resolve-element-from-reused-context": "解析已选线路",
+    "run-contingency-from-resolved-element": "执行单支路静态校核",
+}
 _GRID_BOUNDARY = "仅说明本次登记模型及静态仿真结果；不代表实时运行状态或运行许可。"
+
+
+def _step_title(instruction: str, ordinal: int) -> str:
+    compact = " ".join(instruction.split())
+    for marker in ("。", ".", "！", "!", "？", "?"):
+        if marker in compact:
+            compact = compact.split(marker, 1)[0] + marker
+            break
+    if len(compact) > 128:
+        compact = compact[:125].rstrip() + "..."
+    return f"Step {ordinal}: {compact}"
 
 
 def _grid_case(root: Path, case_id: str) -> dict[str, Any]:
@@ -29,9 +48,14 @@ def _grid_case(root: Path, case_id: str) -> dict[str, Any]:
     instructions = [question["text"] for question in document["questions"]]
     if len(instructions) != 3 or any(not isinstance(value, str) or not value for value in instructions):
         raise ValueError("grid case instructions are invalid")
+    step_titles = [
+        _GRID_STEP_TITLES.get(question["id"], _step_title(instruction, ordinal))
+        for ordinal, (question, instruction) in enumerate(zip(document["questions"], instructions), start=1)
+    ]
     title, summary = _GRID_CASES[case_id]
     return {
         "case_id": case_id, "title": title, "summary": summary,
+        "case_version": "1", "model_ids": ["ieee39"], "step_titles": step_titles,
         "model_origin": "IEEE-39",
         "scenario_assumption": "按案例固定指令和登记模型进行本轮计算。",
         "interpretation_boundary": _GRID_BOUNDARY,
@@ -56,6 +80,9 @@ def _pypsa_cases(root: Path) -> dict[str, dict[str, Any]]:
         cards[case["id"]] = {
             "case_id": case["id"], "title": case["title"],
             "summary": intro["summary"], "model_origin": case["model_id"],
+            "case_version": "1", "model_ids": [case["model_id"]],
+            "step_titles": [_step_title(instruction, ordinal)
+                            for ordinal, instruction in enumerate(instructions, start=1)],
             "scenario_assumption": intro["business_problem"],
             "interpretation_boundary": intro["interpretation_boundary"],
             "instructions": instructions,
