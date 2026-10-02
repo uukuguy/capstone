@@ -1,96 +1,70 @@
-# Task 1 Report: Neutral Completion Projection Hook
+# M6 Task 1 Report: Trusted Application Case Definitions
 
-## Summary
+## Status
 
-Task 1 is implemented and verified. The Kernel runner now accepts an optional
-completion projector, invokes it once after the final committed turn and
-before provider shutdown/report publication, and carries its value on
-`ApplicationOutcome.completion_projection`.
+DONE
 
-The projector receives a domain-neutral `CompletionProjectionContext`. Ordinary
-projector exceptions are bounded to the
-`completion_projection_unavailable` diagnostic and leave the application
-outcome completed with a `None` projection. Control-flow exceptions remain
-uncaught.
+## Commit
 
-## Files Changed
+- `79647c5` — `feat: add trusted application case definitions`
 
-- `packages/capability-agent-kernel/src/capability_agent/application/runtime_protocols.py`
-  - Added `CompletionProjectionContext` and `CompletionProjector`.
-- `packages/capability-agent-kernel/src/capability_agent/application/runner.py`
-  - Added the constructor hook and outcome field.
-  - Invoked the hook after all turn commits and before report publication.
-  - Preserved the projection on both completed and failed outcomes.
-  - Bounded ordinary projector failures with the existing diagnostic path.
-- `packages/capability-agent-kernel/tests/application/test_completion_projection.py`
-  - Added ordering and bounded-failure contract tests.
-  - Uses `_valid_binding()` and the established runner fixture setup so
-    preflight validates the binding.
-- `packages/capability-agent-kernel/tests/application/test_runner.py`
-  - No content change was required; its `FakeController` and `_valid_binding()`
-    helpers are reused by the new projection tests.
+## Changes
+
+- Added frozen `CaseStepDefinition`, `CaseDefinition`, and `CaseCatalog`.
+- Added strict parsing for the server-built `capstone-catalog/1.0` projection.
+- Added bounded validation for case IDs, versions, model constraints, step count, titles, and instructions.
+- Added raw SHA-256 instruction digests and canonical UTF-8 `case:sha256:` revisions.
+- Added trusted step titles and version/model metadata to the existing pandapower and PyPSA catalog projection.
+- Added focused registration, determinism, duplicate, bounds, unknown-field, schema, and lookup tests.
+
+## TDD Evidence
+
+The first focused run failed during collection because `case_definition.py` did not
+exist:
+
+```text
+ModuleNotFoundError: No module named 'capstone_agent.case_definition'
+```
+
+After implementation, the focused tests passed:
+
+```text
+uv run --project packages/capstone-agent pytest \
+  packages/capstone-agent/tests/test_case_definition.py \
+  packages/capstone-agent/tests/test_catalog.py -q
+
+11 passed in 0.02s
+```
 
 ## Verification
 
-Focused kernel tests:
-
-```sh
-uv run --project packages/grid-agent pytest \
-  packages/capability-agent-kernel/tests/application/test_completion_projection.py \
-  packages/capability-agent-kernel/tests/application/test_runner.py -q
-```
-
-Result:
+Targeted diagnostics passed:
 
 ```text
-65 passed in 0.44s
-```
-
-Targeted static diagnostics:
-
-```sh
 uv run --project packages/grid-agent pyright \
-  packages/capability-agent-kernel/src/capability_agent/application/runtime_protocols.py \
-  packages/capability-agent-kernel/src/capability_agent/application/runner.py \
-  packages/capability-agent-kernel/tests/application/test_completion_projection.py
-```
+  packages/capstone-agent/src/capstone_agent/case_definition.py \
+  packages/capstone-agent/src/capstone_agent/catalog.py \
+  packages/capstone-agent/tests/test_case_definition.py
 
-Result:
-
-```text
 0 errors, 0 warnings, 0 informations
 ```
 
-Whitespace:
-
-```sh
-git diff --check
-```
-
-Result: exited `0` with no output.
-
-## Initial Failure and Repair
-
-The first focused run reached the new tests but failed because the exception
-test accessed `outcome.result.core.diagnostic_codes`. `CoreRunResult` exposes
-diagnostic references; diagnostic codes are recorded through the runner's
-`_record_diagnostic` seam. The test now captures that seam and asserts the
-exact bounded code:
+The full Capstone Agent test suite passed:
 
 ```text
-completion_projection_unavailable
+uv run --project packages/capstone-agent pytest \
+  packages/capstone-agent/tests \
+  --ignore=packages/capstone-agent/tests/test_registered_workers.py -q
+
+261 passed, 27 skipped, 1 warning in 8.34s
 ```
 
-Temporary diagnostic prints were removed. Narrow `Any` casts keep the
-intentionally lightweight `SimpleNamespace` fixtures type-checkable without
-changing runtime behavior.
+The warning is the existing Starlette deprecation warning for importing
+`httpx` through `starlette.testclient`. `git diff --check` passed, and the real
+`build_catalog()` output was parsed successfully for pandapower and PyPSA cases.
 
 ## Concerns
 
-- The repository-wide Pyright command still reports 24 pre-existing errors in
-  unrelated reporting, hosted API, ledger, network-view, worker, and simulator
-  files. The targeted diagnostics for all Task 1 modified source/test files
-  are clean.
-- The compatibility `test_runner.py` helper file was not edited because its
-  existing `_valid_binding()` and `FakeController` fixtures already satisfy
-  the new hook tests.
+- The full suite retains one pre-existing FastAPI/Starlette deprecation warning.
+- The required report is committed separately from the implementation commit.
+- Task 2 and Thread persistence were not started or modified.
