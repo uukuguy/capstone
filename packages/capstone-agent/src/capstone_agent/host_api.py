@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
 from capstone_agent.case_diagrams import CaseDiagramCache, load_case_diagram
+from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
 from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
@@ -56,6 +57,7 @@ def create_host_app(
     thread_service: ThreadService | None = None,
     thread_creator: ThreadCreator | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
+    case_service: CaseExecutionService | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -67,6 +69,10 @@ def create_host_app(
         if thread_service is None:
             raise ValueError("thread_service is required for thread_application")
         thread_creator = thread_application.thread_creator(thread_service)
+    if case_service is not None and (
+        thread_service is None or case_service.thread_service is not thread_service
+    ):
+        raise ValueError("case_service must use the configured thread_service")
     demo_token = (hmac.new(operator_token.encode(), b"capstone-public-demo-v1",
                            hashlib.sha256).hexdigest() if public_demo else None)
     catalog = build_catalog(registry, repo_root or Path(__file__).resolve().parents[4])
@@ -213,6 +219,8 @@ def create_host_app(
         def get_thread_catalog(thread_id: str, request: Request):
             require_private_thread(request)
             try:
+                if case_service is not None:
+                    return case_service.catalog(thread_id)
                 return thread_service.catalog(thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
@@ -246,7 +254,17 @@ def create_host_app(
                     raise ThreadProtocolError("command.thread_id does not match route")
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
-                return thread_service.submit_command(command).to_document()
+                service = (
+                    case_service
+                    if case_service is not None and command.get("kind") in {
+                        "start_case_execution",
+                        "retry_case_step",
+                        "cancel_case_execution",
+                        "resume_case_execution",
+                    }
+                    else thread_service
+                )
+                return service.submit_command(command).to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadProtocolError as error:

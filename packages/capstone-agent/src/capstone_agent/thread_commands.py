@@ -136,5 +136,73 @@ class ThreadCommandFactory:
             command_id=command_id, idempotency_key=idempotency_key,
         )
 
+    def start_case_execution(
+        self,
+        case_id: str,
+        *,
+        case_version: str = "1",
+        strategy_id: str = "sequential_batch",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        return self._command(
+            "start_case_execution",
+            {
+                "case_id": _identifier(case_id, name="case_id"),
+                "case_version": _text(case_version, name="case_version"),
+                "strategy_id": _identifier(strategy_id, name="strategy_id"),
+            },
+            **kwargs,
+        )
+
+    def retry_case_step(
+        self,
+        case_execution_id: str,
+        *,
+        step_ordinal: int,
+        failed_attempt_id: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if type(step_ordinal) is not int or step_ordinal < 1:
+            raise ValueError("step_ordinal is invalid")
+        return self._command(
+            "retry_case_step",
+            {
+                "case_execution_id": _identifier(
+                    case_execution_id, name="case_execution_id",
+                ),
+                "step_ordinal": step_ordinal,
+                "failed_attempt_id": _identifier(
+                    failed_attempt_id, name="failed_attempt_id",
+                ),
+            },
+            **kwargs,
+        )
+
+    def cancel_case_execution(
+        self, case_execution_id: str, **kwargs: Any,
+    ) -> dict[str, Any]:
+        return self._command(
+            "cancel_case_execution",
+            {
+                "case_execution_id": _identifier(
+                    case_execution_id, name="case_execution_id",
+                ),
+            },
+            **kwargs,
+        )
+
+    def resume_case_execution(
+        self, case_execution_id: str, **kwargs: Any,
+    ) -> dict[str, Any]:
+        return self._command(
+            "resume_case_execution",
+            {
+                "case_execution_id": _identifier(
+                    case_execution_id, name="case_execution_id",
+                ),
+            },
+            **kwargs,
+        )
+
 
 __all__ = ["ThreadCommandFactory"]

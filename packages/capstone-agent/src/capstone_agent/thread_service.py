@@ -59,6 +59,45 @@ _CONTROL_COMMAND_KINDS = frozenset({
     "switch_model",
 })
 _SELECTION_COMMAND_KINDS = frozenset({"enable_profile", "disable_profile", "replace_selection"})
+_CONTEXT_LOCK_COMMAND_KINDS = frozenset({
+    "switch_model", "enable_profile", "disable_profile", "replace_selection",
+})
+
+
+def _application_context_lock(snapshot: ThreadSnapshot) -> str | None:
+    """Read the neutral application lock marker used by Case admission."""
+
+    state = snapshot.application_state
+    if not isinstance(state, Mapping):
+        return None
+    if state.get("context_locked") is True:
+        return "case_context_locked"
+    return None
+
+
+def _application_case_active(snapshot: ThreadSnapshot) -> bool:
+    state = snapshot.application_state
+    if not isinstance(state, Mapping):
+        return False
+    execution = state.get("case_execution")
+    if not isinstance(execution, Mapping):
+        return False
+    return execution.get("status") in {"created", "running", "waiting_step"}
+
+
+def _is_case_step_command(snapshot: ThreadSnapshot, command: Mapping[str, Any]) -> bool:
+    if command["kind"] != "send_auto":
+        return False
+    payload = command["payload"]
+    state = snapshot.application_state
+    execution = state.get("case_execution") if isinstance(state, Mapping) else None
+    if not isinstance(execution, Mapping):
+        return False
+    return (
+        isinstance(payload.get("case_execution_id"), str)
+        and payload["case_execution_id"] == execution.get("case_execution_id")
+        and type(payload.get("step_ordinal")) is int
+    )
 
 
 class ThreadNotFound(KeyError):
@@ -85,6 +124,8 @@ class ThreadService(Protocol):
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
     def catalog(self, thread_id: str) -> dict[str, object]: ...
+
+    def context_lock(self, thread_id: str) -> str | None: ...
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
@@ -387,6 +428,11 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             return _thread_catalog_document(self._model_catalog, self._capability_catalog)
 
+    def context_lock(self, thread_id: str) -> str | None:
+        with self._lock:
+            self._check_thread(thread_id)
+            return _application_context_lock(self._snapshot)
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -423,6 +469,21 @@ class InMemoryThreadService:
             semantic_rejection = _admission_rejection(parsed)
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                return receipt
+            context_lock = _application_context_lock(self._snapshot)
+            if context_lock is not None and parsed["kind"] in _CONTEXT_LOCK_COMMAND_KINDS:
+                receipt = self._receipt(parsed, status="rejected", rejection=context_lock)
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                return receipt
+            if (
+                _application_case_active(self._snapshot)
+                and parsed["kind"] in _MESSAGE_COMMAND_KINDS
+                and not _is_case_step_command(self._snapshot, parsed)
+            ):
+                receipt = self._receipt(
+                    parsed, status="rejected", rejection="case_execution_active",
+                )
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
             if self._snapshot.run.state != "open":
@@ -1393,6 +1454,9 @@ class PostgresThreadService:
         self.snapshot(thread_id)
         return _thread_catalog_document(self._model_catalog, self._capability_catalog)
 
+    def context_lock(self, thread_id: str) -> str | None:
+        return _application_context_lock(self.snapshot(thread_id))
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -1442,6 +1506,19 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
             elif (semantic_rejection := _admission_rejection(parsed)) is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
+            elif (
+                (context_lock := _application_context_lock(snapshot)) is not None
+                and parsed["kind"] in _CONTEXT_LOCK_COMMAND_KINDS
+            ):
+                receipt = self._receipt(parsed, status="rejected", rejection=context_lock)
+            elif (
+                _application_case_active(snapshot)
+                and parsed["kind"] in _MESSAGE_COMMAND_KINDS
+                and not _is_case_step_command(snapshot, parsed)
+            ):
+                receipt = self._receipt(
+                    parsed, status="rejected", rejection="case_execution_active",
+                )
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
             elif parsed["kind"] == "cancel_live_attempt":

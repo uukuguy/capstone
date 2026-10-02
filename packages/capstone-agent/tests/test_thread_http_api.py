@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from capstone_agent.case_definition import CaseCatalog, CaseDefinition, CaseStepDefinition
+from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
+from capstone_agent.thread_commands import ThreadCommandFactory
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_catalog import ThreadModelCatalogEntry
 
@@ -65,6 +68,28 @@ def _app(service: InMemoryThreadService):
         _Ledger(), WorkerRegistry(()), operator_token="hosted-secret",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
         thread_service=service,
+    )
+
+
+def _case_app(service: InMemoryThreadService):
+    catalog = CaseCatalog(
+        (
+            CaseDefinition(
+                case_id="case_demo",
+                case_version="1",
+                case_revision="case:sha256:demo",
+                display_name="Demo case",
+                description="A case for the HTTP command boundary.",
+                model_ids=("ieee39",),
+                steps=(CaseStepDefinition(1, "First", "inspect the network", "digest-1"),),
+            ),
+        ),
+    )
+    return create_host_app(
+        _Ledger(), WorkerRegistry(()), operator_token="hosted-secret",
+        allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        thread_service=service,
+        case_service=CaseExecutionService(catalog, service),
     )
 
 
@@ -154,6 +179,30 @@ def test_thread_command_is_idempotent_and_emits_a_replayable_event() -> None:
         events = client.get("/api/v1/threads/thr_demo_39/events", headers=_auth()).json()
         assert events["next_event_seq"] == 1
         assert events["events"][0]["event_type"] == "command_accepted"
+
+
+def test_case_command_route_is_operator_only_and_uses_case_service() -> None:
+    service = _service()
+    command = ThreadCommandFactory("thr_demo_39", "run_001").start_case_execution(
+        "case_demo",
+        expected_event_seq=0,
+        command_id="cmd_case_start",
+        idempotency_key="idem_case_start",
+    )
+    with TestClient(_case_app(service), base_url="http://localhost") as client:
+        unauthorized = client.post(
+            "/api/v1/threads/thr_demo_39/commands",
+            json=command,
+        )
+        accepted = client.post(
+            "/api/v1/threads/thr_demo_39/commands",
+            headers=_auth(),
+            json=command,
+        )
+
+    assert unauthorized.status_code == 401
+    assert accepted.status_code == 202
+    assert accepted.json()["status"] == "accepted"
 
 
 def test_thread_cursor_gap_returns_verified_resync_snapshot() -> None:
