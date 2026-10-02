@@ -60,8 +60,8 @@ npm test -- --run src/resultProjection.test.ts
 - Modify: the existing Capstone worker/admission integration test fixture that submits a completed answer
 
 **Interfaces:**
-- `PandapowerResultProjector.project(context, calculation, *, thread_id, run_id, turn_id, attempt_id, admitted_refs, diagram)` returns a normalized `ResultProjection`.
-- The projector consumes domain state and admitted result/evidence references only; it never receives a raw network object or artifact path for browser use.
+- `PandapowerResultProjector.project(context, calculation, *, thread_id, run_id, turn_id, attempt_id, admitted_refs, diagram)` returns a domain-owned mapping in the public-shaped result payload; `capstone-agent` applies `normalize_result_projection` before publication.
+- The projector consumes domain state and admitted result/evidence references only; it never imports `capstone-agent`, receives a raw network object, or exposes an artifact path for browser use.
 - The first supported capability is `analysis.powerflow.ac.run`; non-converged or unsupported capabilities return an unavailable/partial projection with a typed reason.
 
 - [ ] **Step 1: Add failing projector tests** for a converged AC power flow with total active loss, network counts, one structured line-result table, one line `ElementRef`, and a loading overlay. Add rejection tests for a revision mismatch, missing evidence, and non-finite result.
