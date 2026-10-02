@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 import pytest
 
 from capstone_agent.host_api import create_host_app
+from capstone_agent.harness import HarnessRuntimeRegistry
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_application import ApplicationPiRuntimeFactory
 from capstone_agent.thread_application import FamilyRuntimeFactory
@@ -154,6 +156,26 @@ def test_composite_application_assembly_uses_family_dispatcher() -> None:
     )
     assert assembly.catalog is catalog
     assert assembly.runtime_factory(_claim()) is not None
+
+
+def test_application_assembly_accepts_harness_runtime_registry() -> None:
+    class Catalog:
+        default_model_id = "ieee39"
+
+        def resolve(self, model_id):
+            return _claim().model_context
+
+    runtime = _Runtime()
+    registry = HarnessRuntimeRegistry()
+    registry.register("pi", lambda _claim: runtime)
+    assembly = ThreadApplicationAssembly(
+        catalog=cast(Any, Catalog()),
+        runtime_registry=registry,
+        runtime_name="pi",
+    )
+
+    assert assembly.runtime_registry is registry
+    assert assembly.runtime_factory(_claim()) is runtime
 
 
 def test_application_factory_wraps_injected_session_as_harness_runtime() -> None:

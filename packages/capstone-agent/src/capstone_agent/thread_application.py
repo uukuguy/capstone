@@ -6,7 +6,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from .harness import AttemptAdmission, HarnessPiClient, HarnessRuntime, PiPromptSession
+from .harness import (
+    AttemptAdmission,
+    HarnessPiClient,
+    HarnessRuntime,
+    HarnessRuntimeRegistry,
+    PiPromptSession,
+)
 from .model_capability_context import (
     ModelCapabilityContextOwner,
     PreparedModelCapabilityContext,
@@ -23,6 +29,10 @@ from .thread_service import (
 from .thread_worker import RuntimeFactory
 from .runtime_capabilities import RuntimeCapabilityRegistry
 from .turn_router import DefaultTurnRouter, TurnRouter
+
+
+def _unconfigured_runtime_factory(_claim: AttemptClaim) -> HarnessRuntime:
+    raise TypeError("Thread application runtime factory is required")
 
 
 class FamilyRuntimeFactory:
@@ -135,7 +145,9 @@ class ThreadApplicationAssembly:
     """
 
     catalog: ThreadModelCatalog
-    runtime_factory: RuntimeFactory
+    runtime_factory: RuntimeFactory = _unconfigured_runtime_factory
+    runtime_registry: HarnessRuntimeRegistry | None = None
+    runtime_name: str = "pi"
     capability_catalog: ThreadCapabilityCatalog | None = None
     capability_context_owner: ModelCapabilityContextOwner | None = None
     runtime_capabilities: RuntimeCapabilityRegistry | None = None
@@ -147,7 +159,20 @@ class ThreadApplicationAssembly:
             raise TypeError("Thread application catalog must implement resolve")
         if not isinstance(getattr(self.catalog, "default_model_id", None), str):
             raise TypeError("Thread application catalog must declare default_model_id")
-        if not callable(self.runtime_factory):
+        if self.runtime_registry is not None and not isinstance(
+            self.runtime_registry, HarnessRuntimeRegistry,
+        ):
+            raise TypeError("Thread application runtime registry is invalid")
+        if not isinstance(self.runtime_name, str) or not self.runtime_name.strip():
+            raise TypeError("Thread application runtime name is invalid")
+        if self.runtime_factory is _unconfigured_runtime_factory:
+            if self.runtime_registry is None:
+                raise TypeError("Thread application runtime factory is required")
+            object.__setattr__(
+                self, "runtime_factory",
+                self.runtime_registry.resolve(self.runtime_name),
+            )
+        elif not callable(self.runtime_factory):
             raise TypeError("Thread application runtime_factory must be callable")
         if self.capability_context_owner is not None and not isinstance(
             self.capability_context_owner, ModelCapabilityContextOwner,
@@ -191,8 +216,11 @@ class ThreadApplicationAssembly:
             session_factory, runtime_mode=runtime_mode,
             runtime_capabilities=runtime_capabilities,
         )
+        runtime_registry = HarnessRuntimeRegistry()
+        runtime_registry.register("pi", runtime_factory)
         return cls(
-            catalog=catalog, runtime_factory=runtime_factory,
+            catalog=catalog, runtime_factory=runtime_registry.resolve("pi"),
+            runtime_registry=runtime_registry, runtime_name="pi",
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
         )
@@ -216,9 +244,13 @@ class ThreadApplicationAssembly:
         those environments share a compatible process boundary.
         """
 
+        runtime_factory = FamilyRuntimeFactory(runtime_factories)
+        runtime_registry = HarnessRuntimeRegistry()
+        runtime_registry.register("pi", runtime_factory)
         return cls(
             catalog=catalog,
-            runtime_factory=FamilyRuntimeFactory(runtime_factories),
+            runtime_factory=runtime_registry.resolve("pi"),
+            runtime_registry=runtime_registry, runtime_name="pi",
             capability_catalog=capability_catalog,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
@@ -259,9 +291,12 @@ class ThreadApplicationAssembly:
             capability_context_owner, session_factory, runtime_mode=runtime_mode,
             runtime_capabilities=runtime_capabilities,
         )
+        runtime_registry = HarnessRuntimeRegistry()
+        runtime_registry.register("pi", runtime_factory)
         return cls(
             catalog=catalog,
-            runtime_factory=runtime_factory,
+            runtime_factory=runtime_registry.resolve("pi"),
+            runtime_registry=runtime_registry, runtime_name="pi",
             capability_catalog=capability_catalog,
             capability_context_owner=capability_context_owner,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
@@ -286,5 +321,6 @@ __all__ = [
     "ApplicationPiRuntimeFactory",
     "FamilyRuntimeFactory",
     "PreparedApplicationPiRuntimeFactory",
+    "HarnessRuntimeRegistry",
     "ThreadApplicationAssembly",
 ]

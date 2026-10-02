@@ -4,9 +4,11 @@ import pytest
 
 from capstone_agent.harness import (
     AdmittedAttemptAnswer,
+    CapstoneHarness,
     HarnessDSHClient,
     HarnessAttemptRunner,
     HarnessPiClient,
+    HarnessRuntimeRegistry,
     HarnessRuntimeUnavailable,
     normalize_runtime_event,
 )
@@ -32,6 +34,25 @@ class _PiSession:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+class _ProtocolRuntime:
+    def start(self) -> None:
+        return None
+
+    def prompt(
+        self,
+        question: str,
+        *,
+        on_event,
+        correlation_id=None,
+        on_heartbeat=None,
+    ) -> str:
+        del question, on_event, correlation_id, on_heartbeat
+        return "answer"
+
+    def stop(self) -> None:
+        return None
 
 
 def _thread_service() -> InMemoryThreadService:
@@ -111,6 +132,79 @@ def test_dsh_client_is_an_explicitly_unavailable_shell() -> None:
     client = HarnessDSHClient()
     with pytest.raises(HarnessRuntimeUnavailable, match="DSH"):
         client.start()
+    with pytest.raises(HarnessRuntimeUnavailable, match="DSH"):
+        client.prompt("hello", on_event=lambda _event: None)
+
+
+def test_runtime_registry_rejects_duplicate_names_and_resolves_registered_factory() -> None:
+    registry = HarnessRuntimeRegistry()
+
+    def factory(_claim):
+        return _ProtocolRuntime()
+
+    registry.register("pi", factory)
+
+    assert registry.resolve("pi") is factory
+    with pytest.raises(ValueError, match="duplicate runtime"):
+        registry.register("pi", factory)
+
+
+def test_pi_client_normalizes_runtime_mode_and_tool_provenance_at_harness_boundary() -> None:
+    class _ProvenanceSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({
+                "type": "tool_result",
+                "toolCallId": "call-1",
+                "toolName": "grid_powerflow_run",
+                "capability_key": {
+                    "binding_id": "grid",
+                    "capability_id": "powerflow",
+                },
+                "projector_id": "pandapower.powerflow",
+                "evidence_refs": ["evidence:sha256:" + "a" * 64],
+            })
+            return "answer"
+
+    events: list[dict[str, object]] = []
+    HarnessPiClient(
+        _ProvenanceSession(), runtime_mode="pi_reference",
+    ).prompt("hello", on_event=events.append)
+
+    assert events == [{
+        "event_type": "tool_completed",
+        "runtime_mode": "pi_reference",
+        "visibility": "public",
+        "payload": {
+            "tool_call_id": "call-1",
+            "tool_name": "grid_powerflow_run",
+            "binding_id": "grid",
+            "capability_id": "powerflow",
+            "projector_id": "pandapower.powerflow",
+            "evidence_refs": ["evidence:sha256:" + "a" * 64],
+        },
+    }]
+
+
+def test_capstone_harness_delegates_protocol_runtime_to_attempt_runner() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_facade",
+        "idempotency_key": "idem_harness_facade", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+
+    result = CapstoneHarness.run_attempt(
+        service, claim, _ProtocolRuntime(),
+    )
+
+    assert result.status == "completed"
+    assert result.answer == "answer"
 
 
 def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() -> None:

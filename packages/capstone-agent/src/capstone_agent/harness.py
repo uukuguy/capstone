@@ -103,6 +103,40 @@ class HarnessRuntime(Protocol):
     def stop(self) -> None: ...
 
 
+RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
+
+
+class HarnessRuntimeRegistry:
+    """Application-owned registry for exact Harness runtime factories."""
+
+    def __init__(
+        self, factories: Mapping[str, RuntimeFactory] | None = None,
+    ) -> None:
+        self._factories: dict[str, RuntimeFactory] = {}
+        if factories is not None:
+            if not isinstance(factories, Mapping):
+                raise TypeError("runtime factories must be a mapping")
+            for runtime_name, factory in factories.items():
+                self.register(runtime_name, factory)
+
+    def register(self, runtime_name: str, factory: RuntimeFactory) -> None:
+        if not isinstance(runtime_name, str) or not runtime_name.strip():
+            raise ValueError("runtime name is invalid")
+        if not callable(factory):
+            raise TypeError("runtime factory is invalid")
+        if runtime_name in self._factories:
+            raise ValueError(f"duplicate runtime: {runtime_name}")
+        self._factories[runtime_name] = factory
+
+    def resolve(self, runtime_name: str) -> RuntimeFactory:
+        if not isinstance(runtime_name, str) or not runtime_name.strip():
+            raise ValueError("runtime name is invalid")
+        try:
+            return self._factories[runtime_name]
+        except KeyError:
+            raise KeyError(f"runtime is not registered: {runtime_name}") from None
+
+
 _EVENT_TYPES = {
     "text_delta": ("assistant_text_delta", "public"),
     "message_update": ("assistant_message_update", "public"),
@@ -289,6 +323,18 @@ class HarnessDSHClient:
 
     def stop(self) -> None:
         return None
+
+
+class CapstoneHarness:
+    """Public Harness facade for running one claimed Attempt."""
+
+    @staticmethod
+    def run_attempt(
+        service: ThreadExecutionService,
+        claim: AttemptClaim,
+        runtime: HarnessRuntime,
+    ) -> HarnessAttemptResult:
+        return HarnessAttemptRunner(service, runtime).run(claim)
 
 
 class HarnessAttemptRunner:
@@ -500,9 +546,11 @@ def _extend_refs(target: list[str], value: object) -> None:
 
 
 __all__ = [
-    "HarnessAttemptResult", "HarnessAttemptRunner", "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeUnavailable",
+    "CapstoneHarness", "HarnessAttemptResult", "HarnessAttemptRunner",
+    "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeRegistry",
+    "HarnessRuntimeUnavailable",
     "PiPromptSession", "normalize_runtime_event",
-    "HarnessRuntime",
+    "HarnessRuntime", "RuntimeFactory",
     "AttemptAdmission",
     "AdmittedAttemptAnswer",
 ]
