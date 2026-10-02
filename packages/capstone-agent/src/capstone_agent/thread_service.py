@@ -83,7 +83,7 @@ def _application_case_active(snapshot: ThreadSnapshot) -> bool:
     execution = state.get("case_execution")
     if not isinstance(execution, Mapping):
         return False
-    return execution.get("status") in {"created", "running", "waiting_step"}
+    return execution.get("status") in {"created", "running", "waiting_step", "blocked"}
 
 
 def _is_case_step_command(snapshot: ThreadSnapshot, command: Mapping[str, Any]) -> bool:
@@ -200,6 +200,8 @@ class ThreadService(Protocol):
     def apply_application_transition(
         self, transition: ThreadApplicationTransition,
     ) -> CommandReceipt: ...
+
+    def active_application_threads(self, limit: int = 32) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -499,6 +501,17 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             return _application_context_lock(self._snapshot)
 
+    def active_application_threads(self, limit: int = 32) -> tuple[str, ...]:
+        if type(limit) is not int or not 1 <= limit <= 256:
+            raise ValueError("active thread limit is invalid")
+        with self._lock:
+            state = self._snapshot.application_state
+            execution = state.get("case_execution") if isinstance(state, Mapping) else None
+            status = execution.get("status") if isinstance(execution, Mapping) else None
+            if status not in {"created", "running", "waiting_step", "blocked"}:
+                return ()
+            return (self._snapshot.thread_id,)
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -546,6 +559,12 @@ class InMemoryThreadService:
                 _application_case_active(self._snapshot)
                 and parsed["kind"] in _CASE_ACTIVE_BLOCKED_COMMAND_KINDS
                 and not _is_case_step_command(self._snapshot, parsed)
+                and not (
+                    parsed["kind"] == "retry_new_attempt"
+                    and isinstance(self._snapshot.application_state, Mapping)
+                    and isinstance(self._snapshot.application_state.get("case_execution"), Mapping)
+                    and self._snapshot.application_state["case_execution"].get("status") == "blocked"
+                )
             ):
                 receipt = self._receipt(
                     parsed, status="rejected", rejection="case_execution_active",
@@ -1567,6 +1586,19 @@ class PostgresThreadService:
     def context_lock(self, thread_id: str) -> str | None:
         return _application_context_lock(self.snapshot(thread_id))
 
+    def active_application_threads(self, limit: int = 32) -> tuple[str, ...]:
+        if type(limit) is not int or not 1 <= limit <= 256:
+            raise ValueError("active thread limit is invalid")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT thread_id FROM capstone_threads
+                   WHERE application_state->'case_execution'->>'status'
+                         IN ('created', 'running', 'waiting_step', 'blocked')
+                   ORDER BY thread_id LIMIT %s""",
+                (limit,),
+            ).fetchall()
+        return tuple(row["thread_id"] for row in rows)
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -1625,6 +1657,12 @@ class PostgresThreadService:
                 _application_case_active(snapshot)
                 and parsed["kind"] in _CASE_ACTIVE_BLOCKED_COMMAND_KINDS
                 and not _is_case_step_command(snapshot, parsed)
+                and not (
+                    parsed["kind"] == "retry_new_attempt"
+                    and isinstance(snapshot.application_state, Mapping)
+                    and isinstance(snapshot.application_state.get("case_execution"), Mapping)
+                    and snapshot.application_state["case_execution"].get("status") == "blocked"
+                )
             ):
                 receipt = self._receipt(
                     parsed, status="rejected", rejection="case_execution_active",

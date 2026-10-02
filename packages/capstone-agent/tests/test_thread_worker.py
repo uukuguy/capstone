@@ -75,6 +75,27 @@ def test_thread_worker_stops_when_requested() -> None:
     assert service.read_events("thr_worker", 0).events == ()
 
 
+def test_thread_worker_reconciles_before_and_after_attempt() -> None:
+    service = _service()
+    _submit(service)
+    stop = Event()
+    calls: list[int] = []
+
+    class _CaseService:
+        def reconcile_active(self) -> int:
+            calls.append(1)
+            if len(calls) >= 2:
+                stop.set()
+            return 0
+
+    # The stop event is set by the post-attempt reconciliation call.
+    serve_thread_attempts(
+        service, lambda _claim: _Runtime(), stop_event=stop,
+        case_service=_CaseService(), poll_seconds=0.001,
+    )
+    assert calls[:2] == [1, 1]
+
+
 def test_runtime_factory_failure_finishes_attempt_as_failed() -> None:
     service = _service()
     _submit(service)

@@ -7,18 +7,23 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import replace
-from typing import Any
+from typing import Any, Literal, cast
 
 from .case_definition import CaseCatalog, CaseDefinition
 from .case_execution import (
     CaseExecution,
     PinnedCaseContext,
     SequentialBatchExecutor,
+    StepOutcome,
 )
 from .thread_application_transition import ApplicationEvent, ThreadApplicationTransition
 from .thread_commands import ThreadCommandFactory
 from .thread_protocol import CommandReceipt, ThreadProtocolError
-from .thread_service import ThreadExecutionService, ThreadNotFound
+from .thread_service import (
+    ThreadExecutionService,
+    ThreadNotFound,
+    ThreadResyncRequired,
+)
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -161,7 +166,361 @@ class CaseExecutionService:
         return document
 
     def reconcile(self, thread_id: str) -> CaseExecution | None:
-        return _execution_from_snapshot(self.thread_service.snapshot(thread_id))
+        """Consume committed Attempt terminal events and advance one Case step.
+
+        Reconciliation is deliberately conservative.  It only dispatches a new
+        Turn after the preceding terminal Attempt and its application event are
+        both durably visible.  Any uncertainty is persisted as a blocked Case so
+        a restart cannot silently skip a step or duplicate an Attempt.
+        """
+        snapshot = self.thread_service.snapshot(thread_id)
+        execution = _execution_from_snapshot(snapshot)
+        if execution is None:
+            return None
+        if execution.thread_id != thread_id:
+            return execution
+        if execution.status in {"completed", "cancelled"}:
+            return execution
+
+        try:
+            definition = self._case_catalog.get(execution.case_id)
+        except LookupError:
+            return self._block(snapshot, execution, "case_definition_unavailable")
+        if definition.case_revision != execution.case_revision:
+            return self._block(snapshot, execution, "case_revision_mismatch")
+        context = execution.context
+        active = snapshot.active_model_context
+        if (
+            context.model_context_id != active.id
+            or context.model_id != active.model_id
+            or context.model_revision != active.model_revision
+            or context.selection_revision != active.selection_revision
+        ):
+            return self._block(snapshot, execution, "case_context_mismatch")
+
+        try:
+            events = self._event_window(snapshot)
+        except (ThreadResyncRequired, ThreadProtocolError, ValueError, KeyError):
+            return self._block(snapshot, execution, "case_event_window_uncertain")
+
+        # A retry command may have committed a new Attempt before the process
+        # crashed while persisting the application state.  Recover only when its
+        # immutable command event points at the exact blocked Attempt.
+        if execution.status == "blocked" and snapshot.current_attempt is not None:
+            recovered = self._recover_retry(snapshot, execution, events)
+            if recovered is not None:
+                execution = recovered
+                snapshot = self.thread_service.snapshot(thread_id)
+
+        ordinal = execution.current_step
+        if ordinal is None:
+            return execution
+        step = execution.steps[ordinal - 1]
+
+        if step.status == "pending":
+            if snapshot.current_attempt is not None:
+                recovered = self._recover_dispatched_step(
+                    snapshot, execution, definition, events,
+                )
+                if recovered is not None:
+                    return recovered
+                return self._block(snapshot, execution, "case_untracked_attempt")
+            self._dispatch_step(snapshot, execution, definition)
+            return _execution_from_snapshot(self.thread_service.snapshot(thread_id)) or execution
+
+        if step.status != "running":
+            return execution
+        if snapshot.current_attempt is not None:
+            current = snapshot.current_attempt
+            if current.attempt_id != step.latest_attempt_id:
+                return self._block(snapshot, execution, "case_attempt_identity_mismatch")
+            if current.phase not in {"accepted", "running"}:
+                return self._block(snapshot, execution, "case_attempt_terminal_uncertain")
+            return execution
+
+        terminal = next(
+            (
+                event for event in reversed(events)
+                if event.attempt_id == step.latest_attempt_id
+                and event.event_type in {
+                    "attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted",
+                }
+            ),
+            None,
+        )
+        if terminal is None:
+            return self._block(snapshot, execution, "case_terminal_attempt_missing")
+        if (
+            terminal.model_context_id != context.model_context_id
+            or terminal.selection_revision != context.selection_revision
+        ):
+            return self._block(snapshot, execution, "case_terminal_context_mismatch")
+        try:
+            outcome = self._outcome_from_terminal(terminal)
+            decision = SequentialBatchExecutor(definition).advance(execution, outcome)
+        except (TypeError, ValueError, KeyError):
+            return self._block(snapshot, execution, "case_terminal_result_uncertain")
+
+        state = _state(decision.execution)
+        state["case_step_instruction_digests"] = [
+            {"ordinal": item.ordinal, "instruction_digest": item.instruction_digest}
+            for item in definition.steps
+        ]
+        event_type = "case_step_completed" if outcome.status == "completed" else "case_execution_blocked"
+        payload = {
+            "case_execution_id": execution.case_execution_id,
+            "case_id": execution.case_id,
+            "case_revision": execution.case_revision,
+            "step_ordinal": ordinal,
+            "turn_id": step.turn_id,
+            "attempt_id": outcome.attempt_id,
+            "status": outcome.status,
+            "error_code": outcome.error_code,
+            "result_refs": list(outcome.result_refs),
+            "evidence_refs": list(outcome.evidence_refs),
+        }
+        if decision.execution.status == "completed":
+            event_type = "case_execution_completed"
+        transition = self._transition(
+            snapshot, decision.execution, event_type, payload,
+            suffix=f"terminal_{ordinal}_{outcome.attempt_id}",
+            state=state,
+        )
+        if transition.status != "accepted":
+            return _execution_from_snapshot(self.thread_service.snapshot(thread_id)) or execution
+        committed = _execution_from_snapshot(self.thread_service.snapshot(thread_id)) or decision.execution
+        if decision.next_step is not None and committed.status == "waiting_step":
+            self._dispatch_step(self.thread_service.snapshot(thread_id), committed, definition)
+            committed = _execution_from_snapshot(self.thread_service.snapshot(thread_id)) or committed
+        return committed
+
+    def reconcile_active(self, limit: int = 32) -> int:
+        """Reconcile each active Case Thread through the public store port."""
+        if type(limit) is not int or not 1 <= limit <= 256:
+            raise ValueError("reconcile limit is invalid")
+        enumerate_threads = getattr(self.thread_service, "active_application_threads", None)
+        if not callable(enumerate_threads):
+            return 0
+        count = 0
+        for active_thread_id in cast(tuple[str, ...], enumerate_threads(limit)):
+            try:
+                if self.reconcile(active_thread_id) is not None:
+                    count += 1
+            except ThreadNotFound:
+                continue
+        return count
+
+    def _event_window(self, snapshot: Any) -> tuple[Any, ...]:
+        cursor = snapshot.base_event_seq
+        events: list[Any] = []
+        while cursor < snapshot.last_event_seq:
+            previous_cursor = cursor
+            page = self.thread_service.read_events(snapshot.thread_id, cursor)
+            page_events = tuple(page.events)
+            if not page_events:
+                raise ValueError("event page is empty before snapshot tail")
+            expected = cursor + 1
+            for event in page_events:
+                if event.event_seq != expected:
+                    raise ValueError("event sequence is not contiguous")
+                expected += 1
+            events.extend(page_events)
+            cursor = page.next_event_seq
+            if cursor != expected - 1 or cursor <= previous_cursor:
+                raise ValueError("event page cursor did not advance")
+            if not page.has_more and cursor < snapshot.last_event_seq:
+                raise ValueError("event page ended before snapshot tail")
+        if cursor != snapshot.last_event_seq:
+            raise ValueError("event window does not reach snapshot tail")
+        return tuple(events)
+
+    @staticmethod
+    def _outcome_from_terminal(event: Any) -> StepOutcome:
+        payload = event.payload if isinstance(event.payload, Mapping) else {}
+        status = {
+            "attempt_completed": "completed",
+            "attempt_failed": "failed",
+            "attempt_cancelled": "cancelled",
+            "attempt_interrupted": "interrupted",
+        }[event.event_type]
+        answer = payload.get("answer")
+        raw_results = payload.get("result_refs", ())
+        raw_evidence = payload.get("evidence_refs", ())
+        if not isinstance(raw_results, (list, tuple)) or not isinstance(raw_evidence, (list, tuple)):
+            raise ValueError("terminal references are invalid")
+        duration = payload.get("duration_ms")
+        error = payload.get("error_code", payload.get("reason"))
+        return StepOutcome(
+            status=cast(Literal["completed", "failed", "cancelled", "interrupted"], status),
+            attempt_id=event.attempt_id or "",
+            answer=answer if isinstance(answer, str) else None,
+            result_refs=tuple(raw_results),
+            evidence_refs=tuple(raw_evidence),
+            duration_ms=duration if duration is None or type(duration) is int else None,
+            error_code=error if isinstance(error, str) else None,
+        )
+
+    def _transition(
+        self,
+        snapshot: Any,
+        execution: CaseExecution,
+        event_type: str,
+        payload: Mapping[str, Any],
+        *,
+        suffix: str,
+        state: Mapping[str, Any] | None = None,
+    ) -> CommandReceipt:
+        token = hashlib.sha256(
+            f"{execution.case_execution_id}:{suffix}".encode("utf-8"),
+        ).hexdigest()[:24]
+        command = {
+            "schema": "capstone-command/1",
+            "command_id": f"case_{token}",
+            "idempotency_key": f"case_idem_{token}",
+            "thread_id": snapshot.thread_id,
+            "run_id": snapshot.run.run_id,
+            "kind": "case_reconcile",
+            "expected_event_seq": snapshot.last_event_seq,
+            "payload": {"case_execution_id": execution.case_execution_id, "event_type": event_type},
+        }
+        return self.thread_service.apply_application_transition(
+            ThreadApplicationTransition(
+                command=command,
+                state=dict(state if state is not None else _state(execution)),
+                events=(ApplicationEvent(event_type, dict(payload)),),
+            ),
+        )
+
+    def _block(self, snapshot: Any, execution: CaseExecution, error_code: str) -> CaseExecution:
+        if execution.status in {"blocked", "completed", "cancelled"}:
+            return execution
+        steps = list(execution.steps)
+        if execution.current_step is not None:
+            current = steps[execution.current_step - 1]
+            if current.status == "running":
+                steps[execution.current_step - 1] = replace(
+                    current, status="interrupted", answer=None,
+                    result_refs=(), evidence_refs=(), error_code=error_code,
+                )
+        blocked = replace(execution, steps=tuple(steps), status="blocked")
+        self._transition(
+            snapshot, blocked, "case_execution_blocked",
+            {
+                "case_execution_id": execution.case_execution_id,
+                "step_ordinal": execution.current_step,
+                "attempt_id": execution.steps[execution.current_step - 1].latest_attempt_id
+                if execution.current_step is not None else None,
+                "error_code": error_code,
+            },
+            suffix=f"blocked_{error_code}",
+        )
+        return _execution_from_snapshot(self.thread_service.snapshot(snapshot.thread_id)) or blocked
+
+    def _recover_retry(
+        self, snapshot: Any, execution: CaseExecution, events: tuple[Any, ...],
+    ) -> CaseExecution | None:
+        if execution.current_step is None or snapshot.current_attempt is None:
+            return None
+        ordinal = execution.current_step
+        step = execution.steps[ordinal - 1]
+        if step.status not in {"failed", "cancelled", "interrupted"}:
+            return None
+        current = snapshot.current_attempt
+        retry_event = next(
+            (
+                event for event in reversed(events)
+                if event.event_type == "command_accepted"
+                and event.attempt_id == current.attempt_id
+                and isinstance(event.payload, Mapping)
+                and event.payload.get("kind") == "retry_new_attempt"
+                and isinstance(event.payload.get("payload"), Mapping)
+                and event.payload["payload"].get("retry_of") == step.latest_attempt_id
+            ),
+            None,
+        )
+        if retry_event is None:
+            return None
+        resumed = replace(
+            execution,
+            status="waiting_step",
+            steps=tuple(
+                replace(item, status="running", turn_id=current.turn_id,
+                        latest_attempt_id=current.attempt_id, answer=None,
+                        result_refs=(), evidence_refs=(), duration_ms=None,
+                        error_code=None)
+                if item.ordinal == ordinal else item
+                for item in execution.steps
+            ),
+        )
+        self._transition(
+            snapshot, resumed, "case_retry_created",
+            {
+                "case_execution_id": execution.case_execution_id,
+                "step_ordinal": ordinal,
+                "turn_id": current.turn_id,
+                "attempt_id": current.attempt_id,
+                "retry_of": step.latest_attempt_id,
+            },
+            suffix=f"retry_{ordinal}_{current.attempt_id}",
+        )
+        return _execution_from_snapshot(self.thread_service.snapshot(snapshot.thread_id)) or resumed
+
+    def _recover_dispatched_step(
+        self,
+        snapshot: Any,
+        execution: CaseExecution,
+        definition: CaseDefinition,
+        events: tuple[Any, ...],
+    ) -> CaseExecution | None:
+        ordinal = execution.current_step
+        current = snapshot.current_attempt
+        if ordinal is None or current is None or current.phase not in {"accepted", "running"}:
+            return None
+        step = definition.steps[ordinal - 1]
+        command_event = next(
+            (
+                event for event in reversed(events)
+                if event.event_type == "command_accepted"
+                and event.attempt_id == current.attempt_id
+                and isinstance(event.payload, Mapping)
+                and event.payload.get("kind") == "send_auto"
+                and isinstance(event.payload.get("payload"), Mapping)
+            ),
+            None,
+        )
+        if command_event is None:
+            return None
+        payload = command_event.payload["payload"]
+        if (
+            payload.get("case_execution_id") != execution.case_execution_id
+            or payload.get("step_ordinal") != ordinal
+            or payload.get("step_instruction_digest") != step.instruction_digest
+            or payload.get("case_context") != execution.context.to_document()
+            or payload.get("text") != step.instruction
+        ):
+            return None
+        started = execution.with_current_step(
+            ordinal, turn_id=current.turn_id, attempt_id=current.attempt_id,
+        )
+        self._transition(
+            snapshot, started, "case_execution_started",
+            {
+                "case_execution_id": execution.case_execution_id,
+                "step_ordinal": ordinal,
+                "turn_id": current.turn_id,
+                "attempt_id": current.attempt_id,
+                "model_context": execution.context.to_document(),
+            },
+            suffix=f"started_{ordinal}_{current.attempt_id}",
+            state={
+                **_state(started),
+                "case_step_instruction_digests": [
+                    {"ordinal": item.ordinal, "instruction_digest": item.instruction_digest}
+                    for item in definition.steps
+                ],
+            },
+        )
+        return _execution_from_snapshot(self.thread_service.snapshot(snapshot.thread_id)) or started
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
         parsed = _command(command)
@@ -247,7 +606,7 @@ class CaseExecutionService:
                 and current_execution.status == "created"
                 and current_execution.current_step == 1
             ):
-                self._dispatch_step(command, current_snapshot, replay_execution, definition)
+                self._dispatch_step(current_snapshot, replay_execution, definition)
             return receipt
         snapshot, rejection = self._snapshot_or_rejection(command)
         if rejection is not None:
@@ -283,7 +642,7 @@ class CaseExecutionService:
         receipt = self.thread_service.apply_application_transition(transition)
         if receipt.status != "accepted":
             return receipt
-        self._dispatch_step(command, snapshot, execution, definition)
+        self._dispatch_step(snapshot, execution, definition)
         return receipt
 
     def _created_transition(
@@ -345,7 +704,53 @@ class CaseExecutionService:
             "failed", "cancelled", "interrupted",
         }:
             return self._reject(command, "case_retry_target_mismatch")
-        return self._reject(command, "case_retry_unavailable")
+        retry_token = hashlib.sha256(
+            f"{execution.case_execution_id}:{ordinal}:{failed_attempt_id}".encode("utf-8"),
+        ).hexdigest()[:24]
+        retry_command = ThreadCommandFactory(
+            snapshot.thread_id, snapshot.run.run_id,
+        ).retry_new_attempt(
+            expected_event_seq=snapshot.last_event_seq,
+            command_id=f"case_retry_{retry_token}",
+            idempotency_key=f"case_retry_idem_{retry_token}",
+            attempt_id=failed_attempt_id,
+        )
+        retry_receipt = self.thread_service.submit_command(retry_command)
+        if retry_receipt.status != "accepted" or retry_receipt.target is None:
+            return self._reject(command, retry_receipt.rejection or "case_retry_rejected")
+        target = retry_receipt.target
+        resumed = replace(
+            execution,
+            status="waiting_step",
+            steps=tuple(
+                replace(item, status="running", turn_id=target["turn_id"],
+                        latest_attempt_id=target["attempt_id"], answer=None,
+                        result_refs=(), evidence_refs=(), duration_ms=None,
+                        error_code=None)
+                if item.ordinal == ordinal else item
+                for item in execution.steps
+            ),
+        )
+        after_retry = self.thread_service.snapshot(snapshot.thread_id)
+        transition = self._transition(
+            after_retry, resumed, "case_retry_created",
+            {
+                "case_execution_id": execution.case_execution_id,
+                "step_ordinal": ordinal,
+                "turn_id": target["turn_id"],
+                "attempt_id": target["attempt_id"],
+                "retry_of": failed_attempt_id,
+            },
+            suffix=f"retry_{ordinal}_{target['attempt_id']}",
+        )
+        accepted_event_seq = transition.accepted_event_seq or retry_receipt.accepted_event_seq
+        outer = CommandReceipt(
+            command_id=command["command_id"], idempotency_key=command["idempotency_key"],
+            thread_id=command["thread_id"], run_id=snapshot.run.run_id,
+            status="accepted", accepted_event_seq=accepted_event_seq,
+            rejection=None, target=target,
+        )
+        return self.thread_service.record_command_receipt(command, outer)
 
     def _cancel(self, command: Mapping[str, Any], execution_id: str) -> CommandReceipt:
         snapshot, rejection = self._snapshot_or_rejection(command)
@@ -427,7 +832,34 @@ class CaseExecutionService:
         execution = _execution_from_snapshot(snapshot)
         if execution is None or execution.case_execution_id != execution_id:
             return self._reject(command, "case_execution_not_found")
-        return self._reject(command, "case_resume_unavailable")
+        if execution.status != "waiting_step" or execution.current_step is None:
+            return self._reject(command, "case_resume_unavailable")
+        current = execution.steps[execution.current_step - 1]
+        if (
+            current.status != "pending"
+            or snapshot.current_attempt is not None
+            or any(step.status != "completed" for step in execution.steps[: execution.current_step - 1])
+        ):
+            return self._reject(command, "case_resume_unavailable")
+        try:
+            definition = self._case_catalog.get(execution.case_id)
+        except LookupError:
+            return self._reject(command, "case_definition_unavailable")
+        self._dispatch_step(snapshot, execution, definition)
+        current_snapshot = self.thread_service.snapshot(command["thread_id"])
+        if current_snapshot.current_attempt is None:
+            return self._reject(command, "case_resume_rejected")
+        receipt = CommandReceipt(
+            command_id=command["command_id"], idempotency_key=command["idempotency_key"],
+            thread_id=command["thread_id"], run_id=snapshot.run.run_id,
+            status="accepted", accepted_event_seq=current_snapshot.last_event_seq,
+            rejection=None,
+            target={
+                "turn_id": current_snapshot.current_attempt.turn_id,
+                "attempt_id": current_snapshot.current_attempt.attempt_id,
+            },
+        )
+        return self.thread_service.record_command_receipt(command, receipt)
 
     def _reject(self, command: Mapping[str, Any], rejection: str) -> CommandReceipt:
         return self.thread_service.record_rejected_command(
@@ -436,16 +868,19 @@ class CaseExecutionService:
 
     def _dispatch_step(
         self,
-        command: Mapping[str, Any],
         snapshot: Any,
         execution: CaseExecution,
         definition: CaseDefinition,
-    ) -> None:
+    ) -> bool:
         ordinal = execution.current_step
-        if ordinal != 1:
-            raise ThreadProtocolError("initial Case step is invalid")
+        if ordinal is None or not 1 <= ordinal <= len(definition.steps):
+            raise ThreadProtocolError("Case step is invalid")
+        if snapshot.current_attempt is not None:
+            return False
         context = execution.context
         step = definition.steps[ordinal - 1]
+        if step.ordinal != ordinal or execution.steps[ordinal - 1].status == "running":
+            return False
         step_command_id, step_idempotency_key = _step_identity(
             execution.case_execution_id, ordinal,
         )
@@ -466,20 +901,27 @@ class CaseExecutionService:
         })
         step_receipt = self.thread_service.submit_command(step_command)
         if step_receipt.status != "accepted" or step_receipt.target is None:
-            return
+            return False
         target = step_receipt.target
         started = execution.with_current_step(
             ordinal,
             turn_id=target["turn_id"],
             attempt_id=target["attempt_id"],
         )
+        started_token = hashlib.sha256(
+            f"{execution.case_execution_id}:started:{ordinal}:{target['attempt_id']}".encode("utf-8"),
+        ).hexdigest()[:24]
         started_command = {
-            **dict(command),
-            "command_id": f"{execution.case_execution_id}_started",
-            "idempotency_key": f"{execution.case_execution_id}_started_idem",
+            "schema": "capstone-command/1",
+            "command_id": f"case_started_{started_token}",
+            "idempotency_key": f"case_started_idem_{started_token}",
+            "thread_id": snapshot.thread_id,
+            "run_id": snapshot.run.run_id,
+            "kind": "case_step_started",
             "expected_event_seq": step_receipt.accepted_event_seq,
+            "payload": {"case_execution_id": execution.case_execution_id, "step_ordinal": ordinal},
         }
-        self.thread_service.apply_application_transition(
+        started_receipt = self.thread_service.apply_application_transition(
             ThreadApplicationTransition(
                 command=started_command,
                 state={
@@ -506,6 +948,7 @@ class CaseExecutionService:
                 ),
             ),
         )
+        return started_receipt.status == "accepted"
 
 
 __all__ = ["CaseExecutionService"]

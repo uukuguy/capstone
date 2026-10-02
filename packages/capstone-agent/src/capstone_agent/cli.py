@@ -14,6 +14,7 @@ from typing import Any, TextIO
 from capstone_agent.registry import build_registry
 from capstone_agent.progress import summarize_answer
 from capstone_agent.server import create_app
+from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.session import WorkerRegistry, WorkerSession
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import ThreadCreator, ThreadModelCatalog
@@ -157,6 +158,7 @@ def main(
     thread_catalog: ThreadModelCatalog | None = None,
     thread_runtime_factory: RuntimeFactory | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
+    thread_case_service: CaseExecutionService | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -190,6 +192,10 @@ def main(
                 )
             thread_catalog = thread_application.catalog
             thread_runtime_factory = thread_application.runtime_factory
+            if thread_case_service is None:
+                candidate = getattr(thread_application, "case_service", None)
+                if isinstance(candidate, CaseExecutionService):
+                    thread_case_service = candidate
         if args.command == "run":
             _run(args.request, selected_registry, output, errors)
         elif args.command == "chat":
@@ -282,6 +288,7 @@ def main(
                         args=(thread_service, thread_runtime_factory),
                         kwargs={
                             "stop_event": thread_stop,
+                            "case_service": thread_case_service,
                             "turn_router": (
                                 thread_application.turn_router_for_worker()
                                 if thread_application is not None else None

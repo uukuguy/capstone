@@ -10,10 +10,14 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
+
+if TYPE_CHECKING:
+    from .case_service import CaseExecutionService
 
 
 RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
@@ -26,6 +30,7 @@ def run_pending_attempt(
     worker_id: str,
     lease_seconds: int = 30,
     turn_router: TurnRouter | None = None,
+    case_service: "CaseExecutionService | None" = None,
 ) -> HarnessAttemptResult | None:
     """Run at most one accepted Attempt and return ``None`` when idle."""
 
@@ -84,6 +89,7 @@ def serve_thread_attempts(
     poll_seconds: float = 0.25,
     stop_event: threading.Event | None = None,
     turn_router: TurnRouter | None = None,
+    case_service: "CaseExecutionService | None" = None,
 ) -> None:
     """Poll accepted Attempts until ``stop_event`` is set.
 
@@ -95,11 +101,16 @@ def serve_thread_attempts(
         raise ValueError("thread worker configuration is invalid")
     stop = stop_event or threading.Event()
     while not stop.is_set():
+        if case_service is not None:
+            case_service.reconcile_active()
         result = run_pending_attempt(
             service, runtime_factory, worker_id=worker_id,
             lease_seconds=lease_seconds,
             turn_router=turn_router,
+            case_service=case_service,
         )
+        if case_service is not None:
+            case_service.reconcile_active()
         if result is None:
             stop.wait(poll_seconds)
 
