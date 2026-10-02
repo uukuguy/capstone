@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from capstone_agent.thread_application_transition import ApplicationEvent, ThreadApplicationTransition
+from capstone_agent.thread_application_transition import (
+    ApplicationEvent,
+    ThreadApplicationTransition,
+    application_transition_hash,
+)
 from capstone_agent.thread_protocol import ThreadProtocolError, ThreadSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 
@@ -97,3 +101,61 @@ def test_transition_validates_bounds() -> None:
             command=transition_fixture(0).command, state=None,
             events=tuple(ApplicationEvent(f"event_{i}", {}) for i in range(9)),
         )
+
+
+def test_transition_json_is_deep_detached_and_canonicalized() -> None:
+    state = {"case_execution": {"status": "running", "labels": ("demo", "case")}}
+    event_payload = {"details": {"values": ["demo", "case"]}}
+    transition = ThreadApplicationTransition(
+        command=transition_fixture(0).command,
+        state=state,
+        events=(ApplicationEvent("case_execution_created", event_payload),),
+    )
+    original_hash = application_transition_hash(transition)
+
+    state["case_execution"]["status"] = "completed"
+    state["case_execution"]["oversized"] = "x" * (64 * 1024)
+    event_payload["details"]["values"].append("mutated")
+
+    equivalent = ThreadApplicationTransition(
+        command=transition_fixture(0).command,
+        state={"case_execution": {"status": "running", "labels": ["demo", "case"]}},
+        events=(ApplicationEvent(
+            "case_execution_created",
+            {"details": {"values": ["demo", "case"]}},
+        ),),
+    )
+    assert transition.state == {
+        "case_execution": {"status": "running", "labels": ["demo", "case"]},
+    }
+    assert transition.events[0].payload == {
+        "details": {"values": ["demo", "case"]},
+    }
+    assert application_transition_hash(transition) == original_hash
+    assert application_transition_hash(transition) == application_transition_hash(equivalent)
+
+
+def test_rejected_transition_command_id_is_reserved(service: InMemoryThreadService) -> None:
+    rejected = transition_fixture(expected_event_seq=0)
+    rejected = ThreadApplicationTransition(
+        command={
+            **rejected.command,
+            "command_id": "cmd_rejected",
+            "idempotency_key": "idem_rejected",
+            "run_id": "run_other",
+        },
+        state=rejected.state,
+        events=rejected.events,
+    )
+    assert service.apply_application_transition(rejected).rejection == "run_mismatch"
+
+    reused = ThreadApplicationTransition(
+        command={
+            **rejected.command,
+            "idempotency_key": "idem_reused",
+            "run_id": "run_case",
+        },
+        state=rejected.state,
+        events=rejected.events,
+    )
+    assert service.apply_application_transition(reused).rejection == "command_id_conflict"

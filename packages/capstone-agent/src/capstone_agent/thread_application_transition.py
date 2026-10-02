@@ -27,12 +27,17 @@ def _bounded_json(value: Any, *, name: str, maximum: int) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ThreadProtocolError(f"{name} must be an object")
     try:
-        encoded = json.dumps(dict(value), ensure_ascii=False, allow_nan=False, sort_keys=True).encode("utf-8")
+        encoded = json.dumps(
+            dict(value), ensure_ascii=False, allow_nan=False, sort_keys=True,
+        ).encode("utf-8")
+        canonical = json.loads(encoded)
     except (TypeError, ValueError):
         raise ThreadProtocolError(f"{name} is not JSON") from None
     if len(encoded) > maximum:
         raise ThreadProtocolError(f"{name} is too large")
-    return dict(value)
+    if not isinstance(canonical, dict):
+        raise ThreadProtocolError(f"{name} is not an object")
+    return canonical
 
 
 @dataclass(frozen=True, slots=True)

@@ -689,8 +689,7 @@ class InMemoryThreadService:
                     accepted_event_seq=envelopes[0].event_seq if envelopes else None,
                 )
             self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
-            if receipt.status == "accepted":
-                self._command_ids.add(parsed["command_id"])
+            self._command_ids.add(parsed["command_id"])
             return receipt
 
     def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
