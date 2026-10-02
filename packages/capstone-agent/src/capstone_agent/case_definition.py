@@ -7,6 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 
 
 _CATALOG_SCHEMA = "capstone-catalog/1.0"
@@ -68,21 +69,73 @@ class CaseCatalog:
         if len(applications) > _MAX_APPLICATIONS:
             raise ValueError("catalog has too many applications")
 
+        trusted = _trusted_catalog_projection()
+        trusted_application_values = trusted.get("applications")
+        if not isinstance(trusted_application_values, list):
+            raise RuntimeError("trusted catalog projection is invalid")
+        trusted_applications: dict[str, Mapping[str, object]] = {}
+        for raw_trusted_application in trusted_application_values:
+            trusted_application = _mapping(
+                raw_trusted_application,
+                name="trusted catalog application",
+            )
+            trusted_application_id = trusted_application.get("application_id")
+            if not isinstance(trusted_application_id, str):
+                raise RuntimeError("trusted catalog application identity is invalid")
+            trusted_applications[trusted_application_id] = trusted_application
         definitions: list[CaseDefinition] = []
+        seen_applications: set[str] = set()
         for app_index, raw_application in enumerate(applications):
             application = _mapping(raw_application, name=f"catalog.applications[{app_index}]")
             _fields(application, {"application_id", "title", "cases"},
                     name=f"catalog.applications[{app_index}]")
-            _text(application.get("application_id"), name=f"catalog.applications[{app_index}].application_id")
+            application_id = _text(
+                application.get("application_id"),
+                name=f"catalog.applications[{app_index}].application_id",
+            )
+            if application_id in seen_applications:
+                raise ValueError(f"duplicate application id: {application_id}")
+            seen_applications.add(application_id)
+            trusted_application = trusted_applications.get(application_id)
+            if trusted_application is None or application.get("title") != trusted_application.get("title"):
+                raise ValueError(
+                    f"catalog.applications[{app_index}] is not a registered projection"
+                )
             _text(application.get("title"), name=f"catalog.applications[{app_index}].title")
             cases = application.get("cases")
-            if not isinstance(cases, list) or len(cases) > _MAX_CASES_PER_APPLICATION:
+            if not isinstance(cases, list) or not cases or len(cases) > _MAX_CASES_PER_APPLICATION:
                 raise ValueError(f"catalog.applications[{app_index}].cases is invalid")
+            trusted_case_values = trusted_application.get("cases")
+            if not isinstance(trusted_case_values, list):
+                raise RuntimeError("trusted catalog cases are invalid")
+            trusted_cases: dict[str, Mapping[str, object]] = {}
+            for raw_trusted_case in trusted_case_values:
+                trusted_case = _mapping(raw_trusted_case, name="trusted catalog case")
+                trusted_case_id = trusted_case.get("case_id")
+                if not isinstance(trusted_case_id, str):
+                    raise RuntimeError("trusted catalog case identity is invalid")
+                trusted_cases[trusted_case_id] = trusted_case
             for case_index, raw_case in enumerate(cases):
-                definitions.append(_case_from_document(
+                case = _mapping(
                     raw_case,
                     name=f"catalog.applications[{app_index}].cases[{case_index}]",
-                ))
+                )
+                case_id = case.get("case_id")
+                if not isinstance(case_id, str) or case_id not in trusted_cases:
+                    raise ValueError(
+                        f"catalog.applications[{app_index}].cases[{case_index}] "
+                        "is not a registered projection"
+                    )
+                definition = _case_from_document(
+                    case,
+                    name=f"catalog.applications[{app_index}].cases[{case_index}]",
+                )
+                if case != trusted_cases[case_id]:
+                    raise ValueError(
+                        f"catalog.applications[{app_index}].cases[{case_index}] "
+                        "is not a registered projection"
+                    )
+                definitions.append(definition)
         return cls(definitions)
 
     def get(self, case_id: str, version: str | None = None) -> CaseDefinition:
@@ -110,14 +163,11 @@ class CaseCatalog:
 
 def _case_from_document(value: object, *, name: str) -> CaseDefinition:
     case = _mapping(value, name=name)
-    allowed = {
+    expected_fields = {
         "case_id",
         "case_version",
-        "version",
         "title",
-        "display_name",
         "summary",
-        "description",
         "model_origin",
         "model_ids",
         "scenario_assumption",
@@ -125,19 +175,15 @@ def _case_from_document(value: object, *, name: str) -> CaseDefinition:
         "step_titles",
         "instructions",
     }
-    _fields(case, allowed, name=name)
+    _fields(case, expected_fields, name=name)
+    if set(case) != expected_fields:
+        raise ValueError(f"{name} does not match the registered projection")
     case_id = _text(case.get("case_id"), name=f"{name}.case_id", max_chars=256)
-    case_version = _case_version(case, name=name)
-    display_name = _text(
-        case.get("display_name", case.get("title")),
-        name=f"{name}.display_name",
-        max_chars=_MAX_TITLE_CHARS,
-    )
-    description = _text(
-        case.get("description", case.get("summary")),
-        name=f"{name}.description",
-        max_chars=_MAX_TEXT_CHARS,
-    )
+    case_version = _text(case.get("case_version"), name=f"{name}.case_version", max_chars=64)
+    if _VERSION.fullmatch(case_version) is None:
+        raise ValueError(f"{name}.case_version is invalid")
+    display_name = _text(case.get("title"), name=f"{name}.title", max_chars=_MAX_TITLE_CHARS)
+    description = _text(case.get("summary"), name=f"{name}.summary", max_chars=_MAX_TEXT_CHARS)
     model_ids = _model_ids(case, name=name)
 
     instructions = case.get("instructions")
@@ -185,25 +231,8 @@ def _case_from_document(value: object, *, name: str) -> CaseDefinition:
     )
 
 
-def _case_version(case: Mapping[str, object], *, name: str) -> str:
-    supplied = [case[key] for key in ("case_version", "version") if key in case]
-    if not supplied:
-        return "1"
-    if len(supplied) == 2 and supplied[0] != supplied[1]:
-        raise ValueError(f"{name}.case_version differs from version")
-    value = _text(supplied[0], name=f"{name}.case_version", max_chars=64)
-    if _VERSION.fullmatch(value) is None:
-        raise ValueError(f"{name}.case_version is invalid")
-    return value
-
-
 def _model_ids(case: Mapping[str, object], *, name: str) -> tuple[str, ...]:
     raw = case.get("model_ids")
-    if raw is None:
-        raw = case.get("model_origin")
-        if raw is None:
-            raise ValueError(f"{name}.model_ids is missing")
-        raw = [raw]
     if not isinstance(raw, list) or not raw or len(raw) > 32:
         raise ValueError(f"{name}.model_ids is invalid")
     result: list[str] = []
@@ -235,12 +264,7 @@ def _step_titles(
 
 def _instruction(value: object, *, name: str) -> tuple[str, str | None]:
     if isinstance(value, Mapping):
-        _fields(value, {"title", "instruction"}, name=name)
-        instruction = _text(value.get("instruction"), name=f"{name}.instruction",
-                            max_chars=_MAX_INSTRUCTION_CHARS)
-        title = _text(value.get("title"), name=f"{name}.title", max_chars=_MAX_TITLE_CHARS) \
-            if "title" in value else None
-        return instruction, title
+        raise ValueError(f"{name} must be text")
     return _text(value, name=name, max_chars=_MAX_INSTRUCTION_CHARS), None
 
 
@@ -250,9 +274,20 @@ def _derive_step_title(instruction: str, *, ordinal: int) -> str:
         if marker in compact:
             compact = compact.split(marker, 1)[0] + marker
             break
-    if len(compact) > _MAX_TITLE_CHARS:
-        compact = compact[: _MAX_TITLE_CHARS - 3].rstrip() + "..."
-    return f"Step {ordinal}: {compact}"
+    prefix = f"Step {ordinal}: "
+    available = _MAX_TITLE_CHARS - len(prefix)
+    if len(compact) > available:
+        if available <= 3:
+            compact = compact[:available]
+        else:
+            compact = compact[: available - 3].rstrip() + "..."
+    return prefix + compact
+
+
+def _trusted_catalog_projection() -> Mapping[str, object]:
+    from capstone_agent.catalog import trusted_catalog_projection
+
+    return trusted_catalog_projection(Path(__file__).resolve().parents[4])
 
 
 def _mapping(value: object, *, name: str) -> Mapping[str, object]:

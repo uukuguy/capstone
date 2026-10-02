@@ -108,3 +108,11 @@ def build_catalog(registry: WorkerRegistry, repo_root: Path) -> dict[str, Any]:
             "cases": cases,
         })
     return {"schema": "capstone-catalog/1.0", "applications": applications}
+
+
+def trusted_catalog_projection(repo_root: Path) -> dict[str, Any]:
+    """Return the source-registered catalog used to validate public projections."""
+    from capstone_agent.registry import build_registry
+
+    root = repo_root.resolve()
+    return build_catalog(build_registry(root), root)
