@@ -215,3 +215,33 @@ Files added:
 
 - `packages/capstone-agent/src/capstone_agent/case_execution.py`
 - `packages/capstone-agent/tests/test_case_execution.py`
+
+## M6 Task 2 review fixes
+
+The independent review identified state-machine gaps in the initial pure
+execution model. The fix now rejects completion from a failed, cancelled, or
+interrupted Attempt until `with_current_step()` installs a distinct retry
+Attempt, and refuses to overwrite an active running Attempt. Durable step
+state rejects answer/result/evidence fields on every non-completed status.
+Terminal executions validate the incoming Attempt identity before returning an
+idempotent no-op. `SequentialBatchExecutor` is frozen after its definitions
+are pinned and checks the Case identity/revision when created from a full
+`CaseDefinition`; it cannot be rebound to another definition. Test fixtures
+use Literal-compatible status annotations so source and test Pyright checks
+cover the same contracts.
+
+Review-fix verification:
+
+```text
+uv run --directory packages/capstone-agent pytest tests/test_case_execution.py -q
+16 passed
+
+uv run --directory packages/capstone-agent pytest tests/test_case_definition.py tests/test_case_execution.py -q
+32 passed
+
+uv run ruff check packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
+All checks passed!
+
+uv run pyright packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
+0 errors, 0 warnings, 0 informations
+```

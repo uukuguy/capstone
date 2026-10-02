@@ -8,7 +8,7 @@ the returned next step through the public Thread APIs.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Self
 
 from .case_definition import CaseDefinition, CaseStepDefinition
@@ -148,6 +148,10 @@ class CaseStepState:
         _refs(self.evidence_refs, field="evidence_refs")
         _duration(self.duration_ms, field="duration_ms")
         _optional_text(self.error_code, field="error_code", max_chars=_MAX_ERROR_CHARS)
+        if self.status != "completed" and (
+            self.answer is not None or self.result_refs or self.evidence_refs
+        ):
+            raise ValueError("non-completed step cannot retain answer or references")
 
     def to_document(self) -> dict[str, Any]:
         return {
@@ -280,6 +284,10 @@ class CaseExecution:
         current = self.steps[ordinal - 1]
         if current.status == "completed":
             raise ValueError("completed step is immutable")
+        if current.status == "running":
+            raise ValueError("running attempt cannot be overwritten")
+        if current.latest_attempt_id == attempt_id:
+            raise ValueError("retry requires a new Attempt")
         steps = list(self.steps)
         steps[ordinal - 1] = replace(
             current,
@@ -421,8 +429,13 @@ class CaseExecutionStrategy:
         raise NotImplementedError
 
 
+@dataclass(frozen=True, slots=True, init=False)
 class SequentialBatchExecutor(CaseExecutionStrategy):
     """Advance one ordered Case step after its terminal Attempt is committed."""
+
+    _definitions: tuple[CaseStepDefinition, ...] = field(init=False, repr=False, compare=False)
+    _case_id: str | None = field(init=False, repr=False, compare=False)
+    _case_revision: str | None = field(init=False, repr=False, compare=False)
 
     def __init__(
         self,
@@ -438,8 +451,12 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
             definition = steps
         elif case_definition is not None:
             definition = case_definition
+        pinned_case_id: str | None = None
+        pinned_case_revision: str | None = None
         if isinstance(definition, CaseDefinition):
             definitions = definition.steps
+            pinned_case_id = definition.case_id
+            pinned_case_revision = definition.case_revision
         elif definition is None:
             definitions = ()
         else:
@@ -448,7 +465,9 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
             raise ValueError("step definitions are invalid")
         if definitions and tuple(step.ordinal for step in definitions) != tuple(range(1, len(definitions) + 1)):
             raise ValueError("step definitions must have contiguous ordinals")
-        self._definitions = definitions
+        object.__setattr__(self, "_definitions", definitions)
+        object.__setattr__(self, "_case_id", pinned_case_id)
+        object.__setattr__(self, "_case_revision", pinned_case_revision)
 
     def create_execution(
         self,
@@ -462,7 +481,14 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
         """Create the bounded initial state; Turn creation remains a caller concern."""
         if self._definitions and self._definitions != definition.steps:
             raise ValueError("strategy definitions do not match CaseDefinition")
-        self._definitions = definition.steps
+        if self._case_id is not None and (
+            self._case_id != definition.case_id or self._case_revision != definition.case_revision
+        ):
+            raise ValueError("strategy CaseDefinition is already pinned")
+        if not self._definitions:
+            object.__setattr__(self, "_definitions", definition.steps)
+        object.__setattr__(self, "_case_id", definition.case_id)
+        object.__setattr__(self, "_case_revision", definition.case_revision)
         steps = tuple(
             CaseStepState(
                 ordinal=step.ordinal,
@@ -494,11 +520,23 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
     def advance(self, execution: CaseExecution, outcome: StepOutcome) -> StrategyDecision:
         if execution.strategy_id != self.strategy_id or execution.strategy_version != self.strategy_version:
             raise ValueError("execution strategy is not supported")
-        if self._definitions and len(self._definitions) != len(execution.steps):
+        if self._definitions and tuple(step.ordinal for step in execution.steps) != tuple(
+            step.ordinal for step in self._definitions
+        ):
             raise ValueError("step definitions do not match execution")
+        if self._case_id is not None and (
+            execution.case_id != self._case_id or execution.case_revision != self._case_revision
+        ):
+            raise ValueError("execution CaseDefinition does not match pinned definition")
         if outcome.status == "running":
             return StrategyDecision(execution, None)
         if execution.status in {"completed", "cancelled"}:
+            terminal_attempt_id = next(
+                (step.latest_attempt_id for step in reversed(execution.steps) if step.latest_attempt_id),
+                None,
+            )
+            if outcome.attempt_id != terminal_attempt_id:
+                raise ValueError("terminal outcome attempt does not match execution")
             return StrategyDecision(execution, None)
         if execution.current_step is None:
             raise ValueError("execution has no current step")
@@ -508,6 +546,8 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
             if outcome.status == "completed" and current.latest_attempt_id == outcome.attempt_id:
                 return StrategyDecision(execution, None)
             raise ValueError("completed step is immutable or attempt does not match")
+        if current.status in {"failed", "cancelled", "interrupted"}:
+            raise ValueError("retry requires a new Attempt")
         if current.latest_attempt_id != outcome.attempt_id:
             raise ValueError("terminal outcome attempt does not match current step")
         updated = replace(

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import pytest
+from typing import Literal
+from dataclasses import replace
 
-from capstone_agent.case_definition import CaseStepDefinition
+from capstone_agent.case_definition import CaseDefinition, CaseStepDefinition
 from capstone_agent.case_execution import (
     CaseExecution,
     CaseStepState,
+    ExecutionStatus,
     PinnedCaseContext,
     SequentialBatchExecutor,
     StepOutcome,
 )
 
 
-def execution_fixture(status: str = "waiting_step") -> CaseExecution:
+def execution_fixture(status: ExecutionStatus = "waiting_step") -> CaseExecution:
     return CaseExecution(
         case_execution_id="exec-1",
         thread_id="thread-1",
@@ -63,6 +66,18 @@ def definitions() -> tuple[CaseStepDefinition, ...]:
     )
 
 
+def _case_definition(case_id: str, steps: tuple[CaseStepDefinition, ...]) -> CaseDefinition:
+    return CaseDefinition(
+        case_id=case_id,
+        case_version="1",
+        case_revision=f"revision-{case_id}",
+        display_name=case_id,
+        description="test case",
+        model_ids=("model-1",),
+        steps=steps,
+    )
+
+
 def test_strategy_waits_for_committed_step() -> None:
     execution = execution_fixture()
     decision = SequentialBatchExecutor(definitions()).advance(execution, StepOutcome.running())
@@ -108,7 +123,7 @@ def test_final_success_completes_execution() -> None:
 
 
 @pytest.mark.parametrize("phase", ["failed", "cancelled", "interrupted"])
-def test_terminal_non_success_blocks_without_handoff(phase: str) -> None:
+def test_terminal_non_success_blocks_without_handoff(phase: Literal["failed", "cancelled", "interrupted"]) -> None:
     execution = execution_fixture()
     outcome = StepOutcome(
         status=phase,
@@ -126,6 +141,92 @@ def test_terminal_non_success_blocks_without_handoff(phase: str) -> None:
     assert step.answer is None
     assert step.result_refs == ()
     assert step.evidence_refs == ()
+
+
+@pytest.mark.parametrize("phase", ["failed", "cancelled", "interrupted"])
+def test_blocked_attempt_cannot_complete_without_retry(
+    phase: Literal["failed", "cancelled", "interrupted"],
+) -> None:
+    execution = execution_fixture()
+    executor = SequentialBatchExecutor(definitions())
+    blocked = executor.advance(execution, StepOutcome(status=phase, attempt_id="attempt-1")).execution
+    with pytest.raises(ValueError, match="retry|attempt"):
+        executor.advance(blocked, StepOutcome.completed(attempt_id="attempt-1", answer="late"))
+
+
+def test_running_attempt_cannot_be_overwritten() -> None:
+    with pytest.raises(ValueError, match="running"):
+        execution_fixture().with_current_step(1, turn_id="turn-new", attempt_id="attempt-new")
+
+
+def test_retry_must_use_a_new_attempt_id() -> None:
+    executor = SequentialBatchExecutor(definitions())
+    blocked = executor.advance(
+        execution_fixture(), StepOutcome.failed(attempt_id="attempt-1")
+    ).execution
+    with pytest.raises(ValueError, match="new Attempt"):
+        blocked.with_current_step(1, turn_id="turn-1", attempt_id="attempt-1")
+
+
+def test_executor_definitions_are_immutable_and_fully_pinned() -> None:
+    first = definitions()
+    second = (
+        CaseStepDefinition(1, "Different", "different instruction", "digest-x"),
+        CaseStepDefinition(2, "Second", "second instruction", "digest-2"),
+    )
+    executor = SequentialBatchExecutor(first)
+    execution = executor.create_execution(
+        _case_definition("case-1", first),
+        execution_fixture().context,
+        case_execution_id="exec-created",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    with pytest.raises(ValueError, match="definition"):
+        executor.create_execution(
+            _case_definition("case-1", second),
+            execution_fixture().context,
+            case_execution_id="exec-other",
+            thread_id="thread-1",
+            run_id="run-1",
+        )
+    with pytest.raises(ValueError, match="definition"):
+        executor.advance(
+            replace(execution, case_revision="revision-other"),
+            StepOutcome.completed(attempt_id="attempt-1"),
+        )
+
+
+def test_durable_non_completed_step_cannot_retain_outputs() -> None:
+    with pytest.raises(ValueError, match="non-completed"):
+        CaseStepState(
+            ordinal=1,
+            turn_id="turn-1",
+            latest_attempt_id="attempt-1",
+            status="running",
+            answer="stale",
+            result_refs=(),
+            evidence_refs=(),
+            duration_ms=None,
+            error_code=None,
+        )
+
+
+def test_terminal_execution_rejects_unrelated_outcome_attempt() -> None:
+    execution = SequentialBatchExecutor(definitions()).advance(
+        execution_fixture(), StepOutcome.completed(attempt_id="attempt-1")
+    ).execution.with_current_step(2, turn_id="turn-2", attempt_id="attempt-2")
+    completed = SequentialBatchExecutor(definitions()).advance(
+        execution, StepOutcome.completed(attempt_id="attempt-2")
+    ).execution
+    with pytest.raises(ValueError, match="attempt"):
+        SequentialBatchExecutor(definitions()).advance(
+            completed, StepOutcome.completed(attempt_id="unrelated")
+        )
+    with pytest.raises(ValueError, match="attempt"):
+        SequentialBatchExecutor(definitions()).advance(
+            completed, StepOutcome.completed(attempt_id="attempt-1")
+        )
 
 
 def test_completed_step_is_immutable_and_terminal_attempt_must_match() -> None:
