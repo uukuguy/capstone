@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import json
 from typing import Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
@@ -33,6 +34,7 @@ class AdmittedAttemptAnswer:
     result_refs: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
     diagnostic_codes: tuple[str, ...] = ()
+    result_projections: tuple[Mapping[str, object], ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.answer, str) or not self.answer.strip() or len(self.answer) > 64_000:
@@ -56,6 +58,21 @@ class AdmittedAttemptAnswer:
             for code in self.diagnostic_codes
         ) or len(set(self.diagnostic_codes)) != len(self.diagnostic_codes):
             raise ValueError("admission diagnostic codes are invalid")
+        if (
+            not isinstance(self.result_projections, tuple)
+            or len(self.result_projections) > 12
+            or any(not isinstance(item, Mapping) for item in self.result_projections)
+        ):
+            raise ValueError("admitted result projections are invalid")
+        try:
+            encoded_projections = json.dumps(
+                [dict(item) for item in self.result_projections],
+                ensure_ascii=False, allow_nan=False, sort_keys=True,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            raise ValueError("admitted result projections are not JSON") from None
+        if len(encoded_projections) > 64 * 1024:
+            raise ValueError("admitted result projections are too large")
         if self.mode == "authority_backed" and not self.evidence_refs:
             raise ValueError("authority-backed admission requires evidence")
         if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
@@ -414,6 +431,7 @@ class HarnessAttemptRunner:
                 raise _AttemptAdmissionError("answer_admission_unavailable")
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
+            result_projections = () if candidate is None else candidate.result_projections
             admitted_answer = answer if candidate is None else candidate.answer
             admission: dict[str, object] | None = None if candidate is None else {
                 "mode": candidate.mode, "assurance": candidate.assurance,
@@ -427,6 +445,8 @@ class HarnessAttemptRunner:
                 "result_refs": list(result_refs),
                 "evidence_refs": list(evidence_refs),
             }
+            if result_projections:
+                terminal_payload["result_projections"] = [dict(item) for item in result_projections]
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():

@@ -348,6 +348,67 @@ def test_application_admission_is_persisted_before_professional_completion() -> 
     assert terminal.payload["answer"] == "validated answer"
 
 
+def test_application_admission_persists_bounded_result_projection() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_projection",
+        "idempotency_key": "idem_harness_projection", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_professional", "expected_event_seq": 0,
+        "payload": {"text": "analyze"},
+    })
+    result_ref = "result:sha256:" + "a" * 64
+    evidence_ref = "evidence:sha256:" + "b" * 64
+    projection = {
+        "schema": "capstone-result-projection/1.0",
+        "result_id": "powerflow_result_1", "result_ref": result_ref,
+        "evidence_refs": [evidence_ref], "thread_id": "thr_harness",
+        "run_id": "run_harness", "turn_id": "turn_harness_1",
+        "attempt_id": "attempt_harness_1", "model_context_id": "ctx_ieee39",
+        "model_id": "ieee39", "model_revision": "revision:sha256:" + "a" * 64,
+        "source": {"capability_id": "analysis_powerflow_ac_run",
+                    "domain_pack_id": "pandapower_static_analysis",
+                    "implementation_family": "pandapower"},
+        "status": "completed", "summary": [], "tables": [], "element_refs": [],
+        "overlay": None,
+    }
+
+    class _ProjectionSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({
+                "type": "tool_result", "toolCallId": "call-projection",
+                "toolName": "grid_powerflow_run", "ok": True,
+                "result_refs": [result_ref], "evidence_refs": [evidence_ref],
+            })
+            return "projected answer"
+
+        def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
+            del tool_events
+            assert answer == "projected answer"
+            assert result_refs == (result_ref,)
+            assert evidence_refs == (evidence_ref,)
+            admitted_projection = dict(projection)
+            admitted_projection["turn_id"] = claim.attempt.turn_id
+            admitted_projection["attempt_id"] = claim.attempt.attempt_id
+            return AdmittedAttemptAnswer(
+                answer, "authority_backed", "lineage_verified",
+                (result_ref,), (evidence_ref,), result_projections=(admitted_projection,),
+            )
+
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    session = _ProjectionSession()
+    result = HarnessAttemptRunner(
+        service, HarnessPiClient(session, admission=session.admit_attempt),
+    ).run(claim)
+
+    assert result.status == "completed"
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["result_projections"][0]["result_id"] == projection["result_id"]
+
+
 def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
     service = _thread_service()
     service.submit_command({

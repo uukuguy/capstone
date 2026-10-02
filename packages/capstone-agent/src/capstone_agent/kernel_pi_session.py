@@ -26,6 +26,7 @@ from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim
+from .result_projection import normalize_result_projection
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -349,11 +350,105 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if not decisions:
             raise ValueError("no prepared Domain Pack admission policy")
         decision = aggregate_answer_admission(tuple(decisions), answer)
+        result_projections = _build_result_projections(
+            claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
+        )
         return AdmittedAttemptAnswer(
             decision.answer_output, decision.mode, decision.assurance,
             tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
+            result_projections=result_projections,
         )
     return admit
+
+
+def _build_result_projections(
+    claim: AttemptClaim,
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+    bindings: Mapping[str, object],
+    result_refs: tuple[str, ...],
+    evidence_refs: tuple[str, ...],
+    tool_events: tuple[Mapping[str, object], ...],
+) -> tuple[Mapping[str, object], ...]:
+    """Ask a selected Domain Pack to project admitted authority results.
+
+    The application owns admission and normalization.  A Domain Pack owns the
+    business labels and table semantics; it receives verified documents and a
+    bounded diagram, never a raw authority object.
+    """
+
+    projections: list[Mapping[str, object]] = []
+    owners: dict[str, str] = {}
+    sole_binding = next(iter(bindings), None) if len(bindings) == 1 else None
+    for event in tool_events:
+        binding_id = event.get("binding_id")
+        if binding_id is None:
+            binding_id = sole_binding
+        if not isinstance(binding_id, str) or binding_id not in bindings:
+            continue
+        for field in ("result_refs", "evidence_refs"):
+            refs = event.get(field)
+            if not isinstance(refs, (list, tuple)):
+                continue
+            for reference in refs:
+                if not isinstance(reference, str):
+                    continue
+                previous = owners.setdefault(reference, binding_id)
+                if previous != binding_id:
+                    raise ValueError("runtime reference has conflicting binding owners")
+
+    for profile in profiles:
+        prepared_bindings = getattr(profile.prepared_application, "bindings", None)
+        if not isinstance(prepared_bindings, Mapping):
+            continue
+        for binding_id, binding in prepared_bindings.items():
+            runtime = getattr(binding, "runtime", None)
+            domain_profile = getattr(runtime, "profile", None)
+            registry = getattr(domain_profile, "projector_registry", None)
+            projector = getattr(registry, "result_projector", None)
+            project = getattr(projector, "project", None)
+            if not callable(project):
+                continue
+            authority = getattr(runtime, "authority", None)
+            verify_context = getattr(authority, "verify_context", None)
+            verify_result = getattr(authority, "verify_result", None)
+            invoke = getattr(getattr(runtime, "executor", None), "invoke", None)
+            if not callable(verify_context) or not callable(verify_result) or not callable(invoke):
+                raise ValueError("Domain Pack result projection authority is unavailable")
+            context_ref = profile.model_binding.context_ref
+            context_artifact = verify_context(context_ref)
+            context_document = getattr(context_artifact, "document", None)
+            if not isinstance(context_document, Mapping):
+                raise ValueError("Domain Pack context projection is invalid")
+            context_input = {
+                **dict(context_document),
+                "model_context_id": claim.model_context.id,
+                "counts": dict(context_document.get("counts", {}))
+                if isinstance(context_document.get("counts"), Mapping) else {},
+            }
+            diagram = invoke("operator.diagram.get", {"context_ref": context_ref})
+            if not isinstance(diagram, Mapping):
+                raise ValueError("Domain Pack diagram projection is invalid")
+            for result_ref in result_refs:
+                if owners.get(result_ref) != binding_id:
+                    continue
+                artifact = verify_result(result_ref)
+                calculation = getattr(artifact, "document", None)
+                if not isinstance(calculation, Mapping):
+                    raise ValueError("Domain Pack result projection is invalid")
+                if "evidence_refs" not in calculation:
+                    calculation = {**dict(calculation), "evidence_refs": list(evidence_refs)}
+                raw_projection = project(
+                    context_input, calculation,
+                    thread_id=claim.thread_id, run_id=claim.run_id,
+                    turn_id=claim.attempt.turn_id, attempt_id=claim.attempt.attempt_id,
+                    admitted_refs=(*result_refs, *evidence_refs), diagram=diagram,
+                )
+                projections.append(normalize_result_projection(
+                    raw_projection,
+                    admitted_refs=(*result_refs, *evidence_refs),
+                    expected_model_revision=claim.model_context.model_revision,
+                ))
+    return tuple(projections)
 
 
 __all__ = [

@@ -18,6 +18,7 @@ from pandapower_domain.models import (
     DomainStateDelta,
     ScenarioState,
 )
+from pandapower_domain.result_projection import PandapowerResultProjector
 
 
 __all__ = [
@@ -62,6 +63,7 @@ class PandapowerProjectorRegistry:
             projector_id: _PandapowerProjector(projector_id)
             for projector_id in KNOWN_CONTEXT_PROJECTORS
         }
+        self.result_projector = PandapowerResultProjector()
 
     def require(self, projector_id: str) -> _PandapowerProjector:
         try:

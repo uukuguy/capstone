@@ -141,7 +141,7 @@ def test_context_drift_interrupts_attempt_before_worker_execution() -> None:
 
 def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     service = _service()
-    receipt = service.submit_command(_command())
+    service.submit_command(_command())
     claim = service.claim_attempt("thread-worker", lease_seconds=30)
 
     assert claim is not None
@@ -160,6 +160,67 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     assert [event.event_type for event in events] == [
         "command_accepted", "attempt_started", "assistant_text_delta", "attempt_completed",
     ]
+
+
+def test_completed_attempt_admits_result_projection_into_thread_snapshot() -> None:
+    service = _service()
+    receipt = service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None and receipt.target is not None
+    result_ref = "result:sha256:" + "a" * 64
+    evidence_ref = "evidence:sha256:" + "b" * 64
+    projection = {
+        "schema": "capstone-result-projection/1.0",
+        "result_id": "powerflow_result_1", "result_ref": result_ref,
+        "evidence_refs": [evidence_ref], "thread_id": claim.thread_id,
+        "run_id": claim.run_id, "turn_id": claim.attempt.turn_id,
+        "attempt_id": claim.attempt.attempt_id,
+        "model_context_id": claim.model_context.id, "model_id": "ieee39",
+        "model_revision": claim.model_context.model_revision,
+        "source": {"capability_id": "analysis_powerflow_ac_run",
+                    "domain_pack_id": "pandapower_static_analysis",
+                    "implementation_family": "pandapower"},
+        "status": "completed", "summary": [], "tables": [], "element_refs": [],
+        "overlay": None,
+    }
+
+    completed = service.finish_attempt(
+        claim, phase="completed", payload={
+            "answer": "ready", "result_refs": [result_ref],
+            "evidence_refs": [evidence_ref], "result_projections": [projection],
+        },
+    )
+
+    assert completed.result_projections[0].result_id == "powerflow_result_1"
+    assert service.snapshot("thr_attempts").to_document()["result_projections"] == [projection]
+
+
+def test_result_projection_cannot_claim_an_unadmitted_reference() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    projection = {
+        "schema": "capstone-result-projection/1.0",
+        "result_id": "powerflow_result_1", "result_ref": "result:sha256:" + "a" * 64,
+        "evidence_refs": [], "thread_id": claim.thread_id, "run_id": claim.run_id,
+        "turn_id": claim.attempt.turn_id, "attempt_id": claim.attempt.attempt_id,
+        "model_context_id": claim.model_context.id, "model_id": "ieee39",
+        "model_revision": claim.model_context.model_revision,
+        "source": {"capability_id": "analysis_powerflow_ac_run",
+                    "domain_pack_id": "pandapower_static_analysis",
+                    "implementation_family": "pandapower"},
+        "status": "completed", "summary": [], "tables": [], "element_refs": [],
+        "overlay": None,
+    }
+
+    with pytest.raises(ValueError, match="admitted"):
+        service.finish_attempt(
+            claim, phase="completed", payload={
+                "answer": "ready", "result_refs": [], "evidence_refs": [],
+                "result_projections": [projection],
+            },
+        )
 
 
 def test_cancel_control_targets_running_attempt_and_is_replayable() -> None:

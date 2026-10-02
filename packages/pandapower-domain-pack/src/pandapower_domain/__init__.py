@@ -50,6 +50,7 @@ from pandapower_domain.projection import (
     PandapowerProjectorRegistry,
     project_domain_result,
 )
+from pandapower_domain.result_projection import PandapowerResultProjector
 from pandapower_domain.provisioning import (
     DEFAULT_MAX_OUTPUT_BYTES,
     DEFAULT_TIMEOUT_SECONDS,
@@ -106,6 +107,7 @@ __all__ = [
     "PandapowerProjectorLookupError",
     "PandapowerProjectorRegistry",
     "project_domain_result",
+    "PandapowerResultProjector",
     "PandapowerResourceError",
     "PandapowerResourceSet",
     "SimulatorCapabilityError",

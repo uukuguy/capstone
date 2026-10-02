@@ -43,6 +43,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .result_projection import ResultProjection, normalize_result_projection
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -63,6 +64,50 @@ _CONTEXT_LOCK_COMMAND_KINDS = frozenset({
     "switch_model", "enable_profile", "disable_profile", "replace_selection",
 })
 _CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt"}
+
+
+def _terminal_result_projections(
+    payload: Mapping[str, Any], *, claim: AttemptClaim, phase: str,
+) -> tuple[ResultProjection, ...]:
+    """Admit typed result projections against this exact terminal Attempt."""
+
+    raw_projections = payload.get("result_projections", [])
+    if not isinstance(raw_projections, list) or len(raw_projections) > 12:
+        raise ThreadProtocolError("attempt.result_projections is invalid")
+    if not raw_projections:
+        return ()
+    if phase != "completed":
+        raise ThreadProtocolError("result projections require a completed attempt")
+    raw_results = payload.get("result_refs", [])
+    raw_evidence = payload.get("evidence_refs", [])
+    if (
+        not isinstance(raw_results, list)
+        or not isinstance(raw_evidence, list)
+        or any(not isinstance(item, str) for item in (*raw_results, *raw_evidence))
+    ):
+        raise ThreadProtocolError("attempt admitted references are invalid")
+    admitted_refs = (*raw_results, *raw_evidence)
+    projections: list[ResultProjection] = []
+    for raw in raw_projections:
+        document = normalize_result_projection(
+            raw,
+            admitted_refs=admitted_refs,
+            expected_model_revision=claim.model_context.model_revision,
+        )
+        projection = ResultProjection.from_document(document)
+        if (
+            projection.thread_id != claim.thread_id
+            or projection.run_id != claim.run_id
+            or projection.turn_id != claim.attempt.turn_id
+            or projection.attempt_id != claim.attempt.attempt_id
+            or projection.model_context_id != claim.model_context.id
+            or projection.model_id != claim.model_context.model_id
+        ):
+            raise ThreadProtocolError("result projection Attempt binding is invalid")
+        projections.append(projection)
+    if len({item.result_id for item in projections}) != len(projections):
+        raise ThreadProtocolError("attempt.result_projections contain duplicates")
+    return tuple(projections)
 
 
 def _application_context_lock(snapshot: ThreadSnapshot) -> str | None:
@@ -1068,6 +1113,12 @@ class InMemoryThreadService:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
+            result_projections = _terminal_result_projections(
+                payload, claim=claim, phase=phase,
+            )
+            existing_result_ids = {item.result_id for item in self._snapshot.result_projections}
+            if any(item.result_id in existing_result_ids for item in result_projections):
+                raise ThreadProtocolError("result projection already exists")
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -1079,6 +1130,7 @@ class InMemoryThreadService:
             )
             self._snapshot = replace(
                 self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                result_projections=self._snapshot.result_projections + result_projections,
             )
             return self._snapshot
 
@@ -1438,6 +1490,7 @@ CREATE TABLE IF NOT EXISTS capstone_threads (
     current_attempt jsonb,
     pending_selection jsonb,
     pending_model_switch jsonb,
+    result_projections jsonb NOT NULL DEFAULT '[]'::jsonb,
     application_state jsonb,
     base_event_seq integer NOT NULL DEFAULT 0 CHECK (base_event_seq >= 0),
     last_event_seq integer NOT NULL DEFAULT 0 CHECK (last_event_seq >= 0),
@@ -1446,6 +1499,7 @@ CREATE TABLE IF NOT EXISTS capstone_threads (
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS enabled_profiles jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -1551,8 +1605,9 @@ class PostgresThreadService:
                     (thread_id, run_id, run_state, model_context_id, model_id, model_revision,
                      implementation_family, selection_revision, enabled_profiles,
                      active_grid_page_id, current_attempt, pending_selection,
-                     pending_model_switch, application_state, base_event_seq, last_event_seq)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     pending_model_switch, result_projections, application_state,
+                     base_event_seq, last_event_seq)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
@@ -1562,6 +1617,7 @@ class PostgresThreadService:
                      None if snapshot.current_attempt is None else Jsonb(snapshot.current_attempt.to_document()),
                      None if snapshot.pending_selection is None else Jsonb(snapshot.pending_selection.to_document()),
                      None if snapshot.pending_model_switch is None else Jsonb(snapshot.pending_model_switch.to_document()),
+                     Jsonb([item.to_document() for item in snapshot.result_projections]),
                      None if snapshot.application_state is None else Jsonb(dict(snapshot.application_state)),
                      snapshot.base_event_seq, snapshot.last_event_seq),
                 )
@@ -2478,6 +2534,16 @@ class PostgresThreadService:
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             terminal = AttemptSnapshot.from_document({**current, "phase": phase})
+            result_projections = _terminal_result_projections(
+                payload, claim=claim, phase=phase,
+            )
+            existing_projections = tuple(
+                ResultProjection.from_document(item)
+                for item in (thread.get("result_projections") or [])
+            )
+            existing_result_ids = {item.result_id for item in existing_projections}
+            if any(item.result_id in existing_result_ids for item in result_projections):
+                raise ThreadProtocolError("result projection already exists")
             event = self._make_attempt_event(
                 thread, terminal, event_seq=thread["last_event_seq"] + 1,
                 event_type="attempt_" + phase,
@@ -2491,9 +2557,11 @@ class PostgresThreadService:
                 (phase, claim.attempt.attempt_id),
             )
             updated = connection.execute(
-                """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s
+                """UPDATE capstone_threads
+                   SET current_attempt = NULL, result_projections = %s, last_event_seq = %s
                    WHERE thread_id = %s RETURNING *""",
-                (event.event_seq, claim.thread_id),
+                (Jsonb([item.to_document() for item in existing_projections + result_projections]),
+                 event.event_seq, claim.thread_id),
             ).fetchone()
             assert updated is not None
             return self._snapshot_from_row(updated)
@@ -2779,6 +2847,10 @@ class PostgresThreadService:
             last_event_seq=row["last_event_seq"], base_event_seq=row["base_event_seq"],
             pending_selection=pending,
             pending_model_switch=pending_model_switch,
+            result_projections=tuple(
+                ResultProjection.from_document(item)
+                for item in (row.get("result_projections") or [])
+            ),
             application_state=row.get("application_state"),
         )
 
