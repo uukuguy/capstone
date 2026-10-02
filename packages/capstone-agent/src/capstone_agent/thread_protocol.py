@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from capstone_model_capability_spi import ModelCapabilitySelection
 
 from .model_identity import validate_model_id
+from .result_projection import ResultProjection
 
 
 THREAD_PROTOCOL = "capstone-thread/1"
@@ -24,6 +25,7 @@ _MAX_CASE_DETAILS_BYTES = 16 * 1024
 _MAX_CASE_ACTIONS = 4
 _MAX_CASE_REASONS = 16
 _MAX_CASE_DURATION_MS = 86_400_000
+_MAX_RESULT_PROJECTIONS = 12
 _CASE_STATUSES = frozenset({"idle", "created", "running", "waiting_step", "blocked", "cancelled", "completed"})
 _CASE_STEP_STATUSES = frozenset({"pending", "running", "completed", "failed", "cancelled", "interrupted"})
 _CASE_ACTION_IDS = frozenset({"start_case", "retry_case_step", "cancel_case", "view_case_details"})
@@ -486,6 +488,7 @@ class ThreadSnapshot:
     base_event_seq: int
     pending_selection: PendingSelectionSnapshot | None = None
     pending_model_switch: PendingModelSwitchSnapshot | None = None
+    result_projections: tuple[ResultProjection, ...] = ()
     application_state: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -509,12 +512,12 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
-            "pending_model_switch", "application_state",
+            "pending_model_switch", "result_projections", "application_state",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "application_state"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -537,6 +540,15 @@ class ThreadSnapshot:
             if document.get("pending_model_switch") is None
             else PendingModelSwitchSnapshot.from_document(document["pending_model_switch"])
         )
+        raw_result_projections = document.get("result_projections", [])
+        if not isinstance(raw_result_projections, list) or len(raw_result_projections) > _MAX_RESULT_PROJECTIONS:
+            raise ThreadProtocolError("snapshot.result_projections is invalid")
+        try:
+            result_projections = tuple(ResultProjection.from_document(item) for item in raw_result_projections)
+        except (TypeError, ValueError) as exc:
+            raise ThreadProtocolError("snapshot.result_projections is invalid") from exc
+        if len({item.result_id for item in result_projections}) != len(result_projections):
+            raise ThreadProtocolError("snapshot.result_projections contain duplicates")
         application_state = document.get("application_state")
         if application_state is not None:
             if not isinstance(application_state, dict):
@@ -564,6 +576,7 @@ class ThreadSnapshot:
             base_event_seq=base_event_seq,
             pending_selection=pending,
             pending_model_switch=pending_model_switch,
+            result_projections=result_projections,
             application_state=application_state,
         )
 
@@ -582,6 +595,8 @@ class ThreadSnapshot:
             document["pending_selection"] = self.pending_selection.to_document()
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
+        if self.result_projections:
+            document["result_projections"] = [item.to_document() for item in self.result_projections]
         if self.application_state is not None:
             projection = _case_projection(self.application_state)
             if projection is not None:
