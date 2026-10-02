@@ -1,12 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-02 15:05 CST. **M5 provider-free Thread matrix, lifecycle/recovery checks, independent review, E2E, validation, and full release gates are complete.**
+> Updated: 2026-10-02 15:30 CST. **M6 Harness/Case implementation and lightweight boundary closeout are complete; full release gates remain deferred for this demo-stage checkpoint.**
 
 ## Current position
 
 - `capstone-agent` remains the only application host. `grid-agent` and `pypsa-agent` are compatibility/migration adapters behind the Capstone boundary.
 - M1–M3 are complete and reviewed. M4 is implemented and reviewed: typed Thread catalog, compact Web model/Profile controls, trace toggle, staged controls during active Attempts, and immutable Attempt retry.
 - The legacy three-column App remains unchanged. The Thread route keeps the copied light two-column layout, original Capstone header, registered topology, assistant-ui surface, compact Composer, per-answer activity and duration projection.
+- M6 is implemented through the Thread-native Case picker and progress projection. `capstone-agent` owns Case catalog/definition, CaseExecution state, sequential reconciliation, and public Case interaction; Harness owns runtime selection and normalized events. The compatibility packages remain adapters and do not import Case internals.
 
 ## M4 evidence
 
@@ -31,11 +32,12 @@
 
 1. Run `make validate-thread-m5-provider-free` after any Thread/Authority change; reports remain under ignored `runs/capstone-m5/provider-free/`.
 2. Keep future answer-display modes, structured ResultProjection UI, and feedback persistence deferred until the main Thread protocol gates remain stable.
-3. Require an independent code review before declaring every future M stage complete.
+3. Run `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_case_architecture_boundary.py -q` after Case/Harness boundary changes; rerun the full rebuild/release gates only when making a release claim.
 
 ## Recovery constraints
 
 - Do not connect Web/TUI directly to Pi, DSH, Domain Packs, or Authority internals; all surfaces use typed Thread snapshots/event pages and `CommandEnvelope`.
+- Case services may dispatch only through public Thread commands and transitions; they must not call Pi/DSH clients, Authority internals, or compatibility package state directly.
 - Do not reintroduce `grid-agent.hosted` or `pypsa-agent` as application roots.
 - Do not invent model revisions, topology, results, evidence, tool output, or PyPSA model availability. A failed recovery is an immediate stop; never continue from a partial projection.
 - Keep the unrelated user change to `.gitignore` untouched.
