@@ -244,4 +244,37 @@ All checks passed!
 
 uv run pyright packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
 0 errors, 0 warnings, 0 informations
+
+## M6 Task 2 pinning review fix
+
+The follow-up review found that a sequence-only `SequentialBatchExecutor`
+could advance a foreign Case with the same number of steps because it had no
+Case identity or revision to compare. The executor now refuses `advance()`
+until a complete `CaseDefinition` identity/revision and ordered step tuple are
+pinned. Sequence constructors remain available for tests and bind exactly once
+through `create_execution()`; full `CaseDefinition` construction normalizes the
+ordered definitions to an immutable tuple, and reuse rejects a different
+definition.
+
+Regression coverage includes the unbound sequence fail-closed path and a
+foreign same-length Case identity/revision mismatch.
+
+TDD evidence:
+
+```text
+uv run --directory packages/capstone-agent pytest tests/test_case_execution.py -q
+17 passed, 1 failed (expected RED: unbound sequence advance did not raise)
+
+uv run --directory packages/capstone-agent pytest tests/test_case_execution.py -q
+18 passed
+
+uv run --directory packages/capstone-agent pytest tests/test_case_definition.py tests/test_case_execution.py -q
+34 passed
+
+uv run ruff check packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
+All checks passed!
+
+uv run pyright packages/capstone-agent/src/capstone_agent/case_execution.py packages/capstone-agent/tests/test_case_execution.py
+0 errors, 0 warnings, 0 informations
+```
 ```

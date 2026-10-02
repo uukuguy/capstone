@@ -21,7 +21,7 @@ def execution_fixture(status: ExecutionStatus = "waiting_step") -> CaseExecution
         thread_id="thread-1",
         run_id="run-1",
         case_id="case-1",
-        case_revision="case:sha256:revision",
+        case_revision="revision-case-1",
         strategy_id="sequential_batch",
         strategy_version=1,
         context=PinnedCaseContext(
@@ -78,16 +78,23 @@ def _case_definition(case_id: str, steps: tuple[CaseStepDefinition, ...]) -> Cas
     )
 
 
+def _advancing_executor(
+    case_id: str = "case-1",
+    steps: tuple[CaseStepDefinition, ...] | None = None,
+) -> SequentialBatchExecutor:
+    return SequentialBatchExecutor(_case_definition(case_id, steps or definitions()))
+
+
 def test_strategy_waits_for_committed_step() -> None:
     execution = execution_fixture()
-    decision = SequentialBatchExecutor(definitions()).advance(execution, StepOutcome.running())
+    decision = _advancing_executor().advance(execution, StepOutcome.running())
     assert decision.next_step is None
     assert decision.execution == execution
 
 
 def test_successful_step_advances_to_next_definition() -> None:
     execution = execution_fixture()
-    decision = SequentialBatchExecutor(definitions()).advance(
+    decision = _advancing_executor().advance(
         execution,
         StepOutcome.completed(
             attempt_id="attempt-1",
@@ -107,11 +114,11 @@ def test_successful_step_advances_to_next_definition() -> None:
 
 
 def test_final_success_completes_execution() -> None:
-    execution = SequentialBatchExecutor(definitions()).advance(
+    execution = _advancing_executor().advance(
         execution_fixture(),
         StepOutcome.completed(attempt_id="attempt-1", answer="first answer"),
     ).execution.with_current_step(2, turn_id="turn-2", attempt_id="attempt-2")
-    decision = SequentialBatchExecutor(definitions()).advance(
+    decision = _advancing_executor().advance(
         execution,
         StepOutcome.completed(attempt_id="attempt-2", answer="second answer"),
     )
@@ -133,7 +140,7 @@ def test_terminal_non_success_blocks_without_handoff(phase: Literal["failed", "c
         evidence_refs=("partial-evidence",),
         error_code="attempt_failed",
     )
-    decision = SequentialBatchExecutor(definitions()).advance(execution, outcome)
+    decision = _advancing_executor().advance(execution, outcome)
     assert decision.next_step is None
     assert decision.execution.status == "blocked"
     step = decision.execution.steps[0]
@@ -148,7 +155,7 @@ def test_blocked_attempt_cannot_complete_without_retry(
     phase: Literal["failed", "cancelled", "interrupted"],
 ) -> None:
     execution = execution_fixture()
-    executor = SequentialBatchExecutor(definitions())
+    executor = _advancing_executor()
     blocked = executor.advance(execution, StepOutcome(status=phase, attempt_id="attempt-1")).execution
     with pytest.raises(ValueError, match="retry|attempt"):
         executor.advance(blocked, StepOutcome.completed(attempt_id="attempt-1", answer="late"))
@@ -160,7 +167,7 @@ def test_running_attempt_cannot_be_overwritten() -> None:
 
 
 def test_retry_must_use_a_new_attempt_id() -> None:
-    executor = SequentialBatchExecutor(definitions())
+    executor = _advancing_executor()
     blocked = executor.advance(
         execution_fixture(), StepOutcome.failed(attempt_id="attempt-1")
     ).execution
@@ -197,6 +204,23 @@ def test_executor_definitions_are_immutable_and_fully_pinned() -> None:
         )
 
 
+def test_sequence_executor_requires_pinned_case_definition_before_advance() -> None:
+    with pytest.raises(ValueError, match="CaseDefinition.*pinned"):
+        SequentialBatchExecutor(definitions()).advance(
+            execution_fixture(), StepOutcome.running()
+        )
+
+
+def test_executor_rejects_foreign_same_length_case() -> None:
+    foreign_execution = replace(
+        execution_fixture(),
+        case_id="case-foreign",
+        case_revision="revision-case-foreign",
+    )
+    with pytest.raises(ValueError, match="CaseDefinition"):
+        _advancing_executor().advance(foreign_execution, StepOutcome.running())
+
+
 def test_durable_non_completed_step_cannot_retain_outputs() -> None:
     with pytest.raises(ValueError, match="non-completed"):
         CaseStepState(
@@ -213,34 +237,34 @@ def test_durable_non_completed_step_cannot_retain_outputs() -> None:
 
 
 def test_terminal_execution_rejects_unrelated_outcome_attempt() -> None:
-    execution = SequentialBatchExecutor(definitions()).advance(
+    execution = _advancing_executor().advance(
         execution_fixture(), StepOutcome.completed(attempt_id="attempt-1")
     ).execution.with_current_step(2, turn_id="turn-2", attempt_id="attempt-2")
-    completed = SequentialBatchExecutor(definitions()).advance(
+    completed = _advancing_executor().advance(
         execution, StepOutcome.completed(attempt_id="attempt-2")
     ).execution
     with pytest.raises(ValueError, match="attempt"):
-        SequentialBatchExecutor(definitions()).advance(
+        _advancing_executor().advance(
             completed, StepOutcome.completed(attempt_id="unrelated")
         )
     with pytest.raises(ValueError, match="attempt"):
-        SequentialBatchExecutor(definitions()).advance(
+        _advancing_executor().advance(
             completed, StepOutcome.completed(attempt_id="attempt-1")
         )
 
 
 def test_completed_step_is_immutable_and_terminal_attempt_must_match() -> None:
     execution = execution_fixture()
-    completed = SequentialBatchExecutor(definitions()).advance(
+    completed = _advancing_executor().advance(
         execution,
         StepOutcome.completed(attempt_id="attempt-1", answer="answer"),
     ).execution
     with pytest.raises(ValueError, match="attempt"):
-        SequentialBatchExecutor(definitions()).advance(
+        _advancing_executor().advance(
             completed,
             StepOutcome.completed(attempt_id="other-attempt", answer="changed"),
         )
-    advanced = SequentialBatchExecutor(definitions()).advance(
+    advanced = _advancing_executor().advance(
         completed.with_current_step(2, turn_id="turn-2", attempt_id="attempt-2"),
         StepOutcome.completed(attempt_id="attempt-2", answer="second"),
     )

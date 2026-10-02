@@ -454,7 +454,7 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
         pinned_case_id: str | None = None
         pinned_case_revision: str | None = None
         if isinstance(definition, CaseDefinition):
-            definitions = definition.steps
+            definitions = tuple(definition.steps)
             pinned_case_id = definition.case_id
             pinned_case_revision = definition.case_revision
         elif definition is None:
@@ -479,14 +479,17 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
         run_id: str,
     ) -> CaseExecution:
         """Create the bounded initial state; Turn creation remains a caller concern."""
-        if self._definitions and self._definitions != definition.steps:
+        if not isinstance(definition, CaseDefinition):
+            raise ValueError("CaseDefinition is required")
+        definition_steps = tuple(definition.steps)
+        if self._definitions and self._definitions != definition_steps:
             raise ValueError("strategy definitions do not match CaseDefinition")
         if self._case_id is not None and (
             self._case_id != definition.case_id or self._case_revision != definition.case_revision
         ):
             raise ValueError("strategy CaseDefinition is already pinned")
         if not self._definitions:
-            object.__setattr__(self, "_definitions", definition.steps)
+            object.__setattr__(self, "_definitions", definition_steps)
         object.__setattr__(self, "_case_id", definition.case_id)
         object.__setattr__(self, "_case_revision", definition.case_revision)
         steps = tuple(
@@ -518,6 +521,8 @@ class SequentialBatchExecutor(CaseExecutionStrategy):
         )
 
     def advance(self, execution: CaseExecution, outcome: StepOutcome) -> StrategyDecision:
+        if self._case_id is None or self._case_revision is None or not self._definitions:
+            raise ValueError("CaseDefinition and ordered step definitions must be pinned before advance")
         if execution.strategy_id != self.strategy_id or execution.strategy_version != self.strategy_version:
             raise ValueError("execution strategy is not supported")
         if self._definitions and tuple(step.ordinal for step in execution.steps) != tuple(
