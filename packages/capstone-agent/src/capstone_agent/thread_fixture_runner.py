@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from .thread_protocol import EventPage, ThreadSnapshot
+from .thread_protocol import CaseExecutionSnapshot, EventPage, ThreadSnapshot
 
 
 _SURFACES = frozenset({"web", "tui", "cli"})
@@ -28,6 +28,7 @@ class FixtureProjection:
     current_attempt_id: str | None
     authority_labels: tuple[str, ...]
     enabled_commands: frozenset[str]
+    case_execution: CaseExecutionSnapshot | None = None
 
 
 def _parts(fixture: Mapping[str, Any]) -> tuple[ThreadSnapshot, EventPage, Mapping[str, Any]]:
@@ -132,6 +133,7 @@ def run_fixture(fixture: Mapping[str, Any]) -> FixtureProjection:
             view=view,
             attempt_phase=attempt_phase,
         ),
+        case_execution=snapshot.case_execution_snapshot,
     )
 
 

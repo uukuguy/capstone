@@ -16,6 +16,18 @@ export type PendingModelSwitchSnapshot = {
 export type AttemptSnapshot = {
   turnId: string; attemptId: string; phase: AttemptPhase; targetModelContextId: string
 }
+export type CaseStepSnapshot = {
+  ordinal: number; title: string; status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
+  durationMs: number | null
+  details: Record<string, unknown>
+}
+export type CaseActionSnapshot = { actionId: 'start_case' | 'retry_case_step' | 'cancel_case' | 'view_case_details'; label: string; enabled: boolean }
+export type CaseExecutionSnapshot = {
+  displayName: string
+  status: 'idle' | 'created' | 'running' | 'waiting_step' | 'blocked' | 'cancelled' | 'completed'
+  completedSteps: number; totalSteps: number; currentStep: number | null
+  steps: CaseStepSnapshot[]; actions: CaseActionSnapshot[]; disabledReasons: string[]
+}
 export type ThreadSnapshot = {
   threadId: string
   run: RunSnapshot
@@ -26,6 +38,7 @@ export type ThreadSnapshot = {
   baseEventSeq: number
   pendingSelection?: PendingSelectionSnapshot
   pendingModelSwitch?: PendingModelSwitchSnapshot
+  applicationState?: { caseExecution?: CaseExecutionSnapshot; [key: string]: unknown }
   toDocument: () => Record<string, unknown>
 }
 
@@ -78,6 +91,9 @@ const attemptPhases = new Set<AttemptPhase>([
   'created', 'accepted', 'running', 'waiting', 'committing',
   'cancelled', 'interrupted', 'completed', 'failed',
 ])
+const caseStatuses = new Set<CaseExecutionSnapshot['status']>(['idle', 'created', 'running', 'waiting_step', 'blocked', 'cancelled', 'completed'])
+const caseStepStatuses = new Set<CaseStepSnapshot['status']>(['pending', 'running', 'completed', 'failed', 'cancelled', 'interrupted'])
+const caseActionIds = new Set<CaseActionSnapshot['actionId']>(['start_case', 'retry_case_step', 'cancel_case', 'view_case_details'])
 
 function object(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -123,6 +139,45 @@ function timestamp(value: unknown, name: string): string {
 
 function optionalIdentifier(value: unknown, name: string): string | undefined {
   return value === undefined || value === null ? undefined : identifier(value, name)
+}
+
+function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
+  const document = object(value, 'application_state.case_execution')
+  const keys = ['display_name', 'status', 'completed_steps', 'total_steps', 'current_step', 'steps', 'actions', 'disabled_reasons']
+  fields(document, new Set(keys), 'application_state.case_execution')
+  required(document, keys, 'application_state.case_execution')
+  const status = text(document.status, 'application_state.case_execution.status') as CaseExecutionSnapshot['status']
+  if (!caseStatuses.has(status)) throw new ThreadProtocolError('application_state.case_execution.status is invalid')
+  const total = document.total_steps; const completed = document.completed_steps
+  if (!Number.isSafeInteger(total) || (total as number) < 1 || (total as number) > 32 || !Number.isSafeInteger(completed) || (completed as number) < 0 || (completed as number) > (total as number)) throw new ThreadProtocolError('application_state.case_execution step counts are invalid')
+  const current = document.current_step
+  if (current !== null && (!Number.isSafeInteger(current) || (current as number) < 1 || (current as number) > (total as number))) throw new ThreadProtocolError('application_state.case_execution.current_step is invalid')
+  if (!Array.isArray(document.steps) || document.steps.length !== total || !Array.isArray(document.actions) || !Array.isArray(document.disabled_reasons) || document.disabled_reasons.length > 16) throw new ThreadProtocolError('application_state.case_execution arrays are invalid')
+  const steps = document.steps.map((entry, index) => {
+    const item = object(entry, `application_state.case_execution.steps[${index}]`)
+    fields(item, new Set(['ordinal', 'title', 'status', 'duration_ms', 'details']), `application_state.case_execution.steps[${index}]`)
+    required(item, ['ordinal', 'title', 'status', 'duration_ms', 'details'], `application_state.case_execution.steps[${index}]`)
+    if (item.ordinal !== index + 1 || !Number.isSafeInteger(item.ordinal)) throw new ThreadProtocolError('application_state.case_execution step ordinal is invalid')
+    const stepStatus = text(item.status, 'case step.status') as CaseStepSnapshot['status']
+    if (!caseStepStatuses.has(stepStatus)) throw new ThreadProtocolError('case step.status is invalid')
+    if (item.duration_ms !== null && (!Number.isSafeInteger(item.duration_ms) || (item.duration_ms as number) < 0)) throw new ThreadProtocolError('case step.duration_ms is invalid')
+    const details = object(item.details, 'case step.details'); jsonValue(details, 'case step.details')
+    return { ordinal: item.ordinal as number, title: text(item.title, 'case step.title'), status: stepStatus, durationMs: item.duration_ms as number | null, details }
+  })
+  const actions = document.actions.map((entry, index) => {
+    const item = object(entry, `application_state.case_execution.actions[${index}]`)
+    fields(item, new Set(['action_id', 'label', 'enabled']), `application_state.case_execution.actions[${index}]`)
+    required(item, ['action_id', 'label', 'enabled'], `application_state.case_execution.actions[${index}]`)
+    const actionId = identifier(item.action_id, 'case action.action_id') as CaseActionSnapshot['actionId']
+    if (!caseActionIds.has(actionId) || typeof item.enabled !== 'boolean') throw new ThreadProtocolError('case action is invalid')
+    return { actionId, label: text(item.label, 'case action.label'), enabled: item.enabled }
+  })
+  if (new Set(actions.map((action) => action.actionId)).size !== actions.length) throw new ThreadProtocolError('case actions contain duplicates')
+  return { displayName: text(document.display_name, 'application_state.case_execution.display_name'), status, completedSteps: completed as number, totalSteps: total as number, currentStep: current as number | null, steps, actions, disabledReasons: document.disabled_reasons.map((reason, index) => text(reason, `case disabled_reasons[${index}]`)) }
+}
+
+export function parseCaseExecutionSnapshot(value: unknown): CaseExecutionSnapshot {
+  return parseCaseExecution(value)
 }
 
 function parseEnabledProfiles(value: unknown): Array<{ profileId: string; profileVersion: string }> {
@@ -232,6 +287,18 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     } : null,
     last_event_seq: snapshot.lastEventSeq,
     base_event_seq: snapshot.baseEventSeq,
+    ...(snapshot.applicationState ? { application_state: {
+      ...(snapshot.applicationState.caseExecution ? { case_execution: {
+        display_name: snapshot.applicationState.caseExecution.displayName,
+        status: snapshot.applicationState.caseExecution.status,
+        completed_steps: snapshot.applicationState.caseExecution.completedSteps,
+        total_steps: snapshot.applicationState.caseExecution.totalSteps,
+        current_step: snapshot.applicationState.caseExecution.currentStep,
+        steps: snapshot.applicationState.caseExecution.steps.map((step) => ({ ordinal: step.ordinal, title: step.title, status: step.status, duration_ms: step.durationMs, details: step.details })),
+        actions: snapshot.applicationState.caseExecution.actions.map((action) => ({ action_id: action.actionId, label: action.label, enabled: action.enabled })),
+        disabled_reasons: snapshot.applicationState.caseExecution.disabledReasons,
+      } } : {}),
+    } } : {}),
     ...(snapshot.pendingSelection ? { pending_selection: {
       command_id: snapshot.pendingSelection.commandId,
       selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: snapshot.pendingSelection.enabledProfiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) },
@@ -248,9 +315,9 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'application_state']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys.filter((key) => key !== 'pending_selection' && key !== 'pending_model_switch'), 'snapshot')
+  required(document, keys.filter((key) => key !== 'pending_selection' && key !== 'pending_model_switch' && key !== 'application_state'), 'snapshot')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
@@ -260,6 +327,13 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   if (currentAttempt && currentAttempt.targetModelContextId !== activeModelContext.id) {
     throw new ThreadProtocolError('current_attempt target context does not match active context')
   }
+  let applicationState: ThreadSnapshot['applicationState'] | undefined
+  if (document.application_state !== undefined && document.application_state !== null) {
+    const app = object(document.application_state, 'snapshot.application_state')
+    fields(app, new Set(['case_execution']), 'snapshot.application_state')
+    required(app, ['case_execution'], 'snapshot.application_state')
+    applicationState = { caseExecution: parseCaseExecution(app.case_execution) }
+  }
   const snapshot = {
     threadId: identifier(document.thread_id, 'snapshot.thread_id'),
     run: parseRun(document.run),
@@ -268,6 +342,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     currentAttempt,
     lastEventSeq,
     baseEventSeq,
+    ...(applicationState ? { applicationState } : {}),
     ...(document.pending_selection == null ? {} : { pendingSelection: parsePendingSelection(document.pending_selection) }),
     ...(document.pending_model_switch == null ? {} : { pendingModelSwitch: parsePendingModelSwitch(document.pending_model_switch) }),
   }

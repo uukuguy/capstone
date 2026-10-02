@@ -20,7 +20,7 @@ from textual.widgets import Button, Footer, Header, Input, RichLog, Select, Stat
 
 from .thread_commands import ThreadCommandFactory
 from .thread_http import ThreadResyncRequired
-from .thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
+from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadSnapshot
 
 
 ModelOption = tuple[str, str]
@@ -71,6 +71,23 @@ class ThreadTuiSessionAdapter:
 
 def _model_label(model_id: str) -> str:
     return {"ieee39": "IEEE-39", "pypsa39": "PyPSA-39"}.get(model_id, model_id)
+
+
+def case_projection(snapshot: ThreadSnapshot) -> CaseExecutionSnapshot | None:
+    """Expose the exact bounded Case projection used by HTTP and Web clients."""
+
+    return snapshot.case_execution_snapshot
+
+
+def case_status_lines(snapshot: ThreadSnapshot) -> tuple[str, ...]:
+    projection = case_projection(snapshot)
+    if projection is None:
+        return ()
+    lines = (f"{projection.display_name} · {projection.completed_steps} / {projection.total_steps}",)
+    return lines + tuple(
+        f"{'✓' if step.status == 'completed' else '●' if step.status == 'running' else '○'} {step.title} · {step.status}"
+        for step in projection.steps
+    )
 
 
 def _event_line(event: Any) -> str:
@@ -176,6 +193,8 @@ class ThreadTuiApp(App[None]):
                     f"连接 · live\nRun · {self.snapshot.run.state}\nCursor · #{self.snapshot.last_event_seq}",
                     id="state-status", classes="state-card",
                 )
+                if case_projection(self.snapshot) is not None:
+                    yield Static("\n".join(case_status_lines(self.snapshot)), id="case-status", classes="state-card")
                 yield RichLog(id="events-log", markup=False, wrap=True)
                 yield Input(placeholder="围绕当前电网模型输入指令…", id="command-input")
                 with Horizontal(classes="button-row"):
@@ -292,6 +311,11 @@ class ThreadTuiApp(App[None]):
         self.query_one("#state-status", Static).update(
             f"连接 · live\nRun · {snapshot.run.state}\nCursor · #{snapshot.last_event_seq}"
         )
+        if case_projection(snapshot) is not None:
+            try:
+                self.query_one("#case-status", Static).update("\n".join(case_status_lines(snapshot)))
+            except Exception:
+                pass
         self._recovery_required = False
         self._refresh_controls()
 

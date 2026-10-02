@@ -74,6 +74,19 @@ export class CapstoneThreadClient {
     return parseThreadSnapshot(await this.transport.getSnapshot(threadId, signal))
   }
 
+  async caseExecution(threadId: string, signal?: AbortSignal) {
+    const snapshot = await this.load(threadId, signal)
+    return snapshot.applicationState?.caseExecution ?? null
+  }
+
+  async caseCommand(
+    threadId: string, runId: string, kind: 'start_case_execution' | 'retry_case_step' | 'cancel_case_execution' | 'resume_case_execution',
+    payload: Record<string, unknown>, expectedEventSeq: number,
+    identity: { commandId: string; idempotencyKey: string }, signal?: AbortSignal,
+  ): Promise<CommandReceipt> {
+    return this.send(buildThreadCommand({ threadId, runId, kind, expectedEventSeq, payload, ...identity }), signal)
+  }
+
   async catalog(threadId: string, signal?: AbortSignal): Promise<ThreadCatalog> {
     if (!this.transport.getCatalog) return { models: [], profiles: [] }
     return parseThreadCatalog(await this.transport.getCatalog(threadId, signal))

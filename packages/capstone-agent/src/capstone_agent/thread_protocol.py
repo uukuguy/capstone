@@ -19,10 +19,166 @@ _EVENT_PAGE_SCHEMA = "capstone-thread-events/1"
 _RECEIPT_SCHEMA = "capstone-command-receipt/1"
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _MAX_APPLICATION_STATE_BYTES = 64 * 1024
+_CASE_STATUSES = frozenset({"idle", "created", "running", "waiting_step", "blocked", "cancelled", "completed"})
+_CASE_STEP_STATUSES = frozenset({"pending", "running", "completed", "failed", "cancelled", "interrupted"})
+_CASE_ACTION_IDS = frozenset({"start_case", "retry_case_step", "cancel_case", "view_case_details"})
 
 
 class ThreadProtocolError(ValueError):
     """A public Thread document is malformed or cannot be safely applied."""
+
+
+@dataclass(frozen=True, slots=True)
+class CaseStepSnapshot:
+    """Bounded user-facing Case step with identities available only in details."""
+
+    ordinal: int
+    title: str
+    status: str
+    duration_ms: int | None
+    details: Mapping[str, Any]
+
+    @classmethod
+    def from_document(cls, value: Any) -> "CaseStepSnapshot":
+        document = _document(value, name="case step")
+        allowed = frozenset({"ordinal", "title", "status", "duration_ms", "details"})
+        _fields(document, allowed, name="case step")
+        _required(document, allowed, name="case step")
+        ordinal = document["ordinal"]
+        if type(ordinal) is not int or not 1 <= ordinal <= 32:
+            raise ThreadProtocolError("case step.ordinal is invalid")
+        title = _text(document["title"], name="case step.title")
+        status = _text(document["status"], name="case step.status")
+        if status not in _CASE_STEP_STATUSES:
+            raise ThreadProtocolError("case step.status is invalid")
+        duration = document["duration_ms"]
+        if duration is not None and (type(duration) is not int or duration < 0 or duration > 86_400_000):
+            raise ThreadProtocolError("case step.duration_ms is invalid")
+        details = _document(document["details"], name="case step.details")
+        _json(details, name="case step.details")
+        return cls(ordinal, title, status, duration, dict(details))
+
+    def to_document(self) -> dict[str, Any]:
+        return {"ordinal": self.ordinal, "title": self.title, "status": self.status,
+                "duration_ms": self.duration_ms, "details": dict(self.details)}
+
+
+@dataclass(frozen=True, slots=True)
+class CaseActionSnapshot:
+    action_id: str
+    label: str
+    enabled: bool
+
+    @classmethod
+    def from_document(cls, value: Any) -> "CaseActionSnapshot":
+        document = _document(value, name="case action")
+        allowed = frozenset({"action_id", "label", "enabled"})
+        _fields(document, allowed, name="case action")
+        _required(document, allowed, name="case action")
+        action_id = _identifier(document["action_id"], name="case action.action_id")
+        if action_id not in _CASE_ACTION_IDS:
+            raise ThreadProtocolError("case action.action_id is invalid")
+        if type(document["enabled"]) is not bool:
+            raise ThreadProtocolError("case action.enabled is invalid")
+        return cls(action_id, _text(document["label"], name="case action.label"), document["enabled"])
+
+    def to_document(self) -> dict[str, Any]:
+        return {"action_id": self.action_id, "label": self.label, "enabled": self.enabled}
+
+
+@dataclass(frozen=True, slots=True)
+class CaseExecutionSnapshot:
+    display_name: str
+    status: str
+    completed_steps: int
+    total_steps: int
+    current_step: int | None
+    steps: tuple[CaseStepSnapshot, ...]
+    actions: tuple[CaseActionSnapshot, ...]
+    disabled_reasons: tuple[str, ...]
+
+    @classmethod
+    def from_document(cls, value: Any) -> "CaseExecutionSnapshot":
+        document = _document(value, name="case_execution")
+        allowed = frozenset({"display_name", "status", "completed_steps", "total_steps", "current_step", "steps", "actions", "disabled_reasons"})
+        _fields(document, allowed, name="case_execution")
+        _required(document, allowed, name="case_execution")
+        status = _text(document["status"], name="case_execution.status")
+        if status not in _CASE_STATUSES:
+            raise ThreadProtocolError("case_execution.status is invalid")
+        total = document["total_steps"]
+        completed = document["completed_steps"]
+        if type(total) is not int or not 1 <= total <= 32 or type(completed) is not int or not 0 <= completed <= total:
+            raise ThreadProtocolError("case_execution step counts are invalid")
+        current = document["current_step"]
+        if current is not None and (type(current) is not int or not 1 <= current <= total):
+            raise ThreadProtocolError("case_execution.current_step is invalid")
+        raw_steps = document["steps"]
+        raw_actions = document["actions"]
+        reasons = document["disabled_reasons"]
+        if not isinstance(raw_steps, list) or len(raw_steps) != total:
+            raise ThreadProtocolError("case_execution.steps is invalid")
+        if not isinstance(raw_actions, list) or not isinstance(reasons, list) or len(reasons) > 16:
+            raise ThreadProtocolError("case_execution actions or disabled_reasons are invalid")
+        steps = tuple(CaseStepSnapshot.from_document(item) for item in raw_steps)
+        if tuple(step.ordinal for step in steps) != tuple(range(1, total + 1)):
+            raise ThreadProtocolError("case_execution.steps are not ordered")
+        actions = tuple(CaseActionSnapshot.from_document(item) for item in raw_actions)
+        if len({item.action_id for item in actions}) != len(actions):
+            raise ThreadProtocolError("case_execution.actions contain duplicates")
+        return cls(_text(document["display_name"], name="case_execution.display_name"), status, completed, total, current, steps, actions,
+                   tuple(_text(reason, name="case_execution.disabled_reasons") for reason in reasons))
+
+    def to_document(self) -> dict[str, Any]:
+        return {"display_name": self.display_name, "status": self.status, "completed_steps": self.completed_steps,
+                "total_steps": self.total_steps, "current_step": self.current_step,
+                "steps": [step.to_document() for step in self.steps],
+                "actions": [action.to_document() for action in self.actions],
+                "disabled_reasons": list(self.disabled_reasons)}
+
+
+def _case_projection(raw: Mapping[str, Any]) -> CaseExecutionSnapshot | None:
+    execution = raw.get("case_execution")
+    if not isinstance(execution, Mapping) or "steps" not in execution or "case_id" not in execution:
+        return None
+    try:
+        steps_raw = execution["steps"]
+        if not isinstance(steps_raw, list):
+            return None
+        status = execution.get("status")
+        total = len(steps_raw)
+        completed = sum(1 for step in steps_raw if isinstance(step, Mapping) and step.get("status") == "completed")
+        current = execution.get("current_step")
+        titles = execution.get("step_titles")
+        public_steps = []
+        for index, step in enumerate(steps_raw, 1):
+            if not isinstance(step, Mapping):
+                return None
+            title = titles[index - 1] if isinstance(titles, list) and index <= len(titles) else f"步骤 {index}"
+            public_steps.append({"ordinal": index, "title": title, "status": step.get("status"), "duration_ms": step.get("duration_ms"),
+                                 "details": {"turn_id": step.get("turn_id"), "attempt_id": step.get("latest_attempt_id"),
+                                             "result_refs": step.get("result_refs", []), "evidence_refs": step.get("evidence_refs", []),
+                                             "error_code": step.get("error_code")}})
+        actions: list[dict[str, Any]] = []
+        reasons: list[str] = []
+        if status in {"created", "idle"}:
+            actions.append({"action_id": "start_case", "label": "开始案例", "enabled": True})
+        elif status == "blocked":
+            actions.extend(({"action_id": "retry_case_step", "label": "重试此步骤", "enabled": True},
+                            {"action_id": "cancel_case", "label": "停止案例", "enabled": True}))
+            reasons.append("运行被中断")
+        elif status in {"running", "waiting_step"}:
+            actions.append({"action_id": "cancel_case", "label": "停止案例", "enabled": True})
+        elif status == "completed":
+            actions.append({"action_id": "view_case_details", "label": "查看案例过程", "enabled": True})
+        elif status == "cancelled":
+            reasons.append("案例已停止")
+        public_status = "idle" if status == "created" else status
+        return CaseExecutionSnapshot.from_document({"display_name": execution.get("display_name", execution.get("case_id")), "status": public_status,
+            "completed_steps": completed, "total_steps": total, "current_step": current, "steps": public_steps,
+            "actions": actions, "disabled_reasons": reasons})
+    except (ThreadProtocolError, TypeError, ValueError):
+        return None
 
 
 def _document(value: Any, *, name: str) -> dict[str, Any]:
@@ -333,6 +489,10 @@ class ThreadSnapshot:
             if not isinstance(application_state, dict):
                 raise ThreadProtocolError("snapshot.application_state must be an object")
             _json(application_state, name="snapshot.application_state")
+            if (isinstance(application_state.get("case_execution"), dict)
+                    and "case_id" not in application_state["case_execution"]
+                    and "display_name" in application_state["case_execution"]):
+                CaseExecutionSnapshot.from_document(application_state["case_execution"])
             try:
                 encoded_state = json.dumps(
                     application_state, ensure_ascii=False, allow_nan=False, sort_keys=True,
@@ -370,8 +530,20 @@ class ThreadSnapshot:
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
         if self.application_state is not None:
-            document["application_state"] = dict(self.application_state)
+            projection = _case_projection(self.application_state)
+            if projection is not None:
+                document["application_state"] = {"case_execution": projection.to_document()}
+            else:
+                document["application_state"] = dict(self.application_state)
         return document
+
+    @property
+    def case_execution_snapshot(self) -> CaseExecutionSnapshot | None:
+        """Return the bounded public Case projection, if this Thread has one."""
+
+        if not isinstance(self.application_state, Mapping):
+            return None
+        return _case_projection(self.application_state)
 
 
 @dataclass(frozen=True, slots=True)

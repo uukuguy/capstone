@@ -116,7 +116,14 @@ def _step_identity(execution_id: str, ordinal: int) -> tuple[str, str]:
 
 def _state(execution: CaseExecution) -> dict[str, Any]:
     return {
-        "case_execution": execution.to_document(),
+        "case_execution": {
+            **execution.to_document(),
+            # These presentation hints are application-owned and ignored by
+            # the durable Case state parser. They let every client render the
+            # same trusted titles without deriving labels from IDs.
+            "display_name": execution.case_id,
+            "step_titles": [f"步骤 {step.ordinal}" for step in execution.steps],
+        },
         "context_locked": execution.status in _ACTIVE_STATUSES,
     }
 
@@ -129,7 +136,8 @@ def _execution_from_snapshot(snapshot: Any) -> CaseExecution | None:
     if raw is None:
         return None
     try:
-        return CaseExecution.from_document(raw)
+        return CaseExecution.from_document({key: value for key, value in raw.items()
+                                            if key not in {"display_name", "step_titles"}})
     except (TypeError, ValueError):
         return None
 

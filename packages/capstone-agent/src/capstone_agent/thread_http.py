@@ -12,7 +12,7 @@ import httpx
 
 from .thread_commands import ThreadCommandFactory
 from .thread_catalog import ThreadCatalogProjection
-from .thread_protocol import CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
+from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
 
 
 MAX_JSON_BYTES = 2 * 1024 * 1024 + 128 * 1024
@@ -121,6 +121,11 @@ class HttpThreadSession:
             raise RuntimeError("snapshot run identity does not match session")
         self.run_id = snapshot.run.run_id
         return snapshot
+
+    def case_projection(self) -> CaseExecutionSnapshot | None:
+        """Return the same bounded Case state consumed by Web and TUI clients."""
+
+        return self.snapshot().case_execution_snapshot
 
     def catalog(self) -> ThreadCatalogProjection:
         thread_id, _ = self._require_identity()
