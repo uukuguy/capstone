@@ -186,6 +186,7 @@ def test_cancel_case_commits_after_the_attempt_cancel_events(
     cancelled = case_service.reconcile("thr_case")
     assert cancelled is not None
     assert cancelled.status == "cancelled"
+    assert case_service.submit_command(command) == receipt
 
 
 def test_start_rejects_a_case_that_does_not_support_the_current_model() -> None:

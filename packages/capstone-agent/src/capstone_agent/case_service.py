@@ -381,8 +381,16 @@ class CaseExecutionService:
                 current_step=None,
                 steps=tuple(steps),
             )
+        transition_command = {
+            **dict(command),
+            "command_id": f"{execution.case_execution_id}_cancel_transition",
+            "idempotency_key": f"{execution.case_execution_id}_cancel_transition_idem",
+            "expected_event_seq": self.thread_service.snapshot(
+                command["thread_id"],
+            ).last_event_seq,
+        }
         transition = ThreadApplicationTransition(
-            command=command,
+            command=transition_command,
             state=_state(execution),
             events=(
                 ApplicationEvent(
@@ -395,20 +403,22 @@ class CaseExecutionService:
                 ),
             ),
         )
-        transition_command = {
-            **dict(command),
-            "expected_event_seq": self.thread_service.snapshot(
-                command["thread_id"],
-            ).last_event_seq,
-        }
         final = self.thread_service.apply_application_transition(
-            ThreadApplicationTransition(
-                command=transition_command,
-                state=transition.state,
-                events=transition.events,
-            ),
+            transition,
         )
-        return final
+        if final.status != "accepted":
+            return final
+        outer_receipt = CommandReceipt(
+            command_id=command["command_id"],
+            idempotency_key=command["idempotency_key"],
+            thread_id=command["thread_id"],
+            run_id=snapshot.run.run_id,
+            status="accepted",
+            accepted_event_seq=final.accepted_event_seq,
+            rejection=None,
+            target=receipt.target,
+        )
+        return self.thread_service.record_command_receipt(command, outer_receipt)
 
     def _resume(self, command: Mapping[str, Any], execution_id: str) -> CommandReceipt:
         snapshot, rejection = self._snapshot_or_rejection(command)

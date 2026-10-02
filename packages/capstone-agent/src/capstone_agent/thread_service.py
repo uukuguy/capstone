@@ -193,6 +193,10 @@ class ThreadService(Protocol):
         self, command: Mapping[str, Any], *, rejection: str,
     ) -> CommandReceipt: ...
 
+    def record_command_receipt(
+        self, command: Mapping[str, Any], receipt: CommandReceipt,
+    ) -> CommandReceipt: ...
+
     def apply_application_transition(
         self, transition: ThreadApplicationTransition,
     ) -> CommandReceipt: ...
@@ -784,6 +788,26 @@ class InMemoryThreadService:
                     parsed, status="rejected", rejection="command_id_conflict",
                 )
             receipt = self._receipt(parsed, status="rejected", rejection=rejection)
+            self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+            self._command_ids.add(parsed["command_id"])
+            return receipt
+
+    def record_command_receipt(
+        self, command: Mapping[str, Any], receipt: CommandReceipt,
+    ) -> CommandReceipt:
+        parsed = self._parse_command(command)
+        if receipt.command_id != parsed["command_id"] or receipt.idempotency_key != parsed["idempotency_key"]:
+            raise ThreadProtocolError("command receipt identity does not match command")
+        with self._lock:
+            self._check_thread(parsed["thread_id"])
+            request_hash = hashlib.sha256(_canonical(command).encode()).hexdigest()
+            existing = self._commands.get(parsed["idempotency_key"])
+            if existing is not None:
+                if existing.request_hash != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return existing.receipt
+            if parsed["command_id"] in self._command_ids:
+                return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
             self._command_ids.add(parsed["command_id"])
             return receipt
@@ -1943,6 +1967,54 @@ class PostgresThreadService:
             if command_row is not None:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             receipt = self._receipt(parsed, status="rejected", rejection=rejection)
+            connection.execute(
+                """INSERT INTO capstone_thread_commands
+                   (thread_id, idempotency_key, request_hash, command_id, receipt)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (parsed["thread_id"], parsed["idempotency_key"], request_hash,
+                 parsed["command_id"], Jsonb(receipt.to_document())),
+            )
+            return receipt
+
+    def record_command_receipt(
+        self, command: Mapping[str, Any], receipt: CommandReceipt,
+    ) -> CommandReceipt:
+        parsed = InMemoryThreadService._parse_command(command)
+        if receipt.command_id != parsed["command_id"] or receipt.idempotency_key != parsed["idempotency_key"]:
+            raise ThreadProtocolError("command receipt identity does not match command")
+        request_hash = hashlib.sha256(_canonical(command).encode()).hexdigest()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
+            thread = connection.execute(
+                "SELECT 1 FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (parsed["thread_id"],),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(parsed["thread_id"])
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
+            command_row = connection.execute(
+                "SELECT 1 FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND command_id = %s",
+                (parsed["thread_id"], parsed["command_id"]),
+            ).fetchone()
+            if command_row is not None:
+                return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             connection.execute(
                 """INSERT INTO capstone_thread_commands
                    (thread_id, idempotency_key, request_hash, command_id, receipt)
