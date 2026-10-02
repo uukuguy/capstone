@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from capstone_agent.thread_protocol import (
@@ -10,7 +12,7 @@ from capstone_agent.thread_protocol import (
 )
 
 
-def valid_snapshot() -> dict[str, object]:
+def valid_snapshot() -> dict[str, Any]:
     return {
         "schema": "capstone-thread-snapshot/1",
         "thread_id": "thr_demo_39",
@@ -82,6 +84,21 @@ def test_snapshot_round_trips_with_active_context_and_attempt() -> None:
     assert snapshot.thread_id == "thr_demo_39"
     assert snapshot.active_model_context.model_revision == "7"
     assert snapshot.to_document()["schema"] == "capstone-thread-snapshot/1"
+
+
+def test_snapshot_round_trips_optional_application_state() -> None:
+    document = valid_snapshot()
+    document["application_state"] = {"case_execution": {"status": "running"}}
+    snapshot = ThreadSnapshot.from_document(document)
+    assert snapshot.application_state == document["application_state"]
+    assert snapshot.to_document()["application_state"] == document["application_state"]
+
+
+def test_snapshot_rejects_oversized_application_state() -> None:
+    document = valid_snapshot()
+    document["application_state"] = {"large": "x" * (64 * 1024)}
+    with pytest.raises(ThreadProtocolError, match="too large"):
+        ThreadSnapshot.from_document(document)
 
 
 def test_model_context_round_trips_enabled_profile_selection() -> None:

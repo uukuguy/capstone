@@ -18,6 +18,7 @@ _SNAPSHOT_SCHEMA = "capstone-thread-snapshot/1"
 _EVENT_PAGE_SCHEMA = "capstone-thread-events/1"
 _RECEIPT_SCHEMA = "capstone-command-receipt/1"
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_MAX_APPLICATION_STATE_BYTES = 64 * 1024
 
 
 class ThreadProtocolError(ValueError):
@@ -276,6 +277,22 @@ class ThreadSnapshot:
     base_event_seq: int
     pending_selection: PendingSelectionSnapshot | None = None
     pending_model_switch: PendingModelSwitchSnapshot | None = None
+    application_state: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.application_state is None:
+            return
+        if not isinstance(self.application_state, Mapping):
+            raise ThreadProtocolError("snapshot.application_state must be an object")
+        try:
+            encoded_state = json.dumps(
+                dict(self.application_state), ensure_ascii=False, allow_nan=False, sort_keys=True,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            raise ThreadProtocolError("snapshot.application_state is not JSON") from None
+        if len(encoded_state) > _MAX_APPLICATION_STATE_BYTES:
+            raise ThreadProtocolError("snapshot.application_state is too large")
+        object.__setattr__(self, "application_state", dict(self.application_state))
 
     @classmethod
     def from_document(cls, value: Any) -> ThreadSnapshot:
@@ -283,10 +300,14 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
-            "pending_model_switch",
+            "pending_model_switch", "application_state",
         })
         _fields(document, allowed, name="snapshot")
-        _required(document, allowed - {"pending_selection", "pending_model_switch"}, name="snapshot")
+        _required(
+            document,
+            allowed - {"pending_selection", "pending_model_switch", "application_state"},
+            name="snapshot",
+        )
         if document["schema"] != _SNAPSHOT_SCHEMA:
             raise ThreadProtocolError("snapshot.schema is invalid")
         last_event_seq = _sequence(document["last_event_seq"], name="snapshot.last_event_seq")
@@ -307,6 +328,19 @@ class ThreadSnapshot:
             if document.get("pending_model_switch") is None
             else PendingModelSwitchSnapshot.from_document(document["pending_model_switch"])
         )
+        application_state = document.get("application_state")
+        if application_state is not None:
+            if not isinstance(application_state, dict):
+                raise ThreadProtocolError("snapshot.application_state must be an object")
+            _json(application_state, name="snapshot.application_state")
+            try:
+                encoded_state = json.dumps(
+                    application_state, ensure_ascii=False, allow_nan=False, sort_keys=True,
+                ).encode("utf-8")
+            except (TypeError, ValueError):
+                raise ThreadProtocolError("snapshot.application_state is not JSON") from None
+            if len(encoded_state) > _MAX_APPLICATION_STATE_BYTES:
+                raise ThreadProtocolError("snapshot.application_state is too large")
         return cls(
             thread_id=_identifier(document["thread_id"], name="snapshot.thread_id"),
             run=RunSnapshot.from_document(document["run"]),
@@ -317,6 +351,7 @@ class ThreadSnapshot:
             base_event_seq=base_event_seq,
             pending_selection=pending,
             pending_model_switch=pending_model_switch,
+            application_state=application_state,
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -334,6 +369,8 @@ class ThreadSnapshot:
             document["pending_selection"] = self.pending_selection.to_document()
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
+        if self.application_state is not None:
+            document["application_state"] = dict(self.application_state)
         return document
 
 

@@ -38,6 +38,9 @@ from .thread_protocol import (
     ThreadProtocolError,
     ThreadSnapshot,
 )
+from .thread_application_transition import (
+    ThreadApplicationTransition,
+)
 from .model_identity import page_id_for_model, validate_model_id
 
 
@@ -85,6 +88,10 @@ class ThreadService(Protocol):
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
+
+    def apply_application_transition(
+        self, transition: ThreadApplicationTransition,
+    ) -> CommandReceipt: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -631,6 +638,58 @@ class InMemoryThreadService:
             )
             self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
             self._command_ids.add(parsed["command_id"])
+            return receipt
+
+    def apply_application_transition(
+        self, transition: ThreadApplicationTransition,
+    ) -> CommandReceipt:
+        """Atomically append opaque application events and state."""
+        if not isinstance(transition, ThreadApplicationTransition):
+            raise ThreadProtocolError("application transition is invalid")
+        parsed = self._parse_command(transition.command)
+        with self._lock:
+            self._check_thread(parsed["thread_id"])
+            request_hash = hashlib.sha256(_canonical(transition.command).encode()).hexdigest()
+            existing = self._commands.get(parsed["idempotency_key"])
+            if existing is not None:
+                if existing.request_hash != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return existing.receipt
+            if parsed["command_id"] in self._command_ids:
+                return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            if parsed["run_id"] is not None and parsed["run_id"] != self._snapshot.run.run_id:
+                receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
+            elif parsed["expected_event_seq"] != self._snapshot.last_event_seq:
+                receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
+            elif self._snapshot.run.state != "open":
+                receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            else:
+                envelopes: list[EventEnvelope] = []
+                for offset, application_event in enumerate(transition.events, start=1):
+                    envelopes.append(EventEnvelope(
+                        event_id="evt_" + secrets.token_hex(8),
+                        event_seq=self._snapshot.last_event_seq + offset,
+                        event_type=application_event.event_type, event_version=1,
+                        thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
+                        turn_id=None, attempt_id=None,
+                        model_context_id=self._snapshot.active_model_context.id,
+                        selection_revision=self._snapshot.active_model_context.selection_revision,
+                        occurred_at=_now(), visibility=application_event.visibility,
+                        payload=dict(application_event.payload),
+                    ))
+                self._events.extend(envelopes)
+                self._snapshot = replace(
+                    self._snapshot,
+                    application_state=None if transition.state is None else dict(transition.state),
+                    last_event_seq=self._snapshot.last_event_seq + len(envelopes),
+                )
+                receipt = self._receipt(
+                    parsed, status="accepted",
+                    accepted_event_seq=envelopes[0].event_seq if envelopes else None,
+                )
+            self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+            if receipt.status == "accepted":
+                self._command_ids.add(parsed["command_id"])
             return receipt
 
     def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
@@ -1189,6 +1248,7 @@ CREATE TABLE IF NOT EXISTS capstone_threads (
     current_attempt jsonb,
     pending_selection jsonb,
     pending_model_switch jsonb,
+    application_state jsonb,
     base_event_seq integer NOT NULL DEFAULT 0 CHECK (base_event_seq >= 0),
     last_event_seq integer NOT NULL DEFAULT 0 CHECK (last_event_seq >= 0),
     created_at timestamptz NOT NULL DEFAULT now()
@@ -1196,6 +1256,7 @@ CREATE TABLE IF NOT EXISTS capstone_threads (
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS enabled_profiles jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -1300,8 +1361,8 @@ class PostgresThreadService:
                     (thread_id, run_id, run_state, model_context_id, model_id, model_revision,
                      implementation_family, selection_revision, enabled_profiles,
                      active_grid_page_id, current_attempt, pending_selection,
-                     pending_model_switch, base_event_seq, last_event_seq)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     pending_model_switch, application_state, base_event_seq, last_event_seq)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
@@ -1311,6 +1372,7 @@ class PostgresThreadService:
                      None if snapshot.current_attempt is None else Jsonb(snapshot.current_attempt.to_document()),
                      None if snapshot.pending_selection is None else Jsonb(snapshot.pending_selection.to_document()),
                      None if snapshot.pending_model_switch is None else Jsonb(snapshot.pending_model_switch.to_document()),
+                     None if snapshot.application_state is None else Jsonb(dict(snapshot.application_state)),
                      snapshot.base_event_seq, snapshot.last_event_seq),
                 )
             except psycopg.errors.UniqueViolation:
@@ -1368,7 +1430,13 @@ class PostgresThreadService:
             if thread is None:
                 raise ThreadNotFound(parsed["thread_id"])
             snapshot = self._snapshot_from_row(thread)
-            if parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
+            command_row = connection.execute(
+                "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
+                (parsed["thread_id"], parsed["command_id"]),
+            ).fetchone()
+            if command_row is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
@@ -1662,6 +1730,77 @@ class PostgresThreadService:
                 receipt = self._receipt(
                     parsed, status="accepted", accepted_event_seq=event_seq,
                     target={"turn_id": turn_id, "attempt_id": attempt_id},
+                )
+            connection.execute(
+                """INSERT INTO capstone_thread_commands
+                   (thread_id, idempotency_key, request_hash, command_id, receipt)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (parsed["thread_id"], parsed["idempotency_key"], request_hash,
+                 parsed["command_id"], Jsonb(receipt.to_document())),
+            )
+            return receipt
+
+    def apply_application_transition(
+        self, transition: ThreadApplicationTransition,
+    ) -> CommandReceipt:
+        """Persist one opaque application transition in one transaction."""
+        if not isinstance(transition, ThreadApplicationTransition):
+            raise ThreadProtocolError("application transition is invalid")
+        parsed = InMemoryThreadService._parse_command(transition.command)
+        request_hash = hashlib.sha256(_canonical(transition.command).encode()).hexdigest()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (parsed["thread_id"],),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(parsed["thread_id"])
+            snapshot = self._snapshot_from_row(thread)
+            command_row = connection.execute(
+                "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
+                (parsed["thread_id"], parsed["command_id"]),
+            ).fetchone()
+            if command_row is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
+                receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
+            elif parsed["expected_event_seq"] != snapshot.last_event_seq:
+                receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
+            elif snapshot.run.state != "open":
+                receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            else:
+                events: list[EventEnvelope] = []
+                for offset, application_event in enumerate(transition.events, start=1):
+                    event = EventEnvelope(
+                        event_id="evt_" + secrets.token_hex(8),
+                        event_seq=snapshot.last_event_seq + offset,
+                        event_type=application_event.event_type, event_version=1,
+                        thread_id=snapshot.thread_id, run_id=snapshot.run.run_id,
+                        turn_id=None, attempt_id=None,
+                        model_context_id=snapshot.active_model_context.id,
+                        selection_revision=snapshot.active_model_context.selection_revision,
+                        occurred_at=_now(), visibility=application_event.visibility,
+                        payload=dict(application_event.payload),
+                    )
+                    events.append(event)
+                    self._insert_event(connection, event)
+                connection.execute(
+                    "UPDATE capstone_threads SET application_state = %s, last_event_seq = %s WHERE thread_id = %s",
+                    (None if transition.state is None else Jsonb(dict(transition.state)),
+                     snapshot.last_event_seq + len(events), snapshot.thread_id),
+                )
+                receipt = self._receipt(
+                    parsed, status="accepted",
+                    accepted_event_seq=events[0].event_seq if events else None,
                 )
             connection.execute(
                 """INSERT INTO capstone_thread_commands
@@ -2303,6 +2442,7 @@ class PostgresThreadService:
             last_event_seq=row["last_event_seq"], base_event_seq=row["base_event_seq"],
             pending_selection=pending,
             pending_model_switch=pending_model_switch,
+            application_state=row.get("application_state"),
         )
 
     @staticmethod

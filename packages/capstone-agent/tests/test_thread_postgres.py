@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Generator
 
 import psycopg
 import pytest
 
 from capstone_agent.thread_service import PostgresThreadService, ThreadResyncRequired
 from capstone_agent.thread_protocol import ThreadSnapshot
+from capstone_agent.thread_application_transition import ApplicationEvent, ThreadApplicationTransition
 
 
 @pytest.fixture
-def postgres_thread_service() -> tuple[PostgresThreadService, str]:
+def postgres_thread_service() -> Generator[tuple[PostgresThreadService, str], None, None]:
     dsn = os.environ.get("CAPSTONE_TEST_DATABASE_URL")
     if not dsn:
         pytest.skip("CAPSTONE_TEST_DATABASE_URL is required")
@@ -136,3 +138,27 @@ def test_postgres_context_integrity_fails_closed_before_runtime_claim(
     event = fresh.read_events(thread_id, 0).events[-1]
     assert event.event_type == "attempt_interrupted"
     assert event.payload["reason"] == "model_context_snapshot_unavailable"
+
+
+def test_postgres_application_transition_reconstructs_state_and_is_idempotent(
+    postgres_thread_service: tuple[PostgresThreadService, str],
+) -> None:
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    transition = ThreadApplicationTransition(
+        command={
+            "schema": "capstone-command/1", "command_id": "cmd_case_1",
+            "idempotency_key": "idem_case_1", "thread_id": thread_id,
+            "run_id": "run_test_001", "kind": "case_execution_created",
+            "expected_event_seq": 0, "payload": {"case_id": "demo"},
+        },
+        state={"case_execution": {"case_id": "demo", "status": "running"}},
+        events=(ApplicationEvent("case_execution_created", {"case_id": "demo"}),),
+    )
+    accepted = service.apply_application_transition(transition)
+    assert accepted.status == "accepted"
+    assert service.apply_application_transition(transition) == accepted
+
+    fresh = PostgresThreadService(service.dsn)
+    assert fresh.snapshot(thread_id).application_state == transition.state
+    assert fresh.read_events(thread_id, 0).events[-1].event_type == "case_execution_created"
