@@ -160,6 +160,27 @@ def test_postgres_thread_store_persists_snapshot_events_and_receipts(
         service.read_events(thread_id, 0)
 
 
+def test_postgres_rejected_receipt_and_command_id_survive_service_restart(
+    postgres_thread_service: tuple[PostgresThreadService, str],
+) -> None:
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    command = _command(thread_id)
+
+    first = service.record_rejected_command(command, rejection="case_model_mismatch")
+    restarted = PostgresThreadService(service.dsn)
+    second = restarted.record_rejected_command(command, rejection="case_model_mismatch")
+    reused_id = dict(command)
+    reused_id["idempotency_key"] = "idem_rejected_retry"
+
+    assert first.status == "rejected"
+    assert first.rejection == "case_model_mismatch"
+    assert second == first
+    assert restarted.record_rejected_command(
+        reused_id, rejection="case_model_mismatch",
+    ).rejection == "command_id_conflict"
+
+
 def test_postgres_thread_store_leases_and_completes_one_attempt(
     postgres_thread_service: tuple[PostgresThreadService, str],
 ) -> None:

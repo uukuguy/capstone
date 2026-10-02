@@ -62,6 +62,7 @@ _SELECTION_COMMAND_KINDS = frozenset({"enable_profile", "disable_profile", "repl
 _CONTEXT_LOCK_COMMAND_KINDS = frozenset({
     "switch_model", "enable_profile", "disable_profile", "replace_selection",
 })
+_CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt"}
 
 
 def _application_context_lock(snapshot: ThreadSnapshot) -> str | None:
@@ -91,12 +92,69 @@ def _is_case_step_command(snapshot: ThreadSnapshot, command: Mapping[str, Any]) 
     payload = command["payload"]
     state = snapshot.application_state
     execution = state.get("case_execution") if isinstance(state, Mapping) else None
-    if not isinstance(execution, Mapping):
+    if not isinstance(execution, Mapping) or execution.get("status") not in {
+        "created", "running", "waiting_step",
+    }:
         return False
+    if set(payload) != {
+        "text", "case_execution_id", "step_ordinal", "case_context",
+        "step_instruction_digest",
+    }:
+        return False
+    ordinal = payload.get("step_ordinal")
+    if (
+        not isinstance(payload.get("case_execution_id"), str)
+        or payload["case_execution_id"] != execution.get("case_execution_id")
+        or type(ordinal) is not int
+        or ordinal != execution.get("current_step")
+    ):
+        return False
+    steps = execution.get("steps")
+    if (
+        not isinstance(steps, list)
+        or not 1 <= ordinal <= len(steps)
+        or not isinstance(steps[ordinal - 1], Mapping)
+        or steps[ordinal - 1].get("status") not in {"pending", "running"}
+    ):
+        return False
+    context = execution.get("context")
+    if not isinstance(context, Mapping) or payload.get("case_context") != dict(context):
+        return False
+    active_context = snapshot.active_model_context
+    if context != {
+        "model_context_id": active_context.id,
+        "model_id": active_context.model_id,
+        "model_revision": active_context.model_revision,
+        "selection_revision": active_context.selection_revision,
+    }:
+        return False
+    instruction_digests = (
+        state.get("case_step_instruction_digests")
+        if isinstance(state, Mapping) else None
+    )
+    trusted_digest = None
+    if isinstance(instruction_digests, list):
+        for item in instruction_digests:
+            if (
+                isinstance(item, Mapping)
+                and item.get("ordinal") == ordinal
+                and isinstance(item.get("instruction_digest"), str)
+            ):
+                trusted_digest = item["instruction_digest"]
+                break
+    if trusted_digest is None or payload.get("step_instruction_digest") != trusted_digest:
+        return False
+    if not isinstance(payload.get("text"), str) or not payload["text"].strip():
+        return False
+    instruction_digest = hashlib.sha256(payload["text"].encode("utf-8")).hexdigest()
+    if instruction_digest != trusted_digest:
+        return False
+    suffix = hashlib.sha256(
+        f"{execution['case_execution_id']}:{ordinal}".encode(),
+    ).hexdigest()[:24]
     return (
-        isinstance(payload.get("case_execution_id"), str)
-        and payload["case_execution_id"] == execution.get("case_execution_id")
-        and type(payload.get("step_ordinal")) is int
+        command["command_id"] == f"case_step_{suffix}"
+        and command["idempotency_key"] == f"case_step_idem_{suffix}"
     )
 
 
@@ -130,6 +188,10 @@ class ThreadService(Protocol):
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
+
+    def record_rejected_command(
+        self, command: Mapping[str, Any], *, rejection: str,
+    ) -> CommandReceipt: ...
 
     def apply_application_transition(
         self, transition: ThreadApplicationTransition,
@@ -478,7 +540,7 @@ class InMemoryThreadService:
                 return receipt
             if (
                 _application_case_active(self._snapshot)
-                and parsed["kind"] in _MESSAGE_COMMAND_KINDS
+                and parsed["kind"] in _CASE_ACTIVE_BLOCKED_COMMAND_KINDS
                 and not _is_case_step_command(self._snapshot, parsed)
             ):
                 receipt = self._receipt(
@@ -698,6 +760,30 @@ class InMemoryThreadService:
                 parsed, status="accepted", accepted_event_seq=event_seq,
                 target={"turn_id": turn_id, "attempt_id": attempt_id},
             )
+            self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+            self._command_ids.add(parsed["command_id"])
+            return receipt
+
+    def record_rejected_command(
+        self, command: Mapping[str, Any], *, rejection: str,
+    ) -> CommandReceipt:
+        parsed = self._parse_command(command)
+        _identifier(rejection, name="rejection")
+        with self._lock:
+            self._check_thread(parsed["thread_id"])
+            request_hash = hashlib.sha256(_canonical(command).encode()).hexdigest()
+            existing = self._commands.get(parsed["idempotency_key"])
+            if existing is not None:
+                if existing.request_hash != request_hash:
+                    return self._receipt(
+                        parsed, status="rejected", rejection="idempotency_conflict",
+                    )
+                return existing.receipt
+            if parsed["command_id"] in self._command_ids:
+                return self._receipt(
+                    parsed, status="rejected", rejection="command_id_conflict",
+                )
+            receipt = self._receipt(parsed, status="rejected", rejection=rejection)
             self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
             self._command_ids.add(parsed["command_id"])
             return receipt
@@ -1513,7 +1599,7 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection=context_lock)
             elif (
                 _application_case_active(snapshot)
-                and parsed["kind"] in _MESSAGE_COMMAND_KINDS
+                and parsed["kind"] in _CASE_ACTIVE_BLOCKED_COMMAND_KINDS
                 and not _is_case_step_command(snapshot, parsed)
             ):
                 receipt = self._receipt(
@@ -1808,6 +1894,55 @@ class PostgresThreadService:
                     parsed, status="accepted", accepted_event_seq=event_seq,
                     target={"turn_id": turn_id, "attempt_id": attempt_id},
                 )
+            connection.execute(
+                """INSERT INTO capstone_thread_commands
+                   (thread_id, idempotency_key, request_hash, command_id, receipt)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (parsed["thread_id"], parsed["idempotency_key"], request_hash,
+                 parsed["command_id"], Jsonb(receipt.to_document())),
+            )
+            return receipt
+
+    def record_rejected_command(
+        self, command: Mapping[str, Any], *, rejection: str,
+    ) -> CommandReceipt:
+        """Persist a rejected command receipt without emitting a Thread event."""
+        parsed = InMemoryThreadService._parse_command(command)
+        _identifier(rejection, name="rejection")
+        request_hash = hashlib.sha256(_canonical(command).encode()).hexdigest()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
+                (parsed["thread_id"],),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(parsed["thread_id"])
+            row = connection.execute(
+                "SELECT request_hash, receipt FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"]),
+            ).fetchone()
+            if row is not None:
+                if row["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(row["receipt"])
+            command_row = connection.execute(
+                "SELECT 1 FROM capstone_thread_commands "
+                "WHERE thread_id = %s AND command_id = %s",
+                (parsed["thread_id"], parsed["command_id"]),
+            ).fetchone()
+            if command_row is not None:
+                return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            receipt = self._receipt(parsed, status="rejected", rejection=rejection)
             connection.execute(
                 """INSERT INTO capstone_thread_commands
                    (thread_id, idempotency_key, request_hash, command_id, receipt)

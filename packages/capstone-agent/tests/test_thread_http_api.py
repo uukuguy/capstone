@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from fastapi.testclient import TestClient
 
 from capstone_agent.case_definition import CaseCatalog, CaseDefinition, CaseStepDefinition
@@ -81,7 +83,14 @@ def _case_app(service: InMemoryThreadService):
                 display_name="Demo case",
                 description="A case for the HTTP command boundary.",
                 model_ids=("ieee39",),
-                steps=(CaseStepDefinition(1, "First", "inspect the network", "digest-1"),),
+                steps=(
+                    CaseStepDefinition(
+                        1,
+                        "First",
+                        "inspect the network",
+                        hashlib.sha256(b"inspect the network").hexdigest(),
+                    ),
+                ),
             ),
         ),
     )
@@ -203,6 +212,28 @@ def test_case_command_route_is_operator_only_and_uses_case_service() -> None:
     assert unauthorized.status_code == 401
     assert accepted.status_code == 202
     assert accepted.json()["status"] == "accepted"
+
+
+def test_thread_command_with_unhashable_kind_returns_422() -> None:
+    service = _service()
+    command = {
+        "schema": "capstone-command/1",
+        "command_id": "cmd_bad_kind",
+        "idempotency_key": "idem_bad_kind",
+        "thread_id": "thr_demo_39",
+        "run_id": "run_001",
+        "kind": ["start_case_execution"],
+        "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    }
+    with TestClient(_case_app(service), base_url="http://localhost") as client:
+        response = client.post(
+            "/api/v1/threads/thr_demo_39/commands",
+            headers=_auth(),
+            json=command,
+        )
+
+    assert response.status_code == 422
 
 
 def test_thread_cursor_gap_returns_verified_resync_snapshot() -> None:

@@ -254,9 +254,10 @@ def create_host_app(
                     raise ThreadProtocolError("command.thread_id does not match route")
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
+                kind = command.get("kind")
                 service = (
                     case_service
-                    if case_service is not None and command.get("kind") in {
+                    if case_service is not None and isinstance(kind, str) and kind in {
                         "start_case_execution",
                         "retry_case_step",
                         "cancel_case_execution",

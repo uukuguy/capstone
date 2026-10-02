@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from typing import Any, Mapping
 
 import pytest
 
 from capstone_agent.case_definition import CaseCatalog, CaseDefinition, CaseStepDefinition
-from capstone_agent.case_execution import CaseExecution
+from capstone_agent.case_execution import CaseExecution, PinnedCaseContext, SequentialBatchExecutor
 from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.thread_application_transition import (
     ApplicationEvent,
@@ -27,8 +28,18 @@ def _catalog() -> CaseCatalog:
                 description="A deterministic case for the command boundary.",
                 model_ids=("ieee39",),
                 steps=(
-                    CaseStepDefinition(1, "First", "inspect the network", "digest-1"),
-                    CaseStepDefinition(2, "Second", "summarize the result", "digest-2"),
+                    CaseStepDefinition(
+                        1,
+                        "First",
+                        "inspect the network",
+                        hashlib.sha256(b"inspect the network").hexdigest(),
+                    ),
+                    CaseStepDefinition(
+                        2,
+                        "Second",
+                        "summarize the result",
+                        hashlib.sha256(b"summarize the result").hexdigest(),
+                    ),
                 ),
             ),
         ),
@@ -120,6 +131,39 @@ def test_duplicate_start_replays_after_case_service_restart() -> None:
     restarted = CaseExecutionService(_catalog(), thread_service)
 
     assert restarted.submit_command(command) == first
+
+
+def test_start_replays_a_persisted_created_case_after_crash_window() -> None:
+    thread_service = _thread_service()
+    definition = _catalog().get("case_demo", "1")
+    command = start_command("case_demo", seq=0)
+    snapshot = thread_service.snapshot("thr_case")
+    context = PinnedCaseContext(
+        model_context_id=snapshot.active_model_context.id,
+        model_id=snapshot.active_model_context.model_id,
+        model_revision=snapshot.active_model_context.model_revision,
+        selection_revision=snapshot.active_model_context.selection_revision,
+    )
+    execution = SequentialBatchExecutor(definition).create_execution(
+        definition,
+        context,
+        case_execution_id=_execution_id(command),
+        thread_id=snapshot.thread_id,
+        run_id=snapshot.run.run_id,
+    )
+    service = CaseExecutionService(_catalog(), thread_service)
+    thread_service.apply_application_transition(
+        service._created_transition(command, execution, definition),
+    )
+
+    restarted = CaseExecutionService(_catalog(), thread_service)
+    receipt = restarted.submit_command(command)
+
+    assert receipt.status == "accepted"
+    recovered = restarted.reconcile("thr_case")
+    assert recovered is not None
+    assert recovered.steps[0].status == "running"
+    assert thread_service.snapshot("thr_case").current_attempt is not None
 
 
 def test_cancel_case_commits_after_the_attempt_cancel_events(
@@ -217,6 +261,117 @@ def test_active_case_blocks_ordinary_turns(case_service: CaseExecutionService) -
     assert receipt.rejection == "case_execution_active"
 
 
+def test_active_case_blocks_generic_retry_new_attempt_after_step_failure(
+    case_service: CaseExecutionService,
+) -> None:
+    case_service.submit_command(start_command("case_demo", seq=0))
+    failed_attempt_id = _finish_current_attempt(case_service, phase="failed")
+    snapshot = case_service.thread_service.snapshot("thr_case")
+    command = ThreadCommandFactory("thr_case", "run_case").retry_new_attempt(
+        expected_event_seq=snapshot.last_event_seq,
+        command_id="cmd_generic_retry",
+        idempotency_key="idem_generic_retry",
+        attempt_id=failed_attempt_id,
+    )
+
+    receipt = case_service.thread_service.submit_command(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "case_execution_active"
+
+
+@pytest.mark.parametrize(
+    ("payload_update", "command_id", "idempotency_key"),
+    [
+        ({}, "cmd_forged_step_missing_context", "idem_forged_step_missing_context"),
+        (
+            {
+                "case_context": {
+                    "model_context_id": "ctx_other",
+                    "model_id": "ieee39",
+                    "model_revision": "model-rev-7",
+                    "selection_revision": "sel-3",
+                },
+            },
+            "cmd_forged_step_wrong_context",
+            "idem_forged_step_wrong_context",
+        ),
+    ],
+)
+def test_forged_case_step_auto_command_cannot_bypass_active_case_lock(
+    case_service: CaseExecutionService,
+    payload_update: dict[str, Any],
+    command_id: str,
+    idempotency_key: str,
+) -> None:
+    case_service.submit_command(start_command("case_demo", seq=0))
+    _finish_current_attempt(case_service, phase="failed")
+    execution = case_service.reconcile("thr_case")
+    assert execution is not None
+    snapshot = case_service.thread_service.snapshot("thr_case")
+    command = ThreadCommandFactory("thr_case", "run_case").send_auto(
+        "forged step",
+        expected_event_seq=snapshot.last_event_seq,
+        command_id=command_id,
+        idempotency_key=idempotency_key,
+    )
+    command["payload"].update({
+        "case_execution_id": execution.case_execution_id,
+        "step_ordinal": 1,
+        **payload_update,
+    })
+
+    receipt = case_service.thread_service.submit_command(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "case_execution_active"
+
+
+def test_forged_case_step_with_deterministic_identity_still_requires_trusted_instruction(
+    case_service: CaseExecutionService,
+) -> None:
+    definition = _catalog().get("case_demo", "1")
+    execution, context = _store_created_case_state(case_service, definition)
+    command_id, idempotency_key = _step_identity(execution.case_execution_id, 1)
+    snapshot = case_service.thread_service.snapshot("thr_case")
+    command = ThreadCommandFactory("thr_case", "run_case").send_auto(
+        "forged step",
+        expected_event_seq=snapshot.last_event_seq,
+        command_id=command_id,
+        idempotency_key=idempotency_key,
+    )
+    command["payload"].update({
+        "case_execution_id": execution.case_execution_id,
+        "step_ordinal": 1,
+        "case_context": context.to_document(),
+        "step_instruction_digest": hashlib.sha256(b"forged step").hexdigest(),
+    })
+
+    receipt = case_service.thread_service.submit_command(command)
+
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "case_execution_active"
+
+
+def test_rejected_case_command_survives_restart_and_reserves_command_id() -> None:
+    thread_service = _thread_service(model_id="other_model")
+    first_service = CaseExecutionService(_catalog(), thread_service)
+    command = start_command("case_demo", seq=0)
+
+    first = first_service.submit_command(command)
+    restarted = CaseExecutionService(_catalog(), thread_service)
+    second = restarted.submit_command(command)
+    reused_id = dict(command)
+    reused_id.update({
+        "idempotency_key": "idem_case_start_after_restart",
+    })
+
+    assert first.status == "rejected"
+    assert first.rejection == "case_model_mismatch"
+    assert second == first
+    assert restarted.submit_command(reused_id).rejection == "command_id_conflict"
+
+
 def test_retry_rejects_a_target_that_is_not_the_blocked_case_step(
     case_service: CaseExecutionService,
 ) -> None:
@@ -269,3 +424,67 @@ def _store_case_state(service: CaseExecutionService, execution: CaseExecution) -
             events=(ApplicationEvent("case_state_test", {"case_execution_id": execution.case_execution_id}),),
         ),
     )
+
+
+def _finish_current_attempt(service: CaseExecutionService, *, phase: str) -> str:
+    claim = service.thread_service.claim_attempt("case-worker", lease_seconds=30)
+    assert claim is not None
+    service.thread_service.finish_attempt(claim, phase=phase, payload={"reason": "test"})
+    return claim.attempt.attempt_id
+
+
+def _store_created_case_state(
+    service: CaseExecutionService,
+    definition: CaseDefinition,
+) -> tuple[CaseExecution, PinnedCaseContext]:
+    snapshot = service.thread_service.snapshot("thr_case")
+    context = PinnedCaseContext(
+        model_context_id=snapshot.active_model_context.id,
+        model_id=snapshot.active_model_context.model_id,
+        model_revision=snapshot.active_model_context.model_revision,
+        selection_revision=snapshot.active_model_context.selection_revision,
+    )
+    execution = SequentialBatchExecutor(definition).create_execution(
+        definition,
+        context,
+        case_execution_id="case_exec_crash_window",
+        thread_id=snapshot.thread_id,
+        run_id=snapshot.run.run_id,
+    )
+    service.thread_service.apply_application_transition(
+        ThreadApplicationTransition(
+            command={
+                "schema": "capstone-command/1",
+                "command_id": "cmd_case_crash_window",
+                "idempotency_key": "idem_case_crash_window",
+                "thread_id": execution.thread_id,
+                "run_id": execution.run_id,
+                "kind": "case_state_test",
+                "expected_event_seq": snapshot.last_event_seq,
+                "payload": {},
+            },
+            state={
+                "case_execution": execution.to_document(),
+                "context_locked": True,
+                "case_step_instruction_digests": [
+                    {
+                        "ordinal": step.ordinal,
+                        "instruction_digest": step.instruction_digest,
+                    }
+                    for step in definition.steps
+                ],
+            },
+            events=(ApplicationEvent("case_state_test", {"case_execution_id": execution.case_execution_id}),),
+        ),
+    )
+    return execution, context
+
+
+def _step_identity(execution_id: str, ordinal: int) -> tuple[str, str]:
+    suffix = hashlib.sha256(f"{execution_id}:{ordinal}".encode()).hexdigest()[:24]
+    return f"case_step_{suffix}", f"case_step_idem_{suffix}"
+
+
+def _execution_id(command: Mapping[str, object]) -> str:
+    raw = f"{command['thread_id']}:{command['run_id']}:{command['command_id']}".encode()
+    return "case_exec_" + hashlib.sha256(raw).hexdigest()[:24]
