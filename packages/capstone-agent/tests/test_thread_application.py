@@ -178,6 +178,26 @@ def test_application_assembly_accepts_harness_runtime_registry() -> None:
     assert assembly.runtime_factory(_claim()) is runtime
 
 
+def test_application_assembly_rejects_conflicting_runtime_factory_and_registry() -> None:
+    class Catalog:
+        default_model_id = "ieee39"
+
+        def resolve(self, model_id):
+            return _claim().model_context
+
+    selected = _Runtime()
+    registry = HarnessRuntimeRegistry()
+    registry.register("pi", lambda _claim: selected)
+
+    with pytest.raises(ValueError, match="runtime registry selection"):
+        ThreadApplicationAssembly(
+            catalog=cast(Any, Catalog()),
+            runtime_factory=lambda _claim: _Runtime(),
+            runtime_registry=registry,
+            runtime_name="pi",
+        )
+
+
 def test_application_factory_wraps_injected_session_as_harness_runtime() -> None:
     received: list[AttemptClaim] = []
     factory = ApplicationPiRuntimeFactory(

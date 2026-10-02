@@ -174,6 +174,12 @@ class ThreadApplicationAssembly:
             )
         elif not callable(self.runtime_factory):
             raise TypeError("Thread application runtime_factory must be callable")
+        elif self.runtime_registry is not None:
+            selected_factory = self.runtime_registry.resolve(self.runtime_name)
+            if self.runtime_factory is not selected_factory:
+                raise ValueError(
+                    "runtime factory conflicts with runtime registry selection",
+                )
         if self.capability_context_owner is not None and not isinstance(
             self.capability_context_owner, ModelCapabilityContextOwner,
         ):
