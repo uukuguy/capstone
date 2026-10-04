@@ -113,7 +113,7 @@
         <span class="truncate text-sm font-semibold tracking-[.12em] text-white">CAPSTONE <span class="font-normal text-mist">/ FRAMEWORK</span></span>
       </a>
       <nav class="hidden items-center gap-5 text-xs text-mist md:flex" aria-label="章节导航">
-        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#examples">示例</a>
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#examples">对话</a>
         <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#runtime">运行</a>
         <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#maturity">进度</a>
         <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#deployment">部署</a>
@@ -132,11 +132,11 @@
       <div class="mx-auto grid max-w-7xl gap-14 px-5 pb-20 pt-16 lg:grid-cols-[1.14fr_.86fr] lg:px-8 lg:pb-28 lg:pt-24">
         <div class="flex flex-col justify-center">
           <p class="eyebrow mb-5">先说清楚：它是做什么的</p>
-          <h1 class="max-w-4xl text-4xl font-semibold leading-[1.06] tracking-[-.045em] text-white sm:text-5xl lg:text-6xl">用自然语言，<span class="text-mint">完成专业分析。</span></h1>
-          <p class="mt-7 max-w-2xl text-base leading-8 text-mist sm:text-lg">Capstone 是一套用来搭建专业分析助手的软件框架。它把 AI 和现有业务系统接起来：你用中文描述任务，AI 调用系统提供的工具，整理计算结果，交给你查看。仓库中的电力分析工作台，是用这套框架做出的第一批应用。</p>
-          <p class="mt-4 max-w-2xl text-sm leading-7 text-mist">比如，电力工程师可以直接问：“检查线路负载，列出需要关注的线路。”系统调用电力计算程序，返回结果和依据；工程师可以继续追问，也可以打开报告复查。</p>
+          <h1 class="max-w-4xl text-4xl font-semibold leading-[1.06] tracking-[-.045em] text-white sm:text-5xl lg:text-6xl">和智能体对话，<span class="text-mint">完成专业分析。</span></h1>
+          <p class="mt-7 max-w-2xl text-base leading-8 text-mist sm:text-lg">Capstone 是一套用来搭建专业分析助手的软件框架。你在对话框里用中文描述任务，智能体根据已登记的模型和工具执行分析，再把结果、图层、报告和依据带回来。仓库中的电力分析工作台，是用这套框架做出的第一批应用。</p>
+          <p class="mt-4 max-w-2xl text-sm leading-7 text-mist">比如，电力工程师可以直接问：“检查线路负载，列出需要关注的线路。”智能体会先读取当前电网模型，再调用电力计算程序，最后用人能看懂的方式回答。</p>
           <div class="mt-9 flex flex-wrap gap-3">
-            <a href="#workflow" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-5 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring">先看用户怎么用 <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow" /></svg></a>
+            <a href="#examples" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-5 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring">先看一次对话怎么完成分析 <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow" /></svg></a>
             <a href="#architecture" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-mint/50 hover:bg-white/10 focus-ring">再看它为什么可靠</a>
           </div>
           <div class="mt-11 grid max-w-xl grid-cols-3 gap-4 border-t border-white/10 pt-5">
@@ -148,13 +148,13 @@
         <div class="relative flex items-center justify-center">
           <div class="absolute -inset-8 rounded-[2.5rem] bg-mint/10 blur-3xl" aria-hidden="true"></div>
           <div class="glass relative w-full max-w-lg rounded-[2rem] p-5 shadow-glow sm:p-7">
-            <div class="flex items-center justify-between border-b border-white/10 pb-4"><div><p class="eyebrow">你会拿到什么</p><p class="mt-1 text-lg font-semibold">从问题到一份可复查的答案</p></div><svg class="h-7 w-7 text-mint" aria-hidden="true"><use href="#icon-shield" /></svg></div>
+            <div class="flex items-center justify-between border-b border-white/10 pb-4"><div><p class="eyebrow">主入口：智能体对话</p><p class="mt-1 text-lg font-semibold">从一句话到一份可复查的答案</p></div><svg class="h-7 w-7 text-mint" aria-hidden="true"><use href="#icon-shield" /></svg></div>
             <div class="space-y-3 py-5">
-              <div class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mint/15 text-mint"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-route" /></svg></span><div><p class="text-sm font-medium text-white">你提出问题</p><p class="mt-1 text-xs leading-5 text-mist">在已接入的模型和工具范围内，描述你要完成的分析。</p></div></div>
+              <div class="rounded-xl border border-blue-300/20 bg-blue-400/10 p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-blue-200">你</p><p class="mt-2 text-sm leading-6 text-white">检查 IEEE-39 的线路负载，列出需要关注的线路。</p></div>
               <div class="ml-6 h-5 border-l border-dashed border-mint/50"></div>
-              <div class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-400/15 text-blue-300"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-database" /></svg></span><div><p class="text-sm font-medium text-white">系统查模型、做计算</p><p class="mt-1 text-xs leading-5 text-mist">AI 选择工具；电力软件负责计算，返回模型版本和结果。</p></div></div>
+              <div class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-400/15 text-blue-300"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-database" /></svg></span><div><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-blue-200">智能体</p><p class="mt-1 text-xs leading-5 text-mist">读取模型 → 调用已登记工具 → 等专业软件返回计算结果。</p></div></div>
               <div class="ml-6 h-5 border-l border-dashed border-mint/50"></div>
-              <div class="flex items-start gap-3 rounded-xl border border-mint/30 bg-mint/[.08] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mint text-ink"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-check" /></svg></span><div><p class="text-sm font-medium text-white">你得到答案和依据</p><p class="mt-1 text-xs leading-5 text-mist">结果、图层、报告和本次使用的依据放在一起，之后还能回看。</p></div></div>
+              <div class="flex items-start gap-3 rounded-xl border border-mint/30 bg-mint/[.08] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mint text-ink"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-check" /></svg></span><div><p class="text-sm font-medium text-white">答案回到对话里</p><p class="mt-1 text-xs leading-5 text-mist">结果、图层、报告和本次使用的依据放在一起，之后还能继续追问。</p></div></div>
             </div>
             <div class="flex items-center justify-between border-t border-white/10 pt-4 text-[11px] text-mist"><span>算过的才写进答案</span><span class="rounded-full bg-mint/10 px-2 py-1 font-medium text-mint">可回看 · 有依据</span></div>
           </div>
@@ -174,9 +174,21 @@
     <section id="examples" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
       <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
         <div class="max-w-3xl">
-          <p class="eyebrow">01 / 先看实际页面</p>
+          <p class="eyebrow">01 / 先看智能体怎么工作</p>
           <h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">它不是一段说明文字，而是一套可以操作的分析工作台。</h2>
-          <p class="mt-5 text-base leading-7 text-mist">下面是仓库中已经实现的页面。左边选案例，中间看模型和分析过程，右边看本次运行的状态、答案和依据。用户不需要记住框架名词，按案例和问题一步步使用即可。</p>
+          <p class="mt-5 text-base leading-7 text-mist">下面是仓库中已经实现的页面。主入口是右侧的智能体对话：你提出问题，智能体按当前模型调用工具；中间的模型图和分析过程，是对话背后的可视化结果。用户不需要记住框架名词，按案例和问题一步步使用即可。</p>
+        </div>
+        <div class="mt-10 grid gap-4 lg:grid-cols-[.72fr_1.28fr]">
+          <div class="glass rounded-3xl p-5 shadow-soft sm:p-6">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4"><div><p class="eyebrow">智能体对话</p><p class="mt-1 text-sm font-semibold">当前模型：IEEE-39</p></div><span class="rounded-full bg-mint/10 px-2 py-1 text-[11px] text-mint">实时连接</span></div>
+            <div class="space-y-3 py-5">
+              <div class="ml-8 rounded-xl border border-blue-300/20 bg-blue-400/10 p-3"><p class="text-[11px] font-semibold text-blue-200">你</p><p class="mt-1 text-xs leading-5 text-white">检查线路负载，列出需要关注的线路。</p></div>
+              <div class="rounded-xl border border-white/10 bg-white/[.035] p-3"><p class="text-[11px] font-semibold text-mint">智能体</p><p class="mt-1 text-xs leading-5 text-mist">我先读取当前模型，再执行线路结果查询。</p><div class="mt-3 space-y-1.5 text-[11px] text-mist"><div class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-mint"></span>读取模型上下文 · 已完成</div><div class="flex items-center gap-2"><span class="h-1.5 w-1.5 rounded-full bg-mint"></span>查询线路结果 · 已完成</div></div></div>
+              <div class="rounded-xl border border-mint/25 bg-mint/[.07] p-3"><p class="text-[11px] font-semibold text-mint">智能体</p><p class="mt-1 text-xs leading-5 text-white">线路 11 和线路 26 需要重点关注。答案关联本次运行的结果和依据。</p></div>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-ink/45 px-3 py-2 text-xs text-mist">继续追问，例如：显示这两条线路在电网图上的位置。</div>
+          </div>
+          <div class="flex items-center rounded-3xl border border-mint/15 bg-mint/[.04] p-5 text-sm leading-7 text-mist sm:p-6"><p><strong class="text-white">对使用者来说，Capstone 的核心不是“看一张架构图”。</strong>核心是把专业问题交给智能体处理，同时把它做过什么、查了什么、算出了什么保留下来。下面两张图展示的模型和结果，就是这段对话产生的工作记录。</p></div>
         </div>
         <div class="mt-12 grid gap-6 lg:grid-cols-[1.12fr_.88fr]">
           <figure class="overflow-hidden rounded-3xl border border-white/10 bg-ink shadow-soft">
@@ -212,7 +224,7 @@
 
     <section id="runtime" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
       <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
-        <div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-end"><div class="max-w-3xl"><p class="eyebrow">03 / 系统怎么把问题做成答案</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">提出问题以后，系统做了哪些事？</h2><p class="mt-5 text-base leading-7 text-mist">这段动画用电网分析举例，说明从提问到报告的主要步骤。内容是流程示意，没有执行计算，也不是一次真实分析的结果。</p></div><div class="flex shrink-0 gap-2"><button id="runToggle" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-4 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring" aria-label="播放运行流程"><svg id="runToggleIcon" class="h-4 w-4" aria-hidden="true"><use href="#icon-play" /></svg><span id="runToggleText">播放流程</span></button><button id="runRestart" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-mint/50 focus-ring" aria-label="重新开始运行流程"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-refresh" /></svg><span class="hidden sm:inline">重置</span></button></div></div>
+        <div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-end"><div class="max-w-3xl"><p class="eyebrow">03 / 智能体怎么把问题做成答案</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">你发一句话，智能体会怎么处理？</h2><p class="mt-5 text-base leading-7 text-mist">这段动画用电网分析举例，说明一条对话怎样变成结果和报告。内容是流程示意，没有执行计算，也不是一次真实分析的结果。</p></div><div class="flex shrink-0 gap-2"><button id="runToggle" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-4 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring" aria-label="播放运行流程"><svg id="runToggleIcon" class="h-4 w-4" aria-hidden="true"><use href="#icon-play" /></svg><span id="runToggleText">播放流程</span></button><button id="runRestart" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-mint/50 focus-ring" aria-label="重新开始运行流程"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-refresh" /></svg><span class="hidden sm:inline">重置</span></button></div></div>
         <div class="mt-12 glass rounded-3xl p-5 sm:p-8">
           <div class="relative px-1 sm:px-6"><div class="timeline-line relative h-1 rounded-full" id="timelineLine" style="--progress:0%"></div><div id="timelineNodes" class="relative -mt-3 flex justify-between"></div></div>
           <div class="mt-10 grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-center"><div><p id="runStepLabel" class="eyebrow">第 1 步</p><h3 id="runStepTitle" class="mt-3 text-2xl font-semibold">用户提出问题</h3><p id="runStepBody" class="mt-4 max-w-xl text-sm leading-7 text-mist">你选择一个模型并提出问题。系统会保留这次对话和任务记录，后面还可以继续追问。</p><div class="mt-6 flex items-center gap-2 text-xs text-mist"><span class="h-2 w-2 rounded-full bg-mint"></span><span id="runStepStatus">问题已接收</span></div></div><div id="runVisual" class="relative min-h-[210px] overflow-hidden rounded-2xl border border-white/10 bg-ink/55 p-5"></div></div>
@@ -245,7 +257,7 @@
     </section>
 
     <section id="workflow" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
-      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28"><div class="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="eyebrow">07 / 用户怎么操作</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">打开一个案例，就能从模型看到报告。</h2><p class="mt-5 text-base leading-7 text-mist">App 是给人的工作台：先选一个已经登记的案例，再查看模型，按自己的节奏逐条执行，或让系统自动完成。每一步的结果都留在同一条分析记录里。</p></div><div class="rounded-2xl border border-mint/25 bg-mint/10 p-5 text-sm leading-7 text-mint-100"><p><strong class="font-semibold text-mint">分析记录中包括：</strong>答案、模型图、结果图层、执行过程、完整报告和本次运行用过的依据。浏览器通过 API 读取经过检查的结果，不直接访问后台文件存储。</p></div></div><div class="mt-12 grid gap-3 md:grid-cols-5" id="workflowSteps"></div></div>
+      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28"><div class="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="eyebrow">07 / 用户怎么操作</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">打开一个案例，就能和智能体对话并看到报告。</h2><p class="mt-5 text-base leading-7 text-mist">App 是给人的工作台：先选一个已经登记的案例，再和智能体对话。你可以逐条下指令，也可以让它按案例流程自动完成；每一步的结果都留在同一条分析记录里。</p></div><div class="rounded-2xl border border-mint/25 bg-mint/10 p-5 text-sm leading-7 text-mint-100"><p><strong class="font-semibold text-mint">分析记录中包括：</strong>答案、模型图、结果图层、执行过程、完整报告和本次运行用过的依据。浏览器通过 API 读取经过检查的结果，不直接访问后台文件存储。</p></div></div><div class="mt-12 grid gap-3 md:grid-cols-5" id="workflowSteps"></div></div>
     </section>
 
     <section id="local-use" class="mx-auto max-w-7xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28">
@@ -304,8 +316,8 @@ open http://127.0.0.1:5173/</code></pre><details class="mt-5 rounded-xl border b
 
       const workflow = [
         ['01', '选一个案例', '从已经登记好的案例开始。'],
-        ['02', '先看模型', '先看模型里有哪些设备和数据。'],
-        ['03', '提出问题', '一条一条执行，或让系统自动完成。'],
+        ['02', '和智能体对话', '直接用中文说清楚你想查什么、算什么。'],
+        ['03', '看它怎么处理', '智能体读取模型、调用工具，并把过程留在记录里。'],
         ['04', '看结果图', '查看图层、表格和关键数字。'],
         ['05', '打开报告', '回看答案、过程和本次依据。']
       ];
