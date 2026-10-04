@@ -23,6 +23,7 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
 
 from .profile import build_profile
+from .network_view import build_pypsa_thread_network_provider
 from pypsa_model_authority.catalog import list_registered_models
 
 
@@ -124,6 +125,7 @@ def build_pypsa_thread_application(
         capability_context_owner=owner,
         session_factory=PreparedKernelPiSessionFactory(session_builder),
         runtime_mode=runtime_mode,
+        network_projection_factory=lambda _claim, context: build_pypsa_thread_network_provider(context),
     )
 
 

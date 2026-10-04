@@ -19,6 +19,7 @@ def test_registered_pypsa_thread_application_uses_the_capstone_host() -> None:
         profile.descriptor.profile_id == "pypsa-business-cases"
         for profile in capability_catalog.profiles_for_family("pypsa")
     )
+    assert assembly.network_projection_factory is not None
 
 
 def test_pypsa_model_resolver_returns_stable_authority_revision() -> None:

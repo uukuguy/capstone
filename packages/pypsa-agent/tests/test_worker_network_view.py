@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
+from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
+from capstone_agent.model_capability_context import PreparedModelCapabilityContext
+from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
+from capstone_agent.thread_service import AttemptClaim
+from pypsa_agent.network_view import build_pypsa_thread_network_provider
 from pypsa_agent.network_view import build_pypsa_network_view
 
 
@@ -21,6 +30,36 @@ class TopologyExecutor:
                  "from_bus": "north", "to_bus": "south"},
             ],
         }
+
+
+def _claim() -> AttemptClaim:
+    context = ModelContextSnapshot(
+        "ctx_regional", "regional-six-bus", "revision:sha256:" + "a" * 64,
+        "pypsa", "sel_0",
+    )
+    return AttemptClaim(
+        "thr_network", "run_network",
+        AttemptSnapshot("turn_1", "attempt_1", "running", context.id),
+        "send_ordinary", "inspect", context.id, context.selection_revision,
+        "lease_1", context,
+    )
+
+
+def _prepared_context(executor: TopologyExecutor, *, model_ref: str = "pypsa:regional-six-bus"):
+    binding = SimpleNamespace(runtime=SimpleNamespace(executor=executor))
+    prepared = SimpleNamespace(
+        model_binding=AuthorityModelBinding(
+            "source", "regional-six-bus", "revision:sha256:" + "a" * 64,
+            "pypsa", model_ref,
+        ),
+        prepared_application=SimpleNamespace(bindings={"source": binding}),
+    )
+    return PreparedModelCapabilityContext(
+        "thr_network", "run_network",
+        model_context=_claim().model_context,
+        handles=(),
+        contributions=(SimpleNamespace(prepared=prepared),),
+    )
 
 
 def test_pypsa_view_uses_selected_authority_model_and_branch_kinds() -> None:
@@ -63,3 +102,31 @@ def test_pypsa_view_anticipates_registered_link_target() -> None:
     view = build_pypsa_network_view(TopologyExecutor(), "model:baseline", "ac-dc-six-bus", 1,
                                     "ac-dc-interconnection", None, ())
     assert view["layer"]["next_focus_ids"] == ["link:converter"]
+
+
+def test_pypsa_thread_provider_uses_prepared_authority_model_context() -> None:
+    executor = TopologyExecutor()
+    provider = build_pypsa_thread_network_provider(_prepared_context(executor))
+
+    projection = provider.project(_claim(), (), (), ())
+
+    assert projection["diagram"]["model"] == {
+        "id": "regional-six-bus",
+        "revision": "revision:sha256:" + "a" * 64,
+        "source": "pypsamodelctl",
+    }
+    assert executor.calls == [("operator.diagram", {"model_ref": "pypsa:regional-six-bus"})]
+
+
+def test_pypsa_thread_provider_rejects_authority_model_ref_drift() -> None:
+    executor = TopologyExecutor()
+    provider = build_pypsa_thread_network_provider(
+        _prepared_context(executor, model_ref="pypsa:other-model"),
+    )
+    executor.invoke = lambda capability, arguments: {
+        "model_ref": "pypsa:wrong-model", "coordinate_system": "geographic",
+        "buses": [], "branches": [],
+    }
+
+    with pytest.raises(ValueError, match="another revision"):
+        provider.project(_claim(), (), (), ())
