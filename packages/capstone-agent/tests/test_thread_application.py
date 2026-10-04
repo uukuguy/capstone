@@ -353,6 +353,17 @@ def test_prepared_application_factory_passes_exact_claim_and_context_to_network_
     assert len(received) == 1
     assert received[0][0] is claim
     assert received[0][1].model_context == claim.model_context
+
+    class _Provider:
+        def project(self, _claim, _results, _evidence, _events):
+            return None
+
+    runtime = PreparedApplicationPiRuntimeFactory(
+        owner,
+        lambda _claim, _context: _Session(),
+        network_projection_factory=lambda _claimed, _context: _Provider(),
+    )(claim)
+    assert getattr(runtime, "network_projection_enabled") is True
     owner.close_run("thr_application", "run_application")
 
 
