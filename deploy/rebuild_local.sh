@@ -46,16 +46,16 @@ fi
 printf '%s\n' "==> Validating local Compose configuration"
 "${compose[@]}" config --quiet
 
-build_args=(build api worker objects-init)
+build_args=(build api worker worker-pypsa objects-init)
 if [ "${CAPSTONE_LOCAL_PULL:-0}" = "1" ]; then
-  build_args=(build --pull api worker objects-init)
+  build_args=(build --pull api worker worker-pypsa objects-init)
 fi
 printf '%s\n' "==> Building API and worker from the current checkout"
 "${compose[@]}" "${build_args[@]}"
 
 printf '%s\n' "==> Starting dependencies and replacing API/worker containers"
 "${compose[@]}" up --no-build --force-recreate --wait -d \
-  postgres objects objects-init api worker
+  postgres objects objects-init api worker worker-pypsa
 
 api_binding="$("${compose[@]}" port api 8766 | head -n 1)"
 [ -n "$api_binding" ] || fail "Compose did not publish the API port"
@@ -65,12 +65,14 @@ curl -fsS "$api_origin/health/ready" >/dev/null \
 
 api_container="$("${compose[@]}" ps -q api)"
 worker_container="$("${compose[@]}" ps -q worker)"
-[ -n "$api_container" ] && [ -n "$worker_container" ] \
+worker_pypsa_container="$("${compose[@]}" ps -q worker-pypsa)"
+[ -n "$api_container" ] && [ -n "$worker_container" ] && [ -n "$worker_pypsa_container" ] \
   || fail "API or worker container is not running"
 api_image="$(docker inspect -f '{{.Image}}' "$api_container")"
 worker_image="$(docker inspect -f '{{.Image}}' "$worker_container")"
-[ "$api_image" = "$worker_image" ] \
-  || fail "API and worker are running different image revisions"
+worker_pypsa_image="$(docker inspect -f '{{.Image}}' "$worker_pypsa_container")"
+[ "$api_image" = "$worker_image" ] && [ "$api_image" = "$worker_pypsa_image" ] \
+  || fail "API and workers are running different image revisions"
 
 app_host="${CAPSTONE_APP_HOST:-0.0.0.0}"
 app_port="${CAPSTONE_APP_PORT:-5173}"

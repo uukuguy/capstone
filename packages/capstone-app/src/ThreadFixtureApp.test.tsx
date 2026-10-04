@@ -47,6 +47,64 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('switch_model · accepted')).toBeTruthy()
   })
 
+  it('routes an explicit model-open phrase through the canonical switch command', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 pypsa39' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    expect(await screen.findByText('已提交切换到 PyPSA-39，下一条指令将在该模型上下文中执行。')).toBeTruthy()
+    expect(screen.queryByText('Fixture 已接收自动指令：打开 pypsa39')).toBeNull()
+  })
+
+  it('does not reopen the active model unless the user explicitly requests a fresh context', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 ieee39' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText('当前模型已经是 IEEE-39，未重复打开。')).toBeTruthy()
+    expect(screen.queryByText('switch_model · accepted')).toBeNull()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '重新打开 ieee39' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText('已提交重新打开 IEEE-39，将建立新的模型上下文。')).toBeTruthy()
+  })
+
+  it('keeps a longer open-and-analyze request as ordinary agent work', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    const request = '打开 IEEE-39 网络并解析线路 11 的端点。'
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
+  })
+
+  it('reports a short unknown Chinese model control instead of guessing', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 不存在模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    expect(await screen.findByText('未找到注册模型“不存在模型”。可先查看模型目录，或使用左侧模型选择器。')).toBeTruthy()
+    expect(screen.queryByText(/Fixture 已接收自动指令/)).toBeNull()
+  })
+
+  it('keeps an English analytical request on the ordinary route', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+
+    await screen.findByRole('region', { name: '电网模型区' })
+    const request = '打开 IEEE-39 network and analyze line 11'
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+
+    expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
+  })
+
   it('renders catalog-driven Profiles in a compact control and submits one selection command', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 

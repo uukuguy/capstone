@@ -42,6 +42,18 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByText(/⌘\/Ctrl/)).toBeNull()
   })
 
+  it('puts the cross-family model questions first in the empty-thread suggestions', () => {
+    render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    expect(within(screen.getByLabelText('示例问题')).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      '有哪些 PyPSA 的电网模型？',
+      '有哪些 pandapower 的电网模型？',
+      'IEEE-39 有哪些母线和线路？',
+      '对 IEEE-39 执行一次交流潮流。',
+      '筛查负载率最高的三条线路。',
+    ])
+  })
+
   it('shows an explicit processing state for an assistant message without text yet', () => {
     render(<CapstoneAssistantThread events={[
       event('assistant_text_delta', 1, { text: '' }, 'attempt_1'),
@@ -133,7 +145,7 @@ describe('CapstoneAssistantThread', () => {
 
     expect(screen.getByRole('button', { name: '查看证据' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '查看运行过程' })).toBeTruthy()
-    expect(screen.getByRole('group', { name: '当前运行结果' }).textContent).toContain('1 份')
+    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
     expect(screen.queryByLabelText('当前运行证据')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
     expect(screen.getByLabelText('当前运行证据').textContent).toContain('evidence:run_1:powerflow')
@@ -177,12 +189,39 @@ describe('CapstoneAssistantThread', () => {
     expect((projectAssistantMessages(events)[1].metadata as { custom?: { admission?: unknown } }).custom?.admission).toEqual(expect.objectContaining({ mode: 'authority_backed' }))
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
-    expect(screen.getByRole('group', { name: '当前运行结果' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
     expect(screen.queryByLabelText('当前运行证据')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
     expect(screen.getByLabelText('当前运行证据')).toBeTruthy()
-    expect(screen.getByText('已准入')).toBeTruthy()
-    expect(screen.getByText(/admission:run_1/)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('已准入')
+    expect(screen.queryByText(/admission:run_1/)).toBeNull()
+  })
+
+  it('renders a structured result projection and can focus a topology element', () => {
+    const onFocusElement = vi.fn()
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_professional', payload: { text: '筛查线路' } }, 'attempt_result'),
+      event('attempt_completed', 2, { answer: '已完成线路筛查。' }, 'attempt_result'),
+    ]} resultProjections={[{
+      resultId: 'result_projection_1', resultRef: `result:sha256:${'a'.repeat(64)}`, evidenceRefs: [`evidence:sha256:${'b'.repeat(64)}`],
+      threadId: 'thr_demo', runId: 'run_demo', turnId: 'turn_1', attemptId: 'attempt_result', modelContextId: 'ctx_demo', modelId: 'ieee39', modelRevision: `revision:sha256:${'c'.repeat(64)}`,
+      source: { capabilityId: 'analysis.powerflow.ac.run', domainPackId: 'pandapower-static-analysis', implementationFamily: 'pandapower' }, status: 'completed',
+      summary: [{ metricId: 'total_active_loss', label: '有功损耗', value: 43.64, unit: 'MW' }],
+      tables: [{ tableId: 'line_loading', title: '线路负载率', columns: [{ columnId: 'line', label: '线路' }, { columnId: 'loading_percent', label: '负载率', unit: '%' }], rows: [{ rowId: 'line:11', cells: { line: '线路 11', loading_percent: 67.15 }, elementRef: { elementKind: 'line', elementId: 'line:11' } }] }],
+      elementRefs: [{ elementKind: 'line', elementId: 'line:11' }], overlay: { metric: 'loading_percent', unit: '%', sourceRef: `result:sha256:${'a'.repeat(64)}`, values: [{ elementId: 'line:11', value: 67.15 }] },
+    }, {
+      resultId: 'result_projection_2', resultRef: `result:sha256:${'d'.repeat(64)}`, evidenceRefs: [`evidence:sha256:${'e'.repeat(64)}`],
+      threadId: 'thr_demo', runId: 'run_demo', turnId: 'turn_1', attemptId: 'attempt_result', modelContextId: 'ctx_demo', modelId: 'ieee39', modelRevision: `revision:sha256:${'c'.repeat(64)}`,
+      source: { capabilityId: 'analysis.powerflow.ac.run', domainPackId: 'pandapower-static-analysis', implementationFamily: 'pandapower' }, status: 'completed',
+      summary: [{ metricId: 'total_active_loss_2', label: '电压偏差', value: 0.02, unit: 'pu' }], tables: [], elementRefs: [],
+    }]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onFocusElement={onFocusElement} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    expect(screen.getAllByRole('region', { name: '结构化分析结果' })).toHaveLength(2)
+    expect(screen.getByText('有功损耗')).toBeTruthy()
+    expect(screen.getByText('电压偏差')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '线路 11' }))
+    expect(onFocusElement).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'result_projection_1' }), 'line:11')
   })
 
   it('shows a terminal failure with the next action instead of a generation placeholder', () => {
@@ -283,7 +322,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 1, { answer: '未准入回答。', result_refs: ['result:unadmitted'], evidence_refs: ['evidence:unadmitted'] }, 'attempt_unadmitted'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
-    expect(screen.queryByRole('group', { name: '当前运行结果' })).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByRole('group', { name: '当前运行证据' })).toBeNull()
     expect(screen.queryByRole('button', { name: '查看证据' })).toBeNull()
   })
@@ -296,7 +335,7 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       modelSummary={{ modelId: 'ieee39', implementationFamily: 'pandapower', modelRevision: 'revision:current', contextId: 'ctx_current' }} />)
 
-    expect(screen.getByText(/ieee39 · pandapower · revision revision:current/)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
   })
 
   it('allows drafting during a running attempt while keeping send unavailable', () => {

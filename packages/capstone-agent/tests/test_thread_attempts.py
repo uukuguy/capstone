@@ -124,6 +124,37 @@ def test_worker_claim_contains_the_exact_admitted_model_context() -> None:
     assert claim.model_context.model_revision == "revision:sha256:" + "a" * 64
 
 
+def test_worker_claim_carries_the_application_model_catalog_context() -> None:
+    service = _model_service()
+    service.set_catalog_context({
+        "schema": "capstone-thread-catalog/1",
+        "models": [
+            {
+                "model_id": "ieee39",
+                "display_name": "IEEE-39",
+                "implementation_family": "pandapower",
+                "available": True,
+            },
+            {
+                "model_id": "regional-six-bus",
+                "display_name": "Regional six-bus",
+                "implementation_family": "pypsa",
+                "available": True,
+            },
+        ],
+        "profiles": [],
+    })
+    service.submit_command(_command())
+
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+
+    assert claim is not None
+    assert claim.application_catalog is not None
+    assert [item["model_id"] for item in claim.application_catalog["models"]] == [
+        "ieee39", "regional-six-bus",
+    ]
+
+
 def test_context_drift_interrupts_attempt_before_worker_execution() -> None:
     service = _service()
     service.submit_command(_command())
@@ -200,10 +231,11 @@ def test_result_projection_cannot_claim_an_unadmitted_reference() -> None:
     service.submit_command(_command())
     claim = service.claim_attempt("thread-worker", lease_seconds=30)
     assert claim is not None
+    evidence_ref = "evidence:sha256:" + "b" * 64
     projection = {
         "schema": "capstone-result-projection/1.0",
         "result_id": "powerflow_result_1", "result_ref": "result:sha256:" + "a" * 64,
-        "evidence_refs": [], "thread_id": claim.thread_id, "run_id": claim.run_id,
+        "evidence_refs": [evidence_ref], "thread_id": claim.thread_id, "run_id": claim.run_id,
         "turn_id": claim.attempt.turn_id, "attempt_id": claim.attempt.attempt_id,
         "model_context_id": claim.model_context.id, "model_id": "ieee39",
         "model_revision": claim.model_context.model_revision,
@@ -217,7 +249,7 @@ def test_result_projection_cannot_claim_an_unadmitted_reference() -> None:
     with pytest.raises(ValueError, match="admitted"):
         service.finish_attempt(
             claim, phase="completed", payload={
-                "answer": "ready", "result_refs": [], "evidence_refs": [],
+                "answer": "ready", "result_refs": [], "evidence_refs": [evidence_ref],
                 "result_projections": [projection],
             },
         )
@@ -568,3 +600,46 @@ def test_snapshot_never_presents_an_expired_running_attempt(monkeypatch: pytest.
 
     assert snapshot.current_attempt is None
     assert service.read_events("thr_attempts", 0).events[-1].event_type == "attempt_interrupted"
+
+def test_reopen_same_model_context_creates_fresh_context_at_turn_boundary() -> None:
+    service = _model_service()
+    first = service.snapshot("thr_attempts").active_model_context.id
+    receipt = service.submit_command({
+        **_command("cmd_reopen"), "kind": "reopen_model_context",
+        "payload": {"model_id": "ieee39", "reason": "user_requested_fresh_context"},
+    })
+    assert receipt.status == "accepted"
+    service.submit_command({
+        **_command("cmd_reopen_turn"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+    })
+    claim = service.claim_attempt("thread-worker", 30)
+    assert claim is not None
+    current = service.snapshot("thr_attempts").active_model_context
+    assert current.id != first
+    events = service.read_events("thr_attempts", 0).events
+    activation = [e for e in events if e.event_type == "model_context_reopened"][-1]
+    assert activation.payload["reason"] == "explicit_reopen"
+
+
+def test_same_model_switch_is_rejected_and_context_identity_is_reused() -> None:
+    service = _model_service()
+    before = service.snapshot("thr_attempts").active_model_context.id
+    receipt = service.submit_command({
+        **_command("cmd_same_model"), "kind": "switch_model",
+        "payload": {"model_id": "ieee39"},
+    })
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "model_already_active"
+    assert service.snapshot("thr_attempts").active_model_context.id == before
+
+
+def test_model_switch_rejects_a_family_without_a_ready_worker() -> None:
+    service = _model_service()
+    service.set_available_families(frozenset({"pandapower"}))
+    receipt = service.submit_command({
+        **_command("cmd_unavailable_family"), "kind": "switch_model",
+        "payload": {"model_id": "pypsa39"},
+    })
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "worker_unavailable"

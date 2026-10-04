@@ -39,6 +39,8 @@ class ThreadModelCatalogEntry:
     display_name: str
     diagram_provider_id: str
     implementation_family: str
+    available: bool = True
+    unavailable_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,19 +80,28 @@ class ThreadCatalogProjection:
 
 def _catalog_model_from_document(value: Any, *, index: int) -> ThreadModelCatalogEntry:
     document = _document(value, name=f"catalog.models[{index}]")
-    fields = frozenset({"model_id", "authority_model_ref", "display_name", "diagram_provider_id", "implementation_family"})
+    fields = frozenset({"model_id", "authority_model_ref", "display_name", "diagram_provider_id", "implementation_family", "available", "unavailable_reason"})
+    required_fields = fields - {"available", "unavailable_reason"}
     _fields(document, fields, name=f"catalog.models[{index}]")
-    _required(document, fields, name=f"catalog.models[{index}]")
+    _required(document, required_fields, name=f"catalog.models[{index}]")
     try:
         model_id = validate_model_id(document["model_id"], name=f"catalog.models[{index}].model_id")
     except ValueError as error:
         raise ThreadProtocolError(str(error)) from None
+    available = document.get("available", True)
+    if type(available) is not bool:
+        raise ThreadProtocolError(f"catalog.models[{index}].available is invalid")
+    unavailable_reason = document.get("unavailable_reason")
+    if unavailable_reason is not None:
+        unavailable_reason = _identifier(unavailable_reason, name=f"catalog.models[{index}].unavailable_reason")
     return ThreadModelCatalogEntry(
         model_id=model_id,
         authority_model_ref=_text(document["authority_model_ref"], name=f"catalog.models[{index}].authority_model_ref"),
         display_name=_text(document["display_name"], name=f"catalog.models[{index}].display_name"),
         diagram_provider_id=_identifier(document["diagram_provider_id"], name=f"catalog.models[{index}].diagram_provider_id"),
         implementation_family=_identifier(document["implementation_family"], name=f"catalog.models[{index}].implementation_family"),
+        available=available,
+        unavailable_reason=unavailable_reason,
     )
 
 

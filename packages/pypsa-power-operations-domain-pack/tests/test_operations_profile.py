@@ -13,7 +13,10 @@ def test_prepared_operations_binding_requires_receipt_and_admits_dispatch(tmp_pa
     from capability_agent.application.manifest import ApplicationManifest
     from capability_agent.application.output import JsonOutputRenderer
     from capability_agent.application.profile import (
-        ApplicationProfile, CredentialScope, DataSharingPolicy, DomainBinding,
+        ApplicationProfile,
+        CredentialScope,
+        DataSharingPolicy,
+        DomainBinding,
         ReferenceGrant,
     )
     from capability_agent.application.reference_handoff import ReferenceHandoffService
@@ -22,6 +25,7 @@ def test_prepared_operations_binding_requires_receipt_and_admits_dispatch(tmp_pa
     from capability_agent.application.workspace import ApplicationWorkspace
     from capability_agent.domain.projection import VerifiedInvocation
     from pypsa_network_modeling.profile import build_pypsa_network_modeling_profile
+
     from pypsa_power_operations.profile import build_pypsa_power_operations_profile
 
     model = build_pypsa_network_modeling_profile()
@@ -77,6 +81,19 @@ def test_prepared_operations_binding_requires_receipt_and_admits_dispatch(tmp_pa
     assert target.runtime.authority.admit(
         "operations.dispatch", result, tuple(result["evidence_refs"])
     ).results[0].reference == result["result_ref"]
+    projection = operations.projector_registry.result_projector.project_admitted(
+        authority=target.runtime.authority,
+        invoke=target.endpoint.executor.invoke,
+        context_ref=opened["model_ref"],
+        model_revision="revision:sha256:" + "a" * 64,
+        model_context_id="ctx-ops",
+        model_id="two-bus",
+        thread_id="thread-ops", run_id="ops-app", turn_id="turn-1",
+        attempt_id="attempt-1", result_refs=(result["result_ref"],),
+        result_evidence={result["result_ref"]: tuple(result["evidence_refs"])},
+    )
+    assert projection[0]["status"] == "completed"
+    assert any(item["table_id"] == "generator_dispatch" for item in projection[0]["tables"])
     with pytest.raises(Exception):
         source.runtime.authority.verify_result(result["result_ref"])
     delta = operations.projector_registry.require("pypsa-operations-result-v1").project(

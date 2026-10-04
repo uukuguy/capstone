@@ -152,6 +152,18 @@ def test_thread_catalog_projects_registered_models_and_profiles() -> None:
     ]
 
 
+def test_thread_catalog_marks_family_without_a_ready_worker_unavailable() -> None:
+    service = _service()
+    service.set_model_catalog(_ModelCatalog())
+    service.set_available_families(frozenset({"pandapower"}))
+
+    models = {entry["model_id"]: entry for entry in service.catalog("thr_demo_39")["models"]}
+
+    assert models["ieee39"]["available"] is True
+    assert models["pypsa-example/scigrid_de"]["available"] is False
+    assert models["pypsa-example/scigrid_de"]["unavailable_reason"] == "worker_unavailable"
+
+
 def test_thread_catalog_is_exposed_over_the_authenticated_thread_route() -> None:
     service = _service()
     service.set_model_catalog(_ModelCatalog())

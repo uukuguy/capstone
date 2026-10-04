@@ -13,7 +13,7 @@ export type ThreadUiFixture = ThreadFixtureDocument & {
 }
 
 const context = {
-  id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: '7',
+  id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: 'revision:sha256:66e156860a24603a5c61dd710426e64d2d5998ba691ce76909045ee91c58d432',
   implementation_family: 'pandapower', selection_revision: 'sel_2',
 }
 
@@ -90,7 +90,7 @@ const fixtures: Record<ThreadUiFixtureId, ThreadUiFixture> = {
     events: { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 50, next_event_seq: 50, has_more: false, events: [] },
     catalog: baseCatalog,
     local_view: { viewed_grid_page_id: 'page_ieee39', replay: null, draft: '',
-      element_reference: { model_id: 'ieee39', model_revision: '6', element_kind: 'branch', element_id: 'line_12' } },
+      element_reference: { model_id: 'ieee39', model_revision: context.model_revision, element_kind: 'branch', element_id: 'line_12' } },
     assertions: { transport_state: 'live', enabled_commands: ['retry_new_attempt', 'open_replay', 'return_live'] },
   }),
 }

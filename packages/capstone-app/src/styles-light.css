@@ -638,13 +638,13 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity summary svg { width: 14px; height: 14px; color: #299581; }
 .capstone-chat-activity summary small { margin-left: auto; color: #9aafaa; font-size: 10px; }
 .capstone-chat-activity-list { display: grid; gap: 2px; padding: 0 13px 9px 34px; }
-.capstone-chat-activity-item { display: flex; align-items: flex-start; gap: 7px; min-height: 26px; color: #4f716b; font-size: 11px; line-height: 1.35; }
+.capstone-chat-activity-item { display: flex; align-items: flex-start; gap: 7px; min-height: 24px; color: #4f716b; font-size: 10px; line-height: 1.3; }
 .capstone-chat-activity-icon { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 5px; border-radius: 50%; background: #39a28d; }
 .capstone-chat-activity-item.is-running .capstone-chat-activity-icon { box-shadow: 0 0 0 3px #39a28d28; }
 .capstone-chat-activity-item.is-failed .capstone-chat-activity-icon { background: #c16d55; }
 .capstone-chat-activity-item.is-cancelled .capstone-chat-activity-icon { background: #b88951; }
 .capstone-chat-activity-item strong, .capstone-chat-activity-item small { display: block; }
-.capstone-chat-activity-item small { color: #9aafaa; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.capstone-chat-activity-item small { color: #9aafaa; font: 9px/1.35 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-composer { flex: 0 0 auto; padding: 10px 12px 12px; border-top: 1px solid #e5eee9; background: #fff; }
 .capstone-composer-root { border: 1px solid #c9ded5; border-radius: 20px; background: #fff; box-shadow: 0 2px 9px #3156480b; }
 .capstone-composer-root:focus-within { border-color: #63aa98; box-shadow: 0 0 0 3px #4ca88f18; }
@@ -733,6 +733,29 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-attached.is-failed, .capstone-chat-activity-attached.is-interrupted { border-color: #e7c9c2; }
 .capstone-chat-activity-attached.is-failed > summary svg, .capstone-chat-activity-attached.is-interrupted > summary svg { color: #c5574f; }
 .capstone-chat-activity-attached.is-cancelled > summary svg { color: #b78342; }
+
+.capstone-result-card { display: grid; gap: 8px; margin-top: 9px; padding: 9px 10px; border: 1px solid #d7e8df; border-left: 2px solid #4aa38f; border-radius: 8px; background: #fbfefc; color: #355c56; font-size: 10px; line-height: 1.4; }
+.capstone-result-group { display: grid; gap: 8px; }
+.capstone-result-card.is-partial { border-left-color: #bd9955; }
+.capstone-result-card.is-unavailable { border-left-color: #bd6c55; background: #fffaf8; }
+.capstone-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #39766b; }
+.capstone-result-heading > div { display: inline-flex; align-items: center; gap: 6px; }
+.capstone-result-heading svg { width: 14px; height: 14px; }
+.capstone-result-heading span { color: #76918a; }
+.capstone-result-heading small { color: #78938b; font: 9px/1.3 "SFMono-Regular", Consolas, monospace; overflow-wrap: anywhere; }
+.capstone-result-reason { margin: 0; color: #976e3f; }
+.capstone-result-metrics { display: flex; flex-wrap: wrap; gap: 6px; }
+.capstone-result-metrics > div { display: grid; gap: 1px; min-width: 100px; padding: 5px 7px; border: 1px solid #e0ece6; border-radius: 6px; background: #fff; }
+.capstone-result-metrics span { color: #829a93; }
+.capstone-result-metrics strong { color: #2d665c; font-size: 11px; }
+.capstone-result-table-wrap { min-width: 0; }
+.capstone-result-table-title { margin-bottom: 4px; color: #4a776e; font-weight: 700; }
+.capstone-result-table-scroll { max-width: 100%; overflow-x: auto; }
+.capstone-result-table-scroll table { width: 100%; min-width: 360px; border-collapse: collapse; font-size: 10px; }
+.capstone-result-table-scroll th, .capstone-result-table-scroll td { padding: 5px 6px; border: 1px solid #dfeae5; text-align: left; white-space: nowrap; }
+.capstone-result-table-scroll th { background: #f3f9f6; color: #52766e; font-weight: 700; }
+.capstone-result-element { padding: 0; border: 0; border-bottom: 1px dashed #4c9d8c; background: transparent; color: #237d70; font: inherit; cursor: pointer; }
+.capstone-result-element:hover, .capstone-result-element:focus-visible { color: #145b52; border-bottom-style: solid; outline: none; }
 
 /* Thread-native registered Case controls. Keep the projection compact beside
    conversation and expose internal identities only inside the opt-in detail panel. */

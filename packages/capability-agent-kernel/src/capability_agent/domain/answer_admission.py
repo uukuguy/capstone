@@ -19,6 +19,8 @@ class AnswerAdmissionInput:
     evidence_refs: tuple[str, ...]
     guide_reads: tuple[tuple[str, str], ...] = ()
     authority_attempted: bool = False
+    observed_capabilities: tuple[str, ...] = ()
+    failed_capabilities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

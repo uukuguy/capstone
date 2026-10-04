@@ -34,4 +34,4 @@ def test_grid_hosted_worker_delegates_factory_to_capstone_host(monkeypatch) -> N
     )
 
     assert hosted_worker.main() == 37
-    assert seen == [hosted_worker.build_registered_pandapower_thread_application]
+    assert seen == [hosted_worker.build_worker_application]

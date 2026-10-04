@@ -7,11 +7,12 @@ export type ModelContextSnapshot = {
   id: string; modelId: string; modelRevision: string; implementationFamily: string; selectionRevision: string
   enabledProfiles: Array<{ profileId: string; profileVersion: string }>
 }
+export type ModelContextChangeReason = 'explicit_reopen'
 export type ProfileReference = { profileId: string; profileVersion: string }
 export type PendingSelectionSnapshot = { commandId: string; enabledProfiles: ProfileReference[] }
 export type PendingModelSwitchSnapshot = {
   commandId: string; modelId: string; modelRevision: string; implementationFamily: string
-  enabledProfiles: ProfileReference[]
+  enabledProfiles: ProfileReference[]; reason?: ModelContextChangeReason; freshContextReason?: string
 }
 export type AttemptSnapshot = {
   turnId: string; attemptId: string; phase: AttemptPhase; targetModelContextId: string
@@ -102,6 +103,7 @@ export class ThreadProtocolError extends Error {
 }
 
 const identifierPattern = /^[a-z][a-z0-9_-]{0,63}$/
+const resultModelIdentifierPattern = /^[a-z][a-z0-9_.:/-]{0,127}$/
 const runStates = new Set<RunState>(['created', 'open', 'closing', 'closed', 'failed'])
 const attemptPhases = new Set<AttemptPhase>([
   'created', 'accepted', 'running', 'waiting', 'committing',
@@ -122,9 +124,10 @@ const caseActionMatrix: Record<CaseExecutionSnapshot['status'], readonly CaseAct
 }
 const resultProjectionStatuses = new Set<ResultProjection['status']>(['completed', 'partial', 'unavailable'])
 const resultProjectionSeverities = new Set<ResultMetric['severity']>(['info', 'warning', 'error'])
-const resultRefPattern = /^(result|evidence|revision):sha256:[0-9a-f]{64}$/
+const resultRefPattern = /^(?:[a-z][a-z0-9_-]{0,31}-)?(result|evidence|revision):sha256:[0-9a-f]{64}$/
 const maxResultSummary = 32
 const maxResultTables = 12
+const maxResultProjections = 64
 const maxResultColumns = 32
 const maxResultRows = 128
 const maxResultElements = 128
@@ -151,6 +154,12 @@ function required(value: Record<string, unknown>, keys: readonly string[], name:
 function identifier(value: unknown, name: string): string {
   if (typeof value !== 'string' || !identifierPattern.test(value)) throw new ThreadProtocolError(`${name} is invalid`)
   return value
+}
+
+function resultModelIdentifier(value: unknown, name: string): string {
+  const result = resultText(value, name)
+  if (!resultModelIdentifierPattern.test(result)) throw new ThreadProtocolError(`${name} is invalid`)
+  return result
 }
 
 function text(value: unknown, name: string): string {
@@ -201,6 +210,12 @@ function resultIdentifier(value: unknown, name: string): string {
   return result
 }
 
+function resultElementIdentifier(value: unknown, name: string): string {
+  const result = resultText(value, name)
+  if ([...result].some((character) => character.charCodeAt(0) < 0x20)) throw new ThreadProtocolError(`${name} is invalid`)
+  return result
+}
+
 function resultRef(value: unknown, name: string, kind?: string): string {
   const result = resultText(value, name)
   const match = result.match(resultRefPattern)
@@ -221,7 +236,7 @@ function parseResultElementRef(value: unknown, name: string): ResultElementRef {
   const document = object(value, name)
   fields(document, new Set(['element_kind', 'element_id']), name)
   required(document, ['element_kind', 'element_id'], name)
-  return { elementKind: resultIdentifier(document.element_kind, `${name}.element_kind`), elementId: resultIdentifier(document.element_id, `${name}.element_id`) }
+  return { elementKind: resultIdentifier(document.element_kind, `${name}.element_kind`), elementId: resultElementIdentifier(document.element_id, `${name}.element_id`) }
 }
 
 function parseResultProjection(value: unknown): ResultProjection {
@@ -238,6 +253,7 @@ function parseResultProjection(value: unknown): ResultProjection {
   if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxResultElements) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
   const evidenceRefs = document.evidence_refs.map((item, index) => resultRef(item, `result projection.evidence_refs[${index}]`, 'evidence'))
   const resultReference = document.result_ref == null ? undefined : resultRef(document.result_ref, 'result projection.result_ref', 'result')
+  if ((status === 'completed' || status === 'partial') && (!resultReference || evidenceRefs.length === 0)) throw new ThreadProtocolError('available result projection requires result and evidence references')
   if (!Array.isArray(document.summary) || document.summary.length > maxResultSummary) throw new ThreadProtocolError('result projection.summary is invalid')
   const summary = document.summary.map((entry, index) => {
     const item = object(entry, `result projection.summary[${index}]`)
@@ -269,7 +285,7 @@ function parseResultProjection(value: unknown): ResultProjection {
       const cells = object(row.cells, 'result row.cells')
       if (Object.keys(cells).some((key) => !columnIds.has(key))) throw new ThreadProtocolError('result row contains an unknown column')
       const normalizedCells = Object.fromEntries(Object.entries(cells).map(([key, cell]) => [key, resultScalar(cell, `result row.cells.${key}`)]))
-      return { rowId: resultIdentifier(row.row_id, 'result row.row_id'), cells: normalizedCells, ...(row.element_ref == null ? {} : { elementRef: parseResultElementRef(row.element_ref, 'result row.element_ref') }) }
+      return { rowId: resultElementIdentifier(row.row_id, 'result row.row_id'), cells: normalizedCells, ...(row.element_ref == null ? {} : { elementRef: parseResultElementRef(row.element_ref, 'result row.element_ref') }) }
     })
     if (new Set(rows.map((row) => row.rowId)).size !== rows.length) throw new ThreadProtocolError('result projection table rows contain duplicates')
     return { tableId: resultIdentifier(item.table_id, 'result table.table_id'), title: resultText(item.title, 'result table.title'), columns, rows }
@@ -289,19 +305,19 @@ function parseResultProjection(value: unknown): ResultProjection {
       fields(item, new Set(['element_id', 'value']), `result projection.overlay.values[${index}]`)
       required(item, ['element_id', 'value'], `result projection.overlay.values[${index}]`)
       if (typeof item.value !== 'number' || !Number.isFinite(item.value)) throw new ThreadProtocolError('result projection.overlay value is invalid')
-      return { elementId: resultIdentifier(item.element_id, 'result overlay element_id'), value: item.value }
+      return { elementId: resultElementIdentifier(item.element_id, 'result overlay element_id'), value: item.value }
     })
     if (new Set(values.map((entry) => entry.elementId)).size !== values.length) throw new ThreadProtocolError('result projection.overlay values contain duplicates')
     overlay = { metric: resultIdentifier(raw.metric, 'result overlay.metric'), unit: resultText(raw.unit, 'result overlay.unit'), sourceRef: resultRef(raw.source_ref, 'result overlay.source_ref', 'result'), values }
   }
   const reason = document.unavailable_reason == null ? undefined : resultText(document.unavailable_reason, 'result projection.unavailable_reason')
   if (status === 'unavailable' && (!reason || summary.length || tables.length || elementRefs.length || overlay)) throw new ThreadProtocolError('unavailable result projection is inconsistent')
-  if (status !== 'unavailable' && reason) throw new ThreadProtocolError('available result projection cannot have an unavailable reason')
+  if (status === 'completed' && reason) throw new ThreadProtocolError('completed result projection cannot have an unavailable reason')
   return {
     resultId: resultIdentifier(document.result_id, 'result projection.result_id'), resultRef: resultReference, evidenceRefs,
     threadId: identifier(document.thread_id, 'result projection.thread_id'), runId: identifier(document.run_id, 'result projection.run_id'),
     turnId: identifier(document.turn_id, 'result projection.turn_id'), attemptId: identifier(document.attempt_id, 'result projection.attempt_id'),
-    modelContextId: identifier(document.model_context_id, 'result projection.model_context_id'), modelId: identifier(document.model_id, 'result projection.model_id'),
+    modelContextId: identifier(document.model_context_id, 'result projection.model_context_id'), modelId: resultModelIdentifier(document.model_id, 'result projection.model_id'),
     modelRevision: resultRef(document.model_revision, 'result projection.model_revision', 'revision'),
     source: { capabilityId: resultIdentifier(source.capability_id, 'result source.capability_id'), domainPackId: resultIdentifier(source.domain_pack_id, 'result source.domain_pack_id'), implementationFamily: resultIdentifier(source.implementation_family, 'result source.implementation_family') },
     status, summary, tables, elementRefs, ...(overlay ? { overlay } : {}), ...(reason ? { unavailableReason: reason } : {}),
@@ -412,14 +428,20 @@ function parsePendingSelection(value: unknown): PendingSelectionSnapshot {
 
 function parsePendingModelSwitch(value: unknown): PendingModelSwitchSnapshot {
   const document = object(value, 'pending_model_switch')
-  fields(document, new Set(['command_id', 'model_id', 'model_revision', 'implementation_family', 'selection']), 'pending_model_switch')
+  fields(document, new Set(['command_id', 'model_id', 'model_revision', 'implementation_family', 'selection', 'reason', 'fresh_context_reason']), 'pending_model_switch')
   required(document, ['command_id', 'model_id', 'model_revision', 'implementation_family', 'selection'], 'pending_model_switch')
+  const reason = document.reason === undefined ? undefined : (() => {
+    if (document.reason !== 'explicit_reopen') throw new ThreadProtocolError('pending_model_switch.reason is invalid')
+    return 'explicit_reopen' as const
+  })()
   return {
     commandId: identifier(document.command_id, 'pending_model_switch.command_id'),
     modelId: identifier(document.model_id, 'pending_model_switch.model_id'),
     modelRevision: text(document.model_revision, 'pending_model_switch.model_revision'),
     implementationFamily: identifier(document.implementation_family, 'pending_model_switch.implementation_family'),
     enabledProfiles: parseEnabledProfiles(document.selection),
+    ...(reason ? { reason } : {}),
+    ...(document.fresh_context_reason === undefined ? {} : { freshContextReason: text(document.fresh_context_reason, 'pending_model_switch.fresh_context_reason') }),
   }
 }
 
@@ -489,6 +511,8 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
       model_id: snapshot.pendingModelSwitch.modelId,
       model_revision: snapshot.pendingModelSwitch.modelRevision,
       implementation_family: snapshot.pendingModelSwitch.implementationFamily,
+      ...(snapshot.pendingModelSwitch.reason ? { reason: snapshot.pendingModelSwitch.reason } : {}),
+      ...(snapshot.pendingModelSwitch.freshContextReason ? { fresh_context_reason: snapshot.pendingModelSwitch.freshContextReason } : {}),
       selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: snapshot.pendingModelSwitch.enabledProfiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) },
     } } : {}),
   }
@@ -503,6 +527,8 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
   if (baseEventSeq > lastEventSeq) throw new ThreadProtocolError('snapshot base_event_seq exceeds last_event_seq')
+  const threadId = identifier(document.thread_id, 'snapshot.thread_id')
+  const run = parseRun(document.run)
   const activeModelContext = parseContext(document.active_model_context)
   const currentAttempt = document.current_attempt === null ? null : parseAttempt(document.current_attempt)
   if (currentAttempt && currentAttempt.targetModelContextId !== activeModelContext.id) {
@@ -517,12 +543,16 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     applicationState = { caseExecution: parseCaseExecution(app.case_execution) }
   }
   const resultProjections = document.result_projections === undefined ? undefined : (() => {
-    if (!Array.isArray(document.result_projections) || document.result_projections.length > maxResultTables) throw new ThreadProtocolError('snapshot.result_projections is invalid')
-    return document.result_projections.map(parseResultProjection)
+    if (!Array.isArray(document.result_projections) || document.result_projections.length > maxResultProjections) throw new ThreadProtocolError('snapshot.result_projections is invalid')
+    const projections = document.result_projections.map(parseResultProjection)
+    if (projections.some((projection) => projection.threadId !== threadId || projection.runId !== run.runId)) {
+      throw new ThreadProtocolError('snapshot.result_projections identity does not match snapshot')
+    }
+    return projections
   })()
   const snapshot = {
-    threadId: identifier(document.thread_id, 'snapshot.thread_id'),
-    run: parseRun(document.run),
+    threadId,
+    run,
     activeModelContext,
     activeGridPageId: identifier(document.active_grid_page_id, 'snapshot.active_grid_page_id'),
     currentAttempt,
@@ -564,11 +594,19 @@ export function parseEventEnvelope(value: unknown): EventEnvelope {
   required(document, ['event_id', 'event_seq', 'event_type', 'event_version', 'thread_id', 'run_id', 'occurred_at', 'visibility', 'payload'], 'event')
   if (!Number.isSafeInteger(document.event_version) || (document.event_version as number) < 1) throw new ThreadProtocolError('event.event_version is invalid')
   if (document.visibility !== 'public' && document.visibility !== 'diagnostic') throw new ThreadProtocolError('event.visibility is invalid')
+  const eventType = text(document.event_type, 'event.event_type')
   const payload = object(document.payload, 'event.payload')
   jsonValue(payload, 'event.payload')
+  if (
+    (eventType === 'model_context_activated' || eventType === 'model_context_reopened' || eventType === 'model_context_change_pending')
+    && payload.reason !== undefined
+    && payload.reason !== 'explicit_reopen'
+  ) {
+    throw new ThreadProtocolError('event.payload.reason is invalid')
+  }
   return {
     eventId: identifier(document.event_id, 'event.event_id'), eventSeq: sequence(document.event_seq, 'event.event_seq'),
-    eventType: text(document.event_type, 'event.event_type'), eventVersion: document.event_version as number,
+    eventType, eventVersion: document.event_version as number,
     threadId: identifier(document.thread_id, 'event.thread_id'), runId: identifier(document.run_id, 'event.run_id'),
     turnId: optionalIdentifier(document.turn_id, 'event.turn_id'), attemptId: optionalIdentifier(document.attempt_id, 'event.attempt_id'),
     modelContextId: optionalIdentifier(document.model_context_id, 'event.model_context_id'),

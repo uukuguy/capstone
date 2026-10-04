@@ -4,6 +4,8 @@ This file is the repository-wide instruction source for coding agents. Keep
 `CLAUDE.md` as a relative symbolic link to `AGENTS.md` so Codex and Claude Code
 read the same rules.
 
+For displaying logs and content output, please use the ASD-STE100 specification, or meet 80% of the ASD-STE100 specification.
+
 ## Product and Architecture
 
 Capstone Agent Framework builds evidence-backed applications over registered

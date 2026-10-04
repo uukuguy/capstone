@@ -209,6 +209,32 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
     ]
 
 
+def test_postgres_family_filter_claims_only_matching_threads(
+    postgres_thread_service: tuple[PostgresThreadService, str],
+) -> None:
+    service, thread_id = postgres_thread_service
+    pypsa_id = thread_id + "_pypsa"
+    pypsa_snapshot = _snapshot(pypsa_id).to_document()
+    pypsa_snapshot["active_model_context"]["implementation_family"] = "pypsa"
+    pypsa_snapshot["active_model_context"]["model_id"] = "pypsa39"
+    pypsa_snapshot["active_model_context"]["id"] = "ctx_pypsa39"
+    pypsa_snapshot["run"]["run_id"] = "run_pypsa_001"
+    pypsa_snapshot["active_grid_page_id"] = "page_pypsa39"
+    try:
+        with psycopg.connect(service.dsn) as connection:
+            connection.execute("DELETE FROM capstone_threads WHERE thread_id = %s", (pypsa_id,))
+        service.create_thread(_snapshot(thread_id))
+        service.create_thread(ThreadSnapshot.from_document(pypsa_snapshot))
+        service.submit_command(_command(thread_id))
+        pypsa_command = {**_command(pypsa_id), "run_id": "run_pypsa_001", "command_id": "cmd_pypsa_001", "idempotency_key": "idem_pypsa_001"}
+        service.submit_command(pypsa_command)
+        assert service.claim_attempt("pypsa-worker", 30, implementation_family="pypsa").thread_id == pypsa_id
+        assert service.claim_attempt("grid-worker", 30, implementation_family="pandapower").thread_id == thread_id
+    finally:
+        with psycopg.connect(service.dsn) as connection:
+            connection.execute("DELETE FROM capstone_threads WHERE thread_id = %s", (pypsa_id,))
+
+
 def test_postgres_thread_store_interrupts_expired_attempt(
     postgres_thread_service: tuple[PostgresThreadService, str],
 ) -> None:

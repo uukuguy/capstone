@@ -507,6 +507,9 @@ class PandapowerArtifactAuthority:
     def verify_result(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_result(reference)
 
+    def verify_context(self, reference: str) -> VerifiedArtifact:
+        return self._verifier.verify_context(reference)
+
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)
 

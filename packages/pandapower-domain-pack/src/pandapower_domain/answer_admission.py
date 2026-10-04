@@ -34,6 +34,13 @@ class PandapowerAnswerAdmissionPolicy:
                 answer_output=request.answer_output,
                 diagnostic_codes=("current_run_lineage_verified",),
             )
+        if _is_read_only_model_observation(request):
+            return AnswerAdmissionDecision(
+                mode="offline_information",
+                assurance="deterministic_information",
+                answer_output=request.answer_output,
+                diagnostic_codes=("current_model_observation_verified",),
+            )
         if request.guide_reads and not request.authority_attempted:
             verified = self._verified_guide_reads(request.guide_reads)
             if verified:
@@ -72,6 +79,19 @@ class PandapowerAnswerAdmissionPolicy:
         prefix = "guide:"
         resource_id = question.removeprefix(prefix).strip() if question.startswith(prefix) else _concept_resource_id(question)
         return self._guides.get(resource_id)
+
+
+_READ_ONLY_MODEL_CAPABILITIES = frozenset({
+    "environment.describe",
+    "model.list", "model.creator.list", "model.creator.describe",
+    "context.open", "context.get", "model.dataset.list",
+    "model.dataset.describe", "model.dataset.query", "model.element.get",
+})
+
+
+def _is_read_only_model_observation(request: AnswerAdmissionInput) -> bool:
+    capabilities = frozenset(request.observed_capabilities)
+    return bool(capabilities) and not request.failed_capabilities and capabilities <= _READ_ONLY_MODEL_CAPABILITIES
 
 
 class PandapowerAnswerAdmissionPolicyFactory:

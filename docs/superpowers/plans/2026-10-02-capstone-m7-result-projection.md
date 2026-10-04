@@ -35,11 +35,11 @@
 - `ThreadSnapshot` exposes `result_projections` under the public snapshot projection; raw application state remains private.
 - TypeScript exports `ResultProjection`, `ResultMetric`, `ResultTable`, `ResultElementRef`, `ResultOverlay`, and `parseResultProjection`.
 
-- [ ] **Step 1: Write failing Python contract tests** for valid summary/table/element data, unadmitted refs, wrong revision, NaN/Infinity, unknown element ids, and list/row limits.
-- [ ] **Step 2: Implement the bounded Python records and normalizer.** Use explicit scalar checks, finite-number checks, ref-prefix checks, and fixed maximums. Do not accept arbitrary nested JSON in metric values or table cells.
-- [ ] **Step 3: Add the projection field to the public Thread snapshot.** Parse and re-emit only normalized projections; preserve snapshots without projections for ordinary/offline answers.
-- [ ] **Step 4: Mirror the same limits in TypeScript** and make malformed projections produce the existing typed protocol error rather than a render crash.
-- [ ] **Step 5: Run focused checks.**
+- [x] **Step 1: Write failing Python contract tests** for valid summary/table/element data, unadmitted refs, wrong revision, NaN/Infinity, unknown element ids, and list/row limits.
+- [x] **Step 2: Implement the bounded Python records and normalizer.** Use explicit scalar checks, finite-number checks, ref-prefix checks, and fixed maximums. Do not accept arbitrary nested JSON in metric values or table cells.
+- [x] **Step 3: Add the projection field to the public Thread snapshot.** Parse and re-emit only normalized projections; preserve snapshots without projections for ordinary/offline answers.
+- [x] **Step 4: Mirror the same limits in TypeScript** and make malformed projections produce the existing typed protocol error rather than a render crash.
+- [x] **Step 5: Run focused checks.**
 
 ```sh
 cd packages/capstone-agent
@@ -64,11 +64,11 @@ npm test -- --run src/resultProjection.test.ts
 - The projector consumes domain state and admitted result/evidence references only; it never imports `capstone-agent`, receives a raw network object, or exposes an artifact path for browser use.
 - The first supported capability is `analysis.powerflow.ac.run`; non-converged or unsupported capabilities return an unavailable/partial projection with a typed reason.
 
-- [ ] **Step 1: Add failing projector tests** for a converged AC power flow with total active loss, network counts, one structured line-result table, one line `ElementRef`, and a loading overlay. Add rejection tests for a revision mismatch, missing evidence, and non-finite result.
-- [ ] **Step 2: Implement projector mapping** from existing `CalculationState`/presentation fields. Keep labels and units domain-owned. Use only result rows whose ids exist in the registered `NetworkDiagram`.
-- [ ] **Step 3: Attach the projection during completed-answer admission** so it is persisted with the immutable Attempt/Turn outcome and reappears after snapshot reload/resync.
-- [ ] **Step 4: Add a PyPSA-compatible projector protocol fixture** without inventing PyPSA values. A missing PyPSA projector must produce a typed unavailable state.
-- [ ] **Step 5: Run focused domain and worker checks.**
+- [x] **Step 1: Add failing projector tests** for a converged AC power flow with total active loss, network counts, one structured line-result table, one line `ElementRef`, and a loading overlay. Add rejection tests for a revision mismatch, missing evidence, and non-finite result.
+- [x] **Step 2: Implement projector mapping** from existing `CalculationState`/presentation fields. Keep labels and units domain-owned. Use only result rows whose ids exist in the registered `NetworkDiagram`.
+- [x] **Step 3: Attach the projection during completed-answer admission** so it is persisted with the immutable Attempt/Turn outcome and reappears after snapshot reload/resync.
+- [x] **Step 4: Add a PyPSA-compatible projector protocol fixture** without inventing PyPSA values. A missing PyPSA projector must produce a typed unavailable state.
+- [x] **Step 5: Run focused domain and worker checks.**
 
 ```sh
 cd packages/pandapower-domain-pack
@@ -92,10 +92,10 @@ uv run pytest -q tests/test_result_projection.py tests/test_thread_protocol.py t
 - `ThreadService` rebuilds projections from durable snapshot/event state after reconnect; no browser-only cache is authoritative.
 - A detail route is optional in the first implementation; if the bounded snapshot fits the existing limit, do not add a second endpoint.
 
-- [ ] **Step 1: Write an integration test** that submits an admitted result, reads the public snapshot, serializes/deserializes it, and confirms projection identity, refs, revision, table rows, and element refs survive.
-- [ ] **Step 2: Add retry and historical assertions.** A retry creates a new projection identity; the previous projection remains attached to its old Attempt. A historical snapshot cannot mutate active model focus.
-- [ ] **Step 3: Add resync and malformed-state tests.** Invalid projection data becomes a typed unavailable projection or protocol rejection according to the existing Thread recovery policy; it must not silently disappear.
-- [ ] **Step 4: Run the focused server suite** and check `git diff --check`.
+- [x] **Step 1: Write an integration test** that submits an admitted result, reads the public snapshot, serializes/deserializes it, and confirms projection identity, refs, revision, table rows, and element refs survive.
+- [x] **Step 2: Add retry and historical assertions.** A retry creates a new projection identity; the previous projection remains attached to its old Attempt. A historical snapshot cannot mutate active model focus.
+- [x] **Step 3: Add resync and malformed-state tests.** Invalid projection data becomes a typed unavailable projection or protocol rejection according to the existing Thread recovery policy; it must not silently disappear.
+- [x] **Step 4: Run the focused server suite** and check `git diff --check`.
 
 ```sh
 cd packages/capstone-agent
@@ -123,12 +123,12 @@ git diff --check
 - `ThreadFixtureApp` owns the shared presentation focus and passes `elementReference` into `ThreadModelPane`.
 - The assistant action row keeps fixed `结果`/`证据`/`更多` slots. Result is enabled only for a matching admitted projection; future actions remain disabled with a reason.
 
-- [ ] **Step 1: Write failing component tests** for compact metrics, a readable table, disabled/unavailable states, result action opening the panel, and row selection calling the focus callback.
-- [ ] **Step 2: Implement `ResultProjectionPanel`** with loading/unavailable/stale/resync states, scalar formatting, bounded table rendering, and no long hashes in primary content.
-- [ ] **Step 3: Add assistant-message result action wiring.** Use the Attempt id to select the matching projection; keep evidence action behavior unchanged and preserve the existing duration/activity controls.
-- [ ] **Step 4: Add shared focus state wiring.** Validate model id and revision before writing focus; show the existing compact element reference area and a visible invalid-focus message when validation fails.
-- [ ] **Step 5: Add overlay rendering** only for ids present in the current diagram and matching revision. Do not alter diagram source or active model context.
-- [ ] **Step 6: Run the focused App tests and build.**
+- [x] **Step 1: Write failing component tests** for compact metrics, a readable table, disabled/unavailable states, result action opening the panel, and row selection calling the focus callback.
+- [x] **Step 2: Implement `ResultProjectionPanel`** with loading/unavailable/stale/resync states, scalar formatting, bounded table rendering, and no long hashes in primary content.
+- [x] **Step 3: Add assistant-message result action wiring.** Use the Attempt id to select the matching projection; keep evidence action behavior unchanged and preserve the existing duration/activity controls.
+- [x] **Step 4: Add shared focus state wiring.** Validate model id and revision before writing focus; show the existing compact element reference area and a visible invalid-focus message when validation fails.
+- [x] **Step 5: Add overlay rendering** only for ids present in the current diagram and matching revision. Do not alter diagram source or active model context.
+- [x] **Step 6: Run the focused App tests and build.**
 
 ```sh
 cd packages/capstone-app
@@ -146,10 +146,10 @@ npm run build
 - Append: `docs/status/JOURNAL.md`
 - Create: `packages/capstone-agent/tests/test_m7_result_projection_boundary.py` only if one cross-package boundary assertion is still missing
 
-- [ ] **Step 1: Run the compact integration matrix** covering one pandapower answer, result rendering, row-to-diagram focus, retry identity, and resync. Use existing fixtures and no provider credentials.
-- [ ] **Step 2: Review the diff for ownership leaks** into `grid-agent`/`pypsa-agent`, raw artifact exposure, prose parsing, and revision-less focus.
-- [ ] **Step 3: Run `git diff --check` and the focused Python/App suites.** Do not run release/provider gates for this demo-stage milestone.
-- [ ] **Step 4: Record the M7 result and any deferred gaps** in the status files and append-only journal.
+- [x] **Step 1: Run the compact integration matrix** covering one pandapower answer, result rendering, row-to-diagram focus, retry identity, and resync. Use existing fixtures and no provider credentials.
+- [x] **Step 2: Review the diff for ownership leaks** into `grid-agent`/`pypsa-agent`, raw artifact exposure, prose parsing, and revision-less focus.
+- [x] **Step 3: Run `git diff --check` and the focused Python/App suites.** Do not run release/provider gates for this demo-stage milestone.
+- [x] **Step 4: Record the M7 result and any deferred gaps** in the status files and append-only journal.
 - [ ] **Step 5: Commit** `docs: close M7 result projection verification`.
 
 ## Verification Summary

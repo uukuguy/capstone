@@ -4,7 +4,7 @@ x-host-environment: &host-environment
   DATABASE_URL: postgresql://capstone:${POSTGRES_PASSWORD:?Set deploy/local.env}@postgres:5432/capstone
   CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Set deploy/local.env}
   CAPSTONE_PUBLIC_DEMO: ${CAPSTONE_PUBLIC_DEMO:-true}
-  CAPSTONE_HOSTED_APPLICATION: ${CAPSTONE_HOSTED_APPLICATION:-pandapower}
+  CAPSTONE_HOSTED_APPLICATION: ${CAPSTONE_HOSTED_APPLICATION:-capstone}
   CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:?Set deploy/local.env}
   CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:?Set deploy/local.env}
   CAPSTONE_ENABLE_NETWORK_STEP_LINK: ${CAPSTONE_ENABLE_NETWORK_STEP_LINK:-false}
@@ -12,6 +12,8 @@ x-host-environment: &host-environment
   CAPSTONE_SESSION_IDLE_SECONDS: ${CAPSTONE_SESSION_IDLE_SECONDS:-600}
   CAPSTONE_WORKER_MAX_SESSIONS: ${CAPSTONE_WORKER_MAX_SESSIONS:-8}
   CAPSTONE_WORKER_WAKE_URL: http://worker:8766
+  CAPSTONE_FAMILY_HEALTH_URLS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
+  CAPSTONE_FEDERATED_CATALOG_CONTEXT: ${CAPSTONE_FEDERATED_CATALOG_CONTEXT:-true}
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
   CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
   CAPSTONE_ARTIFACT_BACKEND: s3
@@ -76,6 +78,15 @@ services:
   api:
     <<: *host-service
     command: [api]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      objects-init:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy
+      worker-pypsa:
+        condition: service_healthy
     ports:
       - 127.0.0.1:${CAPSTONE_API_PORT:-8767}:8766
     healthcheck:
@@ -86,6 +97,24 @@ services:
 
   worker:
     <<: *host-service
+    environment:
+      <<: *host-environment
+      CAPSTONE_HOSTED_APPLICATION: pandapower
+      CAPSTONE_THREAD_FAMILY: pandapower
+    command: [worker]
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker-pypsa:
+    <<: *host-service
+    environment:
+      <<: *host-environment
+      CAPSTONE_HOSTED_APPLICATION: pypsa
+      CAPSTONE_THREAD_FAMILY: pypsa
+      CAPSTONE_WORKER_WAKE_URL: http://worker-pypsa:8766
     command: [worker]
     healthcheck:
       test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]

@@ -33,6 +33,8 @@
 | [Web Thread UI primary contract](../superpowers/specs/2026-10-01-capstone-thread-web-ui-main-contract.md) | Approved Web conversation contract: typography density, assistant-ui structure, Markdown answers, activity summaries, Composer behavior, and visual acceptance gates. |
 | [M6 Harness and Case design](../superpowers/specs/2026-10-02-capstone-m6-harness-case-design.md) | Approved Harness ownership, sequential Case execution, recovery, and public projection boundaries. |
 | [M6 Harness and Case implementation plan](../superpowers/plans/2026-10-02-capstone-m6-harness-case.md) | Task-by-task implementation and verification plan; the lightweight Task 9 boundary closeout is recorded in the current-state and resume documents. |
+| [M9 PyPSA result/Web projection](../superpowers/plans/2026-10-04-capstone-m9-pypsa-result-web.md) | PyPSA power-operation result projection into the shared Thread/Web contract; topology-specific presentation remains deferred. |
+| [M10 PyPSA topology provider](../superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider.md) | Registered-model topology projection into the unified Thread model pane. |
 
 ## Climb storage and configuration
 

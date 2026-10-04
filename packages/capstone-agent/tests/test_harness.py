@@ -348,6 +348,46 @@ def test_application_admission_is_persisted_before_professional_completion() -> 
     assert terminal.payload["answer"] == "validated answer"
 
 
+def test_professional_model_observation_admission_is_accepted_without_evidence() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_observation",
+        "idempotency_key": "idem_harness_observation", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_auto", "expected_event_seq": 0,
+        "payload": {"text": "IEEE-39 有哪些母线和线路?"},
+    })
+
+    class _ObservationSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            del question
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            for capability in ("context.open", "model.dataset.query"):
+                callback({
+                    "type": "tool_result", "toolCallId": capability,
+                    "toolName": "grid_" + capability.replace(".", "_"),
+                    "capability": capability, "ok": True,
+                })
+            return "IEEE-39 包含 39 条母线和 46 条线路。"
+
+        def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
+            del claim, result_refs, evidence_refs, tool_events
+            return AdmittedAttemptAnswer(
+                answer, "offline_information", "deterministic_information",
+                diagnostic_codes=("current_model_observation_verified",),
+            )
+
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    session = _ObservationSession()
+    result = HarnessAttemptRunner(
+        service, HarnessPiClient(session, admission=session.admit_attempt),
+    ).run(claim)
+
+    assert result.status == "completed"
+    assert result.error_code is None
+
+
 def test_application_admission_persists_bounded_result_projection() -> None:
     service = _thread_service()
     service.submit_command({

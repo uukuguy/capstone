@@ -80,6 +80,57 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.catalog).toEqual({ models: [], profiles: [] })
   })
 
+  it('restores public history from the snapshot cursor when a Thread is reloaded', async () => {
+    const fixture = {
+      ...idleFixture,
+      snapshot: { ...idleFixture.snapshot, last_event_seq: 1 },
+      events: {
+        ...idleFixture.events,
+        next_event_seq: 1,
+        events: [{
+          event_id: 'evt_1', event_seq: 1, event_type: 'assistant_text_delta', event_version: 1,
+          thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-09-30T00:00:01Z',
+          visibility: 'public', payload: { text: '历史回答' },
+        }],
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+
+    await store.load('thr_demo_39')
+    expect(store.publicEvents.map((event) => event.eventSeq)).toEqual([1])
+    await store.load('thr_demo_39')
+
+    expect(store.publicEvents.map((event) => event.payload.text)).toEqual(['历史回答'])
+  })
+
+  it('restores the captured cursor when the history page also contains a later event', async () => {
+    const laterEventTransport: ThreadTransport = {
+      getSnapshot: vi.fn().mockResolvedValue({ ...idleFixture.snapshot, last_event_seq: 1 }),
+      readEvents: vi.fn().mockResolvedValue({
+        ...idleFixture.events,
+        next_event_seq: 2,
+        events: [
+          {
+            event_id: 'evt_1', event_seq: 1, event_type: 'assistant_text_delta', event_version: 1,
+            thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-09-30T00:00:01Z',
+            visibility: 'public', payload: { text: '已捕获' },
+          },
+          {
+            event_id: 'evt_2', event_seq: 2, event_type: 'assistant_text_delta', event_version: 1,
+            thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-09-30T00:00:02Z',
+            visibility: 'public', payload: { text: '快照之后追加' },
+          },
+        ],
+      }),
+      sendCommand: vi.fn(),
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(laterEventTransport))
+
+    await expect(store.load('thr_demo_39')).resolves.toBeUndefined()
+    expect(store.state.eventSeq).toBe(1)
+    expect(store.publicEvents.map((event) => event.payload.text)).toEqual(['已捕获'])
+  })
+
   it('catches up contiguously without changing the local historical page', async () => {
     const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(historicalFixture)))
     await store.load('thr_demo_39')
@@ -178,6 +229,34 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
   })
 
+  it('adopts admitted result projections from a completed Attempt event', async () => {
+    const projection = {
+      schema: 'capstone-result-projection/1.0', result_id: 'result_projection_1',
+      result_ref: `result:sha256:${'a'.repeat(64)}`, evidence_refs: [`evidence:sha256:${'b'.repeat(64)}`],
+      thread_id: 'thr_demo_39', run_id: 'run_001', turn_id: 'turn_1', attempt_id: 'attempt_1',
+      model_context_id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`,
+      source: { capability_id: 'analysis.powerflow.ac.run', domain_pack_id: 'pandapower-static-analysis', implementation_family: 'pandapower' },
+      status: 'completed', summary: [], tables: [], element_refs: [], overlay: null,
+    }
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'attempt_completed', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
+          payload: { result_projections: [projection] },
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+
+    expect(store.state.snapshot?.resultProjections?.map((item) => item.resultId)).toEqual(['result_projection_1'])
+  })
+
   it('records public events and notifies the workspace projection subscriber', async () => {
     const streamTransport: ThreadTransport = {
       ...createFixtureTransport(idleFixture),
@@ -229,11 +308,12 @@ describe('ThreadProjectionStore', () => {
           occurredAt: '2026-09-30T00:00:02Z', visibility: 'public' as const,
           payload: {
             command_id: 'cmd_switch', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
-            implementation_family: 'pypsa', selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
+            implementation_family: 'pypsa', reason: 'explicit_reopen',
+            selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
           },
         }
         yield {
-          eventId: 'evt_3', eventSeq: 3, eventType: 'model_context_activated', eventVersion: 1,
+          eventId: 'evt_3', eventSeq: 3, eventType: 'model_context_reopened', eventVersion: 1,
           threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_pypsa39_1', selectionRevision: 'sel_0',
           occurredAt: '2026-09-30T00:00:03Z', visibility: 'public' as const,
           payload: {
@@ -241,6 +321,7 @@ describe('ThreadProjectionStore', () => {
               id: 'ctx_pypsa39_1', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
               implementation_family: 'pypsa', selection_revision: 'sel_0',
             }, active_grid_page_id: 'page_pypsa39',
+            reason: 'explicit_reopen',
           },
         }
       },
@@ -253,5 +334,7 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.snapshot?.activeGridPageId).toBe('page_pypsa39')
     expect(store.state.viewedGridPageId).toBe('page_pypsa39')
     expect(store.state.snapshot?.pendingModelSwitch).toBeUndefined()
+    expect(store.publicEvents.find((event) => event.eventType === 'model_context_reopened')?.payload.reason)
+      .toBe('explicit_reopen')
   })
 })

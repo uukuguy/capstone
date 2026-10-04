@@ -17,10 +17,14 @@ from uuid import uuid4
 
 from capability_agent.application.profile import DomainBinding
 from capability_agent.application.reference_handoff import (
-    ReferenceHandoffReceipt, resolve_handoff_receipt,
+    ReferenceHandoffReceipt,
+    resolve_handoff_receipt,
 )
 from capability_agent.domain import DomainManifest, DomainRuntimeProfile
-from capability_agent.domain.answer_admission import AnswerAdmissionDecision, AnswerAdmissionInput
+from capability_agent.domain.answer_admission import (
+    AnswerAdmissionDecision,
+    AnswerAdmissionInput,
+)
 from capability_agent.domain.contracts import FilesystemCapabilityContractSource
 from capability_agent.domain.output import CommittedAnswer
 from capability_agent.domain.projection import VerifiedInvocation
@@ -30,9 +34,13 @@ from capability_agent.tools.catalog import describe_tool_document
 from capability_agent.tools.guide import GuideNotFound
 from capability_agent.trajectory.answers import AnswerClaim, AnswerSubmission
 from pypsa_model_authority.references import (
-    VerifiedDocument, verify_model, verify_operation_evidence, verify_operation_result,
+    VerifiedDocument,
+    verify_model,
+    verify_operation_evidence,
+    verify_operation_result,
 )
 
+from pypsa_power_operations.result_projection import PypsaOperationsResultProjector
 
 ROOT = Path(__file__).parent / "resources"
 CONTRACT_ROOT = ROOT / "capabilities"
@@ -329,6 +337,7 @@ class OperationsProjector:
 class OperationsProjectorRegistry:
     def __init__(self) -> None:
         self._projector = OperationsProjector()
+        self.result_projector = PypsaOperationsResultProjector()
 
     def require(self, projector_id: str) -> OperationsProjector:
         if projector_id != self._projector.projector_id:

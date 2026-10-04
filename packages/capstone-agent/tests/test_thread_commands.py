@@ -98,3 +98,13 @@ def test_command_factory_builds_case_execution_commands_with_strict_payloads() -
     }
     assert cancel["payload"] == {"case_execution_id": "exec_demo"}
     assert resume["payload"] == {"case_execution_id": "exec_demo"}
+
+def test_command_factory_builds_explicit_reopen_model_context() -> None:
+    command = ThreadCommandFactory("thr_demo_39", "run_001").reopen_model_context(
+        "pypsa39", expected_event_seq=2,
+        command_id="cmd_reopen", idempotency_key="idem_reopen",
+    )
+    assert command["kind"] == "reopen_model_context"
+    assert command["payload"] == {
+        "model_id": "pypsa39", "reason": "user_requested_fresh_context",
+    }

@@ -26,4 +26,9 @@ describe('parseResultProjection', () => {
   it('rejects malformed public values with a protocol error', () => {
     expect(() => parseResultProjection({ ...projection, summary: [{ ...projection.summary[0], value: Number.NaN }] })).toThrow(ThreadProtocolError)
   })
+
+  it('requires result and evidence references for available results', () => {
+    expect(() => parseResultProjection({ ...projection, result_ref: null })).toThrow(ThreadProtocolError)
+    expect(() => parseResultProjection({ ...projection, evidence_refs: [] })).toThrow(ThreadProtocolError)
+  })
 })

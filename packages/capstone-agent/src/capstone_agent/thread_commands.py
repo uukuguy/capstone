@@ -83,6 +83,16 @@ class ThreadCommandFactory:
             "switch_model", {"model_id": validate_model_id(model_id)}, **kwargs,
         )
 
+    def reopen_model_context(
+        self, model_id: str, *, reason: str = "user_requested_fresh_context", **kwargs: Any,
+    ) -> dict[str, Any]:
+        return self._command(
+            "reopen_model_context", {
+                "model_id": validate_model_id(model_id),
+                "reason": _text(reason, name="reason"),
+            }, **kwargs,
+        )
+
     def enable_profile(self, profile_id: str, profile_version: str, **kwargs: Any) -> dict[str, Any]:
         return self._command(
             "enable_profile",

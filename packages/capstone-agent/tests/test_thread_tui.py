@@ -101,6 +101,87 @@ async def _test_tui_model_switch_uses_selected_model_and_shows_receipt() -> None
     assert submitted[0]["payload"] == {"model_id": "pypsa39"}
 
 
+def test_tui_routes_short_model_open_phrase_without_running_it_on_the_current_worker() -> None:
+    asyncio.run(_test_tui_routes_short_model_open_phrase_without_running_it_on_the_current_worker())
+
+
+async def _test_tui_routes_short_model_open_phrase_without_running_it_on_the_current_worker() -> None:
+    submitted: list[dict[str, Any]] = []
+
+    def submit(command: dict[str, Any]) -> CommandReceipt:
+        submitted.append(command)
+        return _receipt(command)
+
+    app = ThreadTuiApp(
+        _snapshot(), _events(), submit,
+        model_options=(('ieee39', 'IEEE-39 · pandapower'), ('pypsa-example/model_energy', 'Model-Energy · PyPSA')),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.query_one('#command-input', Input).value = '打开 model_energy'
+        await pilot.click('#send-professional')
+        assert 'accepted' in str(app.query_one('#feedback', Static).content)
+
+    assert submitted[0]['kind'] == 'switch_model'
+    assert submitted[0]['payload'] == {'model_id': 'pypsa-example/model_energy'}
+
+
+def test_tui_does_not_duplicate_the_active_model_but_allows_explicit_reopen() -> None:
+    asyncio.run(_test_tui_does_not_duplicate_the_active_model_but_allows_explicit_reopen())
+
+
+async def _test_tui_does_not_duplicate_the_active_model_but_allows_explicit_reopen() -> None:
+    submitted: list[dict[str, Any]] = []
+
+    def submit(command: dict[str, Any]) -> CommandReceipt:
+        submitted.append(command)
+        return _receipt(command)
+
+    app = ThreadTuiApp(_snapshot(), _events(), submit)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.query_one('#command-input', Input).value = '打开 ieee39'
+        await pilot.click('#send-professional')
+        assert '已经是当前模型' in str(app.query_one('#feedback', Static).content)
+        assert submitted == []
+
+    app = ThreadTuiApp(_snapshot(), _events(), submit)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.query_one('#command-input', Input).value = '重新打开 ieee39'
+        await pilot.click('#send-professional')
+
+    assert submitted[0]['kind'] == 'reopen_model_context'
+    assert submitted[0]['payload'] == {'model_id': 'ieee39', 'reason': 'user_requested_fresh_context'}
+
+
+def test_tui_reports_unavailable_models_and_keeps_long_english_requests_on_agent_route() -> None:
+    asyncio.run(_test_tui_reports_unavailable_models_and_keeps_long_english_requests_on_agent_route())
+
+
+async def _test_tui_reports_unavailable_models_and_keeps_long_english_requests_on_agent_route() -> None:
+    submitted: list[dict[str, Any]] = []
+
+    def submit(command: dict[str, Any]) -> CommandReceipt:
+        submitted.append(command)
+        return _receipt(command)
+
+    options = (
+        ('ieee39', 'IEEE-39 · pandapower'),
+        ('pypsa-example/model_energy', 'Model-Energy · PyPSA', False, 'worker_unavailable'),
+    )
+    app = ThreadTuiApp(_snapshot(), _events(), submit, model_options=options)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.query_one('#command-input', Input).value = '打开 model_energy'
+        await pilot.click('#send-professional')
+        assert '当前不可用' in str(app.query_one('#feedback', Static).content)
+        assert submitted == []
+
+    app = ThreadTuiApp(_snapshot(), _events(), submit, model_options=options)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.query_one('#command-input', Input).value = '打开 IEEE-39 network and analyze line 11'
+        await pilot.click('#send-professional')
+
+    assert submitted[0]['kind'] == 'send_professional'
+
+
 def test_tui_keeps_message_controls_available_while_next_turn_controls_are_pending() -> None:
     asyncio.run(_test_tui_keeps_message_controls_available_while_next_turn_controls_are_pending())
 

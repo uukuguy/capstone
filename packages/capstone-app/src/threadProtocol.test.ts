@@ -52,11 +52,33 @@ describe('browser Thread protocol parser', () => {
     document.pending_model_switch = {
       command_id: 'cmd_switch_006', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
       implementation_family: 'pypsa',
+      reason: 'explicit_reopen',
       selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
     }
     const snapshot = parseThreadSnapshot(document)
     expect(snapshot.pendingModelSwitch?.modelId).toBe('pypsa39')
-    expect(snapshot.toDocument().pending_model_switch).toMatchObject({ model_id: 'pypsa39' })
+    expect(snapshot.pendingModelSwitch?.reason).toBe('explicit_reopen')
+    expect(snapshot.toDocument().pending_model_switch).toMatchObject({
+      model_id: 'pypsa39', reason: 'explicit_reopen',
+    })
+  })
+
+  it('omits the default model switch reason while rejecting unknown reasons', () => {
+    const document = validSnapshot()
+    document.pending_model_switch = {
+      command_id: 'cmd_switch_007', model_id: 'pypsa39', model_revision: 'revision:sha256:bbbb',
+      implementation_family: 'pypsa',
+      selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] },
+    }
+    const snapshot = parseThreadSnapshot(document)
+    expect(snapshot.pendingModelSwitch?.reason).toBeUndefined()
+    expect(snapshot.toDocument().pending_model_switch).not.toHaveProperty('reason')
+
+    document.pending_model_switch = {
+      ...(document.pending_model_switch as Record<string, unknown>),
+      reason: 'unexpected',
+    }
+    expect(() => parseThreadSnapshot(document)).toThrowError(/reason is invalid/)
   })
 
   it('rejects an event page gap after the snapshot cursor', () => {
@@ -71,6 +93,20 @@ describe('browser Thread protocol parser', () => {
     const document = { ...validSnapshot(), provider_token: 'secret' }
 
     expect(() => parseThreadSnapshot(document)).toThrowError(/unknown field/)
+  })
+
+  it('rejects a result projection from another Thread or Run', () => {
+    const document = validSnapshot()
+    document.result_projections = [{
+      schema: 'capstone-result-projection/1.0', result_id: 'projection_1',
+      result_ref: null, evidence_refs: [], thread_id: 'other_thread', run_id: 'run_001',
+      turn_id: 'turn_1', attempt_id: 'attempt_1', model_context_id: 'ctx_ieee39_7',
+      model_id: 'ieee39', model_revision: 'revision:sha256:' + 'a'.repeat(64),
+      source: { capability_id: 'analysis.powerflow.ac.run', domain_pack_id: 'pandapower-static-analysis', implementation_family: 'pandapower' },
+      status: 'unavailable', summary: [], tables: [], element_refs: [], overlay: null,
+      unavailable_reason: 'not available',
+    }]
+    expect(() => parseThreadSnapshot(document)).toThrowError(/identity/)
   })
 
   it('preserves command identity and status from a receipt', () => {
@@ -89,5 +125,19 @@ describe('browser Thread protocol parser', () => {
     expect(parseEventEnvelope(event(2))).toMatchObject({
       eventId: 'evt_2', eventSeq: 2, threadId: 'thr_demo_39', eventType: 'attempt_progress',
     })
+  })
+
+  it('accepts explicit reopen reasons on context activation events', () => {
+    const activation = {
+      ...event(3),
+      event_type: 'model_context_reopened',
+      payload: { reason: 'explicit_reopen' },
+    }
+    const parsed = parseEventEnvelope(activation)
+    expect(parsed.payload.reason).toBe('explicit_reopen')
+
+    expect(() => parseEventEnvelope({
+      ...activation, payload: { reason: 'unexpected' },
+    })).toThrowError(/reason is invalid/)
   })
 })

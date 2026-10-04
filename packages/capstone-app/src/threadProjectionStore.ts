@@ -57,6 +57,37 @@ function requiresResync(error: unknown): boolean {
   )
 }
 
+async function readSnapshotEvents(
+  client: CapstoneThreadClient,
+  snapshot: ThreadSnapshot,
+): Promise<EventEnvelope[]> {
+  const events: EventEnvelope[] = []
+  let cursor = snapshot.baseEventSeq
+  while (cursor < snapshot.lastEventSeq) {
+    const page = await client.readAfter(snapshot.threadId, cursor)
+    if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
+    for (const event of page.events) {
+      // `readAfter` may observe events appended after the snapshot was
+      // captured. They are outside this restore target and belong to the
+      // subsequent catch-up pass; do not turn that normal race into offline.
+      if (event.eventSeq > snapshot.lastEventSeq) break
+      if (event.eventSeq !== cursor + 1) throw new Error('event history is not contiguous')
+      events.push(event)
+      cursor = event.eventSeq
+    }
+    if (page.nextEventSeq < cursor) {
+      throw new Error('event history cursor does not match snapshot')
+    }
+    if (cursor < snapshot.lastEventSeq && page.nextEventSeq > snapshot.lastEventSeq) {
+      throw new Error('event history is incomplete')
+    }
+    if (cursor < snapshot.lastEventSeq) cursor = page.nextEventSeq
+    if (!page.hasMore && cursor < snapshot.lastEventSeq) throw new Error('event history is incomplete')
+    if (page.events.length === 0 && cursor < snapshot.lastEventSeq) throw new Error('event history made no progress')
+  }
+  return events
+}
+
 /** A checked-fixture transport for the first Web/TUI projection prototype. */
 export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTransport {
   const receipts = new Map<string, Record<string, unknown>>()
@@ -191,6 +222,10 @@ export class ThreadProjectionStore {
         // snapshot remains authoritative and the Thread stays usable.
       }
       const connection = this.client.connectionState
+      // A snapshot with an un-compacted history must restore that history
+      // before the UI becomes live. Otherwise the model state would look
+      // current while the conversation is silently truncated.
+      const restoredEvents = await readSnapshotEvents(this.client, snapshot)
       this.current = {
         ...this.current,
         connection,
@@ -201,6 +236,7 @@ export class ThreadProjectionStore {
         catalog,
       }
       this.eventLog.length = 0
+      this.eventLog.push(...restoredEvents)
       this.notify()
       this.loadedThreadId = threadId
     } catch (error) {
@@ -350,12 +386,14 @@ export class ThreadProjectionStore {
         model_id: payload.model_id,
         model_revision: payload.model_revision,
         implementation_family: payload.implementation_family,
+        ...(payload.reason === 'explicit_reopen' ? { reason: payload.reason } : {}),
+        ...(typeof payload.fresh_context_reason === 'string' ? { fresh_context_reason: payload.fresh_context_reason } : {}),
         selection: payload.selection,
       }
       delete document.pending_selection
     } else if (event.eventType === 'selection_change_pending') {
       document.pending_selection = { command_id: payload.command_id, selection: payload.selection }
-    } else if (event.eventType === 'model_context_activated' || event.eventType === 'model_context_reverted') {
+    } else if (event.eventType === 'model_context_activated' || event.eventType === 'model_context_reopened' || event.eventType === 'model_context_reverted') {
       const context = payload.model_context ?? payload.restored_context
       if (context) document.active_model_context = context
       const page = payload.active_grid_page_id ?? payload.restored_grid_page_id
@@ -375,6 +413,10 @@ export class ThreadProjectionStore {
       activeContext.enabled_profiles = payload.restored_selection
       document.active_model_context = activeContext
       delete document.pending_selection
+    }
+    if (event.eventType === 'attempt_completed' && Array.isArray(payload.result_projections)) {
+      const existing = Array.isArray(document.result_projections) ? document.result_projections : []
+      document.result_projections = [...existing, ...payload.result_projections].slice(-64)
     }
     const identity = event.turnId && event.attemptId && event.modelContextId
       ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }

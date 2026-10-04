@@ -211,11 +211,11 @@ def main(
                 snapshot = session.create(args.model_id)
                 catalog = session.catalog()
                 model_options = tuple(
-                    (entry.model_id, entry.display_name)
+                    (entry.model_id, entry.display_name, entry.available, entry.unavailable_reason)
                     for entry in catalog.models
                 )
                 active_model_id = snapshot.active_model_context.model_id
-                if not any(model_id == active_model_id for model_id, _ in model_options):
+                if not any(model_id == active_model_id for model_id, *_ in model_options):
                     model_options = (*model_options, (active_model_id, active_model_id))
                 run_tui_session(
                     session,
@@ -246,6 +246,11 @@ def main(
             artifacts = build_artifacts(settings, ledger)
             thread_service = PostgresThreadService(settings.database_url)
             thread_service.initialize()
+            if thread_application is not None:
+                # Workers need the same application-owned catalog context as
+                # the API so a family-specific runtime can answer cross-family
+                # availability questions without gaining another Authority.
+                thread_application.thread_creator(thread_service)
             if args.command == "serve-hosted":
                 import uvicorn
 
@@ -289,6 +294,7 @@ def main(
                         kwargs={
                             "stop_event": thread_stop,
                             "case_service": thread_case_service,
+                            "implementation_family": settings.thread_family,
                             "turn_router": (
                                 thread_application.turn_router_for_worker()
                                 if thread_application is not None else None
@@ -314,7 +320,11 @@ def main(
                     scheduler.start()
                     try:
                         uvicorn.run(
-                            create_wake_app(wake_event, settings.operator_token),
+                            create_wake_app(
+                                wake_event, settings.operator_token,
+                                health_check=lambda: scheduler.is_alive()
+                                and (thread_scheduler is None or thread_scheduler.is_alive()),
+                            ),
                             host=settings.bind_host, port=settings.port,
                             log_config=None, access_log=False,
                         )

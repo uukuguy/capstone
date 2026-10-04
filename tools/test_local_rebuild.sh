@@ -14,8 +14,9 @@ case "$*" in
   *' port api 8766') printf '127.0.0.1:8767\n' ;;
   *' port app 5173') printf '127.0.0.1:5173\n' ;;
   *' ps -q api') printf 'api-container\n' ;;
+  *' ps -q worker-pypsa') printf 'worker-pypsa-container\n' ;;
   *' ps -q worker') printf 'worker-container\n' ;;
-  'inspect -f {{.Image}} api-container'|'inspect -f {{.Image}} worker-container')
+  'inspect -f {{.Image}} api-container'|'inspect -f {{.Image}} worker-container'|'inspect -f {{.Image}} worker-pypsa-container')
     printf 'sha256:same-image\n' ;;
 esac
 SH

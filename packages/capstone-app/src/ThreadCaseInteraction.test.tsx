@@ -77,7 +77,7 @@ describe('Thread native Case interaction', () => {
       schema: 'capstone-thread-snapshot/1', thread_id: 'thr_case',
       run: { run_id: 'run_case', state: 'open' },
       active_model_context: { id: 'ctx_ieee39', model_id: 'ieee39', model_revision: '7', implementation_family: 'pandapower', selection_revision: 'sel_2' },
-      active_grid_page_id: 'page_ieee39', current_attempt: null, last_event_seq: 12, base_event_seq: 0,
+      active_grid_page_id: 'page_ieee39', current_attempt: null, last_event_seq: 12, base_event_seq: 12,
       application_state: { case_execution: {
         display_name: 'IEEE-39 潮流与线路筛查', status: 'blocked', completed_steps: 1, total_steps: 2, current_step: 2,
         steps: [

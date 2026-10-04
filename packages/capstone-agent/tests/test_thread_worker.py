@@ -75,6 +75,15 @@ def test_thread_worker_stops_when_requested() -> None:
     assert service.read_events("thr_worker", 0).events == ()
 
 
+def test_worker_family_filter_leaves_other_family_attempt_unleased() -> None:
+    service = _service()
+    _submit(service)
+    assert service.claim_attempt("pypsa-worker", 30, "pypsa") is None
+    assert service.snapshot("thr_worker").current_attempt is not None
+    claim = service.claim_attempt("grid-worker", 30, "pandapower")
+    assert claim is not None
+
+
 def test_thread_worker_reconciles_before_and_after_attempt() -> None:
     service = _service()
     _submit(service)

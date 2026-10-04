@@ -31,6 +31,7 @@ class HostSettings:
     session_idle_seconds: int
     worker_max_sessions: int
     worker_wake_url: str | None
+    thread_family: str | None
     public_provider: str | None
     public_model: str | None
 
@@ -59,6 +60,7 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     bucket = environment.get("CAPSTONE_ARTIFACT_BUCKET", "")
     endpoint = environment.get("CAPSTONE_S3_ENDPOINT") or None
     worker_wake_url = environment.get("CAPSTONE_WORKER_WAKE_URL") or None
+    thread_family = environment.get("CAPSTONE_THREAD_FAMILY") or None
     public_provider = environment.get("CAPSTONE_PUBLIC_PROVIDER") or None
     public_model = environment.get("CAPSTONE_PUBLIC_MODEL") or None
     try:
@@ -101,6 +103,10 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
                 or parsed_wake.port is None
                 or not _HOST.fullmatch(parsed_wake.hostname or "")):
             raise ValueError("CAPSTONE_WORKER_WAKE_URL is invalid")
+    if thread_family is not None and (
+        not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", thread_family)
+    ):
+        raise ValueError("CAPSTONE_THREAD_FAMILY is invalid")
     if port < 1 or port > 65535 or bind_host not in {"0.0.0.0", "127.0.0.1", "::"}:
         raise ValueError("server bind is invalid")
     default_runs = Path(__file__).resolve().parents[4] / "runs" / "capstone-agent"
@@ -108,7 +114,7 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
                         endpoint, port, bind_host, runs_root, demo_setting == "true",
                         session_idle_seconds, worker_max_sessions, worker_wake_url,
-                        public_provider, public_model)
+                        thread_family, public_provider, public_model)
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

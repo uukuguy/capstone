@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
 from collections.abc import Collection, Mapping
+from dataclasses import dataclass
 from typing import Any
 
+from .model_identity import validate_model_id
 
 RESULT_PROJECTION_SCHEMA = "capstone-result-projection/1.0"
-_REF = re.compile(r"^(result|evidence|revision):sha256:[0-9a-f]{64}$")
+MAX_RESULT_PROJECTIONS = 64
+# Authorities may namespace their immutable references (for example
+# ``pypsa-result:sha256:…``) while keeping the public kind explicit.
+_REF = re.compile(r"^(?:[a-z][a-z0-9_-]{0,31}-)?(result|evidence|revision):sha256:[0-9a-f]{64}$")
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
 _STATUSES = frozenset({"completed", "partial", "unavailable"})
 _SEVERITIES = frozenset({"info", "warning", "error"})
@@ -40,6 +44,21 @@ def _identifier(value: Any, name: str) -> str:
     if _IDENTIFIER.fullmatch(text) is None:
         raise ValueError(f"{name} is invalid")
     return text
+
+
+def _element_identifier(value: Any, name: str) -> str:
+    text = _text(value, name, max_length=128)
+    if any(ord(char) < 0x20 for char in text):
+        raise ValueError(f"{name} is invalid")
+    return text
+
+
+def _model_identifier(value: Any, name: str) -> str:
+    text = _text(value, name)
+    try:
+        return validate_model_id(text, name=name)
+    except ValueError as exc:
+        raise ValueError(f"{name} is invalid") from exc
 
 
 def _ref(value: Any, name: str, *, kind: str | None = None) -> str:
@@ -118,7 +137,7 @@ class ResultElementRef:
             raise ValueError("result element reference fields are invalid")
         return cls(
             _identifier(document["element_kind"], "result element kind"),
-            _identifier(document["element_id"], "result element id"),
+            _element_identifier(document["element_id"], "result element id"),
         )
 
     def to_document(self) -> dict[str, str]:
@@ -165,7 +184,7 @@ class ResultRow:
             raise ValueError("result row contains an unknown column")
         cells = {key: _scalar(item, f"result row.cells.{key}") for key, item in cells_document.items()}
         element = None if document.get("element_ref") is None else ResultElementRef.from_document(document["element_ref"])
-        return cls(_identifier(document["row_id"], "result row.row_id"), cells, element)
+        return cls(_element_identifier(document["row_id"], "result row.row_id"), cells, element)
 
     def to_document(self) -> dict[str, Any]:
         document: dict[str, Any] = {"row_id": self.row_id, "cells": dict(self.cells)}
@@ -219,7 +238,7 @@ class ResultOverlayValue:
         document = _document(value, "result overlay value")
         if set(document) != {"element_id", "value"}:
             raise ValueError("result overlay value fields are invalid")
-        return cls(_identifier(document["element_id"], "result overlay element_id"), _finite(document["value"], "result overlay.value"))
+        return cls(_element_identifier(document["element_id"], "result overlay element_id"), _finite(document["value"], "result overlay.value"))
 
     def to_document(self) -> dict[str, Any]:
         return {"element_id": self.element_id, "value": self.value}
@@ -322,13 +341,15 @@ class ResultProjection:
         if not isinstance(raw_evidence_refs, list) or len(raw_evidence_refs) > _MAX_ELEMENTS:
             raise ValueError("result projection.evidence_refs is invalid")
         evidence_refs = tuple(_ref(item, "result projection.evidence_refs", kind="evidence") for item in raw_evidence_refs)
+        if status in {"completed", "partial"} and (result_ref is None or not evidence_refs):
+            raise ValueError("available result projection requires result and evidence references")
         reason = document.get("unavailable_reason")
         if reason is not None:
             reason = _text(reason, "result projection.unavailable_reason")
         if status == "unavailable" and not reason:
             raise ValueError("unavailable result projection requires a reason")
-        if status != "unavailable" and reason is not None:
-            raise ValueError("available result projection cannot have an unavailable reason")
+        if status == "completed" and reason is not None:
+            raise ValueError("completed result projection cannot have an unavailable reason")
         if status == "unavailable" and (summary or tables or elements or document["overlay"] is not None):
             raise ValueError("unavailable result projection cannot contain result data")
         overlay = None if document["overlay"] is None else ResultOverlay.from_document(document["overlay"])
@@ -336,7 +357,7 @@ class ResultProjection:
             _identifier(document["result_id"], "result projection.result_id"), result_ref, evidence_refs,
             _identifier(document["thread_id"], "result projection.thread_id"), _identifier(document["run_id"], "result projection.run_id"),
             _identifier(document["turn_id"], "result projection.turn_id"), _identifier(document["attempt_id"], "result projection.attempt_id"),
-            _identifier(document["model_context_id"], "result projection.model_context_id"), _identifier(document["model_id"], "result projection.model_id"),
+            _identifier(document["model_context_id"], "result projection.model_context_id"), _model_identifier(document["model_id"], "result projection.model_id"),
             _ref(document["model_revision"], "result projection.model_revision", kind="revision"), ResultSource.from_document(document["source"]), status,
             summary, tables, elements, overlay, reason,
         )

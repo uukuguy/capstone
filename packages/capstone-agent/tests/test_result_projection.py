@@ -4,8 +4,11 @@ import math
 
 import pytest
 
-from capstone_agent.result_projection import ResultProjection, normalize_result_projection
-from capstone_agent.thread_protocol import ThreadSnapshot
+from capstone_agent.result_projection import (
+    ResultProjection,
+    normalize_result_projection,
+)
+from capstone_agent.thread_protocol import ThreadProtocolError, ThreadSnapshot
 
 
 def valid_projection() -> dict[str, object]:
@@ -54,6 +57,22 @@ def test_result_projection_accepts_bounded_admitted_projection() -> None:
     assert projection.tables[0].rows[0].element_ref.element_id == "line_11"
 
 
+def test_result_projection_accepts_hierarchical_model_id() -> None:
+    document = valid_projection()
+    document["model_id"] = "pypsa-example/scigrid_de"
+
+    projection = ResultProjection.from_document(
+        normalize_result_projection(
+            document,
+            admitted_refs={"result:sha256:" + "a" * 64, "evidence:sha256:" + "b" * 64},
+            diagram_ids={"line_11"},
+            expected_model_revision="revision:sha256:" + "c" * 64,
+        )
+    )
+
+    assert projection.model_id == "pypsa-example/scigrid_de"
+
+
 @pytest.mark.parametrize(
     ("change", "message"),
     [
@@ -89,6 +108,14 @@ def test_unavailable_projection_has_no_metrics() -> None:
     assert projection.summary == ()
 
 
+@pytest.mark.parametrize("field", ["result_ref", "evidence_refs"])
+def test_available_projection_requires_admitted_references(field: str) -> None:
+    document = valid_projection()
+    document[field] = None if field == "result_ref" else []
+    with pytest.raises(ValueError, match="references"):
+        ResultProjection.from_document(document)
+
+
 def test_thread_snapshot_round_trips_result_projection() -> None:
     projection = valid_projection()
     snapshot = ThreadSnapshot.from_document({
@@ -105,3 +132,21 @@ def test_thread_snapshot_round_trips_result_projection() -> None:
 
     assert snapshot.result_projections[0].result_id == "result_projection_1"
     assert snapshot.to_document()["result_projections"][0]["model_revision"] == projection["model_revision"]
+
+
+@pytest.mark.parametrize("field", ["thread_id", "run_id"])
+def test_thread_snapshot_rejects_projection_from_another_thread_or_run(field: str) -> None:
+    projection = valid_projection()
+    projection[field] = "other_thread" if field == "thread_id" else "other_run"
+    with pytest.raises(ThreadProtocolError, match="identity"):
+        ThreadSnapshot.from_document({
+            "schema": "capstone-thread-snapshot/1",
+            "thread_id": "thread_1",
+            "run": {"run_id": "run_1", "state": "open"},
+            "active_model_context": {
+                "id": "context_1", "model_id": "ieee39", "model_revision": projection["model_revision"],
+                "implementation_family": "pandapower", "selection_revision": "selection_1",
+            },
+            "active_grid_page_id": "page_ieee39", "current_attempt": None,
+            "last_event_seq": 2, "base_event_seq": 0, "result_projections": [projection],
+        })

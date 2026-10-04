@@ -1,10 +1,11 @@
 import { NetworkView } from './NetworkView'
-import type { ThreadSnapshot } from './threadProtocol'
+import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
 import type { NetworkDiagram } from './types'
 
-function modelLabel(modelId: string | undefined): string {
-  return { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39' }[modelId || ''] || modelId || '当前模型'
+function modelLabel(modelId: string | undefined, family?: string): string {
+  const known = { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39', 'regional-six-bus': 'Regional Six Bus' }
+  return known[modelId as keyof typeof known] || (family === 'pypsa' && modelId ? `PyPSA · ${modelId}` : modelId) || '当前模型'
 }
 
 function PageButton({ active, historical, label, onClick }: { active: boolean; historical: boolean; label: string; onClick: () => void }) {
@@ -28,14 +29,38 @@ export type ThreadModelPaneProps = {
   onModelTargetChange: (value: string) => void
   onSwitchModel: () => void
   onSelectPage: (pageId: string) => void
+  resultProjection?: ResultProjection
+  focusedElementId?: string
+}
+
+function projectionNetworkView(diagram: NetworkDiagram, projection: ResultProjection | undefined, focusedElementId: string | undefined) {
+  if (!projection || projection.modelId !== diagram.model.id || projection.modelRevision !== diagram.model.revision) return null
+  const overlay = projection?.overlay
+  const supportedOverlay = overlay?.metric === 'loading_percent' || overlay?.metric === 'voltage_pu'
+    ? { metric: overlay.metric as 'loading_percent' | 'voltage_pu', unit: overlay.unit as '%' | 'p.u.', source_ref: overlay.sourceRef, values: overlay.values
+      .map((value) => ({ id: value.elementId, value: value.value })) }
+    : null
+  const diagramIds = new Set([...diagram.branches.map((branch) => branch.id), ...diagram.buses.map((bus) => bus.id)])
+  if ((supportedOverlay && supportedOverlay.values.some((value) => !diagramIds.has(value.id))) || (focusedElementId && !diagramIds.has(focusedElementId))) return null
+  return projection ? {
+    schema: 'capstone-network-view/2.0' as const, ordinal: 1, diagram,
+    layer: {
+      schema: 'capstone-network-layer/1.0' as const, ordinal: 1,
+      diagram_ref: diagram.ref, model_revision: diagram.model.revision,
+      focus_ids: focusedElementId && (diagram.branches.some((branch) => branch.id === focusedElementId) || diagram.buses.some((bus) => bus.id === focusedElementId)) ? [focusedElementId] : [],
+      next_focus_ids: [], overlay: supportedOverlay && supportedOverlay.values.length > 0 ? supportedOverlay : null,
+    },
+  } : null
 }
 
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHistorical,
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
-  elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage }: ThreadModelPaneProps) {
+  elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
   const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
-  const modelDiagram = !isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId ? previewDiagram : null
+  const modelDiagram = !isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId && previewDiagram.model.revision === snapshot.activeModelContext.modelRevision ? previewDiagram : null
+  const activeModelName = modelOptions.find((model) => model.modelId === snapshot.activeModelContext.modelId)?.displayName
+    || modelLabel(snapshot.activeModelContext.modelId, snapshot.activeModelContext.implementationFamily)
   return <section className="thread-model-pane" aria-label="电网模型区">
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
       <div className="capstone-intro-art notranslate" translate="no">
@@ -57,19 +82,19 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
       <p>当前 Thread 围绕一个电网模型工作。模型由已注册 authority 提供，工具调用和结果证据随 Run 保留。</p>
     </section>
     <div className="thread-model-toolbar" aria-label="模型上下文控制">
-      <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{modelLabel(snapshot.activeModelContext.modelId)}</strong><span className="thread-model-card-meta">{snapshot.activeModelContext.implementationFamily}</span><span className="thread-model-badge" title={snapshot.activeModelContext.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+      <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{activeModelName}</strong><span className="thread-model-card-meta">{snapshot.activeModelContext.implementationFamily}</span><span className="thread-model-badge" title={snapshot.activeModelContext.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
       <label className="thread-model-switch">切换<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
-        {modelOptions.map((model) => <option key={model.modelId} value={model.modelId}>{model.displayName} · {model.implementationFamily}</option>)}
+        {modelOptions.map((model) => <option key={model.modelId} value={model.modelId} disabled={model.available === false}>{model.displayName} · {model.implementationFamily}{model.available === false ? ' · worker unavailable' : ''}</option>)}
       </select></label>
-      <button type="button" className="thread-control-button" disabled={controlsDisabled || modelTarget === snapshot.activeModelContext.modelId} onClick={onSwitchModel}>切换模型</button>
+      <button type="button" className="thread-control-button" disabled={controlsDisabled || modelTarget === snapshot.activeModelContext.modelId || modelOptions.find((model) => model.modelId === modelTarget)?.available === false} onClick={onSwitchModel}>切换模型</button>
       {contextChangePending && <small>切换将在下一 Turn 激活</small>}
     </div>
     <div className="thread-page-tabs" aria-label="电网模型分页">
       {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
-        label={pageId === activePage ? `${modelLabel(snapshot.activeModelContext.modelId)} · 当前模型` : `${pageId} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
+        label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageId} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
     </div>
     <div className="thread-network-card">
-      <NetworkView view={null} previewDiagram={modelDiagram} modelName={modelLabel(snapshot.activeModelContext.modelId)} focusKey={viewedPage}
+      <NetworkView view={modelDiagram && !isHistorical ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null} previewDiagram={modelDiagram} modelName={activeModelName} focusKey={`${viewedPage}:${focusedElementId || ''}`}
         unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />
     </div>
     <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot.activeModelContext.id}</strong></div><div><span>SELECTION</span><strong>{snapshot.activeModelContext.selectionRevision}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>

@@ -153,6 +153,8 @@ class ThreadApplicationAssembly:
     runtime_capabilities: RuntimeCapabilityRegistry | None = None
     turn_router: TurnRouter | None = None
     ordinary_conversation_enabled: bool = True
+    available_families: frozenset[str] | None = None
+    catalog_context: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -192,6 +194,13 @@ class ThreadApplicationAssembly:
             raise TypeError("Thread application turn router is invalid")
         if type(self.ordinary_conversation_enabled) is not bool:
             raise TypeError("ordinary conversation policy is invalid")
+        if self.available_families is not None and any(
+            not isinstance(family, str) or not family.strip()
+            for family in self.available_families
+        ):
+            raise TypeError("available implementation families are invalid")
+        if self.catalog_context is not None and not isinstance(self.catalog_context, Mapping):
+            raise TypeError("catalog context is invalid")
 
     @classmethod
     def from_authority(
@@ -204,6 +213,8 @@ class ThreadApplicationAssembly:
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
+        available_families: frozenset[str] | None = None,
+        catalog_context: Mapping[str, object] | None = None,
     ) -> "ThreadApplicationAssembly":
         """Build an assembly from application-owned Authority and Pi seams.
 
@@ -229,6 +240,8 @@ class ThreadApplicationAssembly:
             runtime_registry=runtime_registry, runtime_name="pi",
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
+            available_families=available_families,
+            catalog_context=catalog_context,
         )
 
     @classmethod
@@ -241,6 +254,8 @@ class ThreadApplicationAssembly:
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
+        available_families: frozenset[str] | None = None,
+        catalog_context: Mapping[str, object] | None = None,
     ) -> "ThreadApplicationAssembly":
         """Build one application assembly over several family adapters.
 
@@ -260,6 +275,8 @@ class ThreadApplicationAssembly:
             capability_catalog=capability_catalog,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
+            available_families=available_families,
+            catalog_context=catalog_context,
         )
 
     @classmethod
@@ -278,6 +295,7 @@ class ThreadApplicationAssembly:
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
+        catalog_context: Mapping[str, object] | None = None,
     ) -> "ThreadApplicationAssembly":
         """Pair model authority, exact Profile catalog, Context owner, and Pi."""
 
@@ -307,6 +325,7 @@ class ThreadApplicationAssembly:
             capability_context_owner=capability_context_owner,
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
+            catalog_context=catalog_context,
         )
 
     def turn_router_for_worker(self) -> TurnRouter:
@@ -319,7 +338,12 @@ class ThreadApplicationAssembly:
 
     def thread_creator(self, service: ThreadService) -> ThreadCreator:
         """Create the persistence adapter for this exact application pair."""
-
+        configure = getattr(service, "set_available_families", None)
+        if callable(configure):
+            configure(self.available_families)
+        configure_catalog_context = getattr(service, "set_catalog_context", None)
+        if callable(configure_catalog_context) and self.catalog_context is not None:
+            configure_catalog_context(self.catalog_context)
         return ThreadCreator(service, self.catalog, self.capability_catalog)
 
 

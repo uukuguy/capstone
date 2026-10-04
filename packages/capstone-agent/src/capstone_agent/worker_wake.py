@@ -8,6 +8,7 @@ import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from collections.abc import Callable
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -17,13 +18,18 @@ def wake_token(operator_token: str) -> str:
                     hashlib.sha256).hexdigest()
 
 
-def create_wake_app(wake_event: threading.Event, operator_token: str) -> FastAPI:
+def create_wake_app(
+    wake_event: threading.Event, operator_token: str,
+    *, health_check: Callable[[], bool] | None = None,
+) -> FastAPI:
     app = FastAPI(title="capstone-worker-wake", docs_url=None, redoc_url=None,
                   openapi_url=None)
     expected = "Bearer " + wake_token(operator_token)
 
     @app.get("/health")
     def health() -> dict[str, str]:
+        if health_check is not None and not health_check():
+            raise HTTPException(503, "worker scheduler unavailable")
         return {"status": "ready"}
 
     @app.post("/wake", status_code=204)

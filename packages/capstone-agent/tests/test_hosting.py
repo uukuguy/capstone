@@ -89,6 +89,21 @@ def test_host_settings_validate_private_worker_wake_url() -> None:
             load_host_settings(env)
 
 
+def test_host_settings_parse_optional_thread_family_filter() -> None:
+    env = _env()
+    env["CAPSTONE_THREAD_FAMILY"] = "pypsa"
+    assert load_host_settings(env).thread_family == "pypsa"
+    for invalid in ("PyPSA", "", "pypsa/family"):
+        if invalid == "":
+            env.pop("CAPSTONE_THREAD_FAMILY", None)
+            assert load_host_settings(env).thread_family is None
+            env["CAPSTONE_THREAD_FAMILY"] = invalid
+            continue
+        env["CAPSTONE_THREAD_FAMILY"] = invalid
+        with pytest.raises(ValueError, match="CAPSTONE_THREAD_FAMILY"):
+            load_host_settings(env)
+
+
 @pytest.mark.parametrize("name,value", [
     ("DATABASE_URL", ""),
     ("CAPSTONE_OPERATOR_TOKEN", "short"),

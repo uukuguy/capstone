@@ -6,8 +6,10 @@ import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAss
 import ThreadModelPane from './ThreadModelPane'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { NetworkDiagram } from './types'
+import type { ResultProjection } from './threadProtocol'
 import { PageHeader } from './AppHeader'
 import ThreadControls from './ThreadControls'
+import { isLikelyNaturalLanguageModelRequest, parseThreadModelCommand, resolveThreadModelReference } from './threadCatalog'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -52,6 +54,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [traceVisible, setTraceVisible] = useState(true)
+  const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const commandNumber = useRef(0)
 
   useEffect(() => {
@@ -97,6 +100,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [snapshot?.activeModelContext.modelId])
   const activePage = snapshot?.activeGridPageId || null
   const viewedPage = projection.viewedGridPageId || activePage
+  const currentDiagram = previewDiagram ?? (fixture ? threadPreviewDiagram : null)
+  const currentDiagramElementIds = useMemo(() => new Set(
+    currentDiagram ? [
+      ...currentDiagram.buses.map((item) => item.id),
+      ...currentDiagram.branches.map((item) => item.id),
+    ] : [],
+  ), [currentDiagram])
   const isHistorical = Boolean(activePage && viewedPage && activePage !== viewedPage)
   const attempt = snapshot?.currentAttempt
   const isActive = Boolean(attempt && ACTIVE_PHASES.has(attempt.phase))
@@ -119,6 +129,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
+  const activeResultProjection = snapshot?.resultProjections?.slice().reverse().find((item) =>
+    item.modelId === snapshot.activeModelContext.modelId && item.modelRevision === snapshot.activeModelContext.modelRevision)
+  const focusedProjection = focusedElement && snapshot?.resultProjections?.find((item) => item.resultId === focusedElement.resultId)
+  const focusedElementId = focusedProjection && focusedProjection.modelId === snapshot?.activeModelContext.modelId && focusedProjection.modelRevision === snapshot.activeModelContext.modelRevision
+    ? focusedElement.elementId : undefined
   if (!loading && error && !snapshot) {
     return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
   }
@@ -127,7 +142,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
   }
 
-  async function dispatch(kind: string, payload: Record<string, unknown> = {}) {
+  async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
     if (!snapshot) return
     commandNumber.current += 1
     const command: ThreadCommand = buildThreadCommand({
@@ -138,7 +153,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     try {
       const receipt = await store.dispatch(command)
       const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
-      setNotice(conversational ? null : `${kind} · ${receipt.status}`); sync()
+      const receiptNotice = receipt.status === 'accepted'
+        ? successNotice || `${kind} · ${receipt.status}`
+        : `${kind} · ${receipt.status}${receipt.rejection ? ` · ${receipt.rejection}` : ''}`
+      setNotice(conversational ? null : receiptNotice); sync()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '命令未提交'); sync()
     }
@@ -183,6 +201,42 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     void dispatch('start_case_execution', { case_id: caseId, case_version: caseVersion, strategy_id: 'sequential_batch' })
   }
 
+  async function sendConversation(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
+    const intent = parseThreadModelCommand(text)
+    if (intent && projection.catalog) {
+      const resolution = resolveThreadModelReference(projection.catalog, intent.reference)
+      if (resolution.kind === 'unknown') {
+        // Only consume a short model-control phrase. A longer unknown request
+        // is left to the agent so “打开网络并分析…” remains ordinary work.
+        if (!isLikelyNaturalLanguageModelRequest(intent.reference)) {
+          setNotice(`未找到注册模型“${intent.reference}”。可先查看模型目录，或使用左侧模型选择器。`)
+          return
+        }
+      } else if (resolution.kind === 'ambiguous') {
+        setNotice(`模型引用“${intent.reference}”不唯一：${resolution.candidates.map((item) => item.modelId).join('、')}。请使用完整模型 ID。`)
+        return
+      } else {
+        const model = resolution.model
+        if (model.available === false) {
+          setNotice(`${model.displayName} 当前不可用${model.unavailableReason ? `（${model.unavailableReason}）` : ''}。请先确认对应 worker 已就绪。`)
+          return
+        }
+        if (intent.action === 'switch_model' && model.modelId === snapshot?.activeModelContext.modelId) {
+          setNotice(`当前模型已经是 ${model.displayName}，未重复打开。`)
+          return
+        }
+        await dispatch(intent.action, {
+          model_id: model.modelId,
+          ...(intent.action === 'reopen_model_context' ? { reason: 'user_requested_fresh_context' } : {}),
+        }, intent.action === 'reopen_model_context'
+          ? `已提交重新打开 ${model.displayName}，将建立新的模型上下文。`
+          : `已提交切换到 ${model.displayName}，下一条指令将在该模型上下文中执行。`)
+        return
+      }
+    }
+    await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text })
+  }
+
   function controlButton(label: string, kind: string, enabled: boolean, payload: Record<string, unknown> = {}) {
     return <button type="button" className="thread-control-button" disabled={!enabled} onClick={() => void dispatch(kind, payload)}>{label}</button>
   }
@@ -193,8 +247,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
-          controlsDisabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} previewDiagram={previewDiagram ?? (fixture ? threadPreviewDiagram : null)}
-          elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} onModelTargetChange={setModelTarget}
+          controlsDisabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} previewDiagram={currentDiagram}
+          elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={activeResultProjection} focusedElementId={focusedElementId} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
           <div className="thread-chat-heading"><div><span className="eyebrow">THREAD</span><h2>智能体对话</h2></div><div className="thread-chat-heading-meta"><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span><span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span><span className="thread-run-state">{snapshot.run.state}</span><button type="button" className="thread-diagnostics-toggle" aria-label="查看 Thread 详情" aria-expanded={diagnosticsOpen} onClick={() => setDiagnosticsOpen((value) => !value)}>详情</button></div></div>
@@ -204,6 +258,19 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
+            resultProjections={snapshot.resultProjections} onFocusElement={(result: ResultProjection, elementId) => {
+              if (result.modelId !== snapshot.activeModelContext.modelId || result.modelRevision !== snapshot.activeModelContext.modelRevision) {
+                setNotice('该结果属于历史模型修订，已保持只读，未改变当前电网图')
+                return
+              }
+              if (!currentDiagramElementIds.has(elementId)) {
+                setFocusedElement(undefined)
+                setNotice('当前电网图中没有这个元件，无法定位')
+                return
+              }
+              setFocusedElement({ resultId: result.resultId, modelId: result.modelId, modelRevision: result.modelRevision, elementId })
+              setNotice(`已定位到 ${elementId}`)
+            }}
             caseExecution={caseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={<ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
@@ -211,7 +278,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} traceVisible={traceVisible}
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
-            onSend={async (mode, text) => { await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text }) }}
+            onSend={sendConversation}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
             onRegenerate={canRetry ? async (attemptId) => { await dispatch('retry_new_attempt', { attempt_id: attemptId }) } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">

@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from capstone_model_capability_spi import ModelCapabilitySelection
 
 from .model_identity import validate_model_id
-from .result_projection import ResultProjection
+from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection
 
 
 THREAD_PROTOCOL = "capstone-thread/1"
@@ -25,7 +25,10 @@ _MAX_CASE_DETAILS_BYTES = 16 * 1024
 _MAX_CASE_ACTIONS = 4
 _MAX_CASE_REASONS = 16
 _MAX_CASE_DURATION_MS = 86_400_000
-_MAX_RESULT_PROJECTIONS = 12
+# A snapshot keeps a bounded recent result catalog.  The projection itself has
+# tighter table/row limits; this separate cap prevents an active Thread from
+# growing without limit while allowing ordinary multi-turn analysis sessions.
+_MAX_RESULT_PROJECTIONS = MAX_RESULT_PROJECTIONS
 _CASE_STATUSES = frozenset({"idle", "created", "running", "waiting_step", "blocked", "cancelled", "completed"})
 _CASE_STEP_STATUSES = frozenset({"pending", "running", "completed", "failed", "cancelled", "interrupted"})
 _CASE_ACTION_IDS = frozenset({"start_case", "retry_case_step", "cancel_case", "view_case_details"})
@@ -395,10 +398,11 @@ class PendingSelectionSnapshot:
         )
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        document = {
             "command_id": self.command_id,
             "selection": ModelCapabilitySelection(self.enabled_profiles).to_document(),
         }
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -410,15 +414,18 @@ class PendingModelSwitchSnapshot:
     model_revision: str
     implementation_family: str
     enabled_profiles: tuple[tuple[str, str], ...]
+    reason: str = "model_switch"
+    fresh_context_reason: str | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> PendingModelSwitchSnapshot:
         document = _document(value, name="pending_model_switch")
         allowed = frozenset({
-            "command_id", "model_id", "model_revision", "implementation_family", "selection",
+            "command_id", "model_id", "model_revision", "implementation_family", "selection", "reason",
+            "fresh_context_reason",
         })
         _fields(document, allowed, name="pending_model_switch")
-        _required(document, allowed, name="pending_model_switch")
+        _required(document, allowed - {"reason", "fresh_context_reason"}, name="pending_model_switch")
         try:
             selection = ModelCapabilitySelection.from_document(document["selection"])
         except ValueError as error:
@@ -431,16 +438,26 @@ class PendingModelSwitchSnapshot:
                 document["implementation_family"], name="pending_model_switch.implementation_family"
             ),
             enabled_profiles=selection.enabled_profiles,
+            reason=_identifier(document.get("reason", "model_switch"), name="pending_model_switch.reason"),
+            fresh_context_reason=(
+                _case_text(document["fresh_context_reason"], name="pending_model_switch.fresh_context_reason")
+                if "fresh_context_reason" in document else None
+            ),
         )
 
     def to_document(self) -> dict[str, Any]:
-        return {
+        document = {
             "command_id": self.command_id,
             "model_id": self.model_id,
             "model_revision": self.model_revision,
             "implementation_family": self.implementation_family,
             "selection": ModelCapabilitySelection(self.enabled_profiles).to_document(),
         }
+        if self.reason != "model_switch":
+            document["reason"] = self.reason
+        if self.fresh_context_reason is not None:
+            document["fresh_context_reason"] = self.fresh_context_reason
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -526,6 +543,8 @@ class ThreadSnapshot:
         base_event_seq = _sequence(document["base_event_seq"], name="snapshot.base_event_seq")
         if base_event_seq > last_event_seq:
             raise ThreadProtocolError("snapshot base_event_seq exceeds last_event_seq")
+        thread_id = _identifier(document["thread_id"], name="snapshot.thread_id")
+        run = RunSnapshot.from_document(document["run"])
         context = ModelContextSnapshot.from_document(document["active_model_context"])
         attempt = None if document["current_attempt"] is None else AttemptSnapshot.from_document(document["current_attempt"])
         if attempt is not None and attempt.target_model_context_id != context.id:
@@ -549,6 +568,8 @@ class ThreadSnapshot:
             raise ThreadProtocolError("snapshot.result_projections is invalid") from exc
         if len({item.result_id for item in result_projections}) != len(result_projections):
             raise ThreadProtocolError("snapshot.result_projections contain duplicates")
+        if any(item.thread_id != thread_id or item.run_id != run.run_id for item in result_projections):
+            raise ThreadProtocolError("snapshot.result_projections identity does not match snapshot")
         application_state = document.get("application_state")
         if application_state is not None:
             if not isinstance(application_state, dict):
@@ -567,8 +588,8 @@ class ThreadSnapshot:
             if len(encoded_state) > _MAX_APPLICATION_STATE_BYTES:
                 raise ThreadProtocolError("snapshot.application_state is too large")
         return cls(
-            thread_id=_identifier(document["thread_id"], name="snapshot.thread_id"),
-            run=RunSnapshot.from_document(document["run"]),
+            thread_id=thread_id,
+            run=run,
             active_model_context=context,
             active_grid_page_id=_identifier(document["active_grid_page_id"], name="snapshot.active_grid_page_id"),
             current_attempt=attempt,

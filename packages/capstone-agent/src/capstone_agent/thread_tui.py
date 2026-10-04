@@ -10,6 +10,7 @@ the production HTTP/SSE adapter can bridge it from an async transport later.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -23,7 +24,9 @@ from .thread_http import ThreadResyncRequired
 from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadSnapshot
 
 
-ModelOption = tuple[str, str]
+# The two-field form remains accepted for in-process callers; the live CLI
+# also carries catalog availability and its bounded reason.
+ModelOption = tuple[str, str] | tuple[str, str, bool, str | None]
 SubmitCommand = Callable[[dict[str, Any]], CommandReceipt]
 
 
@@ -71,6 +74,61 @@ class ThreadTuiSessionAdapter:
 
 def _model_label(model_id: str) -> str:
     return {"ieee39": "IEEE-39", "pypsa39": "PyPSA-39"}.get(model_id, model_id)
+
+
+def _parse_model_command(text: str) -> tuple[str, str] | None:
+    value = re.sub(r"[。.!！?？]+$", "", text.strip()).strip()
+    fresh = re.match(r"^(?:重新打开|重新载入|重建|打开一个干净的模型)\s+(.+)$", value)
+    if fresh:
+        return "reopen_model_context", fresh.group(1).strip()
+    switch = re.match(r"^(?:打开|切换到|切换至|使用|选择)\s+(.+)$", value)
+    if switch:
+        return "switch_model", switch.group(1).strip()
+    return None
+
+
+def _is_likely_natural_language_request(reference: str) -> bool:
+    value = reference.strip()
+    words = tuple(part for part in value.split() if part)
+    return (
+        len(value) > 48 or len(words) > 5
+        or re.search(
+            r"(?:并|然后|执行|分析|解析|线路|潮流|母线|端点|结果|网络|network|analy[sz]|execute|perform|flow|line|bus)",
+            value, re.IGNORECASE,
+        ) is not None
+    )
+
+
+def _option_id(item: ModelOption) -> str:
+    return item[0]
+
+
+def _option_label(item: ModelOption) -> str:
+    return item[1]
+
+
+def _option_available(item: ModelOption) -> tuple[bool, str | None]:
+    if len(item) < 3:
+        return True, None
+    return item[2], item[3]
+
+
+def _resolve_model_reference(model_options: Sequence[ModelOption], reference: str) -> tuple[ModelOption, ...]:
+    normalized = " ".join(reference.strip().lower().split())
+    exact = tuple(item for item in model_options if _option_id(item) == reference.strip())
+    if exact:
+        return exact
+    case_exact = tuple(item for item in model_options if _option_id(item).lower() == normalized)
+    if case_exact:
+        return case_exact
+    suffix = tuple(item for item in model_options if _option_id(item).rsplit("/", 1)[-1].lower() == normalized)
+    if suffix:
+        return tuple(sorted(suffix, key=_option_id))
+    display = tuple(
+        item for item in model_options
+        if _option_label(item).split(" · ", 1)[0].strip().lower() == normalized
+    )
+    return tuple(sorted(display, key=_option_id))
 
 
 def case_projection(snapshot: ThreadSnapshot) -> CaseExecutionSnapshot | None:
@@ -149,7 +207,7 @@ class ThreadTuiApp(App[None]):
             raise ValueError("Thread event page does not follow snapshot cursor")
         if not model_options:
             raise ValueError("model_options must not be empty")
-        option_ids = {model_id for model_id, _ in model_options}
+        option_ids = {_option_id(item) for item in model_options}
         if snapshot.active_model_context.model_id not in option_ids:
             raise ValueError("active model is not present in model_options")
         self.snapshot = snapshot
@@ -181,7 +239,7 @@ class ThreadTuiApp(App[None]):
                     id="model-status", classes="model-card",
                 )
                 yield Select(
-                    tuple((label, model_id) for model_id, label in self.model_options),
+                    tuple((_option_label(item), _option_id(item)) for item in self.model_options),
                     value=model.model_id, allow_blank=False,
                     id="model-select", prompt="选择目标模型",
                 )
@@ -373,6 +431,43 @@ class ThreadTuiApp(App[None]):
         if not text:
             self.query_one("#feedback", Static).update("请输入指令后再提交")
             return
+        intent = _parse_model_command(text)
+        if intent is not None:
+            action, reference = intent
+            matches = _resolve_model_reference(self.model_options, reference)
+            if len(matches) > 1:
+                self.query_one("#feedback", Static).update(
+                    f"模型引用不唯一 · 请使用完整模型 ID：{'、'.join(item[0] for item in matches)}",
+                )
+                return
+            if len(matches) == 1:
+                model_id = _option_id(matches[0])
+                available, unavailable_reason = _option_available(matches[0])
+                if not available:
+                    reason = unavailable_reason or "worker_unavailable"
+                    self.query_one("#feedback", Static).update(
+                        f"{_option_label(matches[0])} 当前不可用 · {reason}",
+                    )
+                    return
+                if action == "switch_model" and model_id == self.snapshot.active_model_context.model_id:
+                    self.query_one("#feedback", Static).update("目标模型已经是当前模型")
+                    return
+                factory = self._factory()
+                if action == "reopen_model_context":
+                    command = factory.reopen_model_context(
+                        model_id, expected_event_seq=self.snapshot.last_event_seq,
+                        reason="user_requested_fresh_context", **self._identity(action),
+                    )
+                else:
+                    command = factory.switch_model(
+                        model_id, expected_event_seq=self.snapshot.last_event_seq,
+                        **self._identity(action),
+                    )
+                self._submit(command, input_widget)
+                return
+                if not _is_likely_natural_language_request(reference):
+                    self.query_one("#feedback", Static).update(f"未找到注册模型 · {reference}")
+                    return
         factory = self._factory()
         identity = self._identity(kind)
         builder = factory.send_ordinary if kind == "send_ordinary" else factory.send_professional
@@ -386,6 +481,14 @@ class ThreadTuiApp(App[None]):
         if not isinstance(value, str):
             self.query_one("#feedback", Static).update("请选择目标模型")
             return
+        selected = next((item for item in self.model_options if _option_id(item) == value), None)
+        if selected is not None:
+            available, unavailable_reason = _option_available(selected)
+            if not available:
+                self.query_one("#feedback", Static).update(
+                    f"{_option_label(selected)} 当前不可用 · {unavailable_reason or 'worker_unavailable'}",
+                )
+                return
         if value == self.snapshot.active_model_context.model_id:
             self.query_one("#feedback", Static).update("目标模型已经是当前模型")
             return

@@ -119,3 +119,65 @@ def test_projector_accepts_verified_gridctl_powerflow_document() -> None:
     assert payload["tables"][0]["rows"][0]["cells"] == {
         "line": "11", "loading_percent": 67.15, "active_loss_mw": 0.72,
     }
+
+
+def test_project_admitted_keeps_authority_and_diagram_access_inside_domain_pack() -> None:
+    class Artifact:
+        def __init__(self, document: dict[str, object]) -> None:
+            self.document = document
+
+    class Authority:
+        def verify_context(self, reference: str) -> Artifact:
+            assert reference == context()["context_ref"]
+            return Artifact(context())
+
+        def verify_result(self, reference: str) -> Artifact:
+            assert reference == RESULT_REF
+            return Artifact(calculation())
+
+    def invoke(capability: str, arguments: dict[str, object]) -> object:
+        assert capability == "operator.diagram.get"
+        assert arguments == {"context_ref": context()["context_ref"]}
+        return diagram()
+
+    payloads = PandapowerResultProjector().project_admitted(
+        authority=Authority(), invoke=invoke, context_ref=context()["context_ref"],
+        model_context_id="context_1", model_id="ieee39", thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        result_refs=(RESULT_REF,), result_evidence={RESULT_REF: (EVIDENCE_REF,)},
+    )
+
+    assert len(payloads) == 1
+    assert payloads[0]["result_ref"] == RESULT_REF
+
+
+def test_project_admitted_uses_current_run_evidence_when_authority_hint_is_empty() -> None:
+    class Artifact:
+        def __init__(self, document: dict[str, object]) -> None:
+            self.document = document
+
+    authority_calculation = calculation()
+    authority_calculation["evidence_refs"] = []
+
+    class Authority:
+        def verify_context(self, reference: str) -> Artifact:
+            assert reference == context()["context_ref"]
+            return Artifact(context())
+
+        def verify_result(self, reference: str) -> Artifact:
+            assert reference == RESULT_REF
+            return Artifact(authority_calculation)
+
+    def invoke(capability: str, arguments: dict[str, object]) -> object:
+        assert capability == "operator.diagram.get"
+        assert arguments == {"context_ref": context()["context_ref"]}
+        return diagram()
+
+    payloads = PandapowerResultProjector().project_admitted(
+        authority=Authority(), invoke=invoke, context_ref=context()["context_ref"],
+        model_context_id="context_1", model_id="ieee39", thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        result_refs=(RESULT_REF,), result_evidence={RESULT_REF: (EVIDENCE_REF,)},
+    )
+
+    assert payloads[0]["evidence_refs"] == [EVIDENCE_REF]

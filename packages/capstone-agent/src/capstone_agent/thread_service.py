@@ -43,7 +43,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
-from .result_projection import ResultProjection, normalize_result_projection
+from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -57,11 +57,11 @@ _MESSAGE_COMMAND_KINDS = frozenset({"send_auto", "send_ordinary", "send_professi
 _CONTROL_COMMAND_KINDS = frozenset({
     "cancel_live_attempt", "retry_new_attempt",
     "enable_profile", "disable_profile", "replace_selection",
-    "switch_model",
+    "switch_model", "reopen_model_context",
 })
 _SELECTION_COMMAND_KINDS = frozenset({"enable_profile", "disable_profile", "replace_selection"})
 _CONTEXT_LOCK_COMMAND_KINDS = frozenset({
-    "switch_model", "enable_profile", "disable_profile", "replace_selection",
+    "switch_model", "reopen_model_context", "enable_profile", "disable_profile", "replace_selection",
 })
 _CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt"}
 
@@ -72,7 +72,7 @@ def _terminal_result_projections(
     """Admit typed result projections against this exact terminal Attempt."""
 
     raw_projections = payload.get("result_projections", [])
-    if not isinstance(raw_projections, list) or len(raw_projections) > 12:
+    if not isinstance(raw_projections, list) or len(raw_projections) > MAX_RESULT_PROJECTIONS:
         raise ThreadProtocolError("attempt.result_projections is invalid")
     if not raw_projections:
         return ()
@@ -89,12 +89,29 @@ def _terminal_result_projections(
     admitted_refs = (*raw_results, *raw_evidence)
     projections: list[ResultProjection] = []
     for raw in raw_projections:
+        if not isinstance(raw, Mapping):
+            raise ThreadProtocolError("attempt.result_projections contains an invalid item")
+        raw_document = dict(raw)
+        raw_diagram_ids = raw_document.pop("_diagram_element_ids", None)
+        diagram_ids: tuple[str, ...] | None = None
+        if raw_diagram_ids is not None:
+            if (
+                not isinstance(raw_diagram_ids, (list, tuple))
+                or any(not isinstance(item, str) for item in raw_diagram_ids)
+            ):
+                raise ThreadProtocolError("result projection diagram identity is invalid")
+            diagram_ids = tuple(raw_diagram_ids)
         document = normalize_result_projection(
-            raw,
+            raw_document,
             admitted_refs=admitted_refs,
+            diagram_ids=diagram_ids,
             expected_model_revision=claim.model_context.model_revision,
         )
         projection = ResultProjection.from_document(document)
+        if diagram_ids is None and (projection.element_refs or any(
+            row.element_ref is not None for table in projection.tables for row in table.rows
+        ) or projection.overlay is not None):
+            raise ThreadProtocolError("result projection diagram identity is unavailable")
         if (
             projection.thread_id != claim.thread_id
             or projection.run_id != claim.run_id
@@ -263,6 +280,7 @@ class AttemptClaim:
     lease_token: str
     model_context: ModelContextSnapshot
     turn_plan: TurnPlan | None = None
+    application_catalog: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -271,12 +289,18 @@ class AttemptClaim:
             or self.attempt.target_model_context_id != self.model_context_id
         ):
             raise ThreadExecutionError("attempt claim model context is inconsistent")
+        if self.application_catalog is not None:
+            _validate_bounded_json(
+                self.application_catalog,
+                name="attempt.application_catalog",
+                maximum=512 * 1024,
+            )
 
 
 class ThreadExecutionService(ThreadService, Protocol):
     """Durable Attempt operations used by the Harness worker."""
 
-    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None: ...
+    def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None: ...
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
 
@@ -326,6 +350,7 @@ def _canonical(value: Mapping[str, Any]) -> str:
 def _thread_catalog_document(
     model_catalog: ThreadModelCatalog | None,
     capability_catalog: ThreadCapabilityCatalog | None,
+    available_families: frozenset[str] | None = None,
 ) -> dict[str, object]:
     """Project only bounded selector metadata from application-owned catalogs."""
 
@@ -346,12 +371,15 @@ def _thread_catalog_document(
                 continue
             family_name = cast(str, implementation_family)
             families.add(family_name)
+            available = available_families is None or family_name in available_families
             models.append({
                 "model_id": model_id,
                 "authority_model_ref": authority_model_ref,
                 "display_name": display_name,
                 "diagram_provider_id": diagram_provider_id,
                 "implementation_family": implementation_family,
+                "available": available,
+                **({"unavailable_reason": "worker_unavailable"} if not available else {}),
             })
 
     profiles: dict[tuple[str, str], dict[str, object]] = {}
@@ -419,8 +447,9 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
             target = next(iter(payload.values()))
             if not isinstance(target, str) or not _IDENTIFIER.fullmatch(target):
                 return "retry_target_invalid"
-        elif command["kind"] == "switch_model":
-            if set(payload) != {"model_id"}:
+        elif command["kind"] in {"switch_model", "reopen_model_context"}:
+            required = {"model_id"} if command["kind"] == "switch_model" else {"model_id", "reason"}
+            if set(payload) != required:
                 return "model_target_required"
             if not isinstance(payload["model_id"], str):
                 return "model_target_invalid"
@@ -428,6 +457,13 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
                 validate_model_id(payload["model_id"])
             except ValueError:
                 return "model_target_invalid"
+            if command["kind"] == "reopen_model_context":
+                reason = payload.get("reason")
+                if (
+                    not isinstance(reason, str) or not reason.strip()
+                    or len(reason) > 256 or "\n" in reason or "\r" in reason
+                ):
+                    return "fresh_context_reason_invalid"
         elif command["kind"] in {"enable_profile", "disable_profile"}:
             if set(payload) != {"profile_id", "profile_version"}:
                 return "profile_reference_required"
@@ -491,6 +527,8 @@ class InMemoryThreadService:
         self._snapshot = snapshot
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
+        self._catalog_context: Mapping[str, object] | None = None
+        self._available_families: frozenset[str] | None = None
         self._events: list[EventEnvelope] = []
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
@@ -530,6 +568,14 @@ class InMemoryThreadService:
         with self._lock:
             self._model_catalog = model_catalog
 
+    def set_catalog_context(self, catalog_context: Mapping[str, object]) -> None:
+        if not isinstance(catalog_context, Mapping):
+            raise TypeError("catalog context is invalid")
+        self._catalog_context = cast(
+            Mapping[str, object],
+            json.loads(_canonical(catalog_context)),
+        )
+
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
         with self._lock:
             self._check_thread(thread_id)
@@ -539,7 +585,16 @@ class InMemoryThreadService:
     def catalog(self, thread_id: str) -> dict[str, object]:
         with self._lock:
             self._check_thread(thread_id)
-            return _thread_catalog_document(self._model_catalog, self._capability_catalog)
+            return _thread_catalog_document(self._model_catalog, self._capability_catalog, self._available_families)
+
+    def set_available_families(self, families: frozenset[str] | None) -> None:
+        if families is not None and any(not isinstance(item, str) or not _IDENTIFIER.fullmatch(item) for item in families):
+            raise ValueError("available implementation families are invalid")
+        with self._lock:
+            self._available_families = families
+
+    def is_family_available(self, family: str) -> bool:
+        return self._available_families is None or family in self._available_families
 
     def context_lock(self, thread_id: str) -> str | None:
         with self._lock:
@@ -647,8 +702,8 @@ class InMemoryThreadService:
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 self._command_ids.add(parsed["command_id"])
                 return receipt
-            if parsed["kind"] == "switch_model":
-                pending, rejection = self._model_switch_for_command(parsed)
+            if parsed["kind"] in {"switch_model", "reopen_model_context"}:
+                pending, rejection = self._model_switch_for_command(parsed, allow_same=parsed["kind"] == "reopen_model_context")
                 if rejection is not None:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
@@ -671,6 +726,7 @@ class InMemoryThreadService:
                             "model_id": pending.model_id,
                             "model_revision": pending.model_revision,
                             "implementation_family": pending.implementation_family,
+                            "reason": pending.reason,
                             "selection": ModelCapabilitySelection(
                                 pending.enabled_profiles,
                             ).to_document(),
@@ -927,14 +983,18 @@ class InMemoryThreadService:
             self._command_ids.add(parsed["command_id"])
             return receipt
 
-    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
+    def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError("implementation family is invalid")
         with self._lock:
             for attempt_id, record in self._attempts.items():
                 if record["attempt"].phase != "accepted" or record["lease_token"] is not None:
                     continue
                 context = record.get("model_context")
+                if implementation_family is not None and (context is None or context.implementation_family != implementation_family):
+                    continue
                 if context != self._snapshot.active_model_context:
                     terminal = replace(record["attempt"], phase="interrupted")
                     record["attempt"] = terminal
@@ -965,6 +1025,16 @@ class InMemoryThreadService:
                     selection_revision=self._snapshot.active_model_context.selection_revision,
                     lease_token=token,
                     model_context=context,
+                    application_catalog=(
+                        self._catalog_context
+                        if self._catalog_context is not None
+                        else (
+                            _thread_catalog_document(
+                                self._model_catalog, self._capability_catalog,
+                            )
+                            if self._model_catalog is not None else None
+                        )
+                    ),
                 )
             return None
 
@@ -1000,7 +1070,9 @@ class InMemoryThreadService:
             activation = next(
                 (
                     event for event in reversed(self._events)
-                    if event.event_type in {"selection_activated", "model_context_activated"}
+                    if event.event_type in {
+                        "selection_activated", "model_context_activated", "model_context_reopened",
+                    }
                     and event.selection_revision == active.selection_revision
                     and event.model_context_id == active.id
                     and event.payload.get("activation_turn_id") == claim.attempt.turn_id
@@ -1010,7 +1082,7 @@ class InMemoryThreadService:
             if activation is None:
                 return False
             previous_context_document = activation.payload.get("previous_context")
-            if activation.event_type == "model_context_activated" and isinstance(previous_context_document, dict):
+            if activation.event_type in {"model_context_activated", "model_context_reopened"} and isinstance(previous_context_document, dict):
                 try:
                     restored = ModelContextSnapshot.from_document(previous_context_document)
                 except ThreadProtocolError:
@@ -1123,14 +1195,17 @@ class InMemoryThreadService:
             record["attempt"] = terminal
             record["lease_token"] = None
             self._cancel_requests.discard(claim.attempt.attempt_id)
+            event_payload = dict(payload)
+            if result_projections:
+                event_payload["result_projections"] = [item.to_document() for item in result_projections]
             event = self._append_event(
                 event_type="attempt_" + phase,
-                attempt=terminal, payload=dict(payload),
+                attempt=terminal, payload=event_payload,
                 context=record["model_context"],
             )
             self._snapshot = replace(
                 self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
-                result_projections=self._snapshot.result_projections + result_projections,
+                result_projections=(self._snapshot.result_projections + result_projections)[-MAX_RESULT_PROJECTIONS:],
             )
             return self._snapshot
 
@@ -1192,7 +1267,7 @@ class InMemoryThreadService:
         return selection, None
 
     def _model_switch_for_command(
-        self, command: Mapping[str, Any],
+        self, command: Mapping[str, Any], *, allow_same: bool = False,
     ) -> tuple[PendingModelSwitchSnapshot | None, str | None]:
         if self._snapshot.pending_model_switch is not None or self._snapshot.pending_selection is not None:
             return None, "context_change_pending"
@@ -1203,8 +1278,10 @@ class InMemoryThreadService:
             descriptor = catalog.resolve(command["payload"]["model_id"])
         except (KeyError, TypeError, ValueError):
             return None, "model_unavailable"
+        if not self.is_family_available(descriptor.implementation_family):
+            return None, "worker_unavailable"
         active = self._snapshot.active_model_context
-        if (
+        if not allow_same and (
             descriptor.model_id == active.model_id
             and descriptor.model_revision == active.model_revision
             and descriptor.implementation_family == active.implementation_family
@@ -1222,6 +1299,11 @@ class InMemoryThreadService:
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
             enabled_profiles=selection.enabled_profiles,
+            reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
+            fresh_context_reason=(
+                command["payload"].get("reason")
+                if command["kind"] == "reopen_model_context" else None
+            ),
         ), None
 
     def _activate_pending_model_switch(self, turn_id: str) -> None:
@@ -1238,10 +1320,17 @@ class InMemoryThreadService:
             enabled_profiles=pending.enabled_profiles,
         )
         event = self._append_control_event(
-            event_type="model_context_activated",
+            event_type=(
+                "model_context_reopened"
+                if pending.reason == "explicit_reopen"
+                else "model_context_activated"
+            ),
             payload={
                 "command_id": pending.command_id,
                 "activation_turn_id": turn_id,
+                "reason": pending.reason,
+                **({"fresh_context_reason": pending.fresh_context_reason}
+                   if pending.fresh_context_reason is not None else {}),
                 "previous_context": previous.to_document(),
                 "previous_grid_page_id": self._snapshot.active_grid_page_id,
                 "active_grid_page_id": page_id_for_model(active.model_id),
@@ -1452,6 +1541,9 @@ class ThreadCreator:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
         )
+        available = getattr(self._service, "is_family_available", None)
+        if callable(available) and not available(descriptor.implementation_family):
+            raise ValueError("worker_unavailable")
         enabled_profiles = (
             self._capability_catalog.resolve(descriptor, selection).enabled_profiles
             if self._capability_catalog is not None
@@ -1573,6 +1665,8 @@ class PostgresThreadService:
         self.dsn = dsn
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
+        self._catalog_context: Mapping[str, object] | None = None
+        self._available_families: frozenset[str] | None = None
 
     def set_capability_catalog(self, capability_catalog: ThreadCapabilityCatalog) -> None:
         if not callable(getattr(capability_catalog, "resolve", None)):
@@ -1583,6 +1677,14 @@ class PostgresThreadService:
         if not callable(getattr(model_catalog, "resolve", None)):
             raise TypeError("model catalog is invalid")
         self._model_catalog = model_catalog
+
+    def set_catalog_context(self, catalog_context: Mapping[str, object]) -> None:
+        if not isinstance(catalog_context, Mapping):
+            raise TypeError("catalog context is invalid")
+        self._catalog_context = cast(
+            Mapping[str, object],
+            json.loads(_canonical(catalog_context)),
+        )
 
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
         return cast(
@@ -1637,7 +1739,15 @@ class PostgresThreadService:
 
     def catalog(self, thread_id: str) -> dict[str, object]:
         self.snapshot(thread_id)
-        return _thread_catalog_document(self._model_catalog, self._capability_catalog)
+        return _thread_catalog_document(self._model_catalog, self._capability_catalog, self._available_families)
+
+    def set_available_families(self, families: frozenset[str] | None) -> None:
+        if families is not None and any(not isinstance(item, str) or not _IDENTIFIER.fullmatch(item) for item in families):
+            raise ValueError("available implementation families are invalid")
+        self._available_families = families
+
+    def is_family_available(self, family: str) -> bool:
+        return self._available_families is None or family in self._available_families
 
     def context_lock(self, thread_id: str) -> str | None:
         return _application_context_lock(self.snapshot(thread_id))
@@ -1754,8 +1864,8 @@ class PostgresThreadService:
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
                     )
-            elif parsed["kind"] == "switch_model":
-                pending, rejection = self._model_switch_for_command(snapshot, parsed)
+            elif parsed["kind"] in {"switch_model", "reopen_model_context"}:
+                pending, rejection = self._model_switch_for_command(snapshot, parsed, allow_same=parsed["kind"] == "reopen_model_context")
                 if rejection is not None:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
@@ -1777,6 +1887,9 @@ class PostgresThreadService:
                             "model_id": pending.model_id,
                             "model_revision": pending.model_revision,
                             "implementation_family": pending.implementation_family,
+                            "reason": pending.reason,
+                            **({"fresh_context_reason": pending.fresh_context_reason}
+                               if pending.fresh_context_reason is not None else {}),
                             "selection": ModelCapabilitySelection(
                                 pending.enabled_profiles,
                             ).to_document(),
@@ -2204,15 +2317,19 @@ class PostgresThreadService:
             )
             return receipt
 
-    def claim_attempt(self, worker_id: str, lease_seconds: int) -> AttemptClaim | None:
+    def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError("implementation family is invalid")
         token = secrets.token_hex(16)
         with self._connect() as connection:
             row = connection.execute(
                 """SELECT attempt_id FROM capstone_thread_attempts
                    WHERE phase = 'accepted' AND lease_token IS NULL
+                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text)
                    ORDER BY created_at, attempt_id LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                (implementation_family, implementation_family),
             ).fetchone()
             if row is None:
                 return None
@@ -2283,6 +2400,16 @@ class PostgresThreadService:
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
+                application_catalog=(
+                    self._catalog_context
+                    if self._catalog_context is not None
+                    else (
+                        _thread_catalog_document(
+                            self._model_catalog, self._capability_catalog,
+                        )
+                        if self._model_catalog is not None else None
+                    )
+                ),
             )
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
@@ -2346,7 +2473,7 @@ class PostgresThreadService:
             row = connection.execute(
                 """SELECT event_type, payload FROM capstone_thread_events
                    WHERE thread_id = %s
-                     AND event_type IN ('selection_activated', 'model_context_activated')
+                     AND event_type IN ('selection_activated', 'model_context_activated', 'model_context_reopened')
                      AND selection_revision = %s AND model_context_id = %s
                      AND payload->>'activation_turn_id' = %s
                    ORDER BY event_seq DESC LIMIT 1""",
@@ -2355,7 +2482,7 @@ class PostgresThreadService:
             if row is None or not isinstance(row["payload"], dict):
                 return False
             previous_context_document = row["payload"].get("previous_context")
-            if row["event_type"] == "model_context_activated" and isinstance(previous_context_document, dict):
+            if row["event_type"] in {"model_context_activated", "model_context_reopened"} and isinstance(previous_context_document, dict):
                 try:
                     restored = ModelContextSnapshot.from_document(previous_context_document)
                 except ThreadProtocolError:
@@ -2544,10 +2671,13 @@ class PostgresThreadService:
             existing_result_ids = {item.result_id for item in existing_projections}
             if any(item.result_id in existing_result_ids for item in result_projections):
                 raise ThreadProtocolError("result projection already exists")
+            event_payload = dict(payload)
+            if result_projections:
+                event_payload["result_projections"] = [item.to_document() for item in result_projections]
             event = self._make_attempt_event(
                 thread, terminal, event_seq=thread["last_event_seq"] + 1,
                 event_type="attempt_" + phase,
-                payload=dict(payload), context=claim.model_context,
+                payload=event_payload, context=claim.model_context,
             )
             self._insert_event(connection, event)
             connection.execute(
@@ -2560,7 +2690,7 @@ class PostgresThreadService:
                 """UPDATE capstone_threads
                    SET current_attempt = NULL, result_projections = %s, last_event_seq = %s
                    WHERE thread_id = %s RETURNING *""",
-                (Jsonb([item.to_document() for item in existing_projections + result_projections]),
+                (Jsonb([item.to_document() for item in (existing_projections + result_projections)[-MAX_RESULT_PROJECTIONS:]]),
                  event.event_seq, claim.thread_id),
             ).fetchone()
             assert updated is not None
@@ -2614,7 +2744,7 @@ class PostgresThreadService:
         return selection, None
 
     def _model_switch_for_command(
-        self, snapshot: ThreadSnapshot, command: Mapping[str, Any],
+        self, snapshot: ThreadSnapshot, command: Mapping[str, Any], *, allow_same: bool = False,
     ) -> tuple[PendingModelSwitchSnapshot | None, str | None]:
         if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None:
             return None, "context_change_pending"
@@ -2625,8 +2755,10 @@ class PostgresThreadService:
             descriptor = catalog.resolve(command["payload"]["model_id"])
         except (KeyError, TypeError, ValueError):
             return None, "model_unavailable"
+        if not self.is_family_available(descriptor.implementation_family):
+            return None, "worker_unavailable"
         active = snapshot.active_model_context
-        if (
+        if not allow_same and (
             descriptor.model_id == active.model_id
             and descriptor.model_revision == active.model_revision
             and descriptor.implementation_family == active.implementation_family
@@ -2644,6 +2776,11 @@ class PostgresThreadService:
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
             enabled_profiles=selection.enabled_profiles,
+            reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
+            fresh_context_reason=(
+                command["payload"].get("reason")
+                if command["kind"] == "reopen_model_context" else None
+            ),
         ), None
 
     def _activate_pending_model_switch(
@@ -2666,10 +2803,17 @@ class PostgresThreadService:
         )
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
-            event_type="model_context_activated",
+            event_type=(
+                "model_context_reopened"
+                if pending.reason == "explicit_reopen"
+                else "model_context_activated"
+            ),
             payload={
                 "command_id": pending.command_id,
                 "activation_turn_id": turn_id,
+                "reason": pending.reason,
+                **({"fresh_context_reason": pending.fresh_context_reason}
+                   if pending.fresh_context_reason is not None else {}),
                 "previous_context": previous.to_document(),
                 "previous_grid_page_id": snapshot.active_grid_page_id,
                 "active_grid_page_id": page_id_for_model(active.model_id),

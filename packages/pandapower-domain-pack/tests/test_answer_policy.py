@@ -137,3 +137,49 @@ def test_admission_with_validated_result_is_lineage_not_semantic_verification() 
     assert decision.mode == "authority_backed"
     assert decision.assurance == "lineage_verified"
     assert "semantic_verification" not in decision.diagnostic_codes
+
+
+def test_admission_accepts_successful_read_only_model_observation() -> None:
+    decision = PandapowerAnswerAdmissionPolicy().admit(
+        AnswerAdmissionInput(
+            question="IEEE-39 有哪些母线和线路?",
+            answer_output="IEEE-39 包含 39 条母线和 46 条支路。",
+            result_refs=(),
+            evidence_refs=(),
+            observed_capabilities=(
+                "environment.describe", "context.open", "model.dataset.query",
+            ),
+            failed_capabilities=(),
+        )
+    )
+
+    assert decision.mode == "offline_information"
+    assert decision.assurance == "deterministic_information"
+    assert "current_model_observation_verified" in decision.diagnostic_codes
+
+
+def test_admission_does_not_accept_failed_or_analysis_observation_without_lineage() -> None:
+    policy = PandapowerAnswerAdmissionPolicy()
+    failed = policy.admit(
+        AnswerAdmissionInput(
+            question="IEEE-39 有哪些母线和线路?",
+            answer_output="回答",
+            result_refs=(),
+            evidence_refs=(),
+            observed_capabilities=("model.dataset.query",),
+            failed_capabilities=("model.dataset.query",),
+        )
+    )
+    analysis = policy.admit(
+        AnswerAdmissionInput(
+            question="IEEE-39 有哪些母线和线路?",
+            answer_output="回答",
+            result_refs=(),
+            evidence_refs=(),
+            observed_capabilities=("grid_guide_open", "topology.branch.endpoints.get"),
+            failed_capabilities=(),
+        )
+    )
+
+    assert failed.mode == "limited"
+    assert analysis.mode == "limited"

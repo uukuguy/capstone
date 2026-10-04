@@ -31,11 +31,12 @@ def run_pending_attempt(
     lease_seconds: int = 30,
     turn_router: TurnRouter | None = None,
     case_service: "CaseExecutionService | None" = None,
+    implementation_family: str | None = None,
 ) -> HarnessAttemptResult | None:
     """Run at most one accepted Attempt and return ``None`` when idle."""
 
     service.interrupt_expired_attempts()
-    claim = service.claim_attempt(worker_id, lease_seconds)
+    claim = service.claim_attempt(worker_id, lease_seconds, implementation_family)
     if claim is None:
         return None
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
@@ -90,6 +91,7 @@ def serve_thread_attempts(
     stop_event: threading.Event | None = None,
     turn_router: TurnRouter | None = None,
     case_service: "CaseExecutionService | None" = None,
+    implementation_family: str | None = None,
 ) -> None:
     """Poll accepted Attempts until ``stop_event`` is set.
 
@@ -108,6 +110,7 @@ def serve_thread_attempts(
             lease_seconds=lease_seconds,
             turn_router=turn_router,
             case_service=case_service,
+            implementation_family=implementation_family,
         )
         if case_service is not None:
             case_service.reconcile_active()

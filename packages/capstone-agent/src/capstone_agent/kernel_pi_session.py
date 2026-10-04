@@ -159,10 +159,12 @@ class PreparedKernelPiRpcSessionBuilder:
         single_runtime = binding_runtimes[0][1] if single else None
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
         system_policy_path = self._runtime_host.system_policy_path
-        if ordinary:
-            system_policy_path = _compose_conversation_policy(
+        if ordinary or claim.application_catalog is not None:
+            system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
+                include_generic=ordinary,
+                application_catalog=claim.application_catalog,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -230,21 +232,65 @@ def _require_prepared_kernel_profile(
     return prepared
 
 
-def _compose_conversation_policy(directory: Path, domain_policy: Path | None) -> Path:
-    """Keep generic Pi behavior while retaining the selected Domain Pack policy."""
+def _compose_attempt_policy(
+    directory: Path,
+    domain_policy: Path | None,
+    *,
+    include_generic: bool,
+    application_catalog: Mapping[str, object] | None,
+) -> Path:
+    """Compose generic, domain, and application catalog guidance for one Attempt."""
 
     generic = Path(__file__).parent / "resources" / "conversation-policy.md"
-    generic_text = generic.read_text(encoding="utf-8")
+    generic_text = generic.read_text(encoding="utf-8") if include_generic else ""
     domain_text = ""
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
-    if len(generic_text) + len(domain_text) > 128_000:
+    catalog_text = _render_application_catalog_context(application_catalog)
+    if len(generic_text) + len(domain_text) + len(catalog_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
-    path.write_text(generic_text + "\n\n" + domain_text, encoding="utf-8")
+    path.write_text(
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text) if item),
+        encoding="utf-8",
+    )
     path.chmod(0o600)
     return path
+
+
+def _render_application_catalog_context(
+    catalog: Mapping[str, object] | None,
+) -> str:
+    """Render bounded application metadata without exposing Authority internals."""
+
+    if catalog is None:
+        return ""
+    models = catalog.get("models")
+    if not isinstance(models, list):
+        return ""
+    lines = [
+        "## Capstone registered model catalog (application-owned metadata)",
+        "Use this bounded catalog for model availability questions. It covers all registered implementation families, not only the active Domain Pack.",
+        "Do not claim that another family has no models merely because the current model uses a different family. To execute work on another family, the user must select or switch to that model first.",
+    ]
+    default_model = catalog.get("default_model_id")
+    if isinstance(default_model, str) and default_model:
+        lines.append(f"Default model: {default_model}")
+    lines.append("Registered models:")
+    for item in models[:128]:
+        if not isinstance(item, Mapping):
+            continue
+        model_id = item.get("model_id")
+        display_name = item.get("display_name")
+        family = item.get("implementation_family")
+        if not all(isinstance(value, str) and value.strip() for value in (model_id, display_name, family)):
+            continue
+        availability = "registered"
+        if item.get("available") is False:
+            availability = "worker unavailable"
+        lines.append(f"- {display_name} ({model_id}) · family={family} · {availability}")
+    return "\n".join(lines)
 
 
 class _RpcWorkspace:
@@ -336,6 +382,23 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                 answer_output=answer,
                 result_refs=tuple(ref for ref in result_refs if owners.get(ref) == binding_id),
                 evidence_refs=tuple(ref for ref in evidence_refs if owners.get(ref) == binding_id),
+                observed_capabilities=tuple(
+                    sorted({
+                        str(event["capability"])
+                        for event in tool_events
+                        if event.get("binding_id") == binding_id
+                        and isinstance(event.get("capability"), str)
+                    })
+                ),
+                failed_capabilities=tuple(
+                    sorted({
+                        str(event["capability"])
+                        for event in tool_events
+                        if event.get("binding_id") == binding_id
+                        and event.get("ok") is not True
+                        and isinstance(event.get("capability"), str)
+                    })
+                ),
                 authority_attempted=any(
                     event.get("binding_id", binding_id) == binding_id
                     for event in tool_events
@@ -376,25 +439,79 @@ def _build_result_projections(
     bounded diagram, never a raw authority object.
     """
 
+    if not result_refs:
+        return ()
     projections: list[Mapping[str, object]] = []
+
+    def event_refs(event: Mapping[str, object], name: str) -> tuple[str, ...]:
+        raw = event.get(name)
+        if not isinstance(raw, (list, tuple)):
+            return ()
+        return tuple(item for item in raw if isinstance(item, str))
+
+    def unavailable_projection(
+        *, result_ref: str, evidence_refs_for_result: tuple[str, ...],
+        domain_pack_id: str, capability_id: str, implementation_family: str,
+        reason: str,
+    ) -> Mapping[str, object]:
+        raw: dict[str, object] = {
+            "schema": "capstone-result-projection/1.0",
+            "result_id": "result_projection_unavailable_" + claim.attempt.attempt_id + "_" + result_ref[-16:],
+            "result_ref": result_ref,
+            "evidence_refs": list(evidence_refs_for_result),
+            "thread_id": claim.thread_id,
+            "run_id": claim.run_id,
+            "turn_id": claim.attempt.turn_id,
+            "attempt_id": claim.attempt.attempt_id,
+            "model_context_id": claim.model_context.id,
+            "model_id": claim.model_context.model_id,
+            "model_revision": claim.model_context.model_revision,
+            "source": {
+                "capability_id": capability_id,
+                "domain_pack_id": domain_pack_id,
+                "implementation_family": implementation_family,
+            },
+            "status": "unavailable",
+            "summary": [], "tables": [], "element_refs": [], "overlay": None,
+            "unavailable_reason": reason,
+        }
+        return normalize_result_projection(
+            raw,
+            admitted_refs=tuple((*result_refs, *evidence_refs_for_result)),
+            expected_model_revision=claim.model_context.model_revision,
+        )
+
     owners: dict[str, str] = {}
+    result_evidence: dict[str, tuple[str, ...]] = {}
     sole_binding = next(iter(bindings), None) if len(bindings) == 1 else None
+    last_result_by_binding: dict[str, str] = {}
     for event in tool_events:
         binding_id = event.get("binding_id")
         if binding_id is None:
             binding_id = sole_binding
         if not isinstance(binding_id, str) or binding_id not in bindings:
             continue
-        for field in ("result_refs", "evidence_refs"):
-            refs = event.get(field)
-            if not isinstance(refs, (list, tuple)):
-                continue
-            for reference in refs:
-                if not isinstance(reference, str):
-                    continue
-                previous = owners.setdefault(reference, binding_id)
-                if previous != binding_id:
-                    raise ValueError("runtime reference has conflicting binding owners")
+        event_results = event_refs(event, "result_refs")
+        event_evidence = event_refs(event, "evidence_refs")
+        for reference in (*event_results, *event_evidence):
+            previous = owners.setdefault(reference, binding_id)
+            if previous != binding_id:
+                raise ValueError("runtime reference has conflicting binding owners")
+        for result_ref in event_results:
+            previous_evidence = result_evidence.setdefault(result_ref, event_evidence)
+            if previous_evidence != event_evidence:
+                raise ValueError("runtime result has conflicting evidence owners")
+            last_result_by_binding[binding_id] = result_ref
+        # Evidence retrieval is commonly a separate semantic tool call after
+        # the calculation.  Preserve that explicit runtime order so the
+        # evidence remains bound to the latest result instead of being treated
+        # as self-admitted projection data.
+        if event_evidence and not event_results:
+            result_ref = last_result_by_binding.get(binding_id)
+            if result_ref is not None:
+                previous_evidence = result_evidence.setdefault(result_ref, ())
+                merged = tuple(dict.fromkeys((*previous_evidence, *event_evidence)))
+                result_evidence[result_ref] = merged
 
     for profile in profiles:
         prepared_bindings = getattr(profile.prepared_application, "bindings", None)
@@ -405,49 +522,127 @@ def _build_result_projections(
             domain_profile = getattr(runtime, "profile", None)
             registry = getattr(domain_profile, "projector_registry", None)
             projector = getattr(registry, "result_projector", None)
-            project = getattr(projector, "project", None)
-            if not callable(project):
-                continue
+            project_admitted = getattr(projector, "project_admitted", None)
             authority = getattr(runtime, "authority", None)
-            verify_context = getattr(authority, "verify_context", None)
-            verify_result = getattr(authority, "verify_result", None)
             invoke = getattr(getattr(runtime, "executor", None), "invoke", None)
-            if not callable(verify_context) or not callable(verify_result) or not callable(invoke):
-                raise ValueError("Domain Pack result projection authority is unavailable")
             context_ref = profile.model_binding.context_ref
-            context_artifact = verify_context(context_ref)
-            context_document = getattr(context_artifact, "document", None)
-            if not isinstance(context_document, Mapping):
-                raise ValueError("Domain Pack context projection is invalid")
-            context_input = {
-                **dict(context_document),
-                "model_context_id": claim.model_context.id,
-                "counts": dict(context_document.get("counts", {}))
-                if isinstance(context_document.get("counts"), Mapping) else {},
-            }
-            diagram = invoke("operator.diagram.get", {"context_ref": context_ref})
-            if not isinstance(diagram, Mapping):
-                raise ValueError("Domain Pack diagram projection is invalid")
-            for result_ref in result_refs:
-                if owners.get(result_ref) != binding_id:
-                    continue
-                artifact = verify_result(result_ref)
-                calculation = getattr(artifact, "document", None)
-                if not isinstance(calculation, Mapping):
-                    raise ValueError("Domain Pack result projection is invalid")
-                if "evidence_refs" not in calculation:
-                    calculation = {**dict(calculation), "evidence_refs": list(evidence_refs)}
-                raw_projection = project(
-                    context_input, calculation,
-                    thread_id=claim.thread_id, run_id=claim.run_id,
-                    turn_id=claim.attempt.turn_id, attempt_id=claim.attempt.attempt_id,
-                    admitted_refs=(*result_refs, *evidence_refs), diagram=diagram,
+            owned_results = tuple(result_ref for result_ref in result_refs if owners.get(result_ref) == binding_id)
+            if not owned_results:
+                continue
+            owned_evidence = {result_ref: result_evidence.get(result_ref, ()) for result_ref in owned_results}
+            if not callable(project_admitted):
+                # A selected Domain Pack may not have a business projection yet
+                # (for example PyPSA during the migration). Keep the result
+                # visible as an explicitly unavailable projection rather than
+                # silently dropping it or pretending another domain's shape.
+                domain_pack_id = str(getattr(domain_profile, "id", binding_id))
+                implementation_family = claim.model_context.implementation_family
+                capability_id = next(
+                    (
+                        str(event.get("capability_id"))
+                        for event in tool_events
+                        if event.get("binding_id", binding_id) == binding_id
+                        and isinstance(event.get("capability_id"), str)
+                    ),
+                    "result.projection",
                 )
-                projections.append(normalize_result_projection(
-                    raw_projection,
-                    admitted_refs=(*result_refs, *evidence_refs),
-                    expected_model_revision=claim.model_context.model_revision,
-                ))
+                for result_ref in owned_results:
+                    projections.append(unavailable_projection(
+                        result_ref=result_ref,
+                        evidence_refs_for_result=owned_evidence.get(result_ref, ()),
+                        domain_pack_id=domain_pack_id,
+                        capability_id=capability_id,
+                        implementation_family=implementation_family,
+                        reason="当前 Domain Pack 尚未提供结果展示投影",
+                    ))
+                continue
+            if not callable(invoke):
+                raw_projections: object = ()
+                projection_error = True
+            else:
+                try:
+                    raw_projections = project_admitted(
+                        authority=authority,
+                        invoke=invoke,
+                        context_ref=context_ref,
+                        model_revision=claim.model_context.model_revision,
+                        model_context_id=claim.model_context.id,
+                        model_id=claim.model_context.model_id,
+                        thread_id=claim.thread_id,
+                        run_id=claim.run_id,
+                        turn_id=claim.attempt.turn_id,
+                        attempt_id=claim.attempt.attempt_id,
+                        result_refs=owned_results,
+                        result_evidence=owned_evidence,
+                    )
+                    projection_error = False
+                except Exception:
+                    raw_projections = ()
+                    projection_error = True
+            domain_pack_id = str(getattr(domain_profile, "id", binding_id))
+            implementation_family = claim.model_context.implementation_family
+            capability_id = next(
+                (
+                    str(event.get("capability_id"))
+                    for event in tool_events
+                    if event.get("binding_id", binding_id) == binding_id
+                    and isinstance(event.get("capability_id"), str)
+                ),
+                "result.projection",
+            )
+            if projection_error or not isinstance(raw_projections, (list, tuple)):
+                for result_ref in owned_results:
+                    projections.append(unavailable_projection(
+                        result_ref=result_ref,
+                        evidence_refs_for_result=owned_evidence.get(result_ref, ()),
+                        domain_pack_id=domain_pack_id,
+                        capability_id=capability_id,
+                        implementation_family=implementation_family,
+                        reason="结果展示投影暂不可用",
+                    ))
+                continue
+            seen_results: set[str] = set()
+            for raw_projection in raw_projections:
+                if not isinstance(raw_projection, Mapping):
+                    projection_error = True
+                    break
+                raw_result_ref = raw_projection.get("result_ref")
+                if not isinstance(raw_result_ref, str) or raw_result_ref not in owned_results:
+                    projection_error = True
+                    break
+                seen_results.add(raw_result_ref)
+                raw_document = dict(raw_projection)
+                raw_diagram_ids = raw_document.pop("_diagram_element_ids", None)
+                diagram_ids: list[str] | None = None
+                if raw_diagram_ids is not None:
+                    if not isinstance(raw_diagram_ids, (list, tuple)) or any(not isinstance(item, str) for item in raw_diagram_ids):
+                        projection_error = True
+                        break
+                    diagram_ids = list(raw_diagram_ids)
+                try:
+                    normalized = normalize_result_projection(
+                        raw_document,
+                        admitted_refs=tuple((*owned_results, *owned_evidence.get(raw_result_ref, ()))),
+                        diagram_ids=diagram_ids,
+                        expected_model_revision=claim.model_context.model_revision,
+                    )
+                except Exception:
+                    projection_error = True
+                    break
+                if diagram_ids is not None:
+                    normalized["_diagram_element_ids"] = diagram_ids
+                projections.append(normalized)
+            if projection_error or seen_results != set(owned_results):
+                projections = [item for item in projections if item.get("result_ref") not in owned_results]
+                for result_ref in owned_results:
+                    projections.append(unavailable_projection(
+                        result_ref=result_ref,
+                        evidence_refs_for_result=owned_evidence.get(result_ref, ()),
+                        domain_pack_id=domain_pack_id,
+                        capability_id=capability_id,
+                        implementation_family=implementation_family,
+                        reason="结果展示投影暂不可用",
+                    ))
     return tuple(projections)
 
 

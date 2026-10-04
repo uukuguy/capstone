@@ -1491,3 +1491,99 @@ _Recovered pre-merge mainline entries._
 - TUI 设计边界与 M5 恢复/catalog 修复已形成独立可恢复记录 [a20b3b1]
 - M5 恢复接力更新为最新共享 catalog、后台 worker 与本地镜像健康证据 [5c08b3d]
 - Composer 将自动路由、Profile、过程控制收进单一设置菜单，降低输入区视觉噪声 [65918c3]
+- 设置入口改为平面样式，点击外部自动关闭菜单，并补充交互回归测试 [81d99f9]
+- 欢迎区三个示例问题改为点击即提交，复用现有 Thread 发送与运行反馈流程 [cea8535]
+- TUI 只有在连续事件分页追上快照后才更新投影，分页缺失时冻结命令并保持旧状态 [a4f8546]
+- M5 复审确认 TUI 分页收敛修复通过，PyPSA hosted/live 入口仍是剩余阻断项
+- PyPSA 通过 Capstone 共享 hosted API/worker 入口接入，并用环境选择器保持双 Authority 独立运行 [bc67286]
+- 中断运行摘要改用红色危险状态图标和边界，帮助用户快速区分未完成结果 [f6e910e]
+- 状态与部署文档记录 PyPSA hosted 选择器及双 Authority 隔离要求，避免将组合根误当作 live 验收 [caa3c88]
+- M5 复审 Minor 已关闭：测试使用具体协议类型，终止事件回放保留中断危险态 [d80a0f1]
+- M5 复审文档落盘并明确 live 双 Authority、浏览器/TUI 证据和 Docker 重建仍未完成 [d7d2f07]
+- 同步 Analysis Context schema 的 answer_summary 字段，恢复全量契约测试一致性 [f36119b]
+- 补齐 Pyright 对现有 capability SPI 包的源码根覆盖，恢复验证目标一致性 [0541c9b]
+- TUI 异步同步错误在屏幕卸载期间只保留恢复状态，避免错误回调触发二次 UI 崩溃 [7ea5177]
+- 更新 M5 状态记录为全量测试通过，同时明确 live 矩阵、protected baseline 和 Docker 仍未完成 [35074f9]
+- 记录独立复审批准 TUI teardown 防护，保持 M5 live 验收阻塞项透明 [93f5137]
+- 主合同增加 Thread 全局回答显示模式与固定禁用操作槽位，避免长回答和缺失证据造成未知状态 [9c04620]
+- M5 增加双 Authority provider-free Thread HTTP 矩阵、生命周期恢复检查和验证报告，复用生产 Harness 边界 [7ead782]
+- M5 修正验证适配器仅转发 Authority 声明的结果/证据引用，并覆盖证据检索链路 [9a07dc8]
+- M5 修复已提交 Turn 的重复重试、持久化 provider-free summary，并加入 validation Pyright 门禁 [497338d]
+- 落盘 M1–M5 独立代码评审及修复结论，要求后续每个 M 阶段完成前独立复审 [a9ea269]
+- 落盘 M1–M5 独立复审最终 APPROVE 及 M5 状态，明确后续每个 M 阶段必须先复审 [4992ded]
+- 05:07 清理后 Docker 重建与服务健康通过；E2E 38 通过、1 个 provider-free 离线回答契约失败，baseline 仍阻塞 [806c54d]
+- 修复 provider-free 零步骤模型回答契约，E2E 全部通过且 admission 不改写读者文本 [302d723]
+- 更新 M5 验证、当前状态和恢复接力，明确 E2E 已恢复且仅 protected baseline 阻塞 [a788314]
+- `make test-e2e` 完成 39/39，唯一 provider-free 零步骤回答失败已消除
+- `make doctor` 复核通过，网格工具、Pi 扩展和离线探测路径可用
+- M5 provider-free 双 Authority 矩阵复跑通过：pandapower 5/5、PyPSA 3/3
+- 修复涉及文件的 Ruff（忽略既有 E402/F401）与差异检查通过
+- 更新 C.1 当前 protected simulator 摘要至已提交契约树，保护门禁与 8 项自测通过 [aa9e694]
+- 修复全仓 Pyright 类型门禁，保留运行时校验并通过核心包测试 [47b1426]
+- 更新 simulator 类型修复后的 C.1 protected 摘要，保护门禁复核通过 [61c183e]
+- 补齐 clean-wheel 的 capstone-model-capability-spi 工件闭包，grid/PyPSA 安装与全部 smoke 通过 [962e991]
+- 完成 M5 全量 release 门禁：validate、check-release、clean-wheel、source-setup 与 24/24 矩阵全部通过 [50c0026]
+
+## 2026-10-02
+- 复核并提交 M6 Harness 收敛与 CaseExecution 设计，明确策略分离、严格恢复和兼容层门禁 [235c2e4]
+
+## 2026-10-02
+- 生成并提交 M6 实施计划，按定义、存储、Harness、执行、恢复、投影和评审分段 [COMMIT]
+- 更正：M6 实施计划提交哈希为 5c0be9a，拆分九个可验证任务并保留独立复审门禁 [5c0be9a]
+- 澄清 M6 计划的应用状态透明边界、案例互斥命令和 reconcile 返回语义 [$(git rev-parse --short HEAD)]
+- 更正：M6 边界澄清提交哈希为 5c60622，案例互斥和 reconcile 语义已明确 [5c60622]
+- M6 Task 1 完成并通过独立复审，可信案例目录和标题边界已加固 [d7b589f]
+- M6 Task 2 完成并通过独立复审，顺序执行和 Attempt 状态机已封闭 [fe688e6]
+- M6 Task 3 提交 Thread 原子应用转移和有界 application_state，保持存储中性 [403d55d]
+- M6 Task 3 修复完整转移幂等哈希，防止同 key 替换应用状态或事件 [8066522]
+- M6 Task 3 验证线程原子转移、边界和幂等契约，记录人工复核结果 [8066522]
+- M6 Task 3 修复 Postgres 并发幂等竞态，锁后重查并安全重放首个 receipt [379adf7]
+- M6 Task 2 implemented immutable bounded CaseExecution state and sequential strategy with focused tests [1f08cf1]
+M6 Task 3 修复嵌套 JSON 有界复制与拒绝命令 ID 语义，补齐内存和 PostgreSQL 一致性 [96f8236]
+M6 Task 3 修复 PostgreSQL 重复命令 ID 拒绝路径，避免唯一约束异常并保持确定性重试 [27c2c57]
+M6 Task 3 独立复审通过，应用转移端口具备有界输入、完整幂等和确定性冲突拒绝 [27c2c57]
+M6 Task 4 完成并通过独立复审，Harness runtime 注册与选择已收敛且冲突配置拒绝 [a524bc9]
+M6 Task 5 修复取消命令稳定幂等回执，分离内部取消转移与外部命令身份 [650eff6]
+M6 Task 5 独立复审通过，Case admission、伪造步骤防护和取消幂等回执已闭环 [650eff6]
+M6 Task 6 修复 transition gap 下已完成 retry 丢失，恢复并验证同 Turn 与 pinned context [016f285]
+M6 Task 7 完成共享 Case 交互投影，修复 Python 回读、可信标签和跨客户端边界 [ed07380]
+M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完成时长和 composer 焦点保持 [1e114e9]
+- M6 Task 8 final commit hash correction: Thread-native Web Case controls are `dce8b63` [dce8b63]
+- M6 Task 9 boundary review passed 4 focused checks; lightweight closeout committed and full release gates deferred [914461b]
+- M7 结果投影与电网图联动合同落盘，固定 Domain Pack 投影、当前 Run 准入和图定位边界 [cef87e1]
+- M7 实施计划拆为公共契约、pandapower 投影、Thread 读模型、Web 联动和轻量收尾 [5886e2c]
+- M7 Task 1 完成有界 ResultProjection Python/TypeScript 契约并接入 ThreadSnapshot，验证 21 个 Python 与 9 个 Web 测试 [4dea084]
+- M7 计划修正 Domain Pack 输出为 domain-owned payload，由 capstone-agent 归一化，避免反向应用依赖 [93e3082]
+- 17:47 M7 Task 2 接通 pandapower 结果投影、Attempt 准入与 Thread 快照持久化 [3b9fe8d]
+- 2026-10-02 M7 Task 2 状态更正：实现已提交但此前被误报为完整接通；本轮补齐 Pandapower authority.verify_context、partial 投影原因契约、上下文绑定与按结果证据归属，并通过 57 个 capstone-agent 聚焦测试与 4 个 pandapower-domain-pack 投影测试；Task 3/Web/独立 M7 评审仍未完成。
+- 2026-10-02 M7 Task 3/4 推进：事件回放收到 completed Attempt 时恢复结构化结果投影；Web 增加结果摘要、表格和拓扑元素定位联动，保持结果投影只来自 ThreadSnapshot；Web 全量测试 154 passed、生产构建通过，Task 3 Postgres/resync 深测与 M7 独立评审仍待完成。
+- 2026-10-02 M7 评审整改：修复 Kernel 投影路径 Pyright 类型问题；InMemory/Postgres/Web 结果目录统一保留最近 64 项；Domain Pack 通过内部图元身份声明让终态准入再次校验未知元件；投影器异常降级为 typed unavailable；严格恢复公共事件历史；Web 无效定位显示错误而不写入焦点。全量 capstone-agent `364 passed, 29 skipped, 1 warning`，Web `156 passed`，Pandapower 投影 `5 passed`，两套 provider-free 矩阵通过，当前源本地重建健康。Postgres 主机端口未发布，数据库用例暂未获得连接执行证据，独立复审仍待记录。
+- 2026-10-02 M7 独立评审记录落盘：初审的 6 项 REQUEST CHANGES 已逐项修复并由全量 Capstone/Web、双 Authority provider-free、Pyright、diff check 和当前源重建验证；数据库直连限制保留为环境后续项。详见 `docs/reviews/2026-10-02-capstone-m7-independent-code-review.md`。
+- 2026-10-03 M7 状态更正：后续独立复审发现快照读取与并发追加事件的竞态，且 Pandapower authority evidence hint 为空时可能遮蔽当前运行准入证据；不再把 M7 标记为已收口。已加入 Web 快照竞态回归测试，并让 Domain Pack 始终使用当前运行绑定的 evidence refs；待全量门禁与后续独立复审通过后再关闭 M7。
+- 2026-10-03 M7 后续独立复审通过：快照并发事件恢复回归与当前运行证据绑定修复均通过复审；Web 157、Capstone Agent 364、Pandapower 投影 6、PostgreSQL 10、provider-free 5/5+3/3、doctor/diff、当前源本地重建全部通过。M7 按 demo-stage 范围收口，详见双阶段评审记录。
+- 2026-10-03 修复模型只读观察回答被 professional admission 误拒：Domain Pack 识别 evidence_required=false 的模型目录、上下文与数据集能力，Kernel 仅采集显式 binding 的成功能力；真实本地 Thread 查询 IEEE-39 母线/线路已完成，make doctor、当前源重建与健康检查通过。
+- 2026-10-03 Web 微调：缩小“查看运行过程”步骤描述字号与行高，降低运行过程面板的信息密度；Capstone App 157 项测试与生产构建通过。
+- 10:18 已确认并保存下一会话交接，记录本地服务状态、只读模型查询修复与当前未提交工作树约束。
+- 10:xx 确立模型上下文连续性：同一 Thread/Run/模型默认复用 Authority context，用户明确要求重开时才创建并激活新的干净 Context。
+- 11:28 correction: 上条模型上下文连续性决策的实际记录时间为 11:28。
+- 11:36 M7 边界复核：PyPSA Domain Packs、Authority、CLI/SDK 与 provider-free Thread 矩阵已完成，但本地 Web/API 默认仍由 `CAPSTONE_HOSTED_APPLICATION=pandapower` 提供；PyPSA 目前是可切换的独立 hosted adapter，不是同一 Capstone Thread 内与 pandapower 聚合可选的统一应用。该差距列为后续统一 Application/双族模型目录与 PyPSA Web 投影工作。
+- 2026-10-03 M8：完成统一 Thread 应用的第一版双族组合。`capstone-agent` API 通过固定 exporter 子进程读取 pandapower/PyPSA 的有界模型与 Profile 元数据；`worker` 与 `worker-pypsa` 共享同一 PostgreSQL ledger，但按 `CAPSTONE_THREAD_FAMILY` 过滤 Attempt，避免跨 Authority 执行。模型上下文默认连续复用，只有显式 `reopen_model_context` 才创建新的干净 Context。追加了 federated catalog/exporter、Compose 双 worker、前端 reason 往返和 Postgres family claim 验证；保留 Railway 当前单族配置，待独立 M8 评审后再决定下一阶段。
+- 2026-10-03 M8 独立复审整改：恢复兼容 hosted 默认值为 pandapower；显式重开改为独立 `model_context_reopened` 事件并要求 fresh-context reason；加入固定 exporter 槽位族校验、非敏感模型库环境传递、输出/目录边界、worker health 与族可用性投影；固定 worker application/family 配对并清理重复 exporter 入口。M8 Python focused 72 passed、Web 159 passed、Pyright/Ruff、doctor、local-rebuild contract 与 federated 22-model smoke 通过。详见 `docs/reviews/2026-10-03-capstone-m8-independent-code-review.md`。
+- 2026-10-03 M8 默认值决策：统一 `capstone` 模式已通过独立复审、当前源重建与默认路径 E2E（grid 39、registered worker 3），因此本地 Compose 与示例环境改为默认 `CAPSTONE_HOSTED_APPLICATION=capstone`。Railway 当前单 worker 拓扑仍显式使用 `pandapower`，不宣称云端双族联邦已发布。
+- 2026-10-03 M8 复审后修复 PyPSA 可见性缺陷：统一 API 已有 22 个联邦模型，但 family worker 原先只看到当前 Domain Pack，导致在 pandapower 模型上询问 PyPSA 时误答“没有 PyPSA”。现将有界 application-owned catalog metadata 注入两个 worker 的 Pi policy；仍按 implementation family 隔离执行。当前源重建、运行时 22-model catalog、grid 39/registered worker 3 E2E 全部通过，详见 `docs/reviews/2026-10-03-capstone-m8-catalog-context-follow-up.md`。
+- 2026-10-03 模型引用与跨族 Thread 端到端审计：Web/TUI 统一支持 canonical ID、唯一短名和唯一显示名解析；短控制语句转为显式 `switch_model`，同模型复用当前 Context，显式重新打开才创建新 Context；长“打开并分析”请求保留给普通 agent 路由。16 项 focused Web、164 项全量 App、44 项 Thread/TUI Python 测试与 App 构建通过，审计记录见 `docs/reviews/2026-10-03-model-reference-cross-family-audit.md`。
+- 2026-10-04 审计复核修复语言相关误路由与 TUI worker availability 缺口：未知短中文引用会明确提示，长中英文分析句保留普通路由；TUI 携带有界不可用原因并在提交前提示。Web focused 19、TUI focused 12、App 构建与 pyright 通过。
+- 2026-10-04 M9 开始并完成 PyPSA Power Operations 公共结果投影首片：Domain Pack 验证当前运行结果/证据后，映射所有已发布 `operations.*` 结果的求解摘要和有界明细表，接入共享 `capstone-result-projection/1.0`；不伪造 PyPSA 拓扑图。操作包 4 项测试、PyPSA hosted/thread 14 项与 Capstone focused 27 项通过；完整 App 重建和独立 M9 复审待完成。
+- 2026-10-04 M9 收口：修复独立复审发现的 PyPSA 结果未绑定当前 model_ref、可用投影缺少 result/evidence 引用、同一 Attempt 多结果只显示首项，以及旧 Attempt 测试夹具问题；Capstone 386 passed/30 skipped、App 168、PyPSA projector 5、E2E 39 + registered worker 3、Pyright 0、当前源重建健康。独立 M9 复审最终 APPROVE，记录于 `docs/reviews/2026-10-04-capstone-m9-independent-code-review.md`。PyPSA 拓扑图仍按边界留待后续阶段。
+- 2026-10-04 M10 范围固化：下一阶段接入注册 PyPSA 模型的通用 authority-owned `operator.diagram`，复用现有 Thread 网络图协议和 Web 模型区；case 专用旧图路径不作为通用模型图，计划见 `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider.md`。
+
+## 2026-10-04
+- 13:30 生成决策者导向的单文件 Capstone 交互式 HTML，解释架构、证据、部署和使用 [44b11d6]
+- 14:13 将说明页改为用户视角并嵌入真实工作台、电网截图，降低理解门槛 [fe38730]
+- 14:20 将智能体对话设为说明页主线，让模型图和报告回到对话结果的位置 [f383f62]
+- 14:23 强调真实工作台和电网结果截图，说明它们是对话产生的实际工作记录 [4832b76]
+- 15:16 用真实 Thread 操作截取 IEEE-39 智能体对话截图，替换概念工作台示例 [8725304]
+- 15:30 用已完成的 IEEE-39 分析全图替换空结果截图，展示真实计算、结果和证据 [eff2796]
+- 16:04 用真实 Thread 对话截图替换案例工作台图，突出交流潮流、网损和线路筛查结果 [90839df]
+- 16:15 将 Thread 对话缩小并与拓扑结果并列，表达计算到落图的连续关系 [2698d18]
+- 16:50 优化说明页导航、阅读进度、移动端布局和真实运行结果卡片，提升信息定位与扫描效率 [f8a5d02]

@@ -13,7 +13,7 @@ import {
 import { Activity, ArrowUp, Check, Copy, FileCheck2, ListTree, MoreHorizontal, Pencil, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { EventEnvelope } from './threadProtocol'
+import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
 import type { ThreadTransportState } from './threadClient'
 import type { ThreadCatalogCase } from './threadCatalog'
@@ -21,6 +21,8 @@ import type { ThreadCatalogCase } from './threadCatalog'
 type SendMode = 'automatic' | 'ordinary' | 'professional'
 
 const EMPTY_PROMPTS = [
+  '有哪些 PyPSA 的电网模型？',
+  '有哪些 pandapower 的电网模型？',
   'IEEE-39 有哪些母线和线路？',
   '对 IEEE-39 执行一次交流潮流。',
   '筛查负载率最高的三条线路。',
@@ -370,7 +372,7 @@ function IconAction({ label, onClick, expanded, children }: { label: string; onC
   return <button type="button" className="capstone-chat-action" aria-label={label} title={label} onClick={onClick} {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}>{children}</button>
 }
 
-function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, toolCount, onRegenerate, onShowActivity, onEditInstruction, activityOpen, showActivity }: { role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean; showActivity?: boolean }) {
+function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, onEditInstruction, activityOpen, showActivity }: { role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean; showActivity?: boolean }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const copy = async () => {
@@ -385,6 +387,7 @@ function ChatActions({ role, text, evidenceRefs, contextId, selectionRevision, t
   return <>
   <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
+    {resultAvailable && <IconAction label="查看分析结果" expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>}
     {onRegenerate && <IconAction label="重试本次指令" onClick={() => void onRegenerate()}><RotateCcw /></IconAction>}
     {evidenceRefs.length > 0 && <IconAction label="查看证据" expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>}
     {showActivity !== false && toolCount > 0 && <IconAction label="查看运行过程" expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>}
@@ -436,27 +439,40 @@ function admissionAccepted(admission: unknown): boolean {
   ))
 }
 
-function RunArtifacts({ resultRefs, evidenceRefs, admission, modelSummary, contextId, selectionRevision }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; contextId?: string; selectionRevision?: string }) {
+function RunArtifacts({ resultRefs, evidenceRefs, admission }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown }) {
+  // Structured results are opened from the compact action bar.  Keep this
+  // surface for admission state only; raw result hashes are deliberately not
+  // repeated below every assistant answer.
   if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
   const admitted = admissionAccepted(admission)
   if (!admitted) return null
   const admissionRef = admission && typeof admission === 'object' && 'admission_ref' in admission && typeof (admission as { admission_ref?: unknown }).admission_ref === 'string'
     ? (admission as { admission_ref: string }).admission_ref : undefined
   return <div className="capstone-chat-artifacts" aria-label="当前运行结果引用">
-    {resultRefs.length > 0 && <section className="capstone-chat-reference-card is-result" role="group" aria-label="当前运行结果">
-      <div className="capstone-chat-reference-heading"><Activity aria-hidden="true" /><strong>当前运行结果</strong><span>{resultRefs.length} 份</span>{admitted && <em>已准入</em>}</div>
-      {modelSummary && <div className="capstone-chat-reference-meta">{modelSummary.modelId} · {modelSummary.implementationFamily} · revision {modelSummary.modelRevision}</div>}
-      {!modelSummary && contextId && <div className="capstone-chat-reference-meta">模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</div>}
-      <div className="capstone-chat-reference-list">{resultRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
-      {admissionRef && <small className="capstone-chat-reference-admission">准入 {admissionRef}</small>}
-    </section>}
+    {resultRefs.length > 0 && <div className="capstone-chat-reference-status" role="status"><Activity aria-hidden="true" /><span>{resultRefs.length} 项结构化结果{admitted ? '已准入' : '已记录'}</span>{admissionRef && <small>准入已记录</small>}</div>}
     {/* Evidence is intentionally opened from the answer action bar. Keeping the
         long evidence identifier out of the default answer preserves the compact
         assistant-ui reading flow while retaining the current-run admission gate. */}
   </div>
 }
 
-function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivity = true }: { onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean }) {
+function resultCell(value: string | number | boolean | null): string {
+  if (value === null) return '—'
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3)
+  return String(value)
+}
+
+function ResultProjectionCard({ projection, onFocusElement }: { projection: ResultProjection; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
+  const statusLabel = projection.status === 'completed' ? '已完成' : projection.status === 'partial' ? '部分结果' : '暂不可用'
+  return <section className={`capstone-result-card is-${projection.status}`} aria-label="结构化分析结果">
+    <div className="capstone-result-heading"><div><Activity aria-hidden="true" /><strong>分析结果</strong><span>{statusLabel}</span></div><small>{projection.source.capabilityId}</small></div>
+    {projection.unavailableReason && <p className="capstone-result-reason">{projection.unavailableReason}</p>}
+    {projection.summary.length > 0 && <div className="capstone-result-metrics">{projection.summary.map((metric) => <div key={metric.metricId}><span>{metric.label}</span><strong>{resultCell(metric.value)}{metric.unit ? ` ${metric.unit}` : ''}</strong></div>)}</div>}
+    {projection.tables.map((table) => <div className="capstone-result-table-wrap" key={table.tableId}><div className="capstone-result-table-title">{table.title}</div><div className="capstone-result-table-scroll"><table><thead><tr>{table.columns.map((column) => <th key={column.columnId}>{column.label}{column.unit ? ` (${column.unit})` : ''}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.rowId}>{table.columns.map((column) => <td key={column.columnId}>{row.elementRef && column === table.columns[0] ? <button type="button" className="capstone-result-element" onClick={() => onFocusElement?.(projection, row.elementRef!.elementId)} title="在左侧拓扑图中定位">{resultCell(row.cells[column.columnId] ?? row.rowId)}</button> : resultCell(row.cells[column.columnId] ?? null)}</td>)}</tr>)}</tbody></table></div></div>)}
+  </section>
+}
+
+function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivity = true, resultProjections, onFocusElement }: { onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
@@ -466,6 +482,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivi
   const hasText = messageText({ content }).trim().length > 0
   const text = messageText({ content })
   const attemptId = id.replace(/^assistant-/, '')
+  const attemptResultProjections = resultProjections?.filter((item) => item.attemptId === attemptId) ?? []
   const evidenceRefs = stringRefs(custom?.evidenceRefs)
   const resultRefs = stringRefs(custom?.resultRefs)
   const admission = custom?.admission
@@ -479,6 +496,7 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivi
   const admitted = admissionAccepted(admission)
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
   const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
+  const [resultOpen, setResultOpen] = useState(false)
   useEffect(() => {
     if (status?.type !== 'running') setActivityOpen(false)
   }, [status?.type])
@@ -499,8 +517,9 @@ function ChatMessage({ onRegenerate, onEditInstruction, modelSummary, showActivi
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
     {role === 'assistant' && <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />}
-    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} modelSummary={answerModel} contextId={contextId} selectionRevision={selectionRevision} />}
-    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+    {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
+    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
+    {(hasText || terminalWithoutText) && <ChatActions role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} resultAvailable={attemptResultProjections.length > 0} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onEditInstruction={role === 'user' ? onEditInstruction : undefined} onRegenerate={role === 'assistant' && ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
@@ -547,10 +566,12 @@ export type CapstoneAssistantThreadProps = {
   caseConnection?: ThreadTransportState | 'connecting'
   onCaseAction?: (actionId: CaseActionSnapshot['actionId']) => void
   onCaseStart?: (caseId: string, caseVersion: string) => void
+  resultProjections?: readonly ResultProjection[]
+  onFocusElement?: (projection: ResultProjection, elementId: string) => void
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
@@ -579,10 +600,10 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} resultProjections={resultProjections} onFocusElement={onFocusElement} /> }} />
         </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage onRegenerate={isRunning ? undefined : onRegenerate} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} resultProjections={resultProjections} onFocusElement={onFocusElement} /> }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>

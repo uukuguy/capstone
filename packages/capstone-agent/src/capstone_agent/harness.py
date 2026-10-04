@@ -416,10 +416,15 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
+            observation_admitted = candidate is not None and (
+                candidate.mode == "offline_information"
+                and candidate.assurance == "deterministic_information"
+                and "current_model_observation_verified" in candidate.diagnostic_codes
+            )
             if plan is not None and plan.route == "professional" and (
                 candidate is None
-                or candidate.mode != "authority_backed"
-                or not candidate.evidence_refs
+                or (candidate.mode != "authority_backed" and not observation_admitted)
+                or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
             ):
                 raise _AttemptAdmissionError("capability_required")
             professional_route = plan is not None and plan.route == "professional"
