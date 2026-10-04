@@ -54,3 +54,17 @@ def test_worker_frame_accepts_bounded_answer_duration() -> None:
         "duration_ms": 4200,
     })
     assert frame.payload["duration_ms"] == 4200
+
+
+def test_worker_frame_rejects_network_layer_with_empty_identity() -> None:
+    with pytest.raises(ProtocolError):
+        Frame("session-1", 1, "network_layer", {
+            "ordinal": 1,
+            "layer": {
+                "schema": "capstone-network-layer/1.0",
+                "ordinal": 1,
+                "diagram_ref": "",
+                "model_revision": "revision:sha256:" + "a" * 64,
+                "focus_ids": [], "next_focus_ids": [], "overlay": None,
+            },
+        })

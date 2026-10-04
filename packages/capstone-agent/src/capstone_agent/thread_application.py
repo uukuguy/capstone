@@ -28,6 +28,7 @@ from .thread_service import (
 )
 from .thread_worker import RuntimeFactory
 from .runtime_capabilities import RuntimeCapabilityRegistry
+from .thread_network import ThreadNetworkProjectionProvider
 from .turn_router import DefaultTurnRouter, TurnRouter
 
 
@@ -107,6 +108,10 @@ class PreparedApplicationPiRuntimeFactory:
         *,
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
+        network_projection_factory: Callable[
+            [AttemptClaim, PreparedModelCapabilityContext],
+            ThreadNetworkProjectionProvider | None,
+        ] | None = None,
     ) -> None:
         if not isinstance(context_owner, ModelCapabilityContextOwner):
             raise TypeError("context_owner must be a ModelCapabilityContextOwner")
@@ -120,16 +125,23 @@ class PreparedApplicationPiRuntimeFactory:
         self._session_factory = session_factory
         self._runtime_mode = runtime_mode
         self.runtime_capabilities = runtime_capabilities
+        if network_projection_factory is not None and not callable(network_projection_factory):
+            raise TypeError("network_projection_factory must be callable")
+        self._network_projection_factory = network_projection_factory
         self.rollback_selection_on_failure = True
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.prepare(claim)
         session = self._session_factory(claim, context)
         admission = getattr(session, "admit_attempt", None)
+        network_projection_provider = None
+        if self._network_projection_factory is not None:
+            network_projection_provider = self._network_projection_factory(claim, context)
         return HarnessPiClient(
             session,
             runtime_mode=self._runtime_mode,
             admission=cast(AttemptAdmission, admission) if callable(admission) else None,
+            network_projection_provider=network_projection_provider,
         )
 
 
@@ -155,6 +167,10 @@ class ThreadApplicationAssembly:
     ordinary_conversation_enabled: bool = True
     available_families: frozenset[str] | None = None
     catalog_context: Mapping[str, object] | None = None
+    network_projection_factory: Callable[
+        [AttemptClaim, PreparedModelCapabilityContext],
+        ThreadNetworkProjectionProvider | None,
+    ] | None = None
 
     def __post_init__(self) -> None:
         if not callable(getattr(self.catalog, "resolve", None)):
@@ -211,6 +227,10 @@ class ThreadApplicationAssembly:
         session_factory: Callable[[AttemptClaim], PiPromptSession],
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
+        network_projection_factory: Callable[
+            [AttemptClaim, PreparedModelCapabilityContext],
+            ThreadNetworkProjectionProvider | None,
+        ] | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
         available_families: frozenset[str] | None = None,
@@ -293,6 +313,10 @@ class ThreadApplicationAssembly:
         ],
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
+        network_projection_factory: Callable[
+            [AttemptClaim, PreparedModelCapabilityContext],
+            ThreadNetworkProjectionProvider | None,
+        ] | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
         catalog_context: Mapping[str, object] | None = None,
@@ -314,6 +338,7 @@ class ThreadApplicationAssembly:
         runtime_factory = PreparedApplicationPiRuntimeFactory(
             capability_context_owner, session_factory, runtime_mode=runtime_mode,
             runtime_capabilities=runtime_capabilities,
+            network_projection_factory=network_projection_factory,
         )
         runtime_registry = HarnessRuntimeRegistry()
         runtime_registry.register("pi", runtime_factory)
@@ -326,6 +351,7 @@ class ThreadApplicationAssembly:
             runtime_capabilities=runtime_capabilities, turn_router=turn_router,
             ordinary_conversation_enabled=ordinary_conversation_enabled,
             catalog_context=catalog_context,
+            network_projection_factory=network_projection_factory,
         )
 
     def turn_router_for_worker(self) -> TurnRouter:

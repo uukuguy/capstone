@@ -335,6 +335,27 @@ def test_prepared_application_factory_passes_context_to_session_without_closing_
     assert received[0][1].closed
 
 
+def test_prepared_application_factory_passes_exact_claim_and_context_to_network_provider() -> None:
+    owner, _ = _prepared_owner()
+    claim = replace(
+        _claim(),
+        model_context=replace(_claim().model_context, enabled_profiles=(("static", "1.0.0"),)),
+    )
+    received = []
+    factory = PreparedApplicationPiRuntimeFactory(
+        owner,
+        lambda _claim, _context: _Session(),
+        network_projection_factory=lambda claimed, context: received.append((claimed, context)) or None,
+    )
+
+    factory(claim)
+
+    assert len(received) == 1
+    assert received[0][0] is claim
+    assert received[0][1].model_context == claim.model_context
+    owner.close_run("thr_application", "run_application")
+
+
 def test_prepared_application_factory_does_not_start_session_after_preparation_failure() -> None:
     owner, _ = _prepared_owner()
     called = []

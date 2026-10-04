@@ -55,6 +55,39 @@ class _ProtocolRuntime:
         return None
 
 
+def _network_projection() -> dict[str, object]:
+    return {
+        "schema": "capstone-network-view/2.0", "ordinal": 1,
+        "diagram": {
+            "schema": "capstone-network-diagram/1.0",
+            "model": {
+                "id": "ieee39", "revision": "revision:sha256:" + "a" * 64,
+                "source": "gridctl",
+            },
+            "coordinate_system": "schematic",
+            "buses": [
+                {"id": "0", "label": "Bus 0", "x": 0.0, "y": 0.0, "vn_kv": 345.0},
+                {"id": "1", "label": "Bus 1", "x": 1.0, "y": 0.0, "vn_kv": 345.0},
+            ],
+            "branches": [{"id": "line:1", "kind": "line", "label": "Line 1",
+                          "from_bus": "0", "to_bus": "1"}],
+        },
+        "layer": {"focus_ids": [], "next_focus_ids": [], "overlay": None},
+    }
+
+
+class _NetworkProvider:
+    def __init__(self, projection=None, error: Exception | None = None) -> None:
+        self.projection = projection
+        self.error = error
+
+    def project(self, claim, result_refs, evidence_refs, tool_events):
+        del claim, result_refs, evidence_refs, tool_events
+        if self.error is not None:
+            raise self.error
+        return self.projection
+
+
 def _thread_service() -> InMemoryThreadService:
     return InMemoryThreadService.from_document({
         "schema": "capstone-thread-snapshot/1", "thread_id": "thr_harness",
@@ -227,6 +260,54 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
     assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+
+
+def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_network",
+        "idempotency_key": "idem_harness_network", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(service, HarnessPiClient(
+        _PiSession(),
+        admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+            answer, "limited", "limited",
+        ),
+        network_projection_provider=_NetworkProvider(_network_projection()),
+    )).run(claim)
+
+    assert result.status == "completed"
+    event_types = [event.event_type for event in service.read_events("thr_harness", 0).events]
+    assert event_types[-3:] == ["network_diagram", "network_layer", "attempt_completed"]
+
+
+def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable() -> None:
+    service = _thread_service()
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_harness_network_failure",
+        "idempotency_key": "idem_harness_network_failure", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_ordinary", "expected_event_seq": 0,
+        "payload": {"text": "hello"},
+    })
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    result = HarnessAttemptRunner(service, HarnessPiClient(
+        _PiSession(),
+        admission=lambda _claim, answer, _results, _evidence, _events: AdmittedAttemptAnswer(
+            answer, "limited", "limited",
+        ),
+        network_projection_provider=_NetworkProvider(error=RuntimeError("authority unavailable")),
+    )).run(claim)
+
+    assert result.status == "completed"
+    events = service.read_events("thr_harness", 0).events
+    assert events[-2].event_type == "network_layer_unavailable"
+    assert events[-2].payload == {"ordinal": 1}
+    assert events[-1].event_type == "attempt_completed"
 
 
 def test_professional_attempt_persists_only_application_admitted_refs() -> None:

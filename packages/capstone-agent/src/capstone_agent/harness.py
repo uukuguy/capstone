@@ -14,6 +14,10 @@ import json
 from typing import Protocol
 
 from .thread_service import AttemptClaim, ThreadExecutionService
+from .thread_network import (
+    ThreadNetworkProjectionProvider,
+    normalize_thread_network_projection,
+)
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
 
 
@@ -278,12 +282,40 @@ class HarnessPiClient:
         *,
         runtime_mode: str = "capstone",
         admission: AttemptAdmission | None = None,
+        network_projection_provider: ThreadNetworkProjectionProvider | None = None,
     ) -> None:
         if runtime_mode not in {"capstone", "pi_reference"}:
             raise ValueError("Pi runtime mode is invalid")
         self._session = session
         self.runtime_mode = runtime_mode
         self._admission = admission
+        if network_projection_provider is not None and not isinstance(
+            network_projection_provider, ThreadNetworkProjectionProvider,
+        ):
+            raise TypeError("network projection provider is invalid")
+        self._network_projection_provider = network_projection_provider
+
+    @property
+    def network_projection_enabled(self) -> bool:
+        return self._network_projection_provider is not None
+
+    def network_projection(
+        self,
+        claim: AttemptClaim,
+        result_refs: tuple[str, ...],
+        evidence_refs: tuple[str, ...],
+        tool_events: tuple[Mapping[str, object], ...],
+    ) -> dict[str, object] | None:
+        provider = self._network_projection_provider
+        if provider is None:
+            return None
+        try:
+            value = provider.project(claim, result_refs, evidence_refs, tool_events)
+        except Exception:
+            return None
+        return normalize_thread_network_projection(
+            value, claim, (*result_refs, *evidence_refs),
+        )
 
     def admit_attempt(
         self,
@@ -463,6 +495,36 @@ class HarnessAttemptRunner:
                 self._service.append_runtime_event(claim, event_type="turn_router_shadow", payload=shadow_payload, visibility="diagnostic")
             if admission is not None:
                 terminal_payload["admission"] = admission
+            network_projection = getattr(self._runtime, "network_projection", None)
+            if getattr(self._runtime, "network_projection_enabled", False) and callable(
+                network_projection
+            ):
+                projection = network_projection(
+                    claim, result_refs, evidence_refs, tuple(self._tool_events),
+                )
+                if projection is None:
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_layer_unavailable",
+                        payload={"ordinal": 1},
+                        visibility="public",
+                    )
+                else:
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_diagram",
+                        payload={"diagram": projection["diagram"]},
+                        visibility="public",
+                    )
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_layer",
+                        payload={
+                            "ordinal": projection["ordinal"],
+                            "layer": projection["layer"],
+                        },
+                        visibility="public",
+                    )
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
             )

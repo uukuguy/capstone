@@ -121,7 +121,9 @@ class Frame:
             or self.payload["layer"].get("schema") != "capstone-network-layer/1.0"
             or self.payload["layer"].get("ordinal") != self.payload["ordinal"]
             or not isinstance(self.payload["layer"].get("diagram_ref"), str)
+            or not self.payload["layer"].get("diagram_ref")
             or not isinstance(self.payload["layer"].get("model_revision"), str)
+            or not self.payload["layer"].get("model_revision")
         ):
             raise ProtocolError("network layer payload is invalid")
         if self.kind == "network_layer_unavailable" and (
