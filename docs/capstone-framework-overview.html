@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Capstone Agent Framework 的设计思想、框架边界、可信证据、功能进度和部署使用说明。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2335d49a'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h10' stroke='%230b1220' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <title>Capstone · 从 Agent 组织分析到权威系统负责事实</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#0b1220',
+            panel: '#111c2f',
+            panel2: '#16243c',
+            line: '#253654',
+            mist: '#9db0c9',
+            mint: '#35d49a',
+            amber: '#f5b942',
+            coral: '#fb7185'
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(53,212,154,.16), 0 20px 70px rgba(4,12,28,.35)',
+            soft: '0 12px 40px rgba(4,12,28,.24)'
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+            display: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #0b1220;
+      --panel: #111c2f;
+      --panel-2: #16243c;
+      --line: #253654;
+      --mist: #9db0c9;
+      --mint: #35d49a;
+      --amber: #f5b942;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background:
+        radial-gradient(circle at 10% 0%, rgba(53,212,154,.11), transparent 28rem),
+        radial-gradient(circle at 92% 12%, rgba(92,132,255,.13), transparent 26rem),
+        var(--ink);
+      color: #f6f9fc;
+    }
+    ::selection { background: rgba(53,212,154,.28); color: #fff; }
+    .grid-paper {
+      background-image: linear-gradient(rgba(157,176,201,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(157,176,201,.07) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 80%);
+    }
+    .glass { background: linear-gradient(145deg, rgba(22,36,60,.92), rgba(12,21,37,.94)); border: 1px solid rgba(157,176,201,.14); }
+    .card-hover { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease, background-color .22s ease; }
+    .card-hover:hover { transform: translateY(-3px); border-color: rgba(53,212,154,.42); box-shadow: 0 14px 42px rgba(3,12,27,.32); }
+    .focus-ring:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid rgba(53,212,154,.9); outline-offset: 3px; }
+    .eyebrow { letter-spacing: .16em; text-transform: uppercase; font-size: .68rem; font-weight: 700; color: var(--mint); }
+    .section-rule { height: 1px; background: linear-gradient(90deg, rgba(53,212,154,.7), rgba(53,212,154,0)); }
+    .range-track { accent-color: var(--mint); }
+    .status-dot { box-shadow: 0 0 0 5px rgba(53,212,154,.11), 0 0 18px rgba(53,212,154,.85); }
+    .timeline-line { background: linear-gradient(90deg, rgba(53,212,154,.75), rgba(93,132,255,.6)); }
+    .timeline-line::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--progress, 0%); background: var(--mint); border-radius: inherit; transition: width .35s ease; }
+    .timeline-node { transition: background-color .25s ease, border-color .25s ease, transform .25s ease, color .25s ease; }
+    .timeline-node.active { background: var(--mint); border-color: var(--mint); color: #062219; transform: scale(1.15); }
+    .timeline-node.done { border-color: rgba(53,212,154,.75); background: rgba(53,212,154,.18); color: var(--mint); }
+    .layer-card.active { border-color: rgba(53,212,154,.8); background: rgba(53,212,154,.10); box-shadow: 0 0 0 1px rgba(53,212,154,.18); }
+    .layer-arrow { color: var(--mint); opacity: .75; }
+    .mini-bar { height: 5px; border-radius: 999px; background: #263854; overflow: hidden; }
+    .mini-bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #35d49a, #8be7c2); }
+    details summary { cursor: pointer; list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+    details[open] .chevron { transform: rotate(180deg); }
+    .chevron { transition: transform .2s ease; }
+    .reveal { animation: reveal .5s ease both; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .001ms !important; }
+      .reveal { animation: none; }
+    }
+  </style>
+</head>
+<body class="font-sans antialiased">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-mint focus:px-4 focus:py-3 focus:text-ink">跳到主要内容</a>
+
+  <svg aria-hidden="true" class="hidden">
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.2 8.6-8 10-4.8-1.4-8-5-8-10V6l8-3Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.7" /><path d="m8.4 12 2.3 2.3 4.9-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" /></symbol>
+    <symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4 8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" /></symbol>
+    <symbol id="icon-route" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7" /><circle cx="18" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="M8.5 6h3a3 3 0 0 1 3 3v3a3 3 0 0 0 3 3H18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" /></symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" fill="none" stroke="currentColor" stroke-width="1.7" /></symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24"><path d="m9 6 9 6-9 6V6Z" fill="currentColor" /></symbol>
+    <symbol id="icon-pause" viewBox="0 0 24 24"><path d="M8 6v12M16 6v12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-4L4 9M4 5v4h4M4 13a8 8 0 0 0 14 4l2-2M20 19v-4h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" /></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4.2 4.2L19 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="M12 10.5v5M12 7.5h.01" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" /></symbol>
+    <symbol id="icon-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="m7 9 3 3-3 3M13 15h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" /></symbol>
+  </svg>
+
+  <header class="sticky top-0 z-40 border-b border-white/10 bg-ink/80 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-5 px-5 py-3 lg:px-8">
+      <a href="#hero" class="flex min-w-0 items-center gap-3 rounded-lg focus-ring" aria-label="Capstone 概览首页">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-mint text-ink shadow-[0_0_24px_rgba(53,212,154,.35)]">
+          <svg class="h-5 w-5" aria-hidden="true"><use href="#icon-layers" /></svg>
+        </span>
+        <span class="truncate text-sm font-semibold tracking-[.12em] text-white">CAPSTONE <span class="font-normal text-mist">/ FRAMEWORK</span></span>
+      </a>
+      <nav class="hidden items-center gap-5 text-xs text-mist md:flex" aria-label="章节导航">
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#architecture">架构</a>
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#runtime">运行</a>
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#maturity">进度</a>
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#deployment">部署</a>
+        <a class="rounded-md px-2 py-2 transition hover:text-white focus-ring" href="#local-use">使用</a>
+      </nav>
+      <div class="flex shrink-0 items-center gap-2 rounded-full border border-mint/30 bg-mint/10 px-3 py-1.5 text-[11px] font-medium text-mint">
+        <span class="status-dot h-1.5 w-1.5 rounded-full bg-mint" aria-hidden="true"></span>
+        M9 已完成 · M10 规划中
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="hero" class="relative isolate overflow-hidden">
+      <div class="grid-paper pointer-events-none absolute inset-0 -z-10 opacity-70"></div>
+      <div class="mx-auto grid max-w-7xl gap-14 px-5 pb-20 pt-16 lg:grid-cols-[1.14fr_.86fr] lg:px-8 lg:pb-28 lg:pt-24">
+        <div class="flex flex-col justify-center">
+          <p class="eyebrow mb-5">Evidence-backed agent applications</p>
+          <h1 class="max-w-4xl text-4xl font-semibold leading-[1.06] tracking-[-.045em] text-white sm:text-6xl lg:text-7xl">让 Agent 组织分析，<span class="text-mint">让权威系统负责事实。</span></h1>
+          <p class="mt-7 max-w-2xl text-base leading-8 text-mist sm:text-lg">Capstone 把自然语言协作、领域能力包、通用运行内核和登记的业务系统连接起来。模型可以规划步骤和写出答案，但数值、网络状态、结果和证据必须来自当前运行中被权威系统准入的引用。</p>
+          <div class="mt-9 flex flex-wrap gap-3">
+            <a href="#architecture" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-5 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring">先看四层架构 <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow" /></svg></a>
+            <a href="#deployment" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-mint/50 hover:bg-white/10 focus-ring">查看部署路径</a>
+          </div>
+          <div class="mt-11 grid max-w-xl grid-cols-3 gap-4 border-t border-white/10 pt-5">
+            <div><p class="text-2xl font-semibold text-white">4</p><p class="mt-1 text-xs leading-5 text-mist">清晰的所有权层</p></div>
+            <div><p class="text-2xl font-semibold text-white">22</p><p class="mt-1 text-xs leading-5 text-mist">当前联邦模型目录</p></div>
+            <div><p class="text-2xl font-semibold text-white">M6–M9</p><p class="mt-1 text-xs leading-5 text-mist">已完成的演进阶段</p></div>
+          </div>
+        </div>
+        <div class="relative flex items-center justify-center">
+          <div class="absolute -inset-8 rounded-[2.5rem] bg-mint/10 blur-3xl" aria-hidden="true"></div>
+          <div class="glass relative w-full max-w-lg rounded-[2rem] p-5 shadow-glow sm:p-7">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4"><div><p class="eyebrow">Decision frame</p><p class="mt-1 text-lg font-semibold">一次分析如何变得可信？</p></div><svg class="h-7 w-7 text-mint" aria-hidden="true"><use href="#icon-shield" /></svg></div>
+            <div class="space-y-3 py-5">
+              <div class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mint/15 text-mint"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-route" /></svg></span><div><p class="text-sm font-medium text-white">模型负责组织</p><p class="mt-1 text-xs leading-5 text-mist">选择已发布的语义工具，按上下文推进问题。</p></div></div>
+              <div class="ml-6 h-5 border-l border-dashed border-mint/50"></div>
+              <div class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-400/15 text-blue-300"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-database" /></svg></span><div><p class="text-sm font-medium text-white">Authority 负责事实</p><p class="mt-1 text-xs leading-5 text-mist">登记模型、计算结果、版本和证据由业务系统产生。</p></div></div>
+              <div class="ml-6 h-5 border-l border-dashed border-mint/50"></div>
+              <div class="flex items-start gap-3 rounded-xl border border-mint/30 bg-mint/[.08] p-4"><span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mint text-ink"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-check" /></svg></span><div><p class="text-sm font-medium text-white">应用负责呈现</p><p class="mt-1 text-xs leading-5 text-mist">只呈现当前运行被准入的答案、结果和证据。</p></div></div>
+            </div>
+            <div class="flex items-center justify-between border-t border-white/10 pt-4 text-[11px] text-mist"><span>不把模型当作事实数据库</span><span class="rounded-full bg-mint/10 px-2 py-1 font-medium text-mint">可回放 · 可审计</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="border-y border-white/10 bg-white/[.025]">
+      <div class="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:grid-cols-3 lg:px-8">
+        <div class="flex gap-3"><span class="mt-0.5 text-mint"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-shield" /></svg></span><div><p class="text-sm font-semibold">证据优先</p><p class="mt-1 text-xs leading-5 text-mist">事实回到 Authority，再回到当前运行。</p></div></div>
+        <div class="flex gap-3"><span class="mt-0.5 text-mint"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-layers" /></svg></span><div><p class="text-sm font-semibold">领域可扩展</p><p class="mt-1 text-xs leading-5 text-mist">新领域通过独立 Domain Pack 接入。</p></div></div>
+        <div class="flex gap-3"><span class="mt-0.5 text-mint"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-route" /></svg></span><div><p class="text-sm font-semibold">发布可控</p><p class="mt-1 text-xs leading-5 text-mist">本地、云开发和用户试用阶段隔离。</p></div></div>
+      </div>
+    </section>
+
+    <section id="architecture" class="mx-auto max-w-7xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28">
+      <div class="max-w-3xl"><p class="eyebrow">01 / Ownership model</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">四层边界，让责任可以被解释。</h2><p class="mt-5 text-base leading-7 text-mist">Capstone 的依赖方向只有一个：应用选择组合，Domain Pack 定义领域语义，Kernel 管理中立运行，Registered Authority 产生事实。边界清晰，系统才可以替换模型、增加领域，并保留可信证据。</p></div>
+      <div class="mt-12 grid gap-7 lg:grid-cols-[.83fr_1.17fr]">
+        <div class="glass rounded-3xl p-5 sm:p-7">
+          <div class="mb-6 flex items-center justify-between"><div><p class="eyebrow">Explore the layers</p><p class="mt-1 text-sm text-mist">拖动滑块，查看每层拥有什么。</p></div><span id="layerIndex" class="rounded-full bg-white/10 px-2.5 py-1 text-xs text-mist">1 / 4</span></div>
+          <label for="layerSlider" class="sr-only">选择架构层</label>
+          <input id="layerSlider" class="range-track h-2 w-full cursor-pointer appearance-none rounded-full bg-line" type="range" min="0" max="3" value="0" step="1" aria-valuetext="Application" />
+          <div class="mt-8 space-y-2" id="layerCards"></div>
+          <div class="mt-7 flex items-center gap-2 text-xs text-mist"><span class="h-px flex-1 bg-line"></span><span>依赖方向向右</span><svg class="h-4 w-4 text-mint" aria-hidden="true"><use href="#icon-arrow" /></svg></div>
+        </div>
+        <div id="layerDetail" class="glass rounded-3xl p-6 shadow-soft sm:p-8" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="runtime" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
+      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+        <div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-end"><div class="max-w-3xl"><p class="eyebrow">02 / One run</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">从问题到报告，每一步都可回放。</h2><p class="mt-5 text-base leading-7 text-mist">下面的动画展示一次 Thread/Attempt 如何把自然语言请求变成有边界的工具调用、权威结果和当前运行证据。</p></div><div class="flex shrink-0 gap-2"><button id="runToggle" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-mint px-4 py-3 text-sm font-semibold text-ink transition hover:bg-[#67e6b5] focus-ring" aria-label="播放运行流程"><svg id="runToggleIcon" class="h-4 w-4" aria-hidden="true"><use href="#icon-play" /></svg><span id="runToggleText">播放流程</span></button><button id="runRestart" type="button" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-mint/50 focus-ring" aria-label="重新开始运行流程"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-refresh" /></svg><span class="hidden sm:inline">重置</span></button></div></div>
+        <div class="mt-12 glass rounded-3xl p-5 sm:p-8">
+          <div class="relative px-1 sm:px-6"><div class="timeline-line relative h-1 rounded-full" id="timelineLine" style="--progress:0%"></div><div id="timelineNodes" class="relative -mt-3 flex justify-between"></div></div>
+          <div class="mt-10 grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-center"><div><p id="runStepLabel" class="eyebrow">Step 01</p><h3 id="runStepTitle" class="mt-3 text-2xl font-semibold">用户提出问题</h3><p id="runStepBody" class="mt-4 max-w-xl text-sm leading-7 text-mist">应用接收一个问题，并把它放入当前 Thread。此时还没有凭空生成的数值，也没有被误称为证据的模型输出。</p><div class="mt-6 flex items-center gap-2 text-xs text-mist"><span class="h-2 w-2 rounded-full bg-mint"></span><span id="runStepStatus">等待播放</span></div></div><div id="runVisual" class="relative min-h-[210px] overflow-hidden rounded-2xl border border-white/10 bg-ink/55 p-5"></div></div>
+          <div class="mt-8 border-t border-white/10 pt-5 text-xs leading-6 text-mist">可见轨迹只记录公开的动作、输入、结果、失败和证据引用；它不会暴露隐藏思维链。</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="trust" class="mx-auto max-w-7xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28">
+      <div class="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="eyebrow">03 / Trust model</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">把“可信”变成可检查的合同。</h2><p class="mt-5 text-base leading-7 text-mist">可信不是模型语气更像专家，而是每个重要结论都有清楚的所有者、版本和运行范围。</p></div><div class="rounded-2xl border border-amber/25 bg-amber/10 p-5 text-sm leading-7 text-amber-100"><div class="flex items-start gap-3"><svg class="mt-0.5 h-5 w-5 shrink-0 text-amber" aria-hidden="true"><use href="#icon-info" /></svg><p><strong class="font-semibold text-amber">边界提示：</strong>离线信息回答不会创建模拟证据；模拟器或 Authority 支持的结论，只能引用当前运行已准入的结果和证据。</p></div></div></div>
+      <div class="mt-12 grid gap-4 md:grid-cols-3">
+        <article class="card-hover glass rounded-2xl p-6"><span class="grid h-10 w-10 place-items-center rounded-xl bg-mint/15 text-mint"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-database" /></svg></span><h3 class="mt-5 text-lg font-semibold">Authority owns facts</h3><p class="mt-3 text-sm leading-6 text-mist">模型不能访问 raw DataFrame、pandapowerNet、PyPSA Network、shell 或任意文件。登记的 Authority 负责计算、修订和结果集。</p></article>
+        <article class="card-hover glass rounded-2xl p-6"><span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-400/15 text-blue-300"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-route" /></svg></span><h3 class="mt-5 text-lg font-semibold">Current run only</h3><p class="mt-3 text-sm leading-6 text-mist">答案只能使用本轮被绑定的 result/evidence 引用。历史运行不能被悄悄拼接进当前结论。</p></article>
+        <article class="card-hover glass rounded-2xl p-6"><span class="grid h-10 w-10 place-items-center rounded-xl bg-amber/15 text-amber"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-shield" /></svg></span><h3 class="mt-5 text-lg font-semibold">Required failures stop</h3><p class="mt-3 text-sm leading-6 text-mist">必需的答案、证据或引用持久化失败时，运行会失败关闭。报告、预览和进度等诊断故障不会篡改已提交答案。</p></article>
+      </div>
+      <details class="mt-6 rounded-2xl border border-white/10 bg-white/[.03] p-5"><summary class="flex items-center justify-between gap-4 text-sm font-medium text-white"><span>给技术团队的补充：为什么没有把 Domain Pack 直接塞进 Kernel？</span><svg class="chevron h-4 w-4 shrink-0 text-mist" aria-hidden="true"><use href="#icon-arrow" /></svg></summary><p class="mt-4 max-w-4xl text-sm leading-7 text-mist">Kernel 只拥有中立的组合、上下文、Turn、轨迹、工件、回放和 framework core。领域语义、工具契约、策略、指南、Authority 适配和结果投影由 Domain Pack 负责。这样新领域可以独立安装，且不会让 Kernel 依赖某个业务系统的内部对象。</p></details>
+    </section>
+
+    <section id="maturity" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
+      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28"><div class="max-w-3xl"><p class="eyebrow">04 / Delivery status</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">功能进度：从执行骨架到跨领域展示。</h2><p class="mt-5 text-base leading-7 text-mist">这些阶段展示的是产品能力的演进，不是把所有未来愿望都算作已交付。点击卡片查看业务影响和当前边界。</p></div><div id="maturityGrid" class="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-5"></div></div>
+    </section>
+
+    <section id="deployment" class="mx-auto max-w-7xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28">
+      <div class="max-w-3xl"><p class="eyebrow">05 / Release architecture</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">部署不是一条线，而是三个隔离阶段。</h2><p class="mt-5 text-base leading-7 text-mist">本地适合高频迭代，Cloud Development 负责远程集成验证，User Trial 只接收已验证的同一源码修订或镜像摘要。</p></div>
+      <div class="mt-12 grid gap-7 lg:grid-cols-[.7fr_1.3fr]">
+        <div class="glass rounded-3xl p-6 sm:p-8"><div class="flex items-center justify-between"><div><p class="eyebrow">Explore stages</p><p class="mt-1 text-sm text-mist">切换阶段查看发布规则。</p></div><span id="stageIndex" class="rounded-full bg-white/10 px-2.5 py-1 text-xs text-mist">1 / 3</span></div><label for="stageSlider" class="sr-only">选择部署阶段</label><input id="stageSlider" class="range-track mt-8 h-2 w-full cursor-pointer appearance-none rounded-full bg-line" type="range" min="0" max="2" value="0" step="1" aria-valuetext="本地 Compose" /><div class="mt-8 space-y-2" id="stageCards"></div></div>
+        <div id="stageDetail" class="glass rounded-3xl p-6 shadow-soft sm:p-8" aria-live="polite"></div>
+      </div>
+      <div class="mt-7 grid gap-4 md:grid-cols-3"><div class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-sm font-semibold text-white">环境隔离</p><p class="mt-2 text-xs leading-6 text-mist">Cloud Development 和 User Trial 不共享 PostgreSQL、工件 bucket、操作员令牌、Provider 凭据、公开 origin 或可变运行数据。</p></div><div class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-sm font-semibold text-white">同一版本</p><p class="mt-2 text-xs leading-6 text-mist">API 与 Worker 在同一阶段必须使用相同的测试源码修订或精确镜像摘要。</p></div><div class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-sm font-semibold text-white">可回滚</p><p class="mt-2 text-xs leading-6 text-mist">云端验证失败时回滚到最后一个已验证的 User Trial 修订，不把普通开发推送直接变成用户版本。</p></div></div>
+    </section>
+
+    <section id="workflow" class="scroll-mt-24 border-y border-white/10 bg-white/[.025]">
+      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28"><div class="grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="eyebrow">06 / Operator workflow</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">业务用户看到的是一条清楚的工作流。</h2><p class="mt-5 text-base leading-7 text-mist">App 是展示客户端。它不拿 bucket 凭据，也不直接读取原始工件；它通过相同的 `/api/v1` 合同获取有界投影。</p></div><div class="rounded-2xl border border-mint/25 bg-mint/10 p-5 text-sm leading-7 text-mint-100"><p><strong class="font-semibold text-mint">从案例到证据：</strong>选择已登记案例，先查看完整模型图，再逐条或自动执行指令，最后在同一页面查看结果图层、报告和当前运行证据。</p></div></div><div class="mt-12 grid gap-3 md:grid-cols-5" id="workflowSteps"></div></div>
+    </section>
+
+    <section id="local-use" class="mx-auto max-w-7xl scroll-mt-24 px-5 py-20 lg:px-8 lg:py-28">
+      <div class="grid gap-10 lg:grid-cols-[.78fr_1.22fr] lg:items-start"><div><p class="eyebrow">07 / Use it locally</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">从源码到本地 App，只保留一条可靠入口。</h2><p class="mt-5 text-base leading-7 text-mist">本地修改 API、Worker 或 App 后，使用仓库提供的 rebuild 入口，确保容器不会继续运行旧镜像。</p><div class="mt-7 flex items-center gap-3 rounded-xl border border-mint/25 bg-mint/10 px-4 py-3 text-sm text-mint"><svg class="h-5 w-5 shrink-0" aria-hidden="true"><use href="#icon-check" /></svg><span>当前本地 App 和 API 均可访问，健康检查返回 200。</span></div></div><div class="glass rounded-3xl p-5 shadow-soft sm:p-7"><div class="flex items-center gap-3"><span class="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-mint"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-terminal" /></svg></span><div><p class="text-sm font-semibold">Local quick start</p><p class="text-xs text-mist">首次安装或源码修改后的最短路径</p></div></div><pre class="mt-6 overflow-x-auto rounded-2xl border border-white/10 bg-ink/70 p-5 text-xs leading-7 text-[#d9e8f7]"><code><span class="text-mist"># 创建忽略的本地配置，并替换示例值</span>
+cp deploy/local.env.example deploy/local.env
+
+<span class="text-mist"># 重建当前源码对应的 API、Worker 和 App</span>
+make capstone-local-rebuild
+
+<span class="text-mist"># 打开 App；API readiness 由 rebuild 校验</span>
+open http://127.0.0.1:5173/</code></pre><details class="mt-5 rounded-xl border border-white/10 bg-white/[.03] p-4"><summary class="flex items-center justify-between gap-4 text-sm font-medium text-white"><span>运行时需要知道的边界</span><svg class="chevron h-4 w-4 shrink-0 text-mist" aria-hidden="true"><use href="#icon-arrow" /></svg></summary><ul class="mt-4 space-y-3 text-xs leading-6 text-mist"><li class="flex gap-2"><span class="text-mint">01</span><span>Provider 和操作员凭据只能放在环境变量或忽略的认证状态，不能进入 App 构建变量、日志、参数或答案工件。</span></li><li class="flex gap-2"><span class="text-mint">02</span><span>公开演示只允许登记的脚本案例，不授予 Provider 访问权限。</span></li><li class="flex gap-2"><span class="text-mint">03</span><span>真实 Provider 调用可能产生费用；离线脚本和 demo fixture 不是 LLM 执行路径。</span></li></ul></details></div></div>
+    </section>
+
+    <section id="boundaries" class="scroll-mt-24 border-t border-white/10 bg-white/[.025]">
+      <div class="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28"><div class="flex flex-col justify-between gap-6 md:flex-row md:items-end"><div class="max-w-3xl"><p class="eyebrow">08 / Decision boundaries</p><h2 class="mt-4 text-3xl font-semibold tracking-[-.035em] sm:text-5xl">已经清楚的边界，才是下一步的起点。</h2><p class="mt-5 text-base leading-7 text-mist">Capstone 当前优先完成框架复用、结果可信和应用展示。企业写操作治理、动态发现和更复杂的存储机制仍是后续范围。</p></div><a href="#hero" class="inline-flex min-h-11 items-center gap-2 self-start rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-mint/50 focus-ring md:self-auto">回到开头 <svg class="h-4 w-4 rotate-[-90deg]" aria-hidden="true"><use href="#icon-arrow" /></svg></a></div><div class="mt-12 grid gap-4 md:grid-cols-3"><article class="card-hover rounded-2xl border border-white/10 bg-white/[.03] p-6"><p class="text-xs font-semibold uppercase tracking-[.12em] text-mint">Current</p><h3 class="mt-4 text-lg font-semibold">双族本地工作台</h3><p class="mt-3 text-sm leading-6 text-mist">统一 Thread 应用可查看 pandapower 与 PyPSA 的有界模型目录；Worker 仍按族隔离，避免跨 Authority 执行。</p></article><article class="card-hover rounded-2xl border border-amber/20 bg-amber/[.05] p-6"><p class="text-xs font-semibold uppercase tracking-[.12em] text-amber">Next</p><h3 class="mt-4 text-lg font-semibold">M10 topology provider</h3><p class="mt-3 text-sm leading-6 text-mist">接入注册 PyPSA 模型的 authority-owned `operator.diagram`，复用 Thread 网络视图；不在通用结果投影器中伪造拓扑。</p></article><article class="card-hover rounded-2xl border border-white/10 bg-white/[.03] p-6"><p class="text-xs font-semibold uppercase tracking-[.12em] text-mist">Deferred</p><h3 class="mt-4 text-lg font-semibold">企业操作治理</h3><p class="mt-3 text-sm leading-6 text-mist">写侧审批、幂等性、补偿和动态发现保持独立范围，避免把未经验证的复杂性塞入当前产品路径。</p></article></div></div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/10 bg-ink"><div class="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-xs text-mist sm:flex-row sm:items-center sm:justify-between lg:px-8"><p>Capstone Agent Framework · evidence-backed applications over registered business systems</p><p>页面为静态说明，不连接运行中的 API。</p></div></footer>
+
+  <script>
+    (() => {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const state = { layer: 0, stage: 0, runStep: 0, playing: false, maturityOpen: null };
+
+      const layers = [
+        { name: 'Application', short: '选择与呈现', icon: 'icon-route', role: '选择应用、公共 UI/CLI、Provider 配置和读者呈现', output: '答案、报告和兼容投影', boundary: '不拥有领域语义、原始 Authority 对象或模型可见凭据', signal: '把复杂能力变成可使用的产品入口。' },
+        { name: 'Domain Pack', short: '领域语义', icon: 'icon-layers', role: '定义工具、合同、策略、指南、执行器和结果准入', output: '领域状态与已验证结果引用', boundary: '不拥有 Kernel 内部或其他 Domain Pack 的状态', signal: '让新领域可以独立安装和验证。' },
+        { name: 'Kernel', short: '中立运行', icon: 'icon-route', role: '管理中立编排、上下文、Turn、轨迹、工件、回放和审计', output: 'framework core 生命周期与可重放事件', boundary: '不解释 pandapower/PyPSA 语义或重算领域事实', signal: '为不同业务系统提供统一的运行骨架。' },
+        { name: 'Registered Authority', short: '事实来源', icon: 'icon-database', role: '访问登记模型，执行确定性计算或来源检索', output: '结果、修订版本和证据', boundary: '不负责模型规划、应用展示或无界调用', signal: '把事实留在真正拥有它的系统里。' }
+      ];
+
+      const runSteps = [
+        { title: '用户提出问题', body: '应用接收一个问题，并把它放入当前 Thread。此时还没有凭空生成的数值，也没有被误称为证据的模型输出。', status: '问题进入当前 Thread', icon: 'icon-route', visual: '<div class="grid h-full place-items-center"><div class="max-w-xs rounded-xl border border-white/15 bg-white/5 p-4 text-sm leading-6 text-white shadow-soft">“IEEE-39 中哪些线路需要重点关注？”<span class="mt-3 block text-xs text-mist">→ 进入有序的 Attempt</span></div></div>' },
+        { title: '选择已发布工具', body: '模型只能看到 Domain Pack 发布且 Authority 能执行的语义工具。输入合同限制了动作、参数和可访问范围。', status: '工具目录完成准入', icon: 'icon-layers', visual: '<div class="space-y-2"><div class="rounded-lg border border-mint/30 bg-mint/10 p-3 text-xs text-mint">grid.operator.result_query</div><div class="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-mist">输入：model_ref · query · scope</div><div class="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-mist">无 shell · 无任意 endpoint</div></div>' },
+        { title: 'Authority 执行计算', body: 'Domain Pack 通过声明的协议调用登记 Authority。网格数值、模型状态和结果集在这里产生。', status: 'Authority 返回结果集', icon: 'icon-database', visual: '<div class="grid h-full place-items-center"><div class="w-full max-w-sm rounded-xl border border-blue-300/25 bg-blue-400/10 p-4"><div class="flex items-center justify-between text-xs"><span class="text-blue-200">registered authority</span><span class="text-mint">completed</span></div><div class="mt-4 space-y-2"><div class="mini-bar"><span style="width:72%"></span></div><div class="mini-bar"><span style="width:48%"></span></div><div class="mini-bar"><span style="width:86%"></span></div></div><p class="mt-3 text-[11px] text-mist">revision: ieee39@current · result-set: 03</p></div></div>' },
+        { title: 'Domain Pack 准入结果', body: '领域适配器检查结果是否来自当前模型、当前修订和已发布能力，并把合格的结果投影为公共合同。', status: '结果获得领域准入', icon: 'icon-shield', visual: '<div class="grid h-full place-items-center"><div class="rounded-2xl border border-mint/30 bg-mint/10 p-5 text-center"><svg class="mx-auto h-10 w-10 text-mint" aria-hidden="true"><use href="#icon-shield" /></svg><p class="mt-3 text-sm font-semibold text-white">admitted result</p><p class="mt-1 text-xs text-mist">source revision verified</p></div></div>' },
+        { title: '绑定当前运行证据', body: 'Kernel 记录本轮消耗和产生的 result/evidence 引用。历史运行或未准入引用不能支持本轮事实。', status: '引用绑定到 run_id', icon: 'icon-route', visual: '<div class="flex h-full items-center justify-center"><div class="flex items-center gap-2 text-xs"><span class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-mist">run_7f2</span><svg class="h-4 w-4 text-mint" aria-hidden="true"><use href="#icon-arrow" /></svg><span class="rounded-lg border border-mint/30 bg-mint/10 px-3 py-2 text-mint">evidence_ref</span></div></div>' },
+        { title: '生成读者答案', body: '模型可以写清楚的读者文本，但答案是否能保留，取决于控制器和领域准入，而不是模型自行声明“我已经验证”。', status: '答案已提交', icon: 'icon-check', visual: '<div class="rounded-xl border border-white/10 bg-white/5 p-4"><p class="text-sm leading-6 text-white">线路 11 连接母线 4 和 5。以下判断来自本轮已准入的线路结果。</p><div class="mt-3 flex gap-2 text-[11px] text-mint"><span class="rounded-full bg-mint/10 px-2 py-1">answer committed</span><span class="rounded-full bg-white/10 px-2 py-1 text-mist">evidence: 2</span></div></div>' },
+        { title: '生成报告并回放', body: '应用把答案、状态、结果、轨迹和证据组织成可读报告。用户可以回看步骤，但不能从报告反向改写 Authority 事实。', status: '报告可读取与回放', icon: 'icon-check', visual: '<div class="space-y-2"><div class="h-3 w-2/3 rounded bg-white/15"></div><div class="h-3 w-full rounded bg-white/10"></div><div class="h-3 w-5/6 rounded bg-mint/25"></div><div class="mt-4 flex gap-2"><span class="rounded-lg bg-mint/10 px-3 py-2 text-xs text-mint">report.md</span><span class="rounded-lg bg-white/10 px-3 py-2 text-xs text-mist">replay</span></div></div>' }
+      ];
+
+      const maturity = [
+        { id: 'm6', label: 'M6', title: 'Harness + Case', status: '已完成', color: 'mint', summary: '把 Case 定义、执行状态、策略选择、恢复和公共投影收进 capstone-agent。', why: '产品影响：同一 Thread 工作流可以服务无头、交互和 HTTP/SSE 客户端。', detail: 'Harness 负责运行时选择和事件归一化；grid-agent 与 pypsa-agent 保留为迁移适配器。' },
+        { id: 'm7', label: 'M7', title: 'Result Projection', status: '已完成', color: 'mint', summary: '把 Domain Pack 结果投影为共享的 Thread 结果卡片、表格和受保护的网络焦点。', why: '产品影响：用户看到的是当前运行的结果，而不是原始业务对象。', detail: '包含当前运行证据绑定、严格事件回放、内存/Postgres 持久化和 Web 投影。' },
+        { id: 'm8', label: 'M8', title: 'Unified Thread', status: '已完成', color: 'mint', summary: '统一 pandapower 与 PyPSA 的模型目录和 Thread 入口，同时按族隔离 Worker。', why: '产品影响：一个产品入口可以发现多个领域模型，但不会跨 Authority 越权执行。', detail: '本地联邦目录当前提供 22 个有界模型；Railway 仍明确保持单族部署。' },
+        { id: 'm9', label: 'M9', title: 'PyPSA Web Results', status: '已完成', color: 'mint', summary: 'PyPSA Power Operations 结果投影接入共享 Thread/Web 合同。', why: '产品影响：PyPSA 操作结果可以用统一的报告和结果卡片展示。', detail: '结果绑定活动 pypsa-model 上下文，并要求可用的 result/evidence 引用；拓扑图保持独立范围。' },
+        { id: 'm10', title: 'Topology Provider', status: '下一阶段', color: 'amber', summary: '接入注册 PyPSA 模型的 authority-owned operator.diagram。', why: '产品影响：在同一模型区显示真实、完整、可验证的 PyPSA 拓扑。', detail: '复用现有 Thread 网络视图合同；不在通用结果投影器中制作或猜测拓扑。' }
+      ];
+
+      const stages = [
+        { name: '本地 Compose', short: '高频迭代', icon: 'icon-terminal', goal: '快速修改、重建和验证当前源码。', components: 'Vite App + API + pandapower Worker + PyPSA Worker + PostgreSQL + RustFS', data: '本地运行数据；Provider 和操作员凭据只在忽略的本地配置中。', gate: 'make capstone-local-rebuild、/health/ready、App 可达、API/Worker 镜像摘要一致。', note: '适合开发与浏览器验收，不替代云端验证。' },
+        { name: 'Cloud Development', short: '远程集成验证', icon: 'icon-route', goal: '验证云端 API、Worker、App、Provider、报告和证据回放。', components: '独立 API + Worker + PostgreSQL + 私有 bucket + 静态 App', data: '与 User Trial 完全隔离：独立数据库、bucket、令牌、凭据、origin 和运行数据。', gate: '就绪检查、登记案例、Provider、报告、证据回放和 API/Worker 修订一致性。', note: '开发推送不能直接更新 User Trial。' },
+        { name: 'User Trial', short: '稳定试用', icon: 'icon-shield', goal: '只运行最后一次完整验证过的版本。', components: '独立 API + Worker + PostgreSQL + 私有 bucket + 稳定 App', data: '只接受本阶段自己的用户试用数据和受保护凭据。', gate: '提升已验证的同一源码修订或镜像摘要；失败则回滚上一版。', note: '当前 Railway 仍为单族配置，不宣称已发布云端双族联邦。' }
+      ];
+
+      const workflow = [
+        ['01', '选择案例', '只从登记的案例目录开始。'],
+        ['02', '查看模型', '先看完整模型图，不创建运行证据。'],
+        ['03', '执行指令', '逐步提交，或让同一 Thread 自动完成。'],
+        ['04', '查看结果', '按已准入结果显示图层、表格和摘要。'],
+        ['05', '读取报告', '回看答案、轨迹、报告和证据。']
+      ];
+
+      const byId = (id) => document.getElementById(id);
+      const icon = (name, cls = 'h-4 w-4') => `<svg class="${cls}" aria-hidden="true"><use href="#${name}" /></svg>`;
+
+      function renderLayers() {
+        byId('layerCards').innerHTML = layers.map((item, index) => `<button type="button" class="layer-card ${index === state.layer ? 'active' : ''} flex min-h-16 w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[.03] p-3 text-left transition hover:border-mint/40 focus-ring" data-layer="${index}" aria-pressed="${index === state.layer}"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg ${index === state.layer ? 'bg-mint text-ink' : 'bg-white/10 text-mist'}">${icon(item.icon)}</span><span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-white">${item.name}</span><span class="mt-0.5 block text-xs text-mist">${item.short}</span></span>${icon('icon-arrow', 'h-4 w-4 shrink-0 text-mist')}</button>`).join('');
+        document.querySelectorAll('[data-layer]').forEach((button) => button.addEventListener('click', () => { state.layer = Number(button.dataset.layer); renderLayers(); renderLayerDetail(); }));
+        byId('layerIndex').textContent = `${state.layer + 1} / ${layers.length}`;
+      }
+
+      function renderLayerDetail() {
+        const item = layers[state.layer];
+        byId('layerSlider').value = state.layer;
+        byId('layerSlider').setAttribute('aria-valuetext', item.name);
+        byId('layerDetail').innerHTML = `<div class="flex items-start justify-between gap-5"><div><p class="eyebrow">Selected layer / ${String(state.layer + 1).padStart(2, '0')}</p><h3 class="mt-3 text-3xl font-semibold tracking-[-.035em] text-white">${item.name}</h3></div><span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-mint">${icon(item.icon, 'h-6 w-6')}</span></div><p class="mt-6 text-base leading-7 text-white">${item.signal}</p><div class="mt-8 grid gap-4 sm:grid-cols-2"><div class="rounded-xl border border-white/10 bg-white/[.03] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-mist">Owns</p><p class="mt-2 text-sm leading-6 text-white">${item.role}</p></div><div class="rounded-xl border border-mint/20 bg-mint/[.06] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-mint">Returns</p><p class="mt-2 text-sm leading-6 text-white">${item.output}</p></div></div><div class="mt-4 rounded-xl border border-amber/20 bg-amber/[.06] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-amber">Does not own</p><p class="mt-2 text-sm leading-6 text-amber-50">${item.boundary}</p></div>`;
+      }
+
+      function renderTimeline() {
+        byId('timelineNodes').innerHTML = runSteps.map((item, index) => `<button type="button" class="timeline-node grid h-7 w-7 place-items-center rounded-full border-2 border-line bg-ink text-[10px] font-bold text-mist focus-ring ${index < state.runStep ? 'done' : ''} ${index === state.runStep ? 'active' : ''}" data-run-step="${index}" aria-label="跳到步骤 ${index + 1}：${item.title}" aria-pressed="${index === state.runStep}">${index + 1}</button>`).join('');
+        document.querySelectorAll('[data-run-step]').forEach((button) => button.addEventListener('click', () => { state.runStep = Number(button.dataset.runStep); state.playing = false; updateRunStep(); updateRunControls(); }));
+        const progress = runSteps.length <= 1 ? 0 : (state.runStep / (runSteps.length - 1)) * 100;
+        byId('timelineLine').style.setProperty('--progress', `${progress}%`);
+        const item = runSteps[state.runStep];
+        byId('runStepLabel').textContent = `Step ${String(state.runStep + 1).padStart(2, '0')}`;
+        byId('runStepTitle').textContent = item.title;
+        byId('runStepBody').textContent = item.body;
+        byId('runStepStatus').textContent = state.playing ? `自动播放中 · ${item.status}` : item.status;
+        byId('runVisual').innerHTML = item.visual;
+        byId('runVisual').classList.remove('reveal');
+        if (!prefersReducedMotion.matches) requestAnimationFrame(() => byId('runVisual').classList.add('reveal'));
+      }
+
+      function updateRunStep() { renderTimeline(); }
+      function updateRunControls() { byId('runToggleText').textContent = state.playing ? '暂停流程' : (state.runStep === runSteps.length - 1 ? '再次播放' : '播放流程'); byId('runToggleIcon').innerHTML = `<use href="#${state.playing ? 'icon-pause' : 'icon-play'}" />`; byId('runToggle').setAttribute('aria-label', state.playing ? '暂停运行流程' : '播放运行流程'); }
+      function playRun() { if (state.runStep === runSteps.length - 1) state.runStep = 0; if (prefersReducedMotion.matches) { state.runStep = Math.min(runSteps.length - 1, state.runStep + 1); state.playing = false; updateRunStep(); updateRunControls(); return; } state.playing = true; updateRunStep(); updateRunControls(); clearInterval(playRun.timer); playRun.timer = setInterval(() => { if (!state.playing) return; if (state.runStep >= runSteps.length - 1) { state.playing = false; clearInterval(playRun.timer); } else state.runStep += 1; updateRunStep(); updateRunControls(); }, 1450); }
+      function pauseRun() { state.playing = false; clearInterval(playRun.timer); updateRunStep(); updateRunControls(); }
+
+      function renderMaturity() {
+        byId('maturityGrid').innerHTML = maturity.map((item) => `<article class="card-hover rounded-2xl border ${item.color === 'amber' ? 'border-amber/25 bg-amber/[.045]' : 'border-white/10 bg-white/[.03]'} p-5" data-maturity-card="${item.id || item.label}"><button type="button" class="flex min-h-12 w-full items-start gap-3 text-left focus-ring" data-maturity="${item.id || item.label}" aria-expanded="${state.maturityOpen === (item.id || item.label)}"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg ${item.color === 'amber' ? 'bg-amber/15 text-amber' : 'bg-mint/15 text-mint'} text-xs font-bold">${item.label || 'M10'}</span><span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-white">${item.title}</span><span class="mt-1 inline-flex rounded-full ${item.color === 'amber' ? 'bg-amber/10 text-amber' : 'bg-mint/10 text-mint'} px-2 py-0.5 text-[10px] font-medium">${item.status}</span></span>${icon('icon-arrow', 'chevron mt-1 h-4 w-4 shrink-0 rotate-90 text-mist')}</button><p class="mt-5 text-xs leading-6 text-mist">${item.summary}</p><div class="${state.maturityOpen === (item.id || item.label) ? '' : 'hidden'} mt-4 border-t border-white/10 pt-4" data-maturity-detail="${item.id || item.label}"><p class="text-xs leading-6 text-white">${item.why}</p><p class="mt-3 text-xs leading-6 text-mist">${item.detail}</p></div></article>`).join('');
+        document.querySelectorAll('[data-maturity]').forEach((button) => button.addEventListener('click', () => { const id = button.dataset.maturity; state.maturityOpen = state.maturityOpen === id ? null : id; renderMaturity(); }));
+      }
+
+      function renderStages() {
+        byId('stageCards').innerHTML = stages.map((item, index) => `<button type="button" class="flex min-h-16 w-full items-center gap-3 rounded-xl border ${index === state.stage ? 'border-mint/70 bg-mint/10' : 'border-white/10 bg-white/[.03]'} p-3 text-left transition hover:border-mint/40 focus-ring" data-stage="${index}" aria-pressed="${index === state.stage}"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg ${index === state.stage ? 'bg-mint text-ink' : 'bg-white/10 text-mist'}">${icon(item.icon)}</span><span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-white">${item.name}</span><span class="mt-0.5 block text-xs text-mist">${item.short}</span></span>${icon('icon-arrow', 'h-4 w-4 shrink-0 text-mist')}</button>`).join('');
+        document.querySelectorAll('[data-stage]').forEach((button) => button.addEventListener('click', () => { state.stage = Number(button.dataset.stage); renderStages(); renderStageDetail(); }));
+        byId('stageIndex').textContent = `${state.stage + 1} / ${stages.length}`;
+      }
+
+      function renderStageDetail() {
+        const item = stages[state.stage];
+        byId('stageSlider').value = state.stage;
+        byId('stageSlider').setAttribute('aria-valuetext', item.name);
+        byId('stageDetail').innerHTML = `<div class="flex items-start justify-between gap-5"><div><p class="eyebrow">Selected stage / ${String(state.stage + 1).padStart(2, '0')}</p><h3 class="mt-3 text-3xl font-semibold tracking-[-.035em] text-white">${item.name}</h3><p class="mt-3 text-base leading-7 text-white">${item.goal}</p></div><span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint/15 text-mint">${icon(item.icon, 'h-6 w-6')}</span></div><div class="mt-8 space-y-4"><div class="rounded-xl border border-white/10 bg-white/[.03] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-mist">Components</p><p class="mt-2 text-sm leading-6 text-white">${item.components}</p></div><div class="rounded-xl border border-white/10 bg-white/[.03] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-mist">Data boundary</p><p class="mt-2 text-sm leading-6 text-white">${item.data}</p></div><div class="rounded-xl border border-mint/20 bg-mint/[.06] p-4"><p class="text-[11px] font-semibold uppercase tracking-[.12em] text-mint">Gate</p><p class="mt-2 text-sm leading-6 text-white">${item.gate}</p></div></div><p class="mt-6 text-xs leading-6 text-mist">${item.note}</p>`;
+      }
+
+      function renderWorkflow() { byId('workflowSteps').innerHTML = workflow.map(([number, title, body], index) => `<div class="relative rounded-2xl border border-white/10 bg-white/[.03] p-5 ${index < workflow.length - 1 ? 'md:after:absolute md:after:-right-3 md:after:top-1/2 md:after:h-px md:after:w-6 md:after:bg-line' : ''}"><span class="text-xs font-bold text-mint">${number}</span><h3 class="mt-4 text-sm font-semibold text-white">${title}</h3><p class="mt-2 text-xs leading-6 text-mist">${body}</p></div>`).join(''); }
+
+      function bind() {
+        byId('layerSlider').addEventListener('input', (event) => { state.layer = Number(event.target.value); renderLayers(); renderLayerDetail(); });
+        byId('stageSlider').addEventListener('input', (event) => { state.stage = Number(event.target.value); renderStages(); renderStageDetail(); });
+        byId('runToggle').addEventListener('click', () => state.playing ? pauseRun() : playRun());
+        byId('runRestart').addEventListener('click', () => { pauseRun(); state.runStep = 0; updateRunStep(); updateRunControls(); });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) pauseRun(); });
+        prefersReducedMotion.addEventListener?.('change', () => { if (prefersReducedMotion.matches) pauseRun(); });
+      }
+
+      renderLayers(); renderLayerDetail(); renderTimeline(); updateRunControls(); renderMaturity(); renderStages(); renderStageDetail(); renderWorkflow(); bind();
+      window.capstoneOverview = { state, renderLayer: (index) => { state.layer = Math.max(0, Math.min(3, Number(index))); renderLayers(); renderLayerDetail(); }, renderRunStep: (index) => { state.runStep = Math.max(0, Math.min(runSteps.length - 1, Number(index))); pauseRun(); updateRunStep(); }, playRun, pauseRun, renderStage: (index) => { state.stage = Math.max(0, Math.min(2, Number(index))); renderStages(); renderStageDetail(); }, toggleMaturity: (id) => { state.maturityOpen = state.maturityOpen === id ? null : id; renderMaturity(); } };
+    })();
+  </script>
+</body>
+</html>
