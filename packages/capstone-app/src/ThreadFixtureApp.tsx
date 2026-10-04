@@ -5,7 +5,7 @@ import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from '.
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
 import { threadPreviewDiagram } from './threadModelDiagram'
-import type { NetworkDiagram } from './types'
+import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
 import { PageHeader } from './AppHeader'
 import ThreadControls from './ThreadControls'
@@ -100,14 +100,15 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [snapshot?.activeModelContext.modelId])
   const activePage = snapshot?.activeGridPageId || null
   const viewedPage = projection.viewedGridPageId || activePage
-  const currentDiagram = previewDiagram ?? (fixture ? threadPreviewDiagram : null)
+  const isHistorical = Boolean(activePage && viewedPage && activePage !== viewedPage)
+  const activeNetworkView: DiagramNetworkView | null = !isHistorical ? projection.networkView : null
+  const currentDiagram = activeNetworkView?.diagram ?? previewDiagram ?? (fixture ? threadPreviewDiagram : null)
   const currentDiagramElementIds = useMemo(() => new Set(
     currentDiagram ? [
       ...currentDiagram.buses.map((item) => item.id),
       ...currentDiagram.branches.map((item) => item.id),
     ] : [],
   ), [currentDiagram])
-  const isHistorical = Boolean(activePage && viewedPage && activePage !== viewedPage)
   const attempt = snapshot?.currentAttempt
   const isActive = Boolean(attempt && ACTIVE_PHASES.has(attempt.phase))
   const isInterrupted = attempt?.phase === 'interrupted'
@@ -248,6 +249,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
           controlsDisabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} previewDiagram={currentDiagram}
+          networkView={activeNetworkView}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={activeResultProjection} focusedElementId={focusedElementId} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void dispatch('switch_model', { model_id: modelTarget })} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">

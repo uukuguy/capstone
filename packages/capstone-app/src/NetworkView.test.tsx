@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
+import { projectActiveNetworkView } from './ThreadModelPane'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 afterEach(cleanup)
@@ -122,5 +123,13 @@ describe('operator network canvas', () => {
     const manual = canvas.getAttribute('viewBox')
     rerender(<NetworkView view={{ ...sampleDiagramView }} modelName="SciGRID" focusKey="turn-1" />)
     expect(canvas.getAttribute('viewBox')).toBe(manual)
+  })
+
+  it('keeps the dynamic diagram visible when a requested focus is not a diagram element', () => {
+    const safeView = projectActiveNetworkView(sampleDiagramView, undefined, 'missing-element')
+    render(<NetworkView view={safeView} modelName="SciGRID" focusKey="safe-focus" />)
+
+    expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
+    expect(screen.getByText(/3 母线 \/ 2 支路/)).toBeTruthy()
   })
 })

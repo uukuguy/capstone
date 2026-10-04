@@ -1,7 +1,7 @@
 import { NetworkView } from './NetworkView'
 import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
-import type { NetworkDiagram } from './types'
+import type { DiagramNetworkView, NetworkDiagram } from './types'
 
 function modelLabel(modelId: string | undefined, family?: string): string {
   const known = { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39', 'regional-six-bus': 'Regional Six Bus' }
@@ -24,6 +24,7 @@ export type ThreadModelPaneProps = {
   contextChangePending: boolean
   controlsDisabled: boolean
   previewDiagram: NetworkDiagram | null
+  networkView?: DiagramNetworkView | null
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
   modelOptions: ThreadCatalogModel[]
   onModelTargetChange: (value: string) => void
@@ -53,12 +54,29 @@ function projectionNetworkView(diagram: NetworkDiagram, projection: ResultProjec
   } : null
 }
 
+export function projectActiveNetworkView(view: DiagramNetworkView, projection: ResultProjection | undefined,
+                                         focusedElementId: string | undefined): DiagramNetworkView {
+  const diagramIds = new Set([...view.diagram.branches.map((branch) => branch.id), ...view.diagram.buses.map((bus) => bus.id)])
+  const focusIds = focusedElementId && diagramIds.has(focusedElementId)
+    ? [focusedElementId] : view.layer.focus_ids.filter((id) => diagramIds.has(id))
+  const overlay = projection?.modelId === view.diagram.model.id && projection.modelRevision === view.diagram.model.revision
+    ? projection.overlay : undefined
+  const supportedOverlay = overlay && (overlay.metric === 'loading_percent' || overlay.metric === 'voltage_pu') &&
+    overlay.values.every((value) => diagramIds.has(value.elementId))
+    ? { metric: overlay.metric as 'loading_percent' | 'voltage_pu', unit: overlay.unit as '%' | 'p.u.', source_ref: overlay.sourceRef,
+        values: overlay.values.map((value) => ({ id: value.elementId, value: value.value })) }
+    : undefined
+  return { ...view, layer: { ...view.layer, focus_ids: focusIds, overlay: supportedOverlay || view.layer.overlay } }
+}
+
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHistorical,
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
-  elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
+  networkView, elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
   const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
-  const modelDiagram = !isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId && previewDiagram.model.revision === snapshot.activeModelContext.modelRevision ? previewDiagram : null
+  const dynamicModelView = !isHistorical && networkView?.diagram.model.id === snapshot.activeModelContext.modelId &&
+    networkView.diagram.model.revision === snapshot.activeModelContext.modelRevision ? networkView : null
+  const modelDiagram = dynamicModelView?.diagram || (!isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId && previewDiagram.model.revision === snapshot.activeModelContext.modelRevision ? previewDiagram : null)
   const activeModelName = modelOptions.find((model) => model.modelId === snapshot.activeModelContext.modelId)?.displayName
     || modelLabel(snapshot.activeModelContext.modelId, snapshot.activeModelContext.implementationFamily)
   return <section className="thread-model-pane" aria-label="电网模型区">
@@ -94,7 +112,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
         label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageId} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
     </div>
     <div className="thread-network-card">
-      <NetworkView view={modelDiagram && !isHistorical ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null} previewDiagram={modelDiagram} modelName={activeModelName} focusKey={`${viewedPage}:${focusedElementId || ''}`}
+      <NetworkView view={dynamicModelView ? projectActiveNetworkView(dynamicModelView, resultProjection, focusedElementId) : modelDiagram && !isHistorical ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null} previewDiagram={modelDiagram} modelName={activeModelName} focusKey={`${viewedPage}:${focusedElementId || ''}`}
         unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />
     </div>
     <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot.activeModelContext.id}</strong></div><div><span>SELECTION</span><strong>{snapshot.activeModelContext.selectionRevision}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>

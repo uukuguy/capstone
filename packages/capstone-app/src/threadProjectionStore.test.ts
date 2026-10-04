@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore } from './threadProjectionStore'
+import { sampleDiagramView } from './networkFixture'
 
 const context = {
   id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: '7',
@@ -56,6 +57,15 @@ const historicalFixture = {
     ],
   },
   assertions: { transport_state: 'live' },
+}
+
+const dynamicDiagram = {
+  ...sampleDiagramView.diagram,
+  model: { id: 'ieee39', revision: '7', source: 'pypsamodelctl' },
+}
+const dynamicLayer = {
+  ...sampleDiagramView.layer,
+  model_revision: '7',
 }
 
 function command(): ThreadCommand {
@@ -255,6 +265,77 @@ describe('ThreadProjectionStore', () => {
     await store.consumeEvents()
 
     expect(store.state.snapshot?.resultProjections?.map((item) => item.resultId)).toEqual(['result_projection_1'])
+  })
+
+  it('replays a matching diagram and layer into the current model view', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'network_diagram', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
+          payload: { diagram: dynamicDiagram },
+        }
+        yield {
+          eventId: 'evt_2', eventSeq: 2, eventType: 'network_layer', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:02Z', visibility: 'public' as const,
+          payload: { ordinal: 1, layer: dynamicLayer },
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+
+    expect(store.state.networkView?.diagram.model.revision).toBe('7')
+    expect(store.state.networkView?.layer.diagram_ref).toBe(store.state.networkView?.diagram.ref)
+  })
+
+  it('does not reuse a prior context diagram after a model switch', async () => {
+    const streamTransport: ThreadTransport = {
+      ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () {
+        yield {
+          eventId: 'evt_1', eventSeq: 1, eventType: 'network_diagram', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_ieee39_7',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
+          payload: { diagram: dynamicDiagram },
+        }
+        yield {
+          eventId: 'evt_2', eventSeq: 2, eventType: 'network_layer', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_ieee39_7',
+          occurredAt: '2026-09-30T00:00:02Z', visibility: 'public' as const,
+          payload: { ordinal: 1, layer: dynamicLayer },
+        }
+        yield {
+          eventId: 'evt_3', eventSeq: 3, eventType: 'model_context_reopened', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_pypsa_1',
+          selectionRevision: 'sel_0', occurredAt: '2026-09-30T00:00:03Z', visibility: 'public' as const,
+          payload: {
+            model_context: {
+              id: 'ctx_pypsa_1', model_id: 'regional-six-bus', model_revision: 'revision:sha256:bbbb',
+              implementation_family: 'pypsa', selection_revision: 'sel_0',
+            }, active_grid_page_id: 'page_regional_six_bus', reason: 'explicit_reopen',
+          },
+        }
+        yield {
+          eventId: 'evt_4', eventSeq: 4, eventType: 'network_diagram', eventVersion: 1,
+          threadId: 'thr_demo_39', runId: 'run_001', modelContextId: 'ctx_ieee39_7',
+          occurredAt: '2026-09-30T00:00:04Z', visibility: 'public' as const,
+          payload: { diagram: dynamicDiagram },
+        }
+      },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(streamTransport))
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+
+    expect(store.state.snapshot?.activeModelContext.modelId).toBe('regional-six-bus')
+    expect(store.state.networkView).toBeNull()
   })
 
   it('records public events and notifies the workspace projection subscriber', async () => {

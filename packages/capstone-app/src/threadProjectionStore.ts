@@ -1,4 +1,6 @@
 import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot } from './threadProtocol'
+import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
+import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
@@ -19,6 +21,7 @@ export type ThreadProjectionState = {
   pendingCommands: readonly PendingThreadCommand[]
   viewedGridPageId: string | null
   catalog: ThreadCatalog | null
+  networkView: DiagramNetworkView | null
 }
 
 export type ThreadFixtureDocument = {
@@ -175,10 +178,12 @@ export class ThreadProjectionStore {
   private current: ThreadProjectionState = {
     connection: 'offline', snapshot: null, eventSeq: 0, resyncRequired: false,
     pendingCommands: [], viewedGridPageId: null, catalog: null,
+    networkView: null,
   }
 
   private loadedThreadId: string | null = null
   private readonly eventLog: EventEnvelope[] = []
+  private networkDiagram: NetworkDiagram | null = null
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly client: CapstoneThreadClient) {}
@@ -237,6 +242,9 @@ export class ThreadProjectionStore {
       }
       this.eventLog.length = 0
       this.eventLog.push(...restoredEvents)
+      this.networkDiagram = null
+      this.current = { ...this.current, networkView: null }
+      for (const event of restoredEvents) this.applyNetworkProjection(event, snapshot)
       this.notify()
       this.loadedThreadId = threadId
     } catch (error) {
@@ -394,6 +402,8 @@ export class ThreadProjectionStore {
     } else if (event.eventType === 'selection_change_pending') {
       document.pending_selection = { command_id: payload.command_id, selection: payload.selection }
     } else if (event.eventType === 'model_context_activated' || event.eventType === 'model_context_reopened' || event.eventType === 'model_context_reverted') {
+      this.networkDiagram = null
+      this.current = { ...this.current, networkView: null }
       const context = payload.model_context ?? payload.restored_context
       if (context) document.active_model_context = context
       const page = payload.active_grid_page_id ?? payload.restored_grid_page_id
@@ -438,7 +448,42 @@ export class ThreadProjectionStore {
       last_event_seq: event.eventSeq,
     })
     this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
+    this.applyNetworkProjection(event, projected)
     this.eventLog.push(event)
     this.notify()
+  }
+
+  private applyNetworkProjection(event: EventEnvelope, snapshot: ThreadSnapshot): void {
+    const active = snapshot.activeModelContext
+    if (event.modelContextId !== active.id) return
+    const payload = record(event.payload)
+    if (event.eventType === 'network_diagram') {
+      const diagram = parseNetworkDiagram(payload.diagram)
+      if (!diagram || diagram.model.id !== active.modelId || diagram.model.revision !== active.modelRevision) {
+        this.networkDiagram = null
+        this.current = { ...this.current, networkView: null }
+        return
+      }
+      this.networkDiagram = diagram
+      this.current = { ...this.current, networkView: null }
+      return
+    }
+    if (event.eventType === 'network_layer') {
+      if (!this.networkDiagram || typeof payload.ordinal !== 'number') return
+      const view = parseNetworkView({
+        schema: 'capstone-network-view/2.0',
+        ordinal: payload.ordinal,
+        diagram: this.networkDiagram,
+        layer: payload.layer,
+      }, payload.ordinal, [])
+      if (view?.schema !== 'capstone-network-view/2.0' ||
+          view.diagram.model.id !== active.modelId || view.diagram.model.revision !== active.modelRevision) return
+      this.current = { ...this.current, networkView: view }
+      return
+    }
+    if (event.eventType === 'network_layer_unavailable') {
+      this.networkDiagram = null
+      this.current = { ...this.current, networkView: null }
+    }
   }
 }

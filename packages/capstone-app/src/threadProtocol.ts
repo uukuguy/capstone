@@ -1,3 +1,5 @@
+import { parseNetworkDiagram } from './networkValidation'
+
 export type RunState = 'created' | 'open' | 'closing' | 'closed' | 'failed'
 export type AttemptPhase = 'created' | 'accepted' | 'running' | 'waiting' | 'committing' |
   'cancelled' | 'interrupted' | 'completed' | 'failed'
@@ -597,6 +599,19 @@ export function parseEventEnvelope(value: unknown): EventEnvelope {
   const eventType = text(document.event_type, 'event.event_type')
   const payload = object(document.payload, 'event.payload')
   jsonValue(payload, 'event.payload')
+  if (eventType === 'network_diagram' && !parseNetworkDiagram(payload.diagram)) {
+    throw new ThreadProtocolError('event.payload.network_diagram is invalid')
+  }
+  if (eventType === 'network_layer') {
+    const layer = object(payload.layer, 'event.payload.network_layer.layer')
+    if (!Number.isSafeInteger(payload.ordinal) || (payload.ordinal as number) < 1 || (payload.ordinal as number) > 3 ||
+        layer.schema !== 'capstone-network-layer/1.0' || layer.ordinal !== payload.ordinal ||
+        typeof layer.diagram_ref !== 'string' || !layer.diagram_ref ||
+        typeof layer.model_revision !== 'string' || !layer.model_revision ||
+        !Array.isArray(layer.focus_ids) || !Array.isArray(layer.next_focus_ids)) {
+      throw new ThreadProtocolError('event.payload.network_layer is invalid')
+    }
+  }
   if (
     (eventType === 'model_context_activated' || eventType === 'model_context_reopened' || eventType === 'model_context_change_pending')
     && payload.reason !== undefined
