@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import json
-from typing import Protocol
+from typing import Protocol, cast
 
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
@@ -499,7 +499,14 @@ class HarnessAttemptRunner:
             if getattr(self._runtime, "network_projection_enabled", False) and callable(
                 network_projection
             ):
-                projection = network_projection(
+                project_network = cast(
+                    Callable[
+                        [AttemptClaim, tuple[str, ...], tuple[str, ...], tuple[Mapping[str, object], ...]],
+                        Mapping[str, object] | None,
+                    ],
+                    network_projection,
+                )
+                projection = project_network(
                     claim, result_refs, evidence_refs, tuple(self._tool_events),
                 )
                 if projection is None:

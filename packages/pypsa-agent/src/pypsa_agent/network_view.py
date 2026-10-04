@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.model_capability_context import PreparedModelCapabilityContext
@@ -95,7 +95,7 @@ def build_pypsa_thread_network_provider(
         if source is None or not callable(getattr(executor, "invoke", None)):
             raise RuntimeError("PyPSA source executor is unavailable")
         return PyPSAThreadNetworkProjectionProvider(
-            executor,
+            cast(DiagramExecutor, executor),
             model_id=binding.model_id,
             model_revision=binding.model_revision,
             model_ref=binding.context_ref,
