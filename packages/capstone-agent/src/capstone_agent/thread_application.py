@@ -227,10 +227,6 @@ class ThreadApplicationAssembly:
         session_factory: Callable[[AttemptClaim], PiPromptSession],
         runtime_mode: str = "capstone",
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
-        network_projection_factory: Callable[
-            [AttemptClaim, PreparedModelCapabilityContext],
-            ThreadNetworkProjectionProvider | None,
-        ] | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
         available_families: frozenset[str] | None = None,
