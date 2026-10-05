@@ -61,8 +61,6 @@ def create_host_app(
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
-    if public_demo and (not public_provider or not public_model):
-        raise ValueError("public demo provider configuration is incomplete")
     if thread_application is not None:
         if thread_creator is not None:
             raise ValueError("thread_application cannot be combined with thread_creator")
@@ -157,10 +155,11 @@ def create_host_app(
         if record is None:
             raise HTTPException(404, "session not found")
         if request.state.public_demo and (
-            record.mode != "provider"
+            not record.public_demo
+            or record.mode != "scripted-demo"
             or (record.application_id, record.case_id) not in public_cases
-            or record.provider != public_provider
-            or record.model != public_model
+            or record.provider is not None
+            or record.model is not None
         ):
             raise HTTPException(404, "session not found")
         return record
@@ -349,11 +348,10 @@ def create_host_app(
         provider = values.provider
         model = values.model
         if request.state.public_demo:
-            if values.mode != "provider" or (values.application_id, values.case_id) not in public_cases:
+            if values.mode != "scripted-demo" or (values.application_id, values.case_id) not in public_cases:
                 raise HTTPException(403, "public demo only accepts registered cases")
             if provider is not None or model is not None:
-                raise HTTPException(403, "public demo provider is fixed")
-            provider, model = public_provider, public_model
+                raise HTTPException(403, "public demo does not allow provider options")
         try:
             spec = registry.resolve(values.application_id)
         except ValueError:
@@ -366,7 +364,8 @@ def create_host_app(
         try:
             record = ledger.create_session(values.application_id, values.mode, values.case_id,
                                            provider, model,
-                                           idempotency_key=idempotency_key)
+                                           idempotency_key=idempotency_key,
+                                           public_demo=request.state.public_demo)
         except Conflict:
             raise HTTPException(409, "session key belongs to another request") from None
         if record.state == "pending":

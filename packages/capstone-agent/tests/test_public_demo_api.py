@@ -14,10 +14,10 @@ class DemoLedger:
         self.sessions: dict[str, SessionRecord] = {}
 
     def create_session(self, application_id, mode, case_id, provider, model,
-                       *, idempotency_key=None):
+                       *, idempotency_key=None, public_demo=False):
         session_id = f"session-{len(self.sessions) + 1}"
         record = SessionRecord(session_id, application_id, mode, case_id, provider,
-                               model, None, "pending", 0, 0, None, None)
+                               model, None, "pending", 0, 0, None, None, public_demo)
         self.sessions[session_id] = record
         return record
 
@@ -25,7 +25,7 @@ class DemoLedger:
         return self.sessions.get(session_id)
 
 
-def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
+def test_public_demo_only_opens_public_registered_scripted_cases() -> None:
     ledger = DemoLedger()
     registry = WorkerRegistry((WorkerSpec(
         "pandapower-static-analysis", ("unused",),
@@ -34,7 +34,6 @@ def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
     ),))
     app = create_host_app(
         ledger, registry, operator_token="hosted-secret", public_demo=True,
-        public_provider="deepseek", public_model="deepseek-flash",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
         repo_root=Path(__file__).resolve().parents[3],
     )
@@ -48,22 +47,33 @@ def test_public_demo_opens_registered_cases_with_fixed_provider() -> None:
         demo = {"Authorization": f"Bearer {token}"}
         assert client.get("/api/v1/catalog", headers=demo).status_code == 200
         created = client.post("/api/v1/sessions", json={
-            "application_id": "pandapower-static-analysis", "mode": "provider",
+            "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
             "case_id": "pandapower-scripted-task",
         }, headers=demo)
         assert created.status_code == 201
         assert client.get(f"/api/v1/sessions/{created.json()['session_id']}",
                           headers=demo).status_code == 200
-        assert ledger.sessions[created.json()["session_id"]].provider == "deepseek"
-        assert ledger.sessions[created.json()["session_id"]].model == "deepseek-flash"
-        assert client.post("/api/v1/sessions", json={
-            "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
-            "case_id": "pandapower-scripted-task",
-        }, headers=demo).status_code == 403
-        private = ledger.create_session("pandapower-static-analysis", "provider", None, None, None)
-        route = f"/api/v1/sessions/{private.session_id}"
-        assert client.get(route, headers=demo).status_code == 404
-        assert client.post(route + "/turns", json={"instruction": "inspect"},
-                           headers=demo).status_code == 404
-        assert client.get(route, headers={"Authorization": "Bearer hosted-secret"}).status_code == 200
+        record = ledger.sessions[created.json()["session_id"]]
+        assert record.public_demo and record.provider is None and record.model is None
+        for override in ({"mode": "provider"}, {"provider": "deepseek"},
+                         {"model": "deepseek-flash"}, {"case_id": "unknown"}):
+            assert client.post("/api/v1/sessions", json={
+                "application_id": "pandapower-static-analysis", "mode": "scripted-demo",
+                "case_id": "pandapower-scripted-task", **override,
+            }, headers=demo).status_code == 403
+        operator = {"Authorization": "Bearer hosted-secret"}
+        for mode in ("provider", "scripted-demo"):
+            private = client.post("/api/v1/sessions", headers=operator, json={
+                "application_id": "pandapower-static-analysis", "mode": mode,
+                "case_id": "pandapower-scripted-task",
+            })
+            assert private.status_code == 201
+            route = f"/api/v1/sessions/{private.json()['session_id']}"
+            for suffix in ("", "/turns/1", "/events", "/result", "/report",
+                           "/evidence?ref=evidence:test", "/network?ordinal=1", "/network-story"):
+                assert client.get(route + suffix, headers=demo).status_code == 404
+            for suffix in ("/turns", "/close", "/disconnect"):
+                assert client.post(route + suffix, json={"instruction": "inspect"},
+                                   headers=demo).status_code == 404
+            assert client.get(route, headers=operator).status_code == 200
         assert client.get("/api/v1/catalog", headers={"Origin": "https://other.example"}).status_code == 403

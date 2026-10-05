@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import psycopg
@@ -62,6 +63,22 @@ def test_session_creation_idempotency_reuses_run_and_rejects_different_case(ledg
     with pytest.raises(Conflict):
         ledger.create_session("fixture-app", "scripted-demo", "case-two", None, None,
                               idempotency_key="browser-tab-case-key")
+
+
+@pytest.mark.parametrize("public_demo", [False, True])
+def test_session_creation_scope_survives_restart_and_isolates_keys(ledger: Ledger, public_demo: bool) -> None:
+    args = ("fixture-app", "scripted-demo", "case-one", None, None)
+    record = ledger.create_session(*args, idempotency_key="scoped-key", public_demo=public_demo)
+    fresh = Ledger(ledger.dsn)
+    assert fresh.get_session(record.session_id).public_demo is public_demo
+    assert fresh.create_session(*args, idempotency_key="scoped-key", public_demo=public_demo) == record
+    with pytest.raises(Conflict):
+        fresh.create_session(*args, idempotency_key="scoped-key", public_demo=not public_demo)
+    if not public_demo:
+        with psycopg.connect(ledger.dsn) as connection:
+            stored = connection.execute("SELECT create_hash FROM sessions WHERE session_id = %s",
+                                        (record.session_id,)).fetchone()[0]
+        assert stored == hashlib.sha256(repr(args).encode()).hexdigest()
 
 
 def test_stale_lease_interrupts_without_discarding_committed_events(ledger: Ledger) -> None:

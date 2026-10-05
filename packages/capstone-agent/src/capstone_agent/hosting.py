@@ -71,8 +71,6 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     demo_setting = environment.get("CAPSTONE_PUBLIC_DEMO", "false").lower()
     if demo_setting not in {"true", "false"}:
         raise ValueError("CAPSTONE_PUBLIC_DEMO is invalid")
-    if demo_setting == "true" and (not public_provider or not public_model):
-        raise ValueError("public demo provider configuration is incomplete")
     try:
         session_idle_seconds = int(environment.get("CAPSTONE_SESSION_IDLE_SECONDS", "600"))
     except ValueError:

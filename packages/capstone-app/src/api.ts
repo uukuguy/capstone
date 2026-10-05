@@ -121,7 +121,7 @@ export class CapstoneClient {
                 key?: string): Promise<CreatedSession> {
     return this.json('/api/v1/sessions', {
       method: 'POST',
-      body: JSON.stringify({ application_id: applicationId, mode: 'provider', case_id: caseId }),
+      body: JSON.stringify({ application_id: applicationId, mode: 'scripted-demo', case_id: caseId }),
       headers: key ? { 'Idempotency-Key': key } : undefined,
     })
   }

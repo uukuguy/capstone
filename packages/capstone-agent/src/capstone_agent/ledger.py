@@ -33,6 +33,7 @@ class SessionRecord:
     completed_turns: int
     error_code: str | None
     lease_token: str | None
+    public_demo: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +140,7 @@ def _session(row: dict[str, Any]) -> SessionRecord:
     return SessionRecord(*(row[key] for key in (
         "session_id", "application_id", "mode", "case_id", "provider", "model",
         "run_id", "state", "accepted_turns", "completed_turns", "error_code", "lease_token",
-    )))
+    )), public_demo=str(row.get("create_hash") or "").startswith("public-demo:v1:"))
 
 
 def _command(row: dict[str, Any]) -> CommandRecord:
@@ -174,12 +175,14 @@ class Ledger:
     def create_session(
         self, application_id: str, mode: str, case_id: str | None,
         provider: str | None, model: str | None,
-        *, idempotency_key: str | None = None,
+        *, idempotency_key: str | None = None, public_demo: bool = False,
     ) -> SessionRecord:
         if idempotency_key is not None and (not idempotency_key or len(idempotency_key) > 200):
             raise ValueError("idempotency key is invalid")
         request_hash = hashlib.sha256(repr((application_id, mode, case_id, provider, model))
                                       .encode()).hexdigest()
+        if public_demo:
+            request_hash = "public-demo:v1:" + request_hash
         session_id = "session-" + secrets.token_hex(12)
         with self._connect() as connection:
             row = connection.execute(
