@@ -45,6 +45,16 @@ def test_m11_builder_rejects_identity_drift_and_capacity(monkeypatch):
 def test_m11_uses_real_hosted_authority_without_provider(monkeypatch, tmp_path: Path, family, model):
     pytest.importorskip("grid_simulator" if family == "pandapower" else "pypsa_model_authority")
     from validation.thread.m11_session import INSTRUCTIONS
+    from validation.thread.m11_session import M11Session
+    original_admit = M11Session.admit_attempt
+
+    def check_foreign_reference(self, claim, answer, result_refs, evidence_refs, tool_events):
+        with pytest.raises(ValueError, match="provenance owner"):
+            self._admission(claim, answer, (*result_refs, "result:sha256:" + "f" * 64),
+                            evidence_refs, tool_events)
+        return original_admit(self, claim, answer, result_refs, evidence_refs, tool_events)
+
+    monkeypatch.setattr(M11Session, "admit_attempt", check_foreign_reference)
     hosted = importlib.import_module("grid_agent.hosted" if family == "pandapower" else "pypsa_agent.hosted")
     monkeypatch.setenv("CAPSTONE_THREAD_VALIDATION", "m11")
     monkeypatch.setenv("CAPSTONE_DEPLOYMENT_STAGE", "cloud-development")
@@ -72,6 +82,9 @@ def test_m11_uses_real_hosted_authority_without_provider(monkeypatch, tmp_path: 
         if family == "pypsa":
             assert any(event.event_type == "network_diagram" for event in events)
             assert any(event.event_type == "network_layer" for event in events)
+        exhausted = session.command("send_professional", {"text": INSTRUCTIONS[family][0]})
+        assert any(event.event_type == "attempt_failed" and event.attempt_id == exhausted.target["attempt_id"]
+                   for event in session.events().events)
         receipt = session.command("reopen_model_context", {"model_id": model, "reason": "M11 fresh context"})
         assert receipt.status == "accepted"
         assert session.snapshot().pending_model_switch is not None
