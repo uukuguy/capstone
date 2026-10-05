@@ -3,11 +3,18 @@
 ## Candidate and release boundary
 
 The current implementation candidate is
-`a1f028de4da1951599029b1cb7388e15db449ce8`. It includes client repair
-`6b8eba8bf5fe0ce30cd4ef081ddd08f5d4889e6e` and the hosted lease repair.
+`188abe3536722623c2e85d596195de6f60401a16`. It includes client repair
+`6b8eba8bf5fe0ce30cd4ef081ddd08f5d4889e6e`, hosted lease repair
+`a1f028de4da1951599029b1cb7388e15db449ce8`, configuration diagnostics
+`5dc0cd4`, and shared Harness Provider resolution.
 Candidate 6b8eba8 passed M11 and browser checks, but failed normal PyPSA
 acceptance; it must not be promoted. The a1f028d full release gate and cloud-dev
-automatic acceptance pass. Human acceptance is pending; demo is unchanged.
+provider-free automatic acceptance pass. Human acceptance found missing normal
+Provider configuration, recorded below; demo is unchanged.
+The new shared-source local image and App checks pass; its full release gate
+is recorded in the [Harness local record](2026-10-06-harness-provider-configuration-local-verification.md).
+Further cloud deployment is held for local verification. Cloud-dev remains
+on a1f028d in normal mode.
 Cloud operations target only the
 `capstone-cloud-dev` Railway project. Demo promotion requires completed
 cloud-dev verification and the user's manual acceptance. No real Provider
@@ -231,3 +238,56 @@ separate Provider authorization.
 
 Demo remains unchanged until manual acceptance of the completed cloud-dev
 candidate.
+
+## Manual review: normal Provider configuration gap
+
+The user logged in and submitted “有哪些 PyPSA 的电网模型？”. Two Attempts in
+Thread `thr_2e360be463f03926b5d4` failed at runtime construction, including retry:
+`attempt_9c3df4681e20436f` and `attempt_442e699d91bda7de`. The active Context
+remained IEEE-39/pandapower. Both failed with `capability_context_preparation_failed`.
+
+Read-only SSH checks of both cloud-dev workers reproduce `ConfigurationError`
+during Provider resolution. Both select DeepSeek; neither has DEEPSEEK_API_KEY.
+No new Provider request was made. Task evidence is under ignored
+`runs/thread-runtime-diagnosis/inspection.json` and `failure-metadata.json`.
+The prior provider-free matrix and scripted-case checks do not cover normal
+Provider configuration. Their passing receipts remain valid for that scope.
+
+The deployed a1f028d worker labels every prepared factory exception as a capability
+failure. Repair that classification at the application/Harness seam, preserve
+the prepared model Context for configuration errors, and show safe configuration
+repair guidance. Regressions must cover both families and the App. Run focused
+checks, rebuild the actual local API/worker/App, then verify a new exact candidate
+on cloud-dev. Normal real-Provider smoke requires a dedicated cloud-dev key and
+explicit authorization; never copy demo credentials or publish secrets.
+Manual acceptance and demo promotion remain blocked until this gap is closed.
+
+## Configuration error repair (5dc0cd4)
+
+Both application composition roots translate Provider `ConfigurationError` into
+neutral `HarnessRuntimeConfigurationError`. The worker persists only the fixed
+`runtime_configuration_invalid` code. It does not roll back a valid prepared
+Context for that error. Actual capability preparation failures retain the existing
+rollback behavior. The App explains that AI configuration needs administrator
+repair before retrying. Raw exception text, credentials and their values remain
+outside public events and reader-facing answers.
+
+Three new regressions fail against the previous source, then pass after repair.
+The family suites pass 3 pandapower and 5 PyPSA checks. Relevant Thread worker,
+application and attempt checks pass 48, and the conversation component passes 34.
+The 5dc0cd4 local rebuild passed with API and both workers using image
+`sha256:bc01b2cba0567988838b9c44375b8d1e0534fc5994ec975d7a50f72f451bd0e0`.
+Real hosted factories in isolated in-memory sessions inside that image pass both
+missing-configuration checks. Their evidence is
+`runs/thread-runtime-config-repair/local-missing-configuration.json`. Those
+checks use a deliberately absent credential in the isolated process and make
+zero Provider requests; user sessions and protected stage settings are untouched.
+
+The first source archive remains preserved under ignored
+`runs/thread-runtime-config-repair/`; it was not deployed. The user then required
+shared Harness ownership and local App verification before further cloud work.
+`188abe3` centralizes Provider resolution in Capstone and makes both historical
+adapters delegate. Its verification and the local-first release gate are in the
+[Harness local record](2026-10-06-harness-provider-configuration-local-verification.md).
+Normal cloud conversation still requires the missing dedicated cloud-dev
+Provider key and authorized real-Provider validation.
