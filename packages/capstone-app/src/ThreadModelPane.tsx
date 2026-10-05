@@ -102,8 +102,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         isHistorical ? undefined : focusedElementId)
     : modelDiagram ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null
   return <section className="thread-model-pane" aria-label="电网模型区">
-    <details className="thread-model-intro">
-      <summary>电网科学 AI · 关于 CAPSTONE</summary>
+    <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
       <div className="capstone-intro-art notranslate" translate="no">
         <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
         <div className="capstone-intro-overlay">
@@ -120,7 +119,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
           <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
         </div>
       </div>
-    </details>
+    </section>
     <div className="thread-model-navigation">
       <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
         disabled={controlsDisabled} pending={contextChangePending} onTargetChange={onModelTargetChange} onSwitch={onSwitchModel} />

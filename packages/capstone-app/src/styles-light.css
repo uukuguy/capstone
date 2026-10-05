@@ -307,9 +307,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-chat-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
 .thread-chat-heading h2 { margin: 7px 0 0; color: #173438; font-size: 21px; letter-spacing: -.03em; font-weight: 700; }
 .thread-context-state, .thread-run-state { color: #2f7068; border: 1px solid #b9d5ca; border-radius: 3px; padding: 6px 8px; font: 700 9px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; white-space: nowrap; }
-.thread-model-intro { margin-bottom: 6px; }
-.thread-model-intro .capstone-intro-art { margin-top: 8px; outline-color: #cbded5; }
-.thread-model-intro summary, .thread-model-history summary, .thread-view-details summary { cursor: pointer; min-height: 36px; padding: 9px 2px; color: #42645e; font-size: 11px; }
+.thread-model-intro { margin-bottom: 16px; }
+.thread-model-intro .capstone-intro-art { outline-color: #cbded5; }
+.thread-model-history summary, .thread-view-details summary { cursor: pointer; min-height: 36px; padding: 9px 2px; color: #42645e; font-size: 11px; }
 .thread-model-navigation { display: grid; gap: 6px; }
 .thread-model-directory { min-width: 0; }
 .thread-directory-panel { padding: 12px; margin-top: 6px; background: #fff; border: 1px solid #cbded5; border-radius: 6px; }

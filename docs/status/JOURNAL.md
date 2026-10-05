@@ -1670,3 +1670,5 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 20:20 完整 make check-release 退出0；最终App222项与构建、doctor、浏览器及独立复核通过。最终本地重建退出0，API/双worker同镜像c3a9cd2，六个后台改动文件与运行镜像逐字节一致；健康、App200、目录60+21通过。原用户Thread保持IEEE39/游标76；验收服务、浏览器会话及临时凭据已清理，未调用Provider或改云端。
 - 20:21 Bound grid views to instructions and recovered preset commands to prevent stale sends and wrong overlays. [5ce8e3a]
 - 20:51 精简模型区并加入按需搜索目录，标题栏只留 GitHub 图标；修复悬停布局跳动与手机操作。App227、构建、浏览器、复核和本地重建通过。
+- 20:52 Simplified model navigation and stabilized page actions to reduce clutter and improve mobile use. [112c6e7]
+- 20:56 按用户修正恢复品牌顶图常驻显示；构建、本地浏览器可见性核验和重建通过，模型目录及详情仍按需展开。

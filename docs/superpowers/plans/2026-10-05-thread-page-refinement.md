@@ -8,6 +8,10 @@
 
 ## Design and scope
 
+User correction after delivery: keep the brand artwork permanently visible.
+Only model history and view diagnostics use disclosures; the directory still
+opens on demand.
+
 The user now authorizes the model-area simplification deferred in the
 [instruction-view plan](2026-10-05-thread-preset-ranking-and-task-view.md).
 Keep one model identity in the topology heading. Move the model selector into

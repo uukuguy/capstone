@@ -2,6 +2,11 @@
 
 ## Delivered behavior
 
+Post-delivery correction: the user requested a permanently visible brand
+artwork. It is restored as a normal section; history, directory and diagnostics
+keep their compact behavior. The collapsed-artwork screenshots below record
+the earlier layout, not this final preference.
+
 The model toolbar and repeated current-model tab are removed. The topology
 heading keeps the model identity. Framework artwork, model history and view
 diagnostics use disclosures. Historical/selected-instruction notices remain
