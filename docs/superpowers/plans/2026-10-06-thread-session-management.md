@@ -63,6 +63,34 @@
 - [ ] Update bilingual product commands if needed, runbook, status index and verification receipts. Ordinary AI conversation remains blocked until dedicated cloud-dev credentials and separate Provider authorization are available; human acceptance precedes demo.
 - [ ] Independent final review, corrections, task-owned commit and durable journal/checkpoint.
 
+## Execution record
+
+Backend catalog/archive/history is committed in `508a44d`; App management,
+draft/receipt recovery, reverse history integration, bounded caches and idle
+subscription handling are committed in `a2dbb5d`. App266 tests and typecheck,
+focused backend/API checks, backend pyright and21 disposable-PostgreSQL checks
+pass. Local rebuild uses one image across all three backend roles.
+
+Real browser checks use the rebuilt local API and task-owned durable Threads:
+new/switch, separate drafts, refresh, API restart auto reconnect, reversible
+archive, read-only archival,70 QA text turns,50-message windows, complete reverse
+history, latest navigation and390px layout pass. The temporary proxy holds the
+local operator secret in memory and rejects Provider instructions. Test text
+makes no numerical or authority claim. Receipts: `runs/thread-session-*`;
+screenshots: `output/playwright/thread-session-*`.
+
+Full release gates pass; all four cloud-dev services deploy the exact candidate.
+Actual hosted browser recovery across the API deployment, drafts/new/switch/
+archive/restore, source identity, retained history/network projection, registered
+cases, reports and evidence pass. See the
+[verification record](../../reviews/2026-10-06-thread-session-management-verification.md).
+Provider configuration and human acceptance remain separate, unresolved gates.
+Independent review spawn was attempted twice; the tool rejects its inherited
+model as unsupported. No agent ran, and independent review is not claimed.
+Inline source review and actual verification continue. Ordinary Provider
+conversation requires dedicated cloud-dev credentials and separate call
+authorization. Demo still requires human acceptance.
+
 ## Acceptance boundaries
 
 An open browser retains one event subscription and its bounded UI state; it does not reserve a runtime worker. The API subscription currently polls the database; Task 3 must reduce idle polling and close abandoned subscriptions. Existing execution leases provide exclusivity, not a full user/session pool. The legacy `/old` session host's capacity and idle eviction remain compatibility behavior.
