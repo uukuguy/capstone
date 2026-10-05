@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ThreadFixtureApp from './ThreadFixtureApp'
+import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
+import { createFixtureTransport } from './threadProjectionStore'
+import { threadUiFixture } from './threadUiFixtures'
 
 afterEach(cleanup)
 
@@ -83,15 +86,24 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
   })
 
-  it('reports a short unknown Chinese model control instead of guessing', async () => {
-    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+  it.each(['打开 不存在模型', '打开 case24_ieee_rts 电网模型'])('sends an unresolved model request through the conversation: %s', async (request) => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 不存在模型' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    expect(await screen.findByText('未找到注册模型“不存在模型”。可先查看模型目录，或使用左侧模型选择器。')).toBeTruthy()
-    expect(screen.queryByText(/Fixture 已接收自动指令/)).toBeNull()
+    expect(await screen.findByText(request)).toBeTruthy()
+    expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
+    expect(commands).toHaveLength(1)
+    expect(commands[0]).toMatchObject({ kind: 'send_auto', payload: { text: request } })
+    expect(screen.queryByText(/未找到注册模型/)).toBeNull()
   })
 
   it('keeps an English analytical request on the ordinary route', async () => {
@@ -147,6 +159,67 @@ describe('ThreadFixtureApp', () => {
 
     expect(await screen.findByText('查看当前模型')).toBeTruthy()
     expect(await screen.findByText('Fixture 已接收自动指令：查看当前模型')).toBeTruthy()
+  })
+
+  it('sends another instruction after the previous response completes', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    for (const text of ['查看当前模型', '继续查看线路']) {
+      fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: text } })
+      fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+      expect(await screen.findByText(`Fixture 已接收自动指令：${text}`)).toBeTruthy()
+    }
+  })
+
+  it('sends another instruction after a model-control notice', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 ieee39' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText(/当前模型已经是/)).toBeTruthy()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText('Fixture 已接收自动指令：查看当前模型')).toBeTruthy()
+    expect(screen.queryByText(/当前模型已经是/)).toBeNull()
+  })
+
+  it('uses new command identities when an existing Thread is reopened', async () => {
+    const fixture = threadUiFixture('idle-ieee39')
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    const first = render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText('Fixture 已接收自动指令：查看当前模型')
+    first.unmount()
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '继续查看线路' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands[1].command_id).not.toBe(commands[0].command_id)
+    expect(commands[1].idempotency_key).not.toBe(commands[0].idempotency_key)
+    expect(await screen.findByText('Fixture 已接收自动指令：继续查看线路')).toBeTruthy()
+  })
+
+  it('shows a rejected conversational command instead of silently discarding its receipt', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => ({
+      schema: 'capstone-command-receipt/1', thread_id: command.thread_id,
+      command_id: command.command_id, idempotency_key: command.idempotency_key,
+      status: 'rejected', rejection: 'stale_event_seq',
+    }) })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText(/stale_event_seq/)).toBeTruthy()
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('查看当前模型'))
   })
 
   it('keeps live cancellation in the composer while the grid pane is historical', async () => {

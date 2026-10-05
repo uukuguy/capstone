@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { MessageNotSentError } from '@assistant-ui/react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
@@ -9,7 +10,8 @@ import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
 import { PageHeader } from './AppHeader'
 import ThreadControls from './ThreadControls'
-import { isLikelyNaturalLanguageModelRequest, parseThreadModelCommand, resolveThreadModelReference } from './threadCatalog'
+import { parseThreadModelCommand, resolveThreadModelReference } from './threadCatalog'
+import { commandKey } from './commandKey'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -55,7 +57,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [traceVisible, setTraceVisible] = useState(true)
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
-  const commandNumber = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -145,11 +146,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
     if (!snapshot) return
-    commandNumber.current += 1
+    const key = commandKey()
     const command: ThreadCommand = buildThreadCommand({
       threadId: snapshot.threadId, runId: snapshot.run.runId, kind,
-      expectedEventSeq: projection.eventSeq, commandId: `cmd_ui_${commandNumber.current}`,
-      idempotencyKey: `idem_ui_${kind}_${commandNumber.current}`, payload,
+      expectedEventSeq: projection.eventSeq, commandId: `cmd_ui_${key}`,
+      idempotencyKey: `idem_ui_${key}`, payload,
     })
     try {
       const receipt = await store.dispatch(command)
@@ -157,7 +158,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       const receiptNotice = receipt.status === 'accepted'
         ? successNotice || `${kind} · ${receipt.status}`
         : `${kind} · ${receipt.status}${receipt.rejection ? ` · ${receipt.rejection}` : ''}`
-      setNotice(conversational ? null : receiptNotice); sync()
+      setNotice(conversational && receipt.status === 'accepted' ? null : receiptNotice); sync()
+      return receipt
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '命令未提交'); sync()
     }
@@ -206,17 +208,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const intent = parseThreadModelCommand(text)
     if (intent && projection.catalog) {
       const resolution = resolveThreadModelReference(projection.catalog, intent.reference)
-      if (resolution.kind === 'unknown') {
-        // Only consume a short model-control phrase. A longer unknown request
-        // is left to the agent so “打开网络并分析…” remains ordinary work.
-        if (!isLikelyNaturalLanguageModelRequest(intent.reference)) {
-          setNotice(`未找到注册模型“${intent.reference}”。可先查看模型目录，或使用左侧模型选择器。`)
-          return
-        }
-      } else if (resolution.kind === 'ambiguous') {
+      // Keep unresolved model requests on the conversation path. The agent
+      // can consult its catalog and return a reply without a guessed switch.
+      if (resolution.kind === 'ambiguous') {
         setNotice(`模型引用“${intent.reference}”不唯一：${resolution.candidates.map((item) => item.modelId).join('、')}。请使用完整模型 ID。`)
         return
-      } else {
+      } else if (resolution.kind === 'resolved') {
         const model = resolution.model
         if (model.available === false) {
           setNotice(`${model.displayName} 当前不可用${model.unavailableReason ? `（${model.unavailableReason}）` : ''}。请先确认对应 worker 已就绪。`)
@@ -235,7 +232,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         return
       }
     }
-    await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text })
+    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text })
+    if (receipt?.status === 'rejected') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
   }
 
   function controlButton(label: string, kind: string, enabled: boolean, payload: Record<string, unknown> = {}) {

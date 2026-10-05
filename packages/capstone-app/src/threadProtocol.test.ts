@@ -140,4 +140,29 @@ describe('browser Thread protocol parser', () => {
       ...activation, payload: { reason: 'unexpected' },
     })).toThrowError(/reason is invalid/)
   })
+
+  it('replays ordinary model switches before a later explicit reopen', () => {
+    const eventPage = parseEventPage({
+      schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39',
+      after_event_seq: 0, next_event_seq: 4, has_more: false,
+      events: [
+        { ...event(1), event_type: 'model_context_change_pending', payload: { reason: 'model_switch' } },
+        { ...event(2), event_type: 'model_context_activated', payload: { reason: 'model_switch' } },
+        { ...event(3), event_type: 'model_context_change_pending', payload: { reason: 'explicit_reopen' } },
+        { ...event(4), event_type: 'model_context_reopened', payload: { reason: 'explicit_reopen' } },
+      ],
+    }, 0)
+
+    expect(eventPage.events.map((item) => item.payload.reason)).toEqual([
+      'model_switch', 'model_switch', 'explicit_reopen', 'explicit_reopen',
+    ])
+    for (const eventType of ['model_context_change_pending', 'model_context_activated', 'model_context_reopened']) {
+      expect(() => parseEventEnvelope({
+        ...event(5), event_type: eventType, payload: { reason: 'unexpected' },
+      })).toThrowError(/reason is invalid/)
+    }
+    expect(() => parseEventEnvelope({
+      ...event(5), event_type: 'model_context_reopened', payload: { reason: 'model_switch' },
+    })).toThrowError(/reason is invalid/)
+  })
 })
