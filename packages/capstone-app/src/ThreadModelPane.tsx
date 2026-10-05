@@ -2,6 +2,7 @@ import { NetworkView } from './NetworkView'
 import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
+import type { ThreadGridPage } from './threadProjectionStore'
 
 function modelLabel(modelId: string | undefined, family?: string): string {
   const known = { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39', 'regional-six-bus': 'Regional Six Bus' }
@@ -18,6 +19,7 @@ export type ThreadModelPaneProps = {
   snapshot: ThreadSnapshot
   viewedPage: string
   activePage: string
+  gridPages: readonly ThreadGridPage[]
   isHistorical: boolean
   projectionEventSeq: number
   modelTarget: string
@@ -70,15 +72,26 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 }
 
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
-export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHistorical,
+export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
   networkView, elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
-  const pages = isHistorical ? Array.from(new Set([activePage, viewedPage])) : [activePage]
-  const dynamicModelView = !isHistorical && networkView?.diagram.model.id === snapshot.activeModelContext.modelId &&
-    networkView.diagram.model.revision === snapshot.activeModelContext.modelRevision ? networkView : null
+  const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
+  const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
+  const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
+  const pageView = isHistorical ? historicalPage?.networkView : networkView
+  const dynamicModelView = viewedContext && pageView?.diagram.model.id === viewedContext.modelId &&
+    pageView.diagram.model.revision === viewedContext.modelRevision ? pageView : null
   const modelDiagram = dynamicModelView?.diagram || (!isHistorical && previewDiagram?.model.id === snapshot.activeModelContext.modelId && previewDiagram.model.revision === snapshot.activeModelContext.modelRevision ? previewDiagram : null)
   const activeModelName = modelOptions.find((model) => model.modelId === snapshot.activeModelContext.modelId)?.displayName
     || modelLabel(snapshot.activeModelContext.modelId, snapshot.activeModelContext.implementationFamily)
+  const pageModelName = (pageId: string) => {
+    const context = gridPages.find((page) => page.pageId === pageId)?.context
+    return context ? modelOptions.find((model) => model.modelId === context.modelId)?.displayName || modelLabel(context.modelId, context.implementationFamily) : pageId
+  }
+  const viewedModelName = isHistorical ? pageModelName(viewedPage) : activeModelName
+  const displayedView = dynamicModelView
+    ? isHistorical ? dynamicModelView : projectActiveNetworkView(dynamicModelView, resultProjection, focusedElementId)
+    : modelDiagram ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null
   return <section className="thread-model-pane" aria-label="电网模型区">
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
       <div className="capstone-intro-art notranslate" translate="no">
@@ -100,7 +113,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
       <p>当前 Thread 围绕一个电网模型工作。模型由已注册 authority 提供，工具调用和结果证据随 Run 保留。</p>
     </section>
     <div className="thread-model-toolbar" aria-label="模型上下文控制">
-      <div className="thread-model-current"><span className="thread-model-current-label">当前模型</span><strong>{activeModelName}</strong><span className="thread-model-card-meta">{snapshot.activeModelContext.implementationFamily}</span><span className="thread-model-badge" title={snapshot.activeModelContext.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
+      <div className="thread-model-current"><span className="thread-model-current-label">{isHistorical ? '历史模型' : '当前模型'}</span><strong>{viewedModelName}</strong><span className="thread-model-card-meta">{viewedContext?.implementationFamily}</span><span className="thread-model-badge" title={viewedContext?.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
       <label className="thread-model-switch">切换<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
         {modelOptions.map((model) => <option key={model.modelId} value={model.modelId} disabled={model.available === false}>{model.displayName} · {model.implementationFamily}{model.available === false ? ' · worker unavailable' : ''}</option>)}
       </select></label>
@@ -109,14 +122,15 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, isHi
     </div>
     <div className="thread-page-tabs" aria-label="电网模型分页">
       {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
-        label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageId} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
+        label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
     </div>
     <div className="thread-network-card">
-      <NetworkView view={dynamicModelView ? projectActiveNetworkView(dynamicModelView, resultProjection, focusedElementId) : modelDiagram && !isHistorical ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null} previewDiagram={modelDiagram} modelName={activeModelName} focusKey={`${viewedPage}:${focusedElementId || ''}`}
-        unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />
+      {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
+        <NetworkView view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${isHistorical ? '' : focusedElementId || ''}`}
+          unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>
-    <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{snapshot.activeModelContext.id}</strong></div><div><span>SELECTION</span><strong>{snapshot.activeModelContext.selectionRevision}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
+    <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
     {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
-    {elementReference && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{elementReference.element_kind} / {elementReference.element_id}</strong><small>{elementReference.model_id} · revision {elementReference.model_revision}</small></div>}
+    {elementReference && !isHistorical && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{elementReference.element_kind} / {elementReference.element_id}</strong><small>{elementReference.model_id} · revision {elementReference.model_revision}</small></div>}
   </section>
 }

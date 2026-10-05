@@ -115,6 +115,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const isInterrupted = attempt?.phase === 'interrupted'
   const contextChangePending = Boolean(snapshot?.pendingModelSwitch || snapshot?.pendingSelection)
   const caseExecution = snapshot?.applicationState?.caseExecution ?? null
+  const displayedCaseExecution = caseExecution && isHistorical ? { ...caseExecution,
+    actions: caseExecution.actions.map((action) => ({ ...action,
+      enabled: action.enabled && (action.actionId === 'cancel_case' || action.actionId === 'view_case_details'),
+    })),
+  } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !caseActive && !projection.resyncRequired
   const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !caseActive && !projection.resyncRequired
@@ -132,9 +137,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
   const activeResultProjection = snapshot?.resultProjections?.slice().reverse().find((item) =>
-    item.modelId === snapshot.activeModelContext.modelId && item.modelRevision === snapshot.activeModelContext.modelRevision)
+    item.modelContextId === snapshot.activeModelContext.id && item.modelId === snapshot.activeModelContext.modelId && item.modelRevision === snapshot.activeModelContext.modelRevision)
   const focusedProjection = focusedElement && snapshot?.resultProjections?.find((item) => item.resultId === focusedElement.resultId)
-  const focusedElementId = focusedProjection && focusedProjection.modelId === snapshot?.activeModelContext.modelId && focusedProjection.modelRevision === snapshot.activeModelContext.modelRevision
+  const focusedElementId = focusedProjection && focusedProjection.modelContextId === snapshot?.activeModelContext.id && focusedProjection.modelId === snapshot.activeModelContext.modelId && focusedProjection.modelRevision === snapshot.activeModelContext.modelRevision
     ? focusedElement.elementId : undefined
   if (!loading && error && !snapshot) {
     return <div className="thread-app-shell"><PageHeader className="thread-page-header" showThreadEntry={false} /><main className="thread-error-shell" role="alert"><h1>Thread 暂时不可用</h1><p>{error}</p><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button></main></div>
@@ -245,6 +250,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
+          gridPages={projection.gridPages}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
           controlsDisabled={isHistorical || contextChangePending || caseActive || projection.connection !== 'live'} previewDiagram={currentDiagram}
           networkView={activeNetworkView}
@@ -259,7 +265,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
             resultProjections={snapshot.resultProjections} onFocusElement={(result: ResultProjection, elementId) => {
-              if (result.modelId !== snapshot.activeModelContext.modelId || result.modelRevision !== snapshot.activeModelContext.modelRevision) {
+              if (isHistorical) {
+                setNotice('历史页为只读视图，请返回当前模型后定位')
+                return
+              }
+              if (result.modelContextId !== snapshot.activeModelContext.id || result.modelId !== snapshot.activeModelContext.modelId || result.modelRevision !== snapshot.activeModelContext.modelRevision) {
                 setNotice('该结果属于历史模型修订，已保持只读，未改变当前电网图')
                 return
               }
@@ -271,7 +281,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               setFocusedElement({ resultId: result.resultId, modelId: result.modelId, modelRevision: result.modelRevision, elementId })
               setNotice(`已定位到 ${elementId}`)
             }}
-            caseExecution={caseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
+            caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={<ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
@@ -283,7 +293,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             onRegenerate={canRetry ? async (attemptId) => { await dispatch('retry_new_attempt', { attempt_id: attemptId }) } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
-              {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', projection.connection === 'live', { turn_id: attempt?.turnId })}
+              {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry, { turn_id: attempt?.turnId })}
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
             </>}
           </div>

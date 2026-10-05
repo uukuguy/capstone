@@ -4,10 +4,169 @@ import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport } from './threadProjectionStore'
 import { threadUiFixture } from './threadUiFixtures'
+import { historyContexts, historyFixture } from './threadHistory.test-support'
 
 afterEach(cleanup)
 
+function focusFixture() {
+  const fixture = historyFixture()
+  const snapshot = fixture.snapshot as Record<string, unknown>
+  snapshot.result_projections = [{
+    schema: 'capstone-result-projection/1.0', result_id: 'result_focus',
+    result_ref: `result:sha256:${'a'.repeat(64)}`, evidence_refs: [`evidence:sha256:${'b'.repeat(64)}`],
+    thread_id: 'thr_history', run_id: 'run_history', turn_id: 'turn_result', attempt_id: 'attempt_result',
+    model_context_id: historyContexts.active.id, model_id: 'ieee39', model_revision: historyContexts.active.model_revision,
+    source: { capability_id: 'analysis.powerflow.ac.run', domain_pack_id: 'pandapower-static-analysis', implementation_family: 'pandapower' },
+    status: 'completed', summary: [], overlay: null, element_refs: [{ element_kind: 'line', element_id: 'line:1' }],
+    tables: [{ table_id: 'lines', title: '线路结果', columns: [{ column_id: 'line', label: '线路' }],
+      rows: [{ row_id: 'line:1', cells: { line: '定位线路 1' }, element_ref: { element_kind: 'line', element_id: 'line:1' } }] }],
+  }]
+  const eventDocument = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
+  for (const [event_type, payload] of [
+    ['command_accepted', { kind: 'send_professional', payload: { text: '查看线路' } }],
+    ['attempt_completed', { answer: '线路结果已就绪。' }],
+  ] as const) {
+    const event_seq = eventDocument.events.length + 1
+    eventDocument.events.push({ ...eventDocument.events.at(-1), event_id: `evt_${event_seq}`, event_seq, event_type, payload })
+  }
+  snapshot.last_event_seq = eventDocument.events.length
+  eventDocument.next_event_seq = eventDocument.events.length
+  return fixture
+}
+
 describe('ThreadFixtureApp', () => {
+  it.each([
+    ['foreign model', { model_id: 'regional-six-bus' }, '该结果属于历史模型修订，已保持只读，未改变当前电网图'],
+    ['foreign revision', { model_revision: historyContexts.historical.model_revision }, '该结果属于历史模型修订，已保持只读，未改变当前电网图'],
+    ['prior Context of the same model revision', { model_context_id: historyContexts.initial.id }, '该结果属于历史模型修订，已保持只读，未改变当前电网图'],
+  ])('declines focus from a %s', async (_name, changes, notice) => {
+    const fixture = focusFixture()
+    const snapshot = fixture.snapshot as { result_projections: Record<string, unknown>[] }
+    Object.assign(snapshot.result_projections[0], changes)
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_history" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
+    expect(await screen.findByText(String(notice))).toBeTruthy()
+    expect(document.querySelector('.network-branch-label')).toBeNull()
+  })
+
+  it('declines an unknown result element without applying focus', async () => {
+    const fixture = focusFixture()
+    const snapshot = fixture.snapshot as { result_projections: Array<{ element_refs: unknown[]; tables: Array<{ rows: Array<{ element_ref: unknown }> }> }> }
+    const reference = { element_kind: 'line', element_id: 'line:unknown' }
+    snapshot.result_projections[0].element_refs = [reference]
+    snapshot.result_projections[0].tables[0].rows[0].element_ref = reference
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_history" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
+    expect(await screen.findByText('当前电网图中没有这个元件，无法定位')).toBeTruthy()
+    expect(document.querySelector('.network-branch-label')).toBeNull()
+  })
+
+  it('keeps new Attempt retry disabled while viewing history', async () => {
+    const fixture = historyFixture()
+    Object.assign(fixture.snapshot as Record<string, unknown>, { current_attempt: {
+      turn_id: 'turn_result', attempt_id: 'attempt_result', phase: 'interrupted', target_model_context_id: historyContexts.active.id,
+    } })
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_history" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Regional Six Bus.*历史/ }))
+    expect((screen.getByRole('button', { name: '重试新 Attempt' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('keeps case retry read-only while permitting live case cancellation in history', async () => {
+    const fixture = historyFixture()
+    Object.assign(fixture.snapshot as Record<string, unknown>, { application_state: { case_execution: {
+      display_name: '测试案例', status: 'blocked', completed_steps: 0, total_steps: 1, current_step: 1,
+      steps: [{ ordinal: 1, title: '线路检查', status: 'interrupted', duration_ms: null,
+        details: { case_execution_id: 'case_execution_live', failed_attempt_id: 'attempt_result' } }],
+      actions: [{ action_id: 'retry_case_step', label: '重试此步骤', enabled: true }, { action_id: 'cancel_case', label: '停止案例', enabled: true }],
+      disabled_reasons: ['步骤已中断'],
+    } } })
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_history" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Regional Six Bus.*历史/ }))
+    expect((screen.getByRole('button', { name: '重试此步骤' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: '停止案例' }))
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0]).toMatchObject({ kind: 'cancel_case_execution', payload: { case_execution_id: 'case_execution_live' } })
+    expect(screen.getByText('ctx_regional')).toBeTruthy()
+  })
+
+  it('submits live Attempt cancellation while the selected page stays historical', async () => {
+    const fixture = historyFixture()
+    Object.assign(fixture.snapshot as Record<string, unknown>, { current_attempt: {
+      turn_id: 'turn_result', attempt_id: 'attempt_result', phase: 'running', target_model_context_id: historyContexts.active.id,
+    } })
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_history" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Regional Six Bus.*历史/ }))
+    fireEvent.click(screen.getByRole('button', { name: '停止生成' }))
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0]).toMatchObject({ kind: 'cancel_live_attempt', payload: { attempt_id: 'attempt_result' } })
+    expect(screen.getByText('ctx_regional')).toBeTruthy()
+  })
+
+  it('declines result focus while a historical page is selected and allows it after return to current', async () => {
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(focusFixture()))} threadId="thr_history" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: /Regional Six Bus.*历史/ }))
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
+    expect(await screen.findByText('历史页为只读视图，请返回当前模型后定位')).toBeTruthy()
+    expect(screen.queryByText('已定位到 line:1')).toBeNull()
+    expect(document.querySelector('.network-branch-label')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
+    expect(document.querySelector('.network-branch-label')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
+    expect(await screen.findByText('已定位到 line:1')).toBeTruthy()
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe('Line 1')
+  })
+  it('discovers typed history pages and displays their own read-only context without sending commands', async () => {
+    const fixture = historyFixture()
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_history" />)
+    const history = await screen.findByRole('button', { name: /Regional Six Bus.*历史/ })
+    fireEvent.click(history)
+
+    expect(await screen.findByText('历史页 · 只读视图')).toBeTruthy()
+    expect(screen.getByText('ctx_regional')).toBeTruthy()
+    expect(screen.getByText('sel_1')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
+    expect((screen.getByRole('combobox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
+    expect(document.querySelector('.thread-model-short')?.textContent).toBe('ieee39 · pandapower')
+    expect(commands).toEqual([])
+    fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
+    expect(await screen.findByText('ctx_ieee_new')).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(false)
+    expect(commands).toEqual([])
+  })
+
+  it('shows an explicit historical unavailable state instead of the active model diagram', async () => {
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(historyFixture(false)))} threadId="thr_history" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Regional Six Bus.*历史/ }))
+    expect(await screen.findByText('历史电网视图暂不可用')).toBeTruthy()
+    expect(screen.queryByRole('img', { name: '电网拓扑' })).toBeNull()
+  })
+
   it('renders an idle Thread with the current IEEE-39 model and ordinary controls', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 

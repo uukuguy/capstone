@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
+import { historyContexts, historyFixture } from './threadHistory.test-support'
+import { parseEventEnvelope } from './threadProtocol'
 
 const context = {
   id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: '7',
@@ -77,6 +79,88 @@ function command(): ThreadCommand {
 }
 
 describe('ThreadProjectionStore', () => {
+  it('restores model pages and their own context-bound network views from typed history', async () => {
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(historyFixture())))
+    await store.load('thr_history')
+
+    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ieee39', 'page_regional-six-bus'])
+    const historical = store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')!
+    expect(historical.context.id).toBe(historyContexts.historical.id)
+    expect(historical.networkView?.diagram.model).toMatchObject({ id: 'regional-six-bus', revision: historyContexts.historical.model_revision })
+    expect(store.state.networkView?.diagram.model).toMatchObject({ id: 'ieee39', revision: historyContexts.active.model_revision })
+    const before = store.state.snapshot?.toDocument()
+    store.viewGridPage(historical.pageId)
+    expect(store.state.snapshot?.toDocument()).toEqual(before)
+    expect(store.state.pendingCommands).toEqual([])
+    await store.load('thr_history')
+    expect(store.state.viewedGridPageId).toBe(historical.pageId)
+    expect(store.state.gridPages.find((page) => page.pageId === historical.pageId)?.networkView).toEqual(historical.networkView)
+  })
+
+  it('leaves a historical page unavailable when only another context has a diagram', async () => {
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(historyFixture(false))))
+    await store.load('thr_history')
+
+    expect(store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')?.networkView).toBeNull()
+    expect(store.state.networkView?.diagram.model.id).toBe('ieee39')
+  })
+
+  it('does not reuse an earlier diagram when a historical model was reopened at the same revision', async () => {
+    const fixture = historyFixture()
+    const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
+    const nextContext = { ...historyContexts.historical, id: 'ctx_regional_reopened' }
+    const switchIndex = document.events.findIndex((event) =>
+      event.event_type === 'model_context_activated' && event.model_context_id === historyContexts.active.id)
+    const switchEvent = document.events[switchIndex]
+    const switchPayload = switchEvent.payload as Record<string, unknown>
+    switchPayload.previous_context = nextContext
+    document.events.splice(switchIndex, 0, {
+      ...switchEvent, event_type: 'model_context_reopened', model_context_id: nextContext.id,
+      payload: { model_context: nextContext, previous_context: historyContexts.historical,
+        active_grid_page_id: 'page_regional-six-bus', previous_grid_page_id: 'page_regional-six-bus', reason: 'explicit_reopen' },
+    })
+    document.events.forEach((event, index) => Object.assign(event, { event_seq: index + 1, event_id: `evt_${index + 1}` }))
+    document.next_event_seq = document.events.length
+    const snapshotDocument = fixture.snapshot as Record<string, unknown>
+    snapshotDocument.last_event_seq = document.events.length
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+    await store.load('thr_history')
+
+    expect(store.state.gridPages).toHaveLength(2)
+    const historical = store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')!
+    expect(historical.context.id).toBe(nextContext.id)
+    expect(historical.networkView).toBeNull()
+    expect(store.state.networkView?.diagram.model.id).toBe('ieee39')
+  })
+
+  it('adds newly activated pages during live catch-up without moving a selected historical page', async () => {
+    const fixture = historyFixture()
+    const cursor = (fixture.snapshot as { last_event_seq: number }).last_event_seq
+    const nextContext = { ...historyContexts.historical, id: 'ctx_pypsa39', model_id: 'pypsa39' }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({
+      ...createFixtureTransport(fixture),
+      streamEvents: async function* () {
+        yield parseEventEnvelope({
+          event_id: `evt_${cursor + 1}`, event_seq: cursor + 1, event_type: 'model_context_activated', event_version: 1,
+          thread_id: 'thr_history', run_id: 'run_history', model_context_id: nextContext.id,
+          occurred_at: '2026-10-05T00:00:01Z', visibility: 'public',
+          payload: { model_context: nextContext, previous_context: historyContexts.active,
+            active_grid_page_id: 'page_pypsa39', previous_grid_page_id: 'page_ieee39' },
+        })
+      },
+    }))
+    await store.load('thr_history')
+    store.viewGridPage('page_regional-six-bus')
+    const historical = store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')
+    await store.consumeEvents()
+
+    expect(store.state.viewedGridPageId).toBe('page_regional-six-bus')
+    expect(store.state.snapshot?.activeModelContext.id).toBe(nextContext.id)
+    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ieee39', 'page_regional-six-bus', 'page_pypsa39'])
+    expect(store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')).toEqual(historical)
+    expect(store.state.networkView).toBeNull()
+  })
+
   it('loads a verified snapshot and initializes the live page', async () => {
     const transport = createFixtureTransport(idleFixture)
     const store = new ThreadProjectionStore(new CapstoneThreadClient(transport))

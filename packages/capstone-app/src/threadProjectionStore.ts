@@ -1,4 +1,4 @@
-import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot } from './threadProtocol'
+import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
@@ -13,6 +13,12 @@ export type PendingThreadCommand = {
   receipt?: CommandReceipt
 }
 
+export type ThreadGridPage = {
+  pageId: string
+  context: ModelContextSnapshot
+  networkView: DiagramNetworkView | null
+}
+
 export type ThreadProjectionState = {
   connection: ThreadConnection
   snapshot: ThreadSnapshot | null
@@ -22,6 +28,7 @@ export type ThreadProjectionState = {
   viewedGridPageId: string | null
   catalog: ThreadCatalog | null
   networkView: DiagramNetworkView | null
+  gridPages: readonly ThreadGridPage[]
 }
 
 export type ThreadFixtureDocument = {
@@ -178,12 +185,12 @@ export class ThreadProjectionStore {
   private current: ThreadProjectionState = {
     connection: 'offline', snapshot: null, eventSeq: 0, resyncRequired: false,
     pendingCommands: [], viewedGridPageId: null, catalog: null,
-    networkView: null,
+    networkView: null, gridPages: [],
   }
 
   private loadedThreadId: string | null = null
   private readonly eventLog: EventEnvelope[] = []
-  private networkDiagram: NetworkDiagram | null = null
+  private readonly networkDiagrams = new Map<string, NetworkDiagram>()
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly client: CapstoneThreadClient) {}
@@ -242,8 +249,12 @@ export class ThreadProjectionStore {
       }
       this.eventLog.length = 0
       this.eventLog.push(...restoredEvents)
-      this.networkDiagram = null
-      this.current = { ...this.current, networkView: null }
+      this.networkDiagrams.clear()
+      this.current = { ...this.current, networkView: null, gridPages: [] }
+      // Discover the latest Context for each model page before replaying
+      // topology. A reopened Context must never inherit an older diagram.
+      for (const event of restoredEvents) this.applyGridPageHistory(event, snapshot)
+      this.rememberGridPage(snapshot.activeGridPageId, snapshot.activeModelContext)
       for (const event of restoredEvents) this.applyNetworkProjection(event, snapshot)
       this.notify()
       this.loadedThreadId = threadId
@@ -402,7 +413,6 @@ export class ThreadProjectionStore {
     } else if (event.eventType === 'selection_change_pending') {
       document.pending_selection = { command_id: payload.command_id, selection: payload.selection }
     } else if (event.eventType === 'model_context_activated' || event.eventType === 'model_context_reopened' || event.eventType === 'model_context_reverted') {
-      this.networkDiagram = null
       this.current = { ...this.current, networkView: null }
       const context = payload.model_context ?? payload.restored_context
       if (context) document.active_model_context = context
@@ -448,42 +458,86 @@ export class ThreadProjectionStore {
       last_event_seq: event.eventSeq,
     })
     this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
+    this.applyGridPageHistory(event, projected)
+    this.rememberGridPage(projected.activeGridPageId, projected.activeModelContext)
     this.applyNetworkProjection(event, projected)
     this.eventLog.push(event)
     this.notify()
   }
 
+  private rememberGridPage(pageId: string, context: ModelContextSnapshot): void {
+    const existing = this.current.gridPages.find((page) => page.pageId === pageId)
+    const page: ThreadGridPage = {
+      pageId, context,
+      networkView: existing?.context.id === context.id && existing.context.modelId === context.modelId &&
+        existing.context.modelRevision === context.modelRevision ? existing.networkView : null,
+    }
+    this.current = { ...this.current, gridPages: existing
+      ? this.current.gridPages.map((item) => item.pageId === pageId ? page : item)
+      : [...this.current.gridPages, page] }
+  }
+
+  private applyGridPageHistory(event: EventEnvelope, snapshot: ThreadSnapshot): void {
+    if (event.visibility !== 'public') return
+    if (!['model_context_activated', 'model_context_reopened', 'model_context_reverted'].includes(event.eventType)) return
+    const payload = record(event.payload)
+    for (const [pageId, context] of [
+      [payload.previous_grid_page_id, payload.previous_context],
+      [payload.active_grid_page_id ?? payload.restored_grid_page_id, payload.model_context ?? payload.restored_context],
+    ]) {
+      if (typeof pageId !== 'string' || !context) continue
+      try {
+        const parsed = parseThreadSnapshot({
+          ...snapshot.toDocument(), active_grid_page_id: pageId,
+          active_model_context: context, current_attempt: null,
+        })
+        this.rememberGridPage(parsed.activeGridPageId, parsed.activeModelContext)
+      } catch {
+        // An incomplete history entry does not supply a usable page Context.
+      }
+    }
+  }
+
   private applyNetworkProjection(event: EventEnvelope, snapshot: ThreadSnapshot): void {
-    const active = snapshot.activeModelContext
-    if (event.modelContextId !== active.id) return
+    if (event.visibility !== 'public') return
+    const page = this.current.gridPages.find((item) => item.context.id === event.modelContextId)
+    if (!page) return
+    const context = page.context
+    const setView = (networkView: DiagramNetworkView | null) => {
+      this.current = { ...this.current,
+        gridPages: this.current.gridPages.map((item) => item.pageId === page.pageId ? { ...item, networkView } : item),
+        ...(context.id === snapshot.activeModelContext.id ? { networkView } : {}),
+      }
+    }
     const payload = record(event.payload)
     if (event.eventType === 'network_diagram') {
       const diagram = parseNetworkDiagram(payload.diagram)
-      if (!diagram || diagram.model.id !== active.modelId || diagram.model.revision !== active.modelRevision) {
-        this.networkDiagram = null
-        this.current = { ...this.current, networkView: null }
+      if (!diagram || diagram.model.id !== context.modelId || diagram.model.revision !== context.modelRevision) {
+        this.networkDiagrams.delete(context.id)
+        setView(null)
         return
       }
-      this.networkDiagram = diagram
-      this.current = { ...this.current, networkView: null }
+      this.networkDiagrams.set(context.id, diagram)
+      setView(null)
       return
     }
     if (event.eventType === 'network_layer') {
-      if (!this.networkDiagram || typeof payload.ordinal !== 'number') return
+      const diagram = this.networkDiagrams.get(context.id)
+      if (!diagram || typeof payload.ordinal !== 'number') return
       const view = parseNetworkView({
         schema: 'capstone-network-view/2.0',
         ordinal: payload.ordinal,
-        diagram: this.networkDiagram,
+        diagram,
         layer: payload.layer,
       }, payload.ordinal, [])
       if (view?.schema !== 'capstone-network-view/2.0' ||
-          view.diagram.model.id !== active.modelId || view.diagram.model.revision !== active.modelRevision) return
-      this.current = { ...this.current, networkView: view }
+          view.diagram.model.id !== context.modelId || view.diagram.model.revision !== context.modelRevision) return
+      setView(view)
       return
     }
     if (event.eventType === 'network_layer_unavailable') {
-      this.networkDiagram = null
-      this.current = { ...this.current, networkView: null }
+      this.networkDiagrams.delete(context.id)
+      setView(null)
     }
   }
 }
