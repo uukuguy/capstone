@@ -27,6 +27,7 @@
 | [Thread recovery verification](../reviews/2026-10-06-thread-client-recovery-and-cloud-dev-verification.md) | Draft/receipt recovery, lease/configuration diagnostics and a1f028d cloud-dev evidence; normal Provider configuration blocks manual acceptance. |
 | [Harness local verification](../reviews/2026-10-06-harness-provider-configuration-local-verification.md) | Shared188abe3 Provider configuration, adapter ownership guards and passing local App/release checks. |
 | [Harness cloud-dev verification](../reviews/2026-10-06-harness-cloud-dev-verification.md) | All four services run188abe3; Provider-free checks pass, while missing worker credentials block ordinary AI conversation and manual acceptance. |
+| [Thread session management plan](../superpowers/plans/2026-10-06-thread-session-management.md) | User-requested session controls, recovery and bounded conversation history; local App acceptance precedes cloud-dev. |
 | [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical delivery record, including completed reviewed A–E work; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
 | [Framework guide historical plan](../superpowers/plans/2026-08-31-capstone-framework-guide.md) | Completed architecture, bilingual README, and agent-contract documentation work. |
 | [PyPSA pack and multi-binding design](../superpowers/specs/2026-09-25-pypsa-multibinding-domain-packs-design.md) | Approved four-pack boundaries, Network model reference, and multi-binding contract. |

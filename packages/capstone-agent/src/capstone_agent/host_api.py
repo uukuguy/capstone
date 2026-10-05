@@ -28,6 +28,7 @@ from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_protocol import ThreadProtocolError
 from capstone_agent.thread_service import (
     ThreadCreator,
+    ThreadExecutionError,
     ThreadNotFound,
     ThreadResyncRequired,
     ThreadService,
@@ -192,6 +193,46 @@ def create_host_app(
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
 
+        @app.get("/api/v1/threads")
+        def list_threads(request: Request,
+                         before: Annotated[str | None, Query(max_length=64)] = None,
+                         limit: Annotated[int, Query(ge=1, le=50)] = 20,
+                         archived: bool = False):
+            require_private_thread(request)
+            try:
+                return thread_service.list_threads(before=before, limit=limit, archived=archived)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread cursor not found") from None
+            except ThreadProtocolError as error:
+                raise HTTPException(422, str(error)) from None
+
+        @app.post("/api/v1/threads/{thread_id}/archive")
+        async def archive_thread(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                body = await request.json()
+                if not isinstance(body, dict) or set(body) != {"archived"} or type(body["archived"]) is not bool:
+                    raise ThreadProtocolError("archive request requires archived boolean")
+                return thread_service.set_archived(thread_id, body["archived"])
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadExecutionError:
+                raise HTTPException(409, "thread has active work") from None
+            except (ValueError, ThreadProtocolError):
+                raise HTTPException(422, "invalid archive request") from None
+
+        @app.get("/api/v1/threads/{thread_id}/history")
+        def get_thread_history(thread_id: str, request: Request,
+                               before: Annotated[int | None, Query(ge=1)] = None,
+                               limit: Annotated[int, Query(ge=1, le=256)] = 128):
+            require_private_thread(request)
+            try:
+                return thread_service.read_history(thread_id, before=before, limit=limit)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadProtocolError as error:
+                raise HTTPException(422, str(error)) from None
+
         if thread_creator is not None:
             @app.post("/api/v1/threads", status_code=201)
             async def create_thread(request: Request):
@@ -264,6 +305,10 @@ def create_host_app(
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
+                if isinstance(kind, str) and kind in {
+                    "start_case_execution", "retry_case_step", "resume_case_execution",
+                } and thread_service.is_archived(thread_id):
+                    return thread_service.record_rejected_command(command, rejection="thread_archived").to_document()
                 service = (
                     case_service
                     if case_service is not None and isinstance(kind, str) and kind in {

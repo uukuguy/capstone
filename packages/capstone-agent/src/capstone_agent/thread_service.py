@@ -46,6 +46,7 @@ from .thread_application_transition import (
 from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
+from .thread_management import history_cursor, history_page, thread_descriptor, thread_list_page, validate_limit
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -246,6 +247,14 @@ class ThreadService(Protocol):
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
     def catalog(self, thread_id: str) -> dict[str, object]: ...
+
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]: ...
+
+    def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]: ...
+
+    def is_archived(self, thread_id: str) -> bool: ...
+
+    def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]: ...
 
     def context_lock(self, thread_id: str) -> str | None: ...
 
@@ -613,6 +622,8 @@ class InMemoryThreadService:
         self._attempts: dict[str, dict[str, Any]] = {}
         self._cancel_requests: set[str] = set()
         self._lock = RLock()
+        self._created_at = datetime.now(timezone.utc).isoformat()
+        self._archived = False
 
     @classmethod
     def from_document(
@@ -690,6 +701,40 @@ class InMemoryThreadService:
                 return ()
             return (self._snapshot.thread_id,)
 
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+        validate_limit(limit, 50)
+        with self._lock:
+            if before is not None:
+                self._check_thread(before)
+            rows = [] if before is not None or archived != self._archived else [
+                thread_descriptor(self._snapshot, created_at=self._created_at, archived=self._archived),
+            ]
+            return thread_list_page(rows, limit)
+
+    def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]:
+        if type(archived) is not bool:
+            raise ThreadProtocolError("archived must be a boolean")
+        with self._lock:
+            self._check_thread(thread_id)
+            if self._snapshot.current_attempt is not None or _application_case_active(self._snapshot):
+                raise ThreadExecutionError("thread has active work")
+            self._archived = archived
+            return thread_descriptor(self._snapshot, created_at=self._created_at, archived=archived)
+
+    def is_archived(self, thread_id: str) -> bool:
+        with self._lock:
+            self._check_thread(thread_id)
+            return self._archived
+
+    def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]:
+        validate_limit(limit, 256)
+        with self._lock:
+            self._check_thread(thread_id)
+            cursor = history_cursor(self._snapshot, before)
+            events = list(islice((event for event in reversed(self._events)
+                if event.event_seq < cursor and event.visibility == "public"), limit + 1))
+            return history_page(thread_id, cursor, events, limit)
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -714,6 +759,11 @@ class InMemoryThreadService:
                 return existing.receipt
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            if self._archived:
+                receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
+                return receipt
             if parsed["run_id"] is not None and parsed["run_id"] != self._snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1026,7 +1076,9 @@ class InMemoryThreadService:
                 return existing.receipt
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
-            if parsed["run_id"] is not None and parsed["run_id"] != self._snapshot.run.run_id:
+            if self._archived:
+                receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
+            elif parsed["run_id"] is not None and parsed["run_id"] != self._snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != self._snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
@@ -1679,6 +1731,8 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -1851,6 +1905,81 @@ class PostgresThreadService:
             ).fetchall()
         return tuple(row["thread_id"] for row in rows)
 
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+        validate_limit(limit, 50)
+        with self._connect() as connection:
+            cursor = None
+            if before is not None:
+                cursor = connection.execute(
+                    "SELECT created_at, thread_id FROM capstone_threads WHERE thread_id = %s", (before,),
+                ).fetchone()
+                if cursor is None:
+                    raise ThreadNotFound(before)
+            rows = connection.execute(
+                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq
+                   FROM capstone_threads WHERE archived = %s
+                   AND (%s::timestamptz IS NULL OR (created_at, thread_id) < (%s, %s))
+                   ORDER BY created_at DESC, thread_id DESC LIMIT %s""",
+                (archived, None if cursor is None else cursor["created_at"],
+                 None if cursor is None else cursor["created_at"],
+                 None if cursor is None else cursor["thread_id"], limit + 1),
+            ).fetchall()
+        descriptors = [{**row, "created_at": row["created_at"].isoformat()} for row in rows]
+        return thread_list_page(descriptors, limit)
+
+    def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]:
+        if type(archived) is not bool:
+            raise ThreadProtocolError("archived must be a boolean")
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE", (thread_id,),
+            ).fetchone()
+            if row is None:
+                raise ThreadNotFound(thread_id)
+            snapshot = self._snapshot_from_row(row)
+            if snapshot.current_attempt is not None or _application_case_active(snapshot):
+                raise ThreadExecutionError("thread has active work")
+            connection.execute("UPDATE capstone_threads SET archived = %s WHERE thread_id = %s", (archived, thread_id))
+        return thread_descriptor(snapshot, created_at=row["created_at"].isoformat(), archived=archived)
+
+    def is_archived(self, thread_id: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute("SELECT archived FROM capstone_threads WHERE thread_id = %s", (thread_id,)).fetchone()
+        if row is None:
+            raise ThreadNotFound(thread_id)
+        return row["archived"]
+
+    def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]:
+        validate_limit(limit, 256)
+        cursor = history_cursor(self.snapshot(thread_id), before)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """WITH candidates AS (
+                     SELECT event_seq, octet_length(payload::text) + 1024 AS bytes
+                     FROM capstone_thread_events
+                     WHERE thread_id = %s AND event_seq < %s AND visibility = 'public'
+                     ORDER BY event_seq DESC LIMIT %s
+                   ), budget AS (
+                     SELECT event_seq, sum(bytes) OVER (ORDER BY event_seq DESC) AS total,
+                            row_number() OVER (ORDER BY event_seq DESC) AS rank FROM candidates
+                   )
+                   SELECT event.* FROM capstone_thread_events event
+                   JOIN budget ON budget.event_seq = event.event_seq
+                   WHERE event.thread_id = %s AND (budget.total <= %s OR budget.rank = 1)
+                   ORDER BY event.event_seq DESC""",
+                (thread_id, cursor, limit + 1, thread_id, MAX_EVENT_PAGE_BYTES - 1024),
+            ).fetchall()
+            events = [self._event_from_row(row) for row in rows]
+            page = history_page(thread_id, cursor, events, limit)
+            if page["events"]:
+                remaining = connection.execute(
+                    "SELECT EXISTS(SELECT 1 FROM capstone_thread_events WHERE thread_id = %s AND event_seq < %s AND visibility = 'public') AS more",
+                    (thread_id, page["next_before_event_seq"]),
+                ).fetchone()
+                assert remaining is not None
+                page["has_more"] = remaining["more"]
+        return page
+
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
@@ -1901,6 +2030,8 @@ class PostgresThreadService:
             ).fetchone()
             if command_row is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            elif thread["archived"]:
+                receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
             elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
@@ -2370,6 +2501,8 @@ class PostgresThreadService:
                 # Do not insert a second receipt with the same command_id; the
                 # rejection is deterministic and can be recomputed on retry.
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            elif thread["archived"]:
+                receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
             elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
