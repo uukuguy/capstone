@@ -22,6 +22,8 @@
 
 | File | Purpose |
 | --- | --- |
+| [Thread client recovery design](../superpowers/specs/2026-10-05-thread-client-recovery-design.md) | Approved draft/receipt recovery and Context-bound rollback verification; cloud-dev acceptance precedes manual review and demo promotion. |
+| [Thread client recovery plan](../superpowers/plans/2026-10-05-thread-client-recovery.md) | Active local repair and cloud-dev acceptance work; demo deployment waits for manual acceptance. |
 | [Capstone optimization plan](../superpowers/plans/2026-09-05-capstone-optimization.md) | Canonical delivery record, including completed reviewed A–E work; strict JSON extension and OP13 deferred, no automatic C.2 or cleanup. |
 | [Framework guide historical plan](../superpowers/plans/2026-08-31-capstone-framework-guide.md) | Completed architecture, bilingual README, and agent-contract documentation work. |
 | [PyPSA pack and multi-binding design](../superpowers/specs/2026-09-25-pypsa-multibinding-domain-packs-design.md) | Approved four-pack boundaries, Network model reference, and multi-binding contract. |
