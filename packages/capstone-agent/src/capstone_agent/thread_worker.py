@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime
+from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
 
@@ -56,6 +56,10 @@ def run_pending_attempt(
         claim = replace(claim, turn_plan=plan)
     try:
         runtime = runtime_factory(claim)
+    except HarnessRuntimeConfigurationError:
+        error_code = "runtime_configuration_invalid"
+        service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
+        return HarnessAttemptResult("failed", None, error_code)
     except Exception:
         error_code = "runtime_unavailable"
         if getattr(runtime_factory, "rollback_selection_on_failure", False):

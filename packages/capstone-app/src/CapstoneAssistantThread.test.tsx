@@ -309,6 +309,17 @@ describe('CapstoneAssistantThread', () => {
     expect(onFocusElement).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'result_projection_1' }), 'line:11')
   })
 
+  it('shows configuration repair guidance for a runtime configuration failure', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '有哪些 PyPSA 的电网模型？' } }, 'attempt_configuration'),
+      event('attempt_failed', 2, { error_code: 'runtime_configuration_invalid' }, 'attempt_configuration'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText('执行失败')).toBeTruthy()
+    expect(screen.getByText(/服务的 AI 配置未就绪/)).toBeTruthy()
+    expect(screen.getByText(/联系管理员检查配置，修复后再重试/)).toBeTruthy()
+    expect(screen.queryByText(/能力上下文准备失败/)).toBeNull()
+  })
+
   it('shows a terminal failure with the next action instead of a generation placeholder', () => {
     render(<CapstoneAssistantThread events={[
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_failed'),

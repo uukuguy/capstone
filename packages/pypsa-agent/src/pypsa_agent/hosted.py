@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.harness import HarnessRuntimeConfigurationError
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
@@ -20,7 +21,7 @@ from capstone_agent.runtime import build_runtime_host, load_runtime_environment
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capability_agent.runtime.catalog import ProviderCatalog
-from capability_agent.runtime.models import CliLLMOptions
+from capability_agent.runtime.models import CliLLMOptions, ConfigurationError
 from capability_agent.runtime.resolver import resolve_llm
 from capstone_model_capability_spi import ModelCapabilitySelection
 from pypsa_model_authority.catalog import list_registered_models, load_registered_model
@@ -117,11 +118,14 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             "CAPABILITY_AGENT_LLM_MODEL",
             environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
         )
-        resolved = resolve_llm(
-            catalog=ProviderCatalog.load(ROOT / "configs/llm-providers.json"),
-            cli=CliLLMOptions(), environ=environment,
-            env_file=ROOT / ".env",
-        )
+        try:
+            resolved = resolve_llm(
+                catalog=ProviderCatalog.load(ROOT / "configs/llm-providers.json"),
+                cli=CliLLMOptions(), environ=environment,
+                env_file=ROOT / ".env",
+            )
+        except ConfigurationError:
+            raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
         runtime_host = build_runtime_host(ROOT, build_profile(), environment)
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,

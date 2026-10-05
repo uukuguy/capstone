@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.harness import HarnessRuntimeConfigurationError
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
@@ -20,7 +21,7 @@ from capstone_agent.runtime import build_runtime_host
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
-from capability_agent.runtime.models import CliLLMOptions
+from capability_agent.runtime.models import CliLLMOptions, ConfigurationError
 from capability_agent.runtime.resolver import resolve_llm
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
@@ -103,11 +104,14 @@ def build_registered_pandapower_thread_application():
             "CAPABILITY_AGENT_LLM_MODEL",
             environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
         )
-        resolved = resolve_llm(
-            catalog=ProviderCatalog.load(root / "configs/llm-providers.json"),
-            cli=CliLLMOptions(), environ=environment,
-            env_file=root / ".env",
-        )
+        try:
+            resolved = resolve_llm(
+                catalog=ProviderCatalog.load(root / "configs/llm-providers.json"),
+                cli=CliLLMOptions(), environ=environment,
+                env_file=root / ".env",
+            )
+        except ConfigurationError:
+            raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
         runtime_host = build_runtime_host(
             root, build_pandapower_application_profile(), environment,
         )

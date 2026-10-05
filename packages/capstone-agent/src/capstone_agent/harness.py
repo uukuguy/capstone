@@ -89,6 +89,10 @@ class HarnessRuntimeUnavailable(RuntimeError):
     """The requested replaceable runtime is not installed or enabled."""
 
 
+class HarnessRuntimeConfigurationError(RuntimeError):
+    """Application runtime settings are invalid; prepared model resources remain valid."""
+
+
 @dataclass(frozen=True, slots=True)
 class HarnessAttemptResult:
     status: str
@@ -688,6 +692,7 @@ __all__ = [
     "CapstoneHarness", "HarnessAttemptResult", "HarnessAttemptRunner",
     "HarnessDSHClient", "HarnessPiClient", "HarnessRuntimeRegistry",
     "HarnessRuntimeUnavailable",
+    "HarnessRuntimeConfigurationError",
     "PiPromptSession", "normalize_runtime_event",
     "HarnessRuntime", "RuntimeFactory",
     "AttemptAdmission",
