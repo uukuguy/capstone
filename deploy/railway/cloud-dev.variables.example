@@ -11,7 +11,9 @@ CAPSTONE_PUBLIC_PROVIDER=deepseek
 CAPSTONE_PUBLIC_MODEL=deepseek-flash
 CAPSTONE_SESSION_IDLE_SECONDS=600
 CAPSTONE_WORKER_MAX_SESSIONS=4
-CAPSTONE_WORKER_WAKE_URL=http://capstone-worker-dev.railway.internal:8766
+# Pin the worker listen port and match it in the API wake URL.
+PORT=8080
+CAPSTONE_WORKER_WAKE_URL=http://capstone-worker.railway.internal:8080
 CAPSTONE_ALLOWED_HOSTS=<cloud-dev-api-host-without-scheme>
 CAPSTONE_ALLOWED_ORIGINS=https://<cloud-dev-app-host>
 CAPSTONE_ARTIFACT_BACKEND=s3

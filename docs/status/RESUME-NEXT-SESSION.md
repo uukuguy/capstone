@@ -1,51 +1,66 @@
-# Recovered Session Checkpoint
+# Live Session Checkpoint
 
-> Updated: 2026-10-04 11:55 CST. The prior session missed a final handoff; this checkpoint reconstructs the current state from the journal and repository.
+> Updated: 2026-10-05 09:52 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-- M8 unified Thread application and its independent review are complete for the demo-stage dual-worker scope; the local default is `CAPSTONE_HOSTED_APPLICATION=capstone` and Railway remains explicitly single-family.
-- M9 PyPSA Power Operations result projection is complete and independently approved: current-model/result/evidence binding is enforced, all Attempt projections render, and topology remains a separate phase.
-- M10 is the next scoped package: add an authority-owned, bounded PyPSA `operator.diagram` provider through the existing Thread network-view contract.
-- The working tree contains extensive uncommitted M6–M10 implementation, test, deployment, plan, and review changes. Preserve them; do not reset, clean, or overwrite them.
+M9 and the registered PyPSA M10 topology-provider slice are complete. M10 binds the prepared Authority `operator.diagram` provider to the active Thread model context and replays matching topology events in Web with safe focus.
 
-## Where things stand
+The full offline release gate found four M10 static-type errors. Commit `08f7366` adds explicit type narrowing at the optional Harness projection and prepared PyPSA executor boundaries. Runtime behavior is unchanged. The complete `make check-release` gate passed after this fix.
 
-- Project route: `direct`; canonical next plan: `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider.md`.
-- Local App/API were last recorded healthy: App `http://127.0.0.1:5173/`, API `http://127.0.0.1:8767/health/ready`, Compose `api`, `worker`, `worker-pypsa`, and `postgres` healthy.
-- Latest recorded checks: App 168 passed; Capstone Agent 386 passed / 30 skipped; PyPSA projector 5 passed; repository E2E 39 plus 3 registered-worker tests; Pyright clean; current-source local rebuild healthy.
-- The federated local catalog exposes 22 bounded pandapower/PyPSA models. Family leasing still prevents a worker from executing the other family; explicit model switching and `reopen_model_context` preserve context semantics.
-- No project-specific `MEMORY.md` was found under the expected Claude project-memory path; repository state files and the journal are the available durable context.
+The verified `08f7366` source is now deployed to the Railway `capstone-cloud-dev` API, worker, and App. The first App upload used the wrong root and failed; the corrected root-preserving upload succeeded. The user-trial `capstone-demo` stage was not changed.
 
-## What the journal confirms
+## Verification
 
-- M8 follow-up fixed cross-family catalog visibility, language-sensitive model routing, and TUI worker-availability reporting.
-- M9 review fixed PyPSA model-reference binding, required result/evidence references, multi-result Attempt rendering, and stale Attempt fixtures; final review is `APPROVE` at `docs/reviews/2026-10-04-capstone-m9-independent-code-review.md`.
-- M10 scope is limited to registered PyPSA topology projection; keep topology ownership in the Domain Pack/authority path and do not fabricate diagrams in the generic result projector.
+- Focused regression: Capstone Agent 33 passed; PyPSA Agent 9 passed.
+- Full Pyright: 0 errors, 0 warnings, 0 informations.
+- Full release gate: grid-agent 846 passed; simulator 173 passed; Capstone Agent 389 passed / 30 skipped; Kernel 567 passed; pandapower Domain Pack 100 passed; App 171 passed; PyPSA Agent 29 passed.
+- Grid E2E: 39 passed; registered-worker E2E: 3 passed.
+- Capability coverage: 24/24.
+- Package artifact build, installed smoke checks, and source setup passed.
+- Current-source `make capstone-local-rebuild` passed after `08f7366`; API and both workers are healthy and share the verified image.
+- API readiness: `{"status":"ready"}`; App: HTTP 200.
+- Cloud-dev catalog: 2 registered applications and 5 registered cases.
+- Cloud-dev registered IEEE-39 diagram: 39 buses and 46 branches, with `gridctl` as the source Authority.
+- Cloud-dev scripted case `session-80d0f53ee33547184da2748d` completed all 3 turns without Provider calls; report (3816 bytes), result, evidence replay, and network views 1/2/3 returned successfully.
+- Cloud-dev worker wake diagnosis: Railway injected `PORT=8080` while the configured wake URL used `8766`; a temporary SSH check confirmed the worker listened on 8080. `CAPSTONE_WORKER_WAKE_URL` is now `http://capstone-worker.railway.internal:8080` in cloud-dev API and worker.
+- Cloud-dev Provider-backed case was not run because no separate Provider validation authorization was provided.
+- `git diff --check` passed.
 
-## Next steps
+## Recovery boundary
 
-1. Run `git status --short` and inspect the current diff before touching implementation.
-2. Run `make capstone-local-rebuild` to rebuild from the current checkout, then verify `/health/ready` and App reachability.
-3. In one Thread, switch between `ieee39` and `regional-six-bus`; confirm the correct family worker claims each Attempt and the same model reuses its Context.
-4. When beginning M10, follow `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider.md`; require authority-owned `operator.diagram`, bounded projection, and existing Web network-view contracts.
-5. Preserve independent review and focused verification before any release or cloud-stage claim.
+- Latest production commit: `08f7366`.
+- Earlier M10 commits: `c801532`, `35808a8`, `960b6af`, `0fcecae`, `046ae1e`, `694c8f4`.
+- Working tree contains only state-document edits.
+- Implementation plan: `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider-implementation.md`.
+- Local verification does not establish cloud-development or user-trial release readiness.
+- Cloud-dev deployment IDs: API `f8c4e61f-e0a6-4a49-8766-0b2107e8eadb` (wake URL fix), worker `532f2c78-e3bd-49ef-b484-e31645eb8fa1`, App `45304cda-95a8-406b-b60f-dd08220f3a5a`.
+- Cloud-dev image digests: API `sha256:a751fa461f47514ba0466f850826a75b41ec8230778732ac8caf99269eb28406`; worker `sha256:c75186e09e32e8c2720f1ce3798780047347abba59bfb051973d0e60ae35b80f`; App `sha256:969b548a6c9700dfc2fc358a8abdb9e9c22e3c0e6d0d9c9a71f47d90c49e84c4`.
+- Cloud-dev keeps the default pandapower hosted application; the PyPSA M10 provider was deployed in source but was not activated or exercised remotely.
 
-## Don’t go down these paths again
+## Immediate next action
 
-- Do not treat read-only model catalog/context queries as professional calculations requiring analysis evidence.
-- Do not expose Pi, DSH, raw PyPSA objects, Domain Pack internals, or Authority internals through Web/TUI or the generic Kernel.
-- Do not restore `grid-agent.hosted` or `pypsa-agent` as the application root.
-- Do not claim cloud federated deployment from the local dual-worker topology; Railway remains single-family until deliberately expanded.
-- Do not reset the working tree or delete `var/`, runtime state, or uncommitted changes.
+M10 is closed for implementation and local verification. The cloud-dev legacy
+pandapower scripted-session smoke passed; remote PyPSA Thread validation is
+still pending. The user approved the M11 direction: unified cloud-dev API,
+pandapower/PyPSA workers, and no-Provider acceptance first. Prepare its written
+specification and implementation plan, then execute within those boundaries.
+
+## Preserve these boundaries
+
+- Registered Authority owns topology and numerical facts; no raw Networks or Authority internals cross public boundaries.
+- Admit result and evidence references only for the current run.
+- Match diagram model context and revision before replay, overlays, or focus.
+- Preserve existing `var/`, ignored runtime/authentication state, and user work.
+- Keep cloud development and user trial data, credentials, origins, and mutable state separate.
 
 ## Ready-to-paste commands
 
 ```sh
-cd /Users/sujiangwen/sandbox/LLM/speechless.ai/SGAI/capstone
 git status --short
-make capstone-local-rebuild
+git log --oneline -8
 curl -fsS http://127.0.0.1:8767/health/ready
 curl -fsSI http://127.0.0.1:5173/
-make doctor
+curl -fsS https://capstone-api-production-bb72.up.railway.app/health/ready
+curl -fsSI https://capstone-app-production-83ef.up.railway.app/
 ```

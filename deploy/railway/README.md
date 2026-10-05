@@ -1,7 +1,7 @@
 # Railway topology
 
 Railway hosts two separate Capstone stages: the existing `capstone-demo` project
-serves user trials, while the planned `capstone-cloud-dev` project validates
+serves user trials, while the `capstone-cloud-dev` project validates
 cloud changes. Local Compose remains the high-frequency development loop. Railway
 environments can also represent the two stages inside one project, but separate
 projects provide the clearest billing, credential, data, and access boundary.
@@ -25,7 +25,11 @@ The existing public topology remains the user-trial topology. Set the API start
 command to `/app/deploy/entrypoint.sh api` and the Worker start command to
 `/app/deploy/entrypoint.sh worker`. Keep one Worker replica initially. The Worker
 has no public domain. Set its internal HTTP health check path to `/health` and
-its `PORT` to `8766`. Set the API health check path to `/health/ready` and expose
+its `PORT` explicitly. The worker's `CAPSTONE_WORKER_WAKE_URL` port and the
+API's worker wake URL must match that effective runtime port. The cloud-dev
+worker currently uses `8080`; local Compose explicitly uses `8766`. Do not
+infer the runtime port from the Dockerfile default: Railway can inject `PORT`.
+Set the API health check path to `/health/ready` and expose
 its generated HTTPS domain. A local SciGRID run peaked near 1.1 GiB; allow
 headroom and check Railway metrics before setting a Worker memory cap.
 
@@ -74,7 +78,8 @@ bucket variable references or protected values in the project UI:
 | `CAPSTONE_PUBLIC_MODEL` | `deepseek-flash` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
 | `CAPSTONE_SESSION_IDLE_SECONDS` | `600` on the worker; release a session after ten minutes waiting for the next instruction |
 | `CAPSTONE_WORKER_MAX_SESSIONS` | `12` for the measured public demo on one worker replica; tune after measuring memory and latency |
-| `CAPSTONE_WORKER_WAKE_URL` | `http://capstone-worker.railway.internal:8766` on both API and worker; local Compose uses `http://worker:8766` |
+| `PORT` | Explicit worker listen port; cloud-dev uses `8080`, local Compose uses `8766` |
+| `CAPSTONE_WORKER_WAKE_URL` | Worker private origin with the effective worker `PORT`; cloud-dev uses `http://capstone-worker.railway.internal:8080` on API and worker |
 | `CAPSTONE_ALLOWED_HOSTS` | API public hostname only, without scheme |
 | `CAPSTONE_ALLOWED_ORIGINS` | App HTTPS origin only |
 | `CAPSTONE_ARTIFACT_BACKEND` | `s3` |
@@ -83,6 +88,12 @@ bucket variable references or protected values in the project UI:
 | `AWS_ACCESS_KEY_ID` | Bucket `ACCESS_KEY_ID` credential |
 | `AWS_SECRET_ACCESS_KEY` | Bucket `SECRET_ACCESS_KEY` credential |
 | `AWS_DEFAULT_REGION` | Bucket `REGION` credential |
+
+If a new session remains `pending` while deployment health checks pass, check
+the worker's effective listen port and the API wake URL first. A successful
+health check does not prove that API-to-worker wake requests reach that port.
+After fixing the URL, redeploy the affected role from the same verified
+revision and verify a fresh scripted session reaches `ready` and completes.
 
 The bucket must already exist. Railway buckets use virtual-hosted S3 URLs for
 new buckets; older buckets can use path-style URLs. Check the bucket Credentials

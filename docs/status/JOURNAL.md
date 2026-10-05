@@ -1587,3 +1587,25 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 16:04 用真实 Thread 对话截图替换案例工作台图，突出交流潮流、网损和线路筛查结果 [90839df]
 - 16:15 将 Thread 对话缩小并与拓扑结果并列，表达计算到落图的连续关系 [2698d18]
 - 16:50 优化说明页导航、阅读进度、移动端布局和真实运行结果卡片，提升信息定位与扫描效率 [f8a5d02]
+- 17:25 整理并提交 M8 联邦 Thread、M9 结果投影、部署配置、测试与评审资料，建立可恢复检查点 [643f551]
+- 17:53 M9 fresh verification passed: PyPSA 5/5, Capstone Agent 386/30 skipped, App 168/168 and build; local rebuild and API/App/double-worker health passed
+- 17:59 重建后的仓库 E2E 通过：grid 39/39、registered workers 3/3
+- 18:25 固化 M10 Authority-owned PyPSA 拓扑提供者设计，明确 Thread replay 与 Web 当前模型边界 [ab0f0f9]
+- 18:34 固化 M10 PyPSA 拓扑提供者实施计划，明确测试先行与 Authority/Thread/Web 边界 [ebf25fb]
+- 18:38 修正 M10 计划测试文件映射并重写提交，保持计划与现有 Thread 测试结构一致 [f3424b1]
+- 18:46 增加中性 Thread 拓扑 provider seam、上下文绑定、事件持久化与失败降级，保持答案 admission 独立 [c801532]
+- 18:53 绑定 PyPSA prepared source 到 Authority operator.diagram，输出当前 Thread model topology projection [35808a8]
+- 19:13 接入 Thread Web 动态 topology replay，当前模型优先 Authority 图并阻断跨 revision focus [960b6af]
+- 19:17 增加 prepared Thread provider wiring 回归，确保应用组合根注入拓扑 provider [0fcecae]
+- 19:30 M10 实现与完整门禁完成，当前源重建、API/App 健康及双 worker 镜像验证通过 [c801532..0fcecae]
+- 19:32 标记 M10 实施计划全部步骤完成，记录完整验证门禁与后续独立审查动作 [046ae1e]
+- 19:42 清理非 prepared Authority 组合根中未使用的 topology factory 参数，避免误导性公开接口 [694c8f4]
+- 19:45 完成 M10 手工边界复核并确认无阻塞发现；后续进入正常发布或里程碑收口流程
+- 21:18 修复 M10 topology projection 边界类型收窄，确保完整 check-release 通过 [08f7366]
+- 21:24 以当前源码重建 API 与双 worker，镜像一致性、服务健康、API readiness 与 App 200 均通过
+- 21:25 本地 make doctor 通过，gridctl 与 Pi extension 路径有效且未执行外部 live probe
+## 2026-10-05
+- 00:46 云开发 Railway API、worker、App 均以 08f7366 部署成功；readiness、App、catalog、IEEE-39 diagram 通过，Provider case 未授权未执行
+- 01:18 定位并修复云开发 worker 唤醒端口：Railway 注入 PORT=8080，API 原配置误指向 8766；cloud-dev API/worker 已改为 `capstone-worker.railway.internal:8080`，临时 SSH 密钥已移除
+- 01:20 cloud-dev scripted case 完成 3 轮；result、3816 字节 report、evidence replay、network view 1/2/3 全部通过，未调用 Provider
+- 09:52 用户同意收口 M10 并推进 M11 云开发双族 Thread；更正验收口径：已通过的远程 scripted session 不是 PyPSA Thread 验证。补充 Railway 有效 PORT 与 wake URL 必须一致的操作说明及 cloud-dev 示例。
