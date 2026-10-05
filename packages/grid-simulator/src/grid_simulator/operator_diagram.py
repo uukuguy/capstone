@@ -26,7 +26,20 @@ def operator_geometry(net: Any) -> dict[str, Any]:
     """Project every bus and branch; never truncate an unsupported model."""
     schema = operator_diagram_contract().output_schema
     properties = schema["properties"]
-    if len(net.bus) > properties["buses"]["maxItems"] or len(net.line) + len(net.trafo) + 2 * len(net.trafo3w) > properties["branches"]["maxItems"]:
+    if not isinstance(properties, dict):
+        raise ValueError("operator diagram properties must be an object")
+
+    def array_limit(name: str) -> int:
+        definition = properties.get(name)
+        value = definition.get("maxItems") if isinstance(definition, dict) else None
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f"operator diagram {name} limit must be a positive integer")
+        return value
+
+    max_bytes = schema["x-maxBytes"]
+    if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes <= 4096:
+        raise ValueError("operator diagram byte limit must exceed the metadata reserve")
+    if len(net.bus) > array_limit("buses") or len(net.line) + len(net.trafo) + 2 * len(net.trafo3w) > array_limit("branches"):
         raise OperatorDiagramError("diagram_limit")
 
     def finite(value: object) -> float | None:
@@ -76,6 +89,6 @@ def operator_geometry(net: Any) -> dict[str, Any]:
             raise OperatorDiagramError("diagram_invalid")
     geometry = {"coordinate_system": "schematic", "buses": buses, "branches": branches}
     # Reserve room for the immutable model identity and projection fingerprints.
-    if len(json.dumps(geometry, ensure_ascii=False, allow_nan=False).encode()) > schema["x-maxBytes"] - 4096:
+    if len(json.dumps(geometry, ensure_ascii=False, allow_nan=False).encode()) > max_bytes - 4096:
         raise OperatorDiagramError("diagram_limit")
     return geometry
