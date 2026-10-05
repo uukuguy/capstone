@@ -13,8 +13,12 @@ provider-free automatic acceptance pass. Human acceptance found missing normal
 Provider configuration, recorded below; demo is unchanged.
 The new shared-source local image and App checks pass; its full release gate
 is recorded in the [Harness local record](2026-10-06-harness-provider-configuration-local-verification.md).
-Further cloud deployment is held for local verification. Cloud-dev remains
-on a1f028d in normal mode.
+The user then authorized cloud-dev deployment. All four services now run
+`188abe3` in normal mode. Fresh registered cases, reports, evidence reads,
+retention and source checks pass; see the
+[Harness cloud-dev record](2026-10-06-harness-cloud-dev-verification.md).
+Missing worker Provider credentials still block ordinary AI conversation and
+manual acceptance.
 Cloud operations target only the
 `capstone-cloud-dev` Railway project. Demo promotion requires completed
 cloud-dev verification and the user's manual acceptance. No real Provider
@@ -289,5 +293,8 @@ shared Harness ownership and local App verification before further cloud work.
 `188abe3` centralizes Provider resolution in Capstone and makes both historical
 adapters delegate. Its verification and the local-first release gate are in the
 [Harness local record](2026-10-06-harness-provider-configuration-local-verification.md).
+The user subsequently authorized cloud-dev deployment of that exact candidate.
+Its passing Provider-free cloud checks are recorded in the
+[Harness cloud-dev record](2026-10-06-harness-cloud-dev-verification.md).
 Normal cloud conversation still requires the missing dedicated cloud-dev
 Provider key and authorized real-Provider validation.

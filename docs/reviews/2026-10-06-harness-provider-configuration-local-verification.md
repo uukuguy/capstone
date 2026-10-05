@@ -4,8 +4,11 @@
 
 Backend source: `188abe3536722623c2e85d596195de6f60401a16`, following the
 configuration error classification repair `5dc0cd4`. The user requires local
-App verification before further cloud deployment. Both revisions remain local;
-cloud-dev still runs `a1f028d` in normal mode. Demo is unchanged.
+App verification before further cloud deployment. At local closeout, both
+revisions remained local and cloud-dev ran `a1f028d` in normal mode. The user
+then authorized deployment of `188abe3`; the subsequent results are in the
+[cloud-dev verification record](2026-10-06-harness-cloud-dev-verification.md).
+Demo is unchanged.
 
 This closes one shared runtime ownership gap. It does not claim completion of
 every remaining compatibility-package cleanup or real Provider acceptance.
@@ -93,8 +96,10 @@ The earlier gate began before extraction and is not the final-source receipt.
 
 ## Remaining acceptance
 
-User review of the local App precedes further cloud deployment. Ordinary
-Provider planning has not been tested in this repair. Cloud-dev still needs
+After the local checks, the user authorized cloud-dev deployment. All four
+services now run `188abe3` and Provider-free cloud checks pass, as recorded in
+the [cloud-dev verification record](2026-10-06-harness-cloud-dev-verification.md).
+Ordinary Provider planning has not been tested in this repair. Cloud-dev still needs
 its dedicated protected Provider credential and separate authorization for
 real Provider smoke calls. Full cloud-dev verification and human acceptance
 must pass before any demo promotion.

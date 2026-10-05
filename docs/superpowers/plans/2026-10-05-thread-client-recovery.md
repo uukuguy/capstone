@@ -98,9 +98,15 @@ The user requires local App verification before further cloud deployment.
 - [x] Run full offline release checks and verify both model families in the local
   App, including safe missing-configuration behavior and retained model Context.
 - [x] Record local results for user review before cloud-dev deployment.
-- [ ] Resume cloud-dev validation only after the local-first gate is satisfied;
+- [x] Resume cloud-dev validation only after the local-first gate is satisfied;
   dedicated stage credentials and real Provider authorization remain separate.
+- [ ] Configure dedicated cloud-dev Provider credentials and complete separately
+  authorized real Provider smoke checks before ordinary conversation acceptance.
 - [ ] Promote to demo only after cloud-dev validation and manual acceptance.
 
 Local source `188abe3` and focused App evidence are recorded in the
 [Harness local verification](../../reviews/2026-10-06-harness-provider-configuration-local-verification.md).
+The user subsequently authorized cloud-dev deployment. All four services run
+that exact source; Provider-free checks pass. See the
+[Harness cloud-dev verification](../../reviews/2026-10-06-harness-cloud-dev-verification.md).
+Both worker Provider credentials remain absent, so manual acceptance is pending.
