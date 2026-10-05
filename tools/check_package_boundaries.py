@@ -336,6 +336,14 @@ def check_application_host_boundaries(root: Path) -> list[str]:
             relative = path.relative_to(source_root).as_posix()
             if relative not in {"hosted.py", "hosted_worker.py"}:
                 continue
+            if any(
+                module == "capability_agent.runtime.resolver"
+                or module.startswith("capability_agent.runtime.resolver.")
+                for module in modules
+            ):
+                violations.append(
+                    f"{path.relative_to(root).as_posix()} must use Capstone Harness Provider configuration"
+                )
             if not any(
                 module == "capstone_agent.hosted"
                 or module.startswith("capstone_agent.hosted.")

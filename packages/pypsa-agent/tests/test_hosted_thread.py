@@ -13,6 +13,7 @@ def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(mon
     from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
     from capstone_agent.thread_worker import run_pending_attempt
     from capability_agent.runtime.models import ConfigurationError
+    import capstone_agent.runtime as runtime
 
     monkeypatch.delenv("CAPSTONE_THREAD_VALIDATION", raising=False)
     monkeypatch.setenv("CAPSTONE_RUNS_ROOT", str(tmp_path))
@@ -22,7 +23,7 @@ def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(mon
         calls.append(1)
         raise ConfigurationError("private-credential-sentinel: missing API key")
 
-    monkeypatch.setattr(hosted, "resolve_llm", unavailable)
+    monkeypatch.setattr(runtime, "resolve_llm", unavailable)
     assembly = hosted.build_registered_pypsa_thread_application()
 
     class CreatorStore:

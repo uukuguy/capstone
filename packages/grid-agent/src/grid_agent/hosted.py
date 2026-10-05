@@ -13,16 +13,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
-from capstone_agent.harness import HarnessRuntimeConfigurationError
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
-from capstone_agent.runtime import build_runtime_host
+from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
-from capability_agent.runtime.models import CliLLMOptions, ConfigurationError
-from capability_agent.runtime.resolver import resolve_llm
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
 
@@ -31,7 +28,6 @@ from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR,
     build_pandapower_thread_application,
 )
-from grid_agent.config.catalog import ProviderCatalog
 from grid_agent.thread_binding import bind_thread_tool_catalog
 from grid_agent.thread_model_metadata import model_display_name
 
@@ -93,25 +89,8 @@ def build_registered_pandapower_thread_application():
     def build_session(claim, context, profiles):
         if validation_builder is not None:
             return validation_builder(claim, context, profiles)
-        from grid_agent.cli.app import _generic_runtime_environment, _runtime_environment
-
-        environment = _generic_runtime_environment(_runtime_environment(root))
-        environment.setdefault(
-            "CAPABILITY_AGENT_LLM_PROVIDER",
-            environment.get("CAPSTONE_PUBLIC_PROVIDER", "deepseek"),
-        )
-        environment.setdefault(
-            "CAPABILITY_AGENT_LLM_MODEL",
-            environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
-        )
-        try:
-            resolved = resolve_llm(
-                catalog=ProviderCatalog.load(root / "configs/llm-providers.json"),
-                cli=CliLLMOptions(), environ=environment,
-                env_file=root / ".env",
-            )
-        except ConfigurationError:
-            raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
+        environment = load_runtime_environment(root)
+        resolved = resolve_harness_llm(root, environment)
         runtime_host = build_runtime_host(
             root, build_pandapower_application_profile(), environment,
         )

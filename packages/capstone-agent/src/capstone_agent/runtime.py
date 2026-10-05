@@ -7,10 +7,15 @@ from pathlib import Path
 from typing import Mapping
 
 from dotenv import dotenv_values
+from capability_agent.runtime.catalog import ProviderCatalog
 from capability_agent.runtime.environment import RuntimeHost
 from capability_agent.runtime.extension import ExtensionSpec, PiExtensionLocator
 from capability_agent.runtime.locator import PiRuntimeLocator
 from capability_agent.runtime.lock import PiRuntimeLock
+from capability_agent.runtime.models import CliLLMOptions, ConfigurationError, ResolvedLLM
+from capability_agent.runtime.resolver import resolve_llm
+
+from .harness import HarnessRuntimeConfigurationError
 
 
 _LLM_ENV_ALIASES = {
@@ -40,6 +45,28 @@ def load_runtime_environment(
         if value is not None:
             merged[target] = value
     return merged
+
+
+def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> ResolvedLLM:
+    """Resolve application-selected Harness Provider settings at one shared seam."""
+
+    environment.setdefault(
+        "CAPABILITY_AGENT_LLM_PROVIDER",
+        environment.get("CAPSTONE_PUBLIC_PROVIDER", "deepseek"),
+    )
+    environment.setdefault(
+        "CAPABILITY_AGENT_LLM_MODEL",
+        environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
+    )
+    try:
+        return resolve_llm(
+            catalog=ProviderCatalog.load(repo_root / "configs/llm-providers.json"),
+            cli=CliLLMOptions(),
+            environ=environment,
+            env_file=repo_root / ".env",
+        )
+    except ConfigurationError:
+        raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
 
 
 def build_runtime_host(

@@ -596,6 +596,25 @@ def test_domain_worker_must_delegate_to_capstone_worker(tmp_path: Path) -> None:
     assert "pypsa_agent/worker.py must delegate execution to capstone_agent.worker" in result.stderr
 
 
+@pytest.mark.parametrize("package,module", [("grid-agent", "grid_agent"), ("pypsa-agent", "pypsa_agent")])
+def test_hosted_domain_adapter_uses_shared_provider_configuration(
+    tmp_path: Path, package: str, module: str,
+) -> None:
+    source = tmp_path / f"packages/{package}/src/{module}"
+    source.mkdir(parents=True)
+    (source / "hosted.py").write_text(
+        "from capstone_agent.hosted import run_hosted_api\n"
+        "from capability_agent.runtime.resolver import resolve_llm\n"
+        "def main():\n    return run_hosted_api(factory)\n",
+        encoding="utf-8",
+    )
+
+    result = run_checker(tmp_path)
+
+    assert result.returncode == 1
+    assert "must use Capstone Harness Provider configuration" in result.stderr
+
+
 def run_checker(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(CHECKER), "--root", str(root)],
