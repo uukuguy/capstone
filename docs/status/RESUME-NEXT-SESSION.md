@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-05 09:52 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-05 09:54 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -31,7 +31,9 @@ The verified `08f7366` source is now deployed to the Railway `capstone-cloud-dev
 
 - Latest production commit: `08f7366`.
 - Earlier M10 commits: `c801532`, `35808a8`, `960b6af`, `0fcecae`, `046ae1e`, `694c8f4`.
-- Working tree contains only state-document edits.
+- M10 closeout and Railway port documentation commit: `a01c43d`.
+- M11 is in written-spec review; no M11 runtime or cloud configuration changes
+  have been made.
 - Implementation plan: `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider-implementation.md`.
 - Local verification does not establish cloud-development or user-trial release readiness.
 - Cloud-dev deployment IDs: API `f8c4e61f-e0a6-4a49-8766-0b2107e8eadb` (wake URL fix), worker `532f2c78-e3bd-49ef-b484-e31645eb8fa1`, App `45304cda-95a8-406b-b60f-dd08220f3a5a`.
@@ -43,8 +45,13 @@ The verified `08f7366` source is now deployed to the Railway `capstone-cloud-dev
 M10 is closed for implementation and local verification. The cloud-dev legacy
 pandapower scripted-session smoke passed; remote PyPSA Thread validation is
 still pending. The user approved the M11 direction: unified cloud-dev API,
-pandapower/PyPSA workers, and no-Provider acceptance first. Prepare its written
-specification and implementation plan, then execute within those boundaries.
+pandapower/PyPSA workers, and no-Provider acceptance first. The written spec is
+`docs/superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md`.
+It adds two necessary prerequisites found during source review: a bounded
+validation-only session adapter on the prepared runtime, and correction of
+public demo admission to scripted-only. After written-spec review, create the
+implementation plan with `writing-plans`, then execute its tasks. Provider
+billing and user-trial promotion remain outside the authorization.
 
 ## Preserve these boundaries
 

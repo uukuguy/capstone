@@ -1609,3 +1609,5 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 01:18 定位并修复云开发 worker 唤醒端口：Railway 注入 PORT=8080，API 原配置误指向 8766；cloud-dev API/worker 已改为 `capstone-worker.railway.internal:8080`，临时 SSH 密钥已移除
 - 01:20 cloud-dev scripted case 完成 3 轮；result、3816 字节 report、evidence replay、network view 1/2/3 全部通过，未调用 Provider
 - 09:52 用户同意收口 M10 并推进 M11 云开发双族 Thread；更正验收口径：已通过的远程 scripted session 不是 PyPSA Thread 验证。补充 Railway 有效 PORT 与 wake URL 必须一致的操作说明及 cloud-dev 示例。
+- 09:53 收口 M10 并记录云端端口验收，防止后续误认 Thread 验证范围 [a01c43d]
+- 09:54 M11 规格自查发现两个前置条件：hosted Thread 尚无无 Provider 模式；公开 demo 实现允许固定 Provider，与仓库 scripted-only 契约冲突。规格纳入受限验证适配器与权限修复，待书面审阅。

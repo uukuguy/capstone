@@ -59,6 +59,14 @@
 
 ## Open Problems (theme-level)
 
+- Cloud federated Thread acceptance is pending. Hosted family adapters select
+  Provider-backed Pi sessions; the local deterministic Thread validator has
+  not yet been integrated with remote PostgreSQL workers. Public demo session
+  admission currently permits fixed Provider execution, in conflict with the
+  repository's scripted-only public credential rule. The proposed bounded
+  validation mode and access correction are specified in
+  [M11 design](../superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md).
+
 ### M8 unified Thread application (demo-stage)
 
 - The federated hosted path is the local Compose default via `CAPSTONE_HOSTED_APPLICATION=capstone`; compatibility deployments may explicitly select `pandapower`. The neutral API loads bounded metadata-only manifests from the pandapower and PyPSA Authority adapters and does not import either simulator environment.
