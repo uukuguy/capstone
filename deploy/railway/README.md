@@ -15,8 +15,8 @@ projects provide the clearest billing, credential, data, and access boundary.
 | Local | Docker Compose plus Vite | Working tree changes | Local machine or LAN | Ignored local database, RustFS bucket, and runtime state |
 
 Each Railway stage contains one PostgreSQL service, one private Railway Bucket,
-one API service, one on-demand Worker service, and one static App service. API and
-Worker must use the same tested backend image or source revision within a stage.
+one API service, registered family workers, and one static App service. All backend
+roles must use the same tested image or source revision within a stage.
 The two stages never share `DATABASE_URL`, artifact storage, operator tokens,
 Provider credentials, or public origins. `VITE_API_ORIGIN` contains only the
 selected API origin.
@@ -33,10 +33,48 @@ Set the API health check path to `/health/ready` and expose
 its generated HTTPS domain. A local SciGRID run peaked near 1.1 GiB; allow
 headroom and check Railway metrics before setting a Worker memory cap.
 
-`CAPSTONE_HOSTED_APPLICATION` selects the application assembly for both roles and
-defaults to `pandapower`. Set it to `pypsa` only when the API and Worker are
-deployed as the same isolated PyPSA stage; do not pair a PyPSA API with a
-pandapower Worker or share mutable run data between application stages.
+`CAPSTONE_HOSTED_APPLICATION` defaults to `pandapower` for compatibility. A
+single-family stage pairs the API and worker with the same application.
+The unified `capstone` API uses separate pandapower and PyPSA workers sharing
+the stage ledger. Workers lease only their pinned implementation family.
+
+## Federated cloud-development acceptance
+
+Use these roles only in `capstone-cloud-dev`:
+
+| Service | Application | Start command | Health |
+| --- | --- | --- | --- |
+| `capstone-api` | `capstone` | `/app/deploy/entrypoint.sh api` | `/health/ready` |
+| `capstone-worker` | `pandapower` | `/app/deploy/entrypoint.sh worker` | `/health` |
+| `capstone-worker-pypsa` | `pypsa` | `/app/deploy/entrypoint.sh worker` | `/health` |
+
+Set `PORT=8080` for all backend roles. Give workers no public domains. Keep
+one replica per worker and disable sleeping during Thread acceptance: Thread
+Attempts use polling. Deploy both workers before the API, whose catalog records
+family availability at startup. Use the two private origins from
+[`cloud-dev.variables.example`](cloud-dev.variables.example).
+
+For the bounded M11 acceptance, set `CAPSTONE_THREAD_VALIDATION=m11` and
+`CAPSTONE_DEPLOYMENT_STAGE=cloud-development` on all backend roles. This selects
+fixed instructions over real prepared Authorities without constructing a
+Provider session. Unknown instructions fail. Private
+`GET /api/v1/validation/m11` must confirm both workers before the driver sends
+any Thread command. Public demo credentials cannot use this endpoint or Threads.
+
+First rebuild locally with these two opt-in variables in the command environment
+and `make capstone-local-rebuild`. Run `make validate-thread-m11` with
+`CAPSTONE_M11_API_ORIGIN` and `CAPSTONE_M11_OPERATOR_TOKEN` in protected environment
+state. The command writes bounded private receipts below `runs/capstone-m11`.
+Do not place tokens in command arguments or logs. Exit 0 means automated checks
+passed; exit 1 means failure; exit 2 means setup is missing or invalid. Browser,
+deployment identity, restart retention, and legacy report checks are separate.
+
+Record the tested source and prior service settings before deploying to cloud
+development. Preserve existing databases, buckets, and sessions. On failure,
+restore the prior cloud-development revision and configuration. After acceptance,
+remove `CAPSTONE_THREAD_VALIDATION` from all roles, redeploy the same tested source,
+and verify health and both catalog families. Do not submit a Provider-backed
+Thread without separate authorization. User-trial promotion is a separate action.
 
 Railway Hobby cannot configure credentials for a private container registry, so
 the current source-build topology remains supported. When a registry is
@@ -47,7 +85,7 @@ demo instead of rebuilding it for the trial environment.
 
 1. Run local gates and exercise the local App with `make capstone-local-rebuild`.
 2. Deploy the same source revision to `capstone-cloud-dev`.
-3. Check `/health/ready`, a registered scripted case, one Provider case, report
+3. Check `/health/ready`, a registered scripted case, a separately authorized Provider case, report
    generation, evidence replay, and API/Worker source or image identity.
 4. Record the verified revision and promote that exact revision or image digest
    to `capstone-demo` under a release tag.
@@ -58,8 +96,9 @@ The cloud-dev App uses `CAPSTONE_PUBLIC_DEMO=true` so its no-login flow can
 exercise the registered public cases. Keep its URL internal and use a separate
 Provider key and limits. Set `CAPSTONE_PUBLIC_DEMO=false` only for API-only or
 operator tests that do not run the App. The demo API uses
-`CAPSTONE_PUBLIC_DEMO=true`, `CAPSTONE_PUBLIC_PROVIDER=deepseek`, and
-`CAPSTONE_PUBLIC_MODEL=deepseek-flash`.
+`CAPSTONE_PUBLIC_DEMO=true`. Public credentials permit registered scripted
+sessions only. Optional `CAPSTONE_PUBLIC_PROVIDER` and `CAPSTONE_PUBLIC_MODEL`
+remain defaults for private Provider sessions and are not required for demo access.
 
 The variable checklists in [`cloud-dev.variables.example`](cloud-dev.variables.example)
 and [`demo.variables.example`](demo.variables.example) contain names and safe
@@ -73,9 +112,9 @@ bucket variable references or protected values in the project UI:
 | `DATABASE_URL` | PostgreSQL connection URL, shared by API and worker |
 | `CAPSTONE_OPERATOR_TOKEN` | Same private operator token in both roles |
 | `CAPSTONE_PUBLIC_DEMO` | `true` on the API for automatic public demonstration access |
-| `CAPSTONE_HOSTED_APPLICATION` | `pandapower` by default; use `pypsa` only for an isolated PyPSA API/Worker stage |
-| `CAPSTONE_PUBLIC_PROVIDER` | `deepseek` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
-| `CAPSTONE_PUBLIC_MODEL` | `deepseek-flash` on the API when `CAPSTONE_PUBLIC_DEMO=true` |
+| `CAPSTONE_HOSTED_APPLICATION` | `capstone` for the unified API; the selected family for each worker |
+| `CAPSTONE_PUBLIC_PROVIDER` | Optional private Provider default |
+| `CAPSTONE_PUBLIC_MODEL` | Optional private Provider model default |
 | `CAPSTONE_SESSION_IDLE_SECONDS` | `600` on the worker; release a session after ten minutes waiting for the next instruction |
 | `CAPSTONE_WORKER_MAX_SESSIONS` | `12` for the measured public demo on one worker replica; tune after measuring memory and latency |
 | `PORT` | Explicit worker listen port; cloud-dev uses `8080`, local Compose uses `8766` |
@@ -101,7 +140,7 @@ tab before release. The API streams sequenced events to the App, and the App
 reconnects using the last sequence after a dropped connection. If a worker is
 replaced during a turn, its lease expires and the session becomes interrupted;
 committed turns remain readable.
-Enable Railway Serverless on the API and worker after verifying the private
+For legacy session-only stages, enable Railway Serverless on the API and worker after verifying the private
 wake request starts a pending session. Keep the small static App running so a
 visitor's first page request does not meet a cold-start 502; its read-only API
 requests retry transient 502/503/504 responses. Leave PostgreSQL running. The

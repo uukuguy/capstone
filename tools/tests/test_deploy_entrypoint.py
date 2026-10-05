@@ -14,13 +14,15 @@ def _run_entrypoint(tmp_path: Path, role: str, application: str | None) -> list[
     calls = tmp_path / "calls"
     fake_uv = fake_bin / "uv"
     fake_uv.write_text(
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$CAPSTONE_TEST_CALLS\"\n",
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$CAPSTONE_TEST_CALLS\"\n"
+        "printf '%s' \"${CAPSTONE_THREAD_FAMILY:-}\" > \"$CAPSTONE_TEST_CALLS.family\"\n",
         encoding="utf-8",
     )
     fake_uv.chmod(0o755)
     environment = os.environ | {
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "CAPSTONE_TEST_CALLS": str(calls),
+        "CAPSTONE_THREAD_FAMILY": "wrong-family",
     }
     if application is None:
         environment.pop("CAPSTONE_HOSTED_APPLICATION", None)
@@ -61,3 +63,16 @@ def test_entrypoint_rejects_unknown_hosted_application(tmp_path: Path) -> None:
     )
     assert result.returncode == 64
     assert "CAPSTONE_HOSTED_APPLICATION" in result.stderr
+
+
+def test_federated_api_and_pinned_family_workers(tmp_path: Path) -> None:
+    assert _run_entrypoint(tmp_path / "api", "api", "capstone") == [
+        "run --no-sync --project /app/packages/capstone-agent python -m capstone_agent.federated_hosted",
+    ]
+    for family in ("pandapower", "pypsa"):
+        _run_entrypoint(tmp_path / family, "worker", family)
+        assert (tmp_path / family / "calls.family").read_text() == family
+    result = subprocess.run(["sh", str(ROOT / "deploy/entrypoint.sh"), "worker"],
+                            env=os.environ | {"CAPSTONE_HOSTED_APPLICATION": "capstone"},
+                            capture_output=True)
+    assert result.returncode == 64

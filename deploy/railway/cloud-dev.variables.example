@@ -3,7 +3,15 @@
 
 DATABASE_URL=<set-in-railway>
 CAPSTONE_OPERATOR_TOKEN=<set-in-railway>
-CAPSTONE_HOSTED_APPLICATION=pandapower
+CAPSTONE_HOSTED_APPLICATION=capstone
+CAPSTONE_DEPLOYMENT_STAGE=cloud-development
+# Temporary acceptance only, on API and both workers; remove after validation.
+# CAPSTONE_THREAD_VALIDATION=m11
+CAPSTONE_FAMILY_HEALTH_URLS=pandapower=http://capstone-worker.railway.internal:8080,pypsa=http://capstone-worker-pypsa.railway.internal:8080
+CAPSTONE_FEDERATED_CATALOG_CONTEXT=true
+# Role overrides: capstone-worker uses pandapower; capstone-worker-pypsa uses
+# pypsa and CAPSTONE_WORKER_WAKE_URL=http://capstone-worker-pypsa.railway.internal:8080.
+# The entrypoint fixes each worker's CAPSTONE_THREAD_FAMILY to its application.
 # The cloud-dev App has no login flow; keep this true for an internal App smoke
 # target. Set false only when running API-only/operator tests without the App.
 CAPSTONE_PUBLIC_DEMO=true
