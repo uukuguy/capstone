@@ -1,37 +1,45 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-05. Composer model menu and compact topology work is complete
-on the main checkout. Commit is pending final recording.
+Updated: 2026-10-05 CST. Local delivery is in final closeout; continue without approval.
 
-The model menu is beside Composer Settings, uses matching 10px text and compact
-spacing, and sorts by engine and natural model ID. Search, engine filtering,
-explicit switch, Escape/outside dismissal and draft isolation are verified.
-The popup fits short windows; phone controls retain 44px targets.
+All user-requested fixes are implemented. Authority changes are committed as
+7afca7c and 2e59e06; application, UI and documentation changes await final commit.
+No Provider/cloud calls occurred. Existing user Attempts remain immutable.
 
-The brand image stays visible above one 9px introduction paragraph. Thread
-topology has a compact heading/control area and a proportionate canvas.
-Prior model-state, preset and per-answer graph repairs remain intact.
+Verified:
+- Full make test passed, including 925 grid-agent, 178 simulator, 465 Capstone
+  Agent and 245 App tests. E2E passed 39 cases and three registered workers.
+- make validate passed with protected paths and 24/24 capability coverage.
+  Its final rerun after the typed authority-limit correction also passed.
+- make check-types now passes with zero errors. Authority model/protocol rerun
+  passed 33 tests. App TypeScript/Vite build and make doctor passed.
+- Real Thread tests passed two topology Attempts each for five models, including
+  GBnetwork and case9241pegase. Real PostgreSQL verified three byte-bounded
+  diagram pages, ordinary-event limits and no claimed user Attempts.
+- Browser displays complete GBnetwork (2,224 buses/3,207 branches) and
+  case9241pegase (9,241/16,049); zoom/refresh and screenshots passed.
+  Keyboard browse/Escape/reopen/candidate activation retained the draft.
+- Independent review APPROVE, no remaining findings. Documentation links,
+  relative CLAUDE symlink and diff checks pass.
+- Task-only API18761, Vite18762, browser and temporary auth are removed.
+  Normal API8767/App5173 remain running. Existing user Thread cursor is 99.
+- Final checked-in rebuild and read-only runtime receipt passed. API and both
+  workers use image sha256:52dbf9d89da88170df3e038ca14e8b1e3e11eed0eaf2c645c5712a31ad4a91f4.
+  App returns HTTP 200; the real catalogue exposes 81 registered models.
 
-Plan: [compact topology](../superpowers/plans/2026-10-05-thread-composer-model-and-compact-topology.md).
-Evidence: [review](../reviews/2026-10-05-thread-composer-model-and-compact-topology.md).
-App 230 tests, TypeScript/Vite build, doctor, links, symlink and diff checks
-passed. Independent review approved and reran 67 focused tests. Local CLI
-browser checked desktop, compact, phone and short-window views, directory
-activation, real gridctl flow/rank and old/current answer graph selection.
+Implementation notes:
+- Domain observation admission accepts published topology/catalog reads;
+  endpoint/calculation lineage stays enforced.
+- Message bars keep hover/focus, fixed disabled slots, subtle toggle states,
+  disabled unfinished feedback in More and guarded completed-answer reruns.
+- Root opens conversation; original cases use /old. Model directory submits
+  only model-open text, with 9px popup, 8px hint and restrained focus.
+- Complete operator bounds are 10,000 buses/20,000 branches/4 MiB. Catalogue
+  preflight disables unsupported models and server switches reject them.
+- Diagram-specific transport bounds, pre-decoding SQL page limits, per-frame
+  SSE checks and per-page geometry sharing prevent large-model failures.
+- Errors show reason, recovery action and safe diagnostic code.
 
-Final checked-in local rebuild and read-only API checks passed. API and both
-workers share image
-sha256:8a6f6311c6489d43cfed768ca4024b05a71c8d220dc58acc070b3400f1845bdd.
-App HTTP 200 and registered catalog 81 passed. Original user Thread was
-IEEE39/cursor76 at inspection. Receipts: runs/capstone-page-refinement/.
-Screenshots: output/playwright/thread-compact-*.png.
-
-Test ports 18761/18762, compact-topology/compact-authority browser sessions
-and temporary auth are removed. Normal API 8767 and App 5173 remain running.
-No external Provider, cloud deployment or user-history rewrite occurred.
-Finite Pi sessions do not prove arbitrary Provider planning; the isolated
-assembly has two known legacy-preview 404 console errors.
-
-Next: refresh the local App and follow the user's next request. No work remains
-for this UI refinement. Earlier full release evidence remains in
-[the instruction-view review](../reviews/2026-10-05-thread-preset-ranking-and-task-view.md).
+Next: commit the staged task files, append the commit journal and deliver.
+Receipts are ignored runs/topology-open-repair/; screenshots output/playwright/.
+Do not rerun inspect_local.py or rewrite old failed Attempts.

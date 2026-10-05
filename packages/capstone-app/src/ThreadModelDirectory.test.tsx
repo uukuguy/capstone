@@ -12,6 +12,14 @@ const models: ThreadCatalogModel[] = [
 const props = { models, currentModelId: 'grid-a', target: 'grid-a', disabled: false, pending: false, onTargetChange: vi.fn(), onSwitch: vi.fn() }
 
 describe('on-demand registered model directory', () => {
+  it('disables an authority-rejected diagram before a user can open it', () => {
+    const onSwitch = vi.fn()
+    render(<ThreadModelDirectory models={[{ ...models[0], available: false, unavailableReason: 'diagram_limit' }]} currentModelId="other" target="" disabled={false} pending={false} onTargetChange={() => {}} onSwitch={onSwitch} />)
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    expect((screen.getByRole('option', { name: /超出完整拓扑显示容量/ }) as HTMLOptionElement).disabled).toBe(true)
+    fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: models[0].modelId } })
+    expect(onSwitch).not.toHaveBeenCalled()
+  })
   it('sorts by engine and natural model ID without changing the registered catalog', () => {
     const unsorted = [{ ...models[1], modelId: 'pypsa/grid-2' }, { ...models[0], modelId: 'case14' }, { ...models[0], modelId: 'case9' }]
     render(<ThreadModelDirectory {...props} models={unsorted} />)
@@ -46,17 +54,20 @@ describe('on-demand registered model directory', () => {
     fireEvent.change(screen.getByRole('combobox', { name: '模型引擎' }), { target: { value: 'pypsa' } })
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: ' GRID-B ' } })
     expect(screen.getAllByRole('option').filter((item) => item.parentElement?.getAttribute('aria-label') === '目标电网模型').map((item) => item.getAttribute('value'))).toEqual(['pypsa/grid-b'])
-    expect((screen.getByRole('button', { name: '切换模型' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: '切换模型' })).toBeNull()
+    expect(props.onSwitch).not.toHaveBeenCalled()
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } })
     expect(screen.getByText(/没有匹配的已注册模型/)).toBeTruthy()
   })
 
   it.each([true, false])('keeps unavailable models disabled when controlsDisabled=%s', (disabled) => {
-    render(<ThreadModelDirectory {...props} disabled={disabled} target="grid-c" />)
+    const onSwitch = vi.fn()
+    render(<ThreadModelDirectory {...props} disabled={disabled} target="grid-c" onSwitch={onSwitch} />)
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(disabled)
-    expect((screen.getByRole('option', { name: /Grid Offline.*worker_unavailable/ }) as HTMLOptionElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: '切换模型' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('option', { name: /Grid Offline.*模型服务未就绪/ }) as HTMLOptionElement).disabled).toBe(true)
+    fireEvent.change(screen.getByRole('listbox'), { target: { value: 'grid-c' } })
+    expect(onSwitch).not.toHaveBeenCalled()
   })
 
   it('opens only the explicitly selected available model through the existing callback', () => {
@@ -65,11 +76,22 @@ describe('on-demand registered model directory', () => {
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa/grid-b' } })
     expect(props.onTargetChange).toHaveBeenCalledWith('pypsa/grid-b')
-    expect(onSwitch).not.toHaveBeenCalled()
-    rerender(<ThreadModelDirectory {...props} target="pypsa/grid-b" onSwitch={onSwitch} />)
-    fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
     expect(onSwitch).toHaveBeenCalledTimes(1)
+    expect(onSwitch).toHaveBeenCalledWith('pypsa/grid-b')
+    expect(screen.queryByRole('searchbox')).toBeNull()
     rerender(<ThreadModelDirectory {...props} currentModelId="pypsa/grid-b" target="pypsa/grid-b" onSwitch={onSwitch} />)
     expect(screen.queryByRole('searchbox')).toBeNull()
+  })
+  it('uses Enter to open a keyboard-browsed model without submitting the composer', () => {
+    const onSwitch = vi.fn()
+    const { rerender } = render(<ThreadModelDirectory {...props} onSwitch={onSwitch} />)
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    const list = screen.getByRole('listbox')
+    fireEvent.keyDown(list, { key: 'ArrowDown' })
+    fireEvent.change(list, { target: { value: 'pypsa/grid-b' } })
+    expect(onSwitch).not.toHaveBeenCalled()
+    rerender(<ThreadModelDirectory {...props} target="pypsa/grid-b" onSwitch={onSwitch} />)
+    fireEvent.keyDown(list, { key: 'Enter' })
+    expect(onSwitch).toHaveBeenCalledWith('pypsa/grid-b')
   })
 })

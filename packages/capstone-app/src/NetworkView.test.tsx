@@ -111,6 +111,18 @@ describe('operator network canvas', () => {
     expect(screen.getByText('本轮电网视图暂不可用')).toBeTruthy()
   })
 
+  it.each([
+    ['diagram_limit', '超过当前视图容量'],
+    ['projection_source_unavailable', '电网服务未能返回'],
+    ['projection_model_mismatch', '模型或版本不一致'],
+    ['projection_invalid', '未通过数据校验'],
+  ])('shows a specific cause and recovery action for %s', (code, copy) => {
+    render(<NetworkView view={null} modelName="Grid" focusKey="failed" unavailable failureCode={code} />)
+    expect(screen.getByRole('alert').textContent).toContain(copy)
+    expect(screen.getByText(`诊断代码：${code}`)).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toMatch(/请选择|请从|请重试/)
+  })
+
   it('focuses the next known task when execution starts', () => {
     const view = { ...sampleView, next_focus_ids: ['line:12'] }
     const { rerender } = render(<NetworkView view={view} modelName="IEEE-39" focusKey="ready" />)

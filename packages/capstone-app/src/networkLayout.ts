@@ -54,10 +54,55 @@ export function usesModelCoordinates(view: Geometry): boolean {
   return providedLayout(view) !== null
 }
 
+/** Deterministic graph levels avoid quadratic force work on complete large models. */
+function largeSchematic(view: Geometry): PositionedBus[] {
+  const buses = view.buses
+  const byId = new Map(buses.map((bus, index) => [bus.id, index]))
+  const neighbors = buses.map(() => [] as number[])
+  for (const branch of view.branches) {
+    const from = byId.get(branch.from_bus), to = byId.get(branch.to_bus)
+    if (from !== undefined && to !== undefined) {
+      neighbors[from].push(to); neighbors[to].push(from)
+    }
+  }
+  const visited = new Set<number>()
+  const components: number[][][] = []
+  const roots = buses.map((_, index) => index).sort((a, b) => neighbors[b].length - neighbors[a].length || a - b)
+  for (const root of roots) {
+    if (visited.has(root)) continue
+    const queue = [root], depths = [0], levels: number[][] = []
+    visited.add(root)
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const index = queue[cursor], depth = depths[cursor]
+      ;(levels[depth] ||= []).push(index)
+      for (const neighbor of neighbors[index]) {
+        if (visited.has(neighbor)) continue
+        visited.add(neighbor); queue.push(neighbor); depths.push(depth + 1)
+      }
+    }
+    components.push(levels)
+  }
+  const columns = Math.ceil(Math.sqrt(components.length * WIDTH / HEIGHT))
+  const rows = Math.ceil(components.length / columns)
+  const positions = buses.map(() => ({ x: WIDTH / 2, y: HEIGHT / 2 }))
+  components.forEach((levels, component) => {
+    const left = 40 + (component % columns) * 920 / columns
+    const top = 40 + Math.floor(component / columns) * 520 / rows
+    levels.forEach((level, depth) => level.forEach((index, rank) => {
+      positions[index] = {
+        x: left + (depth + 0.5) / levels.length * 920 / columns,
+        y: top + (rank + 0.5) / level.length * 520 / rows,
+      }
+    }))
+  })
+  return buses.map((bus, index) => ({ ...bus, ...positions[index] }))
+}
+
 export function layoutNetwork(view: Geometry): PositionedBus[] {
   const buses = view.buses
   const provided = providedLayout(view)
   if (provided) return provided
+  if (buses.length > 256) return largeSchematic(view)
   const positions = buses.map((bus, index) => {
     const angle = (Math.PI * 2 * index) / Math.max(1, buses.length) - Math.PI / 2
     return { x: WIDTH / 2 + Math.cos(angle) * 290,

@@ -4,7 +4,10 @@ import pytest
 
 from dataclasses import replace
 import time
+import json
 from capstone_model_capability_spi import ModelCapabilitySelection
+from capstone_agent.network_diagram import MAX_EVENT_PAGE_BYTES, normalize_network_diagram
+from capstone_agent.thread_protocol import ThreadProtocolError
 
 from capstone_agent.thread_service import (
     InMemoryThreadService,
@@ -96,6 +99,43 @@ def _command(command_id: str = "cmd_attempt_001") -> dict[str, object]:
         "run_id": "run_attempts", "kind": "send_ordinary", "expected_event_seq": 0,
         "payload": {"text": "inspect the current model"},
     }
+
+
+def test_large_diagrams_have_bound_model_identity_and_byte_paged_replay() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("worker", lease_seconds=120)
+    assert claim is not None
+    diagram = normalize_network_diagram({
+        "schema": "capstone-network-diagram/1.0",
+        "model": {"id": claim.model_context.model_id, "revision": claim.model_context.model_revision, "source": "gridctl"},
+        "coordinate_system": "schematic",
+        "buses": [{"id": str(i), "label": "Grid bus " + "x" * 180, "x": None, "y": None, "vn_kv": 220}
+                  for i in range(9241)], "branches": [],
+    })
+    for _ in range(3):
+        service.append_runtime_event(claim, event_type="network_diagram", payload={"diagram": diagram})
+    with pytest.raises(ThreadProtocolError, match="too large"):
+        service.append_runtime_event(claim, event_type="assistant_delta", payload={"text": "x" * 65537})
+    foreign = {**diagram, "model": {**diagram["model"], "id": "foreign"}}
+    foreign.pop("ref"); foreign.pop("fingerprint")
+    with pytest.raises(ThreadProtocolError, match="claimed model"):
+        service.append_runtime_event(claim, event_type="network_diagram", payload={"diagram": foreign})
+    cursor = 0
+    collected = []
+    pages = 0
+    while True:
+        page = service.read_events("thr_attempts", cursor)
+        assert len(json.dumps(page.to_document(), ensure_ascii=False).encode()) <= MAX_EVENT_PAGE_BYTES
+        assert page.next_event_seq > cursor
+        pages += 1
+        collected.extend(page.events)
+        cursor = page.next_event_seq
+        if not page.has_more:
+            break
+    assert pages >= 3
+    assert [event.event_seq for event in collected] == list(range(1, cursor + 1))
+    assert sum(event.event_type == "network_diagram" for event in collected) == 3
 
 
 def test_command_creates_an_immutable_attempt_target_before_runtime_claim() -> None:

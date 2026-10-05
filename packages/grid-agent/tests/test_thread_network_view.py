@@ -7,6 +7,7 @@ import pytest
 
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
+from capstone_agent.thread_network import NetworkProjectionUnavailable
 from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR, build_pandapower_thread_application,
@@ -262,8 +263,9 @@ def test_thread_topology_rejects_foreign_authority_identity(grid, monkeypatch, f
     diagram = grid.invoke("operator.diagram.get", {"context_ref": binding.context_ref})
     provider = _provider(grid)
     monkeypatch.setattr(provider, "_executor", SimpleNamespace(invoke=lambda *_args: {**diagram, field: value}))
-    with pytest.raises(ValueError, match="another context or revision"):
+    with pytest.raises(NetworkProjectionUnavailable) as failure:
         provider.project(claim, (), (), ())
+    assert failure.value.code == "projection_model_mismatch"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -279,8 +281,9 @@ def test_thread_topology_rejects_another_claim_identity(grid, field, value):
         snapshot = replace(claim.model_context, **{field: value})
         foreign = replace(claim, model_context=snapshot, model_context_id=snapshot.id,
                           attempt=replace(claim.attempt, target_model_context_id=snapshot.id))
-    with pytest.raises(ValueError, match="does not match Attempt"):
+    with pytest.raises(NetworkProjectionUnavailable) as failure:
         build_pandapower_thread_network_provider(context).project(foreign, (), (), ())
+    assert failure.value.code == "projection_model_mismatch"
 
 
 @pytest.mark.parametrize("field,value", [

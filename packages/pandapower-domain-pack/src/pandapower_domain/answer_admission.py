@@ -83,9 +83,11 @@ class PandapowerAnswerAdmissionPolicy:
 
 _READ_ONLY_MODEL_CAPABILITIES = frozenset({
     "environment.describe",
+    "analysis.operation.list", "analysis.operation.describe",
     "model.list", "model.creator.list", "model.creator.describe",
     "context.open", "context.get", "model.dataset.list",
     "model.dataset.describe", "model.dataset.query", "model.element.get",
+    "topology.components.get",
 })
 
 

@@ -4,3 +4,6 @@ globalThis.ResizeObserver = class implements ResizeObserver {
   unobserve() {}
   disconnect() {}
 }
+// assistant-ui schedules scrollTo on animation frames, including after tests.
+// jsdom has no scroll layout; keep the browser method present for that lifecycle.
+HTMLElement.prototype.scrollTo = function () {}

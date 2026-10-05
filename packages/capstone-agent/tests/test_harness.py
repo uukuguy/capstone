@@ -422,7 +422,7 @@ def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable(
     assert result.status == "completed"
     events = service.read_events("thr_harness", 0).events
     assert events[-2].event_type == "network_layer_unavailable"
-    assert events[-2].payload == {"ordinal": 1}
+    assert events[-2].payload == {"ordinal": 1, "code": "projection_source_unavailable"}
     assert events[-1].event_type == "attempt_completed"
 
 

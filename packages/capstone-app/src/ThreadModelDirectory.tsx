@@ -9,7 +9,7 @@ type Props = {
   disabled: boolean
   pending: boolean
   onTargetChange: (value: string) => void
-  onSwitch: () => void
+  onSwitch: (modelId: string) => void
 }
 
 const modelOrder = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
@@ -23,6 +23,7 @@ export default function ThreadModelDirectory({ models, currentModelId, target, d
   const opener = useRef<HTMLButtonElement>(null)
   const container = useRef<HTMLDivElement>(null)
   const search = useRef<HTMLInputElement>(null)
+  const keyboardBrowse = useRef(false)
   const id = useId()
   useEffect(() => { if (open) search.current?.focus() }, [open])
   useEffect(() => { setOpen(false); setQuery(''); setFamily('') }, [currentModelId])
@@ -56,6 +57,13 @@ export default function ThreadModelDirectory({ models, currentModelId, target, d
     .sort((left, right) => modelOrder.compare(left.implementationFamily, right.implementationFamily) ||
       modelOrder.compare(left.modelId, right.modelId) || left.modelId.localeCompare(right.modelId))
   const chosen = filtered.find((model) => model.modelId === target)
+  const openModel = (modelId: string) => {
+    const model = filtered.find((item) => item.modelId === modelId)
+    if (disabled || pending || !model || model.available === false || modelId === currentModelId) return
+    onSwitch(modelId)
+    setOpen(false)
+    opener.current?.focus()
+  }
 
   return <div ref={container} className="thread-model-directory" onKeyDown={(event) => {
     if (open && event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); event.stopPropagation() }
@@ -64,7 +72,7 @@ export default function ThreadModelDirectory({ models, currentModelId, target, d
     if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
   }}>
     <button ref={opener} type="button" className="thread-settings-trigger thread-model-trigger" aria-label="模型目录" title="选择电网模型" aria-expanded={open} aria-controls={id}
-      onClick={() => setOpen((value) => !value)}><Database aria-hidden="true" /><span>模型</span><ChevronDown aria-hidden="true" /></button>
+      onClick={() => { keyboardBrowse.current = false; if (!open) onTargetChange(currentModelId); setOpen((value) => !value) }}><Database aria-hidden="true" /><span>模型</span><ChevronDown aria-hidden="true" /></button>
     {open && <section id={id} className="thread-directory-panel" style={{ maxHeight: panelHeight }} aria-label="已注册电网模型目录">
       <div className="thread-directory-filters">
         <input ref={search} type="search" aria-label="搜索电网模型" placeholder="搜索模型名称或 ID" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -74,16 +82,29 @@ export default function ThreadModelDirectory({ models, currentModelId, target, d
       </div>
       <p className="thread-directory-count" role="status">{filtered.length} / {models.length} 个已注册模型 · 按引擎、模型 ID 排序</p>
       {filtered.length ? <select size={Math.max(2, Math.min(6, filtered.length))} aria-label="目标电网模型" value={chosen ? target : ''} disabled={disabled}
-        onChange={(event) => onTargetChange(event.target.value)}>
+        onPointerDown={() => { keyboardBrowse.current = false }}
+        onKeyDown={(event) => {
+          if (event.key.length === 1 || ['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'].includes(event.key)) keyboardBrowse.current = true
+          if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openModel(event.currentTarget.value) }
+        }}
+        onChange={(event) => { onTargetChange(event.target.value); if (!keyboardBrowse.current) openModel(event.target.value) }}>
         <option value="" disabled hidden>请选择模型</option>
         {filtered.map((model) => <option key={model.modelId} value={model.modelId} disabled={model.available === false}>
-          {model.modelId}{model.displayName !== model.modelId ? ` · ${model.displayName}` : ''} · {model.implementationFamily}{model.modelId === currentModelId ? ' · 当前模型' : ''}{model.available === false ? ` · 不可用 (${model.unavailableReason || 'worker unavailable'})` : ''}
+          {model.modelId}{model.displayName !== model.modelId ? ` · ${model.displayName}` : ''} · {model.implementationFamily}{model.modelId === currentModelId ? ' · 当前模型' : ''}{model.available === false ? ` · ${modelUnavailableCopy(model.unavailableReason)}` : ''}
         </option>)}
       </select> : <p className="thread-directory-empty">没有匹配的已注册模型。请缩短搜索词或选择全部引擎。</p>}
-      <div className="thread-directory-footer"><button type="button" className="thread-control-button"
-        disabled={disabled || !chosen || chosen.available === false || target === currentModelId} onClick={onSwitch}>切换模型</button>
+      <div className="thread-directory-footer">
         <span>{pending ? '切换将在下一 Turn 激活' : '也可以在对话中输入“打开 模型 ID”。'}</span>
       </div>
     </section>}
   </div>
+}
+
+export function modelUnavailableCopy(reason?: string): string {
+  switch (reason) {
+    case 'diagram_limit': return '超出完整拓扑显示容量'
+    case 'diagram_invalid': return '拓扑数据未通过校验'
+    case 'worker_unavailable': return '模型服务未就绪'
+    default: return '模型当前不可用'
+  }
 }

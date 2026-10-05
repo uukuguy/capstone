@@ -9,6 +9,16 @@ from .network_diagram import normalize_network_projection
 from .thread_service import AttemptClaim
 
 
+class NetworkProjectionUnavailable(RuntimeError):
+    """Safe application diagnostic; raw authority exceptions stay server-side."""
+
+    def __init__(self, code: str) -> None:
+        if code not in {"diagram_limit", "projection_source_unavailable", "projection_invalid", "projection_model_mismatch"}:
+            raise ValueError("network projection failure code is invalid")
+        self.code = code
+        super().__init__(code)
+
+
 @runtime_checkable
 class ThreadNetworkProjectionProvider(Protocol):
     """Application-owned provider for one claimed model context."""

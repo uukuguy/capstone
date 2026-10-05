@@ -1,7 +1,8 @@
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
+import { MAX_THREAD_JSON_BYTES } from './networkLimits'
 
-const MAX_JSON_BYTES = 2 * 1024 * 1024 + 128 * 1024
+const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 
 export class ThreadTransportError extends Error {
   constructor(public readonly status: number, message: string, public readonly body?: unknown) {
@@ -107,11 +108,11 @@ export class HttpThreadTransport implements ThreadTransport {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-        if (buffer.length > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
         let boundary: number
         while ((boundary = buffer.indexOf('\n\n')) !== -1) {
           const frame = buffer.slice(0, boundary)
           buffer = buffer.slice(boundary + 2)
+          if (new TextEncoder().encode(frame).byteLength > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
           const data = frame.split('\n').find((line) => line.startsWith('data: '))
           if (!data) continue
           const eventName = frame.split('\n').find((line) => line.startsWith('event: '))?.slice(7)
@@ -125,6 +126,7 @@ export class HttpThreadTransport implements ThreadTransport {
           cursor = event.eventSeq
           yield event
         }
+        if (new TextEncoder().encode(buffer).byteLength > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
       }
     } finally {
       reader.releaseLock()

@@ -1,9 +1,28 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { LegacyNetworkView } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network layout', () => {
+  it('lays out complete large disconnected graphs without all-pairs work', () => {
+    const buses = Array.from({ length: 9241 }, (_, i) => ({
+      id: String(i), label: `Bus ${i}`, x: null, y: null, vn_kv: 220,
+    }))
+    const branches = buses.slice(1).filter((_, i) => i % 100 !== 0).map((bus) => ({
+      id: `line:${bus.id}`, kind: 'line' as const, label: bus.id,
+      from_bus: String(Number(bus.id) - 1), to_bus: bus.id,
+    }))
+    const diagram = { ...sampleDiagramView.diagram, buses, branches }
+    const hypot = vi.spyOn(Math, 'hypot')
+    try {
+      const first = layoutNetwork(diagram)
+      expect(first.map((bus) => bus.id)).toEqual(buses.map((bus) => bus.id))
+      expect(first.every((bus) => Number.isFinite(bus.x) && Number.isFinite(bus.y) &&
+        bus.x >= 40 && bus.x <= 960 && bus.y >= 40 && bus.y <= 560)).toBe(true)
+      expect(layoutNetwork(diagram)).toEqual(first)
+      expect(hypot.mock.calls.length).toBeLessThan(buses.length * 10)
+    } finally { hypot.mockRestore() }
+  })
   it('places all buses deterministically within a bounded schematic canvas', () => {
     const first = layoutNetwork(sampleView)
     expect(layoutNetwork(sampleView)).toEqual(first)

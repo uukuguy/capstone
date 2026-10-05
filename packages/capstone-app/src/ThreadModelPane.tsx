@@ -25,6 +25,7 @@ export type ThreadModelPaneProps = {
   previewDiagram: NetworkDiagram | null
   networkView?: DiagramNetworkView | null
   networkTaskId?: string
+  networkFailureCode?: string
   instructionLabel?: string
   viewingInstruction?: boolean
   onLatestInstruction?: () => void
@@ -76,7 +77,7 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
   projectionEventSeq, previewDiagram,
-  networkView, networkTaskId, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
+  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -128,6 +129,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
       {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
         <NetworkView compact view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${networkTaskId || ''}:${focusedElementId || ''}`}
           instructionLabel={instructionLabel}
+          failureCode={networkFailureCode}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>
     <details className="thread-view-details"><summary>电网视图详情{isHistorical ? ' · 历史只读' : ''}</summary>

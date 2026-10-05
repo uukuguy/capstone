@@ -55,7 +55,12 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     // a second, unused server Thread for the same entry.
     if (creation.current?.client !== client) creation.current = { client, request: client.create('ieee39') }
     void creation.current.request.then((snapshot) => {
-      if (active) setCreatedThreadId(snapshot.threadId)
+      if (active) {
+        setCreatedThreadId(snapshot.threadId)
+        const url = new URL(window.location.href)
+        url.searchParams.set('thread', snapshot.threadId)
+        window.history.replaceState(window.history.state, '', url)
+      }
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : 'Thread 创建失败')
     }).finally(() => { if (active) setCreating(false) })

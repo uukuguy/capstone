@@ -12,6 +12,7 @@ import json
 import re
 import secrets
 import time
+from itertools import islice
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from threading import RLock
@@ -43,6 +44,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 
 
@@ -414,7 +416,9 @@ def _thread_catalog_document(
                 continue
             family_name = cast(str, implementation_family)
             families.add(family_name)
-            available = available_families is None or family_name in available_families
+            worker_available = available_families is None or family_name in available_families
+            available = worker_available and getattr(entry, "available", True)
+            reason = "worker_unavailable" if not worker_available else getattr(entry, "unavailable_reason", None)
             models.append({
                 "model_id": model_id,
                 "authority_model_ref": authority_model_ref,
@@ -422,7 +426,7 @@ def _thread_catalog_document(
                 "diagram_provider_id": diagram_provider_id,
                 "implementation_family": implementation_family,
                 "available": available,
-                **({"unavailable_reason": "worker_unavailable"} if not available else {}),
+                **({"unavailable_reason": reason or "model_unavailable"} if not available else {}),
             })
 
     profiles: dict[tuple[str, str], dict[str, object]] = {}
@@ -472,6 +476,37 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
     _validate_json(value, name=name)
     if len(_canonical(value).encode("utf-8")) > maximum:
         raise ThreadProtocolError(f"{name} is too large")
+
+
+def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
+    if event_type != "network_diagram":
+        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
+        return
+    _validate_bounded_json(payload, name="event.payload", maximum=MAX_DIAGRAM_BYTES + 1024)
+    if set(payload) != {"diagram"}:
+        raise ThreadProtocolError("network diagram payload is invalid")
+    try:
+        diagram = normalize_network_diagram(payload["diagram"])
+    except (TypeError, ValueError) as error:
+        raise ThreadProtocolError("network diagram payload is invalid") from error
+    if (diagram["model"]["id"] != claim.model_context.model_id or
+            diagram["model"]["revision"] != claim.model_context.model_revision):
+        raise ThreadProtocolError("network diagram does not match the claimed model")
+
+
+def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[EventEnvelope, ...]) -> EventPage:
+    selected: list[EventEnvelope] = []
+    size = 1024
+    for event in events[:256]:
+        event_size = len(_canonical(event.to_document()).encode("utf-8")) + 2
+        if size + event_size > MAX_EVENT_PAGE_BYTES:
+            if not selected:
+                raise ThreadProtocolError("event exceeds the page size limit")
+            break
+        selected.append(event)
+        size += event_size
+    cursor = selected[-1].event_seq if selected else after
+    return EventPage(thread_id, after, cursor, bool(selected and cursor < last), tuple(selected))
 
 
 def _admission_rejection(command: Mapping[str, Any]) -> str | None:
@@ -662,9 +697,8 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             if after_event_seq < self._snapshot.base_event_seq:
                 raise ThreadResyncRequired(self._snapshot)
-            events = tuple(event for event in self._events if event.event_seq > after_event_seq)
-            next_event_seq = events[-1].event_seq if events else after_event_seq
-            return EventPage(thread_id, after_event_seq, next_event_seq, False, events)
+            events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
+            return _bounded_event_page(thread_id, after_event_seq, self._snapshot.last_event_seq, events)
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
         parsed = self._parse_command(command)
@@ -1204,7 +1238,7 @@ class InMemoryThreadService:
         visibility: str = "public",
     ) -> EventEnvelope:
         _identifier(event_type, name="event_type")
-        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
+        _validate_runtime_payload(event_type, payload, claim)
         with self._lock:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
@@ -1324,6 +1358,8 @@ class InMemoryThreadService:
             return None, "model_unavailable"
         if not self.is_family_available(descriptor.implementation_family):
             return None, "worker_unavailable"
+        if not descriptor.available:
+            return None, descriptor.unavailable_reason or "model_unavailable"
         active = self._snapshot.active_model_context
         if not allow_same and (
             descriptor.model_id == active.model_id
@@ -1529,8 +1565,12 @@ class ThreadModelDescriptor:
     authority_model_ref: str | None = None
     display_name: str | None = None
     diagram_provider_id: str | None = None
+    available: bool = True
+    unavailable_reason: str | None = None
 
     def __post_init__(self) -> None:
+        if type(self.available) is not bool or (self.unavailable_reason is not None and not _IDENTIFIER.fullmatch(self.unavailable_reason)):
+            raise ValueError("model availability is invalid")
         validate_model_id(self.model_id)
         if not isinstance(self.model_revision, str) or not self.model_revision.strip():
             raise ValueError("model_revision is invalid")
@@ -1585,6 +1625,8 @@ class ThreadCreator:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
         )
+        if not descriptor.available:
+            raise ValueError(descriptor.unavailable_reason or "model_unavailable")
         available = getattr(self._service, "is_family_available", None)
         if callable(available) and not available(descriptor.implementation_family):
             raise ValueError("worker_unavailable")
@@ -1817,15 +1859,22 @@ class PostgresThreadService:
             raise ThreadResyncRequired(snapshot)
         with self._connect() as connection:
             rows = connection.execute(
-                """SELECT * FROM capstone_thread_events
-                   WHERE thread_id = %s AND event_seq > %s
-                   ORDER BY event_seq LIMIT 256""",
-                (thread_id, after_event_seq),
+                """WITH sizes AS (
+                     SELECT event_seq, octet_length(payload::text) + 1024 AS bytes
+                     FROM capstone_thread_events WHERE thread_id = %s AND event_seq > %s
+                     ORDER BY event_seq LIMIT 256
+                   ), budget AS (
+                     SELECT event_seq, sum(bytes) OVER (ORDER BY event_seq) AS total,
+                            row_number() OVER (ORDER BY event_seq) AS rank FROM sizes
+                   )
+                   SELECT event.* FROM capstone_thread_events AS event
+                   JOIN budget ON budget.event_seq = event.event_seq
+                   WHERE event.thread_id = %s AND (budget.total <= %s OR budget.rank = 1)
+                   ORDER BY event.event_seq""",
+                (thread_id, after_event_seq, thread_id, MAX_EVENT_PAGE_BYTES - 1024),
             ).fetchall()
         events = tuple(self._event_from_row(row) for row in rows)
-        next_event_seq = events[-1].event_seq if events else after_event_seq
-        has_more = bool(events and next_event_seq < snapshot.last_event_seq)
-        return EventPage(thread_id, after_event_seq, next_event_seq, has_more, events)
+        return _bounded_event_page(thread_id, after_event_seq, snapshot.last_event_seq, events)
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
         parsed = InMemoryThreadService._parse_command(command)
@@ -2645,7 +2694,7 @@ class PostgresThreadService:
         visibility: str = "public",
     ) -> EventEnvelope:
         _identifier(event_type, name="event_type")
-        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
+        _validate_runtime_payload(event_type, payload, claim)
         if visibility not in {"public", "diagnostic"}:
             raise ThreadProtocolError("event visibility is invalid")
         with self._connect() as connection:
@@ -2802,6 +2851,8 @@ class PostgresThreadService:
             return None, "model_unavailable"
         if not self.is_family_available(descriptor.implementation_family):
             return None, "worker_unavailable"
+        if not descriptor.available:
+            return None, descriptor.unavailable_reason or "model_unavailable"
         active = snapshot.active_model_context
         if not allow_same and (
             descriptor.model_id == active.model_id

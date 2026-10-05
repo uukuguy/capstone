@@ -1676,3 +1676,11 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 20:59 顶图下恢复最早案例页 CAPSTONE 描述并补充智能体对话说明，使用10px小字号；桌面/手机浏览器、构建及本地重建通过。
 - 21:00 Restored framework copy and added conversation guidance below the artwork to explain the workspace. [3d804db]
 - 2026-10-05 Moved the sorted model menu beside Composer settings, matched its10px text, and compacted topology controls;230 App tests, browser checks, build, review and local rebuild passed.
+- 2026-10-05 Compacted Composer model selection and topology to reduce clutter and match input typography. [c59b85f]
+- 2026-10-05 Traced topology-only failure to omitted read-only admission capabilities; regression reproduced capability_required and passed after the minimal fix.
+- 2026-10-05 Verified235 App tests, topology admission, stable hover actions, completed reruns, model-only opens and root/old routes; offline gates passed.
+- 2026-10-05 Reproduced the2000-bus rejection; GBnetwork browser now shows2224 buses/3207 branches, with zoom and refresh verified.
+- 2026-10-05 Added authority catalogue eligibility, reason/action diagnostics, bounded large-event replay and diagram sharing;244 App checks passed.
+- 2026-10-05 Expanded complete operator geometry and catalogue eligibility to prevent unavailable model choices. [7afca7c]
+- 2026-10-05 Validated typed operator capacity limits to preserve contract bounds and pass static checks. [2e59e06]
+- 2026-10-05 Verified complete large-model browser views, real PostgreSQL paging, full offline gates and zero-error types; independent review approved.

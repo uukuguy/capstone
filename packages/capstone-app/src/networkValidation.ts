@@ -1,4 +1,5 @@
 import type { NetworkDiagram, NetworkView } from './types'
+import { MAX_NETWORK_BUSES, MAX_NETWORK_BRANCHES } from './networkLimits'
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -23,8 +24,8 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
       !['geographic', 'schematic'].includes(String(diagram.coordinate_system)) ||
       !/^topology:sha256:[a-f0-9]{64}$/.test(String(diagram.fingerprint)) ||
       !/^diagram:sha256:[a-f0-9]{64}$/.test(String(diagram.ref)) ||
-      !Array.isArray(diagram.buses) || diagram.buses.length < 1 || diagram.buses.length > 2000 ||
-      !Array.isArray(diagram.branches) || diagram.branches.length > 4000 ||
+      !Array.isArray(diagram.buses) || diagram.buses.length < 1 || diagram.buses.length > MAX_NETWORK_BUSES ||
+      !Array.isArray(diagram.branches) || diagram.branches.length > MAX_NETWORK_BRANCHES ||
       layer.schema !== 'capstone-network-layer/1.0' || layer.ordinal !== ordinal ||
       layer.diagram_ref !== diagram.ref || layer.model_revision !== diagram.model.revision) return null
   const busIds = new Set<string>()
@@ -56,7 +57,7 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
   if (layer.overlay !== null) {
     const overlay = layer.overlay
     if (!record(overlay) || !text(overlay.source_ref) || !admittedRefs.includes(overlay.source_ref) ||
-        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > 4000 ||
+        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > MAX_NETWORK_BRANCHES ||
         !((overlay.metric === 'loading_percent' && overlay.unit === '%') ||
           (overlay.metric === 'voltage_pu' && overlay.unit === 'p.u.'))) return null
     const allowed = overlay.metric === 'voltage_pu' ? busIds : lineIds

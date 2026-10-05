@@ -788,6 +788,12 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} />
   }
   if (liveThreadRoute) return <ThreadLiveEntry threadId={liveThreadRoute} />
+  const path = typeof window === 'undefined' ? '/' : window.location.pathname
+  if (path !== '/old' && path !== '/old/') return <ThreadLiveEntry threadId="new" />
+  return <LegacyCaseApp clientFactory={clientFactory} />
+}
+
+function LegacyCaseApp({ clientFactory = defaultClientFactory }: Props) {
   const [client, setClient] = useState<CapstoneClient | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)

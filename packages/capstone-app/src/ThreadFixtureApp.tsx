@@ -5,7 +5,8 @@ import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
-import ThreadModelDirectory from './ThreadModelDirectory'
+import ThreadModelDirectory, { modelUnavailableCopy } from './ThreadModelDirectory'
+import { commandRejectionCopy } from './threadFeedback'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
@@ -130,7 +131,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
   const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !projection.resyncRequired
-  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !caseActive && !projection.resyncRequired
+  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !caseActive && !sending && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
     const active = snapshot ? {
@@ -201,8 +202,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         }
       }
       const receiptNotice = receipt.status === 'accepted'
-        ? successNotice || `${kind} · ${receipt.status}`
-        : `${kind} · ${receipt.status}${receipt.rejection ? ` · ${receipt.rejection}` : ''}`
+        ? successNotice || '操作已提交。'
+        : commandRejectionCopy(receipt.rejection)
       setNotice(conversational && receipt.status === 'accepted' ? null : receiptNotice); sync()
       if (receipt.status === 'accepted') {
         setError(null)
@@ -286,7 +287,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       } else if (resolution.kind === 'resolved') {
         const model = resolution.model
         if (model.available === false) {
-          setNotice(`${model.displayName} 当前不可用${model.unavailableReason ? `（${model.unavailableReason}）` : ''}。请先确认对应 worker 已就绪。`)
+          setNotice(`${model.displayName}：${modelUnavailableCopy(model.unavailableReason)}。请从目录选择可用模型。${model.unavailableReason ? `（诊断代码：${model.unavailableReason}）` : ''}`)
           throw new MessageNotSentError('所选模型当前不可用。')
         }
         const pendingModel = store.state.snapshot?.pendingModelSwitch
@@ -324,6 +325,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           projectionEventSeq={projection.eventSeq} previewDiagram={currentDiagram}
           networkView={activeNetworkView}
           networkTaskId={selectedNetworkTask?.attemptId || networkTask?.attemptId}
+          networkFailureCode={!selectedNetworkTask && networkTask?.eventType === 'network_layer_unavailable' && typeof networkTask.payload.code === 'string' ? networkTask.payload.code : undefined}
           instructionLabel={instructionNumber ? `指令 ${instructionNumber}` : undefined}
           viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
@@ -335,7 +337,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
-          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
+          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
               setFocusedElement(undefined)
               setSelectedNetworkAttempt(attemptId)
@@ -367,11 +369,17 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
-                onTargetChange={setModelTarget} onSwitch={() => void sendConversation('automatic', `打开 ${modelTarget} 电网模型并显示电网拓扑。`).catch(() => {})} /></>}
+                onTargetChange={setModelTarget} onSwitch={(modelId) => void sendConversation('automatic', `打开 ${modelId} 电网模型`).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={sendConversation}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
-            onRegenerate={canRetry ? async (attemptId) => { await dispatch('retry_new_attempt', { attempt_id: attemptId }) } : undefined} />
+            onRegenerate={canRetry ? async (attemptId, instruction) => {
+              if (events.some((event) => event.attemptId === attemptId && event.eventType === 'attempt_completed')) {
+                if (canSendText && !contextChangePending && instruction?.trim()) await sendConversation('automatic', instruction)
+              } else {
+                await dispatch('retry_new_attempt', { attempt_id: attemptId })
+              }
+            } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
               {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry, { turn_id: attempt?.turnId })}

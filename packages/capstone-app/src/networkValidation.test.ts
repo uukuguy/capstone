@@ -3,6 +3,17 @@ import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network projection at the browser boundary', () => {
+  it('accepts a complete large model and still rejects over-limit or foreign endpoints', () => {
+    const buses = Array.from({ length: 9241 }, (_, i) => ({
+      id: String(i), label: `Bus ${i}`, x: null, y: null, vn_kv: 220,
+    }))
+    const diagram = { ...sampleDiagramView.diagram, coordinate_system: 'schematic', buses, branches: [{
+      id: 'line:1', kind: 'line', label: 'Line 1', from_bus: '0', to_bus: '9240',
+    }] }
+    expect(parseNetworkDiagram(diagram)?.buses).toHaveLength(9241)
+    expect(parseNetworkDiagram({ ...diagram, buses: [...buses, ...buses] })).toBeNull()
+    expect(parseNetworkDiagram({ ...diagram, branches: [{ ...diagram.branches[0], to_bus: 'foreign' }] })).toBeNull()
+  })
   it('accepts only a bounded standalone case diagram', () => {
     expect(parseNetworkDiagram(sampleDiagramView.diagram)).toEqual(sampleDiagramView.diagram)
     expect(parseNetworkDiagram({ ...sampleDiagramView.diagram, branches: [

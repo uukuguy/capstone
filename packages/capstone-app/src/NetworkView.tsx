@@ -45,13 +45,14 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel, compact = false,
                               nextTask = false, unavailable = false,
-                              previewUnavailable = false, historyFocusIds = [] }: {
+                              previewUnavailable = false, failureCode, historyFocusIds = [] }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
   instructionLabel?: string
   compact?: boolean
   nextTask?: boolean;
   unavailable?: boolean; previewUnavailable?: boolean
+  failureCode?: string
   historyFocusIds?: string[]
 }) {
   const [camera, setCamera] = useState<Camera>(FULL)
@@ -267,11 +268,22 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
         {hovered && <span className="network-hover-id">{hovered}{hoveredValue === undefined ? ''
           : ` · ${hoveredValue.toFixed(layer!.overlay?.metric === 'voltage_pu' ? 3 : 1)} ${layer!.overlay?.unit}`}</span>}
       </div>
-  </> : <div className="network-empty"><span aria-hidden="true">◇</span>
+  </> : <div className="network-empty" role={unavailable ? 'alert' : 'status'}><span aria-hidden="true">◇</span>
       <strong>{unavailable ? '本轮电网视图暂不可用'
         : previewUnavailable ? '案例电网暂不可用' : '正在读取案例电网…'}</strong>
-      <p>{unavailable ? '当前运行没有可验证的模型投影；已提交回答仍可查看。'
+      <p>{unavailable ? networkFailureCopy(failureCode)
         : previewUnavailable ? '登记模型的底图未能读取，请稍后重新打开案例。'
-          : `模型：${modelName}。正在加载权威系统返回的完整拓扑。`}</p></div>}
+          : `模型：${modelName}。正在加载权威系统返回的完整拓扑。`}</p>
+      {unavailable && failureCode && <small>诊断代码：{failureCode}</small>}</div>}
   </section>
+}
+
+function networkFailureCopy(code?: string): string {
+  switch (code) {
+    case 'diagram_limit': return '此模型的完整拓扑超过当前视图容量，无法显示。请从模型目录选择可显示的模型；已完成的回答仍可查看。'
+    case 'projection_model_mismatch': return '返回的拓扑与本次指令的模型或版本不一致，已停止显示。请重试本次指令；若仍失败，可查看运行过程。'
+    case 'projection_invalid': return '返回的拓扑未通过数据校验，已停止显示。请重试本次指令；若仍失败，可查看运行过程。'
+    case 'projection_source_unavailable': return '电网服务未能返回本次模型的拓扑。请重试本次指令；若仍失败，可查看运行过程。'
+    default: return '本次运行未取得可验证的电网拓扑。请重试本次指令或重新打开模型；已完成的回答仍可查看。'
+  }
 }

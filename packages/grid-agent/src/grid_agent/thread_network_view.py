@@ -9,7 +9,8 @@ from typing import Protocol, cast
 
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.model_capability_context import PreparedModelCapabilityContext
-from capstone_agent.thread_network import ThreadNetworkProjectionProvider
+from capstone_agent.thread_network import ThreadNetworkProjectionProvider, NetworkProjectionUnavailable
+from pandapower_domain.execution import SimulatorCapabilityError
 from capstone_agent.thread_service import AttemptClaim
 
 from .network_view import NetworkExecutor
@@ -88,15 +89,19 @@ class PandapowerThreadNetworkProjectionProvider:
             or claim.run_id != self._context.run_id
             or claim.model_context != self._context.model_context
         ):
-            raise ValueError("pandapower topology context does not match Attempt")
-        topology = self._executor.invoke(
-            "operator.diagram.get", {"context_ref": self._binding.context_ref},
-        )
+            raise NetworkProjectionUnavailable("projection_model_mismatch")
+        try:
+            topology = self._executor.invoke(
+                "operator.diagram.get", {"context_ref": self._binding.context_ref},
+            )
+        except SimulatorCapabilityError as error:
+            code = "diagram_limit" if error.error.get("code") == "diagram_too_large" else "projection_source_unavailable"
+            raise NetworkProjectionUnavailable(code) from error
         if not isinstance(topology, Mapping) or (
             topology.get("context_ref") != self._binding.context_ref
             or topology.get("revision_ref") != self._binding.model_revision
         ):
-            raise ValueError("pandapower diagram belongs to another context or revision")
+            raise NetworkProjectionUnavailable("projection_model_mismatch")
         focus = self._endpoint_focus(topology, evidence_refs, tool_events)
         ranking = self._ranking_layer(topology, result_refs, tool_events)
         return {

@@ -11,6 +11,57 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('disables a completed rerun when a new instruction is blocked or its model context is historical', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_1'),
+      { ...event('attempt_completed', 2, { answer: '已完成。' }, 'attempt_1'), modelContextId: 'ctx_old' },
+    ]
+    const onRegenerate = vi.fn()
+    const props = { events, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onRegenerate }
+    const { rerender } = render(<CapstoneAssistantThread {...props} disabled={true} />)
+    expect((screen.getByRole('button', { name: '重试本次指令' }) as HTMLButtonElement).disabled).toBe(true)
+    rerender(<CapstoneAssistantThread {...props} disabled={false}
+      modelSummary={{ modelId: 'case57', implementationFamily: 'pandapower', modelRevision: 'new', contextId: 'ctx_new' }} />)
+    const retry = screen.getByRole('button', { name: '重试本次指令' })
+    expect((retry as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(retry)
+    expect(onRegenerate).not.toHaveBeenCalled()
+  })
+  it('keeps common answer actions in the same order and disables unavailable actions', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '目录信息。' }, 'attempt_catalog'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const toolbar = screen.getByLabelText('回答操作')
+    const buttons = within(toolbar).getAllByRole('button')
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      '复制回答', '查看此指令电网图', '查看分析结果', '查看证据', '查看运行过程', '重试本次指令', '更多回答操作',
+    ])
+    expect(buttons.map((button) => (button as HTMLButtonElement).disabled)).toEqual([
+      false, true, true, true, true, true, false,
+    ])
+    buttons.slice(1, 6).forEach((button) => fireEvent.click(button))
+    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
+    expect(screen.queryByLabelText('本次运行过程')).toBeNull()
+  })
+  it('keeps unfinished feedback actions disabled inside More', async () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '已读取模型。' }, 'attempt_1'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '回答有帮助' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '回答需改进' })).toBeNull()
+    const more = screen.getByRole('button', { name: '更多回答操作' })
+    fireEvent.click(more)
+    const group = screen.getByRole('group', { name: '更多回答操作' })
+    expect(within(group).getByRole('button', { name: /回答有帮助/ }).hasAttribute('disabled')).toBe(true)
+    expect(within(group).getByRole('button', { name: /回答需改进/ }).hasAttribute('disabled')).toBe(true)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('group', { name: '更多回答操作' })).toBeNull()
+    expect(document.activeElement).toBe(more)
+    fireEvent.click(more)
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Thread 指令' }))
+    expect(screen.queryByRole('group', { name: '更多回答操作' })).toBeNull()
+  })
   it('selects only the grid view belonging to that answer', async () => {
     const selected = vi.fn()
     render(<CapstoneAssistantThread events={[
@@ -20,7 +71,12 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       networkAttemptIds={['attempt_flow', 'attempt_rank']} onShowNetwork={selected} />)
     const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
-    expect(actions).toHaveLength(2)
+    expect(actions).toHaveLength(3)
+    expect((actions[0] as HTMLButtonElement).disabled).toBe(false)
+    expect((actions[1] as HTMLButtonElement).disabled).toBe(false)
+    expect((actions[2] as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(actions[2])
+    expect(selected).not.toHaveBeenCalled()
     fireEvent.click(actions[0])
     expect(selected).toHaveBeenLastCalledWith('attempt_flow')
     fireEvent.click(actions[1])
@@ -134,7 +190,7 @@ describe('CapstoneAssistantThread', () => {
 
   it('renders Markdown and mainstream message actions', async () => {
     render(<CapstoneAssistantThread events={[
-      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '查看当前模型' } }),
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '查看当前模型' } }, 'attempt_1'),
       event('attempt_completed', 2, { answer: '## 当前模型\n\n| 项目 | 值 |\n| --- | --- |\n| 母线 | 39 |' }, 'attempt_1'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={async () => {}} />)
 
@@ -142,7 +198,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('heading', { name: '当前模型' }).closest('.capstone-chat-markdown')).toBeTruthy()
     expect(screen.getByRole('cell', { name: '39' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
+    expect((screen.getByRole('button', { name: '重试本次指令' }) as HTMLButtonElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '继续分析' } })
     expect(screen.getByRole('button', { name: '发送指令' })).toBeTruthy()
@@ -251,7 +307,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
   })
 
-  it('retries the failed Attempt identity and hides retry while another Attempt runs', async () => {
+  it('retries the failed Attempt identity and disables retry while another Attempt runs', async () => {
     const onRegenerate = vi.fn().mockResolvedValue(undefined)
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_failed'),
@@ -261,7 +317,10 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_failed', '运行潮流'))
     rerender(<CapstoneAssistantThread events={events} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
-    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
+    const retry = screen.getByRole('button', { name: '重试本次指令' })
+    expect((retry as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(retry)
+    expect(onRegenerate).toHaveBeenCalledTimes(1)
   })
 
   it('keeps interrupted retry available while hiding terminal activity when trace is off', async () => {
@@ -274,7 +333,7 @@ describe('CapstoneAssistantThread', () => {
     ]
     render(<CapstoneAssistantThread events={events} disabled={true} isRunning={false} activity={[]} showActivity={false} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
     expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '查看运行过程' })).toBeNull()
+    expect((screen.getByRole('button', { name: '查看运行过程' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_interrupted', '继续分析'))
   })
@@ -339,7 +398,10 @@ describe('CapstoneAssistantThread', () => {
 
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByRole('group', { name: '当前运行证据' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '查看证据' })).toBeNull()
+    const evidence = screen.getByRole('button', { name: '查看证据' })
+    expect((evidence as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(evidence)
+    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
   })
 
   it('carries attempt model context into a terminal result card when the terminal event omits it', () => {

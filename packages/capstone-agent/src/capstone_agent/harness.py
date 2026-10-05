@@ -17,6 +17,7 @@ from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
     ThreadNetworkRuntimeObserver,
+    NetworkProjectionUnavailable,
     normalize_thread_network_projection,
 )
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
@@ -327,6 +328,7 @@ class HarnessPiClient:
         ):
             raise TypeError("network projection provider is invalid")
         self._network_projection_provider = network_projection_provider
+        self.network_projection_failure_code = "projection_unavailable"
 
     @property
     def network_projection_enabled(self) -> bool:
@@ -340,15 +342,23 @@ class HarnessPiClient:
         tool_events: tuple[Mapping[str, object], ...],
     ) -> dict[str, object] | None:
         provider = self._network_projection_provider
+        self.network_projection_failure_code = "projection_unavailable"
         if provider is None:
             return None
         try:
             value = provider.project(claim, result_refs, evidence_refs, tool_events)
-        except Exception:
+        except NetworkProjectionUnavailable as error:
+            self.network_projection_failure_code = error.code
             return None
-        return normalize_thread_network_projection(
+        except Exception:
+            self.network_projection_failure_code = "projection_source_unavailable"
+            return None
+        normalized = normalize_thread_network_projection(
             value, claim, (*result_refs, *evidence_refs),
         )
+        if normalized is None:
+            self.network_projection_failure_code = "projection_invalid"
+        return normalized
 
     def admit_attempt(
         self,
@@ -548,7 +558,7 @@ class HarnessAttemptRunner:
                     self._service.append_runtime_event(
                         claim,
                         event_type="network_layer_unavailable",
-                        payload={"ordinal": 1},
+                        payload={"ordinal": 1, "code": getattr(self._runtime, "network_projection_failure_code", "projection_unavailable")},
                         visibility="public",
                     )
                 else:

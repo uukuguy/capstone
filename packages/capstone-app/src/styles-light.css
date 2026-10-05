@@ -313,18 +313,19 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-intro-copy p { margin: 0; font: inherit; }
 .thread-model-history summary, .thread-view-details summary { cursor: pointer; min-height: 36px; padding: 9px 2px; color: #42645e; font-size: 11px; }
 .thread-model-directory { min-width: 0; }
-.thread-directory-panel { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 8px; right: 8px; max-width: 380px; overflow-y: auto; padding: 8px; background: #fff; border: 1px solid #cbded5; border-radius: 12px; box-shadow: 0 12px 28px #31564818; color: #4f716b; font-size: 10px; line-height: 1.4; }
+.thread-directory-panel { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 8px; right: 8px; max-width: 380px; overflow-y: auto; padding: 8px; background: #fff; border: 1px solid #cbded5; border-radius: 12px; box-shadow: 0 12px 28px #31564818; color: #4f716b; font-size: 9px; line-height: 1.4; }
 .thread-directory-filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .thread-directory-filters input { flex: 1 1 160px; min-width: 0; }
-.thread-directory-panel input, .thread-directory-panel select { border: 1px solid #9cbcb2; border-radius: 4px; background: #fff; color: #254b47; min-height: 30px; padding: 5px 6px; font: inherit; font-size: 10px; max-width: 100%; }
+.thread-directory-panel input, .thread-directory-panel select { border: 1px solid #9cbcb2; border-radius: 4px; background: #fff; color: #254b47; min-height: 30px; padding: 5px 6px; font: inherit; max-width: 100%; }
 .thread-directory-panel > select { width: 100%; max-height: 240px; }
 .thread-directory-panel option { padding: 4px 5px; }
-.thread-directory-count, .thread-directory-empty { margin: 6px 0; color: #49665f; font-size: 10px; line-height: 1.4; }
+.thread-directory-count, .thread-directory-empty { margin: 6px 0; color: #49665f; font-size: 9px; line-height: 1.4; }
 .thread-directory-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.thread-directory-footer span { color: #49665f; font-size: 10px; overflow-wrap: anywhere; }
+.thread-directory-footer span { color: #78918b; font-size: 8px; overflow-wrap: anywhere; }
 .thread-directory-panel .thread-control-button { min-height: 28px; font-size: 10px; }
 .thread-view-details p { color: #49665f; font-size: 11px; overflow-wrap: anywhere; }
 .thread-model-pane :is(summary, input, select, button):focus-visible, .thread-model-directory :is(input, select, button):focus-visible { outline: 2px solid #117b73; outline-offset: 3px; }
+.thread-model-directory :is(input, select):focus-visible { outline: none; border-color: #63a99b; background: #fbfdfc; box-shadow: none; }
 .thread-view-details { margin-top: 8px; }
 @media (max-width: 600px) {
   .thread-model-pane :is(summary, .thread-control-button), .thread-directory-panel .thread-control-button, .thread-directory-panel input, .thread-directory-filters select, .capstone-composer-root .thread-model-trigger, .capstone-composer-root .thread-settings-trigger { min-height: 44px; }
@@ -610,8 +611,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-suggestion::after { content: "↗"; color: #83a79d; font: 11px/1 Inter, sans-serif; }
 .capstone-chat-suggestion:hover, .capstone-chat-suggestion:focus-visible { border-color: #63aa98; background: linear-gradient(180deg, #f7fffb 0%, #eaf7f0 100%); box-shadow: 0 4px 12px #2d80651c; color: #176f64; outline: none; transform: translateY(-1px); }
 .capstone-chat-suggestion:hover::after, .capstone-chat-suggestion:focus-visible::after { color: #258b79; }
-.capstone-chat-message { display: block; max-width: min(86%, 720px); }
-.capstone-chat-message.is-assistant { align-self: flex-start; max-width: min(96%, 760px); }
+.capstone-chat-message { position: relative; display: block; max-width: min(86%, 720px); }
+.capstone-chat-message.is-assistant { align-self: flex-start; width: min(96%, 760px); max-width: min(96%, 760px); }
 .capstone-chat-message.is-user { align-self: flex-end; }
 .capstone-chat-avatar { display: none; }
 .capstone-chat-body { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #294948; }
@@ -638,18 +639,36 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-markdown table { width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 13px; }
 .capstone-chat-markdown th, .capstone-chat-markdown td { padding: 7px 9px; border: 1px solid #d9e6e0; text-align: left; }
 .capstone-chat-markdown th { background: #f5faf7; color: #35655e; font-weight: 700; }
-.capstone-chat-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-height: 36px; margin-top: 5px; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.capstone-chat-footer { position: relative; container-type: inline-size; min-height: 28px; margin-top: 3px; }
+.capstone-chat-footer > .capstone-chat-duration { display: inline-flex; align-items: center; height: 28px; margin: 0; }
+.capstone-chat-actions { position: absolute; right: 0; top: -4px; display: flex; align-items: center; gap: 2px; min-height: 36px; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.capstone-chat-message.is-user .capstone-chat-actions { top: calc(100% - 3px); }
 .capstone-chat-message:hover .capstone-chat-actions, .capstone-chat-message:focus-within .capstone-chat-actions { opacity: 1; pointer-events: auto; }
-@media (hover: none) {
-  .capstone-chat-actions { opacity: 1; pointer-events: auto; }
-}
+.capstone-chat-actions:has(.capstone-chat-more-panel) { opacity: 1; pointer-events: auto; transition: none; }
 .capstone-chat-action { display: inline-grid; place-items: center; min-width: 36px; min-height: 36px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #78918b; cursor: pointer; }
-.capstone-chat-action:hover, .capstone-chat-action:focus-visible { background: #eef6f2; color: #18786c; outline: none; }
-.capstone-chat-action[aria-pressed="true"] { background: #e2f2ed; color: #18786c; }
+.capstone-chat-action:not(:disabled):hover, .capstone-chat-action:focus-visible { background: #eef6f2; color: #18786c; outline: none; }
+.capstone-chat-action:disabled { opacity: .4; cursor: default; }
+.capstone-chat-action:not(:disabled)[aria-pressed="true"],
+.capstone-chat-action:not(:disabled)[aria-expanded="true"] { background: #e6f3ee; color: #147a6c; }
 .capstone-chat-action svg { width: 15px; height: 15px; stroke-width: 1.8; }
+.capstone-chat-more-panel { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 5; width: 184px; max-width: calc(100vw - 40px); padding: 4px; border: 1px solid #d9e6e0; border-radius: 7px; background: #fff; box-shadow: 0 4px 12px #31564816; }
+.capstone-chat-more-panel.opens-below { bottom: auto; top: calc(100% + 4px); }
+.capstone-chat-more-panel button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: #829b94; font: 10px/1.4 Inter, "PingFang SC", sans-serif; cursor: not-allowed; }
+.capstone-chat-more-panel svg { width: 13px; height: 13px; flex-shrink: 0; }
+.capstone-chat-more-panel small { margin-left: auto; color: #9bada7; font-size: 9px; }
+@media (hover: hover) and (min-width: 601px) {
+  @container (max-width: 360px) {
+    .capstone-chat-message:hover .capstone-chat-duration,
+    .capstone-chat-message:focus-within .capstone-chat-duration,
+    .capstone-chat-footer:has(.capstone-chat-more-panel) > .capstone-chat-duration { visibility: hidden; }
+  }
+}
 @media (max-width: 600px) {
-  .capstone-chat-actions { opacity: 1; pointer-events: auto; }
   .capstone-chat-action { min-width: 44px; min-height: 44px; }
+}
+@media (hover: none), (max-width: 600px) {
+  .capstone-chat-actions, .capstone-chat-message.is-user .capstone-chat-actions { position: relative; top: auto; right: auto; flex-wrap: wrap; opacity: 1; pointer-events: auto; }
+  .capstone-chat-footer > .capstone-chat-duration { height: auto; }
 }
 .capstone-chat-placeholder { font-size: 11px; line-height: 1.55; }
 .capstone-chat-placeholder.is-terminal { color: #986d59; }
@@ -707,7 +726,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-compact-popover { position: absolute; z-index: 20; bottom: calc(100% + 8px); left: 0; display: grid; gap: 8px; width: min(300px, 72vw); padding: 11px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; }
 .thread-compact-popover > strong { color: #365f58; font-size: 11px; }
 .thread-compact-popover > small { color: #829b94; font-size: 10px; }
-.thread-profile-option { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; column-gap: 7px; row-gap: 2px; padding: 6px; border: 1px solid #e0ece6; border-radius: 8px; color: #476962; font-size: 11px; cursor: pointer; }
+.thread-profile-option { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; column-gap: 7px; row-gap: 2px; padding: 6px; border: 1px solid #e0ece6; border-radius: 8px; color: #476962; font-size: 9px; cursor: pointer; }
 .thread-profile-option:hover { background: #f4faf7; }
 .thread-profile-option input { grid-row: span 2; accent-color: #198a7c; }
 .thread-profile-option small { grid-column: 2; color: #8da39d; font: 9px/1.3 "SFMono-Regular", Consolas, monospace; }
@@ -728,7 +747,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-routing-status strong { font-size: 11px; font-weight: 700; }
 .thread-routing-status small { margin-top: 2px; color: #87a099; font-size: 9px; }
 .thread-profile-menu { border-top: 1px solid #e4eee9; padding-top: 5px; }
-.thread-settings-item { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 30px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #4f716b; font-size: 10px; text-align: left; cursor: pointer; list-style: none; }
+.thread-settings-item { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 30px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #4f716b; font-size: 9px; text-align: left; cursor: pointer; list-style: none; }
 .thread-settings-item::-webkit-details-marker { display: none; }
 .thread-settings-item svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .thread-settings-item svg:last-child { margin-left: auto; width: 12px; height: 12px; }

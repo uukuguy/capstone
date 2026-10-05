@@ -62,6 +62,7 @@ def build_registered_pandapower_thread_application():
 
     def resolve_model(model_id: str) -> Mapping[str, object]:
         model = models.get(model_id)
+        reason = models.operator_diagram_unavailable_reason(model.model_id)
         return {
             "model_id": model.model_id,
             "revision_ref": models.trusted_revision_ref(model.model_id),
@@ -69,6 +70,8 @@ def build_registered_pandapower_thread_application():
             "authority_model_ref": f"gridctl:{model.model_id}",
             "display_name": model_display_name(model.title, model.model_id),
             "diagram_provider_id": "gridctl",
+            "available": reason is None,
+            **({"unavailable_reason": reason} if reason else {}),
         }
 
     def bind_model(prepared: object, context: Any) -> AuthorityModelBinding:

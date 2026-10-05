@@ -87,6 +87,7 @@ class SimulatorCapabilityError(GridctlClientError):
 
 
 DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+DEFAULT_MAX_OPERATOR_OUTPUT_BYTES = 4 * 1024 * 1024 + 64 * 1024
 
 
 class GridctlExecutor:
@@ -99,18 +100,20 @@ class GridctlExecutor:
         workspace: Path,
         timeout_seconds: float = 60,
         max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
+        max_operator_output_bytes: int = DEFAULT_MAX_OPERATOR_OUTPUT_BYTES,
         environ: Mapping[str, str] | None = None,
         environment: Mapping[str, str] | None = None,
     ) -> None:
         if environ is not None and environment is not None:
             raise TypeError("provide only one of environ or environment")
-        if max_output_bytes <= 0:
+        if max_output_bytes <= 0 or max_operator_output_bytes <= 0:
             raise ValueError("max_output_bytes must be positive")
         base_environment = environment if environment is not None else environ
         self.executable = Path(executable)
         self.workspace = Path(workspace)
         self.timeout_seconds = timeout_seconds
         self.max_output_bytes = int(max_output_bytes)
+        self.max_operator_output_bytes = int(max_operator_output_bytes)
         self._environment = sanitize_environment(
             os.environ if base_environment is None else base_environment
         )
@@ -127,7 +130,8 @@ class GridctlExecutor:
         }
         request_bytes = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
         self.last_diagnostics = ""
-        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes)
+        output_limit = self.max_operator_output_bytes if capability == "operator.diagram.get" else self.max_output_bytes
+        returncode, stdout, stderr, exceeded = self._run_bounded(request_bytes, output_limit=output_limit)
         self.last_diagnostics = stderr[:4096].decode("utf-8", errors="ignore")
         if exceeded:
             raise GridctlClientError("Grid simulator process output limit exceeded")
@@ -161,7 +165,7 @@ class GridctlExecutor:
             raise GridctlClientError("Grid simulator response has no result object")
         return result
 
-    def _run_bounded(self, request_bytes: bytes) -> tuple[int, bytes, bytes, bool]:
+    def _run_bounded(self, request_bytes: bytes, *, output_limit: int) -> tuple[int, bytes, bytes, bool]:
         try:
             process = subprocess.Popen(
                 [str(self.executable), "request", "--workspace", str(self.workspace)],
@@ -184,7 +188,7 @@ class GridctlExecutor:
             nonlocal output_bytes
             while data := stream.read(8192):
                 with output_lock:
-                    remaining = self.max_output_bytes - output_bytes
+                    remaining = output_limit - output_bytes
                     if remaining > 0:
                         accepted = data[:remaining]
                         chunks.append(accepted)

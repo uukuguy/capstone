@@ -58,6 +58,30 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('reruns a completed instruction as a new command without changing its old answer', async () => {
+    const fixture = instructionViewsFixture()
+    const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
+    document.events = [
+      { ...document.events[0], event_seq: 1, event_type: 'command_accepted', payload: { kind: 'send_auto', payload: { text: '读取当前模型' } } },
+      { ...document.events[2], event_seq: 2, payload: { answer: '原回答已完成。' } },
+    ]
+    document.next_event_seq = 2
+    ;(fixture.snapshot as { last_event_seq: number }).last_event_seq = 2
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const retry = await screen.findByRole('button', { name: '重试本次指令' })
+    expect((retry as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(retry)
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0]).toMatchObject({ kind: 'send_auto', payload: { text: '读取当前模型' }, expected_event_seq: 2 })
+    expect(await screen.findByText('Fixture 已接收自动指令：读取当前模型')).toBeTruthy()
+    expect(screen.getByText('原回答已完成。')).toBeTruthy()
+  })
   it('puts the model directory beside Composer settings and preserves its draft', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
     const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
@@ -179,7 +203,7 @@ describe('ThreadFixtureApp', () => {
     await screen.findByRole('textbox', { name: 'Thread 指令' })
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
-    expect((screen.getByRole('button', { name: '切换模型' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '停止生成' }) as HTMLButtonElement).disabled).toBe(false)
   })
   it('uses the selected earlier result overlay when focusing its current-context row', async () => {
@@ -421,9 +445,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.queryByRole('listbox', { name: '目标电网模型' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
-    fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
-
-    expect(await screen.findByText('Fixture 已接收自动指令：打开 pypsa39 电网模型并显示电网拓扑。')).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：打开 pypsa39 电网模型')).toBeTruthy()
   })
 
   it('routes an explicit model-open phrase through the canonical switch command', async () => {
@@ -507,7 +529,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Pandapower Static Analysis' }))
     fireEvent.click(screen.getByRole('button', { name: '应用 Profile 选择' }))
 
-    expect(await screen.findByText('replace_selection · accepted')).toBeTruthy()
+    expect(await screen.findByText('操作已提交。')).toBeTruthy()
   })
 
   it('keeps the trace control compact and independently togglable', async () => {

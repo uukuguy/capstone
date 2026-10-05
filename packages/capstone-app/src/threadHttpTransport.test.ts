@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HttpThreadTransport, ThreadTransportError } from './threadHttpTransport'
+import { MAX_THREAD_JSON_BYTES } from './networkLimits'
+import { sampleDiagramView } from './networkFixture'
 
 const command = {
   schema: 'capstone-command/1' as const, command_id: 'cmd_1', idempotency_key: 'idem_1',
@@ -8,6 +10,25 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('bounds each SSE frame rather than a chunk containing multiple complete diagrams', async () => {
+    const buses = Array.from({ length: 10000 }, (_, i) => ({
+      id: String(i), label: 'x'.repeat(200), x: null, y: null, vn_kv: 220,
+    }))
+    const frame = (seq: number) => `data: ${JSON.stringify({
+      event_id: `evt_${seq}`, event_seq: seq, event_type: 'network_diagram', event_version: 1,
+      thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-09-30T00:00:00Z',
+      visibility: 'public', payload: { diagram: { ...sampleDiagramView.diagram,
+        coordinate_system: 'schematic', buses, branches: [] } },
+    })}\n\n`
+    const bytes = new TextEncoder().encode(frame(1) + frame(2))
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes); controller.close() } })
+    const transport = new HttpThreadTransport('', '', vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)))
+    const sequences = []
+    for await (const event of transport.streamEvents('thr_demo_39', 0)) sequences.push(event.eventSeq)
+    expect(sequences).toEqual([1, 2])
+    const oversized = new HttpThreadTransport('', '', vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(MAX_THREAD_JSON_BYTES + 1))))
+    await expect(oversized.getSnapshot('thr_demo_39')).rejects.toThrow('超过允许大小')
+  })
   it('reads a snapshot and event page through the configured Thread resource', async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ snapshot: true }), { status: 200 }))

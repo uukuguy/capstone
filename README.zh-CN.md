@@ -59,7 +59,7 @@ make capstone-local-rebuild
 `CAPSTONE_LOCAL_PULL=1`。入口会先校验本机已安装的六个 PyPSA 模型并放入构建上下文，
 本地重构不会重复下载模型文件。
 
-打开 `http://127.0.0.1:5173/`。本地 App 默认监听局域网接口；手机可通过 `http://<电脑局域网 IP>:5173/` 访问。访问凭证由 API 发放，页面直接进入工作台；不需要手动填写访问令牌。Vite 通过同源代理转发到本机 API，API 本身仍只监听 loopback。若只需要本机访问，可设置 `CAPSTONE_APP_HOST=127.0.0.1`。案例执行仍走真实 Provider/LLM 路径。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
+打开 `http://127.0.0.1:5173/` 进入智能体对话工作台。页面使用当前浏览器会话中已有的 Thread operator token，没有时提示输入一次。新建 Thread 后会记录专属链接，刷新不会重复创建。原登记案例工作台位于 `/old`，其受限访问凭证仍由 API 发放，无需手动输入；案例执行仍走真实 Provider/LLM 路径。本地 App 默认监听局域网接口；手机可通过 `http://<电脑局域网 IP>:5173/` 访问。Vite 通过同源代理转发到本机 API，API 本身仍只监听 loopback。若只需要本机访问，可设置 `CAPSTONE_APP_HOST=127.0.0.1`。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。更多端口、凭据和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
 
 ## 使用 CLI
 

@@ -70,6 +70,25 @@ const dynamicLayer = {
   model_revision: '7',
 }
 
+it('shares immutable geometry between repeated instructions while retaining every event and task', async () => {
+  const events = [1, 2, 3, 4].map((seq) => ({
+    event_id: `evt_${seq}`, event_seq: seq,
+    event_type: seq % 2 ? 'network_diagram' : 'network_layer', event_version: 1,
+    thread_id: 'thr_demo_39', run_id: 'run_001', attempt_id: seq < 3 ? 'attempt_a' : 'attempt_b',
+    model_context_id: context.id, occurred_at: '2026-09-30T00:00:00Z', visibility: 'public',
+    payload: seq % 2 ? { diagram: structuredClone(dynamicDiagram) } : { ordinal: 1, layer: dynamicLayer },
+  }))
+  const fixture = { ...idleFixture, snapshot: { ...idleFixture.snapshot, last_event_seq: 4 },
+    events: { ...idleFixture.events, next_event_seq: 4, events } }
+  const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+  await store.load('thr_demo_39')
+  expect(store.publicEvents).toHaveLength(4)
+  expect(store.networkTasks).toHaveLength(2)
+  expect(store.networkTasks[0].view.diagram).toBe(store.networkTasks[1].view.diagram)
+  const diagrams = store.publicEvents.filter((event) => event.eventType === 'network_diagram')
+  expect(diagrams[0].payload.diagram).toBe(diagrams[1].payload.diagram)
+})
+
 function command(): ThreadCommand {
   return {
     schema: 'capstone-command/1', command_id: 'cmd_1', idempotency_key: 'idem_1',

@@ -91,6 +91,20 @@ def test_executor_rejects_malformed_json_stdout(tmp_path: Path) -> None:
         GridctlExecutor(executable=executable, workspace=tmp_path).invoke("model.list", {})
 
 
+def test_operator_output_has_a_separate_bound_from_model_facing_tools(tmp_path: Path) -> None:
+    executable = _write_executable(tmp_path / "gridctl", "import json,sys\n"
+        "request=json.loads(sys.stdin.read())\n"
+        "print(json.dumps({'protocol':'grid-capability','protocol_version':'1.0',"
+        "'request_id':request['request_id'],'ok':True,'result':{'padding':'x'*4096}}))\n")
+    executor = GridctlExecutor(executable=executable, workspace=tmp_path, max_output_bytes=1024, max_operator_output_bytes=8192)
+    assert len(executor.invoke("operator.diagram.get", {})["padding"]) == 4096
+    with pytest.raises(GridctlClientError, match="output limit"):
+        executor.invoke("model.list", {})
+    limited = GridctlExecutor(executable=executable, workspace=tmp_path, max_operator_output_bytes=1024)
+    with pytest.raises(GridctlClientError, match="output limit"):
+        limited.invoke("operator.diagram.get", {})
+
+
 @pytest.mark.parametrize("stream", ["stdout", "stderr", "both"])
 def test_executor_limits_process_output_before_buffering(
     tmp_path: Path, stream: str

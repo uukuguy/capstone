@@ -58,6 +58,8 @@ class FederatedModelRecord:
     diagram_provider_id: str
     implementation_family: str
     revision_ref: str
+    available: bool = True
+    unavailable_reason: str | None = None
 
     def descriptor(self) -> ThreadModelDescriptor:
         return ThreadModelDescriptor(
@@ -67,9 +69,11 @@ class FederatedModelRecord:
             authority_model_ref=self.authority_model_ref,
             display_name=self.display_name,
             diagram_provider_id=self.diagram_provider_id,
+            available=self.available,
+            unavailable_reason=self.unavailable_reason,
         )
 
-    def to_document(self) -> dict[str, str]:
+    def to_document(self) -> dict[str, Any]:
         return {
             "model_id": self.model_id,
             "authority_model_ref": self.authority_model_ref,
@@ -77,6 +81,7 @@ class FederatedModelRecord:
             "diagram_provider_id": self.diagram_provider_id,
             "implementation_family": self.implementation_family,
             "revision_ref": self.revision_ref,
+            **({"available": False, "unavailable_reason": self.unavailable_reason or "model_unavailable"} if not self.available else {}),
         }
 
 
@@ -200,8 +205,14 @@ def _parse_model(value: Any, index: int) -> FederatedModelRecord:
         "model_id", "authority_model_ref", "display_name", "diagram_provider_id",
         "implementation_family", "revision_ref",
     }
-    if set(document) != expected:
+    if set(document) - (expected | {"available", "unavailable_reason"}) or expected - set(document):
         raise ValueError(f"models[{index}] fields are invalid")
+    available = document.get("available", True)
+    reason = document.get("unavailable_reason")
+    if type(available) is not bool:
+        raise ValueError(f"models[{index}].available is invalid")
+    if reason is not None:
+        reason = _identifier(reason, f"models[{index}].unavailable_reason")
     model_id = validate_model_id(document["model_id"], name=f"models[{index}].model_id")
     revision = document["revision_ref"]
     if not isinstance(revision, str) or not _REVISION.fullmatch(revision):
@@ -213,6 +224,8 @@ def _parse_model(value: Any, index: int) -> FederatedModelRecord:
         diagram_provider_id=_identifier(document["diagram_provider_id"], f"models[{index}].diagram_provider_id"),
         implementation_family=_identifier(document["implementation_family"], f"models[{index}].implementation_family"),
         revision_ref=revision,
+        available=available,
+        unavailable_reason=reason,
     )
 
 

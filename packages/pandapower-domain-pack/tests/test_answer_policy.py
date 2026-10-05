@@ -158,6 +158,50 @@ def test_admission_accepts_successful_read_only_model_observation() -> None:
     assert "current_model_observation_verified" in decision.diagnostic_codes
 
 
+@pytest.mark.parametrize("capability", [
+    "topology.components.get", "analysis.operation.list", "analysis.operation.describe",
+])
+def test_admission_accepts_successful_model_and_operation_inspection(capability: str) -> None:
+    request = AnswerAdmissionInput(
+        question="打开当前模型并显示电网拓扑。",
+        answer_output="已读取当前模型的拓扑。",
+        result_refs=(), evidence_refs=(), authority_attempted=True,
+        observed_capabilities=("context.get", capability, "model.dataset.query"),
+    )
+    policy = PandapowerAnswerAdmissionPolicy()
+    decision = policy.admit(request)
+    assert decision.mode == "offline_information"
+    assert decision.answer_output == request.answer_output
+    assert "current_model_observation_verified" in decision.diagnostic_codes
+
+    from dataclasses import replace
+    assert policy.admit(replace(request, failed_capabilities=(capability,))).mode == "limited"
+    assert policy.admit(replace(request, observed_capabilities=(
+        *request.observed_capabilities, "topology.branch.endpoints.get",
+    ))).mode == "limited"
+    assert policy.admit(replace(request, observed_capabilities=(
+        *request.observed_capabilities, "analysis.powerflow.ac.run",
+    ))).mode == "limited"
+
+
+def test_read_only_observation_covers_published_non_evidence_model_and_catalog_contracts() -> None:
+    from pandapower_domain.profile import build_pandapower_profile
+
+    policy = PandapowerAnswerAdmissionPolicy()
+    for document in build_pandapower_profile().contract_source.load():
+        if (document["availability"] != "published"
+                or document["risk"] not in {"catalog", "read_only_model"}
+                or document["evidence_required"] is not False
+                or document["state_effect"] != "none"):
+            continue
+        decision = policy.admit(AnswerAdmissionInput(
+            question="读取注册模型。", answer_output="已读取。",
+            result_refs=(), evidence_refs=(), authority_attempted=True,
+            observed_capabilities=(document["id"],),
+        ))
+        assert decision.mode == "offline_information", document["id"]
+
+
 def test_admission_does_not_accept_failed_or_analysis_observation_without_lineage() -> None:
     policy = PandapowerAnswerAdmissionPolicy()
     failed = policy.admit(

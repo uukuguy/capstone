@@ -7,9 +7,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .network_diagram import MAX_DIAGRAM_BYTES
+
 
 SCHEMA = "capstone-worker/1.0"
-MAX_FRAME_BYTES = 2 * 1024 * 1024 + 65_536
+MAX_FRAME_BYTES = MAX_DIAGRAM_BYTES + 65_536
 _SESSION_ID = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _FIELDS = frozenset({"schema", "session_id", "sequence", "kind", "payload"})
 _PAYLOAD_FIELDS = {

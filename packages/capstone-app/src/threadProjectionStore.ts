@@ -98,6 +98,7 @@ function requiresResync(error: unknown): boolean {
 async function readSnapshotEvents(
   client: CapstoneThreadClient,
   snapshot: ThreadSnapshot,
+  intern: (event: EventEnvelope) => EventEnvelope = (event) => event,
 ): Promise<EventEnvelope[]> {
   const events: EventEnvelope[] = []
   let cursor = snapshot.baseEventSeq
@@ -110,7 +111,7 @@ async function readSnapshotEvents(
       // subsequent catch-up pass; do not turn that normal race into offline.
       if (event.eventSeq > snapshot.lastEventSeq) break
       if (event.eventSeq !== cursor + 1) throw new Error('event history is not contiguous')
-      events.push(event)
+      events.push(intern(event))
       cursor = event.eventSeq
     }
     if (page.nextEventSeq < cursor) {
@@ -220,6 +221,7 @@ export class ThreadProjectionStore {
   private loadGeneration = 0
   private readonly eventLog: EventEnvelope[] = []
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
+  private readonly sharedDiagrams = new Map<string, NetworkDiagram>()
   private readonly networkViews = new Map<string, DiagramNetworkView>()
   private readonly taskViews = new Map<string, ThreadNetworkTask>()
   private readonly contextPages = new Map<string, ThreadGridPage>()
@@ -276,10 +278,14 @@ export class ThreadProjectionStore {
       // A snapshot with an un-compacted history must restore that history
       // before the UI becomes live. Otherwise the model state would look
       // current while the conversation is silently truncated.
-      const restoredEvents = await readSnapshotEvents(this.client, snapshot)
+      const restoredDiagrams = new Map<string, NetworkDiagram>()
+      const restoredEvents = await readSnapshotEvents(this.client, snapshot,
+        (event) => this.internDiagramEvent(event, restoredDiagrams))
       // StrictMode and reconnects can overlap loads. A superseded response
       // must not replace the live cursor or erase events already received.
       if (generation !== this.loadGeneration) return
+      this.sharedDiagrams.clear()
+      for (const [key, diagram] of restoredDiagrams) this.sharedDiagrams.set(key, diagram)
       this.current = {
         ...this.current,
         connection,
@@ -465,6 +471,7 @@ export class ThreadProjectionStore {
     if (!snapshot || event.threadId !== snapshot.threadId || event.eventSeq !== this.current.eventSeq + 1) {
       throw new Error('event stream is not contiguous')
     }
+    event = this.internDiagramEvent(event)
     let currentAttempt = snapshot.currentAttempt
     const previousActivePage = snapshot.activeGridPageId
     let viewedGridPageId = this.current.viewedGridPageId
@@ -536,6 +543,19 @@ export class ThreadProjectionStore {
     this.applyNetworkProjection(event, projected)
     this.eventLog.push(event)
     this.notify()
+  }
+
+  private internDiagramEvent(event: EventEnvelope, diagrams = this.sharedDiagrams): EventEnvelope {
+    if (event.eventType !== 'network_diagram') return event
+    const diagram = parseNetworkDiagram(event.payload.diagram)
+    if (!diagram) return event
+    const key = `${diagram.model.id}:${diagram.model.revision}:${diagram.ref}`
+    const existing = diagrams.get(key)
+    if (existing && JSON.stringify(existing) !== JSON.stringify(diagram)) {
+      throw new Error('diagram identity does not match admitted history; 请重新同步电网图。')
+    }
+    if (!existing) diagrams.set(key, diagram)
+    return { ...event, payload: { ...event.payload, diagram: existing || diagram } }
   }
 
   private rememberGridPage(pageId: string, context: ModelContextSnapshot): void {

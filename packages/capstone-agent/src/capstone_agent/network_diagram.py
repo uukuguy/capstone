@@ -10,9 +10,12 @@ from collections.abc import Mapping
 from typing import Any
 
 
-MAX_DIAGRAM_BYTES = 2 * 1024 * 1024
-MAX_BUSES = 2_000
-MAX_BRANCHES = 4_000
+MAX_DIAGRAM_BYTES = 4 * 1024 * 1024
+MAX_BUSES = 10_000
+MAX_BRANCHES = 20_000
+# One complete diagram plus bounded event and page envelopes.
+MAX_EVENT_PAGE_BYTES = MAX_DIAGRAM_BYTES + 64 * 1024
+MAX_THREAD_JSON_BYTES = MAX_EVENT_PAGE_BYTES + 64 * 1024
 _KINDS = frozenset({"line", "link", "transformer", "trafo", "trafo3w"})
 _METRICS = {"loading_percent": "%", "voltage_pu": "p.u."}
 

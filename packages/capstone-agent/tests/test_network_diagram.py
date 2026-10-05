@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from capstone_agent.network_diagram import normalize_network_projection
+from capstone_agent.network_diagram import MAX_BUSES, normalize_network_projection
 from capstone_agent.protocol import Frame
 
 
@@ -42,6 +42,27 @@ def test_projection_normalizes_fingerprint_and_separate_frames() -> None:
     assert Frame.from_line(Frame("session-1", 3, "network_layer", {
         "ordinal": 1, "layer": layer,
     }).to_line()).payload["layer"] == layer
+
+
+def test_large_complete_diagram_and_worker_frame_preserve_every_component() -> None:
+    raw = projection()
+    raw["diagram"]["buses"] = [
+        {"id": str(i), "label": f"Bus {i}", "x": None, "y": None, "vn_kv": 220}
+        for i in range(9241)
+    ]
+    raw["diagram"]["branches"] = [
+        {"id": f"line:{i}", "kind": "line", "label": f"Line {i}",
+         "from_bus": str(i % 9241), "to_bus": str((i + 1) % 9241)}
+        for i in range(16000)
+    ]
+    raw["layer"]["focus_ids"] = []
+    diagram = normalize_network_projection(raw, admitted_refs=())["diagram"]
+    restored = Frame.from_line(Frame("session-1", 2, "network_diagram", {"diagram": diagram}).to_line())
+    assert len(restored.payload["diagram"]["buses"]) == 9241
+    assert len(restored.payload["diagram"]["branches"]) == 16000
+    raw["diagram"]["buses"] *= MAX_BUSES // 9241 + 1
+    with pytest.raises(ValueError):
+        normalize_network_projection(raw, admitted_refs=())
 
 
 @pytest.mark.parametrize("mutate", [

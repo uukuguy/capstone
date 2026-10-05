@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { StrictMode } from 'react'
 import ThreadLiveEntry from './ThreadLiveEntry'
+import App from './App'
 
 afterEach(() => {
   cleanup()
+  window.history.replaceState({}, '', '/')
   sessionStorage.removeItem('capstone.thread.operatorToken')
   vi.unstubAllGlobals()
 })
@@ -54,10 +56,15 @@ describe('ThreadLiveEntry', () => {
     })
     vi.stubGlobal('fetch', fetcher)
 
-    render(<StrictMode><ThreadLiveEntry threadId="new" /></StrictMode>)
+    const first = render(<StrictMode><ThreadLiveEntry threadId="new" /></StrictMode>)
 
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(fetcher).toHaveBeenCalledWith('/api/v1/threads', expect.objectContaining({ method: 'POST' }))
+    expect(fetcher.mock.calls.filter(([url, init]) => url === '/api/v1/threads' && init?.method === 'POST')).toHaveLength(1)
+    expect(new URLSearchParams(window.location.search).get('thread')).toBe('thr_demo_39')
+    first.unmount()
+    render(<App />)
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(fetcher.mock.calls.filter(([url, init]) => url === '/api/v1/threads' && init?.method === 'POST')).toHaveLength(1)
   })
 })

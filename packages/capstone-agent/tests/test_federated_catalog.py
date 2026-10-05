@@ -15,6 +15,27 @@ REVISION_A = "revision:sha256:" + "a" * 64
 REVISION_B = "revision:sha256:" + "b" * 64
 
 
+def test_authority_diagram_limit_disables_catalog_selection_and_server_switch() -> None:
+    from capstone_agent.thread_service import ThreadCreator
+    from test_thread_attempts import _service
+    document = _document()
+    document["models"].append({**document["models"][0], "model_id": "oversized", "available": False, "unavailable_reason": "diagram_limit"})
+    assembly = build_catalog_from_documents((document,), default_model_id="ieee39")
+    service = _service()
+    service.set_model_catalog(assembly.model_catalog)
+    snapshot = service.snapshot("thr_attempts")
+    model = next(item for item in service.catalog(snapshot.thread_id)["models"] if item["model_id"] == "oversized")
+    assert model["available"] is False and model["unavailable_reason"] == "diagram_limit"
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_oversized", "idempotency_key": "idem_oversized",
+        "thread_id": snapshot.thread_id, "run_id": snapshot.run.run_id, "kind": "switch_model",
+        "expected_event_seq": snapshot.last_event_seq, "payload": {"model_id": "oversized"},
+    })
+    assert receipt.status == "rejected" and receipt.rejection == "diagram_limit"
+    with pytest.raises(ValueError, match="diagram_limit"):
+        ThreadCreator(service, assembly.model_catalog).create("oversized")
+
+
 def _document(
     *,
     family: str = "pandapower",

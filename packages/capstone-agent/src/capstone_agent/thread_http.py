@@ -15,7 +15,9 @@ from .thread_catalog import ThreadCatalogProjection
 from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
 
 
-MAX_JSON_BYTES = 2 * 1024 * 1024 + 128 * 1024
+from .network_diagram import MAX_THREAD_JSON_BYTES
+
+MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 
 
 class ThreadHttpError(RuntimeError):

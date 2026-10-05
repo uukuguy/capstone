@@ -26,6 +26,8 @@ def build_catalog_document() -> dict[str, object]:
                 "diagram_provider_id": "gridctl",
                 "implementation_family": model.engine,
                 "revision_ref": registry.trusted_revision_ref(model.model_id),
+                **({"available": False, "unavailable_reason": reason}
+                   if (reason := registry.operator_diagram_unavailable_reason(model.model_id)) else {}),
             }
             for model in registry.list()
         ],

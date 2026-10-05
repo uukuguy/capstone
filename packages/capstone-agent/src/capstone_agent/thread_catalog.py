@@ -225,6 +225,8 @@ class AuthorityThreadModelCatalog:
             authority_model_ref=metadata["authority_model_ref"],
             display_name=metadata["display_name"],
             diagram_provider_id=metadata["diagram_provider_id"],
+            available=record.get("available", True),
+            unavailable_reason=record.get("unavailable_reason"),
         )
 
 
@@ -235,6 +237,8 @@ def _catalog_entry(model: ThreadModelDescriptor) -> ThreadModelCatalogEntry:
         display_name=model.display_name or model.model_id,
         diagram_provider_id=model.diagram_provider_id or model.implementation_family,
         implementation_family=model.implementation_family,
+        available=model.available,
+        unavailable_reason=model.unavailable_reason,
     )
 
 

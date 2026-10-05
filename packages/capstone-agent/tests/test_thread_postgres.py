@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
+import json
 from collections.abc import Generator
 from unittest.mock import MagicMock
 
@@ -10,6 +11,7 @@ import pytest
 
 from capstone_agent.thread_service import PostgresThreadService, ThreadResyncRequired
 from capstone_agent.thread_protocol import CommandReceipt, ThreadSnapshot
+from capstone_agent.network_diagram import MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from capstone_agent.thread_application_transition import (
     ApplicationEvent,
     ThreadApplicationTransition,
@@ -50,6 +52,34 @@ def _command(thread_id: str) -> dict[str, object]:
         "run_id": "run_test_001", "kind": "send_ordinary",
         "expected_event_seq": 0, "payload": {"text": "hello"},
     }
+
+
+def test_postgres_large_diagram_replay_is_byte_bounded_and_complete(postgres_thread_service) -> None:
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt("thread-worker", lease_seconds=120)
+    assert claim is not None
+    diagram = normalize_network_diagram({
+        "schema": "capstone-network-diagram/1.0",
+        "model": {"id": "ieee39", "revision": "7", "source": "gridctl"},
+        "coordinate_system": "schematic",
+        "buses": [{"id": str(i), "label": "x" * 190, "x": None, "y": None, "vn_kv": 220}
+                  for i in range(9241)], "branches": [],
+    })
+    for _ in range(3):
+        service.append_runtime_event(claim, event_type="network_diagram", payload={"diagram": diagram})
+    cursor, sequences, diagrams = 0, [], 0
+    while True:
+        page = service.read_events(thread_id, cursor)
+        assert len(json.dumps(page.to_document(), ensure_ascii=False).encode()) <= MAX_EVENT_PAGE_BYTES
+        assert page.next_event_seq > cursor
+        sequences.extend(item.event_seq for item in page.events)
+        diagrams += sum(item.event_type == "network_diagram" for item in page.events)
+        cursor = page.next_event_seq
+        if not page.has_more:
+            break
+    assert diagrams == 3 and sequences == list(range(1, cursor + 1))
 
 
 @pytest.mark.parametrize("same_hash", [True, False])
