@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from grid_simulator.evidence import canonical_json, fingerprint, write_json, write_network
 from grid_simulator.model_catalog import load_model_catalog
+from grid_simulator.operator_diagram import OperatorDiagramError, operator_geometry
 from grid_simulator.workspace import SimulatorWorkspace
 
 
@@ -78,6 +79,7 @@ class ModelRegistry:
         self._models = _registered_models()
         self._by_id = {model.model_id: model for model in self._models}
         self._trusted_revisions: dict[str, str] = {}
+        self._diagram_unavailable: dict[str, str | None] = {}
 
     def list(self) -> tuple[RegisteredModel, ...]:
         return self._models
@@ -100,8 +102,19 @@ class ModelRegistry:
         if revision_ref is None:
             net = self._engine.open_registered(model.factory)
             revision_ref = f"revision:sha256:{fingerprint(self._engine.serialize(net))}"
+            try:
+                operator_geometry(net)
+                self._diagram_unavailable[model.model_id] = None
+            except OperatorDiagramError as error:
+                self._diagram_unavailable[model.model_id] = error.code
+            # Publish the revision marker only after its eligibility is ready.
             self._trusted_revisions[model.model_id] = revision_ref
         return revision_ref
+
+    def operator_diagram_unavailable_reason(self, model_id: str) -> str | None:
+        """Catalogue eligibility uses the same geometry contract as the operator read."""
+        self.trusted_revision_ref(model_id)
+        return self._diagram_unavailable[model_id]
 
 
 class ContextStore:

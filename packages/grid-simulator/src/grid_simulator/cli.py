@@ -45,4 +45,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _write_response(response: GridCapabilityResponse) -> None:
-    sys.stdout.write(json.dumps(response.model_dump(mode="json"), separators=(",", ":")) + "\n")
+    sys.stdout.write(json.dumps(response.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")) + "\n")

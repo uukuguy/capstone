@@ -13,6 +13,15 @@ from grid_simulator.operations import dispatch
 from grid_simulator.protocol import GridCapabilityRequest, GridCapabilityResponse
 
 
+def test_cli_emits_utf8_json_with_one_stdout_envelope(capsys) -> None:
+    from grid_simulator.cli import _write_response
+    _write_response(GridCapabilityResponse(request_id="req-utf8", ok=True, result={"label": "电网母线"}))
+    output = capsys.readouterr()
+    assert output.err == "" and output.out.count("\n") == 1
+    assert "电网母线" in output.out
+    assert json.loads(output.out)["result"] == {"label": "电网母线"}
+
+
 def request(capability: str, arguments: dict[str, object]) -> GridCapabilityRequest:
     return GridCapabilityRequest(
         protocol="grid-capability",

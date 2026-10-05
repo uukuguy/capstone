@@ -1,12 +1,54 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Lock
 
 import pytest
 
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ContextStore, ModelNotFoundError, ModelRegistry
 from grid_simulator.workspace import SimulatorWorkspace
+
+
+def test_catalog_checks_operator_capacity_before_offering_a_model() -> None:
+    class Engine:
+        def open_registered(self, _factory):
+            return SimpleNamespace(bus=range(10001), line=(), trafo=(), trafo3w=())
+
+        def serialize(self, _net):
+            return '{"fixture":"oversized"}'
+
+    assert ModelRegistry(Engine()).operator_diagram_unavailable_reason("case9") == "diagram_limit"
+
+
+def test_concurrent_revision_reads_cannot_observe_incomplete_diagram_eligibility(monkeypatch) -> None:
+    from grid_simulator import models
+    entered, release, lock = Event(), Event(), Lock()
+    calls = 0
+    geometry = models.operator_geometry
+
+    def blocked(net):
+        nonlocal calls
+        with lock:
+            calls += 1
+            first = calls == 1
+        if first:
+            entered.set()
+            assert release.wait(timeout=10)
+        return geometry(net)
+
+    monkeypatch.setattr(models, "operator_geometry", blocked)
+    registry = ModelRegistry(Pandapower340Engine())
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(registry.operator_diagram_unavailable_reason, "case9")
+        assert entered.wait(timeout=10)
+        try:
+            assert registry.operator_diagram_unavailable_reason("case9") is None
+        finally:
+            release.set()
+        assert first.result(timeout=10) is None
 
 
 def test_registry_lists_ieee39_with_domain_aliases() -> None:
@@ -101,3 +143,14 @@ def test_operator_diagram_uses_complete_ieee39_schematic_from_gridctl(grid, cont
     assert "operator.diagram.get" not in {
         contract.id for contract in grid.services.capability_registry.list()
     }
+
+
+@pytest.mark.parametrize("model_id", ["GBnetwork", "case9241pegase"])
+def test_operator_diagram_keeps_large_registered_network_complete(grid, model_id) -> None:
+    context = grid.call("context.open", {"model_id": model_id})
+    diagram = grid.call("operator.diagram.get", {"context_ref": context["context_ref"]})
+    _, net = ModelRegistry(Pandapower340Engine()).open(model_id)
+    assert len(diagram["buses"]) == len(net.bus) > 2000
+    assert len(diagram["branches"]) == len(net.line) + len(net.trafo) + 2 * len(net.trafo3w)
+    assert {bus["id"] for bus in diagram["buses"]} == {str(index) for index in net.bus.index}
+    assert diagram["revision_ref"] == context["revision_ref"]

@@ -14,13 +14,14 @@
     "properties": {"context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"}}
   },
   "output_schema": {
+    "x-maxBytes": 4194304,
     "type": "object", "additionalProperties": false,
     "required": ["context_ref", "revision_ref", "coordinate_system", "buses", "branches"],
     "properties": {
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "coordinate_system": {"const": "schematic"},
-      "buses": {"type": "array", "minItems": 1, "maxItems": 2000,
+      "buses": {"type": "array", "minItems": 1, "maxItems": 10000,
         "items": {"type": "object", "additionalProperties": false,
           "required": ["id", "label", "x", "y", "vn_kv"],
           "properties": {
@@ -30,7 +31,7 @@
             "y": {"type": ["number", "null"]},
             "vn_kv": {"type": ["number", "null"], "minimum": 0}
           }}},
-      "branches": {"type": "array", "maxItems": 4000,
+      "branches": {"type": "array", "maxItems": 20000,
         "items": {"type": "object", "additionalProperties": false,
           "required": ["id", "label", "kind", "from_bus", "to_bus"],
           "properties": {
