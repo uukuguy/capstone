@@ -10,8 +10,10 @@ and Web replay path.
 The user approved this written specification on 2026-10-05. The
 [implementation plan](../plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md)
 defines the execution steps. Implementation and remote HTTP acceptance are
-recorded in the [verification record](../../reviews/2026-10-05-capstone-m11-cloud-verification.md);
-real cloud Web acceptance remains pending.
+recorded in the [verification record](../../reviews/2026-10-05-capstone-m11-cloud-verification.md).
+All required acceptance, including real cloud Web replay/focus and worker
+restart retention, passed on 2026-10-05. Normal runtime is restored; Provider
+validation and user-trial promotion remain separate actions.
 M10 implementation and local verification are complete. Its cloud smoke used
 the legacy pandapower scripted-session API and does not establish remote PyPSA
 Thread acceptance.

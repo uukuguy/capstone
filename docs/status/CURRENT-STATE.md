@@ -20,7 +20,7 @@
 
 ## Current Architecture
 
-- M11 validation seam: application adapters can explicitly select bounded deterministic prepared-runtime sessions only in cloud development. The private `/api/v1/validation/m11` preflight checks both worker families and runtime modes before remote acceptance commands. The production HTTP matrix checks Context reuse, switching, reopening, current-run admission, and PyPSA topology. Public demo scope is persisted with session identity and admits registered scripted cases only. Real cloud Web acceptance remains an open verification boundary.
+- M11 validation seam: application adapters can explicitly select bounded deterministic prepared-runtime sessions only in cloud development. The private `/api/v1/validation/m11` preflight checks both worker families and runtime modes before remote acceptance commands. The production HTTP matrix checks Context reuse, switching, reopening, current-run admission, and PyPSA topology. Public demo scope is persisted with session identity and admits registered scripted cases only. Real cloud Web replay/focus and worker-restart retention are verified; runtime selection is restored to normal. Typed history pages bind retained views to exact Context/model/revision and remain read-only.
 
 - CLI contracts: explicit v1.0.1 compatibility commands (`run`, `analysis`, `report`) write exactly one two-field JSON answer envelope to stdout, including validation failures for unsafe externally supplied question IDs; `analysis-generic` writes the validated composite `core` + `domains.<binding_id>` result. Progress, validation detail, and diagnostics stay on stderr without a raw traceback.
 - Package assembly: the repository has thirteen Python distributions and two Pi npm packages. `capstone-agent` is the sole application host; `grid-agent` and `pypsa-agent` are migration/compatibility adapters over domain-specific authorities and remain in separate Python environments because their pinned simulator dependencies require incompatible pandas major versions.
@@ -61,14 +61,13 @@
 
 ## Open Problems (theme-level)
 
-- Cloud federated Thread acceptance is pending. Hosted family adapters select
-  Provider-backed Pi sessions; the local deterministic Thread validator has
-  not yet been integrated with remote PostgreSQL workers. Public demo session
-  admission currently permits fixed Provider execution, in conflict with the
-  repository's scripted-only public credential rule. The approved bounded
-  validation mode and access correction are specified in
+- Client follow-ups remain for draft recovery on uncertain transport failure
+  and exact cached-diagram restoration after live model rollback. An interrupted
+  legacy PyPSA case during parallel validation needs separate diagnosis; serial
+  registered-case acceptance passes. Provider behavior and user-trial promotion
+  are separate release gates. M11 evidence and limits are in the
   [M11 design](../superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md)
-  and [implementation plan](../superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md).
+  and [verification record](../reviews/2026-10-05-capstone-m11-cloud-verification.md).
 
 ### M8 unified Thread application (demo-stage)
 

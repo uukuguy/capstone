@@ -1,120 +1,141 @@
 # M11 federated Thread acceptance
 
-Status: implementation, local gates, remote HTTP acceptance and restart
-retention passed. Cloud Web acceptance remains blocked by the browser connection.
-Normal cloud mode is restored. M11 is not complete.
-Do not treat this record as user-trial release approval or Provider validation.
+Status: **complete**. All required M11 acceptance checks passed on 2026-10-05.
+Local and cloud-development runtimes are restored to normal mode.
+Provider validation was not run. The user-trial stage was not changed.
 
 ## Source and scope
 
-- Runtime/deployment source: `595e602`.
-- Additional refusal tests: `e128789`; no runtime change.
-- Implementation is integrated into the main checkout.
-- Remote target: `capstone-cloud-dev`, project
-  `5eecde6b-fec2-40d2-8b26-427025b02b96`, environment `production`.
-- The exported deployment source contains tracked files and verified model
-  assets. It contains no local authentication state.
-- Provider validation was not run. The user-trial stage was not changed.
+- Tested and deployed runtime source: `26c5cbe151b85b6a11fbd677c50a2ac4270cd17c`.
+- App send/parser fix: `4550444`; typed read-only history/focus guards: `26c5cbe`.
+- Additional receipt-boundary and exact-Attempt rejection tests: `a421276`.
+  This commit changes tests only; the deployed runtime remains `26c5cbe`.
+- Main checkout contains the accepted implementation. No push or user-trial
+  promotion was performed.
+- Cloud-development project: `5eecde6b-fec2-40d2-8b26-427025b02b96`;
+  Railway environment: `5afd6aeb-07a6-4320-92e9-4bf193a442cb` (`production`).
+- Clean Git archive and six locally verified model assets formed the upload.
+  Local authentication state was excluded.
+- Manifest and exact image digests:
+  `runs/capstone-m11/closeout-cloud/deployment.json`.
+  Evidence under ignored `runs/` and `output/` is operator-local; a fresh
+  checkout does not contain it.
 
-## Evidence
+## Required acceptance
 
-| Check | Result | Evidence and limit |
+Every row below passed. Local negative checks, real remote execution, browser
+acceptance, and legacy reports are separate evidence.
+
+| Requirement | Result | Evidence and limit |
 | --- | --- | --- |
-| Public scripted admission and private session isolation | Passed locally | Focused Python/Thread creation: 29 passed; App client: 10 passed |
-| Scope persistence and family-filtered PostgreSQL leasing | Passed locally | 19 tests on disposable `m11_test`; no application database cleanup |
-| Real pandapower/PyPSA prepared execution | Passed locally | Each domain environment: 2 passed, 1 opposite-family skip |
-| Refusal of foreign result refs, unknown instructions and exhausted sequence | Passed locally | Real admission checks plus bounded-context regression |
-| M5 transport extraction compatibility | Passed locally | Existing real-Authority M5 checks passed in both environments |
-| Full offline release gate | Passed | `runs/capstone-m11/check-release.log`; E2E 39 + 3, App 171, coverage 24/24, installed-package and source-setup checks |
-| Current-source local rebuild | Passed | `runs/capstone-m11/local-rebuild.log`; API and workers share one image |
-| Local cross-family Thread matrix | Passed, 5/5 | `runs/capstone-m11/local/m11-eaa0c4e146bd44f2.json` |
-| Local legacy public cases, reports and evidence | Passed | `runs/capstone-m11/local/legacy-8598f41b55a3.json`; both registered cases completed |
-| Local restoration to normal mode | Passed | `runs/capstone-m11/local-restore.log`; PyPSA health reports `normal` |
-| Remote deployment/source identity | Passed | All four validation deployments use `595e602`; IDs below; manifest records digests and prior settings |
-| Remote family readiness and no-Provider preflight | Passed | Private preflight verified both worker family identities and `m11-provider-free` mode before mutation |
-| Remote Context reuse, switch and reopen | Passed, 5/5 | `runs/capstone-m11/remote/m11-750fa3caf36f4202.json`; production HTTP matrix |
-| Remote admitted results and M10 topology | Passed | Same receipt binds exact Attempt, Context, revision and admitted refs; each PyPSA diagram has 6 buses and 7 branches |
-| Remote public cases, reports and evidence | Passed | `runs/capstone-m11/remote/legacy-ff2198411ada.json`; both cases completed 3 turns; public Provider creation returned 403 |
-| Local Web replay/focus regression and build | Passed | 32 tests; `runs/capstone-m11/app-focus-tests.log` and `app-build.log`; production build passed with a bundle-size advisory |
-| Cloud Web refresh/reconnect and safe focus | Pending | Chrome connection still times out after approved new-window recovery; plugin reinstall requested. Positive live focus and historical-page checks are unverified |
-| Committed history after worker restart | Passed | `runs/capstone-m11/remote/retention-before.json` and `retention-after.json` match: snapshot, 53 events, reports/results/evidence and six legacy network views; active work was zero before restart |
-| Normal cloud runtime restoration | Passed | Validation opt-in cleared; private workers report `normal`; private validation endpoint returns 404; API/App healthy and both catalog families available. `runs/capstone-m11/remote/normal-readiness.json` and `normal-worker-health.json` |
-| Normal-mode public scripted cases | Passed | Both applications completed 3 turns with reports/results/evidence; `runs/capstone-m11/remote-normal/legacy-08a7ec68d8dd.json` |
-| History after normal-mode restoration | Passed | `runs/capstone-m11/remote/retention-normal.json` matches the before-restart fingerprint |
+| Deployment identity | Passed | Four roles use the tested runtime source; manifest records deployment IDs, digests, prior settings and rollout order |
+| Catalog and health | Passed | Actual private worker health on port 8080 binds each family; normal API/App healthy and both catalog families available |
+| Family ownership | Passed | Real PostgreSQL matching-family claims and negative cross-family claims; remote matrix executes both actual workers |
+| Context reuse | Passed | Five-step HTTP matrix repeats each current model without replacing its Context or prepared Authority binding |
+| Switching and reopening | Passed | One Thread switches IEEE-39 to regional-six-bus; explicit reopen records a new Context and reason |
+| PyPSA topology | Passed | Actual prepared Attempts emit admitted diagram/layer events at the matching Context/revision, six buses and seven branches |
+| Results and evidence | Passed | Matrix binds current-run result/evidence refs and exact Attempt/model/revision; real local admission tests reject foreign refs |
+| Web replay | Passed | Real cloud App restores five answers, admitted result cards, diagram and cursor 53 after reload and one aborted SSE request/manual reconnect |
+| Safe focus | Passed | Separate real IEEE-39 result focuses admitted line:0 and changes the camera; actual history focus is declined; foreign-revision and unknown-element fixtures also pass locally |
+| Retained history | Passed | Both workers restart from tested deployments; fresh process starts confirmed. Snapshot, 53 events, reports/results/evidence and six legacy network views retain identical fingerprints; actual Web replay matches |
+| Reports and artifacts | Passed | Both public registered legacy cases complete three turns and expose reports/evidence in validation and restored normal modes |
+| Public access | Passed | Only registered scripted cases run; Provider mode/options and unknown cases return403; public Thread creation and private Thread reads/catalog/events/stream return404 |
+| No Provider I/O | Passed | Early-selection/bypass tests and runtime preflight/receipts establish bounded deterministic execution with no Provider fallback. No Provider-backed command was submitted |
 
-The local matrix Thread is `thr_9e1c5119b3188eb7d61c`. Its pandapower turns
-share one Context; its two PyPSA turns share a second Context; explicit reopen
-activates a third Context. Each PyPSA topology has six buses and seven branches.
-The receipt binds all results and evidence to their completed Attempts.
+Primary current receipts:
 
-## Remote identities
+- Local matrix: `runs/capstone-m11/closeout-local/m11-faf0287e278146e8.json`.
+- Remote matrix: `runs/capstone-m11/closeout-cloud/m11-a26ef61e37b34c64.json`.
+- Cloud Web: `web-replay.json`, `web-focus.json`, `web-after-restart.json`
+  and `web-normal.json` in `runs/capstone-m11/closeout-cloud/`.
+- Retention: `retention-before.json`, `retention-after.json` and
+  `retention-normal.json` in the same directory; all three are identical.
+- Worker restart proof: `worker-process-after-restart.json`;
+  both process starts follow the pre-restart zero-active-work check.
+- Legacy cases: `closeout-cloud/legacy-c56af052c042.json` and
+  `closeout-cloud-normal/legacy-95dfb0689182.json` under `runs/capstone-m11/`.
+- Normal restoration: `normal-readiness.json` and
+  `private-health-closeout.json`; flags are empty, the private validation
+  endpoint returns404, both workers report normal mode, and active work is zero.
+- Browser screenshots: `output/playwright/m11-cloud-web/`.
+  The result card, Authority diagram and positive focus were visually inspected.
 
-All entries below target cloud development and use source `595e602`.
-The exact full revision and image digests are in the operator-local manifest
-`runs/capstone-m11/deployment.json`. Receipts under `runs/` are ignored local
-evidence; a fresh checkout does not contain them.
+## Deployment and replay identities
 
-| Validation deployment role | Deployment ID |
-| --- | --- |
-| Unified API | `e666dbf9-128c-4f43-ae36-2088ef622d9f` |
-| pandapower worker | `b5373c0b-3efb-41b7-9bc9-ddcdea204fac` |
-| PyPSA worker | `b9f33710-a52b-470f-ace6-46014076847c` |
-| App | `1c428e30-4f1c-4308-87cd-962b4fc337e7` |
+| Role | Validation deployment | Final normal deployment |
+| --- | --- | --- |
+| Unified API | `21e0b3d0-ad3a-431d-bc66-ba83c27455a6` | `816c1e1d-e362-4781-97b0-769863fd7d96` |
+| pandapower worker | `8bdd7b85-fe23-4d32-a565-4212020e8e94` | `dd1e748d-40fd-4a64-bb58-a3cf737f25e7` |
+| PyPSA worker | `b798945b-45dc-4cfd-867e-be53fdffe37e` | `fdf697fd-62d6-4998-9c27-dd431b08c01a` |
+| App | `e5a5c711-9ff3-416e-aaab-5b52bed66f17` | Same deployment |
 
-The final normal-mode deployment IDs are API
-`c7fe98e9-3e92-47ab-b826-2ca4af09f758`, pandapower worker
-`8aa5840f-4d26-4477-a2d3-e120032a3786`, and PyPSA worker
-`3e8348ab-31dc-4984-be26-c9775ad864c1`. The App deployment is unchanged.
-The API reused its exact verified image. Both workers retain the same tested
-source revision. `CAPSTONE_THREAD_VALIDATION` is empty on all backend roles;
-no normal-mode Provider work was submitted. Public Thread creation and private
-Thread reads return 404 with the demo credential.
-The task-owned temporary SSH key registration and key files were removed.
-The disposable PostgreSQL test container was stopped; application data was retained.
+Backend application selectors are respectively `capstone`, `pandapower`
+and `pypsa`; all backend ports are 8080. Both workers remain one running
+replica. API startup followed verified worker readiness. Final deployments
+all report success and the recorded runtime source. The App build selects
+only the API origin.
 
-The remote matrix Thread is `thr_2353b828e0025c28f556`, with Run
-`run_2353b828e0025c28f556`. Its successive Contexts are
-`ctx_2353b828e0025c28f556` (pandapower), `ctx_ceeb37c861a5f2bc9742`
-(PyPSA), and `ctx_bbcdf60b24f6dddb20df` (reopened PyPSA).
-Legacy sessions are `session-f030e0539705eb58948a3bd1` and
-`session-856a781ad34af75cc2ebdd7e`.
+The remote matrix Thread is `thr_f644a1c24eb95426d20c`, Run
+`run_f644a1c24eb95426d20c`; active reopened PyPSA Context is
+`ctx_945c70653649e26a6387`. Its model revision is
+`revision:sha256:062d4fbd54bc4b45f0d53a84a9739b798adeb1e71de8b678a878492b2ee538cf`.
+The browser receipt agrees with the HTTP receipt and cursor 53.
 
-Restart verification reads committed history only. It does not establish
-recovery of process-local Authority state or in-flight execution. No turn
-was submitted on the old Context after restart.
+Positive focus uses Thread `thr_f6f93c79e02e16c83e53`, Attempt
+`attempt_bd256326158d3364`, and its actual admitted element `line:0`.
+No fabricated event entered the shared ledger. Restart checks read committed
+history only; no turn was sent on an old process-local Context.
 
-## Remaining acceptance
+The task-owned SSH registration, local key copies and browser sessions were
+removed. Temporary PostgreSQL tests used a separate container, which was
+removed. Main `var/`, application databases, buckets and completed replay
+data were retained.
 
-The actual cloud App still needs refresh, reconnect, current diagram and
-positive safe-focus inspection through the browser. The local 32-test suite
-checks replay and refusal behavior but cannot close that row. Resume with the
-remote Thread above after the browser plugin connection works. Do not enable
-Provider execution to complete these read-only Web checks.
+## Local fixes and gates
 
-Open the existing Thread at
-`https://capstone-app-production-83ef.up.railway.app/?thread=thr_2353b828e0025c28f556`.
-Use the current cloud-development operator credential through the password
-field. The local cached Railway operator token did not match the current
-service; the failed 401 preflight created no Thread. Current credentials were
-read from protected service configuration in memory only.
+- Unknown model phrases now retain their text and submit through `send_auto`.
+  This fixes the confirmed “打开 case24_ieee_rts 电网模型” interception.
+  The requested model remains absent from the registered catalog; it was
+  not invented or added by this fix.
+- Commands use unique identities after refresh. Explicit rejections are shown
+  and restore the input draft. Normal `model_switch` events parse correctly.
+- Typed history restores model tabs and matching Context/model/revision views.
+  Missing retained topology has an explicit unavailable state. History blocks
+  sends, model/profile changes, retry and result focus; live cancellation remains.
+- App: 191 tests and TypeScript/Vite build passed. Local current-source rebuild
+  and doctor passed; API and both workers share the normal local image.
+- Full `make check-release` passed, including E2E 39 + 3, capability coverage 24/24,
+  installed-package smoke and frozen source setup:
+  `runs/capstone-m11/closeout-local/check-release.log`.
+- Disposable PostgreSQL checks:11 Thread,16 ledger/worker and9 API/artifact tests
+  passed. Required added validation checks:17 tests and type check passed.
+- Independent task, App and full backend/deployment reviews approved the source.
+  Review artifacts are in ignored `.superpowers/sdd/`; receipt-test task
+  compliance and test quality were also approved.
 
-## Implementation findings
+## Failed attempts and limits
 
-Inline source review checked the persisted public scope and creation hash,
-private/public idempotency isolation, early validation selection in both
-adapters, disabled ordinary routing in validation mode, prepared model and
-binding identity checks, family-filtered leasing, and Attempt/Context/revision
-matching in the HTTP matrix. No additional runtime change was required.
-The PostgreSQL family-refusal checks ran against the disposable database;
-the remote matrix separately exercised both production family workers.
+The earlier cloud App rejected `model_switch`; the local regression reproduced
+and fixed that parser defect. A browser initially reused old cached HTML
+(`index-FZWKSbUZ.js`) after rollout. Loading current resources
+(`index-CDljbaik.js`) removed the fault. Fresh real Web checks then passed.
+The published asset fingerprint is in `app-source-check.json`.
 
-The PyPSA application admits both the source and operations bindings. The M11
-script therefore calls the existing `model.validate` on the prepared source
-before dispatch. It does not open or derive an extra model or change admission.
-Model switch and reopen commands first create pending state; the next submitted
-message activates that state. The matrix checks this existing lifecycle.
+The first parallel legacy smoke completed pandapower, then PyPSA session
+`session-c51b61a1f1e0591176d531f3` became `worker_interrupted`.
+This failed attempt is retained in `legacy-initial-failure.json` and
+`legacy.log`; its root cause is not established. Same-source serial
+validation and normal-mode legacy checks subsequently passed. M11 does not
+claim concurrent legacy/Thread reliability from that failed attempt.
 
-The runtime has no Provider fallback in validation mode. A private readiness
-endpoint checks the two configured worker identities before any driver mutation.
-Validation state is bounded to 64 contexts and refuses new contexts at capacity.
-Receipt files contain bounded IDs/counts and use mode 0600.
+The historical IEEE Context has no retained diagram, so the real Web displays
+explicit unavailability. Historical projection retention is additionally
+covered by local typed fixtures. PyPSA has no result focus target in this
+scenario; positive focus is proved with the separate actual IEEE result.
+`model.validate` explicitly lacks a result presentation projector.
+
+Remaining client follow-ups are draft recovery after uncertain transport
+failure and exact cached-diagram restoration after live model rollback.
+They predate these changes and do not block the bounded M11 acceptance.
+Provider natural-language behavior, process-local execution recovery and
+user-trial promotion remain separate actions.

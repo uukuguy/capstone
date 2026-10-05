@@ -577,7 +577,12 @@ elements, historical pages, and snapshot/live-event reconciliation. Fix a
 missing assertion with a failing regression before changing production code.
 Repeat affected local gates and cloud rollout if runtime code changes.
 
-- [ ] **Step 2: Inspect the actual cloud App with the completed Thread.**
+- [x] **Step 2: Inspect the actual cloud App with the completed Thread.**
+
+Passed on runtime source 26c5cbe. Actual cloud PyPSA result/diagram, history,
+reload and one-SSE-abort/manual reconnect checks match the HTTP identities.
+Positive focus uses a separate actual admitted IEEE-39 line:0 result. Local
+foreign-revision/unknown-element regressions remain identified as local.
 
 Use the browser skill and existing private Thread authentication mechanism;
 never place a token in a URL, screenshot, static variable, or receipt. Open
@@ -593,11 +598,12 @@ negative tests; identify that evidence as local. Do not inject fabricated
 events into the shared cloud ledger. Verify historical-page behavior in the
 real Web history where available. Missing required acceptance remains pending.
 
-- [ ] **Step 3: Verify committed history after worker restart.**
+- [x] **Step 3: Verify committed history after worker restart.**
 
-HTTP retention passed: the snapshot, 53 events, both legacy reports/results,
-evidence and six network views match before/after restart. The Web refresh
-portion remains pending with Step 2 because browser connection recovery failed.
+HTTP and actual Web retention passed on 26c5cbe. Snapshot, 53 events, both legacy
+reports/results, evidence and six network views match before/after restart and
+normal restoration. Actual worker process starts follow the zero-active-work
+check. No old Context turn was submitted to claim execution recovery.
 
 Ensure test-owned Attempts are terminal and no unrelated active work would be
 interrupted before restart. Restart the two validation workers using the same
@@ -617,9 +623,11 @@ source/digest identity after restoration, not just validation-mode IDs.
 
 - [x] **Step 5: Self-review evidence against every spec row.**
 
-The verification record explicitly leaves the real Web acceptance row open.
-HTTP retention passed, while its Web refresh portion also remains pending.
-This review does not establish M11 completion.
+The verification record maps all 13 required acceptance rows to passed evidence.
+Full source and App reviews approve compliance and quality. Required receipt
+byte-bound tests and exact-Attempt rejection assertions are added in a421276;
+17 focused validation tests and type checks pass. The deployed runtime remains
+26c5cbe because the additional commit changes tests only.
 
 The verification document contains one row per acceptance check, with result,
 receipt path, execution mode, stage, and limit. Link the ignored receipt paths
@@ -635,8 +643,10 @@ and `git diff --check`; all must pass before committing the record.
 
 - [x] **Step 6: Commit the verification record and update the recovery baton.**
 
-The record preserves the pending Web checks. This checkpoint commit does not
-close M11; resume Step 2 and the Web portion of Step 3 after browser recovery.
+The current record closes M11 after actual cloud Web/restart acceptance and
+normal-mode/public-access restoration. It preserves the initial parser/cache
+failure and interrupted parallel legacy attempt separately from passed serial
+acceptance. Provider work and user-trial promotion remain outside this package.
 
 Commit message: `docs: record M11 cloud federated Thread verification`.
 Journal the commit and retain an active-session checkpoint. Leave promotion

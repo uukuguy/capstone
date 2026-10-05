@@ -1631,3 +1631,30 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 11:56 重启前只读检查确认 active Attempts=0、active sessions=0；重启双 worker 后私有预检恢复，Thread 快照/53 条事件、双案例报告/结果/证据/六个网络视图指纹一致。开始清除验证 opt-in 并按相同 595e602 源恢复正常模式。
 - 12:05 cloud-dev API 与双 worker 均恢复 normal，源仍为 595e602；API 复用验证镜像，最终部署 ID 已存清单。健康、双族目录、公开 Provider/Thread 拒绝检查通过；双公共案例再次完成，历史指纹与恢复前一致。
 - 12:05 临时 SSH 注册和密钥文件已移除，临时 PostgreSQL 容器已停止；未变更试用环境或执行 Provider。真实 Web 验收仍待浏览器恢复；用户询问设置入口，已核对官方文档并澄清该入口属于 ChatGPT 桌面应用，等待确认当前客户端。
+- 12:07 固化 M11 云端验证证据与正常部署身份，保留 Web 待验项以支持准确续作 [a0ead8b]
+- 12:13 用户要求自行处理浏览器连接；当前插件已更新至 26.915.31945，但工具启动仍导入已移除的 26.901.41600/browser-service.mjs，重置后同样失败。Chrome native-host 配置检查通过，Orca 未运行；卡点为会话工具启动配置过期，需客户端重新加载，未修改浏览器配置。
+- 12:22 用户确认 M11 交接稿；保存最终交接，下一会话恢复浏览器连接并完成 Web 验收。
+- 12:53 M11 Browser 已加载当前插件；标签页读取及新窗口恢复仍超时。Chrome、扩展和本机通信配置检查通过；Web 验收未开始。
+- 12:53 M11 浏览器阻塞记录和恢复检查点已更新；doctor、文档链接、CLAUDE.md 相对符号链接及 diff 检查通过。
+- 13:30 Playwright CLI 成功打开云端既有 Thread，发现前端拒绝 model_switch 事件；本地回归已复现。
+- 13:30 用户明确本地 App 开发优先；暂停云端验收和插件重装，先修复并验证 localhost 既有 Thread。
+- 13:31 前端 model_switch 解析修复通过 App 全部 172 测试及构建；当前源本地重建进行中。
+- 13:34 当前源本地重建完成，API 与双 worker 同镜像且健康；既有 Thread 恢复 53 事件和 PyPSA 六母线图。
+- 13:38 本地真实 Web 结果卡、模型图、刷新和故障后手动重连通过；PyPSA focus 引用及历史模型页入口仍缺失。
+- 13:41 本地验收回执及恢复检查点已保存；doctor、文档链接、相对符号链接与 diff 检查通过，云端保持暂停。
+- 13:55 用户报告 Zen 本地 Thread 后续发送无反应；回归确认刷新后命令 ID 复用和拒绝回执被隐藏，连续发送与模型提示后的发送本身通过。
+- 13:57 Thread 命令改用随机唯一 ID；显示服务端拒绝回执并恢复未发送草稿。176 项 App 测试及构建通过。
+- 13:59 本地重建和 doctor 通过；无界面 Playwright 验证连续发送、刷新后 ID 唯一、拒绝提示及草稿恢复。命令测试使用隔离传输，未调用 Provider。截图中的 case24_ieee_rts 不在本地注册模型目录。
+- 14:25 用户确认未响应指令为“打开 case24_ieee_rts 电网模型”；实际原因是前端未知模型快捷路由只显示顶部提示，未提交对话。新回归复现后，未识别模型请求改为保留原文进入 send_auto，仍不猜测或直接切换未知模型。
+- 14:27 未识别模型请求回归及全部 177 项 App 测试、构建、后台浏览器、当前源本地重建和 doctor 通过；浏览器命令使用隔离测试传输，无 Provider 调用。此前 stale_event_seq 拒绝发生在上一 Attempt 尚未完成期间，不是本次确认指令的原因。
+- 15:12 4550444 修复 Thread 发送反馈、刷新命令身份及模型切换事件解析，以继续 M11 本地验收。
+- 15:19 Restored typed model history and blocked historical focus/retry to keep archived Contexts read-only. [26c5cbe]
+- 15:59 4550444 的实际提交时间为 15:01；此前 15:12 行记录的是检查点时间。26c5cbe 任务复核和完整 App 代码复核均通过。
+- 15:59 本地真实 Web 已通过 PyPSA 结果卡、六母线图、历史页只读与定位拒绝、精确刷新和单次 SSE 故障重连；独立 IEEE-39 当前元件定位通过，无 Provider 调用。本地已重建并恢复普通运行模式。
+- 15:59 独立临时 PostgreSQL 的 Thread 测试 11 项、会话账本与 worker 测试 16 项通过；未清理应用数据库。完整发布检查继续运行。
+- 16:05 26c5cbe 的完整 make check-release 通过，包含 E2E 39 + 3、24/24 能力覆盖、安装包与源码安装检查；独立 PostgreSQL API/制品测试另 9 项通过，临时数据库已移除。开始同修订的云开发 M11 受限模式部署。
+- 16:10 云开发 26c5cbe 双 worker 部署成功；实际私网 8080 健康、领域身份和 m11-provider-free 模式通过，活动工作为零。开始同源 API/App 部署。
+- 16:20 云开发四服务同源部署完成；新 Thread 矩阵 5/5 和真实 Web PyPSA 结果/图、历史页只读、定位拒绝、刷新及 SSE 重连通过。浏览器旧页面缓存曾保留旧解析器，重新加载当前资源后通过。并行旧版案例首次 worker_interrupted 已保留；串行复验的 pandapower 案例通过，PyPSA 案例执行中。
+- 16:24 云开发旧版双案例串行复验、真实 IEEE-39 line:0 定位通过；双 worker 同部署重启后健康，53 事件、Thread 快照、报告/结果/证据和六个旧版图视图指纹一致，Web 刷新/重连通过。开始恢复普通运行模式，无 Provider 调用。
+- 16:27 Added M11 receipt bounds and exact Attempt rejection checks to close review test gaps. [a421276]
+- 16:34 M11 全部 13 项必需验收通过；普通模式 API/App、双领域健康、公开案例及权限拒绝通过。正常模式历史指纹和 Web 回放与重启前一致；活动任务为零，临时 SSH 注册、密钥文件及任务浏览器已清理。Provider 和用户试用环境未改动。

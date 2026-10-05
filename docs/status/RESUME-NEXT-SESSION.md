@@ -1,84 +1,96 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-05 12:05 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-05 16:36 CST. M11 verification is complete.
+> This is a recovery checkpoint, not a reviewed final handoff.
 
-## Current work
+## Current direction
 
-M11 implementation and cloud HTTP acceptance passed. Real cloud Web acceptance
-remains pending because Chrome control cannot connect. Do not mark M11 complete.
-The user approved inline execution and cloud-dev deployment. Provider execution
-and user-trial promotion remain outside the authorization.
+- M11 meets all13 required acceptance rows. Its design, plan and verification
+  record are aligned. No implementation task or background verification remains.
+- Local and cloud-development runtimes are normal. No Provider call, user-trial
+  deployment, source-trigger change, data migration or secret rotation occurred.
+- Runtime source26c5cbe is deployed. Main also contains tests-only a421276 and
+  the status/verification closeout. No push was performed.
+- Continue only with the next requested scope. Provider validation and
+  user-trial promotion require their separate authorization.
 
-## Verified state
+## Implementation and evidence
 
-- Main contains runtime source `595e602` and additional tests `e128789`.
-  No runtime source changed during remote acceptance.
-- Full `make check-release` passed, including E2E 39 + 3, App 171,
-  coverage 24/24, installed-package checks and source setup.
-- Disposable PostgreSQL: 19 passed. Each real Authority environment:
-  2 passed / 1 opposite-family skip. Focused App replay/focus: 32 passed.
-- Local rebuild, matrix 5/5, both public cases, and normal-mode restoration passed.
-- Remote private preflight and Thread matrix: 5/5 passed.
-  Receipt: `runs/capstone-m11/remote/m11-750fa3caf36f4202.json`.
-- Both remote legacy cases passed in validation mode and again in normal mode:
-  `runs/capstone-m11/remote/legacy-ff2198411ada.json` and
-  `runs/capstone-m11/remote-normal/legacy-08a7ec68d8dd.json`.
-- Before worker restart, read-only DB counts showed zero active Attempts and
-  sessions. After restart and after normal restoration, the Thread snapshot,
-  53 events, reports/results/evidence and six network views match:
-  `runs/capstone-m11/remote/retention-{before,after,normal}.json`.
-- Both private workers report `normal`; API validation endpoint returns 404.
-  API/App readiness, both catalog families, public Provider denial and public
-  Thread creation/read denial passed. No Provider work was submitted.
-- Temporary SSH registration/key files removed; disposable PostgreSQL
-  `capstone-m11-test-postgres` stopped. No application data was deleted.
+- 4550444 fixes normal model_switch parsing, refresh-safe command identity,
+  visible rejected receipts and rejected-draft recovery. The confirmed unknown
+  phrase “打开 case24_ieee_rts 电网模型” now submits unchanged text to send_auto.
+  case24_ieee_rts remains absent from the registered catalog.
+- 26c5cbe reconstructs typed model history, exact Context/model/revision views,
+  explicit missing-history topology and read-only focus/retry controls. Live
+  cancellation remains available.
+- a421276 adds required receipt UTF-8 byte/check-count boundaries and binds
+  arbitrary-instruction rejection to its own Attempt. Runtime is unchanged.
+- App191 tests/build, full make check-release, E2E39+3, coverage24/24,
+  installed-package/source-setup, isolated PostgreSQL11+16+9, validation17
+  focused tests/types, local rebuild and doctor passed.
+- Task/App/full M11 source reviews approved compliance and quality; receipt
+  test closure review also approved. Reports: ignored .superpowers/sdd/.
 
-## Final cloud deployment
+Primary evidence:
+- docs/reviews/2026-10-05-capstone-m11-cloud-verification.md
+- docs/superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md
+- docs/superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md
+- runs/capstone-m11/closeout-local/
+- runs/capstone-m11/closeout-cloud/ and closeout-cloud-normal/
+- output/playwright/m11-cloud-web/
 
-Target: `capstone-cloud-dev`, project
-`5eecde6b-fec2-40d2-8b26-427025b02b96`, environment `production`
-(`5afd6aeb-07a6-4320-92e9-4bf193a442cb`).
+## Real cloud acceptance
 
-| Role | Normal-mode deployment |
-| --- | --- |
-| API | `c7fe98e9-3e92-47ab-b826-2ca4af09f758` |
-| pandapower worker | `8aa5840f-4d26-4477-a2d3-e120032a3786` |
-| PyPSA worker | `3e8348ab-31dc-4984-be26-c9775ad864c1` |
-| App | `1c428e30-4f1c-4308-87cd-962b4fc337e7` |
+- New remote matrix5/5 passed: Thread thr_f644a1c24eb95426d20c,
+  Run run_f644a1c24eb95426d20c, active PyPSA Context ctx_945c70653649e26a6387,
+  cursor53. Actual Web result card, six-bus/seven-branch diagram, history,
+  refresh, one-SSE-abort/reconnect and focus refusal passed.
+- Actual positive admitted line:0 focus passed on thr_f6f93c79e02e16c83e53.
+  PyPSA's zero focus refs were not misreported as a successful positive check.
+- Historical IEEE Context lacks a retained diagram; Web explicitly displays
+  unavailability. Local typed fixtures cover retained historical views.
+- Tested workers restarted. Fresh process starts follow the zero-active-work
+  check. Snapshot,53 events, reports/results/evidence and six legacy network
+  views have identical hashes before, after and in normal mode. Real Web replay
+  receipts also match. No turn was submitted on an old process-local Context.
+- Both registered legacy cases completed three turns with reports/evidence in
+  validation and restored normal modes. Public Provider/options/unknown cases
+  returned403; public Thread create/read/catalog/events/stream returned404.
+- Final readiness checks confirm API/App, both normal workers and catalogs.
+  Activity is zero. Task SSH registration/local copies and browser sessions
+  were removed; completed replay data and main var/ were preserved.
 
-All use source `595e602`; API reused the exact verified image. The manifest
-`runs/capstone-m11/deployment.json` records full hashes, digests and rollback
-settings. Validation opt-in is empty on all backend roles. Local mode is normal.
+Final deployment IDs, all runtime source26c5cbe:
+- API816c1e1d-e362-4781-97b0-769863fd7d96
+- pandapower worker dd1e748d-40fd-4a64-bb58-a3cf737f25e7
+- PyPSA worker fdf697fd-62d6-4998-9c27-dd431b08c01a
+- App e5a5c711-9ff3-416e-aaab-5b52bed66f17
+Exact digests and rollback settings:
+runs/capstone-m11/closeout-cloud/deployment.json.
 
-## Next action: browser acceptance only
+## Limits and ruled-out paths
 
-The user approved opening a new Chrome window; it opened, but tab listing
-still timed out. Extension/native-host diagnostics passed. Supported recovery
-requires plugin repair through the client's UI. Do not bypass Browser with
-shell/AppleScript or a separate browser automation surface.
+- Initial parallel legacy PyPSA session session-c51b61a1f1e0591176d531f3
+  interrupted. The failure is retained separately; same-source serial and
+  normal-mode revalidation passed. Root cause is not established. No concurrent
+  reliability claim is made.
+- A stale cached cloud HTML page retained the old parser. Loading the current
+  index-CDljbaik.js bundle passed; use a fresh page after deployment.
+- Three stale_event_seq rejections on a different Thread occurred during a live
+  Attempt and were not the confirmed unknown-model-send defect.
+- Playwright CLI independent browsers work. Chrome extension transport timeouts
+  do not prove Chrome is broken; do not repeat plugin reinstallation merely to
+  use local headless tests.
+- Remaining client follow-ups: uncertain-transport draft recovery and exact
+  cached-diagram restoration after live model rollback. No uncommitted runtime
+  fix or deferred user data migration is hidden here.
+- Retained history does not establish process-local Authority execution recovery.
+  No Provider-backed natural-language acceptance was claimed.
 
-The user asked what “Settings → Computer Use” means. Official documentation
-places it in the ChatGPT desktop application. An async question asks whether
-the current client is Orca, ChatGPT desktop, or Codex. Give instructions for
-the actual client; do not assume ChatGPT menus exist in Orca.
+## Local entry point
 
-After connection recovery, open:
-`https://capstone-app-production-83ef.up.railway.app/?thread=thr_2353b828e0025c28f556`.
-
-Use the current cloud-development operator credential through the password
-field. The local `.capstone-agent/auth/railway-operator.token` is stale for
-this target; read protected cloud API configuration in memory without printing
-or copying credentials. Verify result cards, matching current diagram,
-refresh/reconnect and legitimate focus; check history behavior where available.
-Use existing committed history only. Normal-mode submissions can invoke a
-Provider and are not authorized. Do not assert execution recovery of old
-process-local Authority Contexts after worker restart.
-
-## Owning records
-
-- Plan: `docs/superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md`.
-  Task 5 Step 2 and the Web portion of Step 3 remain open.
-- Verification: `docs/reviews/2026-10-05-capstone-m11-cloud-verification.md`.
-- Main has no pending runtime changes. Documentation checkpoint is being
-  committed; append the commit to JOURNAL immediately.
-- Preserve `capstone-demo`, Provider credentials, user work and main `var/`.
+The current Compose API/workers are rebuilt and normal; Vite is running.
+Use http://127.0.0.1:5173/ and refresh a stale browser tab before a new case.
+Use make capstone-local-rebuild after future API/worker/App changes.
+Keep credentials in ignored state or protected service variables, never CLI
+arguments, static build variables, logs or evidence artifacts.
