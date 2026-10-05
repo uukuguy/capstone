@@ -1,5 +1,4 @@
 import { NetworkView } from './NetworkView'
-import ThreadModelDirectory from './ThreadModelDirectory'
 import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
@@ -23,9 +22,6 @@ export type ThreadModelPaneProps = {
   gridPages: readonly ThreadGridPage[]
   isHistorical: boolean
   projectionEventSeq: number
-  modelTarget: string
-  contextChangePending: boolean
-  controlsDisabled: boolean
   previewDiagram: NetworkDiagram | null
   networkView?: DiagramNetworkView | null
   networkTaskId?: string
@@ -34,8 +30,6 @@ export type ThreadModelPaneProps = {
   onLatestInstruction?: () => void
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
   modelOptions: ThreadCatalogModel[]
-  onModelTargetChange: (value: string) => void
-  onSwitchModel: () => void
   onSelectPage: (pageId: string) => void
   resultProjection?: ResultProjection
   focusedElementId?: string
@@ -81,8 +75,8 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
-  projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
-  networkView, networkTaskId, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
+  projectionEventSeq, previewDiagram,
+  networkView, networkTaskId, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -120,24 +114,19 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         </div>
       </div>
       <div className="thread-intro-copy">
-        <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
-        <p>智能体对话围绕当前电网模型连续开展工作：用自然语言打开模型、提出问题和组织分析，通过回答下方的操作查看对应电网图、运行过程和证据。</p>
+        <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。智能体对话围绕当前电网模型连续开展工作：用自然语言打开模型、提出问题和组织分析，通过回答下方的操作查看对应电网图、运行过程和证据。</p>
       </div>
     </section>
-    <div className="thread-model-navigation">
-      <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
-        disabled={controlsDisabled} pending={contextChangePending} onTargetChange={onModelTargetChange} onSwitch={onSwitchModel} />
       {pages.length > 1 && <details className="thread-model-history"><summary>模型历史 · {pages.length - 1}</summary>
         <div className="thread-page-tabs" aria-label="电网模型分页">
           {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
             label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
         </div>
       </details>}
-    </div>
     <div className="thread-network-card">
       {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>回到最新指令图</button></div>}
       {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
-        <NetworkView view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${networkTaskId || ''}:${focusedElementId || ''}`}
+        <NetworkView compact view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${networkTaskId || ''}:${focusedElementId || ''}`}
           instructionLabel={instructionLabel}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>

@@ -20,8 +20,7 @@ describe('operator network canvas', () => {
     } as Parameters<typeof projectActiveNetworkView>[1]
     render(<ThreadModelPane snapshot={snapshot} activePage={snapshot.activeGridPageId} viewedPage="page_old"
       gridPages={[{ pageId: 'page_old', context, networkView: view }]} isHistorical projectionEventSeq={10}
-      modelTarget={snapshot.activeModelContext.modelId} contextChangePending={false} controlsDisabled
-      previewDiagram={null} modelOptions={[]} onModelTargetChange={() => {}} onSwitchModel={() => {}}
+      previewDiagram={null} modelOptions={[]}
       onSelectPage={() => {}} resultProjection={resultProjection} viewingInstruction />)
     expect(document.querySelector('svg title')?.textContent).toContain('25.0')
   })

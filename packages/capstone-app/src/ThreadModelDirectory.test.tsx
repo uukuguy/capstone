@@ -12,6 +12,23 @@ const models: ThreadCatalogModel[] = [
 const props = { models, currentModelId: 'grid-a', target: 'grid-a', disabled: false, pending: false, onTargetChange: vi.fn(), onSwitch: vi.fn() }
 
 describe('on-demand registered model directory', () => {
+  it('sorts by engine and natural model ID without changing the registered catalog', () => {
+    const unsorted = [{ ...models[1], modelId: 'pypsa/grid-2' }, { ...models[0], modelId: 'case14' }, { ...models[0], modelId: 'case9' }]
+    render(<ThreadModelDirectory {...props} models={unsorted} />)
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    const ids = Array.from(screen.getByRole('listbox').querySelectorAll('option')).map((item) => item.value).filter(Boolean)
+    expect(ids).toEqual(['case9', 'case14', 'pypsa/grid-2'])
+    expect(unsorted.map((model) => model.modelId)).toEqual(['pypsa/grid-2', 'case14', 'case9'])
+  })
+  it('dismisses on an outside click and prevents Enter from submitting the surrounding composer', () => {
+    const onSubmit = vi.fn((event) => event.preventDefault())
+    render(<><form onSubmit={onSubmit}><ThreadModelDirectory {...props} /></form><button type="button">Outside</button></>)
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    expect(fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Enter', code: 'Enter' })).toBe(false)
+    expect(onSubmit).not.toHaveBeenCalled()
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside' }))
+    expect(screen.queryByRole('searchbox')).toBeNull()
+  })
   it('starts closed, focuses search on open, and restores the opener on Escape', () => {
     render(<ThreadModelDirectory {...props} />)
     expect(screen.queryByRole('listbox', { name: '目标电网模型' })).toBeNull()

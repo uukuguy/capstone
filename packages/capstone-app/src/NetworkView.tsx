@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent, WheelEvent } from 'react'
+import { Crosshair, Maximize2, Minus, Plus } from 'lucide-react'
 import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { PositionedBus } from './networkLayout'
 import type { LegacyNetworkView, NetworkDiagram, NetworkView as NetworkViewData } from './types'
@@ -42,12 +43,13 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
   return `hsl(${Math.round(14 - intensity * 10)} 68% ${Math.round(54 - intensity * 16)}%)`
 }
 
-export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel,
+export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel, compact = false,
                               nextTask = false, unavailable = false,
                               previewUnavailable = false, historyFocusIds = [] }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
   instructionLabel?: string
+  compact?: boolean
   nextTask?: boolean;
   unavailable?: boolean; previewUnavailable?: boolean
   historyFocusIds?: string[]
@@ -147,23 +149,26 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   // buses and transformers remain identifiable in a focused network region.
   const symbolScale = Math.max(visualScale, Math.min(0.6, Math.max(0.3, camera.width / 650)))
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
-  return <section className="network-card" aria-labelledby="network-title">
-    <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
+  const toolbar = <div className="network-toolbar" aria-label="电网图操作">
+    <button type="button" onClick={() => zoom(0.8)} aria-label="放大" title="放大">{compact ? <Plus aria-hidden="true" /> : '＋'}</button>
+    <button type="button" onClick={() => zoom(1.25)} aria-label="缩小" title="缩小">{compact ? <Minus aria-hidden="true" /> : '－'}</button>
+    {!compact && <span className="network-toolbar-divider" />}
+    <button type="button" onClick={() => setCamera(FULL)} aria-label="适配全图" title="适配全图">{compact ? <Maximize2 aria-hidden="true" /> : '适配全图'}</button>
+    <button type="button" onClick={() => setCamera(taskCamera(geometry!, nodes, focusIds))} aria-label="回到当前任务" title="回到当前任务">{compact ? <Crosshair aria-hidden="true" /> : '回到当前任务'}</button>
+  </div>
+  return <section className={`network-card${compact ? ' is-compact' : ''}`} aria-labelledby="network-title">
+    <div className="network-head"><div>{!compact && <span className="eyebrow">TOPOLOGY / VIEW</span>}
       <h2 id="network-title">电气拓扑图</h2></div><div className="network-head-context">
         {view && <span className="network-step">{instructionLabel || `指令 ${view.ordinal}`}</span>}
         <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
-      <div className="network-meta"><span>模型来源 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
+      <div className={compact ? 'network-control-row' : undefined}>
+      <div className="network-meta"><span>{compact ? '' : '模型来源 · '}{geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>
         <span>{geometry!.schema === 'capstone-network-diagram/1.0'
           ? geometry!.coordinate_system === 'geographic' ? '地理拓扑 · 模型坐标' : modelCoordinates ? '电气示意 · 模型坐标' : '电气示意布局'
           : modelCoordinates ? '模型坐标 · 未经地理校验'
             : geometry!.coordinate_status === 'provided-unverified' ? '示意布局 · 模型坐标过密' : '示意布局'}</span></div>
-      <div className="network-toolbar" aria-label="电网图操作">
-        <button type="button" onClick={() => zoom(0.8)} aria-label="放大">＋</button>
-        <button type="button" onClick={() => zoom(1.25)} aria-label="缩小">－</button>
-        <span className="network-toolbar-divider" />
-        <button type="button" onClick={() => setCamera(FULL)}>适配全图</button>
-        <button type="button" onClick={() => setCamera(taskCamera(geometry!, nodes, focusIds))}>回到当前任务</button>
+      {toolbar}
       </div>
       {nextTask && <div className="network-focus-status">{focusIds.length
         ? '正在对焦下一步已知目标' : '下一步暂无可定位元件，显示全图范围'}</div>}

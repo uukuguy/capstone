@@ -5,6 +5,7 @@ import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
+import ThreadModelDirectory from './ThreadModelDirectory'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
@@ -320,14 +321,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           gridPages={displayedGridPages}
-          projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
-          controlsDisabled={isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} previewDiagram={currentDiagram}
+          projectionEventSeq={projection.eventSeq} previewDiagram={currentDiagram}
           networkView={activeNetworkView}
           networkTaskId={selectedNetworkTask?.attemptId || networkTask?.attemptId}
           instructionLabel={instructionNumber ? `指令 ${instructionNumber}` : undefined}
           viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
-          elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId} onModelTargetChange={setModelTarget}
-          onSwitchModel={() => void sendConversation('automatic', `打开 ${modelTarget} 电网模型并显示电网拓扑。`).catch(() => {})} onSelectPage={selectPage} />
+          elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
+          onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
           <div className="thread-chat-heading"><div><span className="eyebrow">THREAD</span><h2>智能体对话</h2></div><div className="thread-chat-heading-meta"><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span><span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span><span className="thread-run-state">{snapshot.run.state}</span><button type="button" className="thread-diagnostics-toggle" aria-label="查看 Thread 详情" aria-expanded={diagnosticsOpen} onClick={() => setDiagnosticsOpen((value) => !value)}>详情</button></div></div>
           {diagnosticsOpen && <div className="thread-diagnostics" role="region" aria-label="Thread 详情"><span>run <code>{snapshot.run.runId}</code></span><span>context <code>{snapshot.activeModelContext.id}</code></span><span>revision <code>{snapshot.activeModelContext.modelRevision}</code></span><span>selection <code>{snapshot.activeModelContext.selectionRevision}</code></span></div>}
@@ -361,10 +361,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={<ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
+            composerControls={<><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
-              onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />}
+              onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
+              <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
+                disabled={isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
+                onTargetChange={setModelTarget} onSwitch={() => void sendConversation('automatic', `打开 ${modelTarget} 电网模型并显示电网拓扑。`).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={sendConversation}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}

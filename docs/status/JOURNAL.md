@@ -1674,3 +1674,5 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 20:56 按用户修正恢复品牌顶图常驻显示；构建、本地浏览器可见性核验和重建通过，模型目录及详情仍按需展开。
 - 20:56 Restored permanent brand artwork visibility to match the user's layout preference. [fff85cd]
 - 20:59 顶图下恢复最早案例页 CAPSTONE 描述并补充智能体对话说明，使用10px小字号；桌面/手机浏览器、构建及本地重建通过。
+- 21:00 Restored framework copy and added conversation guidance below the artwork to explain the workspace. [3d804db]
+- 2026-10-05 Moved the sorted model menu beside Composer settings, matched its10px text, and compacted topology controls;230 App tests, browser checks, build, review and local rebuild passed.

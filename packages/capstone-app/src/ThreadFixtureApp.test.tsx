@@ -58,6 +58,19 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('puts the model directory beside Composer settings and preserves its draft', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '保留此草稿' } })
+    const opener = screen.getByRole('button', { name: '模型目录' })
+    expect(opener.closest('.capstone-composer-toolbar')).toBeTruthy()
+    expect(opener.closest('.thread-model-pane')).toBeNull()
+    fireEvent.click(opener)
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'pypsa' } })
+    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Enter' })
+    expect((input as HTMLTextAreaElement).value).toBe('保留此草稿')
+    expect(screen.queryByText('Fixture 已接收自动指令：保留此草稿')).toBeNull()
+  })
   it('restores an old instruction graph locally and returns to the latest graph', async () => {
     const fixture = instructionViewsFixture()
     const transport = createFixtureTransport(fixture)
