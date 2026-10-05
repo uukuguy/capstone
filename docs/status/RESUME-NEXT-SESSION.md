@@ -20,7 +20,7 @@ compact900 and phone390 layouts. Hover does not change message height;
 phone controls are44px and long identifiers wrap. Independent review approved.
 
 Final checked-in local rebuild passed; API and both workers share image
-sha256:8a6f6311c6489d43cfed768ca4024b05a71c8d220dc58acc070b3400f1845bdd.
+sha256:6f0e99dcdf3ba7018f2fb9170b6e49ae275c4071153f79f056b22149193fbd7b.
 Readiness, App200 and real catalog81 passed. Original user Thread remains
 IEEE39/cursor76. Receipts: runs/capstone-page-refinement. Screenshots:
 output/playwright/thread-page-*.png. All task test servers18761/18762/18763,
@@ -36,6 +36,10 @@ planning. The isolated browser assembly omits legacy preview and emits known404s
 Only the post-commit journal and checkpoint are uncommitted bookkeeping.
 The user's later correction keeps the brand image visible. Its build,
 local browser visibility check and local rebuild passed. Screenshot:
-output/playwright/thread-page-brand-visible.png. This correction is being committed.
+output/playwright/thread-page-brand-visible.png. Correction committed asfff85cd.
+The next correction adds the original Case-page CAPSTONE copy plus a Thread
+conversation description below the image in10px text. Build, desktop/phone
+browser checks and local rebuild passed. Screenshots:
+output/playwright/thread-page-intro-copy-{desktop,phone}.png.
 Next: refresh the local App; start further work from the user's next request.
 No implementation or verification work remains for this page refinement.

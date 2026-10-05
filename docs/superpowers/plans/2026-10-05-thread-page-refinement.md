@@ -11,6 +11,9 @@
 User correction after delivery: keep the brand artwork permanently visible.
 Only model history and view diagnostics use disclosures; the directory still
 opens on demand.
+The next user correction restores the original Case-page CAPSTONE description
+below the artwork and adds a compact description of the Thread conversation,
+natural-language model opening, analysis and answer-linked grid/evidence views.
 
 The user now authorizes the model-area simplification deferred in the
 [instruction-view plan](2026-10-05-thread-preset-ranking-and-task-view.md).

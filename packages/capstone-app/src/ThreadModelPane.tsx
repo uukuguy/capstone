@@ -119,6 +119,10 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
           <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
         </div>
       </div>
+      <div className="thread-intro-copy">
+        <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
+        <p>智能体对话围绕当前电网模型连续开展工作：用自然语言打开模型、提出问题和组织分析，通过回答下方的操作查看对应电网图、运行过程和证据。</p>
+      </div>
     </section>
     <div className="thread-model-navigation">
       <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}

@@ -6,6 +6,12 @@ Post-delivery correction: the user requested a permanently visible brand
 artwork. It is restored as a normal section; history, directory and diagnostics
 keep their compact behavior. The collapsed-artwork screenshots below record
 the earlier layout, not this final preference.
+The user also requested the original Case-page CAPSTONE introduction plus a
+Thread conversation description below the artwork. Both use10px description
+text and compact paragraph spacing.
+This copy correction passed the App build, desktop/phone visible-text,
+computed10px font and overflow checks, and local rebuild. Screenshots are
+`output/playwright/thread-page-intro-copy-{desktop,phone}.png`.
 
 The model toolbar and repeated current-model tab are removed. The topology
 heading keeps the model identity. Framework artwork, model history and view

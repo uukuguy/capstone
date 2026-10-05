@@ -1672,3 +1672,5 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 20:51 精简模型区并加入按需搜索目录，标题栏只留 GitHub 图标；修复悬停布局跳动与手机操作。App227、构建、浏览器、复核和本地重建通过。
 - 20:52 Simplified model navigation and stabilized page actions to reduce clutter and improve mobile use. [112c6e7]
 - 20:56 按用户修正恢复品牌顶图常驻显示；构建、本地浏览器可见性核验和重建通过，模型目录及详情仍按需展开。
+- 20:56 Restored permanent brand artwork visibility to match the user's layout preference. [fff85cd]
+- 20:59 顶图下恢复最早案例页 CAPSTONE 描述并补充智能体对话说明，使用10px小字号；桌面/手机浏览器、构建及本地重建通过。
