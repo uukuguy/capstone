@@ -132,8 +132,15 @@ def test_prepared_kernel_pi_factory_exposes_only_prepared_profile_inputs(tmp_pat
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,)
         ),
     )
+    assert assembly.network_projection_factory is not None
     claim = _claim(revision)
     runtime = assembly.runtime_factory(claim)
+    projection = runtime.network_projection(claim, (), (), ())
+    assert projection is not None
+    assert projection["diagram"]["model"] == {
+        "id": "ieee39", "revision": revision, "source": "gridctl",
+    }
+    assert len(projection["diagram"]["buses"]) == 39
     runtime.start()
     assert runtime.prompt("inspect", on_event=lambda _event: None) == "answer"
     runtime.stop()

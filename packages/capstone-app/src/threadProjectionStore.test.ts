@@ -79,6 +79,48 @@ function command(): ThreadCommand {
 }
 
 describe('ThreadProjectionStore', () => {
+  it('does not duplicate events or regress the cursor when catch-up overlaps SSE delivery', async () => {
+    const events = [1, 2].map((sequence) => parseEventEnvelope({ event_id: `evt_${sequence}`, event_seq: sequence, event_type: 'assistant_text_delta', event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { text: `${sequence}` } }))
+    let finishRead: ((value: unknown) => void) | undefined
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture),
+      readEvents: async () => new Promise((resolve) => { finishRead = resolve }),
+      streamEvents: async function* () { yield* events },
+    }))
+    await store.load('thr_demo_39')
+    const read = store.catchUp()
+    await store.consumeEvents()
+    finishRead!({ schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 1, has_more: false, events: [{ event_id: 'evt_1', event_seq: 1, event_type: 'assistant_text_delta', event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { text: '1' } }] })
+    await expect(read).resolves.toBeTruthy()
+    expect(store.state.eventSeq).toBe(2)
+    expect(store.publicEvents).toHaveLength(2)
+  })
+  it.each(['model_context_activated', 'model_context_reopened'])('restores the exact previous live diagram after failed %s and on reload', async (changeType) => {
+    const nextContext = { ...context, id: 'ctx_next', ...(changeType === 'model_context_activated' ? { model_id: 'pypsa39', implementation_family: 'pypsa' } : {}) }
+    const events = [
+      ['network_diagram', context.id, { diagram: dynamicDiagram }],
+      ['network_layer', context.id, { ordinal: 1, layer: dynamicLayer }],
+      [changeType, nextContext.id, { model_context: nextContext, previous_context: context, active_grid_page_id: changeType === 'model_context_activated' ? 'page_pypsa39' : 'page_ieee39', previous_grid_page_id: 'page_ieee39' }],
+      ['model_context_reverted', context.id, { restored_context: context, restored_grid_page_id: 'page_ieee39' }],
+    ].map(([event_type, model_context_id, payload], index) => ({
+      event_id: `evt_${index + 1}`, event_seq: index + 1, event_type, event_version: 1, model_context_id,
+      thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload,
+    }))
+    const transport = { ...createFixtureTransport(idleFixture),
+      streamEvents: async function* () { for (const event of events) yield parseEventEnvelope(event) },
+    }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(transport))
+    await store.load('thr_demo_39')
+    await store.consumeEvents()
+    expect(store.state.snapshot?.activeModelContext.id).toBe(context.id)
+    expect(store.state.networkView?.diagram.model.id).toBe('ieee39')
+    const restored = store.state.networkView
+    const replay = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport({ ...idleFixture,
+      snapshot: { ...idleFixture.snapshot, last_event_seq: events.length },
+      events: { ...idleFixture.events, next_event_seq: events.length, events },
+    })))
+    await replay.load('thr_demo_39')
+    expect(replay.state.networkView).toEqual(restored)
+  })
   it('restores model pages and their own context-bound network views from typed history', async () => {
     const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(historyFixture())))
     await store.load('thr_history')

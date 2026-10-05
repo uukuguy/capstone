@@ -133,6 +133,103 @@ def test_normalizer_drops_unbounded_native_payloads() -> None:
     }
 
 
+def test_normalizer_preserves_nested_authority_refs_and_model_identity() -> None:
+    result_ref = "result:sha256:" + "a" * 64
+    context_ref = "context:sha256:" + "b" * 64
+    revision_ref = "revision:sha256:" + "c" * 64
+    event = normalize_runtime_event({
+        "type": "tool_execution_end", "toolName": "grid_analysis_powerflow_ac",
+        "result": {"details": {
+            "ok": True, "capability": "analysis.powerflow.ac.run",
+            "result": {"result_ref": result_ref, "context_ref": context_ref,
+                       "revision_ref": revision_ref, "model": "case24_ieee_rts",
+                       "raw_network": {"secret": "must-not-cross"}},
+        }},
+    }, runtime_mode="capstone")
+    payload = event["payload"]
+    assert payload["result_refs"] == [result_ref]
+    assert payload["context_ref"] == context_ref
+    assert payload["model_revision"] == revision_ref
+    assert payload["model_id"] == "case24_ieee_rts"
+    assert "must-not-cross" not in str(payload)
+
+
+def test_canonical_rpc_result_keeps_authority_references_and_identity() -> None:
+    from capability_agent.runtime.rpc import _canonical_tool_result_event
+
+    result_ref = "result:sha256:" + "a" * 64
+    context_ref = "context:sha256:" + "b" * 64
+    revision_ref = "revision:sha256:" + "c" * 64
+    canonical = _canonical_tool_result_event({
+        "type": "tool_execution_end", "toolCallId": "call_1",
+        "result": {"details": {
+            "ok": True, "capability": "analysis.powerflow.ac.run",
+            "result": {"result_ref": result_ref, "context_ref": context_ref,
+                       "revision_ref": revision_ref, "model": "case24_ieee_rts"},
+            "evidence_refs": ["evidence:sha256:" + "d" * 64],
+        }},
+    })
+    assert canonical is not None
+    payload = normalize_runtime_event(canonical, runtime_mode="capstone")["payload"]
+    assert payload["result_refs"] == [result_ref]
+    assert payload["context_ref"] == context_ref
+    assert payload["model_revision"] == revision_ref
+    assert payload["model_id"] == "case24_ieee_rts"
+    assert payload["evidence_refs"] == ["evidence:sha256:" + "d" * 64]
+
+
+def test_canonical_authority_business_details_do_not_hide_pypsa_identity() -> None:
+    from capability_agent.runtime.rpc import _canonical_tool_result_event
+
+    model_ref = "model:sha256:" + "b" * 64
+    result_ref = "result:sha256:" + "a" * 64
+    canonical = _canonical_tool_result_event({
+        "type": "tool_execution_end", "result": {"details": {
+            "ok": True, "capability": "model.inspect",
+            "result": {"model_ref": model_ref, "result_ref": result_ref,
+                       "details": {"component": "Bus", "secret": "must-not-cross"}},
+        }},
+    })
+    assert canonical is not None
+    payload = normalize_runtime_event(canonical, runtime_mode="capstone")["payload"]
+    assert payload["model_ref"] == model_ref
+    assert payload["result_refs"] == [result_ref]
+    assert "must-not-cross" not in str(payload)
+
+
+@pytest.mark.parametrize("identity", [
+    {"model_id": "ieee39", "model": "case24_ieee_rts"},
+    {"revision_ref": "revision:sha256:" + "a" * 64,
+     "model_revision": "revision:sha256:" + "b" * 64},
+    {"model_id": "x" * 513}, {"context_ref": ""},
+    {"revision_ref": None}, {"model_ref": {"id": "foreign"}},
+])
+def test_successful_tool_cannot_hide_invalid_or_conflicting_identity(identity) -> None:
+    with pytest.raises(ValueError, match="identity"):
+        normalize_runtime_event({
+            "type": "tool_result", "ok": True, "capability": "context.open",
+            "result": identity,
+        }, runtime_mode="capstone")
+
+
+def test_successful_tool_rejects_conflict_between_native_metadata_and_result() -> None:
+    with pytest.raises(ValueError, match="identity"):
+        normalize_runtime_event({
+            "type": "tool_execution_end", "model_id": "ieee39",
+            "result": {"details": {"ok": True, "capability": "context.open",
+                                   "result": {"model_id": "case24_ieee_rts"}}},
+        }, runtime_mode="capstone")
+
+
+def test_failed_tool_cannot_introduce_nested_result_refs() -> None:
+    event = normalize_runtime_event({
+        "type": "tool_execution_end", "result": {"details": {
+            "ok": False, "result": {"result_ref": "result:sha256:" + "a" * 64},
+        }},
+    }, runtime_mode="capstone")
+    assert "result_refs" not in event["payload"]
+
+
 def test_normalizer_preserves_bounded_tool_provenance_and_evidence_refs() -> None:
     event = normalize_runtime_event(
         {

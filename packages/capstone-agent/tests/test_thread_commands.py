@@ -37,7 +37,7 @@ def test_command_factory_keeps_control_payloads_strict_and_does_not_invent_curso
     assert command["expected_event_seq"] == 8
 
 
-@pytest.mark.parametrize("model_id", ["", "PyPSA", "pypsa/39/extra"])
+@pytest.mark.parametrize("model_id", ["", "9PyPSA", "pypsa/39/extra"])
 def test_command_factory_rejects_invalid_model_ids(model_id: str) -> None:
     factory = ThreadCommandFactory("thr_demo_39", "run_001")
 

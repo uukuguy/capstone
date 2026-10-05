@@ -105,7 +105,8 @@ export class ThreadProtocolError extends Error {
 }
 
 const identifierPattern = /^[a-z][a-z0-9_-]{0,63}$/
-const resultModelIdentifierPattern = /^[a-z][a-z0-9_.:/-]{0,127}$/
+const resultModelIdentifierPattern = /^[A-Za-z][A-Za-z0-9_.:/-]{0,127}$/
+const modelIdentifierPattern = /^(?:[A-Za-z][A-Za-z0-9_-]{0,63}|[a-z][a-z0-9_-]{0,63}\/[a-z0-9][a-z0-9._-]{0,63})$/
 const runStates = new Set<RunState>(['created', 'open', 'closing', 'closed', 'failed'])
 const attemptPhases = new Set<AttemptPhase>([
   'created', 'accepted', 'running', 'waiting', 'committing',
@@ -162,6 +163,11 @@ function resultModelIdentifier(value: unknown, name: string): string {
   const result = resultText(value, name)
   if (!resultModelIdentifierPattern.test(result)) throw new ThreadProtocolError(`${name} is invalid`)
   return result
+}
+
+function modelIdentifier(value: unknown, name: string): string {
+  if (typeof value !== 'string' || !modelIdentifierPattern.test(value)) throw new ThreadProtocolError(`${name} is invalid`)
+  return value
 }
 
 function text(value: unknown, name: string): string {
@@ -413,7 +419,7 @@ function parseContext(value: unknown, name = 'active_model_context'): ModelConte
   required(document, keys.filter((key) => key !== 'enabled_profiles'), name)
   return {
     id: identifier(document.id, `${name}.id`),
-    modelId: identifier(document.model_id, `${name}.model_id`),
+    modelId: modelIdentifier(document.model_id, `${name}.model_id`),
     modelRevision: text(document.model_revision, `${name}.model_revision`),
     implementationFamily: identifier(document.implementation_family, `${name}.implementation_family`),
     selectionRevision: text(document.selection_revision, `${name}.selection_revision`),
@@ -438,7 +444,7 @@ function parsePendingModelSwitch(value: unknown): PendingModelSwitchSnapshot {
   })()
   return {
     commandId: identifier(document.command_id, 'pending_model_switch.command_id'),
-    modelId: identifier(document.model_id, 'pending_model_switch.model_id'),
+    modelId: modelIdentifier(document.model_id, 'pending_model_switch.model_id'),
     modelRevision: text(document.model_revision, 'pending_model_switch.model_revision'),
     implementationFamily: identifier(document.implementation_family, 'pending_model_switch.implementation_family'),
     enabledProfiles: parseEnabledProfiles(document.selection),

@@ -28,8 +28,10 @@ from capstone_model_capability_spi import ModelCapabilityDescriptor
 from capstone_model_capability_spi import ModelCapabilityRegistry, ModelCapabilitySelection
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from capstone_agent.thread_application import ThreadApplicationAssembly
+from capstone_agent.thread_service import ThreadModelCatalog
 
 from .profile import build_pandapower_application_profile
+from ..thread_network_view import build_pandapower_thread_network_provider
 
 
 PANDAPOWER_PROFILE_DESCRIPTOR = ModelCapabilityDescriptor(
@@ -49,6 +51,7 @@ def build_pandapower_thread_application(
     workspace_root: Path,
     model_binder: Callable[[object, ModelContextSnapshot], AuthorityModelBinding],
     session_builder: PreparedKernelSessionBuilder,
+    model_catalog: ThreadModelCatalog | None = None,
     default_selection: ModelCapabilitySelection | None = None,
     runtime_mode: str = "capstone",
 ) -> ThreadApplicationAssembly:
@@ -88,10 +91,12 @@ def build_pandapower_thread_application(
     return ThreadApplicationAssembly.from_prepared_authority(
         default_model_id=default_model_id,
         model_resolver=model_resolver,
+        model_catalog=model_catalog,
         capability_catalog=catalog,
         capability_context_owner=owner,
         session_factory=factory,
         runtime_mode=runtime_mode,
+        network_projection_factory=lambda _claim, context: build_pandapower_thread_network_provider(context),
     )
 
 

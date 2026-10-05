@@ -191,6 +191,7 @@ export class ThreadProjectionStore {
   private loadedThreadId: string | null = null
   private readonly eventLog: EventEnvelope[] = []
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
+  private readonly networkViews = new Map<string, DiagramNetworkView>()
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly client: CapstoneThreadClient) {}
@@ -250,6 +251,7 @@ export class ThreadProjectionStore {
       this.eventLog.length = 0
       this.eventLog.push(...restoredEvents)
       this.networkDiagrams.clear()
+      this.networkViews.clear()
       this.current = { ...this.current, networkView: null, gridPages: [] }
       // Discover the latest Context for each model page before replaying
       // topology. A reopened Context must never inherit an older diagram.
@@ -293,6 +295,18 @@ export class ThreadProjectionStore {
       }
       this.notify()
       throw error
+    }
+  }
+
+  async catchUpThrough(eventSeq: number): Promise<void> {
+    let more = true
+    while (more || this.current.eventSeq < eventSeq) {
+      const previous = this.current.eventSeq
+      const page = await this.catchUp()
+      more = page.hasMore
+      if (this.current.eventSeq === previous && (more || this.current.eventSeq < eventSeq)) {
+        throw new Error('accepted command events are not yet available; reconnect before retrying')
+      }
     }
   }
 
@@ -384,13 +398,17 @@ export class ThreadProjectionStore {
 
   private applyPage(page: EventPage): void {
     for (const event of page.events) this.applyEvent(event)
-    if (this.current.eventSeq !== page.nextEventSeq) {
-      this.current = { ...this.current, eventSeq: page.nextEventSeq }
-    }
   }
 
   private applyEvent(event: EventEnvelope): void {
     const snapshot = this.current.snapshot
+    // Catch-up and SSE can deliver the same admitted event. Keep one copy
+    // without moving the cursor backwards or hiding a conflicting event.
+    if (snapshot && event.threadId === snapshot.threadId && event.eventSeq <= this.current.eventSeq) {
+      const previous = this.eventLog.find((item) => item.eventSeq === event.eventSeq)
+      if (previous?.eventId === event.eventId && JSON.stringify(previous) === JSON.stringify(event)) return
+      throw new Error('duplicate event does not match admitted history')
+    }
     if (!snapshot || event.threadId !== snapshot.threadId || event.eventSeq !== this.current.eventSeq + 1) {
       throw new Error('event stream is not contiguous')
     }
@@ -460,6 +478,8 @@ export class ThreadProjectionStore {
     this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
     this.applyGridPageHistory(event, projected)
     this.rememberGridPage(projected.activeGridPageId, projected.activeModelContext)
+    const activeView = this.current.gridPages.find((page) => page.pageId === projected.activeGridPageId)?.networkView ?? null
+    this.current = { ...this.current, networkView: activeView }
     this.applyNetworkProjection(event, projected)
     this.eventLog.push(event)
     this.notify()
@@ -469,8 +489,10 @@ export class ThreadProjectionStore {
     const existing = this.current.gridPages.find((page) => page.pageId === pageId)
     const page: ThreadGridPage = {
       pageId, context,
-      networkView: existing?.context.id === context.id && existing.context.modelId === context.modelId &&
-        existing.context.modelRevision === context.modelRevision ? existing.networkView : null,
+      networkView: (() => {
+        const view = this.networkViews.get(context.id)
+        return view?.diagram.model.id === context.modelId && view.diagram.model.revision === context.modelRevision ? view : null
+      })(),
     }
     this.current = { ...this.current, gridPages: existing
       ? this.current.gridPages.map((item) => item.pageId === pageId ? page : item)
@@ -504,6 +526,8 @@ export class ThreadProjectionStore {
     if (!page) return
     const context = page.context
     const setView = (networkView: DiagramNetworkView | null) => {
+      if (networkView) this.networkViews.set(context.id, networkView)
+      else this.networkViews.delete(context.id)
       this.current = { ...this.current,
         gridPages: this.current.gridPages.map((item) => item.pageId === page.pageId ? { ...item, networkView } : item),
         ...(context.id === snapshot.activeModelContext.id ? { networkView } : {}),

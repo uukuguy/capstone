@@ -1,5 +1,10 @@
 # M11 federated Thread acceptance
 
+Scope correction: this receipt covers the restricted scripted M11 matrix.
+It does not establish ordinary conversation model-open correctness. The user
+later reproduced a model/context mismatch. Its diagnosis, local repair and
+verification are in the [Thread model state repair](2026-10-05-thread-model-state-repair.md).
+
 Status: **complete**. All required M11 acceptance checks passed on 2026-10-05.
 Local and cloud-development runtimes are restored to normal mode.
 Provider validation was not run. The user-trial stage was not changed.

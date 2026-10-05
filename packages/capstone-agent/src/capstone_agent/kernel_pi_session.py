@@ -159,12 +159,14 @@ class PreparedKernelPiRpcSessionBuilder:
         single_runtime = binding_runtimes[0][1] if single else None
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
         system_policy_path = self._runtime_host.system_policy_path
-        if ordinary or claim.application_catalog is not None:
+        if profiles:
             system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
                 include_generic=ordinary,
                 application_catalog=claim.application_catalog,
+                model_context=claim.model_context,
+                profiles=profiles,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -238,6 +240,8 @@ def _compose_attempt_policy(
     *,
     include_generic: bool,
     application_catalog: Mapping[str, object] | None,
+    model_context: ModelContextSnapshot | None = None,
+    profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -247,16 +251,35 @@ def _compose_attempt_policy(
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
-    if len(generic_text) + len(domain_text) + len(catalog_text) > 128_000:
+    model_text = _render_attempt_model_context(model_context, profiles) if model_context is not None else ""
+    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
     return path
+
+
+def _render_attempt_model_context(
+    context: ModelContextSnapshot,
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+) -> str:
+    lines = [
+        "## Current application-selected model (immutable for this Attempt)",
+        f"Model ID: {context.model_id}; family: {context.implementation_family}",
+        f"Model revision: {context.model_revision}; model Context: {context.id}",
+        "Use this model for follow-up requests, including requests that do not name a model.",
+        "Do not open or analyze a different model. Model changes require the application's explicit switch command.",
+        "Opening an authority context is not a Thread model switch. Do not report a different model as active.",
+    ]
+    for profile in profiles:
+        binding = profile.model_binding
+        lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+    return "\n".join(lines)
 
 
 def _render_application_catalog_context(
@@ -369,6 +392,7 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                         raise ValueError("runtime reference has conflicting binding owners")
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
+        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
         decisions = []
         for binding_id, binding in binding_map.items():
             runtime = getattr(binding, "runtime", None)
@@ -422,6 +446,83 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             result_projections=result_projections,
         )
     return admit
+
+
+def _verify_bound_attempt_references(
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+    bindings: Mapping[str, object],
+    owners: Mapping[str, str],
+    result_refs: tuple[str, ...],
+    evidence_refs: tuple[str, ...],
+    tool_events: tuple[Mapping[str, object], ...],
+) -> None:
+    """Verify authority artifacts against the immutable application binding."""
+    for profile in profiles:
+        bound = profile.model_binding
+        prepared_bindings = getattr(profile.prepared_application, "bindings", None)
+        if not isinstance(prepared_bindings, Mapping):
+            raise ValueError("prepared authority bindings are unavailable")
+        for binding_id in prepared_bindings:
+            runtime = getattr(bindings[binding_id], "runtime", None)
+            authority = getattr(runtime, "authority", None)
+            events = [event for event in tool_events if (
+                event.get("binding_id") == binding_id
+                or event.get("binding_id") is None and len(bindings) == 1
+            )]
+            for event in events:
+                if event.get("ok") is not True:
+                    continue
+                for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
+                                        ("context_ref", bound.context_ref)):
+                    if field in event and event[field] != expected:
+                        raise ValueError("tool identity does not match the bound model context")
+                if "model_ref" in event:
+                    model_ref = event["model_ref"]
+                    if not isinstance(model_ref, str) or not bound.accepts_model_reference(model_ref):
+                        raise ValueError("tool identity does not match the bound model context")
+            results = tuple(ref for ref in result_refs if owners.get(ref) == binding_id)
+            evidence = tuple(ref for ref in evidence_refs if owners.get(ref) == binding_id)
+            verified: set[tuple[str, str]] = set()
+
+            def verify(kind: str, reference: str) -> None:
+                key = (kind, reference)
+                if key in verified:
+                    return
+                method = getattr(authority, "verify_" + kind, None)
+                if not callable(method):
+                    raise ValueError("bound artifact authority verification is unavailable")
+                document = getattr(method(reference), "document", None)
+                if not isinstance(document, Mapping):
+                    raise ValueError("bound authority artifact is invalid")
+                for field, expected in (("context_ref", bound.context_ref),
+                                        ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
+                                        ("model_id", bound.model_id)):
+                    if field in document and document[field] != expected:
+                        raise ValueError("authority artifact does not match the bound model context")
+                model_ref = document.get("model_ref")
+                accepted_model_ref = isinstance(model_ref, str) and bound.accepts_model_reference(model_ref)
+                if "model_ref" in document and not accepted_model_ref:
+                    raise ValueError("authority artifact does not match the bound model context")
+                linked_result = document.get("result_ref")
+                bound_identity = (
+                    document.get("context_ref") == bound.context_ref
+                    and document.get("revision_ref") == bound.model_revision
+                ) if bound.context_ref.startswith("context:") else accepted_model_ref
+                linked_evidence = kind == "evidence" and isinstance(linked_result, str)
+                if not bound_identity and not linked_evidence:
+                    raise ValueError("authority artifact has incomplete bound model identity")
+                verified.add(key)
+                if kind == "evidence" and isinstance(linked_result, str):
+                    verify("result", linked_result)
+
+            for reference in results:
+                verify("result", reference)
+            for reference in evidence:
+                verify("evidence", reference)
+            if results or evidence:
+                audit = getattr(authority, "audit_answer_references", None)
+                if not callable(audit) or audit(evidence, results):
+                    raise ValueError("bound authority references are not linked or verified")
 
 
 def _build_result_projections(
@@ -484,7 +585,6 @@ def _build_result_projections(
     owners: dict[str, str] = {}
     result_evidence: dict[str, tuple[str, ...]] = {}
     sole_binding = next(iter(bindings), None) if len(bindings) == 1 else None
-    last_result_by_binding: dict[str, str] = {}
     for event in tool_events:
         binding_id = event.get("binding_id")
         if binding_id is None:
@@ -497,21 +597,55 @@ def _build_result_projections(
             previous = owners.setdefault(reference, binding_id)
             if previous != binding_id:
                 raise ValueError("runtime reference has conflicting binding owners")
-        for result_ref in event_results:
-            previous_evidence = result_evidence.setdefault(result_ref, event_evidence)
-            if previous_evidence != event_evidence:
-                raise ValueError("runtime result has conflicting evidence owners")
-            last_result_by_binding[binding_id] = result_ref
-        # Evidence retrieval is commonly a separate semantic tool call after
-        # the calculation.  Preserve that explicit runtime order so the
-        # evidence remains bound to the latest result instead of being treated
-        # as self-admitted projection data.
-        if event_evidence and not event_results:
-            result_ref = last_result_by_binding.get(binding_id)
-            if result_ref is not None:
-                previous_evidence = result_evidence.setdefault(result_ref, ())
-                merged = tuple(dict.fromkeys((*previous_evidence, *event_evidence)))
-                result_evidence[result_ref] = merged
+    # A view can return an existing result without producing new evidence.
+    # Use only verified artifact links. An aggregate can explicitly cite
+    # scenario evidence whose own result link names an unselected child.
+    admitted_results = set(result_refs)
+    declared_evidence: dict[str, set[str]] = {}
+    for result_ref in dict.fromkeys(result_refs):
+        binding_id = owners.get(result_ref)
+        if binding_id is None or binding_id not in bindings:
+            raise ValueError("projection result has no prepared binding owner")
+        runtime = getattr(bindings[binding_id], "runtime", None)
+        authority = getattr(runtime, "authority", None)
+        verify_result = getattr(authority, "verify_result", None)
+        if not callable(verify_result):
+            raise ValueError("projection result authority verification is unavailable")
+        document = getattr(verify_result(result_ref), "document", None)
+        if not isinstance(document, Mapping):
+            raise ValueError("projection result artifact is invalid")
+        references = document.get("evidence_refs")
+        declared_evidence[result_ref] = {
+            reference for reference in references if isinstance(reference, str)
+        } if isinstance(references, (list, tuple)) else set()
+    for evidence_ref in dict.fromkeys(evidence_refs):
+        binding_id = owners.get(evidence_ref)
+        if binding_id is None or binding_id not in bindings:
+            raise ValueError("projection evidence has no prepared binding owner")
+        runtime = getattr(bindings[binding_id], "runtime", None)
+        authority = getattr(runtime, "authority", None)
+        verify_evidence = getattr(authority, "verify_evidence", None)
+        if not callable(verify_evidence):
+            raise ValueError("projection evidence authority verification is unavailable")
+        document = getattr(verify_evidence(evidence_ref), "document", None)
+        if not isinstance(document, Mapping):
+            raise ValueError("projection evidence artifact is invalid")
+        linked_result = document.get("result_ref")
+        if linked_result is not None and not isinstance(linked_result, str):
+            raise ValueError("projection evidence result binding is invalid")
+        associated_results = {
+            result_ref for result_ref, references in declared_evidence.items()
+            if evidence_ref in references
+        }
+        if isinstance(linked_result, str) and linked_result in admitted_results:
+            associated_results.add(linked_result)
+        for result_ref in associated_results:
+            if owners.get(result_ref) != binding_id:
+                raise ValueError("projection evidence result binding is invalid")
+            previous_evidence = result_evidence.get(result_ref, ())
+            result_evidence[result_ref] = (*previous_evidence, evidence_ref)
+        # Standalone facts and evidence for an unselected result stay admitted,
+        # but do not acquire a projection association from execution order.
 
     for profile in profiles:
         prepared_bindings = getattr(profile.prepared_application, "bindings", None)

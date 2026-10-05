@@ -55,7 +55,7 @@ export class ThreadCatalogProtocolError extends Error {
 }
 
 const identifierPattern = /^[a-z][a-z0-9_-]{0,63}$/
-const modelIdentifierPattern = /^[a-z][a-z0-9_-]{0,63}(?:\/[a-z0-9][a-z0-9._-]{0,63})?$/
+const modelIdentifierPattern = /^(?:[A-Za-z][A-Za-z0-9_-]{0,63}|[a-z][a-z0-9_-]{0,63}\/[a-z0-9][a-z0-9._-]{0,63})$/
 
 function record(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ThreadCatalogProtocolError(`${name} must be an object`)
@@ -156,6 +156,14 @@ function normalizedReference(value: string): string {
  * names such as ``two-bus``.
  */
 export function resolveThreadModelReference(catalog: ThreadCatalog, reference: string): ThreadModelReferenceResolution {
+  const direct = resolveExactThreadModelReference(catalog, reference)
+  if (direct.kind !== 'unknown') return direct
+  const trimmed = reference.trim()
+  const base = trimmed.replace(/\s*(?:电网模型|网络模型|电网|网络|模型|\s+grid model|\s+network model|\s+network|\s+model)$/iu, '').trim()
+  return base !== trimmed ? resolveExactThreadModelReference(catalog, base) : direct
+}
+
+function resolveExactThreadModelReference(catalog: ThreadCatalog, reference: string): ThreadModelReferenceResolution {
   const trimmed = reference.trim()
   if (!trimmed) return { kind: 'unknown', reference: trimmed }
   const exact = catalog.models.find((model) => model.modelId === trimmed)
@@ -175,9 +183,30 @@ export function resolveThreadModelReference(catalog: ThreadCatalog, reference: s
   return { kind: 'unknown', reference: trimmed }
 }
 
-/** Parse only short, unambiguous model-control phrases. Longer requests such
- * as “打开 IEEE-39 网络并解析线路” deliberately return null and remain
- * ordinary agent instructions. */
+/** Select a leading registered model only at an explicit instruction boundary.
+ * The full text still goes to the activating turn. Arbitrary tails are never
+ * truncated into a guessed model reference. */
+export function resolveThreadModelCommandReference(catalog: ThreadCatalog, reference: string): ThreadModelReferenceResolution {
+  const direct = resolveThreadModelReference(catalog, reference)
+  if (direct.kind !== 'unknown') return direct
+  const boundary = /(?:并(?:且)?|然后|，|,|；|;|\band\b|\bthen\b)/iu.exec(reference)
+  if (!boundary) return direct
+  const leading = reference.slice(0, boundary.index).trim()
+  const tail = reference.slice(boundary.index + boundary[0].length).trim()
+  if (!leading || !tail) return direct
+  const resolution = resolveThreadModelReference(catalog, leading)
+  if (resolution.kind !== 'resolved') return resolution
+  const mentioned = catalog.models.filter((model) => model.modelId !== resolution.model.modelId &&
+    [model.modelId, model.modelId.split('/').at(-1) || model.modelId, model.displayName].some((name) => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return new RegExp(`(?<![a-z0-9_/-])${escaped}(?![a-z0-9_/-])`, 'iu').test(tail)
+    }))
+  if (mentioned.length) return { kind: 'ambiguous', reference, candidates: [resolution.model, ...mentioned].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
+  return resolution
+}
+
+/** Parse the control verb; catalog resolution determines whether its model
+ * reference is exact or safely leads a longer activating instruction. */
 export function parseThreadModelCommand(text: string): ThreadModelCommandIntent | null {
   const value = text.trim().replace(/[。.!！?？]+$/u, '').trim()
   const fresh = value.match(/^(?:重新打开|重新载入|重建|打开一个干净的模型)\s+(.+)$/u)

@@ -28,6 +28,7 @@ from pypsa_model_authority.store import canonical_bytes
 
 from .profile import build_profile
 from .thread_capabilities import PYPSA_PROFILE_DESCRIPTOR, build_pypsa_thread_application
+from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -94,9 +95,14 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         model_ref = opened.get("model_ref")
         if not isinstance(model_ref, str):
             raise RuntimeError("PyPSA model authority did not return a model reference")
+        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, context.model_id)
         return AuthorityModelBinding(
             "source", context.model_id, context.model_revision,
             context.implementation_family, model_ref,
+            model_reference_verifier=lambda reference: verify_bound_model_reference(
+                binding.runtime.authority, reference,
+                model_id=context.model_id, base_ref=model_ref,
+            ),
         )
 
     def build_session(claim, context, profiles):

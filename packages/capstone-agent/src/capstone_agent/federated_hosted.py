@@ -22,6 +22,9 @@ from .thread_application import ThreadApplicationAssembly
 
 
 _MAX_EXPORT_BYTES = 512 * 1024
+# Exporters verify every registered model revision, including large networks.
+# Keep startup bounded while allowing a cold authority under local build load.
+_EXPORT_TIMEOUT_SECONDS = 120
 _EXPORTERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "pandapower",
@@ -52,7 +55,7 @@ def _run_exporter(root: Path, family: str, command: tuple[str, ...]) -> dict[str
                 list(command), cwd=root, shell=False, stdout=output,
                 stderr=subprocess.PIPE, env=environment,
             )
-            process.communicate(timeout=30)
+            process.communicate(timeout=_EXPORT_TIMEOUT_SECONDS)
             output.seek(0)
             raw_stdout = output.read(_MAX_EXPORT_BYTES + 1)
             returncode = process.returncode

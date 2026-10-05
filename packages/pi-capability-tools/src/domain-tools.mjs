@@ -1,5 +1,5 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai";
+import { Type, validateToolArguments } from "@earendil-works/pi-ai";
 import { createHash, randomUUID } from "node:crypto";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import {
@@ -511,14 +511,27 @@ export function createCapabilityTool(descriptor, contract, runner) {
   const runtime = selectedBindingRuntime(descriptor);
   validateContract(contract, runtime);
   const executeRunner = runner ?? ((payload) => runCapability(payload, runtime));
+  const parameters = Type.Unsafe(contract.input_schema);
+  const validationTool = { name: contract.name, parameters };
   return defineTool({
     name: contract.name,
     label: contract.name,
     description: contract.description,
-    parameters: Type.Unsafe(contract.input_schema),
+    parameters,
     async execute(_id, params) {
+      // Reject caller-selected transport routing before schema diagnostics.
+      buildCapabilityRequest(runtime, contract.capability, params);
       const routedParams = injectApplicationHandoff(runtime, contract.capability, params);
-      const payload = buildCapabilityRequest(runtime, contract.capability, routedParams);
+      let validated;
+      try {
+        validated = validateToolArguments(validationTool, {
+          type: "toolCall", id: _id, name: contract.name, arguments: routedParams,
+        });
+      } catch {
+        return toolError({ code: "invalid_arguments", phase: "validate",
+          message: "Arguments do not match the selected capability contract" }, contract.capability, runtime, contract);
+      }
+      const payload = buildCapabilityRequest(runtime, contract.capability, validated);
       const response = await executeRunner(payload);
       if (!isCorrelatedResponse(response, payload.request_id, runtime)) {
         return toolError(
@@ -529,6 +542,8 @@ export function createCapabilityTool(descriptor, contract, runner) {
             details: { expected_request_id: payload.request_id, response },
           },
           contract.capability,
+          runtime,
+          contract,
         );
       }
       if (response.ok !== true) {
@@ -1660,8 +1675,8 @@ function evidenceRefs(value) {
   return [...new Set(refs)];
 }
 
-function toolError(error, capability) {
-  const details = {
+function toolError(error, capability, descriptor, contract) {
+  const details = descriptor && contract ? canonicalToolResult(descriptor, contract, { ok: false, error }) : {
     event: "tool_result",
     capability,
     ok: false,

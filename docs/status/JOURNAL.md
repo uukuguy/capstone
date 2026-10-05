@@ -1658,3 +1658,9 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 16:24 云开发旧版双案例串行复验、真实 IEEE-39 line:0 定位通过；双 worker 同部署重启后健康，53 事件、Thread 快照、报告/结果/证据和六个旧版图视图指纹一致，Web 刷新/重连通过。开始恢复普通运行模式，无 Provider 调用。
 - 16:27 Added M11 receipt bounds and exact Attempt rejection checks to close review test gaps. [a421276]
 - 16:34 M11 全部 13 项必需验收通过；普通模式 API/App、双领域健康、公开案例及权限拒绝通过。正常模式历史指纹和 Web 回放与重启前一致；活动任务为零，临时 SSH 注册、密钥文件及任务浏览器已清理。Provider 和用户试用环境未改动。
+- 16:44 Closed M11 acceptance and recorded normal restoration to preserve verified release boundaries. [e681e0a]
+- 17:26 用户截图推翻普通对话模型联动结论：RTS 已由 simulator 注册，但原 Web 导出仅含 IEEE39；Thread 仍为 IEEE39，下一条潮流也使用 IEEE39。此前“尚未注册”记录更正为“未接入 Web 目录”。开始完整本地修复，不改写用户历史，不调用 Provider 或部署云端。
+- 17:26 修复模型切换激活、草稿恢复、历史视图与结果定位后，最终 App 205 项测试及构建通过。真实 authority 拓扑 59 项、已有视图 9 项通过；独立复核发现并修复 canonical 结果引用丢失、冲突标识和不完整证据身份，相关 49 项测试及完整 Pyright 通过。连续多轮和浏览器验收仍在执行。
+- 17:48 真实电网五轮回归、完整 pandapower 目录快照往返与页面键唯一性通过；新增 PyPSA 派生链回归和可信交接参数校验保留合法分析，独立最终复核通过。当前源本地重建通过，API/双 worker 镜像相同；真实目录为 pandapower60 + PyPSA21，两个导出器在容器内共16.93秒。用户原 Thread 游标76保持不变，未重写历史。
+- 17:57 当前候选的完整 make check-release 通过，含 E2E39 + worker3、离线覆盖、安装包及源码安装检查；最终桌面/手机浏览器、205项 App 测试与构建通过。追加复核确认 flow→rank/query 的重复结果关联缺陷，并发现 N-1 聚合证据需要保留显式根结果关系；该修复的最终回归仍在执行，尚未交付。
+- 18:16 稳定最终源的完整 make check-release 退出0，含39项E2E、3项worker集成、24/24能力矩阵、安装包和源码安装；真实电网多轮/N-1、461项后台测试、205项App测试及浏览器验收通过，独立复核无阻断项。最终本地重建、健康和三角色同镜像4ae0863通过；doctor、文档链接、相对符号链接和diff通过。用户原Thread保持IEEE39/游标76，未调用外部Provider或更新云端。

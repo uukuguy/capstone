@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import pytest
 
 from capstone_agent.federated_hosted import load_federated_catalog_documents
@@ -85,3 +86,31 @@ def test_load_federated_catalog_documents_rejects_failed_or_oversized_export(mon
     monkeypatch.setattr("capstone_agent.federated_hosted.subprocess.Popen", OversizedProcess)
     with pytest.raises(RuntimeError, match="too large"):
         load_federated_catalog_documents(tmp_path)
+
+
+def test_catalog_export_timeout_stops_the_authority_process(monkeypatch, tmp_path) -> None:
+    calls = []
+
+    class TimedOutProcess:
+        def __init__(self, *args, **kwargs):
+            self.stopped = False
+
+        def communicate(self, timeout=None):
+            assert timeout == 120
+            raise subprocess.TimeoutExpired("registered-exporter", timeout)
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            calls.append("kill")
+            self.stopped = True
+
+        def wait(self):
+            assert self.stopped
+            calls.append("wait")
+
+    monkeypatch.setattr("capstone_agent.federated_hosted.subprocess.Popen", TimedOutProcess)
+    with pytest.raises(RuntimeError, match="catalog exporter failed"):
+        load_federated_catalog_documents(tmp_path)
+    assert calls == ["kill", "wait"]

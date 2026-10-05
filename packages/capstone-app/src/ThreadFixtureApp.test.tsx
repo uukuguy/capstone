@@ -35,6 +35,91 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('activates a matching pending reopen instead of discarding a recovered draft', async () => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    const snapshot = fixture.snapshot as Record<string, unknown>
+    snapshot.pending_model_switch = { command_id: 'cmd_reopen', model_id: 'ieee39', model_revision: '7', implementation_family: 'pandapower', reason: 'explicit_reopen', selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] } }
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) } })} threadId="thr_demo_39" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '重新打开 ieee39' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands.map((command) => command.kind)).toEqual(['send_auto']))
+  })
+
+  it('keeps the model selector disabled while an Attempt is active and permits cancellation', async () => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    ;(fixture.snapshot as Record<string, unknown>).current_attempt = { turn_id: 'turn_active', attempt_id: 'attempt_active', phase: 'running', target_model_context_id: 'ctx_ieee39_7' }
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_demo_39" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
+    expect((screen.getByRole('button', { name: '切换模型' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '停止生成' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+  it('uses the selected earlier result overlay when focusing its current-context row', async () => {
+    const fixture = focusFixture()
+    const snapshot = fixture.snapshot as { result_projections: Record<string, unknown>[] }
+    const original = snapshot.result_projections[0]
+    original.overlay = { metric: 'loading_percent', unit: '%', source_ref: original.result_ref, values: [{ element_id: 'line:1', value: 25 }] }
+    snapshot.result_projections.push({ ...original, result_id: 'result_later', result_ref: `result:sha256:${'d'.repeat(64)}`, tables: [], overlay: { metric: 'loading_percent', unit: '%', source_ref: `result:sha256:${'d'.repeat(64)}`, values: [{ element_id: 'line:1', value: 90 }] } })
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_history" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    expect(document.querySelector('svg title')?.textContent).toContain('90.0')
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
+    expect(await screen.findByText('已定位到 line:1')).toBeTruthy()
+    expect(document.querySelector('svg title')?.textContent).toContain('25.0')
+  })
+  it('selects a registered suffixed model and sends the original instruction with the caught-up cursor', async () => {
+    const fixture = threadUiFixture('idle-ieee39')
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    let switched = false
+    const client = new CapstoneThreadClient({ ...transport,
+      getCatalog: async () => ({ schema: 'capstone-thread-catalog/1', profiles: [], models: [{ model_id: 'case24_ieee_rts', authority_model_ref: 'gridctl:case24_ieee_rts', display_name: 'RTS-24', diagram_provider_id: 'pandapower', implementation_family: 'pandapower' }] }),
+      readEvents: async (threadId, after) => switched ? {
+        schema: 'capstone-thread-events/1', thread_id: threadId, after_event_seq: after,
+        next_event_seq: 2, has_more: false, events: [
+          { event_id: 'evt_switch', event_seq: 1, event_type: 'command_accepted', event_version: 1, thread_id: threadId, run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { kind: 'switch_model' } },
+          { event_id: 'evt_pending', event_seq: 2, event_type: 'model_context_change_pending', event_version: 1, thread_id: threadId, run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { command_id: commands[0].command_id, model_id: 'case24_ieee_rts', model_revision: '1', implementation_family: 'pandapower', selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] } } },
+        ].filter((event) => event.event_seq > after),
+      } : transport.readEvents(threadId, after),
+      sendCommand: async (command) => {
+        commands.push(command)
+        switched = true
+        return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id, command_id: command.command_id, idempotency_key: command.idempotency_key, status: 'accepted', accepted_event_seq: 1 }
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    const request = '打开 case24_ieee_rts 电网模型'
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands[0]).toMatchObject({ kind: 'switch_model', payload: { model_id: 'case24_ieee_rts' }, expected_event_seq: 0 })
+    expect(commands[1]).toMatchObject({ kind: 'send_auto', payload: { text: request }, expected_event_seq: 2 })
+    expect(commands[1].command_id).not.toBe(commands[0].command_id)
+  })
+
+  it.each(['ambiguous', 'unavailable', 'rejected', 'transport'])('keeps the composer draft after a %s model request', async (failure) => {
+    const fixture = threadUiFixture('idle-ieee39')
+    const transport = createFixtureTransport(fixture)
+    const model = { model_id: 'pypsa-example/two-bus', authority_model_ref: 'pypsa:two-bus', display_name: 'Two Bus', diagram_provider_id: 'pypsa', implementation_family: 'pypsa', available: failure !== 'unavailable' }
+    const client = new CapstoneThreadClient({ ...transport,
+      getCatalog: async () => ({ schema: 'capstone-thread-catalog/1', profiles: [], models: failure === 'ambiguous' ? [model, { ...model, model_id: 'other/two-bus' }] : [model] }),
+      sendCommand: async (command) => {
+        if (failure === 'transport') throw new Error('connection lost')
+        return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id, command_id: command.command_id, idempotency_key: command.idempotency_key, status: 'rejected', rejection: 'stale_event_seq' }
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    const request = '打开 two-bus'
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe(request))
+  })
   it.each([
     ['foreign model', { model_id: 'regional-six-bus' }, '该结果属于历史模型修订，已保持只读，未改变当前电网图'],
     ['foreign revision', { model_revision: historyContexts.historical.model_revision }, '该结果属于历史模型修订，已保持只读，未改变当前电网图'],
@@ -206,7 +291,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
 
-    expect(await screen.findByText('switch_model · accepted')).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：打开 pypsa39 电网模型并显示电网拓扑。')).toBeTruthy()
   })
 
   it('routes an explicit model-open phrase through the canonical switch command', async () => {
@@ -216,22 +301,26 @@ describe('ThreadFixtureApp', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 pypsa39' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    expect(await screen.findByText('已提交切换到 PyPSA-39，下一条指令将在该模型上下文中执行。')).toBeTruthy()
-    expect(screen.queryByText('Fixture 已接收自动指令：打开 pypsa39')).toBeNull()
+    expect(await screen.findByText('Fixture 已接收自动指令：打开 pypsa39')).toBeTruthy()
   })
 
   it('does not reopen the active model unless the user explicitly requests a fresh context', async () => {
-    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) } })} threadId="thr_demo_39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 ieee39' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
-    expect(await screen.findByText('当前模型已经是 IEEE-39，未重复打开。')).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：打开 ieee39')).toBeTruthy()
     expect(screen.queryByText('switch_model · accepted')).toBeNull()
+    expect(commands.map((command) => command.kind)).toEqual(['send_auto'])
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '重新打开 ieee39' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
-    expect(await screen.findByText('已提交重新打开 IEEE-39，将建立新的模型上下文。')).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：重新打开 ieee39')).toBeTruthy()
+    expect(commands.slice(1).map((command) => command.kind)).toEqual(['reopen_model_context', 'send_auto'])
+    expect(commands[1].payload.reason).toBe('user_requested_fresh_context')
   })
 
   it('keeps a longer open-and-analyze request as ordinary agent work', async () => {
@@ -330,12 +419,12 @@ describe('ThreadFixtureApp', () => {
     }
   })
 
-  it('sends another instruction after a model-control notice', async () => {
+  it('sends another instruction after a same-model activating turn', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
     await screen.findByRole('region', { name: '电网模型区' })
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '打开 ieee39' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
-    expect(await screen.findByText(/当前模型已经是/)).toBeTruthy()
+    expect(await screen.findByText('Fixture 已接收自动指令：打开 ieee39')).toBeTruthy()
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
     expect(await screen.findByText('Fixture 已接收自动指令：查看当前模型')).toBeTruthy()

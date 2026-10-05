@@ -8,13 +8,13 @@ from collections.abc import Sequence
 
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
+from grid_agent.thread_model_metadata import model_display_name
 
 
 def build_catalog_document() -> dict[str, object]:
     """Return the bounded public catalog for the current hosted grid scope."""
 
     registry = ModelRegistry(Pandapower340Engine())
-    model = registry.get("ieee39")
     return {
         "schema": "capstone-federated-catalog/1",
         "default_model_id": "ieee39",
@@ -22,11 +22,12 @@ def build_catalog_document() -> dict[str, object]:
             {
                 "model_id": model.model_id,
                 "authority_model_ref": f"gridctl:{model.model_id}",
-                "display_name": model.title,
+                "display_name": model_display_name(model.title, model.model_id),
                 "diagram_provider_id": "gridctl",
                 "implementation_family": model.engine,
                 "revision_ref": registry.trusted_revision_ref(model.model_id),
-            },
+            }
+            for model in registry.list()
         ],
         "profiles": [
             {

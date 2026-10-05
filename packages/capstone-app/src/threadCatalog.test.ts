@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isLikelyNaturalLanguageModelRequest, parseThreadCatalog, resolveThreadModelReference } from './threadCatalog'
+import { isLikelyNaturalLanguageModelRequest, parseThreadCatalog, resolveThreadModelReference, resolveThreadModelCommandReference } from './threadCatalog'
 
 describe('thread catalog protocol', () => {
+  it('preserves registered uppercase canonical model IDs', () => {
+    const catalog = parseThreadCatalog({ schema: 'capstone-thread-catalog/1', profiles: [], models: [{ model_id: 'GBnetwork', authority_model_ref: 'gridctl:GBnetwork', display_name: 'GBnetwork', diagram_provider_id: 'pandapower', implementation_family: 'pandapower' }] })
+    expect(resolveThreadModelReference(catalog, 'GBnetwork 电网模型')).toMatchObject({ kind: 'resolved', model: { modelId: 'GBnetwork' } })
+  })
   it('parses bounded model and profile selector metadata', () => {
     const catalog = parseThreadCatalog({
       schema: 'capstone-thread-catalog/1',
@@ -49,5 +53,18 @@ describe('thread catalog protocol', () => {
     expect(isLikelyNaturalLanguageModelRequest('不存在模型')).toBe(false)
     expect(isLikelyNaturalLanguageModelRequest('IEEE-39 network and analyze line 11')).toBe(true)
     expect(isLikelyNaturalLanguageModelRequest('IEEE-39 网络并解析线路 11')).toBe(true)
+  })
+
+  it('resolves a registered model with a Chinese suffix without accepting an arbitrary compound', () => {
+    const catalog = { models: [{ modelId: 'case24_ieee_rts', authorityModelRef: 'gridctl:case24_ieee_rts', displayName: 'RTS-24', diagramProviderId: 'pandapower', implementationFamily: 'pandapower' }], profiles: [] }
+    for (const reference of ['case24_ieee_rts 电网模型', 'case24_ieee_rts网络', 'RTS-24 网络模型']) {
+      expect(resolveThreadModelReference(catalog, reference)).toMatchObject({ kind: 'resolved', model: { modelId: 'case24_ieee_rts' } })
+    }
+    expect(resolveThreadModelReference(catalog, 'case24_ieee_rts 电网模型并执行潮流')).toMatchObject({ kind: 'unknown' })
+    expect(resolveThreadModelCommandReference(catalog, 'case24_ieee_rts 电网模型并执行潮流')).toMatchObject({ kind: 'resolved', model: { modelId: 'case24_ieee_rts' } })
+    expect(resolveThreadModelCommandReference(catalog, 'case24_ieee_rts_backup 并执行潮流')).toMatchObject({ kind: 'unknown' })
+    expect(resolveThreadModelCommandReference(catalog, 'case24_ieee_rts arbitrary compound')).toMatchObject({ kind: 'unknown' })
+    const other = { ...catalog.models[0], modelId: 'ieee39', displayName: 'IEEE-39' }
+    expect(resolveThreadModelCommandReference({ ...catalog, models: [...catalog.models, other] }, 'case24_ieee_rts 电网模型并打开 IEEE-39')).toMatchObject({ kind: 'ambiguous' })
   })
 })

@@ -26,6 +26,16 @@ function event(sequence: number): Record<string, unknown> {
 }
 
 describe('browser Thread protocol parser', () => {
+  it('preserves uppercase and namespaced registered model IDs in active and pending contexts', () => {
+    const document = validSnapshot()
+    ;(document.active_model_context as Record<string, unknown>).model_id = 'GBnetwork'
+    document.pending_model_switch = { command_id: 'cmd_switch', model_id: 'pypsa-example/model_energy', model_revision: '1', implementation_family: 'pypsa', selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] } }
+    const snapshot = parseThreadSnapshot(document)
+    expect(snapshot.activeModelContext.modelId).toBe('GBnetwork')
+    expect(snapshot.pendingModelSwitch?.modelId).toBe('pypsa-example/model_energy')
+    ;(document.active_model_context as Record<string, unknown>).model_id = 'PyPSA/example'
+    expect(() => parseThreadSnapshot(document)).toThrow('model_id is invalid')
+  })
   it('round trips a verified snapshot', () => {
     const snapshot = parseThreadSnapshot(validSnapshot())
 

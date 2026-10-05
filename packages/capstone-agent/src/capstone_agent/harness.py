@@ -246,15 +246,47 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     result_ref = event.get("result_ref", details.get("result_ref"))
     if isinstance(result_ref, str) and result_ref and "result_refs" not in payload:
         payload["result_refs"] = [result_ref[:512]]
+    # Native Pi tools retain authority output in details.result. Preserve only
+    # bounded references and identity, never the raw authority document.
+    result = details.get("result")
+    if ok is True and isinstance(result, Mapping):
+        nested_refs = result.get("result_refs", ())
+        raw_references = payload.get("result_refs")
+        references = [ref for ref in raw_references if isinstance(ref, str)] if isinstance(raw_references, list) else []
+        if isinstance(nested_refs, (list, tuple)):
+            references.extend(ref for ref in nested_refs if isinstance(ref, str) and ref)
+        if isinstance(result.get("result_ref"), str):
+            references.append(result["result_ref"])
+        if references:
+            payload["result_refs"] = list(dict.fromkeys(ref[:512] for ref in references))[:128]
+        for identity in (event, details, result):
+            for source, target in (
+                ("context_ref", "context_ref"), ("model_ref", "model_ref"),
+                ("revision_ref", "model_revision"), ("model_revision", "model_revision"),
+                ("model_id", "model_id"), ("model", "model_id"),
+            ):
+                if source not in identity:
+                    continue
+                value = identity[source]
+                if not isinstance(value, str) or not 0 < len(value) <= 512:
+                    raise ValueError("tool model identity is invalid")
+                if target in payload and payload[target] != value:
+                    raise ValueError("tool model identity is conflicting")
+                payload[target] = value
     return payload
 
 
 def _tool_details(event: Mapping[str, object]) -> Mapping[str, object]:
+    if event.get("event") == "tool_result" and isinstance(event.get("capability"), str):
+        # RPC canonicalization has already unwrapped native tool details.
+        return event
     result = event.get("result")
     if isinstance(result, Mapping):
         details = result.get("details")
         if isinstance(details, Mapping):
             return details
+    if event.get("type") == "tool_result" and isinstance(event.get("capability"), str):
+        return event
     details = event.get("details")
     return details if isinstance(details, Mapping) else {}
 

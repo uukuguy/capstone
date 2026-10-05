@@ -18,6 +18,7 @@ from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
 from capstone_agent.runtime import build_runtime_host
 from capstone_agent.thread_service import ThreadModelDescriptor
+from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
 from capability_agent.runtime.models import CliLLMOptions
 from capability_agent.runtime.resolver import resolve_llm
@@ -30,6 +31,8 @@ from grid_agent.application.thread_capabilities import (
     build_pandapower_thread_application,
 )
 from grid_agent.config.catalog import ProviderCatalog
+from grid_agent.thread_binding import bind_thread_tool_catalog
+from grid_agent.thread_model_metadata import model_display_name
 
 
 class RegisteredPandapowerThreadCatalog:
@@ -63,6 +66,9 @@ def build_registered_pandapower_thread_application():
             "model_id": model.model_id,
             "revision_ref": models.trusted_revision_ref(model.model_id),
             "implementation_family": model.engine,
+            "authority_model_ref": f"gridctl:{model.model_id}",
+            "display_name": model_display_name(model.title, model.model_id),
+            "diagram_provider_id": "gridctl",
         }
 
     def bind_model(prepared: object, context: Any) -> AuthorityModelBinding:
@@ -73,10 +79,12 @@ def build_registered_pandapower_thread_application():
         opened = binding.runtime.executor.invoke(
             "context.open", {"model_id": context.model_id},
         )
-        return AuthorityModelBinding(
+        model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
         )
+        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
+        return model_binding
 
     def build_session(claim, context, profiles):
         if validation_builder is not None:
@@ -114,6 +122,10 @@ def build_registered_pandapower_thread_application():
         workspace_root=workspace_root,
         model_binder=bind_model,
         session_builder=build_session,
+        model_catalog=AuthorityThreadModelCatalog(
+            default_model_id="ieee39", resolver=resolve_model,
+            model_ids=tuple(model.model_id for model in models.list()),
+        ),
         default_selection=ModelCapabilitySelection(
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,),
         ),

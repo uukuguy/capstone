@@ -21,6 +21,7 @@ from capability_agent.application.workspace import ApplicationWorkspace
 
 from .application import EmptyCredentialBroker, domain_registry
 from .thread_protocol import ModelContextSnapshot
+from .model_identity import validate_model_id
 
 
 _REVISION = re.compile(r"^revision:[a-z0-9_-]+:[0-9a-f]{16,128}$")
@@ -36,21 +37,38 @@ class AuthorityModelBinding:
     model_revision: str
     implementation_family: str
     context_ref: str
+    model_reference_verifier: Callable[[str], bool] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         for name, value in (
             ("binding_id", self.binding_id),
-            ("model_id", self.model_id),
             ("implementation_family", self.implementation_family),
         ):
             if not isinstance(value, str) or not re.fullmatch(
                 r"[a-z][a-z0-9_-]{0,63}", value
             ):
                 raise ValueError(f"Authority model {name} is invalid")
+        validate_model_id(self.model_id)
         if not isinstance(self.model_revision, str) or not _REVISION.fullmatch(self.model_revision):
             raise ValueError("Authority model revision is invalid")
         if not isinstance(self.context_ref, str) or not _REFERENCE.fullmatch(self.context_ref):
             raise ValueError("Authority model reference is invalid")
+        if self.model_reference_verifier is not None and not callable(self.model_reference_verifier):
+            raise TypeError("Authority model reference verifier must be callable")
+
+    def accepts_model_reference(self, reference: str) -> bool:
+        """Admit the bound reference or an application-verified related model."""
+        if not isinstance(reference, str) or not _REFERENCE.fullmatch(reference):
+            return False
+        if reference == self.context_ref:
+            return True
+        verifier = self.model_reference_verifier
+        if verifier is None:
+            return False
+        try:
+            return verifier(reference) is True
+        except Exception:
+            return False
 
 
 @dataclass(slots=True)

@@ -131,6 +131,7 @@ class ProviderFreeThreadHost:
             )
         from pypsa_agent.thread_capabilities import build_pypsa_thread_application, PYPSA_PROFILE_DESCRIPTOR
         from pypsa_agent.hosted import RegisteredPyPSAThreadCatalog
+        from pypsa_agent.thread_binding import verify_bound_model_reference
         catalog = RegisteredPyPSAThreadCatalog()
         def resolver(model_id: str) -> Mapping[str, object]:
             descriptor = catalog.resolve(model_id)
@@ -138,7 +139,15 @@ class ProviderFreeThreadHost:
         def binder(prepared: Any, context: Any) -> AuthorityModelBinding:
             binding = prepared.bindings["source"]
             opened = binding.runtime.executor.invoke("model.open", {"catalog_id": context.model_id})
-            return AuthorityModelBinding("source", context.model_id, context.model_revision, context.implementation_family, opened["model_ref"])
+            model_ref = opened["model_ref"]
+            return AuthorityModelBinding(
+                "source", context.model_id, context.model_revision,
+                context.implementation_family, model_ref,
+                model_reference_verifier=lambda reference: verify_bound_model_reference(
+                    binding.runtime.authority, reference,
+                    model_id=context.model_id, base_ref=model_ref,
+                ),
+            )
         def builder(claim, context, profiles):
             return _ScriptedPiSession(claim, profiles, family="pypsa", state=self._session_state)
         return build_pypsa_thread_application(

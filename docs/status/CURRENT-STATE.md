@@ -3,8 +3,9 @@
 ## Project Snapshot
 
 - Project: Capstone Agent Framework
-- Theme-level focus: Evidence-backed App presentation, cross-domain capability-pack validation, and controlled local/cloud release flow
+- Theme-level focus: Immutable Thread model state, authority-backed App linkage, and controlled local/cloud release flow
 - Project route: direct
+- Thread model ownership: the application selects and activates the model before its instruction. Each fresh Attempt receives the selected model and exact authority reference. Native RPC results retain bounded references and reject conflicting identities. Authority artifacts must bind to that context/revision; PyPSA descendants require a verified parent chain anchored to the selected base. Normal pandapower topology uses the prepared gridctl binding and admitted endpoint evidence. The hosted catalog reflects the registered authority, with safe model page keys and bounded operator labels. Repair scope and validation belong to `docs/reviews/2026-10-05-thread-model-state-repair.md`; earlier restricted M11 receipts do not prove ordinary Provider planning.
 - Canonical optimization worklist: `docs/superpowers/plans/2026-09-05-capstone-optimization.md`
 - Optimization state: the reviewed A–E remediation, HTTP authority experiment, Pack onboarding entry, capture diagnostics, and fact/performance evaluation are complete on `main`; the canonical plan owns exact verification evidence. Evaluation remains advisory; submission and reference-integrity failures remain fatal. OP-08 strict arbitrary-JSON extension and OP-13 segmented storage remain deferred; C.2 remains separate.
 - Canonical design: `docs/superpowers/specs/2026-08-27-general-domain-agent-framework-upgrade-design.md`

@@ -27,6 +27,91 @@ const inventory = Object.freeze({
   decisionToolName: "inventory_record_decision",
 });
 
+test("enforces application const and enum constraints before invoking the authority", async () => {
+  let calls = 0;
+  const contract = {
+    name: "inventory_open", capability: "model.open", description: "Open selected model",
+    input_schema: { type: "object", required: ["model_id", "context_ref"], properties: {
+      model_id: { type: "string", enum: ["selected-model"] },
+      context_ref: { type: "string", const: "context:selected" },
+    } },
+  };
+  const tool = createCapabilityTool(inventory, contract, async (payload) => {
+    calls += 1;
+    return { protocol: "inventory-capability", protocol_version: "1.0", request_id: payload.request_id, ok: true, result: {} };
+  });
+  for (const params of [
+    { model_id: "foreign-model", context_ref: "context:selected" },
+    { model_id: "selected-model", context_ref: "context:foreign" },
+    { context_ref: "context:selected" },
+  ]) {
+    const outcome = await tool.execute("call", params);
+    assert.equal(outcome.isError, true);
+    assert.equal(outcome.details.error.code, "invalid_arguments");
+  }
+  assert.equal(calls, 0);
+  const outcome = await tool.execute("call", { model_id: "selected-model", context_ref: "context:selected" });
+  assert.equal(outcome.isError, undefined);
+  assert.equal(calls, 1);
+});
+
+test("validates required authority handoffs after injecting the trusted application receipt", async () => {
+  const fixture = await runtimeV1Fixture();
+  const applicationWorkspace = join(fixture.root, "run");
+  const handoffPath = join(applicationWorkspace, "reference-handoffs.json");
+  const capability = JSON.parse(await readFile(new URL(
+    "../../pypsa-power-operations-domain-pack/src/pypsa_power_operations/resources/capabilities/operations.dispatch.json",
+    import.meta.url,
+  ), "utf8"));
+  const reference = "pypsa-model:sha256:" + "a".repeat(64);
+  const handoffRef = "handoff:sha256:" + "b".repeat(64);
+  const domain = { ...fixture.descriptor.domains[0], bindingId: "operations",
+    guideToolName: "pypsa_ops_guide_open" };
+  const descriptor = { ...fixture.descriptor,
+    application: { ...fixture.descriptor.application, workspacePath: applicationWorkspace,
+      referenceHandoffsPath: handoffPath }, domains: [domain] };
+  const contract = { name: capability.tool_name, capability: capability.id,
+    description: capability.purpose, input_schema: capability.input_schema,
+    projector_id: capability.context_effect.projector,
+    result_kind: capability.context_effect.result_kind };
+  const calls = [];
+  const tool = createCapabilityTool(descriptor, contract, async (payload) => {
+    calls.push(payload);
+    return { protocol: domain.protocol, protocol_version: domain.protocolVersion,
+      request_id: payload.request_id, ok: true, result: {} };
+  });
+  const receipt = { target_binding_id: "operations", reference,
+    handoff_ref: handoffRef, capability_family: "operations" };
+  const writeReceipt = (handoffs) => writeFile(handoffPath, JSON.stringify({
+    schema: "capability-agent-reference-handoffs/1.0", handoffs,
+  }));
+  try {
+    await writeReceipt([receipt]);
+    const output = await tool.execute("valid", { reference });
+    assert.equal(output.isError, undefined);
+    assert.deepEqual(calls[0].arguments, { reference, handoff_ref: handoffRef });
+    assert.equal(calls.length, 1);
+
+    for (const handoffs of [[], [{ ...receipt, handoff_ref: "invalid" }],
+      [{ ...receipt, target_binding_id: "foreign" }]]) {
+      await writeReceipt(handoffs);
+      const rejected = await tool.execute("invalid", { reference });
+      assert.equal(rejected.isError, true);
+      assert.equal(rejected.details.error.code, "invalid_arguments");
+      assert.deepEqual(rejected.details.capability_key, {
+        binding_id: "operations", capability_id: capability.id,
+      });
+      assert.equal(rejected.details.projector_id, contract.projector_id);
+      assert.equal(calls.length, 1);
+    }
+    await writeReceipt([receipt]);
+    await assert.rejects(tool.execute("routing", { reference, binding_id: "foreign" }), /routing field/);
+    assert.equal(calls.length, 1);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
 const runtimeV1 = Object.freeze({
   schema: "capability-agent-runtime/1.0",
   application: Object.freeze({ applicationId: "fixture-app", runId: "run-1" }),
@@ -395,7 +480,7 @@ test("routes a capability only through the controller-selected binding", async (
       name: "inventory_asset_list",
       capability: "asset.list",
       description: "List assets",
-      input_schema: { type: "object", additionalProperties: false, properties: {} },
+      input_schema: { type: "object", additionalProperties: false, properties: { value: { type: "string" } } },
       projector_id: "inventory-state-v1",
       result_kind: "asset.catalog",
     },
