@@ -46,7 +46,7 @@ from .thread_application_transition import (
 from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
-from .thread_management import history_cursor, history_page, thread_descriptor, thread_list_page, validate_limit
+from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -255,6 +255,8 @@ class ThreadService(Protocol):
     def is_archived(self, thread_id: str) -> bool: ...
 
     def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]: ...
+
+    def read_network_events(self, thread_id: str) -> dict[str, Any]: ...
 
     def context_lock(self, thread_id: str) -> str | None: ...
 
@@ -734,6 +736,23 @@ class InMemoryThreadService:
             events = list(islice((event for event in reversed(self._events)
                 if event.event_seq < cursor and event.visibility == "public"), limit + 1))
             return history_page(thread_id, cursor, events, limit)
+
+    def read_network_events(self, thread_id: str) -> dict[str, Any]:
+        with self._lock:
+            self._check_thread(thread_id)
+            layer = next((event for event in reversed(self._events)
+                if event.model_context_id == self._snapshot.active_model_context.id
+                and event.visibility == "public"
+                and event.event_type in {"network_layer", "network_layer_unavailable"}), None)
+            events = [] if layer is None else [layer]
+            if layer is not None and layer.event_type == "network_layer":
+                for kind in ("network_diagram", "attempt_completed"):
+                    source = next((event for event in reversed(self._events)
+                        if event.attempt_id == layer.attempt_id and event.model_context_id == layer.model_context_id
+                        and event.event_type == kind and event.visibility == "public"), None)
+                    if source is not None:
+                        events.append(source)
+            return network_context_page(self._snapshot, events)
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
@@ -2004,6 +2023,27 @@ class PostgresThreadService:
             ).fetchall()
         events = tuple(self._event_from_row(row) for row in rows)
         return _bounded_event_page(thread_id, after_event_seq, snapshot.last_event_seq, events)
+
+    def read_network_events(self, thread_id: str) -> dict[str, Any]:
+        snapshot = self.snapshot(thread_id)
+        with self._connect() as connection:
+            layer = connection.execute(
+                """SELECT * FROM capstone_thread_events WHERE thread_id = %s
+                   AND model_context_id = %s AND visibility = 'public'
+                   AND event_type IN ('network_layer', 'network_layer_unavailable')
+                   ORDER BY event_seq DESC LIMIT 1""",
+                (thread_id, snapshot.active_model_context.id),
+            ).fetchone()
+            rows = [] if layer is None else [layer]
+            if layer is not None and layer["event_type"] == "network_layer":
+                rows.extend(connection.execute(
+                    """SELECT DISTINCT ON (event_type) * FROM capstone_thread_events
+                       WHERE thread_id = %s AND attempt_id = %s AND model_context_id = %s
+                       AND visibility = 'public' AND event_type IN ('network_diagram', 'attempt_completed')
+                       ORDER BY event_type, event_seq DESC""",
+                    (thread_id, layer["attempt_id"], snapshot.active_model_context.id),
+                ).fetchall())
+        return network_context_page(snapshot, [self._event_from_row(row) for row in rows])
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
         parsed = InMemoryThreadService._parse_command(command)

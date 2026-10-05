@@ -3,6 +3,7 @@ import {
   type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
 } from './threadProtocol'
 import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
+import { parseNetworkContextEvents, parseThreadHistoryPage } from './threadHistory'
 
 export type ThreadCommand = {
   schema: 'capstone-command/1'
@@ -21,6 +22,8 @@ export interface ThreadTransport {
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
+  readHistory?(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown>
+  readNetworkEvents?(threadId: string, signal?: AbortSignal): Promise<unknown>
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
   streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
@@ -63,6 +66,18 @@ export class CapstoneThreadClient {
 
   get supportsEventStream(): boolean {
     return this.transport.streamEvents !== undefined
+  }
+
+  get supportsHistory(): boolean { return this.transport.readHistory !== undefined }
+
+  async history(threadId: string, beforeEventSeq?: number, signal?: AbortSignal) {
+    if (!this.transport.readHistory) throw new Error('History paging unavailable')
+    return parseThreadHistoryPage(await this.transport.readHistory(threadId, beforeEventSeq, signal), threadId, beforeEventSeq)
+  }
+
+  async networkContextEvents(threadId: string, contextId: string, signal?: AbortSignal): Promise<EventEnvelope[]> {
+    if (!this.transport.readNetworkEvents) return []
+    return parseNetworkContextEvents(await this.transport.readNetworkEvents(threadId, signal), threadId, contextId)
   }
 
   async create(modelId?: string, signal?: AbortSignal): Promise<ThreadSnapshot> {

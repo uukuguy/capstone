@@ -27,6 +27,54 @@ const idleFixture = {
   },
 }
 
+it('loads only the latest history page and prepends older events without moving the live cursor', async () => {
+  const events = Array.from({ length: 10 }, (_, index) => ({
+    event_id: `evt_${index + 1}`, event_seq: index + 1, event_type: 'command_accepted', event_version: 1,
+    thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-06T00:00:00Z', visibility: 'public',
+    turn_id: `turn_${index + 1}`, attempt_id: `attempt_${index + 1}`,
+    model_context_id: context.id, selection_revision: context.selection_revision,
+    payload: { command_id: `cmd_${index + 1}`, kind: 'send_auto', payload: { text: `question ${index + 1}` } },
+  }))
+  const forward = vi.fn()
+  const history = vi.fn(async (_id: string, before?: number) => {
+    const cursor = before ?? 11
+    const selected = events.filter((e) => e.event_seq < cursor).slice(-2)
+    return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39', before_event_seq: cursor,
+      next_before_event_seq: selected[0]?.event_seq ?? cursor, has_more: selected[0]?.event_seq > 1, events: selected }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture), getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 10 }),
+    readEvents: forward, readHistory: history,
+  }))
+  await store.load('thr_demo_39')
+  expect(forward).not.toHaveBeenCalled()
+  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([9, 10])
+  expect(store.state.hasOlderHistory).toBe(true)
+  await store.loadOlderHistory()
+  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([7, 8, 9, 10])
+  expect(store.state.eventSeq).toBe(10)
+})
+
+it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    streamEvents: async function* () {
+      for (let seq = 1; seq <= 1100; seq++) yield {
+        eventId: `evt_${seq}`, eventSeq: seq, eventType: 'assistant_text_delta', eventVersion: 1,
+        threadId: 'thr_demo_39', runId: 'run_001', occurredAt: '2026-10-06T00:00:00Z',
+        visibility: 'public' as const, payload: { text: `message ${seq}` },
+      }
+    },
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(store.state.eventSeq).toBe(1100)
+  expect(store.publicEvents).toHaveLength(1024)
+  expect(store.publicEvents[0].eventSeq).toBe(77)
+  expect(store.state.hasOlderHistory).toBe(true)
+  expect(store.state.connection).toBe('reconnecting')
+})
+
 const historicalFixture = {
   snapshot: {
     schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo_39',

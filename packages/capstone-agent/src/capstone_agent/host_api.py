@@ -221,6 +221,24 @@ def create_host_app(
             except (ValueError, ThreadProtocolError):
                 raise HTTPException(422, "invalid archive request") from None
 
+        @app.get("/api/v1/threads/{thread_id}/metadata")
+        def get_thread_metadata(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                return {"thread_id": thread_id, "archived": thread_service.is_archived(thread_id)}
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+
+        @app.get("/api/v1/threads/{thread_id}/network-events")
+        def get_thread_network_events(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                return thread_service.read_network_events(thread_id)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+            except ThreadProtocolError:
+                raise HTTPException(503, "network context projection unavailable") from None
+
         @app.get("/api/v1/threads/{thread_id}/history")
         def get_thread_history(thread_id: str, request: Request,
                                before: Annotated[int | None, Query(ge=1)] = None,
@@ -346,6 +364,7 @@ def create_host_app(
                 page = initial_page
                 first_page = True
                 last_heartbeat = asyncio.get_running_loop().time()
+                idle_delay = 0.25
                 while True:
                     if not first_page:
                         try:
@@ -362,6 +381,7 @@ def create_host_app(
                             return
                     first_page = False
                     if page.events:
+                        idle_delay = 0.25
                         for event in page.events:
                             cursor = event.event_seq
                             payload = json.dumps(event.to_document(), ensure_ascii=False)
@@ -378,7 +398,8 @@ def create_host_app(
                     if now - last_heartbeat >= 15:
                         yield ": keepalive\n\n"
                         last_heartbeat = now
-                    await asyncio.sleep(0.25)
+                    await asyncio.sleep(idle_delay)
+                    idle_delay = min(idle_delay * 2, 2.0)
 
             return StreamingResponse(events(), media_type="text/event-stream")
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { readDraft, writeDraft } from './threadSessionState'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -569,11 +570,15 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode }) {
+function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const resolvedCommand = useRef<string | undefined>(undefined)
+  const text = useAuiState((state) => state.composer.text)
+  useEffect(() => {
+    writeDraft(storageKey, text)
+  }, [text, storageKey])
   useEffect(() => {
     if (editRequest) aui.composer.setText(editRequest.text)
   }, [aui, editRequest])
@@ -603,6 +608,12 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  storageKey?: string
+  hasOlderHistory?: boolean
+  historyLoading?: boolean
+  onLoadOlder?: () => Promise<void>
+  historyAtLatest?: boolean
+  onReturnLatest?: () => void
   events: readonly EventEnvelope[]
   disabled: boolean
   isRunning: boolean
@@ -628,8 +639,28 @@ export type CapstoneAssistantThreadProps = {
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork }: CapstoneAssistantThreadProps) {
-  const messages = useMemo(() => projectAssistantMessages(events), [events])
+export default function CapstoneAssistantThread({ events, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
+  const allMessages = useMemo(() => projectAssistantMessages(events), [events])
+  const [windowAnchor, setWindowAnchor] = useState<string | null>(null)
+  const anchoredIndex = windowAnchor === null ? -1 : allMessages.findIndex((message) => message.id === windowAnchor)
+  const windowEnd = anchoredIndex < 0 ? allMessages.length : anchoredIndex + 1
+  const windowStart = Math.max(0, windowEnd - 50)
+  const messages = allMessages.slice(windowStart, windowEnd)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  async function olderMessages() {
+    setHistoryError(null)
+    if (windowStart > 0) {
+      setWindowAnchor(allMessages[Math.max(0, windowStart + 24)]?.id || null)
+      return
+    }
+    if (!onLoadOlder || historyLoading) return
+    const anchor = allMessages[Math.min(24, windowEnd - 1)]?.id
+    try {
+      await onLoadOlder()
+      if (anchor) setWindowAnchor(anchor)
+    } catch (cause) { setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用') }
+  }
+  const [initialDraft] = useState(() => readDraft(storageKey))
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
   const legacyActivity = activity.some((item) => typeof item === 'string')
@@ -640,7 +671,10 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
     isRunning,
     onNew: async (message) => {
       const text = messageText(message)
-      if (text.trim()) await onSend('automatic', text.trim())
+      if (text.trim()) {
+        await onSend('automatic', text.trim()); setWindowAnchor(null)
+        if (!historyAtLatest) onReturnLatest?.()
+      }
     },
     onEdit: async (message) => {
       const text = messageText(message)
@@ -648,11 +682,20 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
     },
     onCancel,
   })
+  useEffect(() => {
+    if (initialDraft) runtime.thread.composer.setText(initialDraft)
+  }, [runtime, initialDraft])
 
   return <AssistantRuntimeProvider runtime={runtime}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
+        {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
+          {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '加载更早消息'}</button>}
+          {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>回到最新消息</button>}
+          <small>当前显示 {messages.length} 条消息，完整历史仍保留。</small>
+          {historyError && <span role="alert">{historyError}</span>}
+        </div>}
         {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
         {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
@@ -667,7 +710,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} storageKey={storageKey} />
         </div>
       </ThreadPrimitive.Root>
     </div>

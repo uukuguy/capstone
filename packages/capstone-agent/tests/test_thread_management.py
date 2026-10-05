@@ -100,6 +100,19 @@ def test_history_service_rejects_unbounded_limits(limit):
         _service().read_history("thr_demo_39", limit=limit)
 
 
+def test_network_context_projection_is_bounded_and_separate_from_chat_history():
+    service = _service()
+    _message(service, 1)
+    claim = service.claim_attempt("worker", 30)
+    service.append_runtime_event(claim, event_type="network_layer_unavailable", payload={"reason": "no_network_view"}, visibility="public")
+    service.finish_attempt(claim, phase="failed", payload={"error_code": "test_failure"})
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        response = client.get("/api/v1/threads/thr_demo_39/network-events", headers=_auth())
+        assert response.status_code == 200
+        assert [e["event_type"] for e in response.json()["events"]] == ["network_layer_unavailable"]
+        assert len(service.read_history("thr_demo_39")["events"]) > 1
+
+
 def test_postgres_management_and_history_survive_service_restart(postgres_thread_service):
     from capstone_agent.thread_service import PostgresThreadService, ThreadExecutionError
 

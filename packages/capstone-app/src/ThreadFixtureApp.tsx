@@ -14,6 +14,7 @@ import { PageHeader } from './AppHeader'
 import ThreadControls from './ThreadControls'
 import { parseThreadModelCommand, resolveThreadModelCommandReference } from './threadCatalog'
 import { commandKey } from './commandKey'
+import { canReconnect, reconnectDelay } from './threadSessionState'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -40,15 +41,17 @@ export type ThreadWorkspaceProps = {
   client?: CapstoneThreadClient
   threadId?: string
   previewDiagram?: NetworkDiagram | null
+  storageKey?: string
+  readOnly?: boolean
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false }: ThreadWorkspaceProps) {
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
-    if (client) return new ThreadProjectionStore(client)
+    if (client) return new ThreadProjectionStore(client, storageKey)
     if (fixture) return new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
     throw new Error('Thread workspace requires a client or fixture')
-  }, [client, fixture])
+  }, [client, fixture, storageKey])
   const threadId = requestedThreadId || (fixture ? String((fixture.snapshot as { thread_id: string }).thread_id) : '')
   const [projection, setProjection] = useState<ThreadProjectionState>(store.state)
   const [loading, setLoading] = useState(true)
@@ -65,17 +68,37 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const composerCommands = useRef(new Set<string>())
   const [sending, setSending] = useState(false)
   const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
+  const reconnectFailures = useRef(0)
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== 'hidden')
+
+  useEffect(() => {
+    const changed = () => setPageVisible(document.visibilityState !== 'hidden')
+    document.addEventListener('visibilitychange', changed)
+    return () => document.removeEventListener('visibilitychange', changed)
+  }, [])
 
   useEffect(() => {
     let active = true
     const abort = new AbortController()
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+    let stableTimer: ReturnType<typeof setTimeout> | undefined
+    function recover(cause: unknown) {
+      if (!active || abort.signal.aborted || !canReconnect(cause)) return
+      reconnectTimer = setTimeout(() => {
+        if (active) setReload((value) => value + 1)
+      }, reconnectDelay(reconnectFailures.current++))
+    }
     const unsubscribe = store.subscribe(() => {
       if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
     })
+    if (!pageVisible) return () => { active = false; abort.abort(); unsubscribe() }
     setLoading(true); setError(null); setNotice(null)
     void (async () => {
       try {
         await store.load(threadId)
+        for (const entry of store.state.pendingCommands) {
+          if (!entry.receipt && ['send_auto', 'send_ordinary', 'send_professional'].includes(entry.command.kind)) composerCommands.current.add(entry.command.command_id)
+        }
         // React StrictMode mounts effects twice in development. An old load
         // must not continue into catch-up and race the active projection.
         if (!active) return
@@ -104,20 +127,24 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         }
         if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
         if (active && store.canStreamEvents) {
+          stableTimer = setTimeout(() => { reconnectFailures.current = 0 }, 30_000)
           void store.consumeEvents(abort.signal).catch((cause) => {
+            if (stableTimer) clearTimeout(stableTimer)
             if (active && !(cause instanceof DOMException && cause.name === 'AbortError')) {
               setError(cause instanceof Error ? cause.message : 'Thread 事件流不可用')
+              recover(cause)
             }
           })
         }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : 'Thread 投影不可用')
+        recover(cause)
       } finally {
         if (active) setLoading(false)
       }
     })()
-    return () => { active = false; abort.abort(); unsubscribe() }
-  }, [fixture, reload, store, threadId])
+    return () => { active = false; abort.abort(); if (reconnectTimer) clearTimeout(reconnectTimer); if (stableTimer) clearTimeout(stableTimer); unsubscribe() }
+  }, [fixture, pageVisible, reload, store, threadId])
 
   const snapshot = projection.snapshot
   useEffect(() => {
@@ -150,8 +177,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
   const unresolvedCommand = projection.pendingCommands.some((entry) => !entry.receipt)
-  const canSendText = !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !projection.resyncRequired
-  const canRetry = !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !projection.resyncRequired
+  const canSendText = !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !projection.resyncRequired
+  const canRetry = !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
     const active = snapshot ? {
@@ -165,9 +192,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
-  const networkTask = events.slice().reverse().find((event) =>
-    ['network_layer', 'network_layer_unavailable'].includes(event.eventType) &&
-    event.modelContextId === snapshot?.activeModelContext.id)
+  const networkTask = store.latestNetworkEvent
   const displayedTaskId = selectedNetworkTask?.attemptId || networkTask?.attemptId
   const instructionNumber = instructionOrdinal(events, displayedTaskId)
   const resultContext = selectedNetworkTask?.context || snapshot?.activeModelContext
@@ -187,6 +212,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
+    if (readOnly) { setNotice('对话已归档，请在会话列表恢复后继续。'); return }
     const latest = store.state.snapshot
     if (!latest) return
     const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
@@ -360,8 +386,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
+          {readOnly && <div className="thread-inline-notice" role="status">对话已归档，历史仍可查看。请在会话列表中恢复后继续。</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
-          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
+          <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+            historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
+            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
               setFocusedElement(undefined)
               setSelectedNetworkAttempt(attemptId)
@@ -389,10 +418,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={<><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
-                disabled={loading || unresolvedCommand || isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
+                disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void sendConversation('automatic', `打开 ${modelId} 电网模型`).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             onSend={(mode, text) => sendConversation(mode, text, true)}

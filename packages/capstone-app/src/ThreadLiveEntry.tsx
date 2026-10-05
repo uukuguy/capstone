@@ -5,6 +5,8 @@ import { CapstoneClient } from './api'
 import { HttpThreadTransport } from './threadHttpTransport'
 import { parseNetworkDiagram } from './networkValidation'
 import type { NetworkDiagram } from './types'
+import ThreadSessionMenu from './ThreadSessionMenu'
+import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 
@@ -18,6 +20,7 @@ function TokenPrompt({ onSubmit }: { onSubmit: (token: string) => void }) {
     event.preventDefault()
     const token = value.trim()
     if (!token) return
+    if (readToken() !== token) rotateStorageNamespace()
     try { sessionStorage.setItem(TOKEN_KEY, token) } catch { /* memory-only fallback */ }
     onSubmit(token)
   }
@@ -38,6 +41,8 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const [creating, setCreating] = useState(threadId === 'new')
   const [error, setError] = useState<string | null>(null)
   const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
+  const [archived, setArchived] = useState(false)
+  const newInFlight = useRef(false)
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || ''
   const transport = useMemo(
     () => token ? new HttpThreadTransport(apiOrigin, token) : null,
@@ -46,6 +51,43 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const client = useMemo(() => transport ? new CapstoneThreadClient(transport) : null, [transport])
   const creation = useRef<{ client: CapstoneThreadClient; request: ReturnType<CapstoneThreadClient['create']> } | null>(null)
   const authorityClient = useMemo(() => token ? new CapstoneClient(apiOrigin, token) : null, [apiOrigin, token])
+  const namespace = useMemo(() => token ? storageNamespace(apiOrigin) : '', [apiOrigin, token])
+
+  function selectThread(id: string, push = true) {
+    setCreatedThreadId(id); setArchived(false); setError(null); setPreviewDiagram(null)
+    if (push) {
+      const url = new URL(window.location.href); url.searchParams.set('thread', id)
+      window.history.pushState({}, '', url)
+    }
+  }
+
+  async function newThread() {
+    if (!client || newInFlight.current) return
+    newInFlight.current = true; setCreating(true); setError(null)
+    try {
+      const snapshot = await client.create('ieee39')
+      selectThread(snapshot.threadId)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '新建对话失败') }
+    finally { newInFlight.current = false; setCreating(false) }
+  }
+
+  useEffect(() => {
+    const pop = () => {
+      const id = new URLSearchParams(window.location.search).get('thread')
+      if (id && id !== 'new') selectThread(id, false)
+    }
+    window.addEventListener('popstate', pop)
+    return () => window.removeEventListener('popstate', pop)
+  }, [])
+
+  useEffect(() => {
+    if (!transport || !createdThreadId) return
+    const abort = new AbortController()
+    void transport.getThreadMetadata(createdThreadId, abort.signal).then((metadata) => {
+      if (!abort.signal.aborted) setArchived(metadata.archived)
+    }).catch(() => { /* Older hosts still enforce command admission themselves. */ })
+    return () => abort.abort()
+  }, [transport, createdThreadId])
 
   useEffect(() => {
     if (!client || threadId !== 'new' || createdThreadId) return
@@ -80,7 +122,11 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   }, [authorityClient, createdThreadId])
 
   if (!token) return <TokenPrompt onSubmit={setToken} />
-  if (error) return <main className="thread-token-shell"><div className="thread-token-card" role="alert"><h1>Thread 不可用</h1><p>{error}</p><button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button></div></main>
-  if (creating || !client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建 Thread…</main>
-  return <ThreadFixtureApp client={client} threadId={createdThreadId} previewDiagram={previewDiagram} />
+  if (error && !createdThreadId) return <main className="thread-token-shell"><div className="thread-token-card" role="alert"><h1>Thread 不可用</h1><p>{error}</p><button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button></div></main>
+  if (!client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建 Thread…</main>
+  return <><ThreadSessionMenu transport={transport!} threadId={createdThreadId} creating={creating}
+    onNew={() => void newThread()} onSelect={selectThread} onArchived={setArchived} />
+    {error && <p className="thread-inline-notice" role="alert">{error}</p>}
+    <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
+      storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram} /></>
 }

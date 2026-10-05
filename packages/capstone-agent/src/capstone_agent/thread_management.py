@@ -62,3 +62,14 @@ def history_page(thread_id: str, before: int, events: list[EventEnvelope], limit
         "next_before_event_seq": selected[-1]["event_seq"] if selected else before,
         "has_more": len(events) > len(selected), "events": list(reversed(selected)),
     }
+
+
+def network_context_page(snapshot: ThreadSnapshot, events: list[EventEnvelope]) -> dict[str, Any]:
+    page = {
+        "schema": "capstone-thread-network-events/1", "thread_id": snapshot.thread_id,
+        "model_context_id": snapshot.active_model_context.id,
+        "events": [event.to_document() for event in sorted(events, key=lambda event: event.event_seq)],
+    }
+    if len(events) > 4 or len(json.dumps(page, ensure_ascii=False).encode()) > MAX_EVENT_PAGE_BYTES:
+        raise ThreadProtocolError("network context projection exceeds its limit")
+    return page

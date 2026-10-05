@@ -110,6 +110,43 @@ describe('ThreadFixtureApp', () => {
     if (outcome === 'rejected') expect(await screen.findByText(/stale_event_seq/)).toBeTruthy()
   })
 
+  it('restores an unsent draft after a page remount and keeps it scoped to its Thread', async () => {
+    const client = new CapstoneThreadClient(createFixtureTransport(threadUiFixture('idle-ieee39')))
+    const first = render(<ThreadFixtureApp client={client} threadId="thr_demo_39" storageKey="test-thread-draft" />)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Thread 指令' }), { target: { value: '刷新后还应保留' } })
+    expect(sessionStorage.getItem('test-thread-draft.draft')).toBe('刷新后还应保留')
+    first.unmount()
+    expect(sessionStorage.getItem('test-thread-draft.draft')).toBe('刷新后还应保留')
+    const second = render(<ThreadFixtureApp client={client} threadId="thr_demo_39" storageKey="test-thread-draft" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('刷新后还应保留'))
+    second.unmount()
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" storageKey="another-thread" />)
+    expect((await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('')
+    sessionStorage.removeItem('test-thread-draft.draft')
+  })
+
+  it('automatically reconnects a lost event stream without a click', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    let attempts = 0
+    let fail!: () => void
+    const client = new CapstoneThreadClient({ ...transport,
+      streamEvents: async function* () {
+        attempts += 1
+        if (attempts === 1) {
+          await new Promise<void>((resolve) => { fail = resolve })
+          throw new Error('deploy disconnect')
+        }
+        await new Promise<void>(() => {})
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Thread 指令' }), { target: { value: '重连草稿' } })
+    fail()
+    await waitFor(() => expect(attempts).toBe(2), { timeout: 2500 })
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('重连草稿')
+  })
+
   it('preserves an unsent draft across an event-stream reconnect', async () => {
     let failStream!: () => void
     const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))

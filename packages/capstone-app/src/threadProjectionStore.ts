@@ -2,6 +2,7 @@ import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type Even
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
+import { readPendingCommands, writePendingCommands } from './threadSessionState'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -37,6 +38,9 @@ export type ThreadProjectionState = {
   catalog: ThreadCatalog | null
   networkView: DiagramNetworkView | null
   gridPages: readonly ThreadGridPage[]
+  hasOlderHistory: boolean
+  historyLoading: boolean
+  historyAtLatest: boolean
 }
 
 export type ThreadFixtureDocument = {
@@ -215,9 +219,14 @@ export class ThreadProjectionStore {
     connection: 'offline', snapshot: null, eventSeq: 0, resyncRequired: false,
     pendingCommands: [], viewedGridPageId: null, catalog: null,
     networkView: null, gridPages: [],
+    hasOlderHistory: false, historyLoading: false,
+    historyAtLatest: true,
   }
 
   private loadedThreadId: string | null = null
+  private olderHistoryCursor: number | null = null
+  private networkContextEvents: EventEnvelope[] = []
+  private readonly eventSizes = new Map<number, number>()
   private loadGeneration = 0
   private readonly eventLog: EventEnvelope[] = []
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
@@ -228,7 +237,7 @@ export class ThreadProjectionStore {
   private readonly diagramAttempts = new Map<string, string | undefined>()
   private readonly listeners = new Set<() => void>()
 
-  constructor(private readonly client: CapstoneThreadClient) {}
+  constructor(private readonly client: CapstoneThreadClient, private readonly storageKey?: string) {}
 
   get state(): ThreadProjectionState {
     return this.current
@@ -242,6 +251,53 @@ export class ThreadProjectionStore {
     return [...this.taskViews.values()]
   }
 
+  get latestNetworkEvent(): EventEnvelope | undefined {
+    return [...this.networkContextEvents, ...this.eventLog].filter((event) =>
+      ['network_layer', 'network_layer_unavailable'].includes(event.eventType)
+      && event.modelContextId === this.current.snapshot?.activeModelContext.id)
+      .sort((a, b) => b.eventSeq - a.eventSeq)[0]
+  }
+
+  private trimHistory(keepLatest: boolean): void {
+    let bytes = 0
+    for (const event of this.eventLog) {
+      if (!this.eventSizes.has(event.eventSeq)) this.eventSizes.set(event.eventSeq, new TextEncoder().encode(JSON.stringify(event)).byteLength)
+      bytes += this.eventSizes.get(event.eventSeq)!
+    }
+    let trimmed = false
+    while (this.eventLog.length > 1 && (this.eventLog.length > 1024 || bytes > 8 * 1024 * 1024)) {
+      const event = keepLatest ? this.eventLog.shift()! : this.eventLog.pop()!
+      bytes -= this.eventSizes.get(event.eventSeq) || 0
+      this.eventSizes.delete(event.eventSeq); trimmed = true
+    }
+    if (trimmed) {
+      if (keepLatest) this.olderHistoryCursor = this.eventLog[0]?.eventSeq ?? null
+      this.current = { ...this.current, hasOlderHistory: keepLatest || this.current.hasOlderHistory, historyAtLatest: keepLatest }
+    }
+  }
+
+  private trimProjectionCaches(): void {
+    const snapshot = this.current.snapshot
+    const protectedPages = new Set([snapshot?.activeGridPageId, this.current.viewedGridPageId])
+    const pages = this.current.gridPages
+    if (pages.length > 64) {
+      const retained = new Set(pages.filter((page) => protectedPages.has(page.pageId)).map((page) => page.pageId))
+      for (const page of [...pages].reverse()) if (retained.size < 64) retained.add(page.pageId)
+      this.current = { ...this.current, gridPages: pages.filter((page) => retained.has(page.pageId)) }
+    }
+    const protectedContexts = new Set(this.current.gridPages.map((page) => page.context.id))
+    protectedContexts.add(snapshot?.activeModelContext.id || '')
+    for (const cache of [this.networkDiagrams, this.networkViews, this.contextPages, this.diagramAttempts]) {
+      for (const key of cache.keys()) {
+        if (cache.size <= 128) break
+        if (!protectedContexts.has(key)) cache.delete(key)
+      }
+    }
+    // Diagram objects already admitted to retained events remain attached to
+    // those events. The interning index does not need to retain every old key.
+    while (this.sharedDiagrams.size > 128) this.sharedDiagrams.delete(this.sharedDiagrams.keys().next().value!)
+  }
+
   get canStreamEvents(): boolean {
     return this.client.supportsEventStream
   }
@@ -252,6 +308,8 @@ export class ThreadProjectionStore {
   }
 
   private notify(): void {
+    if (this.current.snapshot) writePendingCommands(this.storageKey,
+      this.current.pendingCommands.filter((entry) => !entry.receipt).map((entry) => entry.command))
     for (const listener of this.listeners) listener()
   }
 
@@ -263,7 +321,7 @@ export class ThreadProjectionStore {
       ...this.current,
       connection: 'connecting', snapshot: sameThread ? this.current.snapshot : null,
       eventSeq: sameThread ? this.current.eventSeq : 0, resyncRequired: false,
-      pendingCommands: sameThread ? this.current.pendingCommands : [],
+      pendingCommands: sameThread ? this.current.pendingCommands : readPendingCommands(this.storageKey, threadId).map((command) => ({ command })),
     }
     this.notify()
     try {
@@ -281,11 +339,25 @@ export class ThreadProjectionStore {
       // before the UI becomes live. Otherwise the model state would look
       // current while the conversation is silently truncated.
       const restoredDiagrams = new Map<string, NetworkDiagram>()
-      const restoredEvents = await readSnapshotEvents(this.client, snapshot,
-        (event) => this.internDiagramEvent(event, restoredDiagrams))
+      let history = null
+      if (this.client.supportsHistory) {
+        try { history = await this.client.history(threadId, snapshot.lastEventSeq + 1) }
+        catch (cause) {
+          if (!(cause && typeof cause === 'object' && 'status' in cause && cause.status === 404)) throw cause
+        }
+      }
+      const restoredEvents = history ? history.events.map((event) => this.internDiagramEvent(event, restoredDiagrams))
+        : await readSnapshotEvents(this.client, snapshot, (event) => this.internDiagramEvent(event, restoredDiagrams))
+      let networkSeeds: EventEnvelope[] = []
+      if (history) {
+        try { networkSeeds = await this.client.networkContextEvents(threadId, snapshot.activeModelContext.id) }
+        catch { /* A missing network projection cannot substitute a different Context. */ }
+      }
       // StrictMode and reconnects can overlap loads. A superseded response
       // must not replace the live cursor or erase events already received.
       if (generation !== this.loadGeneration) return
+      this.olderHistoryCursor = history?.hasMore ? history.nextBeforeEventSeq : null
+      this.networkContextEvents = networkSeeds
       this.sharedDiagrams.clear()
       for (const [key, diagram] of restoredDiagrams) this.sharedDiagrams.set(key, diagram)
       this.current = {
@@ -296,9 +368,13 @@ export class ThreadProjectionStore {
         resyncRequired: connection === 'resync_required',
         viewedGridPageId: previousView ?? snapshot.activeGridPageId,
         catalog,
+        hasOlderHistory: Boolean(history?.hasMore), historyLoading: false,
+        historyAtLatest: true,
       }
       this.eventLog.length = 0
+      this.eventSizes.clear()
       this.eventLog.push(...restoredEvents)
+      this.trimHistory(true)
       this.networkDiagrams.clear()
       this.networkViews.clear()
       this.taskViews.clear()
@@ -309,7 +385,9 @@ export class ThreadProjectionStore {
       // topology. A reopened Context must never inherit an older diagram.
       for (const event of restoredEvents) this.applyGridPageHistory(event, snapshot)
       this.rememberGridPage(snapshot.activeGridPageId, snapshot.activeModelContext)
-      for (const event of restoredEvents) this.applyNetworkProjection(event, snapshot)
+      const networkEvents = [...new Map([...networkSeeds, ...restoredEvents].map((event) => [event.eventSeq, event])).values()].sort((a, b) => a.eventSeq - b.eventSeq)
+      for (const event of networkEvents) this.applyNetworkProjection(event, snapshot, this.admittedNetworkRefs(networkEvents, event))
+      this.trimProjectionCaches()
       this.notify()
       this.loadedThreadId = threadId
     } catch (error) {
@@ -380,6 +458,7 @@ export class ThreadProjectionStore {
         if (generation !== this.loadGeneration) return
         this.applyEvent(event)
       }
+      if (signal && !signal.aborted && generation === this.loadGeneration) throw new Error('实时连接已关闭，正在恢复。')
     } catch (error) {
       if (generation !== this.loadGeneration) return
       if (error instanceof DOMException && error.name === 'AbortError') throw error
@@ -399,10 +478,54 @@ export class ThreadProjectionStore {
     }
   }
 
+  async loadOlderHistory(): Promise<void> {
+    const snapshot = this.current.snapshot
+    const cursor = this.olderHistoryCursor
+    const generation = this.loadGeneration
+    if (!snapshot || cursor === null || this.current.historyLoading) return
+    this.current = { ...this.current, historyLoading: true }; this.notify()
+    try {
+      const page = await this.client.history(snapshot.threadId, cursor)
+      if (generation !== this.loadGeneration) return
+      const existing = new Map(this.eventLog.map((event) => [event.eventSeq, event]))
+      for (const event of page.events) {
+        const previous = existing.get(event.eventSeq)
+        if (previous && previous.eventId !== event.eventId) throw new Error('历史消息身份冲突')
+        existing.set(event.eventSeq, this.internDiagramEvent(event))
+      }
+      this.eventLog.length = 0
+      this.eventLog.push(...[...existing.values()].sort((a, b) => a.eventSeq - b.eventSeq))
+      this.olderHistoryCursor = page.hasMore ? page.nextBeforeEventSeq : null
+      this.current = { ...this.current, hasOlderHistory: page.hasMore }
+      this.trimHistory(false)
+      const liveSnapshot = this.current.snapshot!
+      try {
+        const seeds = await this.client.networkContextEvents(liveSnapshot.threadId, liveSnapshot.activeModelContext.id)
+        if (generation !== this.loadGeneration) return
+        if (this.current.snapshot?.activeModelContext.id === liveSnapshot.activeModelContext.id) this.networkContextEvents = seeds
+      } catch { /* Preserve the verified view if its projection read is unavailable. */ }
+      const currentSnapshot = this.current.snapshot!
+      for (const event of this.eventLog) this.applyGridPageHistory(event, currentSnapshot)
+      const networkEvents = [...new Map([...this.networkContextEvents, ...this.eventLog].map((event) => [event.eventSeq, event])).values()].sort((a, b) => a.eventSeq - b.eventSeq)
+      for (const event of networkEvents) this.applyNetworkProjection(event, currentSnapshot, this.admittedNetworkRefs(networkEvents, event))
+      this.trimProjectionCaches()
+    } finally {
+      if (generation === this.loadGeneration) { this.current = { ...this.current, historyLoading: false }; this.notify() }
+    }
+  }
+
   viewGridPage(pageId: string): void {
     if (!pageId) throw new Error('grid page id is required')
     this.current = { ...this.current, viewedGridPageId: pageId }
     this.notify()
+  }
+
+  private admittedNetworkRefs(events: readonly EventEnvelope[], layer: EventEnvelope): string[] {
+    return events.filter((event) => event.eventType === 'attempt_completed' && event.attemptId === layer.attemptId
+      && event.modelContextId === layer.modelContextId).flatMap((event) => {
+      const refs = event.payload.result_refs
+      return Array.isArray(refs) ? refs.filter((ref): ref is string => typeof ref === 'string') : []
+    })
   }
 
   returnLiveGridPage(): void {
@@ -435,7 +558,7 @@ export class ThreadProjectionStore {
     if (!existing) {
       this.current = {
         ...this.current,
-        pendingCommands: [...this.current.pendingCommands, { command }],
+        pendingCommands: [...this.current.pendingCommands.slice(-31), { command }],
       }
       this.notify()
     }
@@ -551,6 +674,13 @@ export class ThreadProjectionStore {
     this.current = { ...this.current, networkView: activeView }
     this.applyNetworkProjection(event, projected)
     this.eventLog.push(event)
+    if (['network_diagram', 'network_layer', 'network_layer_unavailable', 'attempt_completed'].includes(event.eventType)
+        && event.modelContextId === projected.activeModelContext.id) {
+      this.networkContextEvents = [...this.networkContextEvents.filter((item) =>
+        item.modelContextId === event.modelContextId && item.eventType !== event.eventType), event].slice(-4)
+    }
+    this.trimHistory(this.current.historyAtLatest)
+    this.trimProjectionCaches()
     this.notify()
   }
 

@@ -1,6 +1,7 @@
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
+import { parseThreadDescriptor, parseThreadListPage } from './threadManagement'
 
 const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 
@@ -68,6 +69,34 @@ export class HttpThreadTransport implements ThreadTransport {
 
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`, { signal })
+  }
+
+  readHistory(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown> {
+    const query = new URLSearchParams({ limit: '128' })
+    if (beforeEventSeq !== undefined) query.set('before', String(beforeEventSeq))
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/history?${query}`, { signal })
+  }
+
+  readNetworkEvents(threadId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/network-events`, { signal })
+  }
+
+  async listThreads(archived = false, before?: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ archived: String(archived), limit: '20' })
+    if (before) query.set('before', before)
+    return parseThreadListPage(await this.request(`${this.resourcePath}?${query}`, { signal }))
+  }
+
+  async archiveThread(threadId: string, archived: boolean, signal?: AbortSignal) {
+    return parseThreadDescriptor(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/archive`, {
+      method: 'POST', signal, body: JSON.stringify({ archived }),
+    }))
+  }
+
+  async getThreadMetadata(threadId: string, signal?: AbortSignal): Promise<{ archived: boolean }> {
+    const body = await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/metadata`, { signal })
+    if (!body || typeof body !== 'object' || !('archived' in body) || typeof body.archived !== 'boolean') throw new Error('会话状态无效')
+    return { archived: body.archived }
   }
 
   getCatalog(threadId: string, signal?: AbortSignal): Promise<unknown> {
