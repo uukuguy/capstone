@@ -8,10 +8,12 @@ without making capstone-agent import a domain implementation.
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
 from capstone_agent.runtime import build_runtime_host
@@ -53,6 +55,7 @@ def build_registered_pandapower_thread_application():
 
     root = Path(__file__).resolve().parents[4]
     models = ModelRegistry(Pandapower340Engine())
+    validation_builder = select_validation_builder(os.environ, "pandapower")
 
     def resolve_model(model_id: str) -> Mapping[str, object]:
         model = models.get(model_id)
@@ -76,6 +79,8 @@ def build_registered_pandapower_thread_application():
         )
 
     def build_session(claim, context, profiles):
+        if validation_builder is not None:
+            return validation_builder(claim, context, profiles)
         from grid_agent.cli.app import _generic_runtime_environment, _runtime_environment
 
         environment = _generic_runtime_environment(_runtime_environment(root))
@@ -103,7 +108,7 @@ def build_registered_pandapower_thread_application():
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(root / "runs" / "capstone-agent")),
     ) / "thread-workspaces"
-    return build_pandapower_thread_application(
+    assembly = build_pandapower_thread_application(
         default_model_id="ieee39",
         model_resolver=resolve_model,
         workspace_root=workspace_root,
@@ -113,6 +118,8 @@ def build_registered_pandapower_thread_application():
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,),
         ),
     )
+    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+            if validation_builder is not None else assembly)
 
 
 def main() -> int:

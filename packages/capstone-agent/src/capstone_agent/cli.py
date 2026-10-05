@@ -239,8 +239,10 @@ def main(
             from capstone_agent.ledger import Ledger
             from capstone_agent.thread_service import PostgresThreadService
             from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app
+            from capstone_agent.hosted_validation import build_validation_status, validation_mode
 
             settings = load_host_settings(os.environ)
+            runtime_mode = validation_mode(os.environ)
             ledger = Ledger(settings.database_url)
             ledger.initialize()
             artifacts = build_artifacts(settings, ledger)
@@ -269,6 +271,7 @@ def main(
                     public_model=settings.public_model,
                     artifacts=artifacts,
                     wake_worker=wake_worker,
+                    validation_status=build_validation_status(os.environ),
                     thread_service=thread_service,
                     thread_creator=(
                         thread_application.thread_creator(thread_service)
@@ -322,6 +325,8 @@ def main(
                         uvicorn.run(
                             create_wake_app(
                                 wake_event, settings.operator_token,
+                                runtime_mode=runtime_mode,
+                                implementation_family=settings.thread_family,
                                 health_check=lambda: scheduler.is_alive()
                                 and (thread_scheduler is None or thread_scheduler.is_alive()),
                             ),

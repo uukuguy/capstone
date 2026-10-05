@@ -8,6 +8,16 @@ from fastapi.testclient import TestClient
 from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app, wake_token
 
 
+def test_worker_health_reports_fixed_runtime_identity() -> None:
+    with TestClient(create_wake_app(threading.Event(), "operator-secret",
+                                   runtime_mode="m11-provider-free",
+                                   implementation_family="pypsa")) as client:
+        assert client.get("/health").json() == {
+            "status": "ready", "runtime_mode": "m11-provider-free",
+            "implementation_family": "pypsa",
+        }
+
+
 def test_private_wake_requires_derived_token() -> None:
     wake = threading.Event()
     with TestClient(create_wake_app(wake, "operator-secret")) as client:

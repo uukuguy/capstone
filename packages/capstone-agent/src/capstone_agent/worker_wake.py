@@ -21,7 +21,10 @@ def wake_token(operator_token: str) -> str:
 def create_wake_app(
     wake_event: threading.Event, operator_token: str,
     *, health_check: Callable[[], bool] | None = None,
+    runtime_mode: str = "normal", implementation_family: str | None = None,
 ) -> FastAPI:
+    if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa"}:
+        raise ValueError("worker runtime identity is invalid")
     app = FastAPI(title="capstone-worker-wake", docs_url=None, redoc_url=None,
                   openapi_url=None)
     expected = "Bearer " + wake_token(operator_token)
@@ -30,7 +33,10 @@ def create_wake_app(
     def health() -> dict[str, str]:
         if health_check is not None and not health_check():
             raise HTTPException(503, "worker scheduler unavailable")
-        return {"status": "ready"}
+        document = {"status": "ready", "runtime_mode": runtime_mode}
+        if implementation_family is not None:
+            document["implementation_family"] = implementation_family
+        return document
 
     @app.post("/wake", status_code=204)
     def wake(authorization: str = Header(default="")) -> None:

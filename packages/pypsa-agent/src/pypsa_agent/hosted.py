@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
 from capstone_agent.runtime import build_runtime_host, load_runtime_environment
@@ -68,6 +70,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     """Build the registered PyPSA Thread assembly for Capstone API/worker."""
 
     catalog = RegisteredPyPSAThreadCatalog()
+    validation_builder = select_validation_builder(os.environ, "pypsa")
 
     def resolve_model(model_id: str) -> Mapping[str, object]:
         descriptor = catalog.resolve(model_id)
@@ -97,6 +100,8 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         )
 
     def build_session(claim, context, profiles):
+        if validation_builder is not None:
+            return validation_builder(claim, context, profiles)
         environment = load_runtime_environment(ROOT)
         environment.setdefault(
             "CAPABILITY_AGENT_LLM_PROVIDER",
@@ -120,7 +125,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(ROOT / "runs" / "capstone-agent")),
     ) / "thread-workspaces" / "pypsa"
-    return build_pypsa_thread_application(
+    assembly = build_pypsa_thread_application(
         default_model_id=catalog.default_model_id,
         model_resolver=resolve_model,
         workspace_root=workspace_root,
@@ -130,6 +135,8 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             (PYPSA_PROFILE_DESCRIPTOR.reference,),
         ),
     )
+    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+            if validation_builder is not None else assembly)
 
 
 def main() -> int:

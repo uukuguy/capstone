@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -58,6 +58,7 @@ def create_host_app(
     thread_creator: ThreadCreator | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
     case_service: CaseExecutionService | None = None,
+    validation_status: Callable[[], Mapping[str, object]] | None = None,
 ) -> FastAPI:
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
@@ -172,6 +173,15 @@ def create_host_app(
         except Exception:
             pass
         raise HTTPException(503, "database unavailable")
+
+    @app.get("/api/v1/validation/m11")
+    def get_validation_status(request: Request):
+        if request.state.public_demo or validation_status is None:
+            raise HTTPException(404, "validation status not found")
+        try:
+            return validation_status()
+        except (OSError, ValueError):
+            raise HTTPException(503, "validation workers are not ready") from None
 
     @app.get("/api/v1/catalog")
     def get_catalog():
