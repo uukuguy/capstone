@@ -91,5 +91,9 @@ def test_m11_uses_real_hosted_authority_without_provider(monkeypatch, tmp_path: 
         session.command("send_professional", {"text": INSTRUCTIONS[family][0]})
         assert session.snapshot().active_model_context.id != initial.active_model_context.id
         assert session.snapshot().result_projections
-        session.command("send_professional", {"text": "arbitrary validation instruction"})
-        assert any(event.event_type == "attempt_failed" for event in session.events().events)
+        arbitrary = session.command("send_professional", {"text": "arbitrary validation instruction"})
+        assert arbitrary.status == "accepted"
+        arbitrary_events = [event for event in session.events().events
+                            if event.attempt_id == arbitrary.target["attempt_id"]]
+        assert any(event.event_type == "attempt_failed" for event in arbitrary_events)
+        assert not any(event.event_type == "attempt_completed" for event in arbitrary_events)
