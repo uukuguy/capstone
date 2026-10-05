@@ -1,4 +1,5 @@
 import { NetworkView } from './NetworkView'
+import ThreadModelDirectory from './ThreadModelDirectory'
 import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
@@ -101,7 +102,8 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         isHistorical ? undefined : focusedElementId)
     : modelDiagram ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null
   return <section className="thread-model-pane" aria-label="电网模型区">
-    <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
+    <details className="thread-model-intro">
+      <summary>电网科学 AI · 关于 CAPSTONE</summary>
       <div className="capstone-intro-art notranslate" translate="no">
         <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
         <div className="capstone-intro-overlay">
@@ -118,19 +120,16 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
           <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
         </div>
       </div>
-      <p>当前 Thread 围绕一个电网模型工作。模型由已注册 authority 提供，工具调用和结果证据随 Run 保留。</p>
-    </section>
-    <div className="thread-model-toolbar" aria-label="模型上下文控制">
-      <div className="thread-model-current"><span className="thread-model-current-label">{isHistorical ? '历史模型' : '当前模型'}</span><strong>{viewedModelName}</strong><span className="thread-model-card-meta">{viewedContext?.implementationFamily}</span><span className="thread-model-badge" title={viewedContext?.modelRevision}>{isHistorical ? 'READ ONLY' : 'ACTIVE'}</span></div>
-      <label className="thread-model-switch">切换<select aria-label="目标电网模型" value={modelTarget} onChange={(event) => onModelTargetChange(event.target.value)} disabled={controlsDisabled}>
-        {modelOptions.map((model) => <option key={model.modelId} value={model.modelId} disabled={model.available === false}>{model.displayName} · {model.implementationFamily}{model.available === false ? ' · worker unavailable' : ''}</option>)}
-      </select></label>
-      <button type="button" className="thread-control-button" disabled={controlsDisabled || modelTarget === snapshot.activeModelContext.modelId || modelOptions.find((model) => model.modelId === modelTarget)?.available === false} onClick={onSwitchModel}>切换模型</button>
-      {contextChangePending && <small>切换将在下一 Turn 激活</small>}
-    </div>
-    <div className="thread-page-tabs" aria-label="电网模型分页">
-      {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
-        label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
+    </details>
+    <div className="thread-model-navigation">
+      <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
+        disabled={controlsDisabled} pending={contextChangePending} onTargetChange={onModelTargetChange} onSwitch={onSwitchModel} />
+      {pages.length > 1 && <details className="thread-model-history"><summary>模型历史 · {pages.length - 1}</summary>
+        <div className="thread-page-tabs" aria-label="电网模型分页">
+          {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
+            label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
+        </div>
+      </details>}
     </div>
     <div className="thread-network-card">
       {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>回到最新指令图</button></div>}
@@ -139,7 +138,10 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
           instructionLabel={instructionLabel}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>
-    <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
+    <details className="thread-view-details"><summary>电网视图详情{isHistorical ? ' · 历史只读' : ''}</summary>
+      <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
+      <p>{viewedContext?.implementationFamily} · revision {viewedContext?.modelRevision}</p>
+    </details>
     {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
     {elementReference && !isHistorical && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{elementReference.element_kind} / {elementReference.element_id}</strong><small>{elementReference.model_id} · revision {elementReference.model_revision}</small></div>}
   </section>

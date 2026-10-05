@@ -164,7 +164,8 @@ describe('ThreadFixtureApp', () => {
     ;(fixture.snapshot as Record<string, unknown>).current_attempt = { turn_id: 'turn_active', attempt_id: 'attempt_active', phase: 'running', target_model_context_id: 'ctx_ieee39_7' }
     render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_demo_39" />)
     await screen.findByRole('textbox', { name: 'Thread 指令' })
-    fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     expect((screen.getByRole('button', { name: '切换模型' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '停止生成' }) as HTMLButtonElement).disabled).toBe(false)
   })
@@ -339,14 +340,18 @@ describe('ThreadFixtureApp', () => {
       return transport.sendCommand(command)
     } })
     render(<ThreadFixtureApp client={client} threadId="thr_history" />)
+    await screen.findByRole('button', { name: '模型目录' })
+    fireEvent.click(screen.getByText(/^模型历史/))
     const history = await screen.findByRole('button', { name: /Regional Six Bus.*历史/ })
     fireEvent.click(history)
 
     expect(await screen.findByText('历史页 · 只读视图')).toBeTruthy()
+    fireEvent.click(screen.getByText('电网视图详情 · 历史只读'))
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     expect(screen.getByText('ctx_regional')).toBeTruthy()
     expect(screen.getByText('sel_1')).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
-    expect((screen.getByRole('combobox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
     expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
     expect(document.querySelector('.thread-model-short')?.textContent).toBe('ieee39 · pandapower')
     expect(commands).toEqual([])
@@ -381,7 +386,8 @@ describe('ThreadFixtureApp', () => {
     expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('')
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '查看当前模型' } })
     expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()
+    expect(document.querySelector('.network-model')?.textContent).toBe('IEEE-39')
+    expect(screen.queryByText(/^模型历史/)).toBeNull()
   })
 
   it('keeps identifiers in a compact diagnostics disclosure instead of the main heading', async () => {
@@ -399,7 +405,9 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.change(screen.getByRole('combobox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
+    expect(screen.queryByRole('listbox', { name: '目标电网模型' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
+    fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     fireEvent.click(screen.getByRole('button', { name: '切换模型' }))
 
     expect(await screen.findByText('Fixture 已接收自动指令：打开 pypsa39 电网模型并显示电网拓扑。')).toBeTruthy()
@@ -591,7 +599,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.queryByRole('button', { name: '打开回放' })).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
     await waitFor(() => expect(screen.queryByText('历史页 · 只读视图')).toBeNull())
-    expect(screen.getByRole('button', { name: /IEEE-39 · 当前模型/ })).toBeTruthy()
+    expect(document.querySelector('.network-model')?.textContent).toBe('IEEE-39')
   })
 
   it('freezes conversation controls behind the resync gate', async () => {

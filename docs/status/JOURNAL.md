@@ -1668,3 +1668,5 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 19:48 新截图暴露 StrictMode 旧加载覆盖新事件导致预设按钮 stale_event_seq，以及新排序缺少定位并被旧全网图层覆盖。新增失败回归并修复；真实 rank-only 多轮序列通过，未重新执行潮流。独立复核发现排序20项边界、变压器着色及命名空间引用问题，正在收尾。用户追加每条回答图标可切换该指令电网图的要求，纳入本轮本地交付。
 - 20:18 本地 CLI 浏览器通过预设直接执行、旧快照晚到、RTS33线路→rank3、旧回答恢复全网、返回最新及刷新、跨模型只读IEEE35线路着色和手机390宽无横向溢出。排序回执仅rank+evidence.get，复用同一结果，未重新潮流；补修空引用图层校验、历史颜色和取消/重试编号。后台465通过/32可选跳过、真实投影70通过、独立复核无阻断项；完整安装包/源码门禁仍在收尾，模型区域精简按用户要求后置。
 - 20:20 完整 make check-release 退出0；最终App222项与构建、doctor、浏览器及独立复核通过。最终本地重建退出0，API/双worker同镜像c3a9cd2，六个后台改动文件与运行镜像逐字节一致；健康、App200、目录60+21通过。原用户Thread保持IEEE39/游标76；验收服务、浏览器会话及临时凭据已清理，未调用Provider或改云端。
+- 20:21 Bound grid views to instructions and recovered preset commands to prevent stale sends and wrong overlays. [5ce8e3a]
+- 20:51 精简模型区并加入按需搜索目录，标题栏只留 GitHub 图标；修复悬停布局跳动与手机操作。App227、构建、浏览器、复核和本地重建通过。

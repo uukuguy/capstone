@@ -1,45 +1,37 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-05 20:20 CST. Local follow-up repair is complete.
+Updated: 2026-10-05 20:51 CST. Page refinement is verified; commit is next.
 This is a recovery checkpoint, not a final handoff.
 
-The user requested complete repair of stale presets and ranking-to-grid
-linkage, then added an answer-row icon for each instruction's grid view.
-The repair is verified locally and ready for task-owned commit on main.
-Plan: [repair plan](../superpowers/plans/2026-10-05-thread-preset-ranking-and-task-view.md).
-Evidence: [repair review](../reviews/2026-10-05-thread-preset-ranking-and-task-view.md).
+The user authorized the deferred model-area simplification and accumulated
+page adjustments, then requested an icon-only GitHub header link. The App
+now keeps one topology model identity, an on-demand searchable model directory,
+folded artwork/history/view diagnostics, stable hover action spacing, phone
+44px action targets, and long-text wrapping. Instruction graph replay and
+historical/read-only switch/send guards remain intact.
 
-Presets execute directly. Superseded loads/streams cannot erase new events.
-Definite stale rejection has one bounded synchronized retry. Prior result
-references require exact Context and fresh authority admission. Ranked
-focus/values come from the authority, with supported contract bounds.
-Numeric layers use the matching completed Attempt's references. Each answer
-can restore its own graph; current/old-model views and colors stay separate.
-New sends/retries return to the current view. Cancel/retry numbering is correct.
+Plan: [page refinement](../superpowers/plans/2026-10-05-thread-page-refinement.md).
+Evidence: [page review](../reviews/2026-10-05-thread-page-refinement.md).
+App227 tests/21 files, final TypeScript/build, doctor, diff and relative
+CLAUDE symlink checks passed. Local CLI browser covered actual gridctl preset,
+directory open, AC flow/rank, old/latest instruction graphs, historical return,
+81-model catalog/family search, empty results, Escape focus, desktop1600,
+compact900 and phone390 layouts. Hover does not change message height;
+phone controls are44px and long identifiers wrap. Independent review approved.
 
-Verification: backend465 passed/32 optional skips; real projector70 passed;
-real multi-turn rank-only sequence; final App222 passed and build; Pyright,
-doctor, diff, relative symlink, full make check-release exit0. Full gates
-include E2E39, registered-worker3, validation, installs and source setup.
-Final App-only refinements passed their own full test/build checks.
-Final make capstone-local-rebuild exit0. API and both workers share image
+Final checked-in local rebuild passed; API and both workers share image
 sha256:c3a9cd294bddfb952213564fff382e6331a4f3fde4a74650847d01624813a3eb.
-Six modified backend files match the running API. Readiness, App200, and
-catalog pandapower60/PyPSA21 pass. Original user Thread stays IEEE39/cursor76.
+Readiness, App200 and real catalog81 passed. Original user Thread remains
+IEEE39/cursor76. Receipts: runs/capstone-page-refinement. Screenshots:
+output/playwright/thread-page-*.png. All task test servers18761/18762/18763,
+browser session and auth file were removed; normal ports8767/5173 remain.
 
-CLI browser checks: preset accepted once despite late old snapshot; RTS full
-33-line flow then rank3; only rank/evidence retrieval in the new turn and
-same result ref; old full-flow restoration; return/reload; old IEEE35 colors
-without changing active RTS; phone390 has no horizontal page overflow.
-Independent review has no open finding. Receipts: runs/capstone-thread-model-fix.
-Screenshots: output/playwright/thread-task-*. Test servers, session and auth
-file were removed. Normal local ports8767/5173 remain running.
+Prior model/context and instruction-view repairs are committed as2173bb3
+and5ce8e3a. Their full release evidence remains in the
+[prior repair review](../reviews/2026-10-05-thread-preset-ranking-and-task-view.md).
+No external Provider, cloud release or user-history rewrite occurred.
+Finite Pi sessions with real authority facts do not prove arbitrary Provider
+planning. The isolated browser assembly omits legacy preview and emits known404s.
 
-No external Provider call, cloud release, or user-history rewrite occurred.
-Finite Pi decisions with actual gridctl do not prove arbitrary live Provider
-planning. The user deferred redundant model-area/dropdown simplification;
-that work is recorded in the plan and remains a later layout task.
-
-Next: refresh the App to use the repair. Start further work from the user's
-next instruction. Do not repeat completed gates without a new reason.
-After committing, append the commit hash to the journal and this checkpoint.
+Next: commit task-owned files, append the commit journal and checkpoint;
+then refresh the local App. No implementation or verification work remains.
