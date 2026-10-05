@@ -58,6 +58,103 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('does not create a second Turn when the first command committed before its receipt was lost', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport,
+      sendCommand: async (command) => {
+        commands.push(command)
+        const receipt = await transport.sendCommand(command)
+        if (commands.length === 1) throw new Error('committed receipt lost')
+        return receipt
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '读取母线' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText(/committed receipt lost/)
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await screen.findByText('Fixture 已接收自动指令：读取母线')
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands[1]).toEqual(commands[0])
+    expect(screen.getAllByText('Fixture 已接收自动指令：读取母线')).toHaveLength(1)
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('')
+    expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+  it.each(['accepted', 'rejected', 'still unknown'])('preserves a lost-receipt draft and checks the original command: %s', async (outcome) => {
+    const fixture = threadUiFixture('idle-ieee39')
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport,
+      sendCommand: async (command) => {
+        commands.push(command)
+        if (commands.length === 1 || outcome === 'still unknown') throw new Error('receipt connection lost')
+        return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id,
+          command_id: command.command_id, idempotency_key: command.idempotency_key,
+          status: outcome, ...(outcome === 'rejected' ? { rejection: 'stale_event_seq' } : {}) }
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    const text = '读取当前模型的母线'
+    fireEvent.change(input, { target: { value: text } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText(/receipt connection lost/)
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe(text))
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands[1]).toEqual(commands[0])
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value)
+      .toBe(outcome === 'accepted' ? '' : text))
+    if (outcome === 'rejected') expect(await screen.findByText(/stale_event_seq/)).toBeTruthy()
+  })
+
+  it('preserves an unsent draft across an event-stream reconnect', async () => {
+    let failStream!: () => void
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const client = new CapstoneThreadClient({ ...transport,
+      streamEvents: async function* () {
+        await new Promise<void>((resolve) => { failStream = resolve })
+        throw new Error('stream connection lost')
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '尚未发送的下一条指令' } })
+    failStream()
+    await screen.findByText(/stream connection lost/)
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await waitFor(() => expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false))
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('尚未发送的下一条指令')
+  })
+
+  it('keeps an offline reconnect recoverable without losing the draft', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    let loads = 0
+    let failStream!: () => void
+    const client = new CapstoneThreadClient({ ...transport,
+      getSnapshot: async (id) => {
+        if (++loads === 2) throw new Error('snapshot offline')
+        return transport.getSnapshot(id)
+      },
+      streamEvents: async function* () {
+        await new Promise<void>((resolve) => { failStream = resolve })
+        throw new Error('stream offline')
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '持续保留草稿' } })
+    failStream()
+    await screen.findByText(/stream offline/)
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await screen.findByText(/snapshot offline/)
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('持续保留草稿')
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await waitFor(() => expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false))
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('持续保留草稿')
+  })
   it('reruns a completed instruction as a new command without changing its old answer', async () => {
     const fixture = instructionViewsFixture()
     const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }

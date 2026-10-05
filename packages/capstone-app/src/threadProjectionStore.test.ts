@@ -98,6 +98,51 @@ function command(): ThreadCommand {
 }
 
 describe('ThreadProjectionStore', () => {
+  it('keeps the same Thread snapshot visible while reconnecting', async () => {
+    let finish!: (value: unknown) => void
+    let loads = 0
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({
+      ...createFixtureTransport(idleFixture),
+      getSnapshot: async () => ++loads === 1 ? idleFixture.snapshot : new Promise((resolve) => { finish = resolve }),
+    }))
+    await store.load('thr_demo_39')
+    const snapshot = store.state.snapshot
+    const reconnect = store.load('thr_demo_39')
+    expect(store.state.snapshot).toBe(snapshot)
+    expect(store.state.connection).toBe('connecting')
+    finish(idleFixture.snapshot)
+    await reconnect
+  })
+
+  it('keeps an accepted receipt when its subsequent event read fails', async () => {
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({
+      ...createFixtureTransport(idleFixture),
+      readEvents: async () => { throw new Error('event connection lost') },
+    }))
+    await store.load('thr_demo_39')
+    await expect(store.dispatch(command())).resolves.toMatchObject({ status: 'accepted' })
+    expect(store.state.pendingCommands[0].receipt?.status).toBe('accepted')
+    expect(store.state.connection).toBe('reconnecting')
+  })
+
+  it('blocks a fresh command while a previous receipt is unknown but permits its exact replay', async () => {
+    let sends = 0
+    const transport = createFixtureTransport(idleFixture)
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport,
+      sendCommand: async (value) => {
+        if (++sends === 1) throw new Error('receipt lost')
+        return transport.sendCommand(value)
+      },
+    }))
+    await store.load('thr_demo_39')
+    await expect(store.dispatch(command())).rejects.toThrow('receipt lost')
+    await store.load('thr_demo_39')
+    await expect(store.dispatch({ ...command(), command_id: 'cmd_new', idempotency_key: 'idem_new' }))
+      .rejects.toThrow('previous command receipt is unresolved')
+    expect(sends).toBe(1)
+    await expect(store.dispatch(command())).resolves.toMatchObject({ status: 'accepted' })
+    expect(store.state.pendingCommands).toHaveLength(1)
+  })
   it('numbers instructions without counting cancellations and preserves retry numbering', () => {
     const events = [
       ['send_auto', 'attempt_a', 'turn_a', {}],
@@ -223,10 +268,13 @@ describe('ThreadProjectionStore', () => {
   })
   it.each(['model_context_activated', 'model_context_reopened'])('restores the exact previous live diagram after failed %s and on reload', async (changeType) => {
     const nextContext = { ...context, id: 'ctx_next', ...(changeType === 'model_context_activated' ? { model_id: 'pypsa39', implementation_family: 'pypsa' } : {}) }
+    const failedDiagram = { ...dynamicDiagram, model: { ...dynamicDiagram.model, id: nextContext.model_id }, ref: `diagram:sha256:${'c'.repeat(64)}` }
     const events = [
       ['network_diagram', context.id, { diagram: dynamicDiagram }],
       ['network_layer', context.id, { ordinal: 1, layer: dynamicLayer }],
       [changeType, nextContext.id, { model_context: nextContext, previous_context: context, active_grid_page_id: changeType === 'model_context_activated' ? 'page_pypsa39' : 'page_ieee39', previous_grid_page_id: 'page_ieee39' }],
+      ['network_diagram', nextContext.id, { diagram: failedDiagram }],
+      ['network_layer', nextContext.id, { ordinal: 1, layer: { ...dynamicLayer, diagram_ref: failedDiagram.ref, focus_ids: [] } }],
       ['model_context_reverted', context.id, { restored_context: context, restored_grid_page_id: 'page_ieee39' }],
     ].map(([event_type, model_context_id, payload], index) => ({
       event_id: `evt_${index + 1}`, event_seq: index + 1, event_type, event_version: 1, model_context_id,
@@ -240,6 +288,8 @@ describe('ThreadProjectionStore', () => {
     await store.consumeEvents()
     expect(store.state.snapshot?.activeModelContext.id).toBe(context.id)
     expect(store.state.networkView?.diagram.model.id).toBe('ieee39')
+    expect(store.state.networkView?.diagram.ref).toBe(dynamicDiagram.ref)
+    expect(store.state.networkView?.layer.focus_ids).toEqual(dynamicLayer.focus_ids)
     const restored = store.state.networkView
     const replay = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport({ ...idleFixture,
       snapshot: { ...idleFixture.snapshot, last_event_seq: events.length },

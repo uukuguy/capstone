@@ -61,7 +61,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
   const commandInFlight = useRef(false)
+  const composerSend = useRef(false)
+  const composerCommands = useRef(new Set<string>())
   const [sending, setSending] = useState(false)
+  const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
 
   useEffect(() => {
     let active = true
@@ -82,6 +85,22 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         if (!store.state.resyncRequired) {
           await store.catchUp()
           if (!active) return
+          // Reconcile only commands whose receipt was lost. Preserve the
+          // original cursor and identity even if SSE already shows their Turn.
+          for (const entry of store.state.pendingCommands.filter((item) => !item.receipt)) {
+            const receipt = await store.dispatch(entry.command)
+            if (!active) return
+            if (receipt.status === 'accepted') {
+              if (composerCommands.current.has(entry.command.command_id)
+                  && ['send_auto', 'send_ordinary', 'send_professional'].includes(entry.command.kind)
+                  && typeof entry.command.payload.text === 'string') {
+                setAcceptedDraft({ text: entry.command.payload.text, commandId: entry.command.command_id })
+              }
+              setNotice('已确认原操作提交成功。')
+            } else {
+              setNotice(commandRejectionCopy(receipt.rejection))
+            }
+          }
         }
         if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
         if (active && store.canStreamEvents) {
@@ -130,8 +149,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     })),
   } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
-  const canSendText = projection.connection === 'live' && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !projection.resyncRequired
-  const canRetry = projection.connection === 'live' && !isHistorical && !isActive && !caseActive && !sending && !projection.resyncRequired
+  const unresolvedCommand = projection.pendingCommands.some((entry) => !entry.receipt)
+  const canSendText = !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !projection.resyncRequired
+  const canRetry = !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
     const active = snapshot ? {
@@ -180,11 +200,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const makeCommand = (): ThreadCommand => {
       const current = store.state.snapshot!
       const key = commandKey()
-      return buildThreadCommand({
+      const command = buildThreadCommand({
         threadId: current.threadId, runId: current.run.runId, kind,
         expectedEventSeq: store.state.eventSeq, commandId: `cmd_ui_${key}`,
         idempotencyKey: `idem_ui_${key}`, payload,
       })
+      if (conversational && composerSend.current) composerCommands.current.add(command.command_id)
+      return command
     }
     try {
       let receipt = await store.dispatch(makeCommand())
@@ -259,9 +281,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     void dispatch('start_case_execution', { case_id: caseId, case_version: caseVersion, strategy_id: 'sequential_batch' })
   }
 
-  async function sendConversation(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
+  async function sendConversation(mode: 'automatic' | 'ordinary' | 'professional', text: string, fromComposer = false): Promise<void> {
     if (commandInFlight.current || isHistorical) throw new MessageNotSentError('当前页面不可发送，请返回当前模型后重试。')
     commandInFlight.current = true
+    composerSend.current = fromComposer
     setSending(true)
     try {
       await selectModelAndSend(mode, text)
@@ -271,6 +294,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
     } finally {
       commandInFlight.current = false
+      composerSend.current = false
       setSending(false)
     }
   }
@@ -318,7 +342,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
 
   return <div className="thread-app-shell">
     <PageHeader className="thread-page-header" showThreadEntry={false} />
-    {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
+    {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           gridPages={displayedGridPages}
@@ -337,7 +361,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
-          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
+          <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
               setFocusedElement(undefined)
               setSelectedNetworkAttempt(attemptId)
@@ -365,13 +389,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={<><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
               onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
-                disabled={isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
+                disabled={loading || unresolvedCommand || isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void sendConversation('automatic', `打开 ${modelId} 电网模型`).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
-            onSend={sendConversation}
+            onSend={(mode, text) => sendConversation(mode, text, true)}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
             onRegenerate={canRetry ? async (attemptId, instruction) => {
               if (events.some((event) => event.attemptId === attemptId && event.eventType === 'attempt_completed')) {
@@ -381,7 +405,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               }
             } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
-            {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
+            {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' || projection.connection === 'offline' ? <><button type="button" className="thread-primary-button" disabled={loading} onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
               {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry, { turn_id: attempt?.turnId })}
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
             </>}

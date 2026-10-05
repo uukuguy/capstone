@@ -261,9 +261,11 @@ export class ThreadProjectionStore {
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,
-      connection: 'connecting', snapshot: null, eventSeq: 0, resyncRequired: false,
+      connection: 'connecting', snapshot: sameThread ? this.current.snapshot : null,
+      eventSeq: sameThread ? this.current.eventSeq : 0, resyncRequired: false,
       pendingCommands: sameThread ? this.current.pendingCommands : [],
     }
+    this.notify()
     try {
       const snapshot = await this.client.load(threadId)
       if (generation !== this.loadGeneration) return
@@ -418,6 +420,9 @@ export class ThreadProjectionStore {
     }
     if (command.thread_id !== snapshot.threadId) throw new Error('command thread does not match snapshot')
     const existing = this.current.pendingCommands.find((entry) => entry.command.idempotency_key === command.idempotency_key)
+    if (!existing && this.current.pendingCommands.some((entry) => !entry.receipt)) {
+      throw new Error('previous command receipt is unresolved; 请重新连接核对发送结果。')
+    }
     if (existing) {
       const sameCommand = existing.command.command_id === command.command_id
         && existing.command.thread_id === command.thread_id
@@ -446,7 +451,11 @@ export class ThreadProjectionStore {
         )),
       }
       this.notify()
-      if (!this.canStreamEvents) await this.catchUp()
+      // The receipt is authoritative even if reading its events fails. Keep
+      // reconnect state, but do not tell the Composer that an accepted send failed.
+      if (!this.canStreamEvents) {
+        try { await this.catchUp() } catch { /* catchUp records the recovery state */ }
+      }
       return receipt
     } catch (error) {
       this.current = { ...this.current, connection: 'reconnecting' }

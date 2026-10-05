@@ -569,13 +569,20 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ disabled, isRunning, editRequest, controls }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; controls?: ReactNode }) {
+function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const resolvedCommand = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (editRequest) aui.composer.setText(editRequest.text)
   }, [aui, editRequest])
+  useEffect(() => {
+    if (acceptedDraft && resolvedCommand.current !== acceptedDraft.commandId) {
+      resolvedCommand.current = acceptedDraft.commandId
+      if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) aui.composer.setText('')
+    }
+  }, [aui, acceptedDraft])
   useEffect(() => {
     const input = inputRef.current
     if (input && !input.disabled) input.focus()
@@ -599,6 +606,7 @@ export type CapstoneAssistantThreadProps = {
   events: readonly EventEnvelope[]
   disabled: boolean
   isRunning: boolean
+  acceptedDraft?: { text: string; commandId: string }
   activity: readonly (ChatActivity | string)[]
   onSend: (mode: SendMode, text: string) => Promise<void>
   onCancel: () => Promise<void>
@@ -620,7 +628,7 @@ export type CapstoneAssistantThreadProps = {
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork }: CapstoneAssistantThreadProps) {
   const messages = useMemo(() => projectAssistantMessages(events), [events])
   const [editRequest, setEditRequest] = useState<{ text: string; nonce: number }>()
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
@@ -659,7 +667,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} controls={composerControls} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} />
         </div>
       </ThreadPrimitive.Root>
     </div>

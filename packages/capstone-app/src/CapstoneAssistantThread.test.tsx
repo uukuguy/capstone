@@ -11,6 +11,20 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('clears a reconciled draft once and preserves a later draft', async () => {
+    const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '已提交指令' } })
+    const acceptedDraft = { text: '已提交指令', commandId: 'cmd_recovered' }
+    rerender(<CapstoneAssistantThread {...props} acceptedDraft={acceptedDraft} />)
+    await waitFor(() => expect(input.value).toBe(''))
+    fireEvent.change(input, { target: { value: '下一条草稿' } })
+    rerender(<CapstoneAssistantThread {...props} acceptedDraft={{ ...acceptedDraft }} />)
+    expect(input.value).toBe('下一条草稿')
+    rerender(<CapstoneAssistantThread {...props} acceptedDraft={{ text: '其他已提交指令', commandId: 'cmd_other' }} />)
+    expect(input.value).toBe('下一条草稿')
+  })
   it('disables a completed rerun when a new instruction is blocked or its model context is historical', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_1'),
