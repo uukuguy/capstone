@@ -5,6 +5,7 @@
 - Project: Capstone Agent Framework
 - Theme-level focus: Immutable Thread model state, authority-backed App linkage, and controlled local/cloud release flow
 - Project route: direct
+- Client recovery: same-Thread reconnects preserve the mounted Composer and its draft. Unknown receipts are checked with the original command, Run, payload, cursor and idempotency key before another command is admitted. Receipt acknowledgement survives event-read failures. Only the matching Composer draft is cleared after acceptance; model-menu and completed-answer actions preserve unrelated drafts. Context-bound topology caches restore the prior diagram and layer after a failed switch or reopen. Scope: `docs/superpowers/specs/2026-10-05-thread-client-recovery-design.md`.
 - Instruction views: presets execute on one click. Each available answer owns a validated grid-view action, with Context/Attempt-bound replay and numerical overlays. Ranking focus comes from admitted authority rows. Prior result hints are bounded exact-Context retrieval candidates and require fresh admission. The current task is separate from an explicit old-answer view; viewing history cannot activate a model. See `docs/reviews/2026-10-05-thread-preset-ranking-and-task-view.md`. The searchable model menu sits beside Composer settings, sorts by engine and natural model ID, uses 9px popup text and an 8px hint, and opens the chosen model directly. Thread topology has compact controls and a proportionate canvas. Brand artwork stays visible above one 9px introduction paragraph; history/diagnostics are folded and the header GitHub link is icon-only. See `docs/reviews/2026-10-05-thread-page-refinement.md` and `docs/reviews/2026-10-05-thread-composer-model-and-compact-topology.md`.
 - Thread model ownership: the application selects and activates the model before its instruction. Each fresh Attempt receives the selected model and exact authority reference. Native RPC results retain bounded references and reject conflicting identities. Authority artifacts must bind to that context/revision; PyPSA descendants require a verified parent chain anchored to the selected base. Normal pandapower topology uses the prepared gridctl binding and admitted endpoint evidence. The hosted catalog reflects the registered authority, with safe model page keys and bounded operator labels. Repair scope and validation belong to `docs/reviews/2026-10-05-thread-model-state-repair.md`; earlier restricted M11 receipts do not prove ordinary Provider planning.
 - Read-only topology and message actions: published component observations and operation catalogs can complete without analysis evidence after successful bound tools. Endpoint and calculation lineage gates remain enforced. Desktop message actions show on hover/focus without a separate empty row; touch controls stay visible. Common icons retain fixed slots and disable unavailable operations; unfinished feedback stays disabled inside More. Completed-answer reruns create new Turns, preserving committed answers. Root App opens the conversation workspace; `/old` hosts registered cases. See `docs/reviews/2026-10-05-topology-observation-and-message-actions.md`.
@@ -65,11 +66,10 @@
 
 ## Open Problems (theme-level)
 
-- Client follow-ups remain for draft recovery on uncertain transport failure
-  and exact cached-diagram restoration after live model rollback. An interrupted
-  legacy PyPSA case during parallel validation needs separate diagnosis; serial
-  registered-case acceptance passes. Provider behavior and user-trial promotion
-  are separate release gates. M11 evidence and limits are in the
+- Provider behavior and manually accepted user-trial promotion remain separate
+  release gates. Client recovery and hosted startup renewal evidence are in the
+  [Thread recovery record](../reviews/2026-10-06-thread-client-recovery-and-cloud-dev-verification.md).
+  Earlier M11 evidence and limits are in the
   [M11 design](../superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md)
   and [verification record](../reviews/2026-10-05-capstone-m11-cloud-verification.md).
 
@@ -79,8 +79,8 @@
 - The shared PostgreSQL Thread ledger is serviced by a pandapower worker and a PyPSA worker. Each worker passes `CAPSTONE_THREAD_FAMILY` into Attempt leasing, so a worker cannot execute a different model family.
 - PyPSA and pandapower model/profile records are visible through one Thread catalog. Worker health is projected into model availability; unavailable families are marked and rejected at Thread creation/model switch. The selected profile remains family-checked metadata at the API boundary and is prepared by the owning worker environment.
 - Same model/revision selection reuses the active model context. `reopen_model_context` requires a fresh-context reason, creates a new context, and emits `model_context_reopened` while preserving the prior context in history.
-- M8 remains a local/demo-stage dual-worker composition. Railway single-family examples remain unchanged until cloud deployment is deliberately expanded to the federated topology.
-- M8 post-review follow-up: both family workers now receive the bounded application-owned federated catalog as Pi policy context. A pandapower worker may explain registered PyPSA models, but still cannot lease or execute PyPSA Attempts; switching the active model remains required. Runtime catalog smoke reports 22 models across both families, and the follow-up review is `docs/reviews/2026-10-03-capstone-m8-catalog-context-follow-up.md`.
+- The federated dual-worker composition is available locally and in cloud development through M11. User-trial promotion remains a separate, manually accepted release action.
+- Both family workers receive the bounded application-owned federated catalog as Pi policy context. A pandapower worker may explain registered PyPSA models, but still cannot lease or execute PyPSA Attempts; switching the active model remains required. Historical smoke evidence is in `docs/reviews/2026-10-03-capstone-m8-catalog-context-follow-up.md`; model counts belong to the current registered Authority catalog.
 - Model-reference audit follow-up: Web and TUI resolve canonical IDs, unique short path segments, and unique display names before emitting explicit `switch_model`; same-model selections reuse the active Context and explicit reopen is required for a clean Context. Long natural-language analysis requests remain ordinary agent work. See `docs/reviews/2026-10-03-model-reference-cross-family-audit.md`.
 
 - Declared static-analysis capability coverage remains the established baseline; framework assurance gaps are tracked separately in `docs/status/2026-09-05-capstone-design-code-review.md`.
@@ -92,7 +92,7 @@
 - Cloud health and catalog paths are verified after the latest deployment; a full cloud Provider timing comparison remains separate from local regression evidence.
 - Workstream C.2 dynamic selection/discovery remains unimplemented; inventory remains conformance infrastructure. All four PyPSA Packs have production code and explicit two-binding tests. The bounded PyPSA four-Pack worklist is complete; arbitrary Network construction, solver options, and unregistered datasets remain excluded.
 - Multi-binding independent composition and policy-granted typed `model_ref` sharing are implemented. Current PyPSA/pandapower dependency pins prevent their co-installation in one Python environment. Write-side approval, idempotency, and compensation remain deferred to enterprise action governance.
-- M9 is closed for the bounded result slice: PyPSA operation results are bound to the active `pypsa-model` context, available projections require admitted result/evidence references, and the Web renders every projection attached to an Attempt. Capstone is 386 passed/30 skipped, App 168 passed, PyPSA projector 5 passed, repository E2E is 39 + registered worker 3, Pyright is clean, and the current-source local rebuild is healthy. Independent M9 review is APPROVE (`docs/reviews/2026-10-04-capstone-m9-independent-code-review.md`). PyPSA topology diagram remains a separate future phase.
+- PyPSA operation results bind to the active `pypsa-model` context, available projections require admitted result/evidence references, and the Web renders every projection attached to an Attempt. M9 evidence is in `docs/reviews/2026-10-04-capstone-m9-independent-code-review.md`. The registered PyPSA topology provider is implemented through M10.
 - M10 is complete for the registered PyPSA topology-provider slice. The prepared Authority `operator.diagram` provider is bound to the active Thread model context, emits validated `network_diagram`/`network_layer` events with unavailable fallback, and the Web replays only matching model revisions with safe focus and legacy preview fallback. M10 verification passed: Capstone Agent 29 focused tests, PyPSA Agent 28 focused tests, PyPSA Authority 28 tests, App 171 tests plus production build, Pyright 0 errors, grid E2E 39, registered-worker E2E 3, current-source local rebuild, API readiness, App reachability, and `git diff --check`. The post-implementation type-boundary fix is `08f7366`; the complete `make check-release` gate then passed, including 846 grid-agent tests, 173 simulator tests, 389 Capstone Agent tests, 567 Kernel tests, 100 pandapower Domain Pack tests, 171 App tests, 29 PyPSA Agent tests, package artifacts, source setup, and 24/24 capability coverage. Implementation commits are `c801532`, `35808a8`, `960b6af`, `0fcecae`, `694c8f4`, and `08f7366`; the implementation plan is `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider-implementation.md`.
 
 ## Key Files
@@ -106,6 +106,8 @@
 - `docs/status/RESUME-NEXT-SESSION.md` — current session handoff
 - `docs/status/JOURNAL.md` — append-only durable event log
 - `docs/status/CURRENT-STATE.md` — this structural snapshot
+- `docs/superpowers/specs/2026-10-05-thread-client-recovery-design.md` — approved client recovery and manual release boundary
+- `docs/superpowers/plans/2026-10-05-thread-client-recovery.md` — local repair and cloud-dev acceptance actions
 - `docs/status/DECISIONS.md` — architectural decision ledger
 - `docs/status/2026-09-05-capstone-design-code-review.md` — optimization findings, evidence and review limits
 - `docs/architecture/capstone-development-lifecycle.md` — normative local, cloud-development, and user-trial lifecycle
@@ -133,6 +135,7 @@
 - `validation/pypsa_cases.py` — provider-free registered PyPSA business case runner and presentation projection
 - `tools/capstone_client.py` — unified local request router for pandapower and PyPSA application workers
 - `packages/capstone-agent/src/capstone_agent/` — neutral persistent session, registered workers, CLI, and HTTP/SSE adapter
+- `packages/capstone-agent/src/capstone_agent/host_worker.py` — independent legacy claim renewal through startup/evidence/report work; known lease loss fences commands and persistence
 - `packages/capstone-agent/src/capstone_agent/hosted.py` — application-owned hosted API/Worker process boundary
 - `packages/capstone-agent/src/capstone_agent/prompt_hints.py` — bounded registered-case Provider context decorator
 - `packages/capstone-app/` — independent operator App, typed API client, and Vercel build
