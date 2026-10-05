@@ -4,6 +4,8 @@
     "validation/thread/provider_free_host.py",
     "validation/thread/scripted_session.py",
     "validation/thread/m11_session.py",
+    "validation/thread/m11_matrix.py",
+    "validation/run_m11.py",
     "validation/run_m5_provider_free.py"
   ]
 }

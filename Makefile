@@ -46,6 +46,7 @@ help:
 	@echo "  make validate              Run deterministic WP-A validation"
 	@echo "  make validate-application  Run provider-free generic application instantiation validation"
 	@echo "  make validate-thread-m5    Run bounded provider-free Thread validation (origin/token from environment)"
+	@echo "  make validate-thread-m11   Verify cloud-development dual-family Threads without Provider calls"
 	@echo "  make validate-provider PROVIDER=... [MODEL=...]  Run optional billed provider validation"
 	@echo "  make check-application-boundaries  Verify generic application ownership boundaries"
 	@echo "  Manual: docs/MANUAL-VALIDATION.md (human verification for every entry above)"
@@ -311,6 +312,10 @@ validate-application:
 
 validate-thread-m5:
 	PYTHONPATH=. uv run --project packages/capstone-agent python validation/run_m5.py
+
+.PHONY: validate-thread-m11
+validate-thread-m11:
+	PYTHONPATH=. uv run --project packages/capstone-agent python validation/run_m11.py
 
 validate-thread-m5-provider-free:
 	mkdir -p runs/capstone-m5/provider-free

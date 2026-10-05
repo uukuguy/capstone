@@ -248,4 +248,3 @@ class _ScriptedPiSession:
         if self._family == "pandapower":
             return "已完成登记的 pandapower 分析步骤；结果和本轮证据已通过 Authority 准入。"
         return "已完成登记的 PyPSA 分析；模型修订、计算结果和本轮证据已通过 Authority 准入。"
-
