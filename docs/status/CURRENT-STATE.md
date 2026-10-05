@@ -63,9 +63,10 @@
   Provider-backed Pi sessions; the local deterministic Thread validator has
   not yet been integrated with remote PostgreSQL workers. Public demo session
   admission currently permits fixed Provider execution, in conflict with the
-  repository's scripted-only public credential rule. The proposed bounded
+  repository's scripted-only public credential rule. The approved bounded
   validation mode and access correction are specified in
-  [M11 design](../superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md).
+  [M11 design](../superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md)
+  and [implementation plan](../superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md).
 
 ### M8 unified Thread application (demo-stage)
 

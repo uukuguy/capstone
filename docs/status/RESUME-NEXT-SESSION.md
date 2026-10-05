@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-05 09:54 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-05 10:16 CST. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -32,9 +32,11 @@ The verified `08f7366` source is now deployed to the Railway `capstone-cloud-dev
 - Latest production commit: `08f7366`.
 - Earlier M10 commits: `c801532`, `35808a8`, `960b6af`, `0fcecae`, `046ae1e`, `694c8f4`.
 - M10 closeout and Railway port documentation commit: `a01c43d`.
-- M11 is in written-spec review; no M11 runtime or cloud configuration changes
+- M11 written specification commit: `729a573`.
+- M11 written specification is approved and its implementation plan is ready;
+  no M11 runtime or cloud configuration changes
   have been made.
-- Implementation plan: `docs/superpowers/plans/2026-10-04-capstone-m10-pypsa-topology-provider-implementation.md`.
+- Active implementation plan: `docs/superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md`.
 - Local verification does not establish cloud-development or user-trial release readiness.
 - Cloud-dev deployment IDs: API `f8c4e61f-e0a6-4a49-8766-0b2107e8eadb` (wake URL fix), worker `532f2c78-e3bd-49ef-b484-e31645eb8fa1`, App `45304cda-95a8-406b-b60f-dd08220f3a5a`.
 - Cloud-dev image digests: API `sha256:a751fa461f47514ba0466f850826a75b41ec8230778732ac8caf99269eb28406`; worker `sha256:c75186e09e32e8c2720f1ce3798780047347abba59bfb051973d0e60ae35b80f`; App `sha256:969b548a6c9700dfc2fc358a8abdb9e9c22e3c0e6d0d9c9a71f47d90c49e84c4`.
@@ -49,9 +51,12 @@ pandapower/PyPSA workers, and no-Provider acceptance first. The written spec is
 `docs/superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md`.
 It adds two necessary prerequisites found during source review: a bounded
 validation-only session adapter on the prepared runtime, and correction of
-public demo admission to scripted-only. After written-spec review, create the
-implementation plan with `writing-plans`, then execute its tasks. Provider
-billing and user-trial promotion remain outside the authorization.
+public demo admission to scripted-only. The user has approved the written
+specification. The implementation plan now covers five tasks, including private
+validation-mode preflight before any remote Thread creation. Offer the
+writing-plans execution choice, then begin Task 1: persisted public-demo scope
+and scripted-only admission. Provider billing and user-trial promotion remain
+outside the authorization.
 
 ## Preserve these boundaries
 

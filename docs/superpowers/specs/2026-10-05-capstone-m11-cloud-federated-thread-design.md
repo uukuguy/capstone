@@ -7,8 +7,9 @@ workers in `capstone-cloud-dev`. Verify the M8 model lifecycle, M9 admitted
 result projections, and M10 Authority topology through the remote Thread API
 and Web replay path.
 
-The user approved this direction on 2026-10-05. This written specification is
-ready for review; implementation and remote acceptance remain pending.
+The user approved this written specification on 2026-10-05. The
+[implementation plan](../plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md)
+defines the execution steps; implementation and remote acceptance remain pending.
 M10 implementation and local verification are complete. Its cloud smoke used
 the legacy pandapower scripted-session API and does not establish remote PyPSA
 Thread acceptance.
