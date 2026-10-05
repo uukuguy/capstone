@@ -1,78 +1,84 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-05 10:16 CST. **Session remains active — not a final handoff.**
+> Updated: 2026-10-05 12:05 CST. **Session remains active — not a final handoff.**
 
-## TL;DR
+## Current work
 
-M9 and the registered PyPSA M10 topology-provider slice are complete. M10 binds the prepared Authority `operator.diagram` provider to the active Thread model context and replays matching topology events in Web with safe focus.
+M11 implementation and cloud HTTP acceptance passed. Real cloud Web acceptance
+remains pending because Chrome control cannot connect. Do not mark M11 complete.
+The user approved inline execution and cloud-dev deployment. Provider execution
+and user-trial promotion remain outside the authorization.
 
-The full offline release gate found four M10 static-type errors. Commit `08f7366` adds explicit type narrowing at the optional Harness projection and prepared PyPSA executor boundaries. Runtime behavior is unchanged. The complete `make check-release` gate passed after this fix.
+## Verified state
 
-The verified `08f7366` source is now deployed to the Railway `capstone-cloud-dev` API, worker, and App. The first App upload used the wrong root and failed; the corrected root-preserving upload succeeded. The user-trial `capstone-demo` stage was not changed.
+- Main contains runtime source `595e602` and additional tests `e128789`.
+  No runtime source changed during remote acceptance.
+- Full `make check-release` passed, including E2E 39 + 3, App 171,
+  coverage 24/24, installed-package checks and source setup.
+- Disposable PostgreSQL: 19 passed. Each real Authority environment:
+  2 passed / 1 opposite-family skip. Focused App replay/focus: 32 passed.
+- Local rebuild, matrix 5/5, both public cases, and normal-mode restoration passed.
+- Remote private preflight and Thread matrix: 5/5 passed.
+  Receipt: `runs/capstone-m11/remote/m11-750fa3caf36f4202.json`.
+- Both remote legacy cases passed in validation mode and again in normal mode:
+  `runs/capstone-m11/remote/legacy-ff2198411ada.json` and
+  `runs/capstone-m11/remote-normal/legacy-08a7ec68d8dd.json`.
+- Before worker restart, read-only DB counts showed zero active Attempts and
+  sessions. After restart and after normal restoration, the Thread snapshot,
+  53 events, reports/results/evidence and six network views match:
+  `runs/capstone-m11/remote/retention-{before,after,normal}.json`.
+- Both private workers report `normal`; API validation endpoint returns 404.
+  API/App readiness, both catalog families, public Provider denial and public
+  Thread creation/read denial passed. No Provider work was submitted.
+- Temporary SSH registration/key files removed; disposable PostgreSQL
+  `capstone-m11-test-postgres` stopped. No application data was deleted.
 
-## Verification
+## Final cloud deployment
 
-- Focused regression: Capstone Agent 33 passed; PyPSA Agent 9 passed.
-- Full Pyright: 0 errors, 0 warnings, 0 informations.
-- Full release gate: grid-agent 846 passed; simulator 173 passed; Capstone Agent 389 passed / 30 skipped; Kernel 567 passed; pandapower Domain Pack 100 passed; App 171 passed; PyPSA Agent 29 passed.
-- Grid E2E: 39 passed; registered-worker E2E: 3 passed.
-- Capability coverage: 24/24.
-- Package artifact build, installed smoke checks, and source setup passed.
-- Current-source `make capstone-local-rebuild` passed after `08f7366`; API and both workers are healthy and share the verified image.
-- API readiness: `{"status":"ready"}`; App: HTTP 200.
-- Cloud-dev catalog: 2 registered applications and 5 registered cases.
-- Cloud-dev registered IEEE-39 diagram: 39 buses and 46 branches, with `gridctl` as the source Authority.
-- Cloud-dev scripted case `session-80d0f53ee33547184da2748d` completed all 3 turns without Provider calls; report (3816 bytes), result, evidence replay, and network views 1/2/3 returned successfully.
-- Cloud-dev worker wake diagnosis: Railway injected `PORT=8080` while the configured wake URL used `8766`; a temporary SSH check confirmed the worker listened on 8080. `CAPSTONE_WORKER_WAKE_URL` is now `http://capstone-worker.railway.internal:8080` in cloud-dev API and worker.
-- Cloud-dev Provider-backed case was not run because no separate Provider validation authorization was provided.
-- `git diff --check` passed.
+Target: `capstone-cloud-dev`, project
+`5eecde6b-fec2-40d2-8b26-427025b02b96`, environment `production`
+(`5afd6aeb-07a6-4320-92e9-4bf193a442cb`).
 
-## Recovery boundary
+| Role | Normal-mode deployment |
+| --- | --- |
+| API | `c7fe98e9-3e92-47ab-b826-2ca4af09f758` |
+| pandapower worker | `8aa5840f-4d26-4477-a2d3-e120032a3786` |
+| PyPSA worker | `3e8348ab-31dc-4984-be26-c9775ad864c1` |
+| App | `1c428e30-4f1c-4308-87cd-962b4fc337e7` |
 
-- Latest production commit: `08f7366`.
-- Earlier M10 commits: `c801532`, `35808a8`, `960b6af`, `0fcecae`, `046ae1e`, `694c8f4`.
-- M10 closeout and Railway port documentation commit: `a01c43d`.
-- M11 written specification commit: `729a573`.
-- M11 written specification is approved and its implementation plan is ready;
-  no M11 runtime or cloud configuration changes
-  have been made.
-- Active implementation plan: `docs/superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md`.
-- Local verification does not establish cloud-development or user-trial release readiness.
-- Cloud-dev deployment IDs: API `f8c4e61f-e0a6-4a49-8766-0b2107e8eadb` (wake URL fix), worker `532f2c78-e3bd-49ef-b484-e31645eb8fa1`, App `45304cda-95a8-406b-b60f-dd08220f3a5a`.
-- Cloud-dev image digests: API `sha256:a751fa461f47514ba0466f850826a75b41ec8230778732ac8caf99269eb28406`; worker `sha256:c75186e09e32e8c2720f1ce3798780047347abba59bfb051973d0e60ae35b80f`; App `sha256:969b548a6c9700dfc2fc358a8abdb9e9c22e3c0e6d0d9c9a71f47d90c49e84c4`.
-- Cloud-dev keeps the default pandapower hosted application; the PyPSA M10 provider was deployed in source but was not activated or exercised remotely.
+All use source `595e602`; API reused the exact verified image. The manifest
+`runs/capstone-m11/deployment.json` records full hashes, digests and rollback
+settings. Validation opt-in is empty on all backend roles. Local mode is normal.
 
-## Immediate next action
+## Next action: browser acceptance only
 
-M10 is closed for implementation and local verification. The cloud-dev legacy
-pandapower scripted-session smoke passed; remote PyPSA Thread validation is
-still pending. The user approved the M11 direction: unified cloud-dev API,
-pandapower/PyPSA workers, and no-Provider acceptance first. The written spec is
-`docs/superpowers/specs/2026-10-05-capstone-m11-cloud-federated-thread-design.md`.
-It adds two necessary prerequisites found during source review: a bounded
-validation-only session adapter on the prepared runtime, and correction of
-public demo admission to scripted-only. The user has approved the written
-specification. The implementation plan now covers five tasks, including private
-validation-mode preflight before any remote Thread creation. Offer the
-writing-plans execution choice, then begin Task 1: persisted public-demo scope
-and scripted-only admission. Provider billing and user-trial promotion remain
-outside the authorization.
+The user approved opening a new Chrome window; it opened, but tab listing
+still timed out. Extension/native-host diagnostics passed. Supported recovery
+requires plugin repair through the client's UI. Do not bypass Browser with
+shell/AppleScript or a separate browser automation surface.
 
-## Preserve these boundaries
+The user asked what “Settings → Computer Use” means. Official documentation
+places it in the ChatGPT desktop application. An async question asks whether
+the current client is Orca, ChatGPT desktop, or Codex. Give instructions for
+the actual client; do not assume ChatGPT menus exist in Orca.
 
-- Registered Authority owns topology and numerical facts; no raw Networks or Authority internals cross public boundaries.
-- Admit result and evidence references only for the current run.
-- Match diagram model context and revision before replay, overlays, or focus.
-- Preserve existing `var/`, ignored runtime/authentication state, and user work.
-- Keep cloud development and user trial data, credentials, origins, and mutable state separate.
+After connection recovery, open:
+`https://capstone-app-production-83ef.up.railway.app/?thread=thr_2353b828e0025c28f556`.
 
-## Ready-to-paste commands
+Use the current cloud-development operator credential through the password
+field. The local `.capstone-agent/auth/railway-operator.token` is stale for
+this target; read protected cloud API configuration in memory without printing
+or copying credentials. Verify result cards, matching current diagram,
+refresh/reconnect and legitimate focus; check history behavior where available.
+Use existing committed history only. Normal-mode submissions can invoke a
+Provider and are not authorized. Do not assert execution recovery of old
+process-local Authority Contexts after worker restart.
 
-```sh
-git status --short
-git log --oneline -8
-curl -fsS http://127.0.0.1:8767/health/ready
-curl -fsSI http://127.0.0.1:5173/
-curl -fsS https://capstone-api-production-bb72.up.railway.app/health/ready
-curl -fsSI https://capstone-app-production-83ef.up.railway.app/
-```
+## Owning records
+
+- Plan: `docs/superpowers/plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md`.
+  Task 5 Step 2 and the Web portion of Step 3 remain open.
+- Verification: `docs/reviews/2026-10-05-capstone-m11-cloud-verification.md`.
+- Main has no pending runtime changes. Documentation checkpoint is being
+  committed; append the commit to JOURNAL immediately.
+- Preserve `capstone-demo`, Provider credentials, user work and main `var/`.

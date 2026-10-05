@@ -1,6 +1,6 @@
 # M11 Cloud-development Federated Thread Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Prove remote pandapower/PyPSA Thread execution, Authority topology,
 result admission, and Web replay in the isolated cloud-development stage,
@@ -70,7 +70,7 @@ dataclass field, and `public_demo: bool = False` as a keyword-only argument to
 `Ledger.create_session`. The API sets it from authenticated request state;
 request JSON must not set it. Do not expose it in the public status projection.
 
-- [ ] **Step 1: Replace the existing inverted public-demo regression.**
+- [x] **Step 1: Replace the existing inverted public-demo regression.**
 
 Use `DemoLedger`, `WorkerSpec`, and `TestClient` in `test_public_demo_api.py`.
 Extend the fake ledger signature to retain the server-owned `public_demo` flag.
@@ -94,7 +94,7 @@ network-story requests must all return 404 before storage access. Also deny
 private Thread creation/read/commands. Prove the operator can read its own
 session and can still create Provider sessions without executing them.
 
-- [ ] **Step 2: Run the red tests.**
+- [x] **Step 2: Run the red tests.**
 
 ```sh
 uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_public_demo_api.py -q
@@ -104,7 +104,7 @@ npm --prefix packages/capstone-app test -- src/api.test.ts
 First change the App creation-key assertion to expect `scripted-demo`; both
 suites must fail for the current Provider-oriented behavior.
 
-- [ ] **Step 3: Persist scope without migrating historical data.**
+- [x] **Step 3: Persist scope without migrating historical data.**
 
 Use the existing `create_hash` text field. Preserve the exact legacy hash for
 private requests and prefix only new public hashes:
@@ -141,7 +141,7 @@ configuration during startup. Preserve those optional environment names for
 private hosted Pi defaults. Change `CapstoneClient.createSession` to send
 `mode: 'scripted-demo'`; preserve its idempotency header and retry policy.
 
-- [ ] **Step 4: Verify persistence and compatibility.**
+- [x] **Step 4: Verify persistence and compatibility.**
 
 Add ledger tests for public scope surviving a fresh `Ledger` instance, old
 private hashes remaining readable/idempotent, and same-key cross-scope
@@ -156,7 +156,7 @@ npm --prefix packages/capstone-app test -- src/api.test.ts
 
 Expected: all relevant assertions pass; database tests must run, not skip.
 
-- [ ] **Step 5: Commit only this task's eight files.**
+- [x] **Step 5: Commit only this task's eight files.**
 
 Commit message: `fix: restrict public demo credentials to scripted sessions`.
 Append the commit and verification result to `docs/status/JOURNAL.md`.
@@ -183,7 +183,7 @@ Append the commit and verification result to `docs/status/JOURNAL.md`.
 returns that same callable type. Both families use its existing signature:
 `(claim, prepared_context, profiles) -> PiPromptSession`.
 
-- [ ] **Step 1: Extract the existing reusable transport without behavior changes.**
+- [x] **Step 1: Extract the existing reusable transport without behavior changes.**
 
 Move `_refs`, `_load_pandapower_questions`, `_load_pypsa_case`, and
 `_ScriptedPiSession` from `provider_free_host.py` into `scripted_session.py`.
@@ -193,7 +193,7 @@ The extracted module must not import `TestClient`, `httpx`, or
 Run `validation/test_m5_provider_free.py` separately in the two domain
 environments; each environment is expected to skip only the other family.
 
-- [ ] **Step 2: Add red selector and denial tests.**
+- [x] **Step 2: Add red selector and denial tests.**
 
 ```python
 def test_validation_requires_explicit_cloud_development_stage():
@@ -214,7 +214,7 @@ dummy Provider values present. No patched callable may run. Test arbitrary
 text, wrong model/family, stale prepared context, sequence exhaustion, and
 state exhaustion as failures, never as Provider fallback.
 
-- [ ] **Step 3: Implement the selector and wire it before Provider resolution.**
+- [x] **Step 3: Implement the selector and wire it before Provider resolution.**
 
 ```python
 def select_validation_builder(environment, family):
@@ -269,7 +269,7 @@ creating any Thread or issuing any command, including after reconnect. A
 preflight failure must produce zero mutating requests. Keep runtime settings
 fixed while the matrix runs; restore mode only after the driver terminates.
 
-- [ ] **Step 4: Implement the M11 session as a strict transport specialization.**
+- [x] **Step 4: Implement the M11 session as a strict transport specialization.**
 
 Reuse `_ScriptedPiSession`'s executor invocation, semantic events, and
 `_build_kernel_admission` callback. Override instruction/argument preparation
@@ -278,7 +278,7 @@ and state initialization for M11. Use these exact registered scenarios:
 | Family/model | Instruction sequence | Published operations |
 | --- | --- | --- |
 | pandapower / ieee39 | `验证当前 IEEE-39 模型的交流潮流。`, then `复用当前 IEEE-39 Context 再次验证交流潮流。` | Each invokes `analysis.powerflow.ac.run` with the prepared `context_ref` and `algorithm=nr` |
-| pypsa / regional-six-bus | `验证当前区域六母线模型的固定容量调度。`, then `复用当前区域六母线 Context 再次验证固定容量调度。` | Each invokes `operations.dispatch` through the existing source-to-operations reference handoff |
+| pypsa / regional-six-bus | `验证当前区域六母线模型的固定容量调度。`, then `复用当前区域六母线 Context 再次验证固定容量调度。` | Each invokes `model.validate`, then `operations.dispatch` through the existing source-to-operations reference handoff |
 
 Initialize `context_ref`/`model_ref` from `profiles[0].model_binding.context_ref`.
 Do not call `context.open`, `model.open`, or model derivation in these scripts.
@@ -298,7 +298,7 @@ projector. A nonnumeric completion statement is sufficient. Tool event call
 IDs use `m11-<attempt_id>-<index>` to identify deterministic transport in the
 remote evidence; do not add unknown fields to public protocol documents.
 
-- [ ] **Step 5: Exercise real Authorities and M10 wiring.**
+- [x] **Step 5: Exercise real Authorities and M10 wiring.**
 
 In `validation/test_m11_session.py`, build each real hosted assembly in the
 correct environment with an isolated workspace. Use production
@@ -319,7 +319,7 @@ make check-types-validation
 Expected: selector tests and both family-specific real execution tests pass;
 only tests for the uninstalled opposite family skip.
 
-- [ ] **Step 6: Commit the task-owned transport, selector, adapter, and test files.**
+- [x] **Step 6: Commit the task-owned transport, selector, adapter, and test files.**
 
 Commit message: `feat: add bounded provider-free hosted Thread validation`.
 
@@ -334,7 +334,7 @@ in-memory host). `main() -> int` in `run_m11.py` reads environment only:
 `CAPSTONE_M11_API_ORIGIN`, `CAPSTONE_M11_OPERATOR_TOKEN`,
 `CAPSTONE_M11_RECEIPT_DIR` (default `runs/capstone-m11`).
 
-- [ ] **Step 1: Test terminal-state handling before writing the driver.**
+- [x] **Step 1: Test terminal-state handling before writing the driver.**
 
 Use `httpx.MockTransport` with the production client. Cover a rejected command,
 missing or normal-mode preflight (assert no subsequent POST requests),
@@ -355,7 +355,7 @@ def test_missing_remote_configuration_is_not_success(monkeypatch, tmp_path):
 Run `PYTHONPATH=. uv run --project packages/capstone-agent pytest validation/test_m11_matrix.py -q`;
 expect missing-module/function failures before implementation.
 
-- [ ] **Step 2: Implement this exact normal-API sequence.**
+- [x] **Step 2: Implement this exact normal-API sequence.**
 
 Before creating a Thread, perform `GET /api/v1/validation/m11`. Require the
 exact readiness schema, runtime mode, and both family identities from Task 2.
@@ -395,8 +395,8 @@ receipt = session.command('reopen_model_context', {
 })
 ```
 
-Require a new Context ID and `model_context_reopened` event, then repeat the
-first PyPSA instruction. Validate topology with the existing normalizers in
+Submit the first PyPSA instruction to activate the pending reopen. Then require
+a new Context ID and a `model_context_reopened` event. Validate topology with the existing normalizers in
 `capstone_agent.thread_network` and `capstone_agent.network_diagram` and match
 event Attempt/context identity. Compare projections to snapshot-admitted refs;
 do not accept refs mentioned only in answer text.
@@ -404,7 +404,7 @@ do not accept refs mentioned only in answer text.
 On failure, attempt cancellation only of the driver's own active Attempt.
 Preserve already committed history. Do not enumerate or cancel unrelated work.
 
-- [ ] **Step 3: Emit a bounded receipt and add the Make entry.**
+- [x] **Step 3: Emit a bounded receipt and add the Make entry.**
 
 Receipt schema is `capstone-m11-validation/1`; fields are `api_origin`,
 `runtime_mode` (`m11-provider-free`), `thread_id`, `run_id`, `checks`, and
@@ -429,7 +429,7 @@ validate-thread-m11:
 Add the target to Make help and `.PHONY` declarations. Add tests for secret
 exclusion, receipt byte bounds, terminal failure, and nonzero missing setup.
 
-- [ ] **Step 4: Run tests and commit.**
+- [x] **Step 4: Run tests and commit.**
 
 ```sh
 PYTHONPATH=. uv run --project packages/capstone-agent pytest validation/test_m11_matrix.py -q
@@ -448,7 +448,7 @@ Commit message: `test: add remote federated Thread acceptance matrix`.
 existing application/family/health URL variables. No new model-facing tool or
 HTTP runtime-selection field is allowed.
 
-- [ ] **Step 1: Complete deployment-contract tests and configuration.**
+- [x] **Step 1: Complete deployment-contract tests and configuration.**
 
 Extend `test_deploy_entrypoint.py` to prove `capstone api` selects the federated
 module, both workers select their own adapters, worker family is fixed even if
@@ -477,7 +477,7 @@ matches its service and port; the API legacy wake URL targets capstone-worker.
 Document that Thread polling requires running workers during this acceptance.
 Retain the user-trial single-family example and its independent release policy.
 
-- [ ] **Step 2: Exercise the local real topology and database gates.**
+- [x] **Step 2: Exercise the local real topology and database gates.**
 
 ```sh
 uv run --project packages/grid-agent pytest tools/tests/test_deploy_entrypoint.py -q
@@ -498,7 +498,7 @@ affected checks and rebuild before remote validation.
 Restore normal local mode through the rebuild entrypoint after collecting the
 local validation receipt. Do not overwrite the user's ignored local env file.
 
-- [ ] **Step 3: Record the deployment manifest before mutation.**
+- [x] **Step 3: Record the deployment manifest before mutation.**
 
 Use project `capstone-cloud-dev`, ID
 `5eecde6b-fec2-40d2-8b26-427025b02b96`, environment `production`.
@@ -514,7 +514,7 @@ stage only verified ignored model assets required by the existing Dockerfile.
 Do not copy authentication state. Record source provenance for all three
 backend builds even if their image digests differ.
 
-- [ ] **Step 4: Deploy family workers, then API and App.**
+- [x] **Step 4: Deploy family workers, then API and App.**
 
 Create the private `capstone-worker-pypsa` service if absent; configure its
 protected database/bucket/operator references to the cloud-dev stage only.
@@ -536,7 +536,7 @@ secret values in CLI arguments or print complete variable mappings. The user
 approved this cloud-dev expansion; Provider execution and user-trial promotion
 remain excluded.
 
-- [ ] **Step 5: Run remote HTTP and scripted-session acceptance.**
+- [x] **Step 5: Run remote HTTP and scripted-session acceptance.**
 
 Run `make validate-thread-m11` with protected cloud-dev origin/token values.
 Run registered `pandapower-scripted-task` and `regional-demand-stress` legacy
@@ -550,7 +550,7 @@ verified deployments from the manifest; retain database/bucket and completed
 history. Stop test-owned work on the new worker before scaling it down. Do not
 delete any service or data as rollback shorthand.
 
-- [ ] **Step 6: Journal deployment identity and matrix outcomes.**
+- [x] **Step 6: Journal deployment identity and matrix outcomes.**
 
 The configuration commit from Step 2 precedes the manifest and deployment.
 Record its hash, deployed identities, and bounded acceptance receipt paths;
@@ -565,7 +565,7 @@ do not make unrecorded runtime code changes during remote checks.
 **Update:** `docs/status/JOURNAL.md`, `docs/status/CURRENT-STATE.md`,
 `docs/status/RESUME-NEXT-SESSION.md`.
 
-- [ ] **Step 1: Run existing replay/focus regressions and the App build.**
+- [x] **Step 1: Run existing replay/focus regressions and the App build.**
 
 ```sh
 npm --prefix packages/capstone-app test -- src/threadProjectionStore.test.ts src/ThreadLiveEntry.test.tsx src/ThreadFixtureApp.test.tsx
@@ -595,6 +595,10 @@ real Web history where available. Missing required acceptance remains pending.
 
 - [ ] **Step 3: Verify committed history after worker restart.**
 
+HTTP retention passed: the snapshot, 53 events, both legacy reports/results,
+evidence and six network views match before/after restart. The Web refresh
+portion remains pending with Step 2 because browser connection recovery failed.
+
 Ensure test-owned Attempts are terminal and no unrelated active work would be
 interrupted before restart. Restart the two validation workers using the same
 tested revisions. Read the original Thread snapshot/event history and legacy
@@ -602,7 +606,7 @@ reports/evidence again, and refresh the Web page. Require unchanged committed
 identities and content. Do not submit a turn on the old in-memory Context and
 claim execution recovery. A new validation run starts with a new Thread.
 
-- [ ] **Step 4: Restore normal cloud runtime and recheck health.**
+- [x] **Step 4: Restore normal cloud runtime and recheck health.**
 
 Remove the opt-in validation selection from API and both workers and redeploy the
 same tested source. Wait for worker health, then refresh the API assembly if
@@ -611,7 +615,11 @@ App health, public scripted access, and public Provider denial. Submit no
 Provider-backed Thread work during this step. Record final deployment IDs and
 source/digest identity after restoration, not just validation-mode IDs.
 
-- [ ] **Step 5: Self-review evidence against every spec row.**
+- [x] **Step 5: Self-review evidence against every spec row.**
+
+The verification record explicitly leaves the real Web acceptance row open.
+HTTP retention passed, while its Web refresh portion also remains pending.
+This review does not establish M11 completion.
 
 The verification document contains one row per acceptance check, with result,
 receipt path, execution mode, stage, and limit. Link the ignored receipt paths
@@ -625,7 +633,10 @@ real prepared-context reuse, family leasing, and topology revision checks in
 the final code review. Run `make doctor`, documentation link/symlink checks,
 and `git diff --check`; all must pass before committing the record.
 
-- [ ] **Step 6: Commit the verification record and update the recovery baton.**
+- [x] **Step 6: Commit the verification record and update the recovery baton.**
+
+The record preserves the pending Web checks. This checkpoint commit does not
+close M11; resume Step 2 and the Web portion of Step 3 after browser recovery.
 
 Commit message: `docs: record M11 cloud federated Thread verification`.
 Journal the commit and retain an active-session checkpoint. Leave promotion

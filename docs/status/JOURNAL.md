@@ -1614,3 +1614,20 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 09:55 固化 M11 云端双族规格，明确无 Provider 验证和公开权限前置条件 [729a573]
 - 09:53 时间更正：本轮上方 09:54、09:55 条目的实际完成时间为 09:53 CST。
 - 10:16 用户批准 M11 书面规格；完成五任务实施计划与自查，加入远程验证模式预检，防止验收脚本触发 Provider。make doctor、9 个本地文档链接、CLAUDE.md 相对符号链接与 diff 检查通过；尚未修改 M11 运行代码或云端配置。
+- 10:16 固化 M11 五任务实施计划，明确权限修复、无 Provider 验证及云端验收顺序 [e9ea0ec]
+- 10:58 限制公开 demo 为脚本会话并持久化访问范围，阻断 Provider 与私有会话访问；Python 29、App 10 通过 [333e300]
+- 11:10 接通双族无 Provider 验证与私有模式预检，保留真实 Authority、准入和拓扑路径 [230bc52]
+- 11:10 真实验证确认 PyPSA 需先 model.validate 取得 source 本轮证据；模型切换与重开在下一条消息提交时激活。双族执行及 Pyright 通过，Capstone Agent 396 passed / 32 skipped。
+- 11:14 增加远程双族 Thread 验收脚本与私有回执，验证模式不匹配时不发起执行；8 项测试及类型检查通过 [34982c5]
+- 11:14 固化云开发统一 API 与双 worker 配置，支持显式验证模式并保留试用环境隔离 [595e602]
+- 11:20 当前源本地重建及 M11 双族矩阵 5/5 通过，已恢复正常模式；临时 PostgreSQL 19 项通过。完整发布门禁仍在运行，云端尚未变更。
+- 11:29 补充双族指令耗尽与外来结果拒绝回归，验证真实准入仍有效；两环境各 2 passed / 1 skipped [e128789]
+- 11:31 完整 make check-release 通过，含安装包与 source-setup；准备以已验证实现 595e602 执行云开发部署。
+- 11:31 M11 代码已快进合入 main，doctor 通过；创建 cloud-dev 私有 PyPSA worker，部署前清单位于 runs/capstone-m11/deployment.json。
+- 11:38 cloud-dev 双 worker 的 595e602 部署均成功；开始部署统一 API 和 App，尚未执行远程矩阵。
+- 11:50 cloud-dev 四个服务均成功部署 595e602；私有双族预检、远程 Thread 矩阵 5/5 和两项公共脚本案例通过，报告与证据可读，Provider 创建被拒绝。回执位于 runs/capstone-m11/remote/。
+- 11:50 用户批准打开 Chrome 新窗口后连接仍超时；请求重新安装浏览器插件，Web 验收保持待验。App replay/focus 32 项及构建通过，不能替代真实 Web 验收。
+- 11:50 本地 railway-operator.token 与当前 cloud-dev 凭证不一致，首次预检返回 401 且没有创建 Thread；改为仅在内存读取服务受保护配置后预检通过，未覆盖本地凭证。
+- 11:56 重启前只读检查确认 active Attempts=0、active sessions=0；重启双 worker 后私有预检恢复，Thread 快照/53 条事件、双案例报告/结果/证据/六个网络视图指纹一致。开始清除验证 opt-in 并按相同 595e602 源恢复正常模式。
+- 12:05 cloud-dev API 与双 worker 均恢复 normal，源仍为 595e602；API 复用验证镜像，最终部署 ID 已存清单。健康、双族目录、公开 Provider/Thread 拒绝检查通过；双公共案例再次完成，历史指纹与恢复前一致。
+- 12:05 临时 SSH 注册和密钥文件已移除，临时 PostgreSQL 容器已停止；未变更试用环境或执行 Provider。真实 Web 验收仍待浏览器恢复；用户询问设置入口，已核对官方文档并澄清该入口属于 ChatGPT 桌面应用，等待确认当前客户端。

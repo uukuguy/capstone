@@ -9,12 +9,14 @@ and Web replay path.
 
 The user approved this written specification on 2026-10-05. The
 [implementation plan](../plans/2026-10-05-capstone-m11-cloud-federated-thread-implementation.md)
-defines the execution steps; implementation and remote acceptance remain pending.
+defines the execution steps. Implementation and remote HTTP acceptance are
+recorded in the [verification record](../../reviews/2026-10-05-capstone-m11-cloud-verification.md);
+real cloud Web acceptance remains pending.
 M10 implementation and local verification are complete. Its cloud smoke used
 the legacy pandapower scripted-session API and does not establish remote PyPSA
 Thread acceptance.
 
-## Existing components and gaps
+## Baseline components and gaps at specification approval
 
 - `capstone_agent.federated_hosted` already loads bounded catalogs from fixed
   exporters and builds the unified API. It never executes domain Attempts.
