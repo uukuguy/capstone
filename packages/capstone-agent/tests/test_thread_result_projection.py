@@ -26,6 +26,38 @@ def _service() -> InMemoryThreadService:
     })
 
 
+def test_followup_claim_carries_only_results_for_the_exact_active_context():
+    from dataclasses import replace
+    from capstone_agent.thread_service import _prior_results_for_context
+
+    service = _service()
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    _complete(service, claim, projection, RESULT_ONE, EVIDENCE_ONE)
+    snapshot = service.snapshot("thr_projection")
+    assert _prior_results_for_context(snapshot)[0].result_ref == RESULT_ONE
+    assert _prior_results_for_context(snapshot)[0].evidence_refs == (EVIDENCE_ONE,)
+    for changes in ({"id": "ctx_new"}, {"model_id": "case24_ieee_rts"}, {"model_revision": "revision:sha256:" + "f" * 64}):
+        assert _prior_results_for_context(replace(snapshot, active_model_context=replace(snapshot.active_model_context, **changes))) == ()
+    next_claim, _projection = _claim_and_projection(service, 2, RESULT_TWO, EVIDENCE_TWO)
+    assert next_claim.prior_results[0].result_ref == RESULT_ONE
+
+
+def test_prior_candidates_preserve_namespaced_public_references():
+    from dataclasses import replace
+    from capstone_agent.thread_service import _prior_results_for_context
+
+    service = _service()
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    _complete(service, claim, projection, RESULT_ONE, EVIDENCE_ONE)
+    snapshot = service.snapshot("thr_projection")
+    item = replace(snapshot.result_projections[0], result_ref="pypsa-" + RESULT_ONE,
+                   evidence_refs=("pypsa-" + EVIDENCE_ONE,), attempt_id="attempt:public.1")
+    candidate = _prior_results_for_context(replace(snapshot, result_projections=(item,)))[0]
+    assert candidate.result_ref == item.result_ref
+    assert candidate.evidence_refs == item.evidence_refs
+    assert candidate.attempt_id == item.attempt_id
+
+
 def _claim_and_projection(
     service: InMemoryThreadService, ordinal: int, result_ref: str, evidence_ref: str,
 ) -> tuple[AttemptClaim, dict[str, object]]:

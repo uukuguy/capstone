@@ -25,7 +25,7 @@ from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
-from .thread_service import AttemptClaim
+from .thread_service import AttemptClaim, PriorResultReference
 from .result_projection import normalize_result_projection
 
 
@@ -167,6 +167,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 application_catalog=claim.application_catalog,
                 model_context=claim.model_context,
                 profiles=profiles,
+                prior_results=claim.prior_results,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -242,6 +243,7 @@ def _compose_attempt_policy(
     application_catalog: Mapping[str, object] | None,
     model_context: ModelContextSnapshot | None = None,
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
+    prior_results: tuple[PriorResultReference, ...] = (),
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -251,7 +253,7 @@ def _compose_attempt_policy(
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
-    model_text = _render_attempt_model_context(model_context, profiles) if model_context is not None else ""
+    model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results) if model_context is not None else ""
     if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -267,6 +269,7 @@ def _compose_attempt_policy(
 def _render_attempt_model_context(
     context: ModelContextSnapshot,
     profiles: tuple[PreparedKernelApplicationProfile, ...],
+    *, prior_results: tuple[PriorResultReference, ...] = (),
 ) -> str:
     lines = [
         "## Current application-selected model (immutable for this Attempt)",
@@ -279,6 +282,15 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+    if prior_results:
+        lines.extend([
+            "## Existing results for this exact model Context (newest first)",
+            "These references are retrieval candidates, not pre-admitted evidence for this Attempt.",
+            "When the request reuses a result, query it through published read capabilities without rerunning the calculation.",
+            "Retrieve its supporting evidence through a published evidence capability before citing it in this Attempt.",
+        ])
+        for item in prior_results:
+            lines.append(f"Source {item.capability_id}, Attempt {item.attempt_id}: {item.result_ref}; evidence: {', '.join(item.evidence_refs)}")
     return "\n".join(lines)
 
 

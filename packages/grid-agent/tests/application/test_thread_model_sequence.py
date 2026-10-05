@@ -20,6 +20,7 @@ from grid_agent import hosted
 OPEN_RTS = "打开 case24_ieee_rts 电网模型"
 FLOW_RTS = "对刚打开的模型运行交流潮流"
 FLOW_RTS_REPEAT = "再次对当前模型运行交流潮流"
+RANK_RTS = "沿用当前潮流结果列出负载率最高的三条线路"
 OPEN_IEEE_ENDPOINT = "打开 ieee39 电网模型并查询线路 11 两端母线"
 ENDPOINT_IEEE = "查询当前模型线路 11 两端母线"
 CONTINGENCY_IEEE = "对当前模型线路 11 运行单一故障校核"
@@ -91,6 +92,16 @@ class ModelSequenceSession:
         assert correlation_id == self.claim.attempt.attempt_id
         on_heartbeat()
         invoke = lambda capability, arguments: self._invoke(capability, arguments, on_semantic_event)
+        if question == RANK_RTS:
+            assert self.claim.prior_results
+            prior = self.claim.prior_results[0]
+            ranked = invoke("result.branches.rank", {
+                "result_ref": prior.result_ref, "metric": "loading_percent",
+                "direction": "descending", "limit": 3, "element_kind": "line",
+            })
+            for reference in prior.evidence_refs:
+                invoke("evidence.get", {"evidence_ref": reference})
+            return f"Ranked {len(ranked['branches'])} lines from existing result {prior.result_ref}."
         if question in {OPEN_RTS, OPEN_IEEE_ENDPOINT}:
             opened = invoke("context.open", {"model_id": self.binding.model_id})
             assert opened["context_ref"] == self.binding.context_ref
@@ -229,10 +240,22 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         assert normalized_tool["model_revision"] == rts_context.model_revision
         assert "result" not in normalized_tool
 
+        ranked, _, rank_layer, ranked_snapshot, rank_events = run(RANK_RTS)
+        assert ranked.result_refs == flow.result_refs
+        assert ranked.evidence_refs == flow.evidence_refs
+        assert [call["capability"] for call in sessions[-1].calls] == ["result.branches.rank", "evidence.get"]
+        ranking_source = sessions[-1].calls[0]["result"]
+        expected_ids = [f"line:{row['pandapower_index']}" for row in ranking_source["branches"]]
+        assert rank_layer["focus_ids"] == expected_ids
+        assert [item["id"] for item in rank_layer["overlay"]["values"]] == expected_ids
+        assert rank_layer["overlay"]["source_ref"] == flow.result_refs[0]
+        assert ranked_snapshot.active_model_context == rts_context
+        assert len(ranked_snapshot.result_projections) == 2
+
         second_flow, _, _, repeated_snapshot, _ = run(FLOW_RTS_REPEAT)
         assert repeated_snapshot.active_model_context == rts_context
         assert second_flow.result_refs != flow.result_refs
-        assert len(repeated_snapshot.result_projections) == 2
+        assert len(repeated_snapshot.result_projections) == 3
         assert repeated_snapshot.result_projections[0] == projected
         assert all(item.model_context_id == rts_context.id for item in repeated_snapshot.result_projections)
 

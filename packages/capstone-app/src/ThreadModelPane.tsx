@@ -27,6 +27,10 @@ export type ThreadModelPaneProps = {
   controlsDisabled: boolean
   previewDiagram: NetworkDiagram | null
   networkView?: DiagramNetworkView | null
+  networkTaskId?: string
+  instructionLabel?: string
+  viewingInstruction?: boolean
+  onLatestInstruction?: () => void
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
   modelOptions: ThreadCatalogModel[]
   onModelTargetChange: (value: string) => void
@@ -68,13 +72,16 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
     ? { metric: overlay.metric as 'loading_percent' | 'voltage_pu', unit: overlay.unit as '%' | 'p.u.', source_ref: overlay.sourceRef,
         values: overlay.values.map((value) => ({ id: value.elementId, value: value.value })) }
     : undefined
-  return { ...view, layer: { ...view.layer, focus_ids: focusIds, overlay: supportedOverlay || view.layer.overlay } }
+  const displayedOverlay = focusedElementId
+    ? supportedOverlay || view.layer.overlay
+    : view.layer.overlay || (view.layer.focus_ids.length === 0 ? supportedOverlay : undefined)
+  return { ...view, layer: { ...view.layer, focus_ids: focusIds, overlay: displayedOverlay || null } }
 }
 
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
   projectionEventSeq, modelTarget, contextChangePending, controlsDisabled, previewDiagram,
-  networkView, elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
+  networkView, networkTaskId, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onModelTargetChange, onSwitchModel, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -90,7 +97,8 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
   }
   const viewedModelName = isHistorical ? pageModelName(viewedPage) : activeModelName
   const displayedView = dynamicModelView
-    ? isHistorical ? dynamicModelView : projectActiveNetworkView(dynamicModelView, resultProjection, focusedElementId)
+    ? projectActiveNetworkView(dynamicModelView, !isHistorical || viewingInstruction ? resultProjection : undefined,
+        isHistorical ? undefined : focusedElementId)
     : modelDiagram ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null
   return <section className="thread-model-pane" aria-label="电网模型区">
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
@@ -125,8 +133,10 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
     </div>
     <div className="thread-network-card">
+      {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>回到最新指令图</button></div>}
       {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
-        <NetworkView view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${isHistorical ? '' : focusedElementId || ''}`}
+        <NetworkView view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${networkTaskId || ''}:${focusedElementId || ''}`}
+          instructionLabel={instructionLabel}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>
     <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>

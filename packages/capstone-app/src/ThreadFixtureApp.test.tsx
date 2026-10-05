@@ -5,8 +5,31 @@ import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport } from './threadProjectionStore'
 import { threadUiFixture } from './threadUiFixtures'
 import { historyContexts, historyFixture } from './threadHistory.test-support'
+import { sampleDiagramView } from './networkFixture'
 
 afterEach(cleanup)
+
+function instructionViewsFixture() {
+  const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+  const snapshot = fixture.snapshot as { active_model_context: { id: string; model_revision: string }; last_event_seq: number }
+  const diagram = structuredClone(sampleDiagramView.diagram)
+  diagram.model = { ...diagram.model, id: 'ieee39', revision: snapshot.active_model_context.model_revision }
+  const layer = { ...sampleDiagramView.layer, model_revision: diagram.model.revision }
+  const reference = `result:sha256:${'a'.repeat(64)}`
+  const events = [
+    ['network_diagram', 'attempt_flow', { diagram }],
+    ['network_layer', 'attempt_flow', { ordinal: 1, layer: { ...layer, focus_ids: [], overlay: { metric: 'loading_percent', unit: '%', source_ref: reference, values: [{ id: 'line:1', value: 25 }] } } }],
+    ['attempt_completed', 'attempt_flow', { answer: '全网潮流完成。', result_refs: [reference] }],
+    ['network_diagram', 'attempt_rank', { diagram }],
+    ['network_layer', 'attempt_rank', { ordinal: 1, layer: { ...layer, focus_ids: ['line:1'], overlay: { metric: 'loading_percent', unit: '%', source_ref: reference, values: [{ id: 'line:1', value: 42 }] } } }],
+    ['attempt_completed', 'attempt_rank', { answer: '排序完成。', result_refs: [reference] }],
+  ].map(([event_type, attempt_id, payload], index) => ({ event_id: `evt_graph_${index}`, event_seq: index + 1,
+    event_type, attempt_id, payload, event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+    model_context_id: snapshot.active_model_context.id, occurred_at: '2026-10-05T00:00:00Z', visibility: 'public' }))
+  snapshot.last_event_seq = events.length
+  fixture.events = { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: events.length, has_more: false, events }
+  return fixture
+}
 
 function focusFixture() {
   const fixture = historyFixture()
@@ -35,6 +58,94 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('restores an old instruction graph locally and returns to the latest graph', async () => {
+    const fixture = instructionViewsFixture()
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
+      commands.push(command)
+      return transport.sendCommand(command)
+    } })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
+    expect(document.querySelector('svg title')?.textContent).toContain('42.0')
+    fireEvent.click(actions[0])
+    expect(screen.getAllByRole('button', { name: '查看此指令电网图' })[0].getAttribute('aria-pressed')).toBe('true')
+    expect(await screen.findByText('正在查看此回答对应的电网图')).toBeTruthy()
+    expect(document.querySelector('svg title')?.textContent).toContain('25.0')
+    expect(document.querySelectorAll('.network-branch-label')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: '回到最新指令图' }))
+    expect(document.querySelector('svg title')?.textContent).toContain('42.0')
+    expect(document.querySelectorAll('.network-branch-label')).toHaveLength(1)
+    expect(commands).toEqual([])
+  })
+  it.each(['model change', 'profile change', 'active attempt', 'repeated rejection'])('retains a preset draft after stale recovery with %s', async (condition) => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    const transport = createFixtureTransport(fixture)
+    const context = (fixture.snapshot as { active_model_context: Record<string, unknown> }).active_model_context
+    const commands: ThreadCommand[] = []
+    const client = new CapstoneThreadClient({ ...transport,
+      readEvents: async (threadId, after) => {
+        if (!commands.length || after >= 1) return { schema: 'capstone-thread-events/1', thread_id: threadId, after_event_seq: after, next_event_seq: after, has_more: false, events: [] }
+        const change = condition === 'model change' ? {
+          event_type: 'model_context_activated', payload: { model_context: { ...context, id: 'ctx_other', model_id: 'pypsa39', implementation_family: 'pypsa' }, active_grid_page_id: 'page_pypsa39' },
+        } : condition === 'profile change' ? {
+          event_type: 'selection_activated', selection_revision: 'sel_3', payload: { selection: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [] } },
+        } : condition === 'active attempt' ? {
+          event_type: 'attempt_started', turn_id: 'turn_other', attempt_id: 'attempt_other', model_context_id: context.id, payload: {},
+        } : { event_type: 'runtime_event', payload: {} }
+        return { schema: 'capstone-thread-events/1', thread_id: threadId, after_event_seq: after, next_event_seq: 1, has_more: false,
+          events: [{ event_id: 'evt_background', event_seq: 1, event_version: 1, thread_id: threadId, run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', ...change }],
+        }
+      },
+      sendCommand: async (command) => {
+        commands.push(command)
+        return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id, command_id: command.command_id, idempotency_key: command.idempotency_key, status: 'rejected', rejection: 'stale_event_seq' }
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const prompt = '有哪些 PyPSA 的电网模型？'
+    fireEvent.click(await screen.findByRole('button', { name: prompt }))
+    await screen.findByText(/stale_event_seq/)
+    expect(commands).toHaveLength(condition === 'repeated rejection' ? 2 : 1)
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe(prompt))
+  })
+
+  it('executes a preset directly and recovers one stale cursor without sending twice', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    let advanced = false
+    const client = new CapstoneThreadClient({ ...transport,
+      readEvents: async (threadId, after) => advanced && after < 1 ? {
+        schema: 'capstone-thread-events/1', thread_id: threadId, after_event_seq: after,
+        next_event_seq: 1, has_more: false, events: [{
+          event_id: 'evt_background', event_seq: 1, event_type: 'runtime_event', event_version: 1,
+          thread_id: threadId, run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z',
+          visibility: 'diagnostic', payload: {},
+        }],
+      } : { schema: 'capstone-thread-events/1', thread_id: threadId, after_event_seq: after, next_event_seq: after, has_more: false, events: [] },
+      sendCommand: async (command) => {
+        commands.push(command)
+        advanced = true
+        return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id,
+          command_id: command.command_id, idempotency_key: command.idempotency_key,
+          status: command.expected_event_seq === 1 ? 'accepted' : 'rejected',
+          ...(command.expected_event_seq === 1 ? {} : { rejection: 'stale_event_seq' }),
+        }
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const prompt = '有哪些 PyPSA 的电网模型？'
+    fireEvent.click(await screen.findByRole('button', { name: prompt }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands.map((item) => item.expected_event_seq)).toEqual([0, 1])
+    expect(commands.every((item) => item.kind === 'send_auto' && item.payload.text === prompt)).toBe(true)
+    expect(commands[1].command_id).not.toBe(commands[0].command_id)
+    expect(commands[1].idempotency_key).not.toBe(commands[0].idempotency_key)
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe(''))
+    expect(screen.queryByText(/stale_event_seq/)).toBeNull()
+  })
+
   it('activates a matching pending reopen instead of discarding a recovered draft', async () => {
     const fixture = structuredClone(threadUiFixture('idle-ieee39'))
     const snapshot = fixture.snapshot as Record<string, unknown>

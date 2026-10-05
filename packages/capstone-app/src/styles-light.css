@@ -618,6 +618,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 }
 .capstone-chat-action { display: inline-grid; place-items: center; min-width: 36px; min-height: 36px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #78918b; cursor: pointer; }
 .capstone-chat-action:hover, .capstone-chat-action:focus-visible { background: #eef6f2; color: #18786c; outline: none; }
+.capstone-chat-action[aria-pressed="true"] { background: #e2f2ed; color: #18786c; }
 .capstone-chat-action svg { width: 15px; height: 15px; stroke-width: 1.8; }
 .capstone-chat-placeholder { font-size: 11px; line-height: 1.55; }
 .capstone-chat-placeholder.is-terminal { color: #986d59; }

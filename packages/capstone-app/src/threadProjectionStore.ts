@@ -19,6 +19,14 @@ export type ThreadGridPage = {
   networkView: DiagramNetworkView | null
 }
 
+export type ThreadNetworkTask = {
+  attemptId: string
+  eventSeq: number
+  pageId: string
+  context: ModelContextSnapshot
+  view: DiagramNetworkView
+}
+
 export type ThreadProjectionState = {
   connection: ThreadConnection
   snapshot: ThreadSnapshot | null
@@ -48,6 +56,26 @@ function fixtureConnection(fixture: ThreadFixtureDocument): ThreadTransportState
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as Record<string, unknown>
+}
+
+export function instructionOrdinal(events: readonly EventEnvelope[], attemptId: string | undefined): number | undefined {
+  const attempts = new Map<string, number>()
+  const turns = new Map<string, number>()
+  let next = 0
+  for (const event of events) {
+    if (event.eventType !== 'command_accepted' || !event.attemptId) continue
+    const kind = event.payload.kind
+    if (['send_auto', 'send_ordinary', 'send_professional'].includes(String(kind))) {
+      const ordinal = attempts.get(event.attemptId) || (event.turnId && turns.get(event.turnId)) || ++next
+      attempts.set(event.attemptId, ordinal)
+      if (event.turnId) turns.set(event.turnId, ordinal)
+    } else if (kind === 'retry_new_attempt') {
+      const prior = record(event.payload.payload).retry_of
+      const ordinal = (event.turnId && turns.get(event.turnId)) || (typeof prior === 'string' && attempts.get(prior))
+      if (ordinal) attempts.set(event.attemptId, ordinal)
+    }
+  }
+  return attemptId ? attempts.get(attemptId) : undefined
 }
 
 function resyncSnapshot(error: unknown): ThreadSnapshot | null {
@@ -189,9 +217,13 @@ export class ThreadProjectionStore {
   }
 
   private loadedThreadId: string | null = null
+  private loadGeneration = 0
   private readonly eventLog: EventEnvelope[] = []
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
   private readonly networkViews = new Map<string, DiagramNetworkView>()
+  private readonly taskViews = new Map<string, ThreadNetworkTask>()
+  private readonly contextPages = new Map<string, ThreadGridPage>()
+  private readonly diagramAttempts = new Map<string, string | undefined>()
   private readonly listeners = new Set<() => void>()
 
   constructor(private readonly client: CapstoneThreadClient) {}
@@ -202,6 +234,10 @@ export class ThreadProjectionStore {
 
   get publicEvents(): readonly EventEnvelope[] {
     return this.eventLog.filter((event) => event.visibility === 'public')
+  }
+
+  get networkTasks(): readonly ThreadNetworkTask[] {
+    return [...this.taskViews.values()]
   }
 
   get canStreamEvents(): boolean {
@@ -218,6 +254,7 @@ export class ThreadProjectionStore {
   }
 
   async load(threadId: string): Promise<void> {
+    const generation = ++this.loadGeneration
     const sameThread = this.loadedThreadId === threadId
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
@@ -227,6 +264,7 @@ export class ThreadProjectionStore {
     }
     try {
       const snapshot = await this.client.load(threadId)
+      if (generation !== this.loadGeneration) return
       let catalog: ThreadCatalog | null = null
       try {
         catalog = await this.client.catalog(threadId)
@@ -239,6 +277,9 @@ export class ThreadProjectionStore {
       // before the UI becomes live. Otherwise the model state would look
       // current while the conversation is silently truncated.
       const restoredEvents = await readSnapshotEvents(this.client, snapshot)
+      // StrictMode and reconnects can overlap loads. A superseded response
+      // must not replace the live cursor or erase events already received.
+      if (generation !== this.loadGeneration) return
       this.current = {
         ...this.current,
         connection,
@@ -252,6 +293,9 @@ export class ThreadProjectionStore {
       this.eventLog.push(...restoredEvents)
       this.networkDiagrams.clear()
       this.networkViews.clear()
+      this.taskViews.clear()
+      this.contextPages.clear()
+      this.diagramAttempts.clear()
       this.current = { ...this.current, networkView: null, gridPages: [] }
       // Discover the latest Context for each model page before replaying
       // topology. A reopened Context must never inherit an older diagram.
@@ -261,6 +305,7 @@ export class ThreadProjectionStore {
       this.notify()
       this.loadedThreadId = threadId
     } catch (error) {
+      if (generation !== this.loadGeneration) return
       const snapshot = resyncSnapshot(error)
       this.current = {
         ...this.current,
@@ -274,6 +319,7 @@ export class ThreadProjectionStore {
   }
 
   async catchUp(): Promise<EventPage> {
+    const generation = this.loadGeneration
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
     }
@@ -281,11 +327,13 @@ export class ThreadProjectionStore {
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
       const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq)
+      if (generation !== this.loadGeneration) return page
       if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
       this.applyPage(page)
       this.notify()
       return page
     } catch (error) {
+      if (generation !== this.loadGeneration) throw error
       const snapshot = resyncSnapshot(error)
       this.current = {
         ...this.current,
@@ -299,10 +347,12 @@ export class ThreadProjectionStore {
   }
 
   async catchUpThrough(eventSeq: number): Promise<void> {
+    const generation = this.loadGeneration
     let more = true
     while (more || this.current.eventSeq < eventSeq) {
       const previous = this.current.eventSeq
       const page = await this.catchUp()
+      if (generation !== this.loadGeneration) throw new Error('thread projection changed during synchronization')
       more = page.hasMore
       if (this.current.eventSeq === previous && (more || this.current.eventSeq < eventSeq)) {
         throw new Error('accepted command events are not yet available; reconnect before retrying')
@@ -311,6 +361,7 @@ export class ThreadProjectionStore {
   }
 
   async consumeEvents(signal?: AbortSignal): Promise<void> {
+    const generation = this.loadGeneration
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
     }
@@ -318,9 +369,11 @@ export class ThreadProjectionStore {
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
       for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal)) {
+        if (generation !== this.loadGeneration) return
         this.applyEvent(event)
       }
     } catch (error) {
+      if (generation !== this.loadGeneration) return
       if (error instanceof DOMException && error.name === 'AbortError') throw error
       const snapshot = resyncSnapshot(error)
       this.current = {
@@ -494,6 +547,7 @@ export class ThreadProjectionStore {
         return view?.diagram.model.id === context.modelId && view.diagram.model.revision === context.modelRevision ? view : null
       })(),
     }
+    this.contextPages.set(context.id, page)
     this.current = { ...this.current, gridPages: existing
       ? this.current.gridPages.map((item) => item.pageId === pageId ? page : item)
       : [...this.current.gridPages, page] }
@@ -520,16 +574,23 @@ export class ThreadProjectionStore {
     }
   }
 
-  private applyNetworkProjection(event: EventEnvelope, snapshot: ThreadSnapshot): void {
+  private applyNetworkProjection(event: EventEnvelope, snapshot: ThreadSnapshot, completedRefs: string[] = []): void {
     if (event.visibility !== 'public') return
-    const page = this.current.gridPages.find((item) => item.context.id === event.modelContextId)
+    if (event.eventType === 'attempt_completed' && event.attemptId) {
+      const layer = this.eventLog.slice().reverse().find((item) => item.eventType === 'network_layer' &&
+        item.attemptId === event.attemptId && item.modelContextId === event.modelContextId)
+      const refs = record(event.payload).result_refs
+      if (layer) this.applyNetworkProjection(layer, snapshot, Array.isArray(refs) ? refs.filter((ref): ref is string => typeof ref === 'string') : [])
+      return
+    }
+    const page = event.modelContextId ? this.contextPages.get(event.modelContextId) : undefined
     if (!page) return
     const context = page.context
     const setView = (networkView: DiagramNetworkView | null) => {
       if (networkView) this.networkViews.set(context.id, networkView)
       else this.networkViews.delete(context.id)
       this.current = { ...this.current,
-        gridPages: this.current.gridPages.map((item) => item.pageId === page.pageId ? { ...item, networkView } : item),
+        gridPages: this.current.gridPages.map((item) => item.pageId === page.pageId && item.context.id === context.id ? { ...item, networkView } : item),
         ...(context.id === snapshot.activeModelContext.id ? { networkView } : {}),
       }
     }
@@ -542,24 +603,40 @@ export class ThreadProjectionStore {
         return
       }
       this.networkDiagrams.set(context.id, diagram)
+      this.diagramAttempts.set(context.id, event.attemptId)
       setView(null)
       return
     }
     if (event.eventType === 'network_layer') {
       const diagram = this.networkDiagrams.get(context.id)
-      if (!diagram || typeof payload.ordinal !== 'number') return
+      if (!diagram || typeof payload.ordinal !== 'number' || this.diagramAttempts.get(context.id) !== event.attemptId) return
       const view = parseNetworkView({
         schema: 'capstone-network-view/2.0',
         ordinal: payload.ordinal,
         diagram,
         layer: payload.layer,
-      }, payload.ordinal, [])
+      }, payload.ordinal, [
+        ...completedRefs,
+        ...(snapshot.resultProjections || []).filter((item) => item.attemptId === event.attemptId && item.modelContextId === context.id)
+          .flatMap((item) => item.resultRef ? [item.resultRef] : []),
+        ...this.eventLog.filter((item) => item.eventType === 'attempt_completed' && item.attemptId === event.attemptId &&
+          item.modelContextId === context.id).flatMap((item) => {
+            const refs = record(item.payload).result_refs
+            return Array.isArray(refs) ? refs.filter((ref): ref is string => typeof ref === 'string') : []
+          }),
+      ])
       if (view?.schema !== 'capstone-network-view/2.0' ||
           view.diagram.model.id !== context.modelId || view.diagram.model.revision !== context.modelRevision) return
+      if (event.attemptId) {
+        this.taskViews.set(event.attemptId, { attemptId: event.attemptId, eventSeq: event.eventSeq,
+          pageId: page.pageId, context, view })
+        if (this.taskViews.size > 64) this.taskViews.delete(this.taskViews.keys().next().value!)
+      }
       setView(view)
       return
     }
     if (event.eventType === 'network_layer_unavailable') {
+      if (event.attemptId) this.taskViews.delete(event.attemptId)
       this.networkDiagrams.delete(context.id)
       setView(null)
     }

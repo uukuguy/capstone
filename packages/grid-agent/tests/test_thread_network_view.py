@@ -120,6 +120,31 @@ def test_thread_topology_uses_exact_real_registered_model(grid):
     assert projection["layer"] == {"focus_ids": [], "next_focus_ids": [], "overlay": None}
 
 
+def test_thread_ranking_focus_uses_the_exact_authority_subset(grid):
+    claim, context, runtime, binding = grid
+    flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    ranked = grid.invoke("result.branches.rank", {
+        "result_ref": flow["result_ref"], "metric": "loading_percent",
+        "direction": "descending", "limit": 3, "element_kind": "line",
+    })
+    provider = _provider(grid)
+    native = {"type": "tool_execution_end", "toolCallId": "rank_call", "result": {"details": {
+        "event": "tool_result", "capability": "result.branches.rank", "ok": True,
+        "capability_key": {"binding_id": "grid", "capability_id": "result.branches.rank"},
+        "result": ranked,
+    }}}
+    observe = getattr(provider, "observe_runtime_event", lambda _event: None)
+    observe(native)
+    event = {"tool_call_id": "rank_call", "binding_id": "grid", "capability": "result.branches.rank", "ok": True, "result_refs": [flow["result_ref"]]}
+    projection = provider.project(claim, (flow["result_ref"],), (), (event,))
+    expected = [f"line:{row['pandapower_index']}" for row in ranked["branches"]]
+    assert projection["layer"]["focus_ids"] == expected
+    assert projection["layer"]["overlay"] == {
+        "metric": "loading_percent", "unit": "%", "source_ref": flow["result_ref"],
+        "values": [{"id": identifier, "value": row["loading_percent"]} for identifier, row in zip(expected, ranked["branches"], strict=True)],
+    }
+
+
 def test_thread_focus_uses_admitted_endpoint_evidence_for_real_line(grid):
     claim, context, _runtime, _binding = grid
     evidence_ref, event = _endpoint(grid)
@@ -129,6 +154,50 @@ def test_thread_focus_uses_admitted_endpoint_evidence_for_real_line(grid):
     assert projection["layer"]["focus_ids"] == ["line:11"]
     assert projection["layer"]["next_focus_ids"] == []
     assert projection["layer"]["overlay"] is None
+
+
+@pytest.mark.parametrize("kind,limit", [("line", 21), ("trafo", 1)])
+def test_ranking_obeys_shared_focus_and_overlay_contract(grid, kind, limit):
+    from capstone_agent.thread_network import normalize_thread_network_projection
+
+    claim, _context, _runtime, binding = grid
+    flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    ranked = grid.invoke("result.branches.rank", {
+        "result_ref": flow["result_ref"], "metric": "loading_percent",
+        "direction": "descending", "limit": limit, "element_kind": kind,
+    })
+    provider = _provider(grid)
+    provider.observe_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_call_id": "rank_limit", "capability": "result.branches.rank", "ok": True,
+        "capability_key": {"binding_id": "grid"}, "result": ranked})
+    event = {"tool_call_id": "rank_limit", "binding_id": "grid", "capability": "result.branches.rank",
+             "ok": True, "result_refs": [flow["result_ref"]]}
+    view = provider.project(claim, (flow["result_ref"],), (), (event,))
+    normalized = normalize_thread_network_projection(view, claim, (flow["result_ref"],))
+    assert normalized is not None
+    layer = normalized["layer"]
+    assert len(layer["focus_ids"]) == min(limit, 20)
+    if kind == "trafo":
+        assert layer["overlay"] is None
+
+
+@pytest.mark.parametrize("defect", ["not_admitted", "failed", "foreign_context", "wrong_call", "changed_rows"])
+def test_ranking_rejects_missing_or_foreign_provenance(grid, defect):
+    claim, _context, _runtime, binding = grid
+    flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    ranked = dict(grid.invoke("result.branches.rank", {"result_ref": flow["result_ref"],
+        "metric": "loading_percent", "direction": "descending", "limit": 3, "element_kind": "line"}))
+    if defect == "foreign_context": ranked["context_ref"] = "context:sha256:" + "f" * 64
+    if defect == "changed_rows": ranked["branches"] = list(reversed(ranked["branches"]))
+    provider = _provider(grid)
+    provider.observe_runtime_event({"type": "tool_result", "event": "tool_result", "tool_call_id": "rank_private",
+        "capability": "result.branches.rank", "ok": True, "capability_key": {"binding_id": "grid"}, "result": ranked})
+    event = {"tool_call_id": "wrong" if defect == "wrong_call" else "rank_private", "binding_id": "grid",
+        "capability": "result.branches.rank", "ok": defect != "failed", "result_refs": [flow["result_ref"]]}
+    admitted = () if defect == "not_admitted" else (flow["result_ref"],)
+    view = provider.project(claim, admitted, (), (event,))
+    assert view["layer"]["focus_ids"] == []
+    assert view["layer"]["overlay"] is None
 
 
 def test_thread_focus_uses_another_real_line_and_deduplicates(grid):

@@ -133,6 +133,25 @@ def test_normalizer_drops_unbounded_native_payloads() -> None:
     }
 
 
+def test_application_observer_gets_native_event_without_publishing_raw_details():
+    observed = []
+    public = []
+
+    class Observer(_NetworkProvider):
+        def observe_runtime_event(self, event):
+            observed.append(event)
+
+    class Session(_PiSession):
+        def prompt_and_wait(self, question, **kwargs):
+            kwargs["on_semantic_event"]({"type": "provider_internal", "private_rows": ["raw"]})
+            return "answer"
+
+    client = HarnessPiClient(Session(), network_projection_provider=Observer())
+    assert client.prompt("hello", on_event=public.append) == "answer"
+    assert observed[0]["private_rows"] == ["raw"]
+    assert public[0]["payload"] == {"native_type": "provider_internal"}
+
+
 def test_normalizer_preserves_nested_authority_refs_and_model_identity() -> None:
     result_ref = "result:sha256:" + "a" * 64
     context_ref = "context:sha256:" + "b" * 64

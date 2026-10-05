@@ -16,6 +16,7 @@ from typing import Protocol, cast
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
+    ThreadNetworkRuntimeObserver,
     normalize_thread_network_projection,
 )
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
@@ -372,6 +373,8 @@ class HarnessPiClient:
         on_heartbeat: Callable[[], None] | None = None,
     ) -> str:
         def emit(native: Mapping[str, object]) -> None:
+            if isinstance(self._network_projection_provider, ThreadNetworkRuntimeObserver):
+                self._network_projection_provider.observe_runtime_event(native)
             on_event(normalize_runtime_event(native, runtime_mode=self.runtime_mode))
 
         return self._session.prompt_and_wait(

@@ -42,11 +42,12 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
   return `hsl(${Math.round(14 - intensity * 10)} 68% ${Math.round(54 - intensity * 16)}%)`
 }
 
-export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
+export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel,
                               nextTask = false, unavailable = false,
                               previewUnavailable = false, historyFocusIds = [] }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
+  instructionLabel?: string
   nextTask?: boolean;
   unavailable?: boolean; previewUnavailable?: boolean
   historyFocusIds?: string[]
@@ -149,7 +150,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey,
   return <section className="network-card" aria-labelledby="network-title">
     <div className="network-head"><div><span className="eyebrow">TOPOLOGY / VIEW</span>
       <h2 id="network-title">电气拓扑图</h2></div><div className="network-head-context">
-        {view && <span className="network-step">指令 {view.ordinal}</span>}
+        {view && <span className="network-step">{instructionLabel || `指令 ${view.ordinal}`}</span>}
         <span className="network-model">{modelName}</span></div></div>
     {geometry ? <>
       <div className="network-meta"><span>模型来源 · {geometry!.model.source} · {geometry!.buses.length} 母线 / {geometry!.branches.length} 支路</span>

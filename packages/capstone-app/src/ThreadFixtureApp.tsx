@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageNotSentError } from '@assistant-ui/react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
-import { createFixtureTransport, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
+import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
@@ -57,6 +57,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [traceVisible, setTraceVisible] = useState(true)
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
+  const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
   const commandInFlight = useRef(false)
   const [sending, setSending] = useState(false)
 
@@ -102,9 +103,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     if (snapshot) setModelTarget(snapshot.activeModelContext.modelId)
   }, [snapshot?.activeModelContext.modelId])
   const activePage = snapshot?.activeGridPageId || null
-  const viewedPage = projection.viewedGridPageId || activePage
-  const isHistorical = Boolean(activePage && viewedPage && activePage !== viewedPage)
-  const activeNetworkView: DiagramNetworkView | null = !isHistorical ? projection.networkView : null
+  const selectedNetworkTask = store.networkTasks.find((task) => task.attemptId === selectedNetworkAttempt)
+  const viewedPage = selectedNetworkTask?.pageId || projection.viewedGridPageId || activePage
+  const isHistorical = Boolean(activePage && viewedPage && (activePage !== viewedPage ||
+    (selectedNetworkTask && selectedNetworkTask.context.id !== snapshot?.activeModelContext.id)))
+  const activeNetworkView: DiagramNetworkView | null = !isHistorical ? selectedNetworkTask?.view || projection.networkView : null
+  const displayedGridPages = selectedNetworkTask ? projection.gridPages.map((page) =>
+    page.pageId === selectedNetworkTask.pageId ? { ...page, context: selectedNetworkTask.context, networkView: selectedNetworkTask.view } : page) : projection.gridPages
   const currentDiagram = activeNetworkView?.diagram ?? previewDiagram ?? (fixture ? threadPreviewDiagram : null)
   const currentDiagramElementIds = useMemo(() => new Set(
     currentDiagram ? [
@@ -138,8 +143,15 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
+  const networkTask = events.slice().reverse().find((event) =>
+    ['network_layer', 'network_layer_unavailable'].includes(event.eventType) &&
+    event.modelContextId === snapshot?.activeModelContext.id)
+  const displayedTaskId = selectedNetworkTask?.attemptId || networkTask?.attemptId
+  const instructionNumber = instructionOrdinal(events, displayedTaskId)
+  const resultContext = selectedNetworkTask?.context || snapshot?.activeModelContext
   const activeResultProjection = snapshot?.resultProjections?.slice().reverse().find((item) =>
-    item.modelContextId === snapshot.activeModelContext.id && item.modelId === snapshot.activeModelContext.modelId && item.modelRevision === snapshot.activeModelContext.modelRevision)
+    item.modelContextId === resultContext?.id && item.modelId === resultContext.modelId && item.modelRevision === resultContext.modelRevision &&
+    (!(selectedNetworkTask?.attemptId || networkTask?.attemptId) || item.attemptId === (selectedNetworkTask?.attemptId || networkTask?.attemptId)))
   const focusedProjection = focusedElement && snapshot?.resultProjections?.find((item) => item.resultId === focusedElement.resultId)
   const focusedElementId = focusedProjection && focusedProjection.modelContextId === snapshot?.activeModelContext.id && focusedProjection.modelId === snapshot.activeModelContext.modelId && focusedProjection.modelRevision === snapshot.activeModelContext.modelRevision
     ? focusedElement.elementId : undefined
@@ -155,19 +167,49 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
     const latest = store.state.snapshot
     if (!latest) return
-    const key = commandKey()
-    const command: ThreadCommand = buildThreadCommand({
-      threadId: latest.threadId, runId: latest.run.runId, kind,
-      expectedEventSeq: store.state.eventSeq, commandId: `cmd_ui_${key}`,
-      idempotencyKey: `idem_ui_${key}`, payload,
-    })
+    const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
+    const initialCursor = store.state.eventSeq
+    const contextIdentity = () => JSON.stringify([
+      store.state.snapshot?.run, store.state.snapshot?.activeModelContext,
+      store.state.snapshot?.pendingModelSwitch, store.state.snapshot?.pendingSelection,
+      store.state.viewedGridPageId,
+    ])
+    const initialIdentity = contextIdentity()
+    const makeCommand = (): ThreadCommand => {
+      const current = store.state.snapshot!
+      const key = commandKey()
+      return buildThreadCommand({
+        threadId: current.threadId, runId: current.run.runId, kind,
+        expectedEventSeq: store.state.eventSeq, commandId: `cmd_ui_${key}`,
+        idempotencyKey: `idem_ui_${key}`, payload,
+      })
+    }
     try {
-      const receipt = await store.dispatch(command)
-      const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
+      let receipt = await store.dispatch(makeCommand())
+      if (receipt.status === 'rejected' && receipt.rejection === 'stale_event_seq') {
+        // A definitive rejection created no turn. Restore missing events;
+        // retry once only when the user's model and selection are unchanged.
+        await store.catchUpThrough(store.state.eventSeq)
+        const current = store.state.snapshot
+        const phase = current?.currentAttempt?.phase
+        const caseStatus = current?.applicationState?.caseExecution?.status
+        if (conversational && store.state.eventSeq > initialCursor && contextIdentity() === initialIdentity
+            && current?.run.state === 'open' && (!phase || (!ACTIVE_PHASES.has(phase) && phase !== 'interrupted'))
+            && !['created', 'running', 'waiting_step', 'blocked'].includes(caseStatus || '')) {
+          receipt = await store.dispatch(makeCommand())
+        }
+      }
       const receiptNotice = receipt.status === 'accepted'
         ? successNotice || `${kind} · ${receipt.status}`
         : `${kind} · ${receipt.status}${receipt.rejection ? ` · ${receipt.rejection}` : ''}`
       setNotice(conversational && receipt.status === 'accepted' ? null : receiptNotice); sync()
+      if (receipt.status === 'accepted') {
+        setError(null)
+        if (conversational || kind === 'retry_new_attempt') {
+          setFocusedElement(undefined)
+          setSelectedNetworkAttempt(undefined)
+        }
+      }
       return receipt
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '命令未提交'); sync()
@@ -175,6 +217,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   function selectPage(pageId: string) {
+    setSelectedNetworkAttempt(undefined)
+    setFocusedElement(undefined)
     store.viewGridPage(pageId); setNotice(pageId === activePage ? '已返回当前模型页' : '已打开只读历史页'); sync()
   }
 
@@ -275,10 +319,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     {loading ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
-          gridPages={projection.gridPages}
+          gridPages={displayedGridPages}
           projectionEventSeq={projection.eventSeq} modelTarget={modelTarget} contextChangePending={contextChangePending}
           controlsDisabled={isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} previewDiagram={currentDiagram}
           networkView={activeNetworkView}
+          networkTaskId={selectedNetworkTask?.attemptId || networkTask?.attemptId}
+          instructionLabel={instructionNumber ? `指令 ${instructionNumber}` : undefined}
+          viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId} onModelTargetChange={setModelTarget}
           onSwitchModel={() => void sendConversation('automatic', `打开 ${modelTarget} 电网模型并显示电网拓扑。`).catch(() => {})} onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
@@ -289,6 +336,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread events={events} disabled={!canSendText} isRunning={isActive} activity={projectAssistantActivity(events)} showActivity={traceVisible}
+            networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
+              setFocusedElement(undefined)
+              setSelectedNetworkAttempt(attemptId)
+              setNotice(null)
+            }}
+            selectedNetworkAttempt={selectedNetworkTask?.attemptId}
             resultProjections={snapshot.resultProjections} onFocusElement={(result: ResultProjection, elementId) => {
               if (isHistorical) {
                 setNotice('历史页为只读视图，请返回当前模型后定位')

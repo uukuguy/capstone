@@ -1,12 +1,50 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
-import { projectActiveNetworkView } from './ThreadModelPane'
+import ThreadModelPane, { projectActiveNetworkView } from './ThreadModelPane'
+import { parseThreadSnapshot } from './threadProtocol'
+import { threadUiFixture } from './threadUiFixtures'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 afterEach(cleanup)
 
 describe('operator network canvas', () => {
+  it('restores admitted full-result colors for a selected historical instruction', () => {
+    const view = structuredClone(sampleDiagramView)
+    view.layer.focus_ids = []
+    const snapshot = parseThreadSnapshot(threadUiFixture('idle-ieee39').snapshot)
+    const context = { ...snapshot.activeModelContext, id: 'ctx_old', modelId: view.diagram.model.id,
+      modelRevision: view.diagram.model.revision, implementationFamily: 'pypsa' }
+    const resultProjection = { modelId: context.modelId, modelRevision: context.modelRevision,
+      overlay: { metric: 'loading_percent', unit: '%', sourceRef: 'result:old', values: [{ elementId: 'line:1', value: 25 }] },
+    } as Parameters<typeof projectActiveNetworkView>[1]
+    render(<ThreadModelPane snapshot={snapshot} activePage={snapshot.activeGridPageId} viewedPage="page_old"
+      gridPages={[{ pageId: 'page_old', context, networkView: view }]} isHistorical projectionEventSeq={10}
+      modelTarget={snapshot.activeModelContext.modelId} contextChangePending={false} controlsDisabled
+      previewDiagram={null} modelOptions={[]} onModelTargetChange={() => {}} onSwitchModel={() => {}}
+      onSelectPage={() => {}} resultProjection={resultProjection} viewingInstruction />)
+    expect(document.querySelector('svg title')?.textContent).toContain('25.0')
+  })
+  it('shows the selected instruction number while preserving the layer ordinal', () => {
+    render(<NetworkView view={sampleView} modelName="IEEE-39" focusKey="attempt_4" instructionLabel="指令 4" />)
+    expect(screen.getByText('指令 4')).toBeTruthy()
+    expect(screen.queryByText('指令 1')).toBeNull()
+  })
+  it('preserves the current task subset overlay over a previous full result', () => {
+    const view = structuredClone(sampleDiagramView)
+    view.layer.focus_ids = ['line:1']
+    view.layer.overlay = { metric: 'loading_percent', unit: '%', source_ref: 'result:task', values: [{ id: 'line:1', value: 42 }] }
+    const projection = { modelId: view.diagram.model.id, modelRevision: view.diagram.model.revision,
+      overlay: { metric: 'loading_percent', unit: '%', sourceRef: 'result:full', values: view.diagram.branches.map((branch) => ({ elementId: branch.id, value: 90 })) },
+    } as Parameters<typeof projectActiveNetworkView>[1]
+    const taskView = projectActiveNetworkView(view, projection, undefined)
+    expect(taskView.layer.overlay).toEqual(view.layer.overlay)
+    const selectedResultView = projectActiveNetworkView(view, projection, 'line:1')
+    expect(selectedResultView.layer.overlay?.source_ref).toBe('result:full')
+    view.layer.overlay = null
+    expect(projectActiveNetworkView(view, projection, undefined).layer.overlay).toBeNull()
+  })
+
   it('shows provenance, partial numeric coverage, and neutral topology controls', () => {
     const view = { ...sampleView, overlay: {
       metric: 'loading_percent' as const, unit: '%' as const,

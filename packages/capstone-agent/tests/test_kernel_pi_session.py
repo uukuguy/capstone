@@ -39,3 +39,13 @@ def test_each_fresh_prompt_names_the_bound_model_and_authority_context():
     assert "case24_ieee_rts" in rendered
     assert binding.context_ref in rendered
     assert "Do not open or analyze a different model" in rendered
+
+
+def test_followup_prompt_offers_existing_result_and_evidence_for_explicit_retrieval():
+    context = ModelContextSnapshot("ctx_rts", "case24_ieee_rts", "revision:sha256:" + "a" * 64, "pandapower", "sel_0")
+    prior = SimpleNamespace(result_ref="result:sha256:" + "c" * 64, evidence_refs=("evidence:sha256:" + "d" * 64,), capability_id="analysis.powerflow.ac.run", attempt_id="attempt_previous")
+    rendered = _render_attempt_model_context(context, (), prior_results=(prior,))
+    assert prior.result_ref in rendered and prior.evidence_refs[0] in rendered
+    assert "analysis.powerflow.ac.run" in rendered
+    assert "not pre-admitted" in rendered
+    assert "without rerunning" in rendered

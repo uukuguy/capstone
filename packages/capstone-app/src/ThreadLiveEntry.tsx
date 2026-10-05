@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient } from './threadClient'
 import { CapstoneClient } from './api'
@@ -44,13 +44,17 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     [apiOrigin, token],
   )
   const client = useMemo(() => transport ? new CapstoneThreadClient(transport) : null, [transport])
+  const creation = useRef<{ client: CapstoneThreadClient; request: ReturnType<CapstoneThreadClient['create']> } | null>(null)
   const authorityClient = useMemo(() => token ? new CapstoneClient(apiOrigin, token) : null, [apiOrigin, token])
 
   useEffect(() => {
     if (!client || threadId !== 'new' || createdThreadId) return
     let active = true
     setCreating(true); setError(null)
-    void client.create('ieee39').then((snapshot) => {
+    // StrictMode replays the effect. Share its request rather than creating
+    // a second, unused server Thread for the same entry.
+    if (creation.current?.client !== client) creation.current = { client, request: client.create('ieee39') }
+    void creation.current.request.then((snapshot) => {
       if (active) setCreatedThreadId(snapshot.threadId)
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : 'Thread 创建失败')

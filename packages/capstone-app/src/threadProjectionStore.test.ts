@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
-import { createFixtureTransport, ThreadProjectionStore } from './threadProjectionStore'
+import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
 import { historyContexts, historyFixture } from './threadHistory.test-support'
 import { parseEventEnvelope } from './threadProtocol'
@@ -79,6 +79,114 @@ function command(): ThreadCommand {
 }
 
 describe('ThreadProjectionStore', () => {
+  it('numbers instructions without counting cancellations and preserves retry numbering', () => {
+    const events = [
+      ['send_auto', 'attempt_a', 'turn_a', {}],
+      ['cancel_live_attempt', 'attempt_a', 'turn_a', {}],
+      ['send_professional', 'attempt_b', 'turn_b', {}],
+      ['retry_new_attempt', 'attempt_retry', 'turn_b', { retry_of: 'attempt_b' }],
+    ].map(([kind, attempt_id, turn_id, payload], index) => parseEventEnvelope({
+      event_id: `evt_number_${index}`, event_seq: index + 1, event_type: 'command_accepted', event_version: 1,
+      thread_id: 'thr_demo_39', run_id: 'run_001', attempt_id, turn_id,
+      occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { kind, payload },
+    }))
+    expect(instructionOrdinal(events, 'attempt_a')).toBe(1)
+    expect(instructionOrdinal(events, 'attempt_b')).toBe(2)
+    expect(instructionOrdinal(events, 'attempt_retry')).toBe(2)
+  })
+  it('retains each instruction layer separately and restores it from history', async () => {
+    const diagram = { ...dynamicDiagram, coordinate_system: 'schematic' }
+    const rawEvents = [
+      ['network_diagram', 'attempt_flow', { diagram }],
+      ['network_layer', 'attempt_flow', { ordinal: 1, layer: { ...dynamicLayer, focus_ids: ['line:1'], overlay: { metric: 'loading_percent', unit: '%', source_ref: `result:sha256:${'c'.repeat(64)}`, values: [{ id: 'line:1', value: 42 }] } } }],
+      ['attempt_completed', 'attempt_flow', { result_refs: [`result:sha256:${'c'.repeat(64)}`] }],
+      ['network_diagram', 'attempt_rank', { diagram }],
+      ['network_layer', 'attempt_rank', { ordinal: 1, layer: { ...dynamicLayer, focus_ids: ['line:1'], overlay: null } }],
+    ].map(([event_type, attempt_id, payload], index) => ({ event_id: `evt_task_${index}`, event_seq: index + 1,
+      event_type, attempt_id, payload, event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+      model_context_id: context.id, occurred_at: '2026-10-05T00:00:00Z', visibility: 'public' }))
+    const fixture = { ...structuredClone(idleFixture), snapshot: { ...idleFixture.snapshot, last_event_seq: rawEvents.length },
+      events: { ...idleFixture.events, next_event_seq: rawEvents.length, events: rawEvents } }
+    const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+    await store.load('thr_demo_39')
+    expect(store.networkTasks.map((task) => task.attemptId)).toEqual(['attempt_flow', 'attempt_rank'])
+    expect(store.networkTasks[0].view.layer.overlay).not.toBeNull()
+    expect(store.networkTasks[1].view.layer.overlay).toBeNull()
+    expect(store.state.networkView).toEqual(store.networkTasks[1].view)
+    await store.load('thr_demo_39')
+    expect(store.networkTasks.map((task) => task.attemptId)).toEqual(['attempt_flow', 'attempt_rank'])
+  })
+
+  it.each(['event', 'failure'])('ignores a superseded stream %s after a newer load', async (outcome) => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(structuredClone(idleFixture)),
+      streamEvents: async function* () {
+        await gate
+        if (outcome === 'failure') throw new Error('old stream failed')
+        yield parseEventEnvelope({ event_id: 'evt_old', event_seq: 1, event_type: 'assistant_text_delta',
+          event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z',
+          visibility: 'public', payload: { text: 'superseded' } })
+      },
+    }))
+    await store.load('thr_demo_39')
+    const oldStream = store.consumeEvents()
+    await store.load('thr_demo_39')
+    release()
+    await oldStream
+    expect(store.state.connection).toBe('live')
+    expect(store.state.eventSeq).toBe(0)
+    expect(store.publicEvents).toEqual([])
+  })
+
+  it('ignores an old catch-up failure after a newer load', async () => {
+    const transport = createFixtureTransport(structuredClone(idleFixture))
+    let reject!: (error: Error) => void
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport,
+      readEvents: async () => new Promise((_resolve, fail) => { reject = fail }),
+    }))
+    await store.load('thr_demo_39')
+    const oldRead = store.catchUp()
+    await store.load('thr_demo_39')
+    reject(new Error('old event request failed'))
+    await oldRead.catch(() => {})
+    expect(store.state.connection).toBe('live')
+  })
+
+  it('does not let an older load erase events admitted after the latest load', async () => {
+    const transport = createFixtureTransport(structuredClone(idleFixture))
+    let release!: (snapshot: unknown) => void
+    let calls = 0
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport,
+      getSnapshot: async () => ++calls === 1 ? new Promise((resolve) => { release = resolve }) : idleFixture.snapshot,
+    }))
+    const oldLoad = store.load('thr_demo_39')
+    await store.load('thr_demo_39')
+    await store.dispatch({ ...command(), kind: 'send_auto', payload: { text: '有哪些 PyPSA 的电网模型？' } })
+    const admittedCursor = store.state.eventSeq
+    const admittedEvents = [...store.publicEvents]
+    expect(admittedCursor).toBeGreaterThan(0)
+    release(idleFixture.snapshot)
+    await oldLoad
+    expect(store.state.eventSeq).toBe(admittedCursor)
+    expect(store.publicEvents).toEqual(admittedEvents)
+  })
+
+  it('ignores a failed superseded load after the latest projection becomes live', async () => {
+    const transport = createFixtureTransport(structuredClone(idleFixture))
+    let reject!: (error: Error) => void
+    let calls = 0
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport,
+      getSnapshot: async () => ++calls === 1 ? new Promise((_resolve, fail) => { reject = fail }) : idleFixture.snapshot,
+    }))
+    const oldLoad = store.load('thr_demo_39')
+    await store.load('thr_demo_39')
+    reject(new Error('old request failed'))
+    await oldLoad
+    expect(store.state.connection).toBe('live')
+    expect(store.state.snapshot?.threadId).toBe('thr_demo_39')
+  })
+
   it('does not duplicate events or regress the cursor when catch-up overlaps SSE delivery', async () => {
     const events = [1, 2].map((sequence) => parseEventEnvelope({ event_id: `evt_${sequence}`, event_seq: sequence, event_type: 'assistant_text_delta', event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-05T00:00:00Z', visibility: 'public', payload: { text: `${sequence}` } }))
     let finishRead: ((value: unknown) => void) | undefined

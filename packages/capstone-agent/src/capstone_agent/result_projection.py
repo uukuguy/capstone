@@ -69,6 +69,11 @@ def _ref(value: Any, name: str, *, kind: str | None = None) -> str:
     return text
 
 
+def validate_artifact_reference(value: object, *, kind: str) -> str:
+    """Validate the same immutable reference grammar as public projections."""
+    return _ref(value, f"{kind} reference", kind=kind)
+
+
 def _finite(value: Any, name: str) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(f"{name} must be finite")

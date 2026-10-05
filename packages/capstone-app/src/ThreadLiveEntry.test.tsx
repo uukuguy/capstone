@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { StrictMode } from 'react'
 import ThreadLiveEntry from './ThreadLiveEntry'
 
 afterEach(() => {
@@ -37,7 +38,7 @@ describe('ThreadLiveEntry', () => {
     expect(screen.getAllByText('pandapower').length).toBeGreaterThan(0)
   })
 
-  it('creates a default IEEE-39 Thread from the live new-thread route', async () => {
+  it('creates a default IEEE-39 Thread only once under StrictMode', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
       if (String(url) === '/api/v1/threads' && init?.method === 'POST') {
@@ -53,9 +54,10 @@ describe('ThreadLiveEntry', () => {
     })
     vi.stubGlobal('fetch', fetcher)
 
-    render(<ThreadLiveEntry threadId="new" />)
+    render(<StrictMode><ThreadLiveEntry threadId="new" /></StrictMode>)
 
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
     expect(fetcher).toHaveBeenCalledWith('/api/v1/threads', expect.objectContaining({ method: 'POST' }))
+    expect(fetcher.mock.calls.filter(([url, init]) => url === '/api/v1/threads' && init?.method === 'POST')).toHaveLength(1)
   })
 })

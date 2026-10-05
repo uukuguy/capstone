@@ -43,7 +43,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
-from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection
+from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -267,6 +267,46 @@ class ThreadService(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class PriorResultReference:
+    """A bounded retrieval candidate from an admitted prior Attempt."""
+
+    result_ref: str
+    evidence_refs: tuple[str, ...]
+    capability_id: str
+    attempt_id: str
+
+    def __post_init__(self) -> None:
+        try:
+            validate_artifact_reference(self.result_ref, kind="result")
+            for ref in self.evidence_refs:
+                validate_artifact_reference(ref, kind="evidence")
+        except (TypeError, ValueError) as exc:
+            raise ThreadExecutionError("prior result retrieval candidate is invalid") from exc
+        if (not isinstance(self.evidence_refs, tuple) or len(self.evidence_refs) > 128
+                or not isinstance(self.capability_id, str) or not 0 < len(self.capability_id) <= 256
+                or not isinstance(self.attempt_id, str) or not re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", self.attempt_id)):
+            raise ThreadExecutionError("prior result retrieval candidate is invalid")
+
+
+def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultReference, ...]:
+    candidates: list[PriorResultReference] = []
+    seen: set[str] = set()
+    context = snapshot.active_model_context
+    for item in reversed(snapshot.result_projections):
+        if (item.result_ref is None or item.result_ref in seen or item.status not in {"completed", "partial"}
+                or item.thread_id != snapshot.thread_id or item.run_id != snapshot.run.run_id
+                or item.model_context_id != context.id or item.model_id != context.model_id
+                or item.model_revision != context.model_revision
+                or item.source.implementation_family != context.implementation_family):
+            continue
+        candidates.append(PriorResultReference(item.result_ref, item.evidence_refs, item.source.capability_id, item.attempt_id))
+        seen.add(item.result_ref)
+        if len(candidates) == 8:
+            break
+    return tuple(candidates)
+
+
+@dataclass(frozen=True, slots=True)
 class AttemptClaim:
     """One immutable Attempt leased to exactly one Harness worker."""
 
@@ -281,8 +321,11 @@ class AttemptClaim:
     model_context: ModelContextSnapshot
     turn_plan: TurnPlan | None = None
     application_catalog: Mapping[str, object] | None = None
+    prior_results: tuple[PriorResultReference, ...] = ()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
+            raise ThreadExecutionError("attempt prior results are invalid")
         if (
             self.model_context.id != self.model_context_id
             or self.model_context.selection_revision != self.selection_revision
@@ -1025,6 +1068,7 @@ class InMemoryThreadService:
                     selection_revision=self._snapshot.active_model_context.selection_revision,
                     lease_token=token,
                     model_context=context,
+                    prior_results=_prior_results_for_context(self._snapshot),
                     application_catalog=(
                         self._catalog_context
                         if self._catalog_context is not None
@@ -2400,6 +2444,7 @@ class PostgresThreadService:
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
+                prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 application_catalog=(
                     self._catalog_context
                     if self._catalog_context is not None

@@ -11,6 +11,21 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('selects only the grid view belonging to that answer', async () => {
+    const selected = vi.fn()
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '全网潮流' }, 'attempt_flow'),
+      event('attempt_completed', 2, { answer: '前三条线路' }, 'attempt_rank'),
+      event('attempt_completed', 3, { answer: '目录信息' }, 'attempt_catalog'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
+      networkAttemptIds={['attempt_flow', 'attempt_rank']} onShowNetwork={selected} />)
+    const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
+    expect(actions).toHaveLength(2)
+    fireEvent.click(actions[0])
+    expect(selected).toHaveBeenLastCalledWith('attempt_flow')
+    fireEvent.click(actions[1])
+    expect(selected).toHaveBeenLastCalledWith('attempt_rank')
+  })
   it('projects public command and harness deltas into assistant-ui messages', () => {
     const messages = projectAssistantMessages([
       event('command_accepted', 1, { kind: 'send_professional', payload: { text: '检查当前线路' } }),

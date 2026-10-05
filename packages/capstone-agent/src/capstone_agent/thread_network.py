@@ -22,6 +22,13 @@ class ThreadNetworkProjectionProvider(Protocol):
     ) -> Mapping[str, object] | None: ...
 
 
+@runtime_checkable
+class ThreadNetworkRuntimeObserver(Protocol):
+    """Optional application observer; native facts stay private until admission."""
+
+    def observe_runtime_event(self, event: Mapping[str, object]) -> None: ...
+
+
 def normalize_thread_network_projection(
     value: object,
     claim: AttemptClaim,
@@ -51,5 +58,6 @@ def normalize_thread_network_projection(
 
 __all__ = [
     "ThreadNetworkProjectionProvider",
+    "ThreadNetworkRuntimeObserver",
     "normalize_thread_network_projection",
 ]
