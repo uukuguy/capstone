@@ -34,9 +34,13 @@ workers reach retained0/active0 with the App still open; the same Thread then
 completes a new catalog Turn and its history remains readable. Actual
 pandapower power flow and PyPSA dispatch/AC validation pass. Stream capacity is
 released on disconnect. Receipt: `runs/thread-lifecycle-local-acceptance.json`.
-Cloud-dev acceptance is pending because Railway API TLS connections fail before
-preparation. No new upload or cloud policy change occurred. Resume the verified
-source rollout after connectivity returns; demo still requires human acceptance.
+Railway connectivity recovered and the single guarded cloud-dev rollout of
+`c68f6e1` passes. All backend source/runtime hashes match local acceptance.
+The actual root App, retained draft/history, exact catalog question, both
+families' calculations, reports/evidence, registered cases, stream release and
+cold Thread reuse pass. Both caches reach retained0/active0 with the page open.
+Receipt: `runs/thread-lifecycle-cloud-acceptance.json`. Demo remains unchanged
+and requires human acceptance before promotion.
 
 The completed checks below record earlier iterations. They do not authorize
 shipping the deferred features. The interrupted cloud-dev rollout must return

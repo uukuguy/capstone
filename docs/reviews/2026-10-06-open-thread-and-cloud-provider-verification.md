@@ -7,8 +7,8 @@ deployment. Demo promotion still requires human acceptance.
 ## Current acceptance: bounded Thread resources
 
 Source `c68f6e1f9aab5d6b5e3781aff21903a8ce704ae2` is verified locally.
-Cloud acceptance for this source is pending. Earlier cloud results below apply
-to their stated revisions, not to this resource-lifecycle change.
+Cloud-dev acceptance for this source also passes at12:25 CST. Earlier cloud
+results below apply to their stated revisions.
 
 The shared runtime contract limits each model-context owner to four retained
 contexts. Idle contexts expire after60 seconds; active Attempts pin their
@@ -31,12 +31,36 @@ one timestamp instead of a growing session-key map.
 | Small App controls |User/session list and automatic naming are deferred. The earlier-conversation action is12px; real paging works, desktop/mobile screenshots are inspected and320px has no horizontal overflow; `history-ui.json` |
 
 The local acceptance receipt is `runs/thread-lifecycle-local-acceptance.json`.
-The attempted cloud preparation failed before any upload or variable change:
+The first attempted cloud preparation failed before any upload or variable change:
 the documented Railway API endpoint failed its TLS handshake through the
-configured proxy and a direct connection. No new cloud version was deployed.
-The previous verified cloud API/workers remain at `1c8073f`, with App `9846d48`.
-Resume the guarded rollout after connectivity returns; align the six shared
-resource-policy variables without automatic deployments before uploading.
+configured proxy and a direct connection. Connectivity recovered at12:08;
+an authenticated project read succeeded. The root cause of that connection
+failure remains unconfirmed. The guarded rollout then aligned the six shared
+resource-policy variables without automatic deployments and reused existing
+credentials. Demo was not changed.
+
+| Current cloud-dev check | Result and receipt |
+| --- | --- |
+| One verified-source rollout |All four services succeed from `c68f6e1`: worker `9aa3e6ed`, PyPSA worker `2d494a7c`, API `3080cdb9`, App `9cdf0b94`; `runs/thread-lifecycle-cloud-verification/cloud-deployment.json` |
+| Local/cloud alignment |343 source files match in each backend role; the contract and artifact hashes above match all three roles; `backend-source-identity.json`, `local-runtime-by-role.json`, `cloud-runtime-by-role.json` |
+| Root App and existing Thread |Direct open mode, both families ready, old history retained, old draft survives deployment, small12px New control works; new owned empty Thread is archived after the check; `readiness.json`, `browser-ui.json` |
+| Exact reported question |The original Thread, kept open across the API update, completes “有哪些 PyPSA 的电网模型？” with21 registered models; attempt `attempt_c45da07a19a46e35`, zero result/evidence references; `catalog-accepted.json` |
+| Current-run calculations |Pandapower AC power flow succeeds with one result and two evidence references, attempt `attempt_09b6b8ef67ba713f`; PyPSA dispatch and AC validation succeed with five result/evidence references, attempt `attempt_717458778ce34efd`; both authority-backed and their calculation projections complete |
+| Active-work protection |Private worker health reports retained1/active1 during each family's calculation; `private-health-pandapower-active.json`, `private-health-pypsa-active.json` |
+| Cold Thread reuse |After the pandapower cache reaches0, the same Thread completes another catalog Turn, attempt `attempt_e4a79b351814b0ec`; `private-health-after-physics.json`, `catalog-cold-accepted.json` |
+| Idle cleanup with page open |Both worker caches reach retained0/active0, with zero active Thread Attempts and compatibility sessions; old histories still read; `private-health-final-idle.json`, `history-after-idle.json` |
+| Stream cleanup |Actual extra stream receives503/Retry-After2; closing an admitted stream permits another200; `stream-capacity.json` |
+| Small history action |Actual API pages limited to10 events exercise earlier-message loading,12px text/26.5px action,32px row and320px no overflow; `history-ui.json`; cloud desktop/mobile screenshots were inspected |
+| Cases, reports and evidence |Both registered cases execute again, close and produce readable reports/evidence; `scripted/legacy-0867fe602b9c.json`. Previously retained reports match their hashes and evidence replays; `report-evidence-replay.json` |
+
+Cloud receipt paths in this table are relative to
+`runs/thread-lifecycle-cloud-verification/`. The final acceptance receipt is
+`runs/thread-lifecycle-cloud-acceptance.json`. Four actual AI Turns were submitted;
+scripted checks use no Provider. Two operator-check mistakes were corrected:
+runtime receipts were initially keyed by service names instead of contract
+roles, and a bundle-string check matched a retained transport error message.
+The source/hash comparisons and actual absence of the deferred UI passed.
+Human acceptance remains pending before demo promotion.
 
 Eviction releases runtime resources; it does not delete durable history,
 results or evidence. Storage retention and cleanup of expired history/artifacts
