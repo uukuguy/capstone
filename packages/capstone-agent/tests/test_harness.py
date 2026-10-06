@@ -14,6 +14,42 @@ from capstone_agent.harness import (
 )
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.turn_router import DefaultTurnRouter, FakeDecisionRouter
+from capstone_agent.kernel_pi_session import _build_kernel_admission
+from capstone_agent.thread_worker import run_pending_attempt
+
+
+def test_incomplete_catalog_stream_commits_the_complete_application_answer():
+    service = _thread_service()
+    service.set_catalog_context({"models": [
+        {"model_id": "model-first", "display_name": "First", "implementation_family": "pypsa"},
+        {"model_id": "model-second", "display_name": "Second", "implementation_family": "pypsa"},
+    ]})
+    service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_catalog_commit",
+        "idempotency_key": "idem_catalog_commit", "thread_id": "thr_harness",
+        "run_id": "run_harness", "kind": "send_auto", "expected_event_seq": 0,
+        "payload": {"text": "有哪些 PyPSA 的电网模型？"},
+    })
+
+    class IncompleteCatalogSession(_PiSession):
+        def prompt_and_wait(self, question: str, **kwargs: object) -> str:
+            callback = kwargs["on_semantic_event"]
+            assert callable(callback)
+            callback({"type": "text_delta", "text": "有两个模型：model-first。"})
+            return "有两个模型：model-first。"
+
+    session = IncompleteCatalogSession()
+    result = run_pending_attempt(
+        service, lambda claim: HarnessPiClient(session, admission=_build_kernel_admission(())),
+        worker_id="catalog-worker",
+    )
+    assert result is not None and result.status == "completed" and session.stopped
+    events = service.read_events("thr_harness", 0).events
+    terminal = events[-1]
+    assert terminal.event_type == "attempt_completed"
+    assert "model-first" in terminal.payload["answer"] and "model-second" in terminal.payload["answer"]
+    assert terminal.payload["result_refs"] == terminal.payload["evidence_refs"] == []
+    assert terminal.payload["admission"]["assurance"] == "deterministic_information"
 
 
 class _PiSession:

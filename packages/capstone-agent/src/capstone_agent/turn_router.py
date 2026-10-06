@@ -45,16 +45,25 @@ _CALCULATION_HINTS = (
 )
 
 
+def _requests_model_catalog(text: str) -> bool:
+    return (
+        any(subject in text for subject in _MODEL_CATALOG_SUBJECTS)
+        and any(request in text for request in _MODEL_CATALOG_REQUESTS)
+    )
+
+
+def is_model_catalog_listing(instruction: str) -> bool:
+    """Identify availability requests that contain no calculation or model change."""
+    text = instruction.lower()
+    return _requests_model_catalog(text) and not any(hint in text for hint in _CALCULATION_HINTS)
+
+
 def _heuristic_route(instruction: str) -> str:
     text = instruction.lower()
     # Availability is answered from the application's bounded registered catalog.
     # A mixed catalog/calculation request still needs the professional lane.
-    catalog_query = (
-        any(subject in text for subject in _MODEL_CATALOG_SUBJECTS)
-        and any(request in text for request in _MODEL_CATALOG_REQUESTS)
-    )
-    if catalog_query:
-        return "professional" if any(hint in text for hint in _CALCULATION_HINTS) else "ordinary"
+    if _requests_model_catalog(text):
+        return "ordinary" if is_model_catalog_listing(instruction) else "professional"
     return "professional" if any(hint in text for hint in _DOMAIN_HINTS) else "ordinary"
 
 

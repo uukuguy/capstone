@@ -29,6 +29,7 @@ from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference
 from .result_projection import normalize_result_projection
+from .catalog_answer import complete_catalog_answer
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -395,6 +396,12 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
         if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
             and not result_refs and not evidence_refs and not tool_events):
+            catalog_answer = complete_catalog_answer(claim.instruction, answer, claim.application_catalog)
+            if catalog_answer is not None:
+                return AdmittedAttemptAnswer(
+                    catalog_answer, "offline_information", "deterministic_information",
+                    diagnostic_codes=("catalog_answer_completed",),
+                )
             return AdmittedAttemptAnswer(answer, "offline_information", "general_knowledge")
         binding_map: dict[str, object] = {}
         for profile in profiles:
