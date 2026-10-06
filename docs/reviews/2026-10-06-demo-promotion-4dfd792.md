@@ -73,3 +73,7 @@ The [release lifecycle](../architecture/capstone-development-lifecycle.md)
 continues to govern later changes. Cloud-development capacity measurements
 describe the tested workloads; this deployment check does not establish a new
 simultaneous-execution limit or a total cloud-cost estimate.
+
+The subsequent [demo load validation](2026-10-06-demo-load-validation.md)
+records direct sequential, concurrent and resource checks on this release.
+It also preserves an incomplete catalog answer as a separate functional defect.
