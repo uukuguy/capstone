@@ -92,3 +92,47 @@ def test_auto_without_external_classifier_uses_bounded_domain_hint() -> None:
     service, claim = _claim(text="请检查 IEEE-39 线路越限")
     assert DefaultTurnRouter().plan(claim).route == "professional"
     del service
+
+
+@pytest.mark.parametrize("text", [
+    "有哪些 PyPSA 的电网模型？",
+    "列出可用的 pandapower 模型",
+    "支持哪些电网模型？",
+    "Which PyPSA models are available?",
+    "List the registered pandapower networks.",
+])
+@pytest.mark.parametrize("unavailable_classifier", [False, True])
+def test_model_catalog_query_does_not_require_a_calculation(
+    text: str, unavailable_classifier: bool,
+) -> None:
+    service, claim = _claim(text=text)
+    router = DefaultTurnRouter(
+        decision_router=(
+            JevDecisionRouter(lambda _text: "invalid", enabled=True)
+            if unavailable_classifier else None
+        ),
+    )
+    plan = router.plan(claim)
+    assert plan.route == "ordinary"
+    assert plan.fallback is unavailable_classifier
+    del service
+
+
+@pytest.mark.parametrize("text", [
+    "列出 PyPSA 模型并运行潮流",
+    "有哪些 PyPSA 模型的损耗最低？",
+    "List pandapower networks and calculate voltages.",
+    "Which PyPSA models have overloaded lines?",
+    "支持哪些电网模型？请执行经济调度。",
+    "列出可用模型并计算最低电压。",
+])
+def test_catalog_wording_does_not_bypass_calculation_routing(text: str) -> None:
+    service, claim = _claim(text=text)
+    assert DefaultTurnRouter().plan(claim).route == "professional"
+    del service
+
+
+def test_explicit_professional_catalog_request_keeps_its_route() -> None:
+    service, claim = _claim("send_professional", "有哪些 PyPSA 的电网模型？")
+    assert DefaultTurnRouter().plan(claim).route == "professional"
+    del service

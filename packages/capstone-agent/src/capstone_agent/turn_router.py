@@ -30,6 +30,32 @@ _DOMAIN_HINTS = (
     "电网", "潮流", "线路", "母线", "变压器", "拓扑", "约束", "越限",
     "n-1", "pandapower", "pypsa", "负载率", "短路", "孤岛", "收敛",
 )
+_MODEL_CATALOG_SUBJECTS = ("模型", "models", "networks", "model catalog", "模型目录")
+_MODEL_CATALOG_REQUESTS = (
+    "有哪些", "有什么", "哪些", "列出", "列一下", "目录", "清单",
+    "which", "what", "list", "available", "supported", "catalog",
+)
+_CALCULATION_HINTS = (
+    *(_hint for _hint in _DOMAIN_HINTS if _hint not in {"电网", "pandapower", "pypsa"}),
+    "运行", "执行", "计算", "求解", "调度", "优化", "损耗", "电压", "功率",
+    "容量", "成本", "发电", "储能", "负荷", "修改", "创建", "打开", "载入",
+    "run", "execute", "calculate", "solve", "dispatch", "optimi", "loss",
+    "voltage", "power flow", "overload", "line", "bus", "capacity", "cost",
+    "generator", "storage", "load", "modify", "create", "open",
+)
+
+
+def _heuristic_route(instruction: str) -> str:
+    text = instruction.lower()
+    # Availability is answered from the application's bounded registered catalog.
+    # A mixed catalog/calculation request still needs the professional lane.
+    catalog_query = (
+        any(subject in text for subject in _MODEL_CATALOG_SUBJECTS)
+        and any(request in text for request in _MODEL_CATALOG_REQUESTS)
+    )
+    if catalog_query:
+        return "professional" if any(hint in text for hint in _CALCULATION_HINTS) else "ordinary"
+    return "professional" if any(hint in text for hint in _DOMAIN_HINTS) else "ordinary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,9 +249,7 @@ class DefaultTurnRouter:
         elif routing_input.command_kind == "send_auto":
             if self._decision_router is None or self.config.mode in {"off", "heuristic", "jev_shadow"}:
                 intent = TurnIntent(
-                    "professional" if any(
-                        hint in routing_input.instruction.lower() for hint in _DOMAIN_HINTS
-                    ) else "ordinary", "heuristic", "bounded_heuristic",
+                    _heuristic_route(routing_input.instruction), "heuristic", "bounded_heuristic",
                 )
             else:
                 try:
@@ -233,7 +257,7 @@ class DefaultTurnRouter:
                     intent = TurnIntent(nested.route, nested.source, nested.confidence)
                 except Exception:
                     intent = TurnIntent(
-                        "professional" if any(hint in routing_input.instruction.lower() for hint in _DOMAIN_HINTS) else "ordinary",
+                        _heuristic_route(routing_input.instruction),
                         "decision_unavailable",
                     )
                     return self._make(routing_input, intent, fallback=True)
