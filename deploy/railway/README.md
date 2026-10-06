@@ -199,10 +199,36 @@ storage credentials.
 Vercel remains an alternative static host: set its project root to
 `packages/capstone-app` and use the checked-in `vercel.json` with the same
 `VITE_API_ORIGIN`.
-The App obtains a demonstration credential from the API on each load and opens
+The original registered-case page at `/old` obtains a demonstration credential
+from the API on each load and opens
 automatically. This credential can run only registered
 scripted cases; a refresh restores the tab's last run without creating another
 session. Provider sessions require the private operator token.
+
+The current root Thread workbench uses the selected open access mode. It does
+not ask users to enter a token. Workers use their existing Provider credentials.
+
+## Railway control-plane connection
+
+Use the existing Railway CLI account login for deployment operations. Before
+uploading, check the selected project with the local operator utility:
+
+```sh
+python3 deploy/railway/control_plane.py \
+  --project-id <existing-project-id> --expected-project capstone-cloud-dev
+```
+
+The utility performs a read-only query and reports the effective proxy/direct
+route. It does not create credentials or change the proxy configuration. It
+retries transport failures at most three times, with one- and two-second waits.
+Authentication, permission and certificate failures stop immediately with
+separate diagnostic codes. Errors omit raw CLI output and credential values.
+
+Operator scripts can import `run_read` for explicit GraphQL queries and
+deployment/variable lists, and `run_write` for other operations. Writes invoke
+the CLI once. A timeout or lost write response reports `write_outcome_unknown`;
+read deployment or variable state before issuing another write. Do not retry an
+upload merely because its response was lost.
 
 References: [Railway background workers](https://docs.railway.com/guides/cron-workers-queues),
 [Railway buckets](https://docs.railway.com/storage-buckets),

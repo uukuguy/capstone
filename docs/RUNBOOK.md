@@ -154,6 +154,8 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 
 Railway 的持续开发配置分为两个隔离阶段：现有 `capstone-demo` 保持用户试用，`capstone-cloud-dev` 承担开发版本的云端验证。两个阶段分别准备 API、worker、PostgreSQL、私有 bucket 和静态 App，并分别使用数据库、工件存储、操作员令牌和域名。Provider 凭据默认隔离；用户已允许当前功能验证阶段使用现有凭据，实际值仍只写入 worker 的受保护环境变量。开发版本通过本地门禁后部署到 cloud-dev；完成健康检查、登记案例、Provider、报告、证据回放及 API/worker 修订一致性检查后，经人工核验，使用同一已验证源码修订或镜像 digest 晋级 demo。晋级失败时回退到上一版已验证修订。变量清单见 [Railway cloud-dev](../deploy/railway/cloud-dev.variables.example) 和 [Railway demo](../deploy/railway/demo.variables.example)；文件只含占位符，不是凭据文件。
 
+部署前用 `python3 deploy/railway/control_plane.py --project-id <已有项目ID> --expected-project capstone-cloud-dev` 读取目标项目，复用现有 Railway CLI 登录态。工具区分网络、认证、权限和证书错误；仅对读取请求的网络故障最多重试三次。上传或部署丢失响应时先查询实际状态，避免重复部署。该检查属于部署工具；App 根页面仍直接进入，不要求用户输入 token。具体规则见 [Railway 连接检查](../deploy/railway/README.md#railway-control-plane-connection)。
+
 ## PyPSA 电网模型库与本地案例
 
 PyPSA 1.3.0 的六个官方 Network 示例与 15 个项目模型一起登记在模型库中。官方 NetCDF 只通过操作者命令下载，逐项核对固定文件大小和 SHA-256，保存于 Git 忽略的 `.grid-agent/runtime/pypsa-models/`。若要使用只读容器目录，可设置 `CAPSTONE_PYPSA_MODEL_LIBRARY_DIR` 指向已安装且校验过的资产目录。缺失或被改动的资产不能被 `model.open` 使用；案例运行中不会联网下载。

@@ -62,6 +62,43 @@ roles, and a bundle-string check matched a retained transport error message.
 The source/hash comparisons and actual absence of the deferred UI passed.
 Human acceptance remains pending before demo promotion.
 
+## Control-plane transport follow-up
+
+The user's next request is to handle the connection fault instead of treating
+recovery as its resolution. Local evidence confirms that the configured HTTP
+proxy route completes TLS and reaches the Railway endpoint, and the existing
+CLI account login reads the selected project. A subprocess with proxies removed
+and NO_PROXY set to `*` reproduces a TLS connection reset with the same login
+state. This is a network-path failure; changing credentials cannot repair it.
+
+The local Clash core runs in global mode with TUN disabled. Its transport log
+shows a configuration reload at11:54:26; Railway requests in the original
+11:57–11:59 failure window and12:07 recovery window all use GLOBAL. The reload
+is a correlation, not proof of the earlier proxy-path disconnect's cause.
+[Railway's status page](https://status.railway.com/) currently reports operational
+service and notes that isolated faults may not appear. Neither source identifies
+the exact upstream hop that failed during the original proxy-path interruption.
+
+`deploy/railway/control_plane.py` now reuses the existing CLI login. Explicit
+queries and lists retry transport errors at most three times; authentication,
+permission and certificate errors stop with distinct safe codes. Writes invoke
+the CLI once; lost responses require deployment/variable-state reconciliation.
+The active rollout helper uses these functions. No new credential, proxy-global
+change, App gate, upload or Provider call was introduced.
+
+Ten focused tests pass, including transient-read recovery, bounded failure,
+credential-safe error output and no duplicate write invocation. The actual
+proxy project check succeeds; the direct reproduction returns
+`network_unavailable`, route direct, attempts3. A deployment-state read through
+the integrated helper still reports the four verified deployments as SUCCESS.
+Receipts: `runs/railway-control-plane-{red,green}.log`,
+`runs/railway-control-plane-live-{proxy,direct}.json`,
+`runs/railway-control-plane-rollout-read.log`,
+`runs/railway-network-diagnosis.json`. This handles transient reads and diagnosis;
+it does not claim to repair an unidentified upstream proxy outage.
+
+## Retained state and scope
+
 Eviction releases runtime resources; it does not delete durable history,
 results or evidence. Storage retention and cleanup of expired history/artifacts
 remain planned work with explicit preservation rules. This acceptance does not
