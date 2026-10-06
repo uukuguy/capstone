@@ -149,6 +149,10 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
 
   const colored = layer?.overlay?.values.length || 0
   const hoveredValue = hovered === null ? undefined : values.get(hovered)
+  const hoveredBus = byId.get(hovered || '')
+  const hoveredBranch = geometry?.branches.find((branch) => branch.id === hovered)
+  const hoveredLabel = hoveredBus ? elementLabel('bus', hoveredBus.label)
+    : hoveredBranch ? elementLabel(hoveredBranch.kind, hoveredBranch.label) : ''
   const denominator = layer?.overlay?.metric === 'voltage_pu'
     ? geometry?.buses.length || 0 : geometry?.branches.filter((branch) => branch.kind === 'line').length || 0
   const dense = nodes.length > 100
@@ -280,7 +284,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             <strong>运行指标</strong><span>执行后显示</span></span>}
         {view?.schema === 'capstone-network-view/1.0' && (view.omitted.buses > 0 || view.omitted.branches > 0) &&
           <span className="network-omitted">预览范围：省略 {view.omitted.buses} 个母线、{view.omitted.branches} 条支路</span>}
-        {hovered && <span className="network-hover-id">{hovered}{hoveredValue === undefined ? ''
+        {hoveredLabel && <span className="network-hover-id">{hoveredLabel}{hoveredValue === undefined ? ''
           : ` · ${hoveredValue.toFixed(layer!.overlay?.metric === 'voltage_pu' ? 3 : 1)} ${layer!.overlay?.unit}`}</span>}
       </div>
   </> : <div className="network-empty" role={unavailable ? 'alert' : 'status'}><span aria-hidden="true">◇</span>

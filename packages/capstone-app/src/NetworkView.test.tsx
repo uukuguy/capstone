@@ -24,6 +24,10 @@ describe('operator network canvas', () => {
     expect(Array.from(document.querySelectorAll('.network-node-label'), (node) => node.textContent)).toEqual(['bus 11', 'bus 13'])
     expect(document.querySelector('.network-branch-label')?.textContent).toBe('line 11–13 circuit A')
     expect(Array.from(document.querySelectorAll('svg title'), (node) => node.textContent)).toContain('line 11–13 circuit A')
+    fireEvent.mouseEnter(document.querySelector('.network-busbar')!.parentElement!)
+    expect(document.querySelector('.network-hover-id')?.textContent).toBe('bus 11')
+    fireEvent.mouseEnter(document.querySelector('.network-branch-label')!.parentElement!)
+    expect(document.querySelector('.network-hover-id')?.textContent).toBe('line 11–13 circuit A')
   })
 
   it.each([

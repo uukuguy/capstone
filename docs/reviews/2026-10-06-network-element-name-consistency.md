@@ -108,3 +108,12 @@ the old tree. The current simulator tree contains the reviewed naming repair
 and its tests, committed in `3adca04`. The gate baseline now names that tree;
 the protected path list and all other digests remain unchanged. The original
 failure log remains in `runs/topology-names-release-20261007/validate.log`.
+
+## Hover status consistency
+
+Actual local page inspection found one remaining raw-ID display: the footer
+showed `12` while the hovered bus label showed `bus 13`. The footer now uses
+the same model-name formatter as the canvas and title. Metric values still
+use internal IDs for lookup. Both model-family regressions failed before
+the repair; 278 App tests and the production build passed after it. A second
+read-only review found no blockers. Backend semantics are unchanged.
