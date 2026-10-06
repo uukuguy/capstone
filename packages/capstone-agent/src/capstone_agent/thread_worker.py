@@ -7,11 +7,13 @@ runtime, and lets :class:`HarnessAttemptRunner` persist the terminal result.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
 
 
 RuntimeFactory = Callable[[AttemptClaim], HarnessRuntime]
+_LOG = logging.getLogger(__name__)
 
 
 def run_pending_attempt(
@@ -39,6 +42,17 @@ def run_pending_attempt(
     claim = service.claim_attempt(worker_id, lease_seconds, implementation_family)
     if claim is None:
         return None
+    with AttemptLeaseRenewal(service, claim, lease_seconds) as lease:
+        return _run_claimed_attempt(
+            service, runtime_factory, claim, lease, lease_seconds, turn_router,
+        )
+
+
+def _run_claimed_attempt(
+    service: ThreadExecutionService, runtime_factory: RuntimeFactory,
+    claim: AttemptClaim, lease: AttemptLeaseRenewal, lease_seconds: int,
+    turn_router: TurnRouter | None,
+) -> HarnessAttemptResult:
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         try:
@@ -55,6 +69,7 @@ def run_pending_attempt(
         )
         claim = replace(claim, turn_plan=plan)
     try:
+        lease.check()
         runtime = runtime_factory(claim)
     except HarnessRuntimeConfigurationError:
         error_code = "runtime_configuration_invalid"
@@ -81,7 +96,7 @@ def run_pending_attempt(
         )
         return HarnessAttemptResult("failed", None, error_code)
     return HarnessAttemptRunner(
-        service, runtime, lease_seconds=lease_seconds, turn_router=router,
+        service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
 
 
@@ -107,17 +122,24 @@ def serve_thread_attempts(
         raise ValueError("thread worker configuration is invalid")
     stop = stop_event or threading.Event()
     while not stop.is_set():
-        if case_service is not None:
-            case_service.reconcile_active()
-        result = run_pending_attempt(
-            service, runtime_factory, worker_id=worker_id,
-            lease_seconds=lease_seconds,
-            turn_router=turn_router,
-            case_service=case_service,
-            implementation_family=implementation_family,
-        )
-        if case_service is not None:
-            case_service.reconcile_active()
+        try:
+            if case_service is not None:
+                case_service.reconcile_active()
+            result = run_pending_attempt(
+                service, runtime_factory, worker_id=worker_id,
+                lease_seconds=lease_seconds,
+                turn_router=turn_router,
+                case_service=case_service,
+                implementation_family=implementation_family,
+            )
+            if case_service is not None:
+                case_service.reconcile_active()
+        except Exception:
+            # A lost claim or unavailable ledger must not kill the polling
+            # thread. The ledger fences late writes and expires stale claims.
+            _LOG.warning("Thread worker iteration failed; retrying after poll interval")
+            stop.wait(poll_seconds)
+            continue
         if result is None:
             stop.wait(poll_seconds)
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from threading import Event
+from threading import Event, Thread
 
-from capstone_agent.harness import HarnessAttemptResult
+import pytest
+
+from capstone_agent.harness import HarnessAttemptResult, HarnessAttemptRunner
 from capstone_agent.thread_service import InMemoryThreadService, ThreadModelDescriptor
 from capstone_agent.thread_protocol import ThreadSnapshot
 from capstone_agent.thread_worker import run_pending_attempt, serve_thread_attempts
@@ -75,6 +77,28 @@ def test_thread_worker_stops_when_requested() -> None:
     assert service.read_events("thr_worker", 0).events == ()
 
 
+def test_thread_worker_keeps_polling_after_an_iteration_fails(monkeypatch, caplog) -> None:
+    service = _service()
+    _submit(service)
+    stop = Event()
+    calls: list[int] = []
+    original = run_pending_attempt
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("ledger temporarily unavailable")
+        result = original(*args, **kwargs)
+        stop.set()
+        return result
+
+    monkeypatch.setattr("capstone_agent.thread_worker.run_pending_attempt", flaky)
+    serve_thread_attempts(service, lambda _claim: _Runtime(), stop_event=stop, poll_seconds=0.001)
+    assert len(calls) == 2
+    assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_completed"
+    assert "retrying after poll interval" in caplog.text
+
+
 def test_worker_family_filter_leaves_other_family_attempt_unleased() -> None:
     service = _service()
     _submit(service)
@@ -118,6 +142,139 @@ def test_runtime_factory_failure_finishes_attempt_as_failed() -> None:
     assert result.status == "failed"
     assert service.snapshot("thr_worker").current_attempt is None
     assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_failed"
+
+
+@pytest.mark.parametrize("phase", ["factory", "startup", "prompt", "admission", "projection"])
+def test_attempt_lease_survives_blocked_work_without_runtime_heartbeats(phase: str) -> None:
+    service = _service()
+    _submit(service)
+    blocked, release = Event(), Event()
+    renewals: list[bool] = []
+    original_renew = service.renew_attempt
+
+    def renew(claim, lease_seconds):
+        renewals.append(original_renew(claim, lease_seconds))
+        return renewals[-1]
+
+    service.renew_attempt = renew
+
+    def block(name: str) -> None:
+        if phase == name:
+            blocked.set()
+            assert release.wait(4)
+
+    class Runtime(_Runtime):
+        network_projection_enabled = True
+
+        def start(self):
+            block("startup")
+
+        def prompt(self, *_args, **_kwargs):
+            block("prompt")
+            return "done"
+
+        def admit_attempt(self, *_args):
+            block("admission")
+            return None
+
+        def network_projection(self, *_args):
+            block("projection")
+            return None
+
+    def factory(_claim):
+        block("factory")
+        return Runtime()
+
+    results: list[HarnessAttemptResult | None] = []
+    thread = Thread(target=lambda: results.append(run_pending_attempt(
+        service, factory, worker_id="thread-worker", lease_seconds=1,
+    )), daemon=True)
+    thread.start()
+    try:
+        assert blocked.wait(1)
+        assert not release.wait(1.25)  # Exceed the claimed lease while work is blocked.
+        assert service.interrupt_expired_attempts() == 0
+    finally:
+        release.set()
+        thread.join(timeout=2)
+    assert not thread.is_alive()
+    assert results and results[0] is not None and results[0].status == "completed"
+    count = len(renewals)
+    Event().wait(0.4)
+    assert len(renewals) == count, "renewal must stop when the Attempt ends"
+
+
+@pytest.mark.parametrize("lost_during", ["factory", "startup"])
+def test_lost_attempt_lease_stops_runtime_before_prompt(lost_during: str) -> None:
+    service = _service()
+    _submit(service)
+    blocked, release, lost = Event(), Event(), Event()
+    prompted: list[bool] = []
+    stopped: list[bool] = []
+    errors: list[Exception] = []
+    original_renew = service.renew_attempt
+
+    def renew(claim, lease_seconds):
+        if blocked.is_set():
+            service.finish_attempt(claim, phase="interrupted", payload={"reason": "lease_expired"})
+            lost.set()
+            return False
+        return original_renew(claim, lease_seconds)
+
+    service.renew_attempt = renew
+
+    def block(name: str) -> None:
+        if lost_during == name:
+            blocked.set()
+            assert release.wait(4)
+
+    class Runtime(_Runtime):
+        def start(self):
+            block("startup")
+
+        def prompt(self, *_args, **_kwargs):
+            prompted.append(True)
+            return "must not be committed"
+
+        def stop(self):
+            stopped.append(True)
+
+    def factory(_claim):
+        block("factory")
+        return Runtime()
+
+    def execute():
+        try:
+            run_pending_attempt(service, factory, worker_id="thread-worker", lease_seconds=1)
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = Thread(target=execute, daemon=True)
+    thread.start()
+    try:
+        assert blocked.wait(1) and lost.wait(1)
+    finally:
+        release.set()
+        thread.join(timeout=2)
+    assert not thread.is_alive()
+    assert errors and stopped and not prompted
+    assert service.read_events("thr_worker", 0).events[-1].event_type == "attempt_interrupted"
+
+
+def test_direct_harness_entry_renews_attempt_without_worker_wrapper() -> None:
+    service = _service()
+    _submit(service)
+    claim = service.claim_attempt("direct-harness", lease_seconds=1)
+    assert claim is not None
+
+    class Runtime(_Runtime):
+        def prompt(self, *_args, **_kwargs):
+            Event().wait(1.25)
+            assert service.interrupt_expired_attempts() == 0
+            return "done"
+
+    result = HarnessAttemptRunner(service, Runtime(), lease_seconds=1).run(claim)
+    assert result.status == "completed"
 
 
 def test_cancel_control_interrupts_runtime_at_heartbeat_and_commits_cancelled() -> None:

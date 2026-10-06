@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import json
 from typing import Protocol, cast
 
+from .attempt_lease import AttemptLeaseRenewal
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
@@ -441,12 +442,14 @@ class HarnessAttemptRunner:
     def __init__(
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
+        lease: AttemptLeaseRenewal | None = None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
         self._service = service
         self._runtime = runtime
         self._lease_seconds = lease_seconds
+        self._lease = lease
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -454,12 +457,28 @@ class HarnessAttemptRunner:
         self._tool_events: list[Mapping[str, object]] = []
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
+        if self._lease is not None:
+            return self._run(claim, self._lease)
+        with AttemptLeaseRenewal(self._service, claim, self._lease_seconds) as lease:
+            return self._run(claim, lease)
+
+    def _run(self, claim: AttemptClaim, lease: AttemptLeaseRenewal) -> HarnessAttemptResult:
         self._tools_observed = False
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
         plan: TurnPlan | None = claim.turn_plan
+
+        def persist(event: Mapping[str, object]) -> None:
+            lease.check()
+            self._persist_event(claim, event)
+
+        def heartbeat() -> None:
+            lease.check()
+            self._renew_lease(claim)
+
         try:
+            lease.check()
             if plan is None and claim.kind in {
                 "send_auto", "send_ordinary", "send_professional",
             }:
@@ -470,14 +489,17 @@ class HarnessAttemptRunner:
                     return HarnessAttemptResult("failed", None, "ordinary_conversation_disabled")
                 self._persist_plan(claim, plan)
             self._runtime.start()
+            lease.check()
+            self._renew_lease(claim)
             answer = self._runtime.prompt(
                 claim.instruction,
                 correlation_id=claim.attempt.attempt_id,
-                on_event=lambda event: self._persist_event(claim, event),
-                on_heartbeat=lambda: self._renew_lease(claim),
+                on_event=persist,
+                on_heartbeat=heartbeat,
             )
             if self._service.cancel_requested(claim):
                 raise _AttemptCancelled
+            lease.check()
             if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
                 raise TypeError("runtime answer is invalid")
             candidate = None
@@ -548,6 +570,7 @@ class HarnessAttemptRunner:
             if getattr(self._runtime, "network_projection_enabled", False) and callable(
                 network_projection
             ):
+                lease.check()
                 project_network = cast(
                     Callable[
                         [AttemptClaim, tuple[str, ...], tuple[str, ...], tuple[Mapping[str, object], ...]],
@@ -581,6 +604,7 @@ class HarnessAttemptRunner:
                         },
                         visibility="public",
                     )
+            lease.check()
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
             )
