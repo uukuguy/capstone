@@ -284,7 +284,7 @@ def create_host_app(
                     return thread_creator.create(model_id).to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
-                except (KeyError, ValueError) as error:
+                except (LookupError, ValueError) as error:
                     raise HTTPException(422, str(error)) from None
 
         @app.get("/api/v1/threads/{thread_id}")

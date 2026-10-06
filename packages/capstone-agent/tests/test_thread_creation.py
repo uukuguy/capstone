@@ -6,6 +6,7 @@ from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_protocol import CommandReceipt, EventPage, ThreadSnapshot
 from capstone_agent.thread_service import ThreadCreator, ThreadModelDescriptor
+from capstone_agent.thread_catalog import CompositeThreadModelCatalog
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from capstone_model_capability_spi import ModelCapabilityDescriptor, ModelCapabilityRegistry, ModelCapabilitySelection
 
@@ -49,6 +50,23 @@ class _Service:
 class _Ledger:
     def ping(self) -> bool:
         return True
+
+
+def test_unregistered_model_creation_returns_422_and_creates_no_thread() -> None:
+    service = _Service()
+    app = create_host_app(
+        _Ledger(), WorkerRegistry(()), operator_token="hosted-secret",
+        allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
+        thread_service=service,
+        thread_creator=ThreadCreator(service, CompositeThreadModelCatalog(default_model_id="ieee39")),
+    )
+    with TestClient(app, base_url="http://localhost") as client:
+        response = client.post(
+            "/api/v1/threads", headers={"Authorization": "Bearer hosted-secret"},
+            json={"model_id": "missing-model"},
+        )
+    assert response.status_code == 422
+    assert service.created is None
 
 
 def test_thread_creator_defaults_to_registered_ieee39_and_pins_revision() -> None:

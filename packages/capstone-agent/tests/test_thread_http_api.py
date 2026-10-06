@@ -12,7 +12,7 @@ from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_commands import ThreadCommandFactory
 from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadService
-from capstone_agent.thread_catalog import ThreadModelCatalogEntry
+from capstone_agent.thread_catalog import CompositeThreadModelCatalog, ThreadModelCatalogEntry
 
 
 class _ModelCatalog:
@@ -106,6 +106,37 @@ def _case_app(service: InMemoryThreadService):
 
 def _auth() -> dict[str, str]:
     return {"Authorization": "Bearer hosted-secret", "Origin": "http://localhost:5173"}
+
+
+@pytest.mark.parametrize("kind", ["switch_model", "reopen_model_context"])
+def test_unregistered_model_command_returns_a_rejection_without_changing_thread(kind) -> None:
+    service = _service()
+    service.set_model_catalog(CompositeThreadModelCatalog(default_model_id="ieee39"))
+    before = service.snapshot("thr_demo_39")
+    command = getattr(ThreadCommandFactory("thr_demo_39"), kind)(
+        "missing-model", expected_event_seq=0,
+        command_id="cmd_missing", idempotency_key="idem_missing",
+    )
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        response = client.post(
+            "/api/v1/threads/thr_demo_39/commands", headers=_auth(), json=command,
+        )
+    assert response.status_code == 202
+    assert response.json()["status"] == "rejected"
+    assert response.json()["rejection"] == "model_unavailable"
+    assert service.snapshot("thr_demo_39") == before
+
+
+def test_postgres_model_admission_handles_the_composite_catalog_lookup_error() -> None:
+    service = PostgresThreadService("postgresql://unused")
+    service.set_model_catalog(CompositeThreadModelCatalog(default_model_id="ieee39"))
+    command = ThreadCommandFactory("thr_demo_39").switch_model(
+        "missing-model", expected_event_seq=0,
+        command_id="cmd_missing", idempotency_key="idem_missing",
+    )
+    assert service._model_switch_for_command(
+        _service().snapshot("thr_demo_39"), command,
+    ) == (None, "model_unavailable")
 
 
 def test_thread_snapshot_and_event_page_are_exposed_as_capstone_protocol() -> None:

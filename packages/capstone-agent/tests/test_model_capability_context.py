@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 
@@ -89,6 +91,31 @@ def _owner(log, *, second=None, first=None, seal=True, **limits):
         registry.seal()
         owner.seal()
     return owner, adapters
+
+
+def test_health_counts_do_not_wait_for_slow_model_preparation():
+    entered, release = Event(), Event()
+
+    class SlowAdapter(_Adapter):
+        def prepare(self, handle, *, model_context):
+            entered.set()
+            assert release.wait(5)
+            return super().prepare(handle, model_context=model_context)
+
+    owner, _ = _owner([], first=SlowAdapter([]))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        preparing = pool.submit(owner.acquire, _claim())
+        assert entered.wait(1)
+        try:
+            assert pool.submit(owner.resource_counts).result(timeout=.5) == {'retained': 0, 'active': 0}
+        finally:
+            release.set()
+        context = preparing.result(timeout=2)
+    assert owner.resource_counts() == {'retained': 1, 'active': 1}
+    owner.release(context)
+    assert owner.resource_counts() == {'retained': 1, 'active': 0}
+    owner.close()
+    assert owner.resource_counts() == {'retained': 0, 'active': 0}
 
 
 def test_prepares_exact_snapshot_and_reuses_run_context_across_attempts():

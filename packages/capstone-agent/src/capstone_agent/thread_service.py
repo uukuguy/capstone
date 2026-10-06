@@ -1438,7 +1438,7 @@ class InMemoryThreadService:
             return None, "model_catalog_unavailable"
         try:
             descriptor = catalog.resolve(command["payload"]["model_id"])
-        except (KeyError, TypeError, ValueError):
+        except (LookupError, TypeError, ValueError):
             return None, "model_unavailable"
         if not self.is_family_available(descriptor.implementation_family):
             return None, "worker_unavailable"
@@ -3034,7 +3034,7 @@ class PostgresThreadService:
             return None, "model_catalog_unavailable"
         try:
             descriptor = catalog.resolve(command["payload"]["model_id"])
-        except (KeyError, TypeError, ValueError):
+        except (LookupError, TypeError, ValueError):
             return None, "model_unavailable"
         if not self.is_family_available(descriptor.implementation_family):
             return None, "worker_unavailable"

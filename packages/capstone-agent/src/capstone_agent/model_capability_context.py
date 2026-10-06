@@ -213,6 +213,7 @@ class ModelCapabilityContextOwner:
         self._adapters: dict[tuple[str, str], ModelCapabilityAdapter] = {}
         self._contexts: dict[tuple[str, str, str, str], PreparedModelCapabilityContext] = {}
         self._usage: dict[tuple[str, str, str, str], tuple[int, float]] = {}
+        self._resource_counts = (0, 0)
         self._sealed = False
         self._closed = False
         self._lock = RLock()
@@ -303,6 +304,7 @@ class ModelCapabilityContextOwner:
                 )
                 self._contexts[key] = context
                 self._usage[key] = 0, self._clock()
+                self._publish_resource_counts_locked()
                 return context
             except BaseException as error:
                 cleanup = _close_resources((*reversed(contributions), *reversed(handles)))
@@ -320,6 +322,7 @@ class ModelCapabilityContextOwner:
             key = (context.thread_id, context.run_id, context.model_context.id, context.model_context.selection_revision)
             pins, last_used = self._usage[key]
             self._usage[key] = pins + 1, last_used
+            self._publish_resource_counts_locked()
             return context
 
     def release(self, context: PreparedModelCapabilityContext) -> None:
@@ -331,10 +334,17 @@ class ModelCapabilityContextOwner:
             if pins < 1:
                 raise RuntimeError('model capability context is not acquired')
             self._usage[key] = pins - 1, self._clock() if pins == 1 else last_used
+            self._publish_resource_counts_locked()
 
     def resource_counts(self) -> dict[str, int]:
-        with self._lock:
-            return {'retained': len(self._contexts), 'active': sum(pins > 0 for pins, _ in self._usage.values())}
+        """Read published counts without waiting for preparation or cleanup IO."""
+        retained, active = self._resource_counts
+        return {'retained': retained, 'active': active}
+
+    def _publish_resource_counts_locked(self) -> None:
+        self._resource_counts = (
+            len(self._contexts), sum(pins > 0 for pins, _ in self._usage.values()),
+        )
 
     def sweep_idle(self) -> int:
         with self._lock:
@@ -357,6 +367,7 @@ class ModelCapabilityContextOwner:
     def _evict_locked(self, key: tuple[str, str, str, str]) -> None:
         context = self._contexts.pop(key)
         del self._usage[key]
+        self._publish_resource_counts_locked()
         context.close()
 
     def close_run(self, thread_id: str, run_id: str) -> None:
@@ -370,6 +381,7 @@ class ModelCapabilityContextOwner:
             for key, _ in contexts:
                 del self._contexts[key]
                 del self._usage[key]
+            self._publish_resource_counts_locked()
         errors: list[BaseException] = []
         for _, context in contexts:
             try:
@@ -387,6 +399,7 @@ class ModelCapabilityContextOwner:
             contexts = tuple(self._contexts.values())
             self._contexts.clear()
             self._usage.clear()
+            self._publish_resource_counts_locked()
         errors: list[BaseException] = []
         for context in contexts:
             try:
