@@ -322,10 +322,12 @@ class HarnessPiClient:
         runtime_mode: str = "capstone",
         admission: AttemptAdmission | None = None,
         network_projection_provider: ThreadNetworkProjectionProvider | None = None,
+        on_stop: Callable[[], None] | None = None,
     ) -> None:
         if runtime_mode not in {"capstone", "pi_reference"}:
             raise ValueError("Pi runtime mode is invalid")
         self._session = session
+        self._on_stop = on_stop
         self.runtime_mode = runtime_mode
         self._admission = admission
         if network_projection_provider is not None and not isinstance(
@@ -382,11 +384,6 @@ class HarnessPiClient:
     def start(self) -> None:
         self._session.start()
 
-    def generate_thread_title(self, question: str, answer: str) -> str | None:
-        generate = getattr(self._session, 'generate_thread_title', None)
-        value = generate(question, answer) if callable(generate) else None
-        return value if isinstance(value, str) else None
-
     def prompt(
         self, question: str, *, on_event: RuntimeEventSink,
         correlation_id: str | None = None,
@@ -405,7 +402,12 @@ class HarnessPiClient:
         )
 
     def stop(self) -> None:
-        self._session.stop()
+        callback, self._on_stop = self._on_stop, None
+        try:
+            self._session.stop()
+        finally:
+            if callback is not None:
+                callback()
 
 
 class HarnessDSHClient:

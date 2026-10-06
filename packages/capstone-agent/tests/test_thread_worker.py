@@ -77,6 +77,26 @@ def test_thread_worker_stops_when_requested() -> None:
     assert service.read_events("thr_worker", 0).events == ()
 
 
+def test_worker_sweeps_idle_resources_without_commands_and_closes_on_stop():
+    service = _service()
+    stop = Event()
+    calls = []
+
+    class Factory:
+        def __call__(self, _claim):
+            raise AssertionError('Idle work must not start a runtime')
+
+        def sweep_idle(self):
+            calls.append('sweep')
+            stop.set()
+
+        def close(self):
+            calls.append('close')
+
+    serve_thread_attempts(service, Factory(), stop_event=stop)
+    assert calls == ['sweep', 'close']
+
+
 def test_thread_worker_keeps_polling_after_an_iteration_fails(monkeypatch, caplog) -> None:
     service = _service()
     _submit(service)

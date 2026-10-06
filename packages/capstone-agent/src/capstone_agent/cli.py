@@ -328,6 +328,8 @@ def main(
                                 wake_event, settings.operator_token,
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
+                                resource_status=(thread_application.capability_context_owner.resource_counts
+                                    if thread_application is not None and thread_application.capability_context_owner is not None else None),
                                 health_check=lambda: scheduler.is_alive()
                                 and (thread_scheduler is None or thread_scheduler.is_alive()),
                             ),

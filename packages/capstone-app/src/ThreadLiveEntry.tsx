@@ -5,7 +5,7 @@ import { CapstoneClient } from './api'
 import { HttpThreadTransport } from './threadHttpTransport'
 import { parseNetworkDiagram } from './networkValidation'
 import type { NetworkDiagram } from './types'
-import ThreadSessionMenu from './ThreadSessionMenu'
+import { Plus } from 'lucide-react'
 import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
 import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
 
@@ -84,7 +84,7 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     if (!client || newInFlight.current) return
     newInFlight.current = true; setCreating(true); setError(null)
     try {
-      const snapshot = await client.create('ieee39', undefined, createdThreadId)
+      const snapshot = await client.create('ieee39')
       selectThread(snapshot.threadId)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '新建对话失败') }
     finally { newInFlight.current = false; setCreating(false) }
@@ -151,7 +151,8 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   if (!client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建对话…</main>
   return <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
-    sessionNotice={error} headerActions={<ThreadSessionMenu transport={transport!}
-      threadId={createdThreadId} creating={creating} onNew={() => void newThread()}
-      onSelect={selectThread} onArchived={setArchived} />} />
+    sessionNotice={error} headerActions={<button type="button" className="thread-new-dialogue"
+      disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>
+      <Plus size={16} aria-hidden="true" /><span>{creating ? '正在新建…' : '新建对话'}</span>
+    </button>} />
 }

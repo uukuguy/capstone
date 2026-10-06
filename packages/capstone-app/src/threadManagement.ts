@@ -1,7 +1,6 @@
 export type ThreadDescriptor = {
   threadId: string; modelId: string; implementationFamily: string
   createdAt: string; archived: boolean; lastEventSeq: number
-  title?: string | null
 }
 export type ThreadListPage = { threads: ThreadDescriptor[]; nextBeforeThreadId: string | null; hasMore: boolean }
 
@@ -16,8 +15,7 @@ export function parseThreadDescriptor(value: unknown): ThreadDescriptor {
       || (row.last_event_seq as number) < 0) throw new Error('会话信息无效')
   return { threadId: row.thread_id as string, modelId: row.model_id as string,
     implementationFamily: row.implementation_family as string, createdAt: row.created_at as string,
-    archived: row.archived, lastEventSeq: row.last_event_seq as number,
-    title: typeof row.title === 'string' && row.title.length <= 80 ? row.title : null }
+    archived: row.archived, lastEventSeq: row.last_event_seq as number }
 }
 
 export function parseThreadListPage(value: unknown): ThreadListPage {

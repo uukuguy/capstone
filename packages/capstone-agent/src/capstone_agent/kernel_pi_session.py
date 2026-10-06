@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from pathlib import Path
+import os
 from typing import cast
 
 from capability_agent.domain.answer_admission import (
@@ -28,7 +29,6 @@ from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference
 from .result_projection import normalize_result_projection
-from .thread_titles import ThreadTitleGenerator
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -91,6 +91,10 @@ class PreparedKernelPiRpcSessionBuilder:
         self._runtime_host = runtime_host
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
+        environment = os.environ if base_environment is None else base_environment
+        self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
+        if not 1 <= self._timeout_seconds <= 3600:
+            raise ValueError('Thread attempt timeout is invalid')
 
     def __call__(
         self,
@@ -202,13 +206,11 @@ class PreparedKernelPiRpcSessionBuilder:
             secret_values={self._resolved_llm.secret.value}
             if self._resolved_llm.secret is not None else set(),
             correlation_id=claim.attempt.attempt_id,
+            timeout_seconds=self._timeout_seconds,
         )
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles),
             reference_observer=handoffs.observe,
-            title_generator=ThreadTitleGenerator(self._runtime_host, self._resolved_llm,
-                workspace.root, workspace.core_path / 'titles' / claim.attempt.attempt_id,
-                self._base_environment),
         )
 
 
@@ -346,16 +348,11 @@ class _RpcWorkspace:
 
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
-                 reference_observer: Callable[[Mapping[str, object]], None] | None = None,
-                 title_generator: Callable[[str, str], str | None] | None = None) -> None:
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
-        self._title_generator = title_generator
-
-    def generate_thread_title(self, question: str, answer: str) -> str | None:
-        return self._title_generator(question, answer) if self._title_generator else None
 
     @property
     def command(self) -> object:

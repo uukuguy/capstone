@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
+import time
 from threading import RLock
 from typing import Protocol, runtime_checkable
 
@@ -197,12 +199,20 @@ class ModelCapabilityContextOwner:
     Run context, but any snapshot drift fails closed.
     """
 
-    def __init__(self, catalog: CapstoneModelCapabilityCatalog) -> None:
+    def __init__(self, catalog: CapstoneModelCapabilityCatalog, *,
+                 max_contexts: int | None = None, idle_seconds: float | None = None,
+                 clock: Callable[[], float] = time.monotonic) -> None:
         if not isinstance(catalog, CapstoneModelCapabilityCatalog):
             raise TypeError("catalog must be a CapstoneModelCapabilityCatalog")
         self.catalog = catalog
+        self.max_contexts = int(os.environ.get('CAPSTONE_THREAD_CONTEXT_LIMIT', '4')) if max_contexts is None else max_contexts
+        self.idle_seconds = float(os.environ.get('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', '60')) if idle_seconds is None else idle_seconds
+        if not 1 <= self.max_contexts <= 64 or not 1 <= self.idle_seconds <= 86400:
+            raise ValueError('model capability resource limits are invalid')
+        self._clock = clock
         self._adapters: dict[tuple[str, str], ModelCapabilityAdapter] = {}
         self._contexts: dict[tuple[str, str, str, str], PreparedModelCapabilityContext] = {}
+        self._usage: dict[tuple[str, str, str, str], tuple[int, float]] = {}
         self._sealed = False
         self._closed = False
         self._lock = RLock()
@@ -254,14 +264,22 @@ class ModelCapabilityContextOwner:
                 raise RuntimeError("model capability context owner is closed")
             if not self._sealed:
                 raise RuntimeError("model capability context owner is not sealed")
+            self._sweep_idle_locked()
             existing = self._contexts.get(key)
             if existing is not None:
                 if existing.model_context != model_context:
                     raise ValueError("model capability context snapshot drift")
+                pins, _ = self._usage[key]
+                self._usage[key] = pins, self._clock()
                 return existing
             missing = [reference for reference in references if reference not in self._adapters]
             if missing:
                 raise KeyError(missing[0])
+            if len(self._contexts) >= self.max_contexts:
+                idle = [(last_used, cached_key) for cached_key, (pins, last_used) in self._usage.items() if pins == 0]
+                if not idle:
+                    raise RuntimeError('model capability context capacity is full')
+                self._evict_locked(min(idle)[1])
 
             selection = ModelCapabilitySelection(references)
             handles = self.catalog.prepare(
@@ -284,6 +302,7 @@ class ModelCapabilityContextOwner:
                     tuple(handles), tuple(contributions),
                 )
                 self._contexts[key] = context
+                self._usage[key] = 0, self._clock()
                 return context
             except BaseException as error:
                 cleanup = _close_resources((*reversed(contributions), *reversed(handles)))
@@ -294,14 +313,63 @@ class ModelCapabilityContextOwner:
                     ) from None
                 raise
 
+    def acquire(self, claim: AttemptClaim) -> PreparedModelCapabilityContext:
+        """Pin resources until the Attempt releases them, including blocked work."""
+        with self._lock:
+            context = self.prepare(claim)
+            key = (context.thread_id, context.run_id, context.model_context.id, context.model_context.selection_revision)
+            pins, last_used = self._usage[key]
+            self._usage[key] = pins + 1, last_used
+            return context
+
+    def release(self, context: PreparedModelCapabilityContext) -> None:
+        with self._lock:
+            key = (context.thread_id, context.run_id, context.model_context.id, context.model_context.selection_revision)
+            if self._contexts.get(key) is not context:
+                return
+            pins, last_used = self._usage[key]
+            if pins < 1:
+                raise RuntimeError('model capability context is not acquired')
+            self._usage[key] = pins - 1, self._clock() if pins == 1 else last_used
+
+    def resource_counts(self) -> dict[str, int]:
+        with self._lock:
+            return {'retained': len(self._contexts), 'active': sum(pins > 0 for pins, _ in self._usage.values())}
+
+    def sweep_idle(self) -> int:
+        with self._lock:
+            return self._sweep_idle_locked()
+
+    def _sweep_idle_locked(self) -> int:
+        now = self._clock()
+        expired = [key for key, (pins, last_used) in self._usage.items()
+                   if pins == 0 and now - last_used >= self.idle_seconds]
+        errors: list[BaseException] = []
+        for key in expired:
+            try:
+                self._evict_locked(key)
+            except BaseException as error:
+                errors.extend(_flatten_group(error))
+        if errors:
+            raise BaseExceptionGroup('idle model capability cleanup failed', errors)
+        return len(expired)
+
+    def _evict_locked(self, key: tuple[str, str, str, str]) -> None:
+        context = self._contexts.pop(key)
+        del self._usage[key]
+        context.close()
+
     def close_run(self, thread_id: str, run_id: str) -> None:
         with self._lock:
             contexts = [
                 (key, context) for key, context in self._contexts.items()
                 if key[:2] == (thread_id, run_id)
             ]
+            if any(self._usage[key][0] for key, _ in contexts):
+                raise RuntimeError('model capability context is active')
             for key, _ in contexts:
                 del self._contexts[key]
+                del self._usage[key]
         errors: list[BaseException] = []
         for _, context in contexts:
             try:
@@ -318,6 +386,7 @@ class ModelCapabilityContextOwner:
             self._closed = True
             contexts = tuple(self._contexts.values())
             self._contexts.clear()
+            self._usage.clear()
         errors: list[BaseException] = []
         for context in contexts:
             try:

@@ -95,22 +95,9 @@ def _run_claimed_attempt(
             claim, phase="failed", payload={"error_code": error_code},
         )
         return HarnessAttemptResult("failed", None, error_code)
-    result = HarnessAttemptRunner(
+    return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
-    # Presentation metadata follows the committed answer. Its failure cannot
-    # change execution truth, evidence or the already completed Attempt.
-    if result.status == 'completed' and result.answer and claim.kind in {'send_auto', 'send_ordinary', 'send_professional'}:
-        generate = getattr(runtime, 'generate_thread_title', None)
-        if callable(generate):
-            try:
-                if service.thread_metadata(claim.thread_id).get('title') is None:
-                    title = generate(claim.instruction, result.answer)
-                    if isinstance(title, str):
-                        service.set_thread_title(claim.thread_id, title, claim.attempt.attempt_id)
-            except Exception:
-                _LOG.info('Thread title is unavailable; the completed answer remains saved')
-    return result
 
 
 def serve_thread_attempts(
@@ -134,27 +121,35 @@ def serve_thread_attempts(
     if not worker_id or lease_seconds < 1 or poll_seconds <= 0:
         raise ValueError("thread worker configuration is invalid")
     stop = stop_event or threading.Event()
-    while not stop.is_set():
-        try:
-            if case_service is not None:
-                case_service.reconcile_active()
-            result = run_pending_attempt(
-                service, runtime_factory, worker_id=worker_id,
-                lease_seconds=lease_seconds,
-                turn_router=turn_router,
-                case_service=case_service,
-                implementation_family=implementation_family,
-            )
-            if case_service is not None:
-                case_service.reconcile_active()
-        except Exception:
-            # A lost claim or unavailable ledger must not kill the polling
-            # thread. The ledger fences late writes and expires stale claims.
-            _LOG.warning("Thread worker iteration failed; retrying after poll interval")
-            stop.wait(poll_seconds)
-            continue
-        if result is None:
-            stop.wait(poll_seconds)
+    try:
+        while not stop.is_set():
+            try:
+                sweep = getattr(runtime_factory, 'sweep_idle', None)
+                if callable(sweep):
+                    sweep()
+                if case_service is not None:
+                    case_service.reconcile_active()
+                result = run_pending_attempt(
+                    service, runtime_factory, worker_id=worker_id,
+                    lease_seconds=lease_seconds,
+                    turn_router=turn_router,
+                    case_service=case_service,
+                    implementation_family=implementation_family,
+                )
+                if case_service is not None:
+                    case_service.reconcile_active()
+            except Exception:
+                # A lost claim or unavailable ledger must not kill the polling
+                # thread. The ledger fences late writes and expires stale claims.
+                _LOG.warning("Thread worker iteration failed; retrying after poll interval")
+                stop.wait(poll_seconds)
+                continue
+            if result is None:
+                stop.wait(poll_seconds)
+    finally:
+        close = getattr(runtime_factory, 'close', None)
+        if callable(close):
+            close()
 
 
 __all__ = ["RuntimeFactory", "run_pending_attempt", "serve_thread_attempts"]

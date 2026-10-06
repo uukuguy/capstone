@@ -59,6 +59,16 @@ class FamilyRuntimeFactory:
             raise RuntimeError(f"implementation family is not registered: {family}")
         return factory(claim)
 
+    def sweep_idle(self) -> int:
+        return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
+                   if callable(sweep := getattr(factory, 'sweep_idle', None)))
+
+    def close(self) -> None:
+        for factory in self._factories.values():
+            close = getattr(factory, 'close', None)
+            if callable(close):
+                close()
+
 
 class ApplicationPiRuntimeFactory:
     """Turn an application-selected Pi session factory into a Harness factory.
@@ -95,9 +105,9 @@ class PreparedApplicationPiRuntimeFactory:
     """Borrow a Run-owned prepared context for one Pi Attempt.
 
     The session factory receives the exact immutable context snapshot and its
-    prepared contributions.  Stopping the Attempt's session never closes the
-    context; the owning Run must call ``ModelCapabilityContextOwner.close_run``
-    after the context is no longer active.
+    prepared contributions. The Attempt pins its context until session stop.
+    Idle contexts have a capacity limit and timeout; the worker releases all
+    retained contexts when it stops. Thread history stays in the durable ledger.
     """
 
     def __init__(
@@ -132,18 +142,34 @@ class PreparedApplicationPiRuntimeFactory:
         self.rollback_selection_on_failure = True
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
-        context = self._context_owner.prepare(claim)
-        session = self._session_factory(claim, context)
-        admission = getattr(session, "admit_attempt", None)
-        network_projection_provider = None
-        if self._network_projection_factory is not None:
-            network_projection_provider = self._network_projection_factory(claim, context)
-        return HarnessPiClient(
-            session,
-            runtime_mode=self._runtime_mode,
-            admission=cast(AttemptAdmission, admission) if callable(admission) else None,
-            network_projection_provider=network_projection_provider,
-        )
+        context = self._context_owner.acquire(claim)
+        session = None
+        try:
+            session = self._session_factory(claim, context)
+            admission = getattr(session, "admit_attempt", None)
+            network_projection_provider = None
+            if self._network_projection_factory is not None:
+                network_projection_provider = self._network_projection_factory(claim, context)
+            return HarnessPiClient(
+                session,
+                runtime_mode=self._runtime_mode,
+                admission=cast(AttemptAdmission, admission) if callable(admission) else None,
+                network_projection_provider=network_projection_provider,
+                on_stop=lambda: self._context_owner.release(context),
+            )
+        except BaseException:
+            try:
+                if session is not None:
+                    session.stop()
+            finally:
+                self._context_owner.release(context)
+            raise
+
+    def sweep_idle(self) -> int:
+        return self._context_owner.sweep_idle()
+
+    def close(self) -> None:
+        self._context_owner.close()
 
 
 @dataclass(frozen=True, slots=True)

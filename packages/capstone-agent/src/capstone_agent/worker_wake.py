@@ -22,6 +22,7 @@ def create_wake_app(
     wake_event: threading.Event, operator_token: str,
     *, health_check: Callable[[], bool] | None = None,
     runtime_mode: str = "normal", implementation_family: str | None = None,
+    resource_status: Callable[[], dict[str, int]] | None = None,
 ) -> FastAPI:
     if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa"}:
         raise ValueError("worker runtime identity is invalid")
@@ -30,12 +31,14 @@ def create_wake_app(
     expected = "Bearer " + wake_token(operator_token)
 
     @app.get("/health")
-    def health() -> dict[str, str]:
+    def health() -> dict[str, object]:
         if health_check is not None and not health_check():
             raise HTTPException(503, "worker scheduler unavailable")
-        document = {"status": "ready", "runtime_mode": runtime_mode}
+        document: dict[str, object] = {"status": "ready", "runtime_mode": runtime_mode}
         if implementation_family is not None:
             document["implementation_family"] = implementation_family
+        if resource_status is not None:
+            document['thread_contexts'] = resource_status()
         return document
 
     @app.post("/wake", status_code=204)

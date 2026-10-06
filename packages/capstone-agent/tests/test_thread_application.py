@@ -335,6 +335,20 @@ def test_prepared_application_factory_passes_context_to_session_without_closing_
     assert received[0][1].closed
 
 
+def test_failed_session_preparation_releases_the_context_pin():
+    owner, _ = _prepared_owner()
+    claim = replace(_claim(), model_context=replace(_claim().model_context, enabled_profiles=(("static", "1.0.0"),)))
+
+    def fail(_claim, _context):
+        raise RuntimeError('session preparation failed')
+
+    with pytest.raises(RuntimeError, match='session preparation failed'):
+        PreparedApplicationPiRuntimeFactory(owner, fail)(claim)
+    assert owner.resource_counts() == {'retained': 1, 'active': 0}
+    owner.close_run(claim.thread_id, claim.run_id)
+    assert owner.resource_counts() == {'retained': 0, 'active': 0}
+
+
 def test_prepared_application_factory_passes_exact_claim_and_context_to_network_provider() -> None:
     owner, _ = _prepared_owner()
     claim = replace(
@@ -348,7 +362,7 @@ def test_prepared_application_factory_passes_exact_claim_and_context_to_network_
         network_projection_factory=lambda claimed, context: received.append((claimed, context)) or None,
     )
 
-    factory(claim)
+    first_runtime = factory(claim)
 
     assert len(received) == 1
     assert received[0][0] is claim
@@ -364,6 +378,8 @@ def test_prepared_application_factory_passes_exact_claim_and_context_to_network_
         network_projection_factory=lambda _claimed, _context: _Provider(),
     )(claim)
     assert getattr(runtime, "network_projection_enabled") is True
+    first_runtime.stop()
+    runtime.stop()
     owner.close_run("thr_application", "run_application")
 
 

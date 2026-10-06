@@ -81,10 +81,9 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/network-events`, { signal })
   }
 
-  async listThreads(archived = false, before?: string, signal?: AbortSignal, currentThreadId?: string) {
+  async listThreads(archived = false, before?: string, signal?: AbortSignal) {
     const query = new URLSearchParams({ archived: String(archived), limit: '20' })
     if (before) query.set('before', before)
-    if (currentThreadId) query.set('current_thread_id', currentThreadId)
     return parseThreadListPage(await this.request(`${this.resourcePath}?${query}`, { signal }))
   }
 
@@ -94,19 +93,19 @@ export class HttpThreadTransport implements ThreadTransport {
     }))
   }
 
-  async getThreadMetadata(threadId: string, signal?: AbortSignal) {
+  async getThreadMetadata(threadId: string, signal?: AbortSignal): Promise<{ archived: boolean }> {
     const body = await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/metadata`, { signal })
     if (!body || typeof body !== 'object' || !('archived' in body) || typeof body.archived !== 'boolean') throw new Error('会话状态无效')
-    return { archived: body.archived, descriptor: 'model_id' in body ? parseThreadDescriptor(body) : undefined }
+    return { archived: body.archived }
   }
 
   getCatalog(threadId: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/catalog`, { signal })
   }
 
-  createThread(modelId?: string, signal?: AbortSignal, parentThreadId?: string): Promise<unknown> {
+  createThread(modelId?: string, signal?: AbortSignal): Promise<unknown> {
     return this.request(this.resourcePath, {
-      method: 'POST', signal, body: JSON.stringify({ ...(modelId ? { model_id: modelId } : {}), ...(parentThreadId ? { parent_thread_id: parentThreadId } : {}) }),
+      method: 'POST', signal, body: JSON.stringify(modelId ? { model_id: modelId } : {}),
     })
   }
 

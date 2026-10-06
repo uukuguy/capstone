@@ -691,9 +691,8 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
-          {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '加载更早消息'}</button>}
-          {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>回到最新消息</button>}
-          <small>当前显示 {messages.length} 条消息，完整历史仍保留。</small>
+          {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
+          {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>返回最新对话</button>}
           {historyError && <span role="alert">{historyError}</span>}
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}

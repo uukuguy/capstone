@@ -30,6 +30,35 @@ flowchart LR
     T -->|rollback to previous verified revision| T
 ```
 
+## Server resource lifecycle
+
+A durable Thread is a database record. It does not reserve a worker or keep a
+model in memory. New Threads allocate execution resources only when work is
+claimed. Each Attempt starts its runtime on demand and stops it on success,
+failure or cancellation. RPC work has a finite deadline.
+
+Model preparation is a bounded process cache. An Attempt pins its resources
+during execution. Idle resources expire; capacity pressure evicts the least
+recently used idle context. Active work must never be evicted. The worker also
+sweeps when no new command arrives and closes its cache on shutdown. A later
+Attempt prepares the registered model again after cache eviction.
+
+The API limits concurrent Thread event subscriptions, including a limit for
+each Thread. Disconnects and cancellation release subscription capacity. Worker
+wake throttling uses one process timestamp rather than a growing session map.
+The older compatibility host retains its bounded session pool and idle timeout.
+
+The shared limits and deadlines belong to
+[`configs/runtime/host-runtime-v1.json`](../../configs/runtime/host-runtime-v1.json).
+The local and cloud stages must select the same tested policy. Private worker
+health reports retained and active context counts so validation can confirm
+resource release while a page remains open.
+
+Resource eviction does not delete database history, results or evidence. These
+records use persistent storage, which can grow independently of process memory.
+Automatic record deletion requires a separate retention contract. Preserve
+existing data while that contract is deferred.
+
 ## Isolation invariants
 
 Cloud development and user trial are separate deployment stages. They must not

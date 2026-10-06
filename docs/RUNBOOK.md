@@ -96,15 +96,15 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口只返回访问模式，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
 
-对话区中的「新建对话」创建独立 Thread；「会话列表」提供当前匿名用户的最近对话、已归档对话、切换和恢复操作。首次打开根页面时，后端自动建立匿名用户及首个 Thread；新建对话沿用当前 Thread 的用户。刷新专属链接恢复原用户及 Thread，不需要登录或浏览器身份登记。独立打开根页面会创建另一个匿名用户；打开同一个 Thread 链接则恢复同一个用户。已有未归属的 Thread 分别获得匿名用户，保留原消息和证据，不推测历史归属。列表接口以 `current_thread_id` 定位用户，新建接口以可选 `parent_thread_id` 沿用用户；App 不维护浏览器会话列表。
+对话区的小型「新建对话」创建独立 Thread，不取消原有后台任务。用户系统、历史会话列表、归档恢复界面和 LLM 会话命名暂缓，后续计划记录在[会话管理计划](superpowers/plans/2026-10-06-thread-session-management.md#current-scope-2026-10-06-1124)。当前 App 只管理已连接的 Thread；既有消息、结果和证据仍保留。
 
-会话首次成功回答保存后，worker 使用现有 Provider 配置发起一次无工具的命名请求。输入最多包含 2000 字符用户消息和 3000 字符回答，等待上限 12 秒；标题保存到 PostgreSQL，后续打开列表不再调用 LLM。命名失败保留成功回答；未命名的历史 Thread 在下一次成功对话后命名。标题不是计算结果或证据。归档只改变元数据，保留消息、结果和证据；有运行中 Attempt 或 Case 时拒绝归档。切换或新建对话不会取消后台任务。
+服务端模型准备缓存有容量和空闲期限。正在执行的 Attempt 固定其资源；空闲回收只释放进程对象、声明和端点，不删除数据库中的消息、结果与证据。下一条指令按已登记的模型重新准备资源。运行时在终态停止，RPC 请求有有限期限。API 对实时订阅总数及每个 Thread 的订阅数设上限，连接结束后释放名额；容量暂满时返回可重试的 503。缓存数量可在 worker 私有 `/health` 的 `thread_contexts` 中核对。阈值统一由[共享运行配置](../configs/runtime/host-runtime-v1.json)管理，本地与云端必须一致。
 
 Thread 是持久记录，不为每个打开的对话预留 worker。执行资源按 Attempt 分配；租约控制执行权。一个可见页面保持一个事件订阅；切走 Thread、关闭页面或切到后台时关闭订阅，返回时补读事件。空闲订阅逐步降低查询频率，最长间隔 2 秒，每 15 秒发送心跳；每次数据库操作后释放连接。旧 `/old` 会话的容量和闲置回收仍由兼容 host 管理。
 
 临时网络或服务更新中断连接时，App 自动重连，重试间隔为 1、2、4、8、15 秒，上限 15 秒；认证或永久请求错误不持续重试。重连恢复快照和事件光标。未知提交结果只核对原始命令及幂等键，不生成重复指令；已失败或中断的 AI 执行仍需用户明确重试。当前浏览器会话保存每个 Thread 的草稿和最多一个待确认命令，按 API 原点和认证会话隔离；草稿上限 16000 字符，待确认命令上限 64 KiB。浏览器禁止存储时保留内存草稿，但整页刷新无法保证恢复。
 
-消息首次打开只读最近一页，点击「加载更早消息」读取历史，点击「回到最新消息」回到当前对话。页面最多显示 50 条消息，浏览器事件缓存上限为 1024 条或 8 MiB；单条事件仍受 API 的事件大小限制。当前电网视图通过同一 Model Context 的受限源事件投影恢复，不从旧模型借用图或证据。这些限制不删除服务端历史，也不改变 Kernel 的模型上下文或当前运行证据准入。
+消息首次打开只读最近一页，点击小型文字入口「查看之前的对话」读取当前 Thread 的较早内容，点击「返回最新对话」回到最新内容。页面最多显示 50 条消息，浏览器事件缓存上限为 1024 条或 8 MiB；单条事件仍受 API 的事件大小限制。当前电网视图通过同一 Model Context 的受限源事件投影恢复，不从旧模型借用图或证据。这些限制不删除服务端历史，也不改变 Kernel 的模型上下文或当前运行证据准入。
 
 模型目录在打开前检查完整拓扑的可用性；超出容量、拓扑数据无效或模型服务未就绪的选项显示原因并禁用，服务端也拒绝这些切换。指令拒绝、执行失败和拓扑不可用均显示原因、下一步操作及安全诊断代码；输入草稿和已完成回答保留。当前完整操作视图的上限为 10,000 个母线、20,000 条支路和 4 MiB，不截断模型。较大事件按字节分页，刷新仍恢复完整底图；普通事件仍受 64 KiB 限制。
 
@@ -148,7 +148,7 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 
 本地 Compose 与 cloud-dev 的普通工作台共用 [`host-runtime-v1.json`](../configs/runtime/host-runtime-v1.json) 和同一个启动器。配置契约固定 Provider、模型、应用角色与启动依赖；环境仅提供数据库、存储、域名、凭据与容量。API 等待两个 worker 就绪，运行中的模型目录与指令准入实时更新 worker 健康状态。配置冲突会在启动前失败，日志只显示配置项。部署时比较三角色的 `/app/.capstone-agent/host-runtime.json` 与本地验收记录，契约和制品哈希必须一致，再验收真实 App、Provider 与证据。专项 M11 脚本验证需显式设置 `CAPSTONE_RUNTIME_PROFILE=`，不得作为普通工作台的验收记录。
 
-镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、创建与命令幂等键、事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。worker 对等待下一条指令的会话计时，默认 600 秒；设置 `CAPSTONE_SESSION_IDLE_SECONDS` 可在 60–86400 秒间调整。本轮指令或报告仍在执行时不计时。到期后会话标记为「会话已超时」、释放 worker 名额，已提交的答案和证据保留，旧会话不可续交。名额已满且有新会话排队至少 1 秒时，worker 会从所有副本持有的会话中原子选取已空闲至少 30 秒的最久会话；正在计算或整理报告的会话不会被淘汰。访客可重置已中断的案例重新开始。刷新页面会重新取得演示凭证、回到该案例最近的运行状态；已超时或让位的会话可回看，但不会重连计算进程。`CAPSTONE_WORKER_MAX_SESSIONS` 默认每实例 8 个，可按内存实测在 1–64 间调整；云端通过增加 worker 副本扩容，每实例仍有独立上限。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
+镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、创建与命令幂等键、事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。worker 对等待下一条指令的旧式会话计时；空闲期限由[共享运行配置](../configs/runtime/host-runtime-v1.json)中的 `CAPSTONE_SESSION_IDLE_SECONDS` 决定，可在 60–86400 秒间调整。本轮指令或报告仍在执行时不计时。到期后会话标记为「会话已超时」、释放 worker 名额，已提交的答案和证据保留，旧会话不可续交。名额已满且有新会话排队至少 1 秒时，worker 会从所有副本持有的会话中原子选取已空闲至少 30 秒的最久会话；正在计算或整理报告的会话不会被淘汰。访客可重置已中断的案例重新开始。刷新页面会重新取得演示凭证、回到该案例最近的运行状态；已超时或让位的会话可回看，但不会重连计算进程。`CAPSTONE_WORKER_MAX_SESSIONS` 默认每实例 8 个，可按内存实测在 1–64 间调整；云端通过增加 worker 副本扩容，每实例仍有独立上限。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 
 云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 API、按需唤醒的 worker、PostgreSQL、私有 S3 bucket，并可托管静态 App。两个后端角色须基于同一已验证源码修订，并共享账本/工件配置；可拉取时优先固定同一镜像 digest。Railway Hobby 无法配置私有镜像仓库凭证，当前演示部署使用同源代码构建。Railway 和本地 Compose 的 API 通过 `CAPSTONE_WORKER_WAKE_URL` 访问 worker 私有 HTTP 端点；Cloud Run 未设置该变量时保持原有轮询模式。App 构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，服务端为 `/old` 原案例页发放演示凭证；关闭该开关时原案例页显示连接失败与重试，私有操作员令牌仍可通过 API 使用。首页智能体对话由独立的 `CAPSTONE_THREAD_OPEN_ACCESS` 开关控制。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
 

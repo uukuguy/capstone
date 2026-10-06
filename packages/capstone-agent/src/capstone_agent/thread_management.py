@@ -14,7 +14,7 @@ def validate_limit(limit: int, maximum: int) -> None:
         raise ThreadProtocolError("page limit is invalid")
 
 
-def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bool, title: str | None = None) -> dict[str, Any]:
+def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bool) -> dict[str, Any]:
     return {
         "thread_id": snapshot.thread_id,
         "model_id": snapshot.active_model_context.model_id,
@@ -22,7 +22,6 @@ def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bo
         "created_at": created_at,
         "archived": archived,
         "last_event_seq": snapshot.last_event_seq,
-        "title": title,
     }
 
 

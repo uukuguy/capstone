@@ -18,6 +18,12 @@ def test_worker_health_reports_fixed_runtime_identity() -> None:
         }
 
 
+def test_worker_health_exposes_resource_counts_without_thread_data():
+    with TestClient(create_wake_app(threading.Event(), 'operator-secret',
+                                   resource_status=lambda: {'retained': 2, 'active': 1})) as client:
+        assert client.get('/health').json()['thread_contexts'] == {'retained': 2, 'active': 1}
+
+
 def test_private_wake_requires_derived_token() -> None:
     wake = threading.Event()
     with TestClient(create_wake_app(wake, "operator-secret")) as client:

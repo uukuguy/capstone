@@ -70,10 +70,10 @@ def _claim(*, profiles=(("static", "1.0.0"),), thread_id="thr_1", run_id="run_1"
     )
 
 
-def _owner(log, *, second=None, first=None, seal=True):
+def _owner(log, *, second=None, first=None, seal=True, **limits):
     registry = ModelCapabilityRegistry()
     catalog = CapstoneModelCapabilityCatalog(registry)
-    owner = ModelCapabilityContextOwner(catalog)
+    owner = ModelCapabilityContextOwner(catalog, **limits)
     adapters = {"static": first or _Adapter(log)}
     if second is not None:
         adapters["extra"] = second
@@ -107,6 +107,50 @@ def test_prepares_exact_snapshot_and_reuses_run_context_across_attempts():
     assert log == ["contribution:static", "handle:static"]
     owner.close()
     assert len(log) == 2
+
+
+def test_idle_contexts_expire_and_can_be_prepared_again():
+    clock = [0.0]
+    owner, _ = _owner([], idle_seconds=10, clock=lambda: clock[0])
+    claim = _claim()
+    context = owner.acquire(claim)
+    clock[0] = 20
+    assert owner.sweep_idle() == 0  # Active work is protected.
+    owner.release(context)
+    clock[0] = 31
+    assert owner.sweep_idle() == 1
+    assert context.closed
+    assert owner.resource_counts() == {'retained': 0, 'active': 0}
+    restored = owner.acquire(claim)
+    assert restored is not context and restored.model_context == context.model_context
+    owner.release(restored)
+    owner.close()
+
+
+def test_context_capacity_evicts_idle_lru_and_never_active_work():
+    owner, _ = _owner([], max_contexts=2)
+    active = owner.acquire(_claim())
+    idle = owner.prepare(_claim(thread_id='thr_2', run_id='run_2'))
+    third = owner.acquire(_claim(thread_id='thr_3', run_id='run_3'))
+    assert idle.closed and not active.closed and not third.closed
+    with pytest.raises(RuntimeError, match='capacity'):
+        owner.acquire(_claim(thread_id='thr_4', run_id='run_4'))
+    assert owner.resource_counts() == {'retained': 2, 'active': 2}
+    owner.release(active)
+    owner.release(third)
+    owner.close()
+
+
+def test_many_abandoned_threads_keep_constant_context_capacity():
+    owner, _ = _owner([], max_contexts=3)
+    previous = []
+    for index in range(100):
+        context = owner.acquire(_claim(thread_id=f'thr_{index}', run_id=f'run_{index}'))
+        owner.release(context)
+        previous.append(context)
+        assert owner.resource_counts()['retained'] <= 3
+    assert sum(not context.closed for context in previous) == 3
+    owner.close()
 
 
 def test_empty_selection_does_not_apply_new_catalog_defaults():

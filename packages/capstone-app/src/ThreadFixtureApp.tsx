@@ -214,7 +214,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
-    if (readOnly) { setNotice('对话已归档，请在会话列表恢复后继续。'); return }
+    if (readOnly) { setNotice('这段对话已归档，可新建对话继续。'); return }
     const latest = store.state.snapshot
     if (!latest) return
     const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
@@ -388,7 +388,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {sessionNotice && <div className="thread-inline-error" role="alert">{sessionNotice}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
-          {readOnly && <div className="thread-inline-notice" role="status">对话已归档，历史仍可查看。请在会话列表中恢复后继续。</div>}
+          {readOnly && <div className="thread-inline-notice" role="status">这段对话已归档，可新建对话继续。</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}

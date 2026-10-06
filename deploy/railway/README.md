@@ -143,7 +143,7 @@ bucket variable references or protected values in the project UI:
 | `CAPSTONE_HOSTED_APPLICATION` | `capstone` for the unified API; the selected family for each worker |
 | `CAPSTONE_PUBLIC_PROVIDER` | Optional private Provider default |
 | `CAPSTONE_PUBLIC_MODEL` | Optional private Provider model default |
-| `CAPSTONE_SESSION_IDLE_SECONDS` | `600` on the worker; release a session after ten minutes waiting for the next instruction |
+| `CAPSTONE_SESSION_IDLE_SECONDS` | Selected by the [shared runtime contract](../../configs/runtime/host-runtime-v1.json); release idle compatibility sessions |
 | `CAPSTONE_WORKER_MAX_SESSIONS` | `12` for the measured public demo on one worker replica; tune after measuring memory and latency |
 | `PORT` | Explicit worker listen port; cloud-dev uses `8080`, local Compose uses `8766` |
 | `CAPSTONE_WORKER_WAKE_URL` | Worker private origin with the effective worker `PORT`; cloud-dev uses `http://capstone-worker.railway.internal:8080` on API and worker |

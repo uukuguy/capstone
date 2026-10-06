@@ -4,6 +4,35 @@
 
 **Goal:** Let users create and manage Threads from the App, recover connections and drafts, and read long conversations without unbounded initial loading.
 
+## Current scope: 2026-10-06 11:24
+
+The user defers the user system and history-session management. Remove the
+session list, user association and automatic title requests from this delivery.
+Keep the active Thread workspace, a small New conversation action, draft/reconnect
+recovery and durable messages/results/evidence. Existing stored data is retained.
+For earlier messages inside the active conversation, use a small text action
+“查看之前的对话”; remove the large paging button and implementation-count banner.
+All changes must pass the local rebuilt App before another cloud release.
+
+Deferred work, with no scheduled release:
+
+- [ ] Backend user ownership derived from the active Thread, with no browser identity registry.
+- [ ] User-scoped recent/archived conversations, switching, archive and restore.
+- [ ] Short conversation titles generated from dialogue by LLM, with persistence and failure isolation.
+- [ ] A separate UI review before enabling these controls.
+- [ ] A retention contract for empty Threads and expired history/artifacts, with explicit preservation and deletion rules.
+
+The immediate priority is server resource lifecycle: bounded model-context
+cache, idle eviction, active-work protection, runtime deadlines, bounded live
+connections and constant-size wake throttling. Keep the thresholds in the shared
+runtime contract so local/cloud startup remains aligned. Acceptance must show
+zero retained contexts after idle expiry with the page still open, and an old
+Thread must execute again after resource preparation. User/history UI remains deferred.
+
+The completed checks below record earlier iterations. They do not authorize
+shipping the deferred features. The interrupted cloud-dev rollout must return
+its workers to the last verified images; API/App were not updated in that rollout.
+
 **Architecture:** Capstone owns durable Thread metadata, history pagination and execution leases. The App owns navigation, bounded message presentation and browser-session drafts. A Thread is a durable record, not a reserved worker; runtime execution remains per Attempt.
 
 **Tech Stack:** Existing FastAPI, PostgreSQL, React, assistant-ui, TypeScript and Vitest. No new service or dependency.
@@ -111,10 +140,10 @@ its list to the right of the header and keeps touch targets at least44px.
 Mobile controls retain accessible names while hiding their text; narrow screens
 hide the secondary project link. No API, session or authority contract changes.
 
-- [ ] Integrate the session menu into the shared header and remove its standalone bar.
-- [ ] Run the existing App behavior tests, TypeScript and production build.
-- [ ] Rebuild the local services; inspect the real App at desktop,390px and320px.
-- [ ] Verify new/switch/archive/restore and drafts still work through the real API.
+- [x] Integrate the session menu into the shared header and remove its standalone bar.
+- [x] Run the existing App behavior tests, TypeScript and production build.
+- [x] Rebuild the local services; inspect the real App at desktop,390px and320px.
+- [x] Verify new/switch/archive/restore and drafts still work through the real API.
 - [ ] Commit only owned changes and deploy the tested App to cloud-dev; inspect
   the actual served header, menu and mobile layout before reporting acceptance.
 - [ ] Ordinary Provider acceptance and human approval continue to gate demo.
@@ -131,15 +160,65 @@ ThreadLiveEntry waits for this mode before creating a client or a Thread,
 preventing duplicate creation under StrictMode. Open mode sends no token;
 operator mode and older hosts still support their existing entry.
 
-- [ ] Add and verify failing API/settings and no-login StrictMode regressions.
-- [ ] Implement hosting/CLI/API mode and App discovery, connection error/retry.
-- [ ] Rebuild current local source and verify from an empty browser session.
-- [ ] Verify the reported catalog query and both authority families locally,
+- [x] Add and verify failing API/settings and no-login StrictMode regressions.
+- [x] Implement hosting/CLI/API mode and App discovery, connection error/retry.
+- [x] Rebuild current local source and verify from an empty browser session.
+- [x] Verify the reported catalog query and both authority families locally,
   using only task-owned Threads and a bounded number of actual AI turns.
-- [ ] Complete integration/release gates, then one cloud-dev deployment and
+- [ ] Complete integration/release gates, deploy locally verified source to cloud-dev and
   limited actual App acceptance. Demo still requires user manual acceptance.
 
+Cloud9846d48 actual catalog and pandapower calculations pass. PyPSA opening
+exposes a30s Attempt lease interruption, so cloud acceptance remains pending.
+The local repair adds independent lifecycle renewal and preserves polling after
+a failed iteration; five blocked-phase regressions, lost-lease guards, direct
+Harness and an isolated PostgreSQL check cover it. The repaired source must
+pass a fresh local rebuild and App check before the next backend rollout.
+
+## Runtime configuration and startup parity
+
+The user requires application logic to be validated locally and cloud runtime
+configuration/startup to be locked independently. Cloud9cbdc13 exposes an API
+startup snapshot that keeps PyPSA unavailable after its worker becomes ready.
+Use live family-health callbacks and the shared versioned workbench profile.
+The launcher fixes selectors and role commands, waits for API dependencies and
+records secret-free contract/artifact hashes. Pin multi-platform base images;
+keep infrastructure and credentials environment-specific. A checked-in receipt
+comparison rejects stage, role, source/config/package/model drift. Upload each
+worker once and wait for current health/identity before API deployment.
+
+- [x] Reproduce stale availability and add memory/SQL service recovery regressions.
+- [x] Add shared launcher/profile and drift/Provider/dependency-wait checks.
+- [x] Finish current local rebuild, full release gates and real App recovery checks.
+- [ ] Compare exact local/cloud runtime receipts and perform actual cloud Thread acceptance.
+- [ ] Record final evidence and leave demo unchanged pending human acceptance.
+
 ## Acceptance boundaries
+
+## Browser session list and conversation titles
+
+The user rejects the global environment list, model IDs as conversation names,
+large buttons in the main brand header, and the low-value open/details controls.
+The user corrects browser-history scope: the backend owns a simple anonymous
+user and each Thread belongs to that user. A fresh page creates a user and its
+first Thread. New dialogue inherits the active Thread's user; list queries
+derive user scope from that active Thread. Refresh resumes the same Thread and
+user. The App needs no browser identity/history store and no login. Preserve
+legacy Threads with separate anonymous owners rather than inventing ownership.
+Move compact session controls into the conversation heading, remove open and
+details, show a bounded scroll list with model/time as secondary information,
+and preserve archive/restore, drafts and history. Close the panel on Escape
+or outside click. Use a backend, tool-free LLM request after the first successful
+turn to create a short title. Persist it once, with bounded input/timeout;
+title errors must not change the completed answer or its evidence. Existing
+unnamed Threads gain a title after their next successful turn.
+
+- [x] Verify anonymous user grouping, title persistence/failure isolation and controls locally.
+- [x] Rebuild local App/API/workers and inspect desktop/mobile real App.
+- [ ] Deploy the locally verified exact source to cloud-dev and inspect real App.
+- [ ] Finish retained-Thread cloud catalog/pandapower checks; demo needs human acceptance.
+
+## Acceptance boundaries (continued)
 
 An open browser retains one event subscription and its bounded UI state; it does not reserve a runtime worker. The API subscription currently polls the database; Task 3 must reduce idle polling and close abandoned subscriptions. Existing execution leases provide exclusivity, not a full user/session pool. The legacy `/old` session host's capacity and idle eviction remain compatibility behavior.
 

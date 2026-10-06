@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import threading
 import time
@@ -25,6 +26,7 @@ from capstone_agent.ledger import Conflict, Ledger, SessionRecord
 from capstone_agent.server import _CreateSession, _TurnInput
 from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
 from capstone_agent.thread_application import ThreadApplicationAssembly
+from capstone_agent.thread_streams import ThreadStreamBudget
 from capstone_agent.thread_protocol import ThreadProtocolError
 from capstone_agent.thread_service import (
     ThreadCreator,
@@ -88,14 +90,15 @@ def create_host_app(
         if preview_loader is not None or registry.resolve(application["application_id"]).preview_command
     }
     diagrams = CaseDiagramCache(diagram_cases, preview_loader or load_case_diagram)
-    last_wake: dict[str, float] = {}
+    last_wake = float('-inf')
     wake_lock = threading.Lock()
 
     def request_worker(session_id: str) -> None:
+        nonlocal last_wake
         if wake_worker is None:
             return
         with wake_lock:
-            if time.monotonic() - last_wake.get(session_id, float("-inf")) < 2:
+            if time.monotonic() - last_wake < 2:
                 return
         try:
             result = wake_worker()
@@ -103,7 +106,7 @@ def create_host_app(
             return
         if result is not False:
             with wake_lock:
-                last_wake[session_id] = time.monotonic()
+                last_wake = time.monotonic()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -115,6 +118,9 @@ def create_host_app(
 
     app = FastAPI(title="capstone-agent", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
+    app.add_middleware(ThreadStreamBudget,
+                       max_streams=int(os.environ.get('CAPSTONE_THREAD_MAX_STREAMS', '32')),
+                       per_thread=int(os.environ.get('CAPSTONE_THREAD_STREAMS_PER_THREAD', '2')))
 
     @app.middleware("http")
     async def access(request: Request, call_next):
@@ -203,13 +209,10 @@ def create_host_app(
         def list_threads(request: Request,
                          before: Annotated[str | None, Query(max_length=64)] = None,
                          limit: Annotated[int, Query(ge=1, le=50)] = 20,
-                         archived: bool = False,
-                         current_thread_id: Annotated[str | None, Query(max_length=64)] = None):
+                         archived: bool = False):
             require_private_thread(request)
-            if thread_open_access and current_thread_id is None:
-                raise HTTPException(422, 'current_thread_id is required')
             try:
-                return thread_service.list_threads(before=before, limit=limit, archived=archived, current_thread_id=current_thread_id)
+                return thread_service.list_threads(before=before, limit=limit, archived=archived)
             except ThreadNotFound:
                 raise HTTPException(404, "thread cursor not found") from None
             except ThreadProtocolError as error:
@@ -234,7 +237,7 @@ def create_host_app(
         def get_thread_metadata(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                return thread_service.thread_metadata(thread_id)
+                return {"thread_id": thread_id, "archived": thread_service.is_archived(thread_id)}
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
@@ -268,7 +271,7 @@ def create_host_app(
                     body = await request.json()
                     if not isinstance(body, dict):
                         raise ThreadProtocolError("thread creation must be an object")
-                    unknown = set(body) - {"model_id", "parent_thread_id"}
+                    unknown = set(body) - {"model_id"}
                     if unknown:
                         raise ThreadProtocolError(
                             "thread creation has unknown field: " + ", ".join(sorted(unknown)),
@@ -278,12 +281,7 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    parent_thread_id = body.get('parent_thread_id')
-                    if parent_thread_id is not None and (not isinstance(parent_thread_id, str) or not parent_thread_id or len(parent_thread_id) > 64):
-                        raise ThreadProtocolError('parent_thread_id is invalid')
-                    return thread_creator.create(model_id, parent_thread_id=parent_thread_id).to_document()
-                except ThreadNotFound:
-                    raise HTTPException(404, 'parent thread not found') from None
+                    return thread_creator.create(model_id).to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
                 except (KeyError, ValueError) as error:
