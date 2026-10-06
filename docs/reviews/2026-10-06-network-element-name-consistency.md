@@ -98,3 +98,13 @@ worker families on
 `sha256:76af6e66fca0b89a19c674826cc7142e9fce84fc5e4b12245cbdccd4328b216d`.
 The rebuild log is
 `runs/topology-names-20261006/local-pandapower-prefix-rebuild.log`.
+
+## Release gate baseline
+
+The user authorized cloud-development verification and demo promotion on
+2026-10-07. The complete test suite and 42 end-to-end checks passed. The first
+`make validate` run stopped because the protected simulator digest still named
+the old tree. The current simulator tree contains the reviewed naming repair
+and its tests, committed in `3adca04`. The gate baseline now names that tree;
+the protected path list and all other digests remain unchanged. The original
+failure log remains in `runs/topology-names-release-20261007/validate.log`.
