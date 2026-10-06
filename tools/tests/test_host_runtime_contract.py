@@ -33,7 +33,7 @@ def test_local_and_cloud_select_same_runtime(application, command):
 @pytest.mark.parametrize("key,value", [
     ("CAPSTONE_PUBLIC_MODEL", "different-model"),
     ("CAPSTONE_FEDERATED_CATALOG_CONTEXT", "false"),
-    ("CAPSTONE_DEPLOYMENT_STAGE", "user-trial"),
+    ("CAPSTONE_DEPLOYMENT_STAGE", "production"),
     ("CAPSTONE_THREAD_VALIDATION", "m11"),
     ("GRID_AGENT_LLM_BASE_URL", "https://different.invalid"),
 ])
@@ -51,6 +51,13 @@ def test_worker_requires_provider_but_api_does_not():
         RUNTIME.select_runtime(ROOT, selected, "worker")
     selected["CAPSTONE_HOSTED_APPLICATION"] = "capstone"
     RUNTIME.select_runtime(ROOT, selected, "api")
+
+
+def test_trial_promotion_can_select_the_same_runtime_without_source_changes():
+    local = RUNTIME.select_runtime(ROOT, environment(), "api")
+    trial = RUNTIME.select_runtime(ROOT, environment(stage="user-trial"), "api")
+    assert local[:3] == trial[:3]
+    assert local[3]["CAPSTONE_PUBLIC_MODEL"] == trial[3]["CAPSTONE_PUBLIC_MODEL"]
 
 
 @pytest.mark.parametrize("application,command", [("capstone", "worker"), ("pandapower", "api"), ("api", "worker"), ("api", "api"), ("unknown", "worker")])

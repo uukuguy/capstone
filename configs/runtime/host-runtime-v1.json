@@ -1,7 +1,7 @@
 {
   "schema": "capstone-host-runtime/1",
   "profile": "capstone-workbench-v1",
-  "stages": ["local", "cloud-development"],
+  "stages": ["local", "cloud-development", "user-trial"],
   "shared_environment": {
     "CAPSTONE_FEDERATED_CATALOG_CONTEXT": "true",
     "CAPSTONE_PUBLIC_PROVIDER": "deepseek",
