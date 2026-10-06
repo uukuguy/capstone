@@ -22,8 +22,11 @@ export default function ThreadSessionMenu({ transport, threadId, onNew, onSelect
   const [error, setError] = useState<string | null>(null)
   const [revision, refresh] = useState(0)
   const controller = useRef<AbortController | null>(null)
+  const mutation = useRef<AbortController | null>(null)
   const menu = useRef<HTMLElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => () => mutation.current?.abort(), [])
 
   useEffect(() => {
     if (!open) return
@@ -59,8 +62,10 @@ export default function ThreadSessionMenu({ transport, threadId, onNew, onSelect
   }
 
   async function toggle(row: ThreadDescriptor) {
-    const abort = controller.current
-    if (busy || !abort || abort.signal.aborted) return
+    if (busy) return
+    // Closing the list cancels reads, but an admitted archive/restore must
+    // still update the current conversation's Composer state.
+    const abort = new AbortController(); mutation.current = abort
     setBusy(true); setError(null)
     try {
       const result = await transport.archiveThread(row.threadId, !row.archived, abort.signal)

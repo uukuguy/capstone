@@ -48,3 +48,23 @@ it('requests the active Thread user scope and closes with Escape', async () => {
   expect(screen.queryByRole('region', { name: '会话列表' })).toBeNull()
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '会话列表' }))
 })
+
+it('keeps the accepted archive change in sync when the panel closes during submission', async () => {
+  const row = { thread_id: 'thr_pending', model_id: 'ieee39', implementation_family: 'pandapower', created_at: '2026-10-06T00:00:00Z', last_event_seq: 0, archived: false }
+  let finish: () => void = () => {}
+  const fetcher = vi.fn<typeof fetch>(async (_input, init) => {
+    if (init?.method === 'POST') {
+      await new Promise<void>((resolve) => { finish = resolve })
+      if (init.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      return new Response(JSON.stringify({ ...row, archived: true }))
+    }
+    return new Response(JSON.stringify({ schema: 'capstone-thread-list/1', threads: [row], next_before_thread_id: null, has_more: false }))
+  })
+  const onArchived = vi.fn()
+  render(<ThreadSessionMenu transport={new HttpThreadTransport('', '', fetcher)} threadId="thr_pending" creating={false} onNew={vi.fn()} onSelect={vi.fn()} onArchived={onArchived} />)
+  fireEvent.click(screen.getByRole('button', { name: '会话列表' }))
+  fireEvent.click(await screen.findByRole('button', { name: '归档 thr_pending' }))
+  fireEvent.keyDown(document, { key: 'Escape' })
+  finish()
+  await waitFor(() => expect(onArchived).toHaveBeenCalledWith(true))
+})
