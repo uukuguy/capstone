@@ -8,7 +8,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _run_entrypoint(tmp_path: Path, role: str, application: str | None) -> list[str]:
+def _run_entrypoint(tmp_path: Path, role: str, application: str | None,
+                    profile: str | None = None) -> list[str]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir(parents=True)
     calls = tmp_path / "calls"
@@ -28,6 +29,10 @@ def _run_entrypoint(tmp_path: Path, role: str, application: str | None) -> list[
         environment.pop("CAPSTONE_HOSTED_APPLICATION", None)
     else:
         environment["CAPSTONE_HOSTED_APPLICATION"] = application
+    if profile is None:
+        environment.pop("CAPSTONE_RUNTIME_PROFILE", None)
+    else:
+        environment["CAPSTONE_RUNTIME_PROFILE"] = profile
     subprocess.run(
         ["sh", str(ROOT / "deploy" / "entrypoint.sh"), role],
         cwd=ROOT,
@@ -76,3 +81,11 @@ def test_federated_api_and_pinned_family_workers(tmp_path: Path) -> None:
                             env=os.environ | {"CAPSTONE_HOSTED_APPLICATION": "capstone"},
                             capture_output=True)
     assert result.returncode == 64
+
+
+def test_versioned_workbench_profile_uses_one_validated_launcher(tmp_path: Path) -> None:
+    for role, application in [("api", "capstone"), ("worker", "pandapower"), ("worker", "pypsa")]:
+        assert _run_entrypoint(tmp_path / application, role, application,
+                               "capstone-workbench-v1") == [
+            "run --no-sync --project /app/packages/capstone-agent python /app/deploy/launch_host_runtime.py " + role,
+        ]

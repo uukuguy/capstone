@@ -7,6 +7,24 @@ import pytest
 from capstone_agent.federated_hosted import load_federated_catalog_documents
 
 
+def test_hosted_assembly_retains_health_probe_instead_of_its_startup_result(monkeypatch):
+    from capstone_agent.federated_hosted import build_federated_thread_application
+
+    manifests = [
+        _manifest("pandapower", "ieee39", "pandapower-static-analysis"),
+        _manifest("pypsa", "two-bus", "pypsa-business-cases"),
+    ]
+    monkeypatch.setattr("capstone_agent.federated_hosted.load_federated_catalog_documents", lambda *_args: manifests)
+    ready = {"pandapower"}
+    monkeypatch.setattr("capstone_agent.federated_hosted._available_families", lambda: frozenset(ready))
+    assembly = build_federated_thread_application()
+    probe = assembly.available_families
+    assert callable(probe)
+    assert probe() == frozenset({"pandapower"})
+    ready.add("pypsa")
+    assert probe() == frozenset({"pandapower", "pypsa"})
+
+
 def _manifest(family: str, model_id: str, profile_id: str) -> dict[str, object]:
     return {
         "schema": "capstone-federated-catalog/1",

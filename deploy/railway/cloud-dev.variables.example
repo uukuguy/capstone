@@ -4,6 +4,7 @@
 DATABASE_URL=<set-in-railway>
 CAPSTONE_OPERATOR_TOKEN=<set-in-railway>
 CAPSTONE_HOSTED_APPLICATION=capstone
+CAPSTONE_RUNTIME_PROFILE=capstone-workbench-v1
 CAPSTONE_DEPLOYMENT_STAGE=cloud-development
 # Temporary acceptance only, on API and both workers; remove after validation.
 # CAPSTONE_THREAD_VALIDATION=m11

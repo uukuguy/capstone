@@ -226,6 +226,7 @@ test-makefile-application:
 
 test-local-rebuild:
 	bash tools/test_local_rebuild.sh
+	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py -q
 
 test-verification-targets:
 	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q

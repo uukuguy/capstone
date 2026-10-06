@@ -1,0 +1,49 @@
+{
+  "schema": "capstone-host-runtime/1",
+  "profile": "capstone-workbench-v1",
+  "stages": ["local", "cloud-development"],
+  "shared_environment": {
+    "CAPSTONE_FEDERATED_CATALOG_CONTEXT": "true",
+    "CAPSTONE_PUBLIC_PROVIDER": "deepseek",
+    "CAPSTONE_PUBLIC_MODEL": "deepseek-flash",
+    "CAPSTONE_ARTIFACT_BACKEND": "s3",
+    "CAPSTONE_SESSION_IDLE_SECONDS": "600",
+    "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": "/opt/capstone-models"
+  },
+  "roles": {
+    "api": {
+      "application": "capstone",
+      "project": "capstone-agent",
+      "module": "capstone_agent.federated_hosted",
+      "environment": {"CAPSTONE_THREAD_OPEN_ACCESS": "true"}
+    },
+    "pandapower": {
+      "application": "pandapower",
+      "project": "grid-agent",
+      "module": "grid_agent.hosted_worker",
+      "family": "pandapower",
+      "environment": {}
+    },
+    "pypsa": {
+      "application": "pypsa",
+      "project": "pypsa-agent",
+      "module": "pypsa_agent.hosted_worker",
+      "family": "pypsa",
+      "environment": {}
+    }
+  },
+  "startup": {
+    "required_families": ["pandapower", "pypsa"],
+    "timeout_seconds": 180,
+    "probe_timeout_seconds": 2,
+    "retry_seconds": 1
+  },
+  "environment_only": [
+    "DATABASE_URL", "CAPSTONE_OPERATOR_TOKEN", "CAPSTONE_ARTIFACT_BUCKET",
+    "CAPSTONE_S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+    "AWS_DEFAULT_REGION", "DEEPSEEK_API_KEY", "CAPSTONE_ALLOWED_HOSTS",
+    "CAPSTONE_ALLOWED_ORIGINS", "CAPSTONE_FAMILY_HEALTH_URLS",
+    "CAPSTONE_WORKER_WAKE_URL", "CAPSTONE_DEPLOYMENT_STAGE"
+  ],
+  "performance_environment": ["PORT", "CAPSTONE_WORKER_MAX_SESSIONS"]
+}

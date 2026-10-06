@@ -30,6 +30,8 @@ def test_application_catalog_context_keeps_cross_family_models_visible() -> None
     assert "Regional six-bus (regional-six-bus)" in rendered
     assert "family=pypsa" in rendered
     assert "Do not claim that another family has no models" in rendered
+    assert "Current tool scope does not determine application-wide availability" in rendered
+    assert "Only an explicit worker-unavailable catalog entry" in rendered
 
 
 def test_each_fresh_prompt_names_the_bound_model_and_authority_context():

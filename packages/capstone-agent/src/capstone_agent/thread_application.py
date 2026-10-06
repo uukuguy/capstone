@@ -21,6 +21,7 @@ from .model_capability import CapstoneModelCapabilityCatalog
 from .thread_catalog import AuthorityThreadModelCatalog
 from .thread_service import (
     AttemptClaim,
+    FamilyAvailability,
     ThreadCreator,
     ThreadCapabilityCatalog,
     ThreadModelCatalog,
@@ -165,7 +166,7 @@ class ThreadApplicationAssembly:
     runtime_capabilities: RuntimeCapabilityRegistry | None = None
     turn_router: TurnRouter | None = None
     ordinary_conversation_enabled: bool = True
-    available_families: frozenset[str] | None = None
+    available_families: FamilyAvailability = None
     catalog_context: Mapping[str, object] | None = None
     network_projection_factory: Callable[
         [AttemptClaim, PreparedModelCapabilityContext],
@@ -210,7 +211,7 @@ class ThreadApplicationAssembly:
             raise TypeError("Thread application turn router is invalid")
         if type(self.ordinary_conversation_enabled) is not bool:
             raise TypeError("ordinary conversation policy is invalid")
-        if self.available_families is not None and any(
+        if self.available_families is not None and not callable(self.available_families) and any(
             not isinstance(family, str) or not family.strip()
             for family in self.available_families
         ):
@@ -229,7 +230,7 @@ class ThreadApplicationAssembly:
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
-        available_families: frozenset[str] | None = None,
+        available_families: FamilyAvailability = None,
         catalog_context: Mapping[str, object] | None = None,
     ) -> "ThreadApplicationAssembly":
         """Build an assembly from application-owned Authority and Pi seams.
@@ -270,7 +271,7 @@ class ThreadApplicationAssembly:
         runtime_capabilities: RuntimeCapabilityRegistry | None = None,
         turn_router: TurnRouter | None = None,
         ordinary_conversation_enabled: bool = True,
-        available_families: frozenset[str] | None = None,
+        available_families: FamilyAvailability = None,
         catalog_context: Mapping[str, object] | None = None,
     ) -> "ThreadApplicationAssembly":
         """Build one application assembly over several family adapters.

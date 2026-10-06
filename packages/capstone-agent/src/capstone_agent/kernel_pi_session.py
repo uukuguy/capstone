@@ -312,6 +312,8 @@ def _render_application_catalog_context(
         "## Capstone registered model catalog (application-owned metadata)",
         "Use this bounded catalog for model availability questions. It covers all registered implementation families, not only the active Domain Pack.",
         "Do not claim that another family has no models merely because the current model uses a different family. To execute work on another family, the user must select or switch to that model first.",
+        "Current tool scope does not determine application-wide availability. Domain tools expose the current binding; their model list or context.open limits do not make other registered models unavailable. Model selection and switching belong to the application, through its model control or an opening instruction.",
+        "Only an explicit worker-unavailable catalog entry supports an unavailable-worker claim. If no worker health is supplied, do not infer it from the active model or its tools. Describe the required model switch instead of saying the other family cannot run.",
     ]
     default_model = catalog.get("default_model_id")
     if isinstance(default_model, str) and default_model:

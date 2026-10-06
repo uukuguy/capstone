@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+if [ -n "${CAPSTONE_RUNTIME_PROFILE:-}" ]; then
+  exec uv run --no-sync --project /app/packages/capstone-agent python /app/deploy/launch_host_runtime.py "${1:-}"
+fi
+
 application="${CAPSTONE_HOSTED_APPLICATION:-pandapower}"
 
 case "${application}:${1:-}" in

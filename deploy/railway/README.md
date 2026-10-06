@@ -56,9 +56,27 @@ Use these roles only in `capstone-cloud-dev`:
 
 Set `PORT=8080` for all backend roles. Give workers no public domains. Keep
 one replica per worker and disable sleeping during Thread acceptance: Thread
-Attempts use polling. Deploy both workers before the API, whose catalog records
-family availability at startup. Use the two private origins from
+Attempts use polling. Wait for both new worker deployments to succeed and pass
+health and artifact checks before deploying the API. Its catalog refreshes
+family availability on each catalog or admission check. Use the two private origins from
 [`cloud-dev.variables.example`](cloud-dev.variables.example).
+
+Normal local Compose and cloud development select
+`CAPSTONE_RUNTIME_PROFILE=capstone-workbench-v1`. The versioned
+[`host-runtime-v1.json`](../../configs/runtime/host-runtime-v1.json) fixes shared
+runtime settings and role commands. The same launcher checks Provider presence
+on workers and waits for both family workers before API startup. Settings that
+conflict with the profile fail startup with the configuration key only.
+Infrastructure origins, database, storage, credentials and capacity remain
+environment values. Compare `/app/.capstone-agent/host-runtime.json` in all
+three roles against the local receipt: contract and logical artifact hashes
+must match. The artifact hash includes source, locks, installed Python package
+versions, the pinned build recipe and six model assets. It does not hash secrets
+or stage-specific infrastructure. A receipt proves alignment; actual App,
+Provider and evidence checks still gate acceptance.
+Save role-keyed receipt objects (`api`, `pandapower`, `pypsa`) and run
+`python deploy/verify_host_runtime.py local-receipts.json cloud-receipts.json`.
+Exit0 accepts matching receipts; any drift rejects alignment.
 
 For the bounded M11 acceptance, set `CAPSTONE_THREAD_VALIDATION=m11` and
 `CAPSTONE_DEPLOYMENT_STAGE=cloud-development` on all backend roles. This selects
@@ -67,7 +85,9 @@ Provider session. Unknown instructions fail. Private
 `GET /api/v1/validation/m11` must confirm both workers before the driver sends
 any Thread command. Public demo credentials cannot use this endpoint or Threads.
 
-First rebuild locally with these two opt-in variables in the command environment
+For this separate scripted validation mode, explicitly set
+`CAPSTONE_RUNTIME_PROFILE=` in both lanes; it is not the normal workbench
+profile. First rebuild locally with these opt-in variables in the command environment
 and `make capstone-local-rebuild`. Run `make validate-thread-m11` with
 `CAPSTONE_M11_API_ORIGIN` and `CAPSTONE_M11_OPERATOR_TOKEN` in protected environment
 state. The command writes bounded private receipts below `runs/capstone-m11`.
@@ -99,8 +119,9 @@ demo instead of rebuilding it for the trial environment.
 6. Roll back the demo to the previous verified revision when a release fails.
 
 The cloud-dev App uses `CAPSTONE_PUBLIC_DEMO=true` so its no-login flow can
-exercise the registered public cases. Keep its URL internal and use a separate
-Provider key and limits. Set `CAPSTONE_PUBLIC_DEMO=false` only for API-only or
+exercise the registered public cases. Keep its URL internal. Provider keys are
+separate by default; the current function-validation stage may use existing
+credentials as authorized by the user. Set `CAPSTONE_PUBLIC_DEMO=false` only for API-only or
 operator tests that do not run the App. The demo API uses
 `CAPSTONE_PUBLIC_DEMO=true`. Public credentials permit registered scripted
 sessions only. Optional `CAPSTONE_PUBLIC_PROVIDER` and `CAPSTONE_PUBLIC_MODEL`

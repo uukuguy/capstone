@@ -1,6 +1,6 @@
-FROM node:24.20.0-bookworm-slim AS node
+FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS node
 
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -19,6 +19,8 @@ COPY scripts/ scripts/
 COPY schemas/ schemas/
 COPY third-party-notices/ third-party-notices/
 COPY deploy/entrypoint.sh deploy/entrypoint.sh
+COPY deploy/launch_host_runtime.py deploy/launch_host_runtime.py
+COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
 COPY deploy/local-model-assets/ /opt/capstone-models/
 

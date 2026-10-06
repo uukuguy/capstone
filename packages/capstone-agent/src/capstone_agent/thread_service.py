@@ -7,6 +7,7 @@ Pi, DSH, Domain Packs, or authority internals.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import hashlib
 import json
 import re
@@ -50,6 +51,17 @@ from .thread_management import history_cursor, history_page, network_context_pag
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+FamilyAvailability = frozenset[str] | Callable[[], frozenset[str] | None] | None
+
+
+def _resolve_available_families(source: FamilyAvailability) -> frozenset[str] | None:
+    families = source() if callable(source) else source
+    if families is not None and (
+        not isinstance(families, frozenset)
+        or any(not isinstance(item, str) or not _IDENTIFIER.fullmatch(item) for item in families)
+    ):
+        raise ValueError("available implementation families are invalid")
+    return families
 _MAX_COMMAND_BYTES = 64 * 1024
 _MAX_EVENT_BYTES = 64 * 1024
 _COMMAND_FIELDS = frozenset({
@@ -617,7 +629,7 @@ class InMemoryThreadService:
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
         self._catalog_context: Mapping[str, object] | None = None
-        self._available_families: frozenset[str] | None = None
+        self._available_families: FamilyAvailability = None
         self._events: list[EventEnvelope] = []
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
@@ -676,16 +688,17 @@ class InMemoryThreadService:
     def catalog(self, thread_id: str) -> dict[str, object]:
         with self._lock:
             self._check_thread(thread_id)
-            return _thread_catalog_document(self._model_catalog, self._capability_catalog, self._available_families)
+            return _thread_catalog_document(self._model_catalog, self._capability_catalog, _resolve_available_families(self._available_families))
 
-    def set_available_families(self, families: frozenset[str] | None) -> None:
-        if families is not None and any(not isinstance(item, str) or not _IDENTIFIER.fullmatch(item) for item in families):
-            raise ValueError("available implementation families are invalid")
+    def set_available_families(self, families: FamilyAvailability) -> None:
+        if not callable(families):
+            _resolve_available_families(families)
         with self._lock:
             self._available_families = families
 
     def is_family_available(self, family: str) -> bool:
-        return self._available_families is None or family in self._available_families
+        families = _resolve_available_families(self._available_families)
+        return families is None or family in families
 
     def context_lock(self, thread_id: str) -> str | None:
         with self._lock:
@@ -1825,7 +1838,7 @@ class PostgresThreadService:
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
         self._catalog_context: Mapping[str, object] | None = None
-        self._available_families: frozenset[str] | None = None
+        self._available_families: FamilyAvailability = None
 
     def set_capability_catalog(self, capability_catalog: ThreadCapabilityCatalog) -> None:
         if not callable(getattr(capability_catalog, "resolve", None)):
@@ -1898,15 +1911,16 @@ class PostgresThreadService:
 
     def catalog(self, thread_id: str) -> dict[str, object]:
         self.snapshot(thread_id)
-        return _thread_catalog_document(self._model_catalog, self._capability_catalog, self._available_families)
+        return _thread_catalog_document(self._model_catalog, self._capability_catalog, _resolve_available_families(self._available_families))
 
-    def set_available_families(self, families: frozenset[str] | None) -> None:
-        if families is not None and any(not isinstance(item, str) or not _IDENTIFIER.fullmatch(item) for item in families):
-            raise ValueError("available implementation families are invalid")
+    def set_available_families(self, families: FamilyAvailability) -> None:
+        if not callable(families):
+            _resolve_available_families(families)
         self._available_families = families
 
     def is_family_available(self, family: str) -> bool:
-        return self._available_families is None or family in self._available_families
+        families = _resolve_available_families(self._available_families)
+        return families is None or family in families
 
     def context_lock(self, thread_id: str) -> str | None:
         return _application_context_lock(self.snapshot(thread_id))

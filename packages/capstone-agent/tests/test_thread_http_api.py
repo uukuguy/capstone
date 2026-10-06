@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from capstone_agent.case_definition import CaseCatalog, CaseDefinition, CaseStepDefinition
@@ -9,7 +11,7 @@ from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.host_api import create_host_app
 from capstone_agent.session import WorkerRegistry
 from capstone_agent.thread_commands import ThreadCommandFactory
-from capstone_agent.thread_service import InMemoryThreadService
+from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadService
 from capstone_agent.thread_catalog import ThreadModelCatalogEntry
 
 
@@ -162,6 +164,35 @@ def test_thread_catalog_marks_family_without_a_ready_worker_unavailable() -> Non
     assert models["ieee39"]["available"] is True
     assert models["pypsa-example/scigrid_de"]["available"] is False
     assert models["pypsa-example/scigrid_de"]["unavailable_reason"] == "worker_unavailable"
+
+
+@pytest.mark.parametrize("backend", ["memory", "postgres"])
+def test_thread_catalog_and_family_gate_follow_worker_recovery_without_api_restart(backend, monkeypatch) -> None:
+    service = _service() if backend == "memory" else PostgresThreadService("postgresql://fixture")
+    if backend == "postgres":
+        monkeypatch.setattr(service, "snapshot", lambda _thread_id: _service().snapshot("thr_demo_39"))
+    service.set_model_catalog(_ModelCatalog())
+    ready = {"pandapower"}
+    service.set_available_families(lambda: frozenset(ready))
+
+    def available():
+        return {m["model_id"]: m["available"] for m in service.catalog("thr_demo_39")["models"]}
+
+    assert available()["pypsa-example/scigrid_de"] is False
+    assert not service.is_family_available("pypsa")
+    ready.add("pypsa")
+    assert available()["pypsa-example/scigrid_de"] is True
+    assert service.is_family_available("pypsa")
+    ready.remove("pypsa")
+    assert available()["pypsa-example/scigrid_de"] is False
+    assert not service.is_family_available("pypsa")
+
+
+def test_worker_availability_callback_rejects_invalid_projection() -> None:
+    service = _service()
+    service.set_available_families(lambda: frozenset({"unregistered/endpoint"}))
+    with pytest.raises(ValueError, match="implementation families"):
+        service.is_family_available("pypsa")
 
 
 def test_thread_catalog_is_exposed_over_the_authenticated_thread_route() -> None:

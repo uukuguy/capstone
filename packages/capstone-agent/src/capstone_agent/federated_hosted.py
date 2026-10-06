@@ -133,7 +133,7 @@ def build_federated_thread_application(
         },
         capability_catalog=catalog.capability_catalog,
         catalog_context=catalog.to_document(),
-        available_families=_available_families(),
+        available_families=_available_families,
     )
 
 
