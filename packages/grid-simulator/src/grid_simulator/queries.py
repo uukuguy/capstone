@@ -352,7 +352,7 @@ def _unit_for(field: str) -> str | None:
 
 def _bus_record(net: Any, revision_ref: str, index: int) -> BusRecord:
     row = net.bus.loc[index]
-    name = _name(row.get("name"), index)
+    name = element_name(row.get("name"), index)
     return BusRecord(
         asset_ref=asset_ref(revision_ref, "bus", index),
         kind="bus",
@@ -373,7 +373,7 @@ def _line_record(net: Any, revision_ref: str, index: int) -> BranchRecord:
         revision_ref,
         kind="line",
         index=index,
-        name=_name(row.get("name"), index),
+        name=element_name(row.get("name"), index),
         from_bus=from_bus,
         to_bus=to_bus,
         in_service=_bool_value(row.get("in_service", True)),
@@ -389,7 +389,7 @@ def _trafo_record(net: Any, revision_ref: str, index: int) -> BranchRecord:
         revision_ref,
         kind="trafo",
         index=index,
-        name=_name(row.get("name"), index),
+        name=element_name(row.get("name"), index),
         from_bus=int(row["hv_bus"]),
         to_bus=int(row["lv_bus"]),
         in_service=_bool_value(row.get("in_service", True)),
@@ -405,7 +405,7 @@ def _trafo3w_record(net: Any, revision_ref: str, index: int) -> BranchRecord:
         revision_ref,
         kind="trafo3w",
         index=index,
-        name=_name(row.get("name"), index),
+        name=element_name(row.get("name"), index),
         from_bus=int(row["hv_bus"]),
         to_bus=int(row["mv_bus"]),
         in_service=_bool_value(row.get("in_service", True)),
@@ -462,8 +462,9 @@ def _matches(row: dict[str, Any], namespace: str, identifier: str) -> bool:
     return False
 
 
-def _name(value: object, fallback_index: int) -> str:
-    if value is None:
+def element_name(value: object, fallback_index: int) -> str:
+    """Use the same model name in semantic tool records and operator labels."""
+    if value is None or isinstance(value, str) and not value:
         return str(fallback_index)
     missing = pd.isna(value)
     if isinstance(missing, (bool, np.bool_)) and bool(missing):

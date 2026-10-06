@@ -8,6 +8,19 @@ import type { LegacyNetworkView, NetworkDiagram, NetworkView as NetworkViewData 
 type Camera = { x: number; y: number; width: number; height: number }
 const FULL: Camera = { x: 0, y: 0, width: 1000, height: 600 }
 
+const ELEMENT_PREFIX = {
+  bus: 'bus', line: 'line', link: 'link', transformer: 'trafo',
+  trafo: 'trafo', trafo3w: 'trafo',
+} as const
+
+function elementLabel(kind: keyof typeof ELEMENT_PREFIX, name: string): string {
+  const prefix = ELEMENT_PREFIX[kind]
+  const lowerName = name.toLowerCase()
+  const existingPrefix = [prefix, kind].find((candidate) =>
+    lowerName === candidate || lowerName.startsWith(`${candidate} `))
+  return existingPrefix ? `${prefix}${name.slice(existingPrefix.length)}` : `${prefix} ${name}`
+}
+
 function taskCamera(view: LegacyNetworkView | NetworkDiagram, buses: PositionedBus[], focusIds: string[]): Camera {
   const byId = new Map(buses.map((bus) => [bus.id, bus]))
   const branchById = new Map(view.branches.map((branch) => [branch.id, branch]))
@@ -187,6 +200,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
           {geometry!.branches.map((branch) => {
             const from = byId.get(branch.from_bus), to = byId.get(branch.to_bus)
             if (!from || !to) return null
+            const label = elementLabel(branch.kind, branch.label)
             const value = values.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
             const historical = !highlighted && historyIds.has(branch.id)
@@ -214,11 +228,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {highlighted && <text x={centerX + 7 * visualScale} y={centerY - 9 * visualScale}
                 className="network-branch-label"
                 style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${4 * visualScale}px`,
-                  ...(value === undefined ? {} : { fill: color }) }}>{branch.label}</text>}
-              <title>{branch.label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
+                  ...(value === undefined ? {} : { fill: color }) }}>{label}</text>}
+              <title>{label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
           {nodes.map((bus) => {
+            const label = elementLabel('bus', bus.label)
             const value = values.get(bus.id)
             const highlighted = focusIds.includes(bus.id)
             const historical = !highlighted && historyIds.has(bus.id)
@@ -238,8 +253,8 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {(nodes.length <= 25 || highlighted || historical || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
                   className="network-node-label"
-                  style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{bus.label}</text>}
-              <title>{bus.label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
+                  style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{label}</text>}
+              <title>{label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
         </svg>

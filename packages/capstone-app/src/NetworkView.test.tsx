@@ -5,10 +5,53 @@ import ThreadModelPane, { projectActiveNetworkView } from './ThreadModelPane'
 import { parseThreadSnapshot } from './threadProtocol'
 import { threadUiFixture } from './threadUiFixtures'
 import { sampleDiagramView, sampleView } from './networkFixture'
+import { threadPreviewDiagram } from './threadModelDiagram'
 
 afterEach(cleanup)
 
 describe('operator network canvas', () => {
+  it.each(['gridctl', 'pypsamodelctl'])('renders model names without renumbering for %s', (source) => {
+    const view = structuredClone(sampleDiagramView)
+    view.diagram.model.source = source
+    view.diagram.coordinate_system = 'schematic'
+    view.diagram.buses = [
+      { id: '10', label: '11', x: 0, y: 0, vn_kv: 110 },
+      { id: '12', label: '13', x: 1, y: 1, vn_kv: 110 },
+    ]
+    view.diagram.branches = [{ id: 'line:0', kind: 'line', label: '11–13 circuit A', from_bus: '10', to_bus: '12' }]
+    view.layer.focus_ids = ['line:0']
+    render(<NetworkView view={view} modelName="Model" focusKey="names" />)
+    expect(Array.from(document.querySelectorAll('.network-node-label'), (node) => node.textContent)).toEqual(['bus 11', 'bus 13'])
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe('line 11–13 circuit A')
+    expect(Array.from(document.querySelectorAll('svg title'), (node) => node.textContent)).toContain('line 11–13 circuit A')
+  })
+
+  it.each([
+    ['line', '17', 'line 17'],
+    ['trafo', '0', 'trafo 0'],
+    ['trafo3w', '15', 'trafo 15'],
+    ['transformer', 'T13-central', 'trafo T13-central'],
+    ['link', 'electrolyser-0', 'link electrolyser-0'],
+    ['line', 'Line 17', 'line 17'],
+    ['line', 'line 17', 'line 17'],
+    ['transformer', 'Transformer T13-central', 'trafo T13-central'],
+    ['trafo3w', 'Trafo3W 15', 'trafo 15'],
+  ] as const)('shows the component type for %s named %s', (kind, name, expected) => {
+    const view = structuredClone(sampleDiagramView)
+    view.diagram.buses[0].label = 'Bus DE0'
+    view.diagram.branches[0].kind = kind
+    view.diagram.branches[0].label = name
+    render(<NetworkView view={view} modelName="Model" focusKey="type-labels" />)
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe(expected)
+    expect(Array.from(document.querySelectorAll('.network-node-label'), (node) => node.textContent)).toContain('bus DE0')
+    expect(Array.from(document.querySelectorAll('svg title'), (node) => node.textContent)).toContain(expected)
+  })
+
+  it('keeps the recorded IEEE39 preview aligned with registered bus names', () => {
+    expect(threadPreviewDiagram.buses.find((bus) => bus.id === '10')?.label).toBe('11')
+    expect(threadPreviewDiagram.buses.find((bus) => bus.id === '12')?.label).toBe('13')
+  })
+
   it('restores admitted full-result colors for a selected historical instruction', () => {
     const view = structuredClone(sampleDiagramView)
     view.layer.focus_ids = []
@@ -57,7 +100,7 @@ describe('operator network canvas', () => {
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '适配全图' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '回到当前任务' })).toBeTruthy()
-    expect(document.querySelector('.network-branch-label')?.textContent).toBe('Line 11')
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe('line 11')
   })
 
   it('allows manual zoom and returns focus when the step changes', () => {
@@ -90,10 +133,10 @@ describe('operator network canvas', () => {
     } }
     render(<NetworkView view={view} modelName="IEEE-39" focusKey="turn-2" />)
     const lines = [...document.querySelectorAll('svg g')].filter((group) =>
-      group.querySelector('title')?.textContent?.startsWith('Line '))
-    const high = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('Line 12'))
+      group.querySelector('title')?.textContent?.startsWith('line '))
+    const high = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('line 12'))
       ?.querySelectorAll('line')[1]?.getAttribute('stroke')
-    const low = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('Line 11'))
+    const low = lines.find((group) => group.querySelector('title')?.textContent?.startsWith('line 11'))
       ?.querySelectorAll('line')[1]?.getAttribute('stroke')
     const hue = (color: string | null | undefined) => Number(color?.match(/^hsl\((\d+) /)?.[1])
     expect(hue(low)).toBeLessThanOrEqual(18)

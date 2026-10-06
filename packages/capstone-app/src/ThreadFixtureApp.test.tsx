@@ -500,7 +500,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
     fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
     expect(await screen.findByText('已定位到 line:1')).toBeTruthy()
-    expect(document.querySelector('.network-branch-label')?.textContent).toBe('Line 1')
+    expect(document.querySelector('.network-branch-label')?.textContent).toBe('line 1')
   })
   it('discovers typed history pages and displays their own read-only context without sending commands', async () => {
     const fixture = historyFixture()

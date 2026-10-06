@@ -7,6 +7,7 @@ import math
 from typing import Any
 
 from .capabilities.schema import CapabilityContract
+from .queries import element_name
 
 
 class OperatorDiagramError(ValueError):
@@ -65,21 +66,21 @@ def operator_geometry(net: Any) -> dict[str, Any]:
     buses = []
     for index, row in net.bus.sort_index().iterrows():
         x, y = point(row.get("geo"))
-        name = row.get("name")
-        buses.append({"id": str(index), "label": name if isinstance(name, str) and name else f"Bus {index}",
+        name = element_name(row.get("name"), index)
+        buses.append({"id": str(index), "label": name,
                       "x": x, "y": y, "vn_kv": finite(row.get("vn_kv"))})
     branches = []
     for kind, table, ends in (("line", net.line, ("from_bus", "to_bus")), ("trafo", net.trafo, ("hv_bus", "lv_bus"))):
         for index, row in table.sort_index().iterrows():
-            name = row.get("name")
+            name = element_name(row.get("name"), index)
             branches.append({"id": f"{kind}:{index}", "kind": kind,
-                             "label": name if isinstance(name, str) and name else f"{kind} {index}",
+                             "label": name,
                              "from_bus": str(row[ends[0]]), "to_bus": str(row[ends[1]])})
     for index, row in net.trafo3w.sort_index().iterrows():
-        name = row.get("name")
+        name = element_name(row.get("name"), index)
         for terminal in ("mv", "lv"):
             branches.append({"id": f"trafo3w:{index}:{terminal}", "kind": "trafo3w",
-                             "label": (name if isinstance(name, str) and name else f"trafo3w {index}") + f" {terminal}",
+                             "label": name,
                              "from_bus": str(row["hv_bus"]), "to_bus": str(row[f"{terminal}_bus"])})
     ids = {bus["id"] for bus in buses}
     if not buses or any(branch["from_bus"] not in ids or branch["to_bus"] not in ids for branch in branches):
