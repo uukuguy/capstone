@@ -29,6 +29,15 @@ runtime contract so local/cloud startup remains aligned. Acceptance must show
 zero retained contexts after idle expiry with the page still open, and an old
 Thread must execute again after resource preparation. User/history UI remains deferred.
 
+Local acceptance for source `c68f6e1` passes: active contexts are pinned; both
+workers reach retained0/active0 with the App still open; the same Thread then
+completes a new catalog Turn and its history remains readable. Actual
+pandapower power flow and PyPSA dispatch/AC validation pass. Stream capacity is
+released on disconnect. Receipt: `runs/thread-lifecycle-local-acceptance.json`.
+Cloud-dev acceptance is pending because Railway API TLS connections fail before
+preparation. No new upload or cloud policy change occurred. Resume the verified
+source rollout after connectivity returns; demo still requires human acceptance.
+
 The completed checks below record earlier iterations. They do not authorize
 shipping the deferred features. The interrupted cloud-dev rollout must return
 its workers to the last verified images; API/App were not updated in that rollout.
