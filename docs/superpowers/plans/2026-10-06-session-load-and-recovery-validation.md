@@ -4,6 +4,10 @@ The user requests a demo that remains usable through repeated and concurrent
 work. Two load cases alone do not meet this requirement. Choose and execute the
 full user-use scope below without asking the user to design the checks.
 
+The trial target is eight CPUs and eight GB RAM. Verify basic user work and
+bounded queueing on the present two family workers. Do not add replicas or
+claim a larger simultaneous execution capacity without measurement.
+
 ## Execution order
 
 1. Extend validation on the rebuilt local API, workers and App.
@@ -12,11 +16,28 @@ full user-use scope below without asking the user to design the checks.
 4. Demo promotion follows cloud-dev and human acceptance. Demo deployment
    acceptance exercises the deployed release; it does not repeat local work.
 
-Demo source `c68f6e1` already passes deployment acceptance. Its four services,
+Demo source `c68f6e1` passes limited deployment smoke checks. Its four services,
 real model query and both families' calculations, public cases, old reports and
 evidence, refresh/drafts, small controls, mobile layout and idle cleanup pass.
 Receipt: `runs/demo-promotion-20261006/acceptance.json`. Keep that demo unchanged
 while the expanded local/cloud-dev validation runs.
+
+This receipt does not establish the broader basic-user acceptance below.
+
+## Execution result
+
+Expanded cloud-development automated acceptance passes at backend revision
+`4dfd79260fdf874ac26af67ccd94dcb8a93f6062`, after canonical local rebuild and
+local acceptance. All required rows have bounded evidence. Three and six
+simultaneous submissions both complete with two actual execution lanes;
+remaining submissions queue. Idle worker contexts return to zero with a page
+still open. Actual limits are eight CPUs and 8,000,000,000 memory bytes per
+backend container, not a shared project limit.
+
+The [result report](../../reviews/2026-10-06-session-use-validation.md) records
+fixes, deployments, metrics, receipts and scope limits. Destructive process
+faults remain local. Human cloud-development acceptance is pending; demo
+remains unchanged. Agent-owned debug browsers are closed after verification.
 
 ## Required coverage
 
