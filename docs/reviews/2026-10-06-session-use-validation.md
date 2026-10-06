@@ -125,5 +125,7 @@ sessions are closed after capture and the final idle check.
 See the [validation plan](../superpowers/plans/2026-10-06-session-load-and-recovery-validation.md)
 and [release lifecycle](../architecture/capstone-development-lifecycle.md).
 
-Human acceptance remains a prerequisite for a later demo promotion. No demo
-update is part of this validation task.
+The cloud-validation task itself did not update demo. After this validation,
+the user explicitly requested demo deployment. The
+[separate promotion report](2026-10-06-demo-promotion-4dfd792.md) records that
+release and its deployed checks.

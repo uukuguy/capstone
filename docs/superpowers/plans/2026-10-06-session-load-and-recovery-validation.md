@@ -36,8 +36,10 @@ backend container, not a shared project limit.
 
 The [result report](../../reviews/2026-10-06-session-use-validation.md) records
 fixes, deployments, metrics, receipts and scope limits. Destructive process
-faults remain local. Human cloud-development acceptance is pending; demo
-remains unchanged. Agent-owned debug browsers are closed after verification.
+faults remain local. Demo remains unchanged during cloud-development validation.
+The later user request authorizes promotion of that exact source; the
+[promotion report](../../reviews/2026-10-06-demo-promotion-4dfd792.md) records
+successful deployed checks. Agent-owned debug browsers are closed after use.
 
 ## Required coverage
 
