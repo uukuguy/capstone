@@ -11,12 +11,15 @@ projects provide the clearest billing, credential, data, and access boundary.
 | Stage | Railway target | Source trigger | Public access | Data and credentials |
 | --- | --- | --- | --- | --- |
 | Cloud development | `capstone-cloud-dev` | `main` after local gates, deployed deliberately | Open Thread workbench for function validation, selected explicitly | Dedicated PostgreSQL, bucket, operator token and domains; existing Provider key permitted during the current function-validation stage |
-| User trial | `capstone-demo` | Release tag or explicit promotion of a verified revision | Registered scripted cases through the public demo credential | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
+| User trial | `capstone-demo` | Release tag or explicit promotion of a verified revision | Registered scripted cases; open Thread workbench when explicitly selected for promotion | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
 | Local | Docker Compose plus Vite | Working tree changes | Local machine or LAN | Ignored local database, RustFS bucket, and runtime state |
 
 Each Railway stage contains one PostgreSQL service, one private Railway Bucket,
 one API service, registered family workers, and one static App service. All backend
 roles must use the same tested image or source revision within a stage.
+Workers are selected by execution family, such as pandapower or PyPSA. A worker
+can host several Domain Packs for its family. Installing a Domain Pack does not
+create another service or a dedicated process.
 The two stages never share `DATABASE_URL`, artifact storage, operator tokens
 or public origins. Provider credentials are separate by default; the current
 user-approved function-validation stage permits an existing Provider key.
@@ -44,9 +47,10 @@ single-family stage pairs the API and worker with the same application.
 The unified `capstone` API uses separate pandapower and PyPSA workers sharing
 the stage ledger. Workers lease only their pinned implementation family.
 
-## Federated cloud-development acceptance
+## Federated workbench roles
 
-Use these roles only in `capstone-cloud-dev`:
+Validate these roles in `capstone-cloud-dev`, then promote the same verified
+source and roles to `capstone-demo` after human acceptance:
 
 | Service | Application | Start command | Health |
 | --- | --- | --- | --- |
@@ -60,6 +64,10 @@ Attempts use polling. Wait for both new worker deployments to succeed and pass
 health and artifact checks before deploying the API. Its catalog refreshes
 family availability on each catalog or admission check. Use the two private origins from
 [`cloud-dev.variables.example`](cloud-dev.variables.example).
+The existing demo retains port 8766; its worker origins use that same port.
+The [demo checklist](demo.variables.example) selects the same runtime profile
+with stage `user-trial`. A promoted open workbench has no browser login gate;
+its older public demo credential still permits scripted cases only.
 
 Normal local Compose and cloud development select
 `CAPSTONE_RUNTIME_PROFILE=capstone-workbench-v1`. The versioned

@@ -60,7 +60,38 @@ scripted checks use no Provider. Two operator-check mistakes were corrected:
 runtime receipts were initially keyed by service names instead of contract
 roles, and a bundle-string check matched a retained transport error message.
 The source/hash comparisons and actual absence of the deferred UI passed.
-Human acceptance remains pending before demo promotion.
+The user accepted cloud-dev and authorized demo promotion on 2026-10-06.
+
+## Demo deployment acceptance
+
+The explicit promotion uses the exact accepted source `c68f6e1`, with no
+application source changes. All 1396 archived files match that commit. The demo
+uses its existing PostgreSQL, bucket, operator and Provider settings; no cloud-dev
+credentials or mutable data were copied. The added PyPSA worker uses references
+to the demo's own settings. Workers represent execution families, not Domain
+Packs. They were verified before the API update.
+
+Demo: <https://capstone-app-production-975e.up.railway.app/>.
+Private receipts: `runs/demo-promotion-20261006/`.
+
+| Deployment acceptance check | Result |
+| --- | --- |
+| Four service deployments | PP `eae06d94`, PyPSA `b22ee82a`, API `eef926da`, App `3f6a362f`: all SUCCESS |
+| Backend identity |343 source files per role, contract `48d470f5` and artifact `ee02a030` match accepted local/cloud-dev receipts; expected stage is `user-trial` |
+| Actual root App |Open Thread entry, both model families available, 12px New action works, no deferred session-list controls; 390px/320px have no horizontal overflow; screenshots inspected |
+| Exact catalog question |Attempt `attempt_9ab38ff31bc21bb5` completes with 21 registered PyPSA models and zero numerical result/evidence references |
+| Actual pandapower work |Attempt `attempt_8a4e83cfb1cd3746` completes AC power flow with one result/evidence reference and verified current-run lineage |
+| Actual PyPSA work |Open-model attempt `attempt_0571ebf243546014` has three result/evidence references; dispatch/AC attempt `attempt_55dafa03bfbf2eb2` has five, with verified current-run lineage |
+| Public registered cases |Both cases execute, close and return reports/evidence; `scripted/legacy-5572f06ad256.json`; the public credential still receives 403 for Provider mode |
+| Historical report retention |One completed prior demo session has unchanged report/result hashes and readable evidence before/after the update |
+| Browser recovery |Draft and history survive refresh. One browser `ERR_NETWORK_CHANGED` interrupts an event stream; a later stream from cursor 41 returns 200, the completed answer is visible and the composer remains usable |
+| Idle resources |Both workers report retained 0/active 0 with the page open; zero active Attempts and nonterminal compatibility sessions |
+
+The deployment acceptance receipt is `acceptance.json` in that directory. This
+does not claim a tested multi-user capacity. The user also requests comprehensive
+user-use and load coverage. Follow the
+[expanded validation plan](../superpowers/plans/2026-10-06-session-load-and-recovery-validation.md)
+locally, then in cloud-dev. Keep the accepted demo unchanged during these checks.
 
 ## Control-plane transport follow-up
 

@@ -39,8 +39,12 @@ Railway connectivity recovered and the single guarded cloud-dev rollout of
 The actual root App, retained draft/history, exact catalog question, both
 families' calculations, reports/evidence, registered cases, stream release and
 cold Thread reuse pass. Both caches reach retained0/active0 with the page open.
-Receipt: `runs/thread-lifecycle-cloud-acceptance.json`. Demo remains unchanged
-and requires human acceptance before promotion.
+Receipt: `runs/thread-lifecycle-cloud-acceptance.json`. The user accepted cloud-dev
+and authorized promotion of this exact source. Demo deployment acceptance passes:
+`runs/demo-promotion-20261006/acceptance.json`. Additional user-use and load tests
+follow the [expanded validation plan](2026-10-06-session-load-and-recovery-validation.md),
+first locally and then in cloud-dev. Demo stays on the accepted source during
+these checks.
 
 The completed checks below record earlier iterations. They do not authorize
 shipping the deferred features. The interrupted cloud-dev rollout must return

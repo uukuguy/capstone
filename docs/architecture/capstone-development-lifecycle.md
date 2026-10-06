@@ -14,7 +14,7 @@ Capstone has three lanes with different risk and data responsibilities:
 | --- | --- | --- | --- |
 | Local | High-frequency implementation and interaction testing | Every working-tree change | Developer or explicitly shared LAN only |
 | Cloud development | Remote integration, worker wake-up, provider, App, and evidence validation | Development revisions after local gates | Internal testers and registered cases only |
-| User trial | Stable release presented to users | Release tags or explicit promotion of a verified revision | Public registered scripted cases |
+| User trial | Stable release presented to users | Release tags or explicit promotion of a verified revision | Registered scripted cases; explicitly selected open Thread workbench |
 
 The local lane is the fastest loop. The cloud-development lane is a remote
 verification target, not a second production environment. The user-trial lane

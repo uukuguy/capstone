@@ -19,7 +19,7 @@ CAPSTONE_PUBLIC_DEMO=true
 CAPSTONE_THREAD_OPEN_ACCESS=true
 CAPSTONE_PUBLIC_PROVIDER=deepseek
 CAPSTONE_PUBLIC_MODEL=deepseek-flash
-CAPSTONE_SESSION_IDLE_SECONDS=600
+# Session/context/stream limits come from the selected runtime profile.
 CAPSTONE_WORKER_MAX_SESSIONS=4
 # Pin the worker listen port and match it in the API wake URL.
 PORT=8080
