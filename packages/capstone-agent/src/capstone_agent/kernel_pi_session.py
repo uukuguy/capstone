@@ -28,6 +28,7 @@ from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference
 from .result_projection import normalize_result_projection
+from .thread_titles import ThreadTitleGenerator
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -205,6 +206,9 @@ class PreparedKernelPiRpcSessionBuilder:
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles),
             reference_observer=handoffs.observe,
+            title_generator=ThreadTitleGenerator(self._runtime_host, self._resolved_llm,
+                workspace.root, workspace.core_path / 'titles' / claim.attempt.attempt_id,
+                self._base_environment),
         )
 
 
@@ -313,6 +317,7 @@ def _render_application_catalog_context(
         "Use this bounded catalog for model availability questions. It covers all registered implementation families, not only the active Domain Pack.",
         "Do not claim that another family has no models merely because the current model uses a different family. To execute work on another family, the user must select or switch to that model first.",
         "Current tool scope does not determine application-wide availability. Domain tools expose the current binding; their model list or context.open limits do not make other registered models unavailable. Model selection and switching belong to the application, through its model control or an opening instruction.",
+        "Do not apply the active binding's unsupported-operation or policy limits to another family. A model catalog lists models, not feature support. Do not add claims that another family's capabilities are absent or unsupported without that family's registered capability contracts.",
         "Only an explicit worker-unavailable catalog entry supports an unavailable-worker claim. If no worker health is supplied, do not infer it from the active model or its tools. Describe the required model switch instead of saying the other family cannot run.",
     ]
     default_model = catalog.get("default_model_id")
@@ -341,11 +346,16 @@ class _RpcWorkspace:
 
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
-                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None,
+                 title_generator: Callable[[str, str], str | None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
+        self._title_generator = title_generator
+
+    def generate_thread_title(self, question: str, answer: str) -> str | None:
+        return self._title_generator(question, answer) if self._title_generator else None
 
     @property
     def command(self) -> object:

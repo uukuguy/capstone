@@ -316,7 +316,7 @@ capabilities.
 
 Capstone does not yet provide dynamic plugin discovery, runtime domain
 selection, cross-domain conflict resolution, or a chosen
-second production application. Governed writes, approval flows, tenant/actor scope,
+second production application. Governed writes, approval flows, authenticated tenant/actor scope,
 idempotency, compensation, and write-capability governance are likewise
 deferred. The C.2 GitHub Repository Intelligence record is a working theory,
 not an implemented or selected domain.

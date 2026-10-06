@@ -19,7 +19,7 @@ export type ThreadCommand = {
 export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' | 'offline'
 
 export interface ThreadTransport {
-  createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
+  createThread?(modelId?: string, signal?: AbortSignal, parentThreadId?: string): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
   readHistory?(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown>
@@ -80,9 +80,11 @@ export class CapstoneThreadClient {
     return parseNetworkContextEvents(await this.transport.readNetworkEvents(threadId, signal), threadId, contextId)
   }
 
-  async create(modelId?: string, signal?: AbortSignal): Promise<ThreadSnapshot> {
+  async create(modelId?: string, signal?: AbortSignal, parentThreadId?: string): Promise<ThreadSnapshot> {
     if (!this.transport.createThread) throw new Error('Thread transport does not support creation')
-    return parseThreadSnapshot(await this.transport.createThread(modelId, signal))
+    return parseThreadSnapshot(await (parentThreadId
+      ? this.transport.createThread(modelId, signal, parentThreadId)
+      : this.transport.createThread(modelId, signal)))
   }
 
   async load(threadId: string, signal?: AbortSignal): Promise<ThreadSnapshot> {

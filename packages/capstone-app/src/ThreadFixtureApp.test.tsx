@@ -561,15 +561,14 @@ describe('ThreadFixtureApp', () => {
     expect(screen.queryByText(/^模型历史/)).toBeNull()
   })
 
-  it('keeps identifiers in a compact diagnostics disclosure instead of the main heading', async () => {
+  it('keeps low-value state and internal identifiers out of the conversation heading', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    expect(screen.getByText('THREAD')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '智能体对话' })).toBeTruthy()
     expect(screen.queryByText('THREAD / RUN run_001')).toBeNull()
-    expect(screen.getByRole('button', { name: '查看 Thread 详情' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '查看 Thread 详情' }))
-    expect(screen.getByText('run_001')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '查看 Thread 详情' })).toBeNull()
+    expect(document.querySelector('.thread-run-state')).toBeNull()
   })
 
   it('submits a model switch from the grid pane through the Thread command path', async () => {

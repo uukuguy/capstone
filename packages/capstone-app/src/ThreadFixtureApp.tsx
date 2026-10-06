@@ -61,7 +61,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [traceVisible, setTraceVisible] = useState(true)
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
@@ -370,7 +369,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   return <div className="thread-app-shell">
-    <PageHeader className="thread-page-header" showThreadEntry={false} actions={headerActions} />
+    <PageHeader className="thread-page-header" showThreadEntry={false} />
     {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
@@ -384,8 +383,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
           onSelectPage={selectPage} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
-          <div className="thread-chat-heading"><div><span className="eyebrow">THREAD</span><h2>智能体对话</h2></div><div className="thread-chat-heading-meta"><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span><span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span><span className="thread-run-state">{snapshot.run.state}</span><button type="button" className="thread-diagnostics-toggle" aria-label="查看 Thread 详情" aria-expanded={diagnosticsOpen} onClick={() => setDiagnosticsOpen((value) => !value)}>详情</button></div></div>
-          {diagnosticsOpen && <div className="thread-diagnostics" role="region" aria-label="Thread 详情"><span>run <code>{snapshot.run.runId}</code></span><span>context <code>{snapshot.activeModelContext.id}</code></span><span>revision <code>{snapshot.activeModelContext.modelRevision}</code></span><span>selection <code>{snapshot.activeModelContext.selectionRevision}</code></span></div>}
+          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{headerActions}</div></div>
           {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
           {sessionNotice && <div className="thread-inline-error" role="alert">{sessionNotice}</div>}

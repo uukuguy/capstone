@@ -62,6 +62,8 @@ describe('ThreadLiveEntry', () => {
     fireEvent.click(await screen.findByRole('button', { name: '新建对话' }))
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('thread')).toBe('thr_second'))
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
+    const creationBody = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')?.[1]?.body
+    expect(JSON.parse(String(creationBody)).parent_thread_id).toBe('thr_demo_39')
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
   })
 

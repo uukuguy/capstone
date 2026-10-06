@@ -95,9 +95,22 @@ def _run_claimed_attempt(
             claim, phase="failed", payload={"error_code": error_code},
         )
         return HarnessAttemptResult("failed", None, error_code)
-    return HarnessAttemptRunner(
+    result = HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
+    # Presentation metadata follows the committed answer. Its failure cannot
+    # change execution truth, evidence or the already completed Attempt.
+    if result.status == 'completed' and result.answer and claim.kind in {'send_auto', 'send_ordinary', 'send_professional'}:
+        generate = getattr(runtime, 'generate_thread_title', None)
+        if callable(generate):
+            try:
+                if service.thread_metadata(claim.thread_id).get('title') is None:
+                    title = generate(claim.instruction, result.answer)
+                    if isinstance(title, str):
+                        service.set_thread_title(claim.thread_id, title, claim.attempt.attempt_id)
+            except Exception:
+                _LOG.info('Thread title is unavailable; the completed answer remains saved')
+    return result
 
 
 def serve_thread_attempts(

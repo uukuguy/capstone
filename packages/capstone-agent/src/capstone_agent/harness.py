@@ -382,6 +382,11 @@ class HarnessPiClient:
     def start(self) -> None:
         self._session.start()
 
+    def generate_thread_title(self, question: str, answer: str) -> str | None:
+        generate = getattr(self._session, 'generate_thread_title', None)
+        value = generate(question, answer) if callable(generate) else None
+        return value if isinstance(value, str) else None
+
     def prompt(
         self, question: str, *, on_event: RuntimeEventSink,
         correlation_id: str | None = None,

@@ -84,7 +84,7 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     if (!client || newInFlight.current) return
     newInFlight.current = true; setCreating(true); setError(null)
     try {
-      const snapshot = await client.create('ieee39')
+      const snapshot = await client.create('ieee39', undefined, createdThreadId)
       selectThread(snapshot.threadId)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '新建对话失败') }
     finally { newInFlight.current = false; setCreating(false) }
@@ -103,7 +103,9 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     if (!transport || !createdThreadId) return
     const abort = new AbortController()
     void transport.getThreadMetadata(createdThreadId, abort.signal).then((metadata) => {
-      if (!abort.signal.aborted) setArchived(metadata.archived)
+      if (!abort.signal.aborted) {
+        setArchived(metadata.archived)
+      }
     }).catch(() => { /* Older hosts still enforce command admission themselves. */ })
     return () => abort.abort()
   }, [transport, createdThreadId])

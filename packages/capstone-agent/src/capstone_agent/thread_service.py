@@ -254,17 +254,21 @@ class ThreadExecutionError(RuntimeError):
 class ThreadService(Protocol):
     """Persistence and admission operations required by the HTTP projection."""
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot: ...
+    def create_thread(self, snapshot: ThreadSnapshot, *, parent_thread_id: str | None = None) -> ThreadSnapshot: ...
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
     def catalog(self, thread_id: str) -> dict[str, object]: ...
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]: ...
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, current_thread_id: str | None = None) -> dict[str, Any]: ...
 
     def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]: ...
 
     def is_archived(self, thread_id: str) -> bool: ...
+
+    def thread_metadata(self, thread_id: str) -> dict[str, Any]: ...
+
+    def set_thread_title(self, thread_id: str, title: str, attempt_id: str) -> bool: ...
 
     def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]: ...
 
@@ -638,6 +642,8 @@ class InMemoryThreadService:
         self._lock = RLock()
         self._created_at = datetime.now(timezone.utc).isoformat()
         self._archived = False
+        self._title: str | None = None
+        self._user_id = 'usr_' + secrets.token_hex(10)
 
     @classmethod
     def from_document(
@@ -653,7 +659,7 @@ class InMemoryThreadService:
             model_catalog=model_catalog,
         )
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+    def create_thread(self, snapshot: ThreadSnapshot, *, parent_thread_id: str | None = None) -> ThreadSnapshot:
         with self._lock:
             if snapshot.thread_id != self._snapshot.thread_id:
                 raise ValueError("in-memory service only contains its configured thread")
@@ -716,13 +722,15 @@ class InMemoryThreadService:
                 return ()
             return (self._snapshot.thread_id,)
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, current_thread_id: str | None = None) -> dict[str, Any]:
         validate_limit(limit, 50)
+        if current_thread_id is not None:
+            self.snapshot(current_thread_id)
         with self._lock:
             if before is not None:
                 self._check_thread(before)
             rows = [] if before is not None or archived != self._archived else [
-                thread_descriptor(self._snapshot, created_at=self._created_at, archived=self._archived),
+                thread_descriptor(self._snapshot, created_at=self._created_at, archived=self._archived, title=self._title),
             ]
             return thread_list_page(rows, limit)
 
@@ -734,7 +742,23 @@ class InMemoryThreadService:
             if self._snapshot.current_attempt is not None or _application_case_active(self._snapshot):
                 raise ThreadExecutionError("thread has active work")
             self._archived = archived
-            return thread_descriptor(self._snapshot, created_at=self._created_at, archived=archived)
+            return thread_descriptor(self._snapshot, created_at=self._created_at, archived=archived, title=self._title)
+
+    def thread_metadata(self, thread_id: str) -> dict[str, Any]:
+        with self._lock:
+            self.snapshot(thread_id)
+            return {**thread_descriptor(self._snapshot, created_at=self._created_at, archived=self._archived, title=self._title), 'user_id': self._user_id}
+
+    def set_thread_title(self, thread_id: str, title: str, attempt_id: str) -> bool:
+        from .thread_titles import normalize_thread_title
+        normalized = normalize_thread_title(title)
+        with self._lock:
+            self.snapshot(thread_id)
+            record = self._attempts.get(attempt_id)
+            if normalized is None or self._title is not None or record is None or record['attempt'].phase != 'completed':
+                return False
+            self._title = normalized
+            return True
 
     def is_archived(self, thread_id: str) -> bool:
         with self._lock:
@@ -1705,6 +1729,7 @@ class ThreadCreator:
         self,
         model_id: str | None = None,
         selection: ModelCapabilitySelection | None = None,
+        *, parent_thread_id: str | None = None,
     ) -> ThreadSnapshot:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
@@ -1734,10 +1759,16 @@ class ThreadCreator:
             active_grid_page_id=page_id_for_model(descriptor.model_id),
             current_attempt=None, last_event_seq=0, base_event_seq=0,
         )
+        if parent_thread_id is not None:
+            return self._service.create_thread(snapshot, parent_thread_id=parent_thread_id)
         return self._service.create_thread(snapshot)
 
 
 _THREAD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS capstone_users (
+    user_id text PRIMARY KEY,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS capstone_threads (
     thread_id text PRIMARY KEY,
     run_id text NOT NULL UNIQUE,
@@ -1764,6 +1795,10 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS user_id text REFERENCES capstone_users(user_id);
+INSERT INTO capstone_users (user_id) SELECT 'usr_' || md5(thread_id) FROM capstone_threads WHERE user_id IS NULL ON CONFLICT DO NOTHING;
+UPDATE capstone_threads SET user_id = 'usr_' || md5(thread_id) WHERE user_id IS NULL;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -1870,9 +1905,17 @@ class PostgresThreadService:
                 if statement.strip():
                     connection.execute(statement)
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+    def create_thread(self, snapshot: ThreadSnapshot, *, parent_thread_id: str | None = None) -> ThreadSnapshot:
         context = snapshot.active_model_context
         with self._connect() as connection:
+            if parent_thread_id is not None:
+                parent = connection.execute('SELECT user_id FROM capstone_threads WHERE thread_id = %s', (parent_thread_id,)).fetchone()
+                if parent is None:
+                    raise ThreadNotFound(parent_thread_id)
+                user_id = parent['user_id']
+            else:
+                user_id = 'usr_' + secrets.token_hex(10)
+                connection.execute('INSERT INTO capstone_users (user_id) VALUES (%s)', (user_id,))
             try:
                 connection.execute(
                     """INSERT INTO capstone_threads
@@ -1880,8 +1923,8 @@ class PostgresThreadService:
                      implementation_family, selection_revision, enabled_profiles,
                      active_grid_page_id, current_attempt, pending_selection,
                      pending_model_switch, result_projections, application_state,
-                     base_event_seq, last_event_seq)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     base_event_seq, last_event_seq, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
@@ -1893,7 +1936,7 @@ class PostgresThreadService:
                      None if snapshot.pending_model_switch is None else Jsonb(snapshot.pending_model_switch.to_document()),
                      Jsonb([item.to_document() for item in snapshot.result_projections]),
                      None if snapshot.application_state is None else Jsonb(dict(snapshot.application_state)),
-                     snapshot.base_event_seq, snapshot.last_event_seq),
+                     snapshot.base_event_seq, snapshot.last_event_seq, user_id),
                 )
             except psycopg.errors.UniqueViolation:
                 raise ValueError("thread identity already exists") from None
@@ -1938,22 +1981,29 @@ class PostgresThreadService:
             ).fetchall()
         return tuple(row["thread_id"] for row in rows)
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, current_thread_id: str | None = None) -> dict[str, Any]:
         validate_limit(limit, 50)
         with self._connect() as connection:
+            user_id = None
+            if current_thread_id is not None:
+                owner = connection.execute('SELECT user_id FROM capstone_threads WHERE thread_id = %s', (current_thread_id,)).fetchone()
+                if owner is None:
+                    raise ThreadNotFound(current_thread_id)
+                user_id = owner['user_id']
             cursor = None
             if before is not None:
                 cursor = connection.execute(
-                    "SELECT created_at, thread_id FROM capstone_threads WHERE thread_id = %s", (before,),
+                    "SELECT created_at, thread_id FROM capstone_threads WHERE thread_id = %s AND (%s::text IS NULL OR user_id = %s)", (before, user_id, user_id),
                 ).fetchone()
                 if cursor is None:
                     raise ThreadNotFound(before)
             rows = connection.execute(
-                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq
+                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq, title
                    FROM capstone_threads WHERE archived = %s
+                   AND (%s::text IS NULL OR user_id = %s)
                    AND (%s::timestamptz IS NULL OR (created_at, thread_id) < (%s, %s))
                    ORDER BY created_at DESC, thread_id DESC LIMIT %s""",
-                (archived, None if cursor is None else cursor["created_at"],
+                (archived, user_id, user_id, None if cursor is None else cursor["created_at"],
                  None if cursor is None else cursor["created_at"],
                  None if cursor is None else cursor["thread_id"], limit + 1),
             ).fetchall()
@@ -1973,7 +2023,30 @@ class PostgresThreadService:
             if snapshot.current_attempt is not None or _application_case_active(snapshot):
                 raise ThreadExecutionError("thread has active work")
             connection.execute("UPDATE capstone_threads SET archived = %s WHERE thread_id = %s", (archived, thread_id))
-        return thread_descriptor(snapshot, created_at=row["created_at"].isoformat(), archived=archived)
+        return thread_descriptor(snapshot, created_at=row["created_at"].isoformat(), archived=archived, title=row.get('title'))
+
+    def thread_metadata(self, thread_id: str) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute(
+                'SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq, title, user_id FROM capstone_threads WHERE thread_id = %s',
+                (thread_id,),
+            ).fetchone()
+        if row is None:
+            raise ThreadNotFound(thread_id)
+        return {**row, 'created_at': row['created_at'].isoformat()}
+
+    def set_thread_title(self, thread_id: str, title: str, attempt_id: str) -> bool:
+        from .thread_titles import normalize_thread_title
+        normalized = normalize_thread_title(title)
+        if normalized is None:
+            return False
+        with self._connect() as connection:
+            row = connection.execute(
+                """UPDATE capstone_threads SET title = %s WHERE thread_id = %s AND title IS NULL
+                   AND EXISTS (SELECT 1 FROM capstone_thread_attempts WHERE thread_id = %s AND attempt_id = %s AND phase = 'completed')
+                   RETURNING thread_id""", (normalized, thread_id, thread_id, attempt_id),
+            ).fetchone()
+        return row is not None
 
     def is_archived(self, thread_id: str) -> bool:
         with self._connect() as connection:

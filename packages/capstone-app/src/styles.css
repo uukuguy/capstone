@@ -418,17 +418,36 @@ button.reference-chip:hover { background: #235043; color: white; }
 .thread-page-header .topbar-right { gap: 12px; }
 .thread-session-menu { position: relative; flex: none; }
 .thread-session-actions { display: flex; align-items: center; gap: 8px; }
-.thread-session-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
-.thread-session-tabs { display: flex; flex-wrap: wrap; gap: 10px; }
-.thread-session-panel { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(420px, calc(100vw - 40px)); max-height: min(70vh, calc(100dvh - 90px)); overflow: auto; padding: 16px; border: 1px solid #cfe1dc; border-radius: 12px; background: #fff; box-shadow: 0 10px 30px #173d3820; color: #244747; }
-.thread-session-panel ul { list-style: none; padding: 0; margin: 12px 0; }
-.thread-session-panel li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e1ece8; padding: 8px 0; }
-.thread-session-panel button { cursor: pointer; padding: 8px 12px; border: 1px solid #cfe1dc; border-radius: 8px; background: #f6faf8; color: #244747; }
-.thread-session-select { flex: 1; min-width: 0; text-align: left; }
-.thread-session-select strong, .thread-session-select small { display: block; overflow-wrap: anywhere; }
-.thread-session-select[aria-current="page"] { border-color: #368e81; background: #e8f6f0; }
-.thread-session-tabs [aria-pressed="true"] { background: #d9f1e8; }
+.thread-session-menu button { cursor: pointer; font: inherit; font-size: 13px; font-weight: 400; letter-spacing: normal; color: #44635f; }
+.thread-session-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; white-space: nowrap; }
+.thread-session-actions button:hover { background: #eff6f3; color: #107e72; }
+.thread-session-tabs { display: flex; gap: 4px; padding: 0 12px 8px; border-bottom: 1px solid #edf1ef; }
+.thread-session-tabs button { min-height: 44px; padding: 0 10px; border: 0; background: transparent; border-radius: 6px; }
+.thread-session-panel { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(340px, calc(100vw - 40px)); overflow: hidden; border: 1px solid #dce6e2; border-radius: 10px; background: #fff; box-shadow: 0 8px 28px #173d3820; color: #244747; }
+.thread-session-panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 0 18px; font-size: 12px; color: #78908a; }
+.thread-session-scroll { max-height: min(300px, calc(100dvh - 280px)); overflow-y: auto; padding: 6px; }
+.thread-session-panel ul { list-style: none; padding: 0; margin: 0; }
+.thread-session-panel li { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 7px; }
+.thread-session-panel li:hover { background: #f5f8f6; }
+.thread-session-panel li.is-current { background: #edf6f2; }
+.thread-session-select { flex: 1; min-width: 0; padding: 9px 8px; min-height: 58px; text-align: left; border: 0; background: transparent; }
+.thread-session-title { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #244440; font-size: 14px; line-height: 1.6; }
+.thread-session-current { margin-left: 8px; color: #16877b; font-size: 10px; }
+.thread-session-summary { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11px; color: #80918d; }
+.thread-session-summary time { margin-left: auto; flex: none; }
+.thread-session-menu .thread-session-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #80918d; }
+.thread-session-icon:hover { background: #e2ece7; color: #244440; }
+.thread-session-tabs [aria-pressed="true"] { background: #edf5f1; color: #147d71; }
+.thread-session-empty { padding: 18px 12px; font-size: 13px; color: #80918d; }
+.thread-session-footer { padding: 9px 18px; margin: 0; border-top: 1px solid #edf1ef; color: #80918d; font-size: 11px; }
+.thread-session-more { width: 100%; min-height: 44px; border: 0; background: transparent; }
+.thread-chat-heading-title { min-width: 0; }
+.thread-chat-heading-title .thread-model-short { display: block; margin-top: 6px; font-size: 11px; color: #78908a; }
+.thread-chat-heading .thread-chat-heading-meta { max-width: none; }
 @media (max-width: 680px) {
+  .thread-app-main .thread-chat-heading { flex-wrap: wrap; gap: 6px; }
+  .thread-chat-heading .thread-chat-heading-meta { width: 100%; justify-content: flex-start; }
+  .thread-session-panel { left: 0; right: auto; }
   .thread-page-header .topbar-right { gap: 8px; }
   .thread-session-label { display: none; }
   .thread-session-actions button { padding: 0; }

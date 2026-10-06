@@ -203,10 +203,13 @@ def create_host_app(
         def list_threads(request: Request,
                          before: Annotated[str | None, Query(max_length=64)] = None,
                          limit: Annotated[int, Query(ge=1, le=50)] = 20,
-                         archived: bool = False):
+                         archived: bool = False,
+                         current_thread_id: Annotated[str | None, Query(max_length=64)] = None):
             require_private_thread(request)
+            if thread_open_access and current_thread_id is None:
+                raise HTTPException(422, 'current_thread_id is required')
             try:
-                return thread_service.list_threads(before=before, limit=limit, archived=archived)
+                return thread_service.list_threads(before=before, limit=limit, archived=archived, current_thread_id=current_thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread cursor not found") from None
             except ThreadProtocolError as error:
@@ -231,7 +234,7 @@ def create_host_app(
         def get_thread_metadata(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                return {"thread_id": thread_id, "archived": thread_service.is_archived(thread_id)}
+                return thread_service.thread_metadata(thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
@@ -265,7 +268,7 @@ def create_host_app(
                     body = await request.json()
                     if not isinstance(body, dict):
                         raise ThreadProtocolError("thread creation must be an object")
-                    unknown = set(body) - {"model_id"}
+                    unknown = set(body) - {"model_id", "parent_thread_id"}
                     if unknown:
                         raise ThreadProtocolError(
                             "thread creation has unknown field: " + ", ".join(sorted(unknown)),
@@ -275,7 +278,12 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    return thread_creator.create(model_id).to_document()
+                    parent_thread_id = body.get('parent_thread_id')
+                    if parent_thread_id is not None and (not isinstance(parent_thread_id, str) or not parent_thread_id or len(parent_thread_id) > 64):
+                        raise ThreadProtocolError('parent_thread_id is invalid')
+                    return thread_creator.create(model_id, parent_thread_id=parent_thread_id).to_document()
+                except ThreadNotFound:
+                    raise HTTPException(404, 'parent thread not found') from None
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
                 except (KeyError, ValueError) as error:
