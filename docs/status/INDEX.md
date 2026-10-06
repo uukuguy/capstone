@@ -24,6 +24,7 @@
 | --- | --- |
 | [Thread client recovery design](../superpowers/specs/2026-10-05-thread-client-recovery-design.md) | Approved draft/receipt recovery and Context-bound rollback verification; cloud-dev acceptance precedes manual review and demo promotion. |
 | [Network element name consistency](../reviews/2026-10-06-network-element-name-consistency.md) | Shared pandapower diagram/tool names, PyPSA name checks and visible type prefixes; local acceptance and historical replay limits. |
+| [Topology name release](../reviews/2026-10-07-topology-name-release.md) | Exact-source cloud-dev and demo release checks for canonical names, display prefixes and hover status. |
 | [Thread client recovery plan](../superpowers/plans/2026-10-05-thread-client-recovery.md) | Active local repair and cloud-dev acceptance work; demo deployment waits for manual acceptance. |
 | [Thread recovery verification](../reviews/2026-10-06-thread-client-recovery-and-cloud-dev-verification.md) | Draft/receipt recovery, lease/configuration diagnostics and a1f028d cloud-dev evidence; normal Provider configuration blocks manual acceptance. |
 | [Harness local verification](../reviews/2026-10-06-harness-provider-configuration-local-verification.md) | Shared188abe3 Provider configuration, adapter ownership guards and passing local App/release checks. |
