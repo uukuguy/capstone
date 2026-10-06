@@ -73,9 +73,11 @@ verification; it does not establish that either cloud stage contains the repair.
 Private local receipts are stored under
 `runs/catalog-completeness-local-20261006/`; rebuild, backend and integration logs
 use the `runs/catalog-completeness-` prefix. Existing user data is preserved.
-Cloud development and demo remain on their prior deployed source. No cloud
-deployment or configuration operation is performed for this local repair.
+At local acceptance, cloud development and demo remain on their prior source.
+No cloud deployment or configuration operation is performed during the local
+repair. The later [automatic promotion report](2026-10-06-catalog-completeness-promotion.md)
+records exact-source acceptance and deployment to both cloud stages.
 
 The [demo pressure report](2026-10-06-demo-load-validation.md) remains the record
-of the observed cloud defect. A future cloud verification must follow the
+of the observed cloud defect. Cloud verification follows the
 [release lifecycle](../architecture/capstone-development-lifecycle.md).

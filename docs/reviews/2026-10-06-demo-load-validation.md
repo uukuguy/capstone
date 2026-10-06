@@ -112,3 +112,9 @@ inspected. Numerical pressure, protocol and resource checks pass. The incomplete
 catalog answer remains a separate functional defect. A repair must follow the
 [local-to-cloud release lifecycle](../architecture/capstone-development-lifecycle.md);
 this test makes no direct change to the demo.
+
+The later [catalog repair release](2026-10-06-catalog-completeness-promotion.md)
+closes this observed defect on source `39007a1` after local, cloud-development and
+demo verification. The load measurements and failed catalog receipt above
+remain the historical record for `4dfd792`; the complete pressure suite is not
+repeated for the catalog-only repair.
