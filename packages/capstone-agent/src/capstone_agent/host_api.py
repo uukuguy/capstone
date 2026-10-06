@@ -49,6 +49,7 @@ def create_host_app(
     ledger: Ledger, registry: WorkerRegistry, *, operator_token: str,
     allowed_hosts: set[str], allowed_origins: set[str],
     public_demo: bool = False,
+    thread_open_access: bool = False,
     public_provider: str | None = None,
     public_model: str | None = None,
     repo_root: Path | None = None,
@@ -125,7 +126,7 @@ def create_host_app(
             return JSONResponse({"error": "invalid_origin"}, status_code=403)
         if request.method == "OPTIONS" and origin is not None:
             response = Response(status_code=204)
-        elif request.url.path == "/health/ready" or (
+        elif request.url.path in {"/health/ready", "/api/v1/thread-access"} or (
             public_demo and request.url.path == "/api/v1/demo-credential"
         ):
             response = await call_next(request)
@@ -136,7 +137,7 @@ def create_host_app(
             demo_authorized = demo_token is not None and hmac.compare_digest(
                 supplied, "Bearer " + demo_token,
             )
-            if not authorized and not demo_authorized:
+            if not authorized and not demo_authorized and not thread_open_access:
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
@@ -174,6 +175,11 @@ def create_host_app(
         except Exception:
             pass
         raise HTTPException(503, "database unavailable")
+
+    @app.get("/api/v1/thread-access")
+    def get_thread_access():
+        return {"schema": "capstone-thread-access/1",
+                "mode": "open" if thread_open_access else "operator"}
 
     @app.get("/api/v1/validation/m11")
     def get_validation_status(request: Request):

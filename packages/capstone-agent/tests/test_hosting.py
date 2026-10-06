@@ -80,6 +80,16 @@ def test_host_settings_enable_public_demo_explicitly() -> None:
         load_host_settings(env)
 
 
+def test_host_settings_select_thread_open_access_explicitly() -> None:
+    env = _env()
+    assert load_host_settings(env).thread_open_access is False
+    env["CAPSTONE_THREAD_OPEN_ACCESS"] = "true"
+    assert load_host_settings(env).thread_open_access is True
+    env["CAPSTONE_THREAD_OPEN_ACCESS"] = "maybe"
+    with pytest.raises(ValueError, match="CAPSTONE_THREAD_OPEN_ACCESS"):
+        load_host_settings(env)
+
+
 def test_host_settings_validate_private_worker_wake_url() -> None:
     env = _env()
     env["CAPSTONE_WORKER_WAKE_URL"] = "http://worker:8766"

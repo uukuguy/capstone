@@ -23,6 +23,7 @@ from capability_agent.runtime.trace import JsonlTraceWriter
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
+from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference
@@ -100,6 +101,7 @@ class PreparedKernelPiRpcSessionBuilder:
         if not profiles:
             raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
         workspace = profiles[0].workspace
+        handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []
         for profile in profiles:
@@ -142,6 +144,7 @@ class PreparedKernelPiRpcSessionBuilder:
                     tool_name_prefix=getattr(manifest, "tool_name_prefix", None),
                     application_id=profile.profile.manifest.application_id,
                     run_id=claim.run_id,
+                    reference_handoffs_path=handoffs.path,
                 )
                 descriptors.append(descriptor)
                 binding_runtimes.append((binding_id, runtime, getattr(binding, "endpoint", None)))
@@ -201,6 +204,7 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles),
+            reference_observer=handoffs.observe,
         )
 
 
@@ -334,10 +338,12 @@ class _RpcWorkspace:
 
 
 class _KernelPiPromptSession:
-    def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission) -> None:
+    def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
+        self._reference_observer = reference_observer
 
     @property
     def command(self) -> object:
@@ -354,9 +360,14 @@ class _KernelPiPromptSession:
         correlation_id: str | None,
         on_heartbeat: Callable[[], None],
     ) -> str:
+        def observed(event, _sequence):
+            if self._reference_observer is not None:
+                self._reference_observer(event)
+            on_semantic_event(event)
+
         return self._client.prompt_and_wait(
             question,
-            on_semantic_event=lambda event, _sequence: on_semantic_event(event),
+            on_semantic_event=observed,
             correlation_id=correlation_id,
             on_heartbeat=on_heartbeat,
         )
@@ -385,13 +396,25 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                 if binding_id in binding_map:
                     raise ValueError("duplicate prepared binding ID")
                 binding_map[binding_id] = binding
+        guide_names = {
+            f"{namespace}guide_open"
+            for binding in binding_map.values()
+            if isinstance(namespace := getattr(getattr(binding, "binding", None), "tool_namespace", None), str)
+        }
+        authority_events = []
         owners: dict[str, str] = {}
         for event in tool_events:
+            # Published guide reads have no authority result or evidence. Their
+            # names come from the selected binding, not from a model assertion.
+            if (event.get("tool_name") in guide_names
+                and not event.get("result_refs") and not event.get("evidence_refs")):
+                continue
             binding_id = event.get("binding_id")
             if binding_id is None and len(binding_map) == 1:
                 binding_id = next(iter(binding_map))
             if not isinstance(binding_id, str) or binding_id not in binding_map:
                 raise ValueError("tool provenance has no prepared binding owner")
+            authority_events.append({**event, "binding_id": binding_id})
             for field in ("result_refs", "evidence_refs"):
                 refs = event.get(field)
                 if not isinstance(refs, (list, tuple)):
@@ -404,9 +427,15 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                         raise ValueError("runtime reference has conflicting binding owners")
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
+        tool_events = tuple(authority_events)
         _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
+        participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
+            # A selected Pack can remain unused in this Turn. Its lack of a
+            # result must not downgrade another Pack's verified observation.
+            if participating and binding_id not in participating:
+                continue
             runtime = getattr(binding, "runtime", None)
             domain_profile = getattr(runtime, "profile", None)
             create_policy = getattr(domain_profile, "create_answer_admission_policy", None)

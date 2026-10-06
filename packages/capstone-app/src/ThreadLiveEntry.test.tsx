@@ -23,9 +23,30 @@ const snapshot = {
 }
 
 describe('ThreadLiveEntry', () => {
+  it('opens the workspace without a token and creates one Thread under StrictMode', async () => {
+    const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'open' }))
+      if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
+        thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
+      if (String(url).includes('/events/stream')) return new Response(new ReadableStream({ start() {} }))
+      if (String(url).includes('/events?after=')) return new Response(JSON.stringify({
+        schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 0, has_more: false, events: [],
+      }))
+      if (init?.method === 'POST') expect(init.headers).not.toHaveProperty('Authorization')
+      return new Response(JSON.stringify(snapshot))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    render(<StrictMode><App /></StrictMode>)
+    expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: 'Operator token' })).toBeNull()
+    expect(sessionStorage.getItem('capstone.thread.operatorToken')).toBeNull()
+    expect(fetcher.mock.calls.filter(([url, init]) => String(url) === '/api/v1/threads' && init?.method === 'POST')).toHaveLength(1)
+  })
+
   it('creates a new conversation from a visible button without typing a URL', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       const id = init?.method === 'POST' ? 'thr_second' : 'thr_demo_39'
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: String(url).includes('thr_second') ? 'thr_second' : 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
@@ -47,6 +68,7 @@ describe('ThreadLiveEntry', () => {
   it('loads a real Thread workspace through HTTP snapshot, page, and SSE adapters', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
       if (String(url).includes('/events/stream')) return new Response('', { status: 200 })
@@ -66,6 +88,7 @@ describe('ThreadLiveEntry', () => {
   it('creates a default IEEE-39 Thread only once under StrictMode', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
       if (String(url) === '/api/v1/threads' && init?.method === 'POST') {

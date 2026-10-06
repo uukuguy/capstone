@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { History, Plus } from 'lucide-react'
 import type { HttpThreadTransport } from './threadHttpTransport'
 import type { ThreadDescriptor } from './threadManagement'
 
@@ -61,8 +62,8 @@ export default function ThreadSessionMenu({ transport, threadId, onNew, onSelect
 
   return <nav className="thread-session-menu" aria-label="会话管理">
     <div className="thread-session-actions">
-      <button type="button" className="thread-primary-button" disabled={creating} onClick={onNew}>{creating ? '正在新建…' : '新建对话'}</button>
-      <button type="button" className="thread-secondary-button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>会话列表</button>
+      <button type="button" className="thread-primary-button" aria-label={creating ? '正在新建…' : '新建对话'} title="新建对话" disabled={creating} onClick={onNew}><Plus size={18} aria-hidden="true" /><span className="thread-session-label">{creating ? '正在新建…' : '新建对话'}</span></button>
+      <button type="button" className="thread-secondary-button" aria-label="会话列表" title="会话列表" aria-expanded={open} onClick={() => setOpen((value) => !value)}><History size={18} aria-hidden="true" /><span className="thread-session-label">会话列表</span></button>
     </div>
     {open && <section className="thread-session-panel" aria-label="会话列表">
       <div className="thread-session-tabs"><button type="button" aria-pressed={!archived} onClick={() => setArchived(false)}>最近对话</button><button type="button" aria-pressed={archived} onClick={() => setArchived(true)}>已归档</button></div>

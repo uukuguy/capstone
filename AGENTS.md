@@ -48,8 +48,12 @@ lane is not a user-data or production lane. Read the normative
 before changing deployment, release, or environment behavior.
 
 - Cloud development and user trial must never share PostgreSQL, artifact
-  buckets, operator tokens, Provider credentials, public origins, or mutable
+  buckets, operator tokens, public origins, or mutable
   run/session/evidence data.
+- Provider credentials are separate by default. For the current function
+  validation stage, the user permits existing Provider credentials and
+  explicitly selected open Thread access without a login screen. Keep
+  credentials in backend protected variables; do not expose them to the App.
 - API and worker within one stage must use the same tested backend source
   revision or exact image digest. A user-trial release promotes that exact
   verified revision or digest; ordinary development pushes must not update the

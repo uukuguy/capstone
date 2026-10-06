@@ -14,7 +14,7 @@ EVIDENCE = "evidence:sha256:" + "c" * 64
 
 
 def _admission(document, *, family="pandapower", context_ref=CONTEXT, linked_document=None, model_reference_verifier=None,
-               evidence_documents=None, result_documents=None):
+               evidence_documents=None, result_documents=None, extra_bindings=None):
     policy = SimpleNamespace(admit=lambda request: AnswerAdmissionDecision(
         mode="authority_backed" if request.evidence_refs else "offline_information",
         assurance="lineage_verified" if request.evidence_refs else "deterministic_information",
@@ -43,12 +43,58 @@ def _admission(document, *, family="pandapower", context_ref=CONTEXT, linked_doc
         model_binding=AuthorityModelBinding("grid", "ieee39", REVISION, family, context_ref, **(
             {"model_reference_verifier": model_reference_verifier} if model_reference_verifier is not None else {}
         )),
-        prepared_application=SimpleNamespace(bindings={"grid": SimpleNamespace(runtime=runtime)}),
+        prepared_application=SimpleNamespace(bindings={"grid": SimpleNamespace(
+            runtime=runtime, binding=SimpleNamespace(tool_namespace="grid_")), **(extra_bindings or {})}),
     )
     context = ModelContextSnapshot("ctx_bound", "ieee39", REVISION, family, "sel_0")
     claim = AttemptClaim("thr_bound", "run_bound", AttemptSnapshot("turn_1", "attempt_1", "running", context.id),
                          "send_auto", "inspect", context.id, "sel_0", "lease_1", context)
     return _build_kernel_admission((profile,)), claim, calls
+
+
+def _unused_binding():
+    policy = SimpleNamespace(admit=lambda request: AnswerAdmissionDecision(
+        "limited", "limited", request.answer_output, ("no_current_run_result",)))
+    return SimpleNamespace(binding=SimpleNamespace(tool_namespace="unused_"), runtime=SimpleNamespace(
+        authority=SimpleNamespace(), profile=SimpleNamespace(
+            create_answer_admission_policy=lambda _: policy,
+            answer_admission_capabilities=frozenset({"limited"}))))
+
+
+def test_unused_selected_pack_does_not_downgrade_verified_model_observation():
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION},
+        extra_bindings={"unused": _unused_binding()})
+    event = {"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]}
+    answer = admit(claim, "current model", (), (EVIDENCE,), (event,))
+    assert answer.mode == "authority_backed"
+    assert answer.evidence_refs == (EVIDENCE,)
+
+
+def test_published_guide_without_authority_references_does_not_require_tool_provenance():
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION},
+        extra_bindings={"unused": _unused_binding()})
+    events = ({"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]},
+        {"tool_name": "unused_guide_open", "ok": True})
+    assert admit(claim, "current model", (), (EVIDENCE,), events).mode == "authority_backed"
+
+
+@pytest.mark.parametrize("guide", [
+    {"tool_name": "unknown_guide_open", "ok": True},
+    {"tool_name": "unused_guide_open", "ok": True, "evidence_refs": [EVIDENCE]},
+])
+def test_unregistered_or_reference_bearing_guide_cannot_bypass_binding_ownership(guide):
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION},
+        extra_bindings={"unused": _unused_binding()})
+    with pytest.raises(ValueError, match="owner"):
+        admit(claim, "answer", (), (EVIDENCE,), (guide,))
+
+
+def test_participating_failed_pack_still_limits_admission():
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION},
+        extra_bindings={"unused": _unused_binding()})
+    events = ({"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]},
+        {"binding_id": "unused", "ok": False, "capability": "operation"})
+    assert admit(claim, "limited answer", (), (EVIDENCE,), events).mode == "limited"
 
 
 @pytest.mark.parametrize("document", [

@@ -34,6 +34,7 @@ class HostSettings:
     thread_family: str | None
     public_provider: str | None
     public_model: str | None
+    thread_open_access: bool = False
 
 
 def _origin(value: str) -> bool:
@@ -71,6 +72,9 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     demo_setting = environment.get("CAPSTONE_PUBLIC_DEMO", "false").lower()
     if demo_setting not in {"true", "false"}:
         raise ValueError("CAPSTONE_PUBLIC_DEMO is invalid")
+    thread_access_setting = environment.get("CAPSTONE_THREAD_OPEN_ACCESS", "false").lower()
+    if thread_access_setting not in {"true", "false"}:
+        raise ValueError("CAPSTONE_THREAD_OPEN_ACCESS is invalid")
     try:
         session_idle_seconds = int(environment.get("CAPSTONE_SESSION_IDLE_SECONDS", "600"))
     except ValueError:
@@ -112,7 +116,8 @@ def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
     return HostSettings(database_url, token, hosts, origins, backend, bucket,
                         endpoint, port, bind_host, runs_root, demo_setting == "true",
                         session_idle_seconds, worker_max_sessions, worker_wake_url,
-                        thread_family, public_provider, public_model)
+                        thread_family, public_provider, public_model,
+                        thread_access_setting == "true")
 
 
 def build_artifacts(settings: HostSettings, ledger: Ledger) -> ArtifactService:

@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import App from './App'
 
-afterEach(() => { cleanup(); window.history.replaceState({}, '', '/') })
+beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+  schema: 'capstone-thread-access/1', mode: 'operator',
+})))))
+afterEach(() => { cleanup(); window.history.replaceState({}, '', '/'); vi.unstubAllGlobals() })
 
 describe('Thread fixture entry point', () => {
   it('opens the live Thread entry by default at the root path', async () => {

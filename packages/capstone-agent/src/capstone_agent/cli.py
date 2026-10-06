@@ -267,6 +267,7 @@ def main(
                     allowed_hosts=set(settings.allowed_hosts),
                     allowed_origins=set(settings.allowed_origins),
                     public_demo=settings.public_demo,
+                    thread_open_access=settings.thread_open_access,
                     public_provider=settings.public_provider,
                     public_model=settings.public_model,
                     artifacts=artifacts,

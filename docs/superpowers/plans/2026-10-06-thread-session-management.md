@@ -16,7 +16,7 @@
 - Existing operator authentication scopes private Threads. Do not claim individual user isolation without an account model.
 - Never delete event history to shorten the chat view. Archive is reversible metadata, not deletion or cancellation.
 - A running Attempt or active Case blocks archiving. Explicit retry remains required for interrupted execution.
-- Do not share credentials between local, cloud-dev and demo. No real Provider request without separate authorization.
+- Provider credentials are separate by default. The user's current function-validation instruction permits existing credentials and an open, no-login Thread workbench. Preserve stage database, bucket and evidence isolation.
 - Implement in the current checkout with task-owned staging; JOURNAL and RESUME contain user edits and stay unstaged.
 - Test regressions before code changes. Rebuild local API/worker/App before remote verification. Demo remains gated by human acceptance.
 
@@ -60,10 +60,14 @@
 - [ ] Verify the App with real local API, fresh task-owned Threads, new/switch/archive/restore, long history, reload drafts and backend restart recovery without Provider calls. Fix reproduced failures.
 - [ ] Run required integration gates, `make capstone-local-rebuild`, and local App browser acceptance on the exact committed source.
 - [ ] Deploy that exact tested source to cloud-dev only; verify readiness, source identity, both families, history preservation and new session/recovery paths. Check configuration without making unauthorized Provider requests.
-- [ ] Update bilingual product commands if needed, runbook, status index and verification receipts. Ordinary AI conversation remains blocked until dedicated cloud-dev credentials and separate Provider authorization are available; human acceptance precedes demo.
+- [ ] Update bilingual product commands if needed, runbook, status index and verification receipts. Verify ordinary AI conversation with the existing Provider credentials authorized for the current function-validation stage; human acceptance precedes demo.
 - [ ] Independent final review, corrections, task-owned commit and durable journal/checkpoint.
 
 ## Execution record
+
+This record describes the earlier `a2dbb5d` acceptance. The user's later
+function-validation instruction supersedes its dedicated-credential requirement;
+the open-entry work below requires fresh local and cloud-dev acceptance.
 
 Backend catalog/archive/history is committed in `508a44d`; App management,
 draft/receipt recovery, reverse history integration, bounded caches and idle
@@ -90,6 +94,50 @@ model as unsupported. No agent ran, and independent review is not claimed.
 Inline source review and actual verification continue. Ordinary Provider
 conversation requires dedicated cloud-dev credentials and separate call
 authorization. Demo still requires human acceptance.
+
+## Navigation layout correction
+
+The user rejected the separate full-width session toolbar after viewing the
+deployed App. Keep the accepted session functions and place their controls in
+the existing PageHeader action group. A separate toolbar wastes working space;
+putting the controls inside the conversation would make workspace navigation
+depend on the chat pane. The shared header is the existing navigation boundary.
+
+Files: `AppHeader.tsx` accepts optional `actions: ReactNode`;
+`ThreadFixtureApp.tsx` passes optional `headerActions` and renders a creation
+error in the chat notices; `ThreadLiveEntry.tsx` supplies the session menu in
+that slot. `ThreadSessionMenu.tsx` uses named icon buttons; `styles.css` anchors
+its list to the right of the header and keeps touch targets at least44px.
+Mobile controls retain accessible names while hiding their text; narrow screens
+hide the secondary project link. No API, session or authority contract changes.
+
+- [ ] Integrate the session menu into the shared header and remove its standalone bar.
+- [ ] Run the existing App behavior tests, TypeScript and production build.
+- [ ] Rebuild the local services; inspect the real App at desktop,390px and320px.
+- [ ] Verify new/switch/archive/restore and drafts still work through the real API.
+- [ ] Commit only owned changes and deploy the tested App to cloud-dev; inspect
+  the actual served header, menu and mobile layout before reporting acceptance.
+- [ ] Ordinary Provider acceptance and human approval continue to gate demo.
+
+## Open workbench entry
+
+The user explicitly requests direct entry like the earlier App, without a
+front-end login, and use of existing Provider credentials during function
+validation. Keep Provider secrets in the backend. `CAPSTONE_THREAD_OPEN_ACCESS`
+is an explicit hosted setting, true by default in local Compose. Host middleware
+accepts unauthenticated App requests when selected. `/api/v1/thread-access`
+returns only its schema and `open` or `operator` mode, never credentials.
+ThreadLiveEntry waits for this mode before creating a client or a Thread,
+preventing duplicate creation under StrictMode. Open mode sends no token;
+operator mode and older hosts still support their existing entry.
+
+- [ ] Add and verify failing API/settings and no-login StrictMode regressions.
+- [ ] Implement hosting/CLI/API mode and App discovery, connection error/retry.
+- [ ] Rebuild current local source and verify from an empty browser session.
+- [ ] Verify the reported catalog query and both authority families locally,
+  using only task-owned Threads and a bounded number of actual AI turns.
+- [ ] Complete integration/release gates, then one cloud-dev deployment and
+  limited actual App acceptance. Demo still requires user manual acceptance.
 
 ## Acceptance boundaries
 

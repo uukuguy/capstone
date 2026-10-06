@@ -15,6 +15,7 @@ import ThreadControls from './ThreadControls'
 import { parseThreadModelCommand, resolveThreadModelCommandReference } from './threadCatalog'
 import { commandKey } from './commandKey'
 import { canReconnect, reconnectDelay } from './threadSessionState'
+import type { ReactNode } from 'react'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -43,9 +44,11 @@ export type ThreadWorkspaceProps = {
   previewDiagram?: NetworkDiagram | null
   storageKey?: string
   readOnly?: boolean
+  headerActions?: ReactNode
+  sessionNotice?: string | null
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice }: ThreadWorkspaceProps) {
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
     if (client) return new ThreadProjectionStore(client, storageKey)
@@ -367,7 +370,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   return <div className="thread-app-shell">
-    <PageHeader className="thread-page-header" showThreadEntry={false} />
+    <PageHeader className="thread-page-header" showThreadEntry={false} actions={headerActions} />
     {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
@@ -385,6 +388,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {diagnosticsOpen && <div className="thread-diagnostics" role="region" aria-label="Thread 详情"><span>run <code>{snapshot.run.runId}</code></span><span>context <code>{snapshot.activeModelContext.id}</code></span><span>revision <code>{snapshot.activeModelContext.modelRevision}</code></span><span>selection <code>{snapshot.activeModelContext.selectionRevision}</code></span></div>}
           {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
           {error && <div className="thread-inline-error" role="alert">{error}</div>}
+          {sessionNotice && <div className="thread-inline-error" role="alert">{sessionNotice}</div>}
           {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
           {readOnly && <div className="thread-inline-notice" role="status">对话已归档，历史仍可查看。请在会话列表中恢复后继续。</div>}
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}

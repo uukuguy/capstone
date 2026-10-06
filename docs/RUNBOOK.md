@@ -94,9 +94,9 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
-App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。首次进入时使用当前浏览器会话中的 operator token，没有时提示输入。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
+App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口只返回访问模式，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
 
-点击「新建对话」创建独立 Thread；「会话列表」提供最近对话、已归档对话、切换和恢复操作。归档只改变元数据，保留消息、结果和证据；有运行中 Attempt 或 Case 时拒绝归档。切换或新建对话不会取消后台任务。列表仍按现有 operator 权限开放，当前没有独立用户账户隔离。
+主导航中的「新建对话」创建独立 Thread；「会话列表」从导航按钮下方展开，提供最近对话、已归档对话、切换和恢复操作。手机使用具名的紧凑图标按钮。归档只改变元数据，保留消息、结果和证据；有运行中 Attempt 或 Case 时拒绝归档。切换或新建对话不会取消后台任务。开放模式下可使用当前阶段的会话列表；当前没有独立用户账户隔离。
 
 Thread 是持久记录，不为每个打开的对话预留 worker。执行资源按 Attempt 分配；租约控制执行权。一个可见页面保持一个事件订阅；切走 Thread、关闭页面或切到后台时关闭订阅，返回时补读事件。空闲订阅逐步降低查询频率，最长间隔 2 秒，每 15 秒发送心跳；每次数据库操作后释放连接。旧 `/old` 会话的容量和闲置回收仍由兼容 host 管理。
 
@@ -142,13 +142,13 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 脚本使用同一模型，本地部署应将 `CAPSTONE_PUBLIC_MODEL` 与根目录 `.env` 中的
 `GRID_AGENT_LLM_MODEL` 保持一致。
 
-在电脑上打开 `http://127.0.0.1:5173/` 进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话使用独立的 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+在电脑上打开 `http://127.0.0.1:5173/` 直接进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、创建与命令幂等键、事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。worker 对等待下一条指令的会话计时，默认 600 秒；设置 `CAPSTONE_SESSION_IDLE_SECONDS` 可在 60–86400 秒间调整。本轮指令或报告仍在执行时不计时。到期后会话标记为「会话已超时」、释放 worker 名额，已提交的答案和证据保留，旧会话不可续交。名额已满且有新会话排队至少 1 秒时，worker 会从所有副本持有的会话中原子选取已空闲至少 30 秒的最久会话；正在计算或整理报告的会话不会被淘汰。访客可重置已中断的案例重新开始。刷新页面会重新取得演示凭证、回到该案例最近的运行状态；已超时或让位的会话可回看，但不会重连计算进程。`CAPSTONE_WORKER_MAX_SESSIONS` 默认每实例 8 个，可按内存实测在 1–64 间调整；云端通过增加 worker 副本扩容，每实例仍有独立上限。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 
-云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 API、按需唤醒的 worker、PostgreSQL、私有 S3 bucket，并可托管静态 App。两个后端角色须基于同一已验证源码修订，并共享账本/工件配置；可拉取时优先固定同一镜像 digest。Railway Hobby 无法配置私有镜像仓库凭证，当前演示部署使用同源代码构建。Railway 和本地 Compose 的 API 通过 `CAPSTONE_WORKER_WAKE_URL` 访问 worker 私有 HTTP 端点；Cloud Run 未设置该变量时保持原有轮询模式。App 构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，演示凭证由服务端发放，App 自动进入工作台；关闭该开关时公开演示 App 显示连接失败与重试，私有操作员令牌仍可通过 API 使用。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
+云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 API、按需唤醒的 worker、PostgreSQL、私有 S3 bucket，并可托管静态 App。两个后端角色须基于同一已验证源码修订，并共享账本/工件配置；可拉取时优先固定同一镜像 digest。Railway Hobby 无法配置私有镜像仓库凭证，当前演示部署使用同源代码构建。Railway 和本地 Compose 的 API 通过 `CAPSTONE_WORKER_WAKE_URL` 访问 worker 私有 HTTP 端点；Cloud Run 未设置该变量时保持原有轮询模式。App 构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，服务端为 `/old` 原案例页发放演示凭证；关闭该开关时原案例页显示连接失败与重试，私有操作员令牌仍可通过 API 使用。首页智能体对话由独立的 `CAPSTONE_THREAD_OPEN_ACCESS` 开关控制。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
 
-Railway 的持续开发配置分为两个隔离阶段：现有 `capstone-demo` 保持用户试用，`capstone-cloud-dev` 承担开发版本的云端验证。两个阶段分别准备 API、worker、PostgreSQL、私有 bucket 和静态 App，并分别使用数据库、工件存储、操作员令牌、Provider 凭据和域名。开发版本通过本地门禁后部署到 cloud-dev；完成健康检查、登记案例、Provider、报告、证据回放及 API/worker 修订一致性检查后，使用同一已验证源码修订或镜像 digest 晋级 demo。晋级失败时回退到上一版已验证修订。变量清单见 [Railway cloud-dev](../deploy/railway/cloud-dev.variables.example) 和 [Railway demo](../deploy/railway/demo.variables.example)；文件只含占位符，不是凭据文件。
+Railway 的持续开发配置分为两个隔离阶段：现有 `capstone-demo` 保持用户试用，`capstone-cloud-dev` 承担开发版本的云端验证。两个阶段分别准备 API、worker、PostgreSQL、私有 bucket 和静态 App，并分别使用数据库、工件存储、操作员令牌和域名。Provider 凭据默认隔离；用户已允许当前功能验证阶段使用现有凭据，实际值仍只写入 worker 的受保护环境变量。开发版本通过本地门禁后部署到 cloud-dev；完成健康检查、登记案例、Provider、报告、证据回放及 API/worker 修订一致性检查后，经人工核验，使用同一已验证源码修订或镜像 digest 晋级 demo。晋级失败时回退到上一版已验证修订。变量清单见 [Railway cloud-dev](../deploy/railway/cloud-dev.variables.example) 和 [Railway demo](../deploy/railway/demo.variables.example)；文件只含占位符，不是凭据文件。
 
 ## PyPSA 电网模型库与本地案例
 

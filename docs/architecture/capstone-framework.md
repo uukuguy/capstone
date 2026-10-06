@@ -127,6 +127,14 @@ capability family. The handoff service verifies the source revision, records a
 replayable receipt, and asks the target authority to admit it before the
 target capability runs. Other cross-binding sharing remains denied.
 
+The hosted Thread adapter prepares the same application-granted handoffs for
+its bound model and verified descendants. Its Pi descriptor names the private
+handoff index; the transport supplies a receipt only to the granted target
+capability family. Answer admission uses the Packs that participated in the
+current Turn. An unused selected Pack does not downgrade another Pack's verified
+result. Published guide reads carry no authority references; they do not replace
+calculation evidence or grant cross-domain access.
+
 The generic application result is composed from independently validated Kernel
 and Domain Pack contracts. Its generic shape is exactly:
 

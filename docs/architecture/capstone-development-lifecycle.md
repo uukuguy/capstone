@@ -37,7 +37,7 @@ share any of the following:
 
 - PostgreSQL databases or `DATABASE_URL` values;
 - artifact buckets, S3 credentials, or artifact endpoints;
-- operator tokens or Provider credentials;
+- operator tokens;
 - public API/App origins, allowed-origin lists, or domain bindings;
 - mutable run, session, or evidence data.
 
@@ -47,10 +47,19 @@ same backend image digest. The App is a presentation client: its
 `VITE_API_ORIGIN` contains only the selected API origin and never a token,
 Provider key, bucket credential, or other secret.
 
-The cloud-development App may use the public demonstration flow so its no-login
-path can be tested, but its URL remains an internal test target and its
-Provider key and limits are independent. Public demonstration credentials are
-limited to registered scripted cases and never grant Provider access.
+Provider credentials are separate by default. The current function-validation
+stage permits use of existing Provider credentials, as explicitly requested by
+the user. This exception changes no database, bucket, operator-token or evidence
+ownership. Provider secrets remain in protected backend environment variables.
+
+The App reads the selected access mode from `/api/v1/thread-access`.
+`CAPSTONE_THREAD_OPEN_ACCESS=true` opens the workbench and its Thread operations
+without a browser token. Local Compose selects this mode by default; cloud
+development selects it explicitly after local verification. Other deployments
+retain operator access unless explicitly configured. The older public demo
+credential remains limited to registered scripted cases and does not grant
+Provider access. Ordinary conversation in open mode uses the worker's configured
+Provider; it does not use that older demo credential.
 
 ## Promotion protocol
 

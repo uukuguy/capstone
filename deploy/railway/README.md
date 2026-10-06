@@ -10,16 +10,22 @@ projects provide the clearest billing, credential, data, and access boundary.
 
 | Stage | Railway target | Source trigger | Public access | Data and credentials |
 | --- | --- | --- | --- | --- |
-| Cloud development | `capstone-cloud-dev` | `main` after local gates, deployed deliberately | Internal testers and the development App origin | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
+| Cloud development | `capstone-cloud-dev` | `main` after local gates, deployed deliberately | Open Thread workbench for function validation, selected explicitly | Dedicated PostgreSQL, bucket, operator token and domains; existing Provider key permitted during the current function-validation stage |
 | User trial | `capstone-demo` | Release tag or explicit promotion of a verified revision | Registered scripted cases through the public demo credential | Dedicated PostgreSQL, bucket, operator token, Provider key, and domains |
 | Local | Docker Compose plus Vite | Working tree changes | Local machine or LAN | Ignored local database, RustFS bucket, and runtime state |
 
 Each Railway stage contains one PostgreSQL service, one private Railway Bucket,
 one API service, registered family workers, and one static App service. All backend
 roles must use the same tested image or source revision within a stage.
-The two stages never share `DATABASE_URL`, artifact storage, operator tokens,
-Provider credentials, or public origins. `VITE_API_ORIGIN` contains only the
-selected API origin.
+The two stages never share `DATABASE_URL`, artifact storage, operator tokens
+or public origins. Provider credentials are separate by default; the current
+user-approved function-validation stage permits an existing Provider key.
+`VITE_API_ORIGIN` contains only the selected API origin.
+
+Set `CAPSTONE_THREAD_OPEN_ACCESS=true` on the cloud-development API after local
+App verification. The App reads `/api/v1/thread-access` and opens directly,
+with no login and no browser token. Provider keys remain on the backend workers.
+Other deployments keep their current access mode until explicitly configured.
 
 The existing public topology remains the user-trial topology. Set the API start
 command to `/app/deploy/entrypoint.sh api` and the Worker start command to
@@ -112,6 +118,7 @@ bucket variable references or protected values in the project UI:
 | `DATABASE_URL` | PostgreSQL connection URL, shared by API and worker |
 | `CAPSTONE_OPERATOR_TOKEN` | Same private operator token in both roles |
 | `CAPSTONE_PUBLIC_DEMO` | `true` on the API for automatic public demonstration access |
+| `CAPSTONE_THREAD_OPEN_ACCESS` | `true` for the current cloud-dev function trial; opens Thread operations without a browser token |
 | `CAPSTONE_HOSTED_APPLICATION` | `capstone` for the unified API; the selected family for each worker |
 | `CAPSTONE_PUBLIC_PROVIDER` | Optional private Provider default |
 | `CAPSTONE_PUBLIC_MODEL` | Optional private Provider model default |
