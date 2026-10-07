@@ -28,7 +28,7 @@ type SendMode = 'automatic' | 'ordinary' | 'professional'
 
 const AnswerReadingContext = createContext<{
   collapsed: ReadonlySet<string>
-  toggle: (id: string) => void
+  toggle: (id: string, control: HTMLButtonElement) => void
   restoreAnchor: (id: string) => void
 }>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {} })
 
@@ -561,12 +561,11 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   }, [text])
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
-    {foldable && !folded && <button type="button" className="capstone-answer-toggle is-top" aria-label="折叠回答" title="收起并定位到用户指令" aria-expanded={true} aria-controls={`${id}-content`} onClick={() => toggle(id)}><ChevronUp aria-hidden="true" /><span>收起</span></button>}
+    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <><ChevronRight aria-hidden="true" /><span className="capstone-answer-state">已折叠</span><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
     <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
       <MarkdownMessage>{text}</MarkdownMessage>
     </div>
     {folded && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
-    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ' is-bottom'}`} aria-label={folded ? '展开完整回答' : '折叠回答并返回指令'} title={folded ? '展开并定位到用户指令' : '收起并定位到用户指令'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={() => toggle(id)}>{folded ? <><ChevronRight aria-hidden="true" /><span className="capstone-answer-state">已折叠</span><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
   </div>
 }
 
@@ -731,56 +730,59 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
-  const scrollAnchor = useRef<{ id: string; top: number; focus: boolean } | null>(null)
-  function captureScrollAnchor(answerId?: string) {
+  const [readingTailSpace, setReadingTailSpace] = useState(0)
+  const scrollAnchor = useRef<{ id: string; top: number; control?: HTMLButtonElement } | null>(null)
+  function captureScrollAnchor(answerId?: string, control?: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
     const top = viewport.getBoundingClientRect().top
     const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
     const visible = nodes.find((item) => item.getBoundingClientRect().bottom > top)
-    const messageId = answerId || visible?.dataset.messageId
-    const message = allMessages.find((item) => item.id === messageId)
-    const instructionId = message?.metadata?.custom?.instructionMessageId
-    const id = typeof instructionId === 'string' ? instructionId : messageId
-    const instructionIndex = allMessages.findIndex((item) => item.id === id)
-    if (!id || instructionIndex < 0) return
+    const id = answerId || visible?.dataset.messageId
+    if (!id) return
     setReadingLayoutChanging(true)
-    const isInstruction = allMessages[instructionIndex]?.role === 'user'
     const node = nodes.find((item) => item.dataset.messageId === id)
-    scrollAnchor.current = { id, top: isInstruction || answerId ? top + 12 : Math.max(top, node?.getBoundingClientRect().top || top), focus: isInstruction || Boolean(answerId) }
-    if (!node) {
-      // The first answer in the 50-message window can have its instruction just
-      // outside it. Show the loaded instruction and its answer together.
-      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
-    }
+    scrollAnchor.current = { id, top: control?.getBoundingClientRect().top ?? Math.max(top, node?.getBoundingClientRect().top ?? top), control }
   }
   function restoreReadingAnchor(id?: string) {
     const anchor = scrollAnchor.current
     if (!anchor || (id && anchor.id !== id)) return
     const viewport = viewportRef.current
-    const node = anchor && Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || []).find((item) => item.dataset.messageId === anchor.id)
+    const node = anchor.control || Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || []).find((item) => item.dataset.messageId === anchor.id)
     if (anchor && node && viewport) {
-      scrollAnchor.current = null
-      viewport.scrollTop += node.getBoundingClientRect().top - anchor.top
-      if (anchor.focus) node.focus({ preventScroll: true })
+      const desired = viewport.scrollTop + node.getBoundingClientRect().top - anchor.top
+      const maximum = viewport.scrollHeight - viewport.clientHeight
+      // Collapsing the final reply can remove the scroll range required to
+      // keep its control in place. Preserve only the missing reading space.
+      if (desired > maximum + 1) setReadingTailSpace(readingTailSpace + desired - maximum)
+      else viewport.scrollTop = desired
+      anchor.control?.focus({ preventScroll: true })
     }
   }
-  useLayoutEffect(() => restoreReadingAnchor(), [foldState])
+  useLayoutEffect(() => restoreReadingAnchor(), [foldState, readingTailSpace])
   useEffect(() => {
     if (!readingLayoutChanging) return
     // Assistant-ui follows height changes while at the latest reply. Pause that
-    // behavior until the chosen instruction anchor and content resize settle.
+    // behavior until the stable control and content resize settle.
     let second: number | undefined
     const first = window.requestAnimationFrame(() => {
-      second = window.requestAnimationFrame(() => setReadingLayoutChanging(false))
+      restoreReadingAnchor()
+      second = window.requestAnimationFrame(() => {
+        restoreReadingAnchor()
+        scrollAnchor.current = null
+        setReadingLayoutChanging(false)
+      })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
-  }, [readingLayoutChanging, foldState])
+  }, [readingLayoutChanging, foldState, readingTailSpace])
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
+    setReadingTailSpace(0)
   }, [storageKey])
-  function toggleAnswer(id: string) {
-    captureScrollAnchor(id)
+  function toggleAnswer(id: string, control: HTMLButtonElement) {
+    control.focus({ preventScroll: true })
+    captureScrollAnchor(id, control)
+    setReadingTailSpace(0)
     setFoldState((state) => {
       const ids = new Set(state.thread === storageKey ? state.ids : [])
       if (ids.has(id)) ids.delete(id); else ids.add(id)
@@ -790,6 +792,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete' && !message.metadata?.custom?.systemNotice)
   function organizeHistory(fold: boolean) {
     captureScrollAnchor()
+    setReadingTailSpace(0)
     const snapshot = completedAnswers.flatMap((message) => message.id ? [message.id] : [])
     setFoldState((state) => {
       const ids = new Set(state.thread === storageKey ? state.ids : [])
@@ -859,9 +862,11 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
         {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
+          {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging} scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
+          {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>

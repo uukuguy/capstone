@@ -160,7 +160,20 @@ presentation fix; the zero-tool runtime remains a separately tracked gap.
 - [x] Compact `HistoryAnswerActions` and `styles-light.css`: one-line scope hint, no bordered option cards, no nested sections. Check 375px and landscape popovers, keyboard closing and retained drafts in headless Playwright.
 - [x] Run App tests/build, doctor/boundaries, current-source local rebuild and document checks. Write a verification report, commit owned paths and checkpoint. Do not claim zero-tool runtime, independent review or cloud release.
 
+## Follow-up: stable answer toggle
+
+The user supersedes forced instruction navigation: collapse and expand should
+use the same position, minimize screen movement and retain focus. Apply revised
+Web §5.3 inline; no backend, answer content or evidence changes.
+
+- [x] Revise `CapstoneAssistantThread.test.tsx` to require a single persistent toggle, retained button focus and no forced message-window navigation. Keep folding/copy/draft coverage.
+- [x] In `FoldableAnswer`, retain one fixed-width sticky toggle in both states. In the reading context, capture its element and viewport position, pause bottom-follow and restore after resize; preserve visible message position for bulk actions without stealing Settings focus.
+- [x] Verify real long answers at top, middle and end with consecutive mouse/keyboard collapse/expand on desktop/mobile/landscape, including scroll bounds and bulk actions. Require stable toggle coordinates when feasible and identical focus.
+- [x] Run App tests/build, doctor, local rebuild and document checks; report measured limits, commit and checkpoint. Keep unsupported all-off runtime and remote release pending.
+
 ## Execution record
+
+- 2026-10-07: User supersedes forced instruction navigation with same-position folding controls and retained focus. One sticky toggle persists across both states; regular desktop/mobile/landscape cases move 0–0.44px. A last-answer boundary jump of about 465px was reproduced, then removed with only the required reading tail space; the corrected case moves 0px and expansion clears the space. Bulk Settings focus and drafts survive. See [local verification](../../reviews/2026-10-07-thread-stable-answer-toggle-local-verification.md). Earlier top/bottom-to-instruction receipts describe the superseded interaction.
 
 - 2026-10-07: User screenshot disproves the claimed Settings completion: nested Advanced/professional configuration and old names remained. Flat grid-tool rows now replace them; Save appears only for a changed selection, and unsupported empty submission is blocked with a short reason. App298/build, rebuild and headless desktop/375px/landscape checks pass. See [local verification](../../reviews/2026-10-07-thread-compact-grid-settings-local-verification.md). This closes the compact UI fix, not the zero-tool runtime or cloud release.
 

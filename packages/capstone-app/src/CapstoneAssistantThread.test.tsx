@@ -183,43 +183,47 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('group', { name: '历史回答整理' })).toBeNull()
   })
 
-  it('marks folded answers subtly and returns top and bottom toggles to the user instruction', () => {
+  it('keeps one persistent answer toggle and its focus through collapse and expansion', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', text: '检查这条用户指令的回答' }, 'first'),
       event('attempt_completed', 2, { answer: '完整回答。'.repeat(160) }, 'first'),
     ]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    const instruction = screen.getByText('检查这条用户指令的回答').closest('[data-message-id]')!
     expect(projectAssistantMessages(events)[1].metadata?.custom?.instructionMessageId).toBe('user-evt_1')
-    fireEvent.click(screen.getByRole('button', { name: '折叠回答并返回指令' }))
+    const toggle = screen.getByRole('button', { name: '折叠回答' })
+    toggle.focus()
+    fireEvent.click(toggle)
     const folded = screen.getByRole('button', { name: '展开完整回答' }).closest('.capstone-answer')!
     expect(folded.getAttribute('data-answer-state')).toBe('collapsed')
     expect(within(folded as HTMLElement).getByText('已折叠')).toBeTruthy()
-    expect(document.activeElement).toBe(instruction)
-    fireEvent.click(screen.getByRole('button', { name: '展开完整回答' }))
-    expect(document.activeElement).toBe(instruction)
-    expect(screen.getByRole('button', { name: '折叠回答' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '折叠回答并返回指令' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
-    expect(document.activeElement).toBe(instruction)
+    expect(screen.getByRole('button', { name: '展开完整回答' })).toBe(toggle)
+    expect(document.activeElement).toBe(toggle)
+    fireEvent.click(toggle)
+    expect(document.activeElement).toBe(toggle)
+    expect(screen.getAllByRole('button', { name: '折叠回答' })).toEqual([toggle])
+    expect(screen.queryByRole('button', { name: '折叠回答并返回指令' })).toBeNull()
   })
 
-  it('reveals an instruction just outside the message window when toggling its answer', () => {
+  it('keeps the message window and toggle focus when the instruction is outside the window', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '窗口边界的用户指令' }, 'first'), event('attempt_completed', 2, { answer: '边界回答。'.repeat(160) }, 'first'), ...Array.from({length:49}, (_, i) => event('attempt_completed', i + 3, { answer: `其他回答 ${i}` }, `other_${i}`))]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
-    expect(screen.getByText('窗口边界的用户指令')).toBeTruthy()
-    expect(document.activeElement?.getAttribute('data-message-id')).toBe('user-evt_1')
+    const toggle = screen.getByRole('button', { name: '折叠回答' })
+    toggle.focus()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
+    expect(document.activeElement).toBe(toggle)
   })
 
-  it('keeps focus on the answer when its instruction is not loaded instead of choosing another question', () => {
+  it('keeps toggle focus when its instruction is not loaded instead of choosing another question', () => {
     render(<CapstoneAssistantThread events={[
       event('command_accepted', 1, { kind: 'send_auto', text: '无关用户指令' }, 'other'),
       event('attempt_completed', 2, { answer: '原始指令未加载的回答。'.repeat(100) }, 'missing_instruction'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
-    expect(document.activeElement?.getAttribute('data-message-id')).toBe('assistant-missing_instruction')
+    const toggle = screen.getByRole('button', { name: '折叠回答' })
+    toggle.focus()
+    fireEvent.click(toggle)
+    expect(document.activeElement).toBe(toggle)
   })
   it('clears a reconciled draft once and preserves a later draft', async () => {
     const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
