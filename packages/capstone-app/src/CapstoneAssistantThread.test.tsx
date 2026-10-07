@@ -11,6 +11,42 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps recovery available after a diagnostic cursor and excludes it from an older history page', () => {
+    const props = { events: [event('attempt_completed', 2, { answer: '已完成回答' }, 'first')],
+      systemNotices: [{ id: 'connection', afterEventSeq: 3, text: '连接需要恢复', tone: 'error' as const, action: 'reconnect' as const }],
+      disabled: true, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    expect(screen.getByRole('button', { name: '重新连接' })).toBeTruthy()
+    rerender(<CapstoneAssistantThread {...props} historyAtLatest={false} />)
+    expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull()
+  })
+
+  it('positions local system notices between instructions and preserves them without answer actions', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', text: '第一条指令' }, 'first'),
+      event('attempt_completed', 2, { answer: '第一条回答' }, 'first'),
+      event('command_accepted', 3, { kind: 'send_auto', text: '第二条指令' }, 'second'),
+      event('attempt_completed', 4, { answer: '第二条回答' }, 'second'),
+    ]} systemNotices={[{ id: 'rejected', afterEventSeq: 2, text: '本次指令未发送，输入已保留。', tone: 'error' }]}
+      disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const notice = screen.getByText('本次指令未发送，输入已保留。').closest('[data-message-id]') as HTMLElement
+    expect(notice.classList.contains('is-system')).toBe(true)
+    const nodes = [...document.querySelectorAll('[data-message-id]')]
+    expect(nodes.indexOf(notice)).toBe(2)
+    expect(within(notice).queryByRole('button', { name: '复制回答' })).toBeNull()
+    expect(within(notice).queryByRole('button', { name: '查看分析证据' })).toBeNull()
+  })
+
+  it('shows a failure once as a system notice after any partial answer', () => {
+    render(<CapstoneAssistantThread events={[
+      event('assistant_text_delta', 1, { text: '尚未完成的分析说明。' }, 'failed'),
+      event('attempt_failed', 2, { error_code: 'solver_failed' }, 'failed'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText('尚未完成的分析说明。')).toBeTruthy()
+    const failure = screen.getByText('执行失败').closest('.capstone-system-notice')
+    expect(failure).toBeTruthy()
+    expect(screen.getAllByText('执行失败')).toHaveLength(1)
+  })
   it('keeps evidence actions visible and distinguishes all five contract states', () => {
     render(<CapstoneAssistantThread events={[
       event('attempt_completed', 1, { answer: '有已准入证据。', evidence_refs: ['evidence:1'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'available'),

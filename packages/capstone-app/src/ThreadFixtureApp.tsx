@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageNotSentError } from '@assistant-ui/react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
-import { threadUiFixture, type ThreadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
+import { threadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
 import ThreadModelDirectory, { modelUnavailableCopy } from './ThreadModelDirectory'
 import { commandRejectionCopy } from './threadFeedback'
+import { upsertSystemNotice, type ThreadSystemNotice } from './threadSystemNotices'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
@@ -19,22 +20,8 @@ import type { ReactNode } from 'react'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
-function phaseLabel(phase: string | undefined): string {
-  return {
-    running: '正在运行', waiting: '等待确认', interrupted: '已中断', cancelled: '已取消',
-    completed: '已完成', failed: '执行失败',
-  }[phase || ''] || '空闲'
-}
-
 function connectionLabel(connection: ThreadProjectionState['connection']): string {
   return connection === 'live' ? '实时连接' : connection === 'reconnecting' ? '重连中' : connection === 'resync_required' ? '需重同步' : connection === 'connecting' ? '连接中' : '离线'
-}
-
-function statusCopy(state: ThreadProjectionState, fixture: ThreadUiFixture | null): string {
-  if (state.connection === 'resync_required') return '服务器与本地事件光标不一致。已冻结命令，必须先重新同步。'
-  if (fixture?.fixture_id === 'interrupted-attempt') return '上一个 Attempt 已中断；重试会创建新的 Attempt，保留当前证据链。'
-  if (fixture?.fixture_id === 'historical-live-attempt') return '当前正在查看历史页，但 live Attempt 仍在运行。取消控制始终保留在对话区。'
-  return '围绕当前电网模型发送指令或专业分析请求。默认自动识别意图，每个命令都会绑定当前 Run 和事件光标。'
 }
 
 export type ThreadWorkspaceProps = {
@@ -60,6 +47,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [systemState, setSystemState] = useState<{ thread: string; items: ThreadSystemNotice[] }>({ thread: threadId, items: [] })
+  function addSystemNotice(text: string, tone: 'info' | 'error' = 'info', id = commandKey(), instruction?: string, action?: ThreadSystemNotice['action']) {
+    const item = { id, afterEventSeq: store.state.eventSeq, text, tone, instruction, action }
+    setSystemState((state) => ({ thread: threadId, items: upsertSystemNotice(state.thread === threadId ? state.items : [], item) }))
+  }
   const [reload, setReload] = useState(0)
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
@@ -120,9 +112,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
                   && typeof entry.command.payload.text === 'string') {
                 setAcceptedDraft({ text: entry.command.payload.text, commandId: entry.command.command_id })
               }
-              setNotice('已确认原操作提交成功。')
+              addSystemNotice('已确认原操作提交成功。', 'info', `receipt-${entry.command.command_id}`)
             } else {
-              setNotice(commandRejectionCopy(receipt.rejection))
+              addSystemNotice(commandRejectionCopy(receipt.rejection), 'error', `receipt-${entry.command.command_id}`, typeof entry.command.payload.text === 'string' ? entry.command.payload.text : undefined)
             }
           }
         }
@@ -132,13 +124,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           void store.consumeEvents(abort.signal).catch((cause) => {
             if (stableTimer) clearTimeout(stableTimer)
             if (active && !(cause instanceof DOMException && cause.name === 'AbortError')) {
-              setError(cause instanceof Error ? cause.message : 'Thread 事件流不可用')
+              setError('实时连接暂不可用。')
               recover(cause)
             }
           })
         }
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : 'Thread 投影不可用')
+        if (active) setError('工作台状态暂不可用，请重新连接。')
         recover(cause)
       } finally {
         if (active) setLoading(false)
@@ -148,6 +140,33 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [fixture, pageVisible, reload, store, threadId])
 
   const snapshot = projection.snapshot
+  useEffect(() => {
+    if (!snapshot) return
+    const connection = projection.connection
+    if (connection === 'offline' || connection === 'reconnecting' || connection === 'resync_required' || error) {
+      setSystemState((state) => {
+        const items = state.thread === threadId ? state.items : []
+        // A lost command receipt already explains this interruption and owns
+        // its recovery button. Do not repeat it as a second connection error.
+        if (connection !== 'resync_required' && items.some((item) => item.id.startsWith('receipt-') && item.action === 'reconnect')) return state
+        return { thread: threadId, items: upsertSystemNotice(items, { id: 'connection', afterEventSeq: store.state.eventSeq,
+          text: connection === 'resync_required' ? '需要重新同步' : '连接暂时中断，输入和已加载消息仍保留。', tone: 'error', action: connection === 'resync_required' ? 'resync' : 'reconnect' }) }
+      })
+    } else if (connection === 'live') {
+      setSystemState((state) => state.thread === threadId && state.items.some((item) => item.id === 'connection')
+        ? { ...state, items: upsertSystemNotice(state.items, { id: 'connection', afterEventSeq: store.state.eventSeq, text: '连接已恢复。', tone: 'info' }) } : state)
+    }
+  }, [projection.connection, error, snapshot?.threadId])
+  useEffect(() => {
+    if (sessionNotice) addSystemNotice(sessionNotice, 'error', 'session')
+    if (readOnly) addSystemNotice('这段对话已归档，可新建对话继续。', 'info', 'archive')
+  }, [sessionNotice, readOnly, threadId])
+  useEffect(() => {
+    const attempt = snapshot?.currentAttempt
+    if (attempt?.phase === 'interrupted' && !store.publicEvents.some((event) => event.attemptId === attempt.attemptId && event.eventType === 'attempt_interrupted')) {
+      addSystemNotice('本次 Attempt 已中断', 'info', `interrupted-${attempt.attemptId}`)
+    }
+  }, [snapshot?.currentAttempt?.attemptId, snapshot?.currentAttempt?.phase])
   useEffect(() => {
     if (snapshot) setModelTarget(snapshot.activeModelContext.modelId)
   }, [snapshot?.activeModelContext.modelId])
@@ -213,7 +232,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
-    if (readOnly) { setNotice('这段对话已归档，可新建对话继续。'); return }
+    if (readOnly) { addSystemNotice('这段对话已归档，可新建对话继续。', 'info', 'archive'); return }
     const latest = store.state.snapshot
     if (!latest) return
     const conversational = kind === 'send_auto' || kind === 'send_ordinary' || kind === 'send_professional'
@@ -224,6 +243,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       store.state.viewedGridPageId,
     ])
     const initialIdentity = contextIdentity()
+    let submittedCommand: ThreadCommand | undefined
     const makeCommand = (): ThreadCommand => {
       const current = store.state.snapshot!
       const key = commandKey()
@@ -233,6 +253,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         idempotencyKey: `idem_ui_${key}`, payload,
       })
       if (conversational && composerSend.current) composerCommands.current.add(command.command_id)
+      submittedCommand = command
       return command
     }
     try {
@@ -253,7 +274,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       const receiptNotice = receipt.status === 'accepted'
         ? successNotice || '操作已提交。'
         : commandRejectionCopy(receipt.rejection)
-      setNotice(conversational && receipt.status === 'accepted' ? null : receiptNotice); sync()
+      if (!(conversational && receipt.status === 'accepted')) addSystemNotice(receiptNotice, receipt.status === 'rejected' ? 'error' : 'info', `receipt-${receipt.commandId}`, conversational && typeof payload.text === 'string' ? payload.text : undefined)
+      sync()
       if (receipt.status === 'accepted') {
         setError(null)
         if (conversational || kind === 'retry_new_attempt') {
@@ -263,7 +285,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
       return receipt
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '命令未提交'); sync()
+      addSystemNotice('操作提交结果尚未确认。请重新连接核对原操作，输入内容已保留。', 'error', submittedCommand ? `receipt-${submittedCommand.command_id}` : undefined, typeof payload.text === 'string' ? payload.text : undefined, 'reconnect'); sync()
     }
   }
 
@@ -287,7 +309,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     if (!caseExecution || !snapshot) return
     const executionId = caseIdentity()
     if (!executionId) {
-      setNotice('案例身份尚未同步，请稍后重试')
+      addSystemNotice('案例身份尚未同步，请稍后重试', 'error')
       return
     }
     if (actionId === 'cancel_case') {
@@ -298,7 +320,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const step = ordinal ? caseExecution.steps[ordinal - 1] : undefined
     const failedAttemptId = step?.details.attempt_id || step?.details.failed_attempt_id
     if (!ordinal || typeof failedAttemptId !== 'string') {
-      setNotice('案例步骤身份尚未同步，请稍后重试')
+      addSystemNotice('案例步骤身份尚未同步，请稍后重试', 'error')
       return
     }
     void dispatch('retry_case_step', { case_execution_id: executionId, step_ordinal: ordinal, failed_attempt_id: failedAttemptId })
@@ -333,18 +355,18 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       // Keep unresolved model requests on the conversation path. The agent
       // can consult its catalog and return a reply without a guessed switch.
       if (resolution.kind === 'ambiguous') {
-        setNotice(`模型引用“${intent.reference}”不唯一：${resolution.candidates.map((item) => item.modelId).join('、')}。请使用完整模型 ID。`)
+        addSystemNotice(`模型引用“${intent.reference}”不唯一：${resolution.candidates.map((item) => item.modelId).join('、')}。请使用完整模型 ID。`, 'error', undefined, text)
         throw new MessageNotSentError('模型引用不唯一，请使用完整模型 ID。')
       } else if (resolution.kind === 'resolved') {
         const model = resolution.model
         if (model.available === false) {
-          setNotice(`${model.displayName}：${modelUnavailableCopy(model.unavailableReason)}。请从目录选择可用模型。${model.unavailableReason ? `（诊断代码：${model.unavailableReason}）` : ''}`)
+          addSystemNotice(`${model.displayName}：${modelUnavailableCopy(model.unavailableReason)}。请从目录选择可用模型。${model.unavailableReason ? `（诊断代码：${model.unavailableReason}）` : ''}`, 'error', undefined, text)
           throw new MessageNotSentError('所选模型当前不可用。')
         }
         const pendingModel = store.state.snapshot?.pendingModelSwitch
         if (pendingModel && (pendingModel.modelId !== model.modelId ||
             (intent.action === 'reopen_model_context' && pendingModel.reason !== 'explicit_reopen'))) {
-          setNotice('已有模型切换等待执行，请先完成或撤销该切换。')
+          addSystemNotice('已有模型切换等待执行，请先完成或撤销该切换。', 'error', undefined, text)
           throw new MessageNotSentError('已有模型切换等待执行。')
         }
         if (!pendingModel && (intent.action === 'reopen_model_context' || model.modelId !== store.state.snapshot?.activeModelContext.modelId)) {
@@ -380,16 +402,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           instructionLabel={instructionNumber ? `指令 ${instructionNumber}` : undefined}
           viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
-          onSelectPage={selectPage} />
+          onSelectPage={selectPage} feedback={notice} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
           <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{headerActions}</div></div>
-          {(projection.connection !== 'live' || contextChangePending || attempt) && <div className={`thread-state-strip${projection.connection === 'resync_required' ? ' is-danger' : ''}`} role={projection.connection === 'resync_required' ? 'alert' : 'status'}><strong>{projection.connection === 'resync_required' ? '需要重新同步' : phaseLabel(attempt?.phase)}</strong><span>{statusCopy(projection, fixture)}</span></div>}
-          {error && <div className="thread-inline-error" role="alert">{error}</div>}
-          {sessionNotice && <div className="thread-inline-error" role="alert">{sessionNotice}</div>}
-          {notice && <div className="thread-inline-notice" role="status">{notice}</div>}
-          {readOnly && <div className="thread-inline-notice" role="status">这段对话已归档，可新建对话继续。</div>}
-          {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+            systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
@@ -435,7 +452,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               }
             } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
-            {projection.connection === 'resync_required' ? <><button type="button" className="thread-primary-button" onClick={() => setReload((value) => value + 1)}>重新同步</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('请检查服务连接与事件游标')}>帮助</button></> : projection.connection === 'reconnecting' || projection.connection === 'offline' ? <><button type="button" className="thread-primary-button" disabled={loading} onClick={() => setReload((value) => value + 1)}>重新连接</button><button type="button" className="thread-secondary-button" onClick={() => setNotice('实时事件流暂时中断，Thread 状态仍保留。')}>帮助</button></> : <>
+            {projection.connection === 'live' && <>
               {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry, { turn_id: attempt?.turnId })}
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
             </>}

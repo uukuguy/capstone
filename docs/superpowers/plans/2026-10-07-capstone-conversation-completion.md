@@ -137,7 +137,27 @@ make capstone-local-rebuild
 git diff --check
 ```
 
+## Follow-up: system notices in conversation
+
+User approves moving command errors and operation outcomes into the message
+area, while keeping lightweight connection state and local UI feedback.
+Use writing-plans and test-driven-development inline; no backend contract change.
+
+- [x] Write failing App tests for inline notices, command rejection with retained draft, one connection entry, terminal-error deduplication and notice ordering.
+- [x] Add a bounded client notice projection with stable IDs and event-position anchors. Keep notices separate from answers, evidence, commands and model prompts. Project durable model/selection events from the existing ledger.
+- [x] Render quiet system rows with recovery controls; move App banners into them. Keep UI-only feedback at the model pane. Preserve existing failure retry and diagnostic details.
+- [x] Run App tests/build, local rebuild, doctor/boundaries and headless desktop/mobile checks; confirm history focus and drafts survive without Provider calls.
+- [x] Record verification and review status, commit task-owned files and update the active checkpoint. Remote release remains separate.
+
 ## Execution record
+
+- 2026-10-07: User approves system feedback in the message area. Quiet rows replace top banners; connection recovery updates one entry, rejected commands retain drafts, and Attempt errors keep partial answers without repeated error text. A diagnostic-only cursor regression was reproduced and fixed so recovery remains reachable at the live edge. See [local verification](../../reviews/2026-10-07-thread-system-notices-local-verification.md). Independent reviewer dispatch remains unavailable; no remote release.
+
+- 2026-10-07: User clarifies that manual tool-group selection is necessary; the advanced assessment concerns a full unified grid-model system for multi-tool operation, not pairwise conversion. User explicitly defers implementation. Record the assessment in the evolution notebook; do not add a current work package, start adapters or make unified modeling a prerequisite for conversation/UI completion. Existing family compatibility remains enforced.
+
+- 2026-10-07: User defines the public grid meaning: one ApplicationProfile represents one set of grid calculation and analysis tools. Larger tool systems split into multiple Domain Packs under the same Profile. Keep Pack composition internal and manage model identity separately from tool enablement. This clarifies §5.4; it does not claim the compact selector or zero-tool runtime is implemented.
+
+- 2026-10-07: User corrects the proposed removal of Profile selection and the misleading “应用” label. The public concept is “电网计算分析工具”; enabling/disabling compatible tool groups is meaningful. Retract the uncommitted UI removal and retain verified 7b6524e source while correcting §5.4. All-disabled selection preserves the model but must stop tool-dependent calculations; the current empty-selection session failure/rollback is an implementation gap, not a reason to remove user choice. Next implementation must simplify the small control, use business tool-group names, make compatibility clear and verify zero-tool behavior. No remote release.
 
 - 2026-10-07: User requests distinctive folded states, instruction anchors and useful unified Settings. App293 tests/build and desktop/mobile/landscape/reduced-motion browser checks pass; a runtime bottom-follow race and message-window focus timing were reproduced and fixed. Profile purpose was explained; selection remains behind Advanced with unchanged backend contracts. See [local verification](../../reviews/2026-10-07-thread-settings-and-instruction-focus-local-verification.md). Independent review dispatch is still unavailable; no remote release.
 

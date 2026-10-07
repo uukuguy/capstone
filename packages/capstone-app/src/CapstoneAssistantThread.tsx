@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
+import ThreadSystemNotice from './ThreadSystemNotice'
+import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
 import {
   AssistantRuntimeProvider,
@@ -299,6 +301,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
         : ''
       const terminalAnswer = event.eventType === 'attempt_completed' ? answer : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
+      const partialText = event.eventType !== 'attempt_completed' ? message?.content : undefined
       if (message && terminalAnswer && (event.eventType === 'attempt_completed' || !message.content)) {
         message.content = terminalAnswer
       } else if (message && event.eventType !== 'attempt_completed') {
@@ -324,6 +327,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
             instruction: instruction?.text,
             instructionMessageId: instruction?.messageId,
             terminalPhase: event.eventType.replace(/^attempt_/, ''),
+            ...(event.eventType !== 'attempt_completed' ? { terminalNotice: terminalAnswer, partialText } : {}),
             errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
             finishedAt: event.occurredAt,
@@ -621,10 +625,19 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
       (!modelSummary || contextId === modelSummary.contextId))
+  const notice = custom?.systemNotice as SystemNotice | undefined
+  const onSystemAction = useContext(SystemActionContext)
+  if (notice) return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label="系统提示" className="capstone-chat-message is-system">
+    <ThreadSystemNotice tone={notice.tone} instruction={notice.instruction} action={notice.action === 'resync' ? '重新同步' : notice.action === 'reconnect' ? '重新连接' : undefined} onAction={notice.action ? () => onSystemAction?.(notice.action!) : undefined}>{notice.text}</ThreadSystemNotice>
+  </MessagePrimitive.Root>
+  const terminalNotice = typeof custom?.terminalNotice === 'string' ? custom.terminalNotice : undefined
   return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
       <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
-      {hasText && role === 'assistant' && status?.type === 'complete' ? <FoldableAnswer id={id} text={text} /> : hasText
+      {terminalNotice ? <>
+        {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
+        <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
+      </> : hasText && role === 'assistant' && status?.type === 'complete' ? <FoldableAnswer id={id} text={text} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
@@ -677,6 +690,8 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  systemNotices?: readonly SystemNotice[]
+  onSystemAction?: (action: 'reconnect' | 'resync') => void
   storageKey?: string
   hasOlderHistory?: boolean
   historyLoading?: boolean
@@ -708,8 +723,10 @@ export type CapstoneAssistantThreadProps = {
 }
 
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
-export default function CapstoneAssistantThread({ events, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
-  const allMessages = useMemo(() => projectAssistantMessages(events), [events])
+const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
+
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
+  const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events), events, systemNotices, historyAtLatest), [events, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -770,7 +787,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
       return { thread: storageKey, ids }
     })
   }
-  const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete')
+  const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete' && !message.metadata?.custom?.systemNotice)
   function organizeHistory(fold: boolean) {
     captureScrollAnchor()
     const snapshot = completedAnswers.flatMap((message) => message.id ? [message.id] : [])
@@ -826,6 +843,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
   }, [runtime, initialDraft])
 
   return <AssistantRuntimeProvider runtime={runtime}>
+    <SystemActionContext.Provider value={onSystemAction}>
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, onEditInstruction: (text) => setEditRequest({ text, nonce: Date.now() }), modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
@@ -856,5 +874,6 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
     </div>
     </ChatMessageContext.Provider>
     </AnswerReadingContext.Provider>
+    </SystemActionContext.Provider>
   </AssistantRuntimeProvider>
 }

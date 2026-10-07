@@ -34,6 +34,7 @@ export type ThreadModelPaneProps = {
   onSelectPage: (pageId: string) => void
   resultProjection?: ResultProjection
   focusedElementId?: string
+  feedback?: string | null
 }
 
 function projectionNetworkView(diagram: NetworkDiagram, projection: ResultProjection | undefined, focusedElementId: string | undefined) {
@@ -77,7 +78,7 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
   projectionEventSeq, previewDiagram,
-  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId }: ThreadModelPaneProps) {
+  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -132,6 +133,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
           failureCode={networkFailureCode}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
     </div>
+    {feedback && <div className="thread-model-feedback" role="status">{feedback}</div>}
     <details className="thread-view-details"><summary>电网视图详情{isHistorical ? ' · 历史只读' : ''}</summary>
       <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
       <p>{viewedContext?.implementationFamily} · revision {viewedContext?.modelRevision}</p>
