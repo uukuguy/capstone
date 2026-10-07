@@ -91,9 +91,9 @@ Available operations depend on the selected model and its published capability c
 
 The topology is a view of an authority-owned model, linked to the analysis through explicit references. The App receives a bounded geometry projection, separate from the agent's model-facing context. Model coordinates preserve registered schematic or geographic structure.
 
-![Current agent conversation: analysis result table linked to a focused line and its endpoint buses on the electrical topology](docs/images/capstone-topology-interaction.png)
+![Agent conversation listing the three lines with the highest loading, alongside their highlighted topology and loading overlay](docs/images/capstone-agent-topology.png)
 
-In the current conversation page, selecting line `21` in the result table locates `line 21` and its endpoint buses on the topology. This screenshot revisits a completed analysis; model names and values retain that run's recorded revision.
+Ask the agent to list the three lines with the highest loading. The answer presents the ranking, endpoint buses, power flows, and losses; the corresponding grid view highlights the analyzed lines and their loading. This screenshot shows a completed analysis, with names and values recorded for that run's model revision.
 
 For a result such as “the three lines with the highest loading,” follow the linked views:
 
