@@ -17,6 +17,7 @@ import { parseThreadModelCommand, resolveThreadModelCommandReference } from './t
 import { commandKey } from './commandKey'
 import { canReconnect, reconnectDelay } from './threadSessionState'
 import type { ReactNode } from 'react'
+import { enabledTools, effectiveTools, updateToolPreferences } from './threadToolPreferences'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -33,9 +34,14 @@ export type ThreadWorkspaceProps = {
   readOnly?: boolean
   headerActions?: ReactNode
   sessionNotice?: string | null
+  disabledToolIds?: string[]
+  onDisabledToolIdsChange?: (ids: string[]) => void
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange }: ThreadWorkspaceProps) {
+  const [localDisabledToolIds, setLocalDisabledToolIds] = useState<string[]>([])
+  const disabledToolIds = sharedDisabledToolIds ?? localDisabledToolIds
+  const setDisabledToolIds = onDisabledToolIdsChange ?? setLocalDisabledToolIds
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
     if (client) return new ThreadProjectionStore(client, storageKey)
@@ -140,6 +146,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [fixture, pageVisible, reload, store, threadId])
 
   const snapshot = projection.snapshot
+  const selectedTools = useMemo(() => enabledTools(projection.catalog?.profiles || [], disabledToolIds), [projection.catalog?.profiles, disabledToolIds])
   useEffect(() => {
     if (!snapshot) return
     const connection = projection.connection
@@ -307,6 +314,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   function caseAction(actionId: 'retry_case_step' | 'cancel_case' | 'start_case' | 'view_case_details'): void {
     if (actionId === 'view_case_details' || actionId === 'start_case') return
     if (!caseExecution || !snapshot) return
+    if (actionId === 'retry_case_step' && snapshot.activeModelContext.enabledProfiles.some((profile) => disabledToolIds.includes(profile.profileId))) {
+      addSystemNotice('工具选择已改变，请启用案例所需工具后重试。', 'error')
+      return
+    }
     const executionId = caseIdentity()
     if (!executionId) {
       addSystemNotice('案例身份尚未同步，请稍后重试', 'error')
@@ -327,6 +338,14 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   function startCase(caseId: string, caseVersion: string): void {
+    const entry = projection.catalog?.cases?.find((item) => item.caseId === caseId && item.caseVersion === caseVersion)
+    const families = projection.catalog?.models.filter((model) => entry?.modelIds.includes(model.modelId)).map((model) => model.implementationFamily) || []
+    const needed = projection.catalog?.profiles.filter((profile) => profile.implementationFamilies.some((family) => families.includes(family))) || []
+    if (needed.some((profile) => disabledToolIds.includes(profile.profileId)) ||
+        (disabledToolIds.length > 0 && (!entry || !needed.length))) {
+      addSystemNotice('案例所需的计算分析工具已关闭。请在设置中启用后重试。', 'error')
+      return
+    }
     void dispatch('start_case_execution', { case_id: caseId, case_version: caseVersion, strategy_id: 'sequential_batch' })
   }
 
@@ -349,6 +368,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
+    let family = store.state.snapshot?.pendingModelSwitch?.implementationFamily || store.state.snapshot?.activeModelContext.implementationFamily || ''
     const intent = parseThreadModelCommand(text)
     if (intent && projection.catalog) {
       const resolution = resolveThreadModelCommandReference(projection.catalog, intent.reference)
@@ -359,6 +379,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         throw new MessageNotSentError('模型引用不唯一，请使用完整模型 ID。')
       } else if (resolution.kind === 'resolved') {
         const model = resolution.model
+        family = model.implementationFamily
         if (model.available === false) {
           addSystemNotice(`${model.displayName}：${modelUnavailableCopy(model.unavailableReason)}。请从目录选择可用模型。${model.unavailableReason ? `（诊断代码：${model.unavailableReason}）` : ''}`, 'error', undefined, text)
           throw new MessageNotSentError('所选模型当前不可用。')
@@ -370,6 +391,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           throw new MessageNotSentError('已有模型切换等待执行。')
         }
         if (!pendingModel && (intent.action === 'reopen_model_context' || model.modelId !== store.state.snapshot?.activeModelContext.modelId)) {
+          requireEnabledTools(family, text)
           const receipt = await dispatch(intent.action, {
             model_id: model.modelId,
             ...(intent.action === 'reopen_model_context' ? { reason: 'user_requested_fresh_context' } : {}),
@@ -381,8 +403,27 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         }
       }
     }
-    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text })
+    const tools = requireEnabledTools(family, text)
+    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text,
+      ...(projection.catalog?.profiles.length ? { enabled_profiles: tools.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) } : {}),
+    })
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
+  }
+
+  function requireEnabledTools(family: string, text: string) {
+    const profiles = projection.catalog?.profiles || []
+    if (disabledToolIds.length && !profiles.length) {
+      addSystemNotice('工具目录暂不可用，请重新连接后重试。', 'error', undefined, text)
+      throw new MessageNotSentError('工具目录暂不可用。')
+    }
+    const tools = effectiveTools(profiles, disabledToolIds, family)
+    // The current Pi runtime still requires a prepared Pack. Keep the global
+    // preference, retain the draft and fail before any default can re-enable it.
+    if (profiles.length && !tools.length) {
+      addSystemNotice('未启用适用于此模型的计算分析工具。请在设置中启用后重试。', 'error', undefined, text)
+      throw new MessageNotSentError('未启用适用于此模型的计算分析工具。')
+    }
+    return tools
   }
 
   function controlButton(label: string, kind: string, enabled: boolean, payload: Record<string, unknown> = {}) {
@@ -434,10 +475,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
-              activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} historyActions={historyActions}
-              onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
+            composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
+              onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void sendConversation('automatic', `打开 ${modelId} 电网模型`).catch(() => {})} /></>}
@@ -448,12 +488,16 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               if (events.some((event) => event.attemptId === attemptId && event.eventType === 'attempt_completed')) {
                 if (canSendText && !contextChangePending && instruction?.trim()) await sendConversation('automatic', instruction)
               } else {
+                if (snapshot.activeModelContext.enabledProfiles.some((profile) => disabledToolIds.includes(profile.profileId))) {
+                  addSystemNotice('工具选择已改变，请发送新指令使用当前设置。', 'error')
+                  return
+                }
                 await dispatch('retry_new_attempt', { attempt_id: attemptId })
               }
             } : undefined} />
           <div className="thread-control-row" aria-label="Thread 控制">
             {projection.connection === 'live' && <>
-              {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry, { turn_id: attempt?.turnId })}
+              {isInterrupted && controlButton('重试新 Attempt', 'retry_new_attempt', canRetry && !snapshot.activeModelContext.enabledProfiles.some((profile) => disabledToolIds.includes(profile.profileId)), { turn_id: attempt?.turnId })}
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
             </>}
           </div>

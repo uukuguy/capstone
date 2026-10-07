@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { StrictMode } from 'react'
 import ThreadLiveEntry from './ThreadLiveEntry'
 import App from './App'
+import { threadUiFixture } from './threadUiFixtures'
 
 afterEach(() => {
   cleanup()
@@ -47,6 +48,7 @@ describe('ThreadLiveEntry', () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
+      if (String(url).endsWith('/catalog')) return new Response(JSON.stringify(threadUiFixture('idle-ieee39').catalog))
       const id = init?.method === 'POST' ? 'thr_second' : 'thr_demo_39'
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: String(url).includes('thr_second') ? 'thr_second' : 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
@@ -59,10 +61,17 @@ describe('ThreadLiveEntry', () => {
     })
     vi.stubGlobal('fetch', fetcher)
     render(<ThreadLiveEntry threadId="thr_demo_39" />)
-    fireEvent.click(await screen.findByRole('button', { name: '新建对话' }))
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '新建对话' }))
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('thread')).toBe('thr_second'))
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(true)
   })
 
   it('loads a real Thread workspace through HTTP snapshot, page, and SSE adapters', async () => {

@@ -601,7 +601,63 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     text = command["payload"].get("text")
     if not isinstance(text, str) or not text.strip():
         return "message_text_required"
+    if "enabled_profiles" in command["payload"]:
+        try:
+            _message_payload_selection(command)
+        except (KeyError, TypeError, ValueError):
+            return "selection_invalid"
     return None
+
+
+def _message_payload_selection(command: Mapping[str, Any]) -> ModelCapabilitySelection:
+    return ModelCapabilitySelection.from_document({
+        "schema": "capstone-model-capability-selection/1",
+        "enabled_profiles": command["payload"]["enabled_profiles"],
+    })
+
+
+def _message_selection_for_command(
+    snapshot: ThreadSnapshot, command: Mapping[str, Any],
+    catalog: ThreadCapabilityCatalog | None,
+) -> tuple[ModelCapabilitySelection | None, str | None]:
+    """Validate application-selected tools against the activating model."""
+    if command["kind"] not in _MESSAGE_COMMAND_KINDS or "enabled_profiles" not in command["payload"]:
+        return None, None
+    try:
+        selection = _message_payload_selection(command)
+    except (KeyError, TypeError, ValueError):
+        return None, "selection_invalid"
+    if catalog is None:
+        return None, "selection_catalog_unavailable"
+    target = snapshot.pending_model_switch or snapshot.active_model_context
+    locked = _application_context_lock(snapshot)
+    current = snapshot.pending_selection.enabled_profiles if snapshot.pending_selection is not None else target.enabled_profiles
+    if locked is not None and selection.enabled_profiles != current:
+        return None, locked
+    try:
+        resolved = catalog.resolve(ThreadModelDescriptor(
+            target.model_id, target.model_revision, target.implementation_family,
+        ), selection)
+    except (KeyError, TypeError, ValueError):
+        return None, "selection_unavailable"
+    return (selection, None) if resolved == selection else (None, "selection_not_exact")
+
+
+def _with_message_selection(
+    snapshot: ThreadSnapshot, command: Mapping[str, Any],
+    selection: ModelCapabilitySelection | None,
+) -> ThreadSnapshot:
+    if selection is None:
+        return snapshot
+    if snapshot.pending_model_switch is not None:
+        return replace(snapshot, pending_model_switch=replace(
+            snapshot.pending_model_switch, enabled_profiles=selection.enabled_profiles,
+        ))
+    if snapshot.pending_selection is not None or selection.enabled_profiles != snapshot.active_model_context.enabled_profiles:
+        return replace(snapshot, pending_selection=PendingSelectionSnapshot(
+            command_id=command["command_id"], enabled_profiles=selection.enabled_profiles,
+        ))
+    return snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -1006,6 +1062,13 @@ class InMemoryThreadService:
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
 
+            selection, rejection = _message_selection_for_command(self._snapshot, parsed, self._capability_catalog)
+            if rejection is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection=rejection)
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
+                return receipt
+            self._snapshot = _with_message_selection(self._snapshot, parsed, selection)
             token = secrets.token_hex(8)
             turn_id = "turn_" + token
             self._activate_pending_model_switch(turn_id)
@@ -2078,6 +2141,7 @@ class PostgresThreadService:
             if thread is None:
                 raise ThreadNotFound(parsed["thread_id"])
             snapshot = self._snapshot_from_row(thread)
+            message_selection, message_selection_rejection = _message_selection_for_command(snapshot, parsed, self._capability_catalog)
             command_row = connection.execute(
                 "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
                 (parsed["thread_id"], parsed["command_id"]),
@@ -2319,7 +2383,10 @@ class PostgresThreadService:
                             )
             elif snapshot.current_attempt is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+            elif message_selection_rejection is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection=message_selection_rejection)
             else:
+                snapshot = _with_message_selection(snapshot, parsed, message_selection)
                 token = secrets.token_hex(8)
                 turn_id = "turn_" + token
                 if snapshot.pending_model_switch is not None:

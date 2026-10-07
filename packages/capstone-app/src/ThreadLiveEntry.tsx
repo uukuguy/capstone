@@ -46,6 +46,7 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
   const [archived, setArchived] = useState(false)
+  const [disabledToolIds, setDisabledToolIds] = useState<string[]>([])
   const newInFlight = useRef(false)
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || ''
   const hasAccess = accessMode === 'open' || (accessMode === 'operator' && Boolean(token))
@@ -150,6 +151,7 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     : <button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button>}</div></main>
   if (!client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建对话…</main>
   return <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
+    disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
     sessionNotice={error} headerActions={<button type="button" className="thread-new-dialogue"
       disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>

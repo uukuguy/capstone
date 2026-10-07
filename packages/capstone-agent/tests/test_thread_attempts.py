@@ -164,6 +164,55 @@ def test_worker_claim_contains_the_exact_admitted_model_context() -> None:
     assert claim.model_context.model_revision == "revision:sha256:" + "a" * 64
 
 
+def test_message_selection_is_atomic_replayable_and_keeps_exact_worker_tools() -> None:
+    service = _selection_service()
+    command = {**_command(), "payload": {"text": "inspect", "enabled_profiles": [
+        {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    ]}}
+    receipt = service.submit_command(command)
+    assert receipt.status == "accepted"
+    assert service.submit_command(command) == receipt
+    claim = service.claim_attempt("worker", lease_seconds=30)
+    assert claim is not None
+    assert claim.model_context.enabled_profiles == (("static-analysis", "1.0.0"),)
+    assert [event.event_type for event in service.read_events("thr_attempts", 0).events] == [
+        "selection_activated", "command_accepted", "attempt_started",
+    ]
+
+
+def test_message_selection_overrides_target_defaults_at_model_activation() -> None:
+    service = _model_service()
+    service.submit_command({**_command("cmd_switch"), "kind": "switch_model", "payload": {"model_id": "pypsa39"}})
+    receipt = service.submit_command({**_command("cmd_send"), "expected_event_seq": 2,
+        "payload": {"text": "open model", "enabled_profiles": [{"profile_id": "operations", "profile_version": "1.0.0"}]}})
+    assert receipt.status == "accepted"
+    context = service.snapshot("thr_attempts").active_model_context
+    assert context.implementation_family == "pypsa"
+    assert context.enabled_profiles == (("operations", "1.0.0"),)
+
+
+@pytest.mark.parametrize("selection", [None, [{"profile_id": "broken"}], [{"profile_id": "ok", "profile_version": "1.0", "extra": True}]])
+def test_malformed_message_selection_creates_no_attempt_or_context_change(selection) -> None:
+    service = _selection_service()
+    before = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command(), "payload": {"text": "hello", "enabled_profiles": selection}})
+    assert receipt.status == "rejected"
+    assert receipt.rejection == "selection_invalid"
+    assert service.snapshot("thr_attempts") == before
+
+
+def test_message_tool_selection_cannot_bypass_an_application_context_lock() -> None:
+    document = _selection_service().snapshot("thr_attempts").to_document()
+    document["application_state"] = {"context_locked": True}
+    service = InMemoryThreadService.from_document(document, capability_catalog=_SelectionCatalog())
+    before = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command(), "payload": {"text": "hello", "enabled_profiles": [
+        {"profile_id": "static-analysis", "profile_version": "1.0.0"},
+    ]}})
+    assert receipt.status == "rejected" and receipt.rejection == "case_context_locked"
+    assert service.snapshot("thr_attempts") == before
+
+
 def test_worker_claim_carries_the_application_model_catalog_context() -> None:
     service = _model_service()
     service.set_catalog_context({

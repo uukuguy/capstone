@@ -58,6 +58,70 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('does not restore backend defaults when a saved preference has no available catalog', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp disabledToolIds={['pandapower-static-analysis']} client={new CapstoneThreadClient({ ...transport,
+      getCatalog: async () => ({ schema: 'capstone-thread-catalog/1', models: [], profiles: [] }),
+      sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) },
+    })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '计算潮流' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText('工具目录暂不可用，请重新连接后重试。')
+    expect(commands).toEqual([])
+    expect(input.value).toBe('计算潮流')
+  })
+
+  it('keeps global choices without commands and blocks disabled tools with the draft retained', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) } })} threadId="thr_demo_39" />)
+    await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'pandapower 静态分析' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
+    expect(commands).toEqual([])
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '计算潮流' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText(/未启用适用于此模型的计算分析工具。请在设置中启用后重试。/)
+    expect(commands).toEqual([])
+    expect(input.value).toBe('计算潮流')
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('submits the compatible enabled subset on each task without exposing another family', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) } })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '计算潮流' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0].payload.enabled_profiles).toEqual([{ profile_id: 'pandapower-static-analysis', profile_version: '1.0.1' }])
+  })
+
+  it('uses the enabled target tools for a model-opening turn when the current tools are disabled', async () => {
+    const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp disabledToolIds={['pandapower-static-analysis']} client={new CapstoneThreadClient({ ...transport,
+      sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) },
+    })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.change(input, { target: { value: '打开 pypsa39 电网模型' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands[0]).toMatchObject({ kind: 'switch_model', payload: { model_id: 'pypsa39' } })
+    expect(commands[1].payload.enabled_profiles).toEqual([{ profile_id: 'pypsa-business-cases', profile_version: '1.0.0' }])
+    await waitFor(() => expect((screen.getByRole('button', { name: '对话设置' }) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(true)
+  })
+
   it('does not create a second Turn when the first command committed before its receipt was lost', async () => {
     const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
     const commands: ThreadCommand[] = []
@@ -672,8 +736,13 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByText('电网计算分析工具')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '保存工具选择' })).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'pandapower 静态分析' }))
-    expect((screen.getByRole('button', { name: '保存工具选择' }) as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByText('当前版本尚不支持全部关闭')).toBeTruthy()
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '保存工具选择' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(true)
     expect(screen.queryByText('操作已提交。')).toBeNull()
   })
 

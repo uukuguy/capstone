@@ -181,9 +181,18 @@ choices. Execution still uses compatible registered tools; this grants no model
 conversion. Configuration persistence and reload remain a future extension as
 the tool catalog grows.
 
-- [ ] Separate global preferences from the current model's effective selection; remove model-family disabling of Settings switches.
-- [ ] Apply the compatible enabled subset before execution and preserve choices across model/conversation switches. Cover empty effective selections explicitly.
-- [ ] Verify App/runtime behavior, rebuild the current checkout and record exact completion limits.
+- [x] Separate global preferences from the current model's effective selection; remove model-family disabling of Settings switches.
+- [x] Apply the compatible enabled subset before execution and preserve choices across model/conversation switches. Cover empty effective selections explicitly.
+- [x] Verify App/runtime behavior, rebuild the current checkout and record exact completion limits.
+
+Local delivery: global preferences now default all registered tools on, remain
+independent of the selected model and survive conversation changes within the
+mounted App. Every Web task binds the exact compatible enabled subset in the
+message transaction, including after model activation. Empty global preferences
+can be saved, but the existing zero-Pack runtime is still incomplete: ordinary
+messages and model switches with no compatible enabled tools are blocked before
+submission with retained drafts. Persistent configuration/reload remains future
+scope. See [verification](../../reviews/2026-10-08-thread-global-tools-local-verification.md).
 
 ### Follow-up: plain folded answers and visible instructions
 

@@ -9,7 +9,8 @@ from unittest.mock import MagicMock
 import psycopg
 import pytest
 
-from capstone_agent.thread_service import PostgresThreadService, ThreadResyncRequired
+from capstone_agent.thread_service import PostgresThreadService, ThreadResyncRequired, ThreadModelDescriptor
+from capstone_model_capability_spi import ModelCapabilitySelection
 from capstone_agent.thread_protocol import CommandReceipt, ThreadSnapshot
 from capstone_agent.network_diagram import MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from capstone_agent.thread_application_transition import (
@@ -52,6 +53,56 @@ def _command(thread_id: str) -> dict[str, object]:
         "run_id": "run_test_001", "kind": "send_ordinary",
         "expected_event_seq": 0, "payload": {"text": "hello"},
     }
+
+
+class _ToolsCatalog:
+    def resolve(self, model, selection=None):
+        if selection is None:
+            return ModelCapabilitySelection.empty()
+        expected = "static-analysis" if model.implementation_family == "pandapower" else "operations"
+        if any(profile_id != expected or version != "1.0.0" for profile_id, version in selection.enabled_profiles):
+            raise ValueError("selection is incompatible")
+        return selection
+
+
+class _ToolsModelCatalog:
+    def resolve(self, model_id):
+        return ThreadModelDescriptor(model_id, "revision:sha256:" + "a" * 64, "pypsa")
+
+
+@pytest.mark.parametrize("switch", [False, True])
+def test_postgres_message_tools_activate_atomically_for_current_or_pending_model(postgres_thread_service, switch) -> None:
+    service, thread_id = postgres_thread_service
+    service.set_capability_catalog(_ToolsCatalog())
+    service.set_model_catalog(_ToolsModelCatalog())
+    service.create_thread(_snapshot(thread_id))
+    cursor = 0
+    if switch:
+        service.submit_command({**_command(thread_id), "kind": "switch_model", "payload": {"model_id": "pypsa39"}})
+        cursor = service.snapshot(thread_id).last_event_seq
+    selection = [{"profile_id": "operations" if switch else "static-analysis", "profile_version": "1.0.0"}]
+    command = {**_command(thread_id), "command_id": "cmd_tools", "idempotency_key": "idem_tools", "expected_event_seq": cursor,
+        "payload": {"text": "inspect", "enabled_profiles": selection}}
+    receipt = service.submit_command(command)
+    assert receipt.status == "accepted"
+    assert service.submit_command(command) == receipt
+    claim = service.claim_attempt("tools-test", lease_seconds=30)
+    assert claim is not None
+    assert claim.model_context.enabled_profiles == ((selection[0]["profile_id"], "1.0.0"),)
+    assert claim.model_context.implementation_family == ("pypsa" if switch else "pandapower")
+    assert service.snapshot(thread_id).active_model_context == claim.model_context
+
+
+def test_postgres_incompatible_message_tools_create_no_turn_or_selection(postgres_thread_service) -> None:
+    service, thread_id = postgres_thread_service
+    service.set_capability_catalog(_ToolsCatalog())
+    service.create_thread(_snapshot(thread_id))
+    before = service.snapshot(thread_id)
+    receipt = service.submit_command({**_command(thread_id), "payload": {"text": "hello", "enabled_profiles": [
+        {"profile_id": "operations", "profile_version": "1.0.0"},
+    ]}})
+    assert receipt.status == "rejected" and receipt.rejection == "selection_unavailable"
+    assert service.snapshot(thread_id) == before
 
 
 def test_postgres_large_diagram_replay_is_byte_bounded_and_complete(postgres_thread_service) -> None:
