@@ -564,11 +564,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 .capstone-answer-content.is-collapsed { overflow: hidden; }
 .capstone-answer { padding: 6px 9px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
-.capstone-answer.is-collapsed { border-left-color: #c5dbd1; background: #f7fbf9; }
+.capstone-answer.is-collapsed { border-left-color: #c5dbd1; }
 .capstone-answer-toggle { position: sticky; top: 6px; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 96px; min-height: 28px; margin: 0 0 3px auto; padding: 3px 4px; border: 0; border-radius: 4px; background: #fff; color: #41685f; font: inherit; cursor: pointer; }
-.capstone-answer.is-collapsed .capstone-answer-toggle { background: #f7fbf9; }
 .capstone-answer-toggle svg { width: 12px; height: 12px; }
-.capstone-answer-state { margin-right: 5px; color: #4d7065; font-size: 10px; }
 .capstone-answer-toggle:hover { background: #edf5f0; }
 .capstone-answer-toggle:focus-visible, .thread-settings-menu :is(button, summary):focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
 .capstone-chat-message.is-user:focus-visible { outline: 2px solid #27866c; outline-offset: 4px; border-radius: 18px; }

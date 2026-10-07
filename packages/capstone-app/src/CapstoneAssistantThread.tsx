@@ -561,7 +561,7 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   }, [text])
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
-    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <><ChevronRight aria-hidden="true" /><span className="capstone-answer-state">已折叠</span><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
+    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <><ChevronRight aria-hidden="true" /><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
     <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
       <MarkdownMessage>{text}</MarkdownMessage>
     </div>
@@ -729,7 +729,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const viewportRef = useRef<HTMLDivElement>(null)
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
   const [readingTailSpace, setReadingTailSpace] = useState(0)
-  const scrollAnchor = useRef<{ id: string; top: number; control?: HTMLButtonElement } | null>(null)
+  const scrollAnchor = useRef<{ id: string; top: number; control?: HTMLButtonElement; instructionId?: string } | null>(null)
   function captureScrollAnchor(answerId?: string, control?: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
@@ -740,21 +740,40 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     if (!id) return
     setReadingLayoutChanging(true)
     const node = nodes.find((item) => item.dataset.messageId === id)
-    scrollAnchor.current = { id, top: control?.getBoundingClientRect().top ?? Math.max(top, node?.getBoundingClientRect().top ?? top), control }
+    const instructionId = control ? allMessages.find((message) => message.id === id)?.metadata?.custom?.instructionMessageId : undefined
+    const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((message) => message.id === instructionId) : -1
+    scrollAnchor.current = { id, top: control?.getBoundingClientRect().top ?? Math.max(top, node?.getBoundingClientRect().top ?? top), control,
+      instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
+    if (instructionIndex >= 0 && !nodes.some((item) => item.dataset.messageId === instructionId)) {
+      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
+    }
   }
   function restoreReadingAnchor(id?: string) {
     const anchor = scrollAnchor.current
     if (!anchor || (id && anchor.id !== id)) return
     const viewport = viewportRef.current
-    const node = anchor.control || Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || []).find((item) => item.dataset.messageId === anchor.id)
+    const nodes = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
+    const answer = nodes.find((item) => item.dataset.messageId === anchor.id)
+    const control = anchor.control?.isConnected ? anchor.control : anchor.control ? answer?.querySelector<HTMLButtonElement>('.capstone-answer-toggle') : undefined
+    const node = control || answer
     if (anchor && node && viewport) {
-      const desired = viewport.scrollTop + node.getBoundingClientRect().top - anchor.top
+      let desired = viewport.scrollTop + node.getBoundingClientRect().top - anchor.top
+      const instruction = nodes.find((item) => item.dataset.messageId === anchor.instructionId)
+      if (instruction) {
+        const view = viewport.getBoundingClientRect()
+        const question = instruction.getBoundingClientRect()
+        const upper = viewport.scrollTop + question.top - view.top - 8
+        const lower = viewport.scrollTop + question.bottom - view.bottom + 8
+        // Keep both ends of the associated instruction in view. An unusually
+        // tall instruction falls back to its start instead of another message.
+        desired = lower <= upper ? Math.min(upper, Math.max(lower, desired)) : upper
+      }
       const maximum = viewport.scrollHeight - viewport.clientHeight
       // Collapsing the final reply can remove the scroll range required to
       // keep its control in place. Preserve only the missing reading space.
       if (desired > maximum + 1) setReadingTailSpace(readingTailSpace + desired - maximum)
       else viewport.scrollTop = desired
-      anchor.control?.focus({ preventScroll: true })
+      control?.focus({ preventScroll: true })
     }
   }
   useLayoutEffect(() => restoreReadingAnchor(), [foldState, readingTailSpace])

@@ -195,7 +195,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(toggle)
     const folded = screen.getByRole('button', { name: '展开完整回答' }).closest('.capstone-answer')!
     expect(folded.getAttribute('data-answer-state')).toBe('collapsed')
-    expect(within(folded as HTMLElement).getByText('已折叠')).toBeTruthy()
+    expect(within(folded as HTMLElement).queryByText('已折叠')).toBeNull()
     expect(screen.getByRole('button', { name: '展开完整回答' })).toBe(toggle)
     expect(document.activeElement).toBe(toggle)
     fireEvent.click(toggle)
@@ -204,15 +204,15 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('button', { name: '折叠回答并返回指令' })).toBeNull()
   })
 
-  it('keeps the message window and toggle focus when the instruction is outside the window', () => {
+  it('reveals the corresponding loaded instruction while retaining toggle focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '窗口边界的用户指令' }, 'first'), event('attempt_completed', 2, { answer: '边界回答。'.repeat(160) }, 'first'), ...Array.from({length:49}, (_, i) => event('attempt_completed', i + 3, { answer: `其他回答 ${i}` }, `other_${i}`))]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
     const toggle = screen.getByRole('button', { name: '折叠回答' })
     toggle.focus()
     fireEvent.click(toggle)
-    expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
-    expect(document.activeElement).toBe(toggle)
+    expect(screen.getByText('窗口边界的用户指令')).toBeTruthy()
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('展开完整回答')
   })
 
   it('keeps toggle focus when its instruction is not loaded instead of choosing another question', () => {

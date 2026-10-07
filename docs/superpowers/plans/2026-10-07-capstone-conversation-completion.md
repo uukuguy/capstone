@@ -173,6 +173,28 @@ Web §5.3 inline; no backend, answer content or evidence changes.
 
 ## Execution record
 
+### Follow-up: global tool preferences
+
+Tool enablement is an application-wide preference, independent of the open model.
+All registered tools are enabled by default. A model switch must preserve user
+choices. Execution still uses compatible registered tools; this grants no model
+conversion. Configuration persistence and reload remain a future extension as
+the tool catalog grows.
+
+- [ ] Separate global preferences from the current model's effective selection; remove model-family disabling of Settings switches.
+- [ ] Apply the compatible enabled subset before execution and preserve choices across model/conversation switches. Cover empty effective selections explicitly.
+- [ ] Verify App/runtime behavior, rebuild the current checkout and record exact completion limits.
+
+### Follow-up: plain folded answers and visible instructions
+
+The user removes folded backgrounds and redundant state text, and requires
+the complete associated instruction to be visible after toggling long answers.
+Preserve the same control focus, using only the scroll needed for context.
+
+- [x] Revise App tests for no “已折叠” label and revealing a loaded instruction outside the message window with control focus retained.
+- [x] Remove the folded surface color/state label; extend stable reading anchors to ensure the exact instruction is fully within the viewport. Reveal it if loaded outside the current window; never choose an unrelated instruction.
+- [x] Verify long/wrapped instructions and very long answers on desktop/mobile, both toggle directions, scroll bounds, draft/copy and missing-instruction fallback. Run App tests/build, rebuild, doctor and document checks; commit owned changes and checkpoint.
+
 ### Follow-up: registered-tool visibility and compact history menu
 
 User rejects hiding PyPSA and the history-menu heading/hint rows. Apply these corrections inline
