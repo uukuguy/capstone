@@ -729,24 +729,54 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const viewportRef = useRef<HTMLDivElement>(null)
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
   const [readingTailSpace, setReadingTailSpace] = useState(0)
-  const scrollAnchor = useRef<{ id: string; top: number; control?: HTMLButtonElement; instructionId?: string } | null>(null)
-  function captureScrollAnchor(answerId?: string, control?: HTMLButtonElement) {
+  type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
+  const scrollAnchor = useRef<ReadingAnchor | null>(null)
+  const historyAnchor = useRef<ReadingAnchor | null>(null)
+  function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
-    const top = viewport.getBoundingClientRect().top
     const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
-    const visible = nodes.find((item) => item.getBoundingClientRect().bottom > top)
-    const id = answerId || visible?.dataset.messageId
-    if (!id) return
     setReadingLayoutChanging(true)
-    const node = nodes.find((item) => item.dataset.messageId === id)
-    const instructionId = control ? allMessages.find((message) => message.id === id)?.metadata?.custom?.instructionMessageId : undefined
+    const instructionId = allMessages.find((message) => message.id === id)?.metadata?.custom?.instructionMessageId
     const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((message) => message.id === instructionId) : -1
-    scrollAnchor.current = { id, top: control?.getBoundingClientRect().top ?? Math.max(top, node?.getBoundingClientRect().top ?? top), control,
+    scrollAnchor.current = { id, top: control.getBoundingClientRect().top, control,
       instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
     if (instructionIndex >= 0 && !nodes.some((item) => item.dataset.messageId === instructionId)) {
       setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
     }
+  }
+  function captureHistoryAnchor() {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    const view = viewport.getBoundingClientRect()
+    const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
+    const previous = historyAnchor.current
+    const previousNode = previous?.element?.isConnected ? previous.element : nodes.find((node) => node.dataset.messageId === previous?.id)
+    // Reuse the reading subject through consecutive actions. Re-select only
+    // after the user moves it, or its message leaves the rendered window.
+    if (previous && previousNode && Math.abs(previousNode.getBoundingClientRect().top - previous.top) < 2) {
+      scrollAnchor.current = previous
+    } else {
+      const visible = nodes.filter((node) => { const rect = node.getBoundingClientRect(); return rect.bottom > view.top && rect.top < view.bottom })
+      const question = visible.find((node) => node.classList.contains('is-user'))
+      const message = question || visible[0]
+      if (!message?.dataset.messageId) return
+      const instructionId = allMessages.find((item) => item.id === message.dataset.messageId)?.metadata?.custom?.instructionMessageId
+      const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((item) => item.id === instructionId) : -1
+      const instruction = nodes.find((node) => node.dataset.messageId === instructionId)
+      // If only the middle of a long reply is visible, its text will disappear
+      // on folding. Restore its own instruction once, then hold that position.
+      const revealInstruction = !question && instructionIndex >= 0
+      const element = !question && !revealInstruction ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
+      const anchor = { id: revealInstruction ? instructionId as string : message.dataset.messageId,
+        top: revealInstruction ? view.top + 8 : (element || message).getBoundingClientRect().top, element }
+      if (revealInstruction && !instruction) {
+        setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
+      }
+      scrollAnchor.current = anchor
+      historyAnchor.current = anchor
+    }
+    setReadingLayoutChanging(true)
   }
   function restoreReadingAnchor(id?: string) {
     const anchor = scrollAnchor.current
@@ -755,7 +785,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     const nodes = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
     const answer = nodes.find((item) => item.dataset.messageId === anchor.id)
     const control = anchor.control?.isConnected ? anchor.control : anchor.control ? answer?.querySelector<HTMLButtonElement>('.capstone-answer-toggle') : undefined
-    const node = control || answer
+    const node = control || (anchor.element?.isConnected ? anchor.element : answer)
     if (anchor && node && viewport) {
       let desired = viewport.scrollTop + node.getBoundingClientRect().top - anchor.top
       const instruction = nodes.find((item) => item.dataset.messageId === anchor.instructionId)
@@ -786,6 +816,14 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
       restoreReadingAnchor()
       second = window.requestAnimationFrame(() => {
         restoreReadingAnchor()
+        const anchor = scrollAnchor.current
+        if (anchor && historyAnchor.current === anchor) {
+          const nodes = Array.from(viewportRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
+          const node = anchor.element?.isConnected ? anchor.element : nodes.find((item) => item.dataset.messageId === anchor.id)
+          // At a scroll boundary, the browser rounds the requested position.
+          // Hold its actual landing point during the next history action.
+          if (node) historyAnchor.current = { ...anchor, top: node.getBoundingClientRect().top }
+        }
         scrollAnchor.current = null
         setReadingLayoutChanging(false)
       })
@@ -795,8 +833,10 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
     setReadingTailSpace(0)
+    historyAnchor.current = null
   }, [storageKey])
   function toggleAnswer(id: string, control: HTMLButtonElement) {
+    historyAnchor.current = null
     control.focus({ preventScroll: true })
     captureScrollAnchor(id, control)
     setReadingTailSpace(0)
@@ -808,7 +848,8 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   }
   const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete' && !message.metadata?.custom?.systemNotice)
   function organizeHistory(fold: boolean) {
-    captureScrollAnchor()
+    if (!completedAnswers.some((message) => message.id && collapsedAnswers.has(message.id) !== fold)) return
+    captureHistoryAnchor()
     setReadingTailSpace(0)
     const snapshot = completedAnswers.flatMap((message) => message.id ? [message.id] : [])
     setFoldState((state) => {

@@ -120,6 +120,43 @@ describe('CapstoneAssistantThread', () => {
     sessionStorage.removeItem('old_reading.readingMode')
   })
 
+  it('anchors repeated history actions to the visible instruction instead of the preceding long answer', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', text: '之前的指令' }, 'first'),
+      event('attempt_completed', 2, { answer: '之前的长回答。'.repeat(100) }, 'first'),
+      event('command_accepted', 3, { kind: 'send_auto', text: '当前阅读的指令' }, 'second'),
+      event('attempt_completed', 4, { answer: '当前的长回答。'.repeat(100) }, 'second'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+    const preceding = document.querySelector('[data-message-id="assistant-first"]') as HTMLElement
+    const question = document.querySelector('[data-message-id="user-evt_3"]') as HTMLElement
+    const current = document.querySelector('[data-message-id="assistant-second"]') as HTMLElement
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 500, width: 500, x: 0, y: top, toJSON: () => ({}) })
+    viewport.scrollTop = 5000
+    Object.defineProperties(viewport, { clientHeight: { value: 500 }, scrollHeight: { value: 20000 } })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockImplementation(() => rect(0, 500))
+    const folded = () => preceding.querySelector('.capstone-answer')?.getAttribute('data-answer-state') === 'collapsed'
+    vi.spyOn(preceding, 'getBoundingClientRect').mockImplementation(() => rect(50 - viewport.scrollTop, folded() ? 250 : 5050))
+    vi.spyOn(question, 'getBoundingClientRect').mockImplementation(() => rect((folded() ? 300 : 5100) - viewport.scrollTop, 40))
+    vi.spyOn(current, 'getBoundingClientRect').mockImplementation(() => rect((folded() ? 360 : 5160) - viewport.scrollTop, folded() ? 250 : 5000))
+    const menu = screen.getByRole('button', { name: '对话设置' })
+    viewport.scrollTop = 6000
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('button', { name: '展开历史回答' }))
+    expect(viewport.scrollTop).toBe(6000)
+    viewport.scrollTop = 5000
+    for (const fold of [true, false, true, true, false, false]) {
+      fireEvent.click(menu)
+      fireEvent.click(screen.getByRole('button', { name: fold ? '折叠历史回答' : '展开历史回答' }))
+      expect(question.getBoundingClientRect().top).toBe(100)
+      expect(document.activeElement).toBe(menu)
+    }
+    viewport.scrollTop -= 50
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
+    expect(question.getBoundingClientRect().top).toBe(150)
+  })
+
   it('copies the full committed answer while its display is folded', async () => {
     const answer = '结论。\n\n' + '完整条件。'.repeat(160)
     const copy = vi.fn().mockResolvedValue(undefined)

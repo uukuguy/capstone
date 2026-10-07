@@ -204,6 +204,15 @@ Preserve the same control focus, using only the scroll needed for context.
 - [x] Remove the folded surface color/state label; extend stable reading anchors to ensure the exact instruction is fully within the viewport. Reveal it if loaded outside the current window; never choose an unrelated instruction.
 - [x] Verify long/wrapped instructions and very long answers on desktop/mobile, both toggle directions, scroll bounds, draft/copy and missing-instruction fallback. Run App tests/build, rebuild, doctor and document checks; commit owned changes and checkpoint.
 
+### Follow-up: distinct system notices and consecutive history actions
+
+The user requests a quiet visual distinction between system notices and folded
+answers, and a stable reading subject during repeated global fold/unfold actions.
+
+- [x] Reproduce the global anchor defect in a real headless component: the current instruction moves up to 2,201px because the preceding long answer is anchored. Add a failing geometry regression, then retain the visible instruction and Settings focus across repeated actions.
+- [x] Remove the notice's answer-like left rail and full green surface; use an inset neutral notice, small label/icon and horizontal separator. Retain alert/status roles and recovery actions.
+- [x] Verify repeated actions at start/middle/end on desktop/mobile/landscape, explicit user scrolling, hidden-instruction fallback and existing per-answer behavior; run App gates and local rebuild. Record [local acceptance](../../reviews/2026-10-08-thread-notice-and-global-anchor-local-verification.md) and commit only owned paths.
+
 ### Follow-up: registered-tool visibility and compact history menu
 
 User rejects hiding PyPSA and the history-menu heading/hint rows. Apply these corrections inline
