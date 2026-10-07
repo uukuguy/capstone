@@ -136,6 +136,12 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+- Continue architecture design discussions throughout development using the
+  [Capstone core capability evolution notebook](docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)
+  as the shared record. Read it before related design work. Ground proposals in
+  the actual implementation and practical grid work. Update the notebook with
+  conclusions, open questions, and implementation feedback; distinguish
+  proposed designs, accepted decisions, and verified behavior.
 - Preserve unrelated tracked and untracked user work. Stage only task-owned
   paths. Do not delete or migrate existing main-worktree `var/` data.
 - Prefer `rg` and `rg --files` for discovery. Use `apply_patch` for text edits

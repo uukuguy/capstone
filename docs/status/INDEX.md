@@ -22,6 +22,7 @@
 
 | File | Purpose |
 | --- | --- |
+| [Capstone core evolution discussion](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | Active long-term notebook for professional conversation, practical grid work, and continued Skill/tool integration; proposals and open questions are not an approved implementation plan. |
 | [Thread client recovery design](../superpowers/specs/2026-10-05-thread-client-recovery-design.md) | Approved draft/receipt recovery and Context-bound rollback verification; cloud-dev acceptance precedes manual review and demo promotion. |
 | [Network element name consistency](../reviews/2026-10-06-network-element-name-consistency.md) | Shared pandapower diagram/tool names, PyPSA name checks and visible type prefixes; local acceptance and historical replay limits. |
 | [Topology name release](../reviews/2026-10-07-topology-name-release.md) | Exact-source cloud-dev and demo release checks for canonical names, display prefixes and hover status. |
