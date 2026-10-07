@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
+import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -21,6 +22,18 @@ import type { ThreadCatalogCase } from './threadCatalog'
 import { attemptFailureCopy } from './threadFeedback'
 
 type SendMode = 'automatic' | 'ordinary' | 'professional'
+
+const AnswerReadingContext = createContext<{
+  collapsed: ReadonlySet<string>
+  toggle: (id: string) => void
+}>({ collapsed: new Set(), toggle: () => {} })
+
+const ChatMessageContext = createContext<Parameters<typeof ChatMessage>[0] | null>(null)
+
+function ThreadChatMessage() {
+  const props = useContext(ChatMessageContext)
+  return props ? <ChatMessage {...props} /> : null
+}
 
 const EMPTY_PROMPTS = [
   '有哪些 PyPSA 的电网模型？',
@@ -281,7 +294,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
         : ''
       const terminalAnswer = event.eventType === 'attempt_completed' ? answer : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
-      if (message && !message.content && terminalAnswer) {
+      if (message && terminalAnswer && (event.eventType === 'attempt_completed' || !message.content)) {
         message.content = terminalAnswer
       } else if (message && event.eventType !== 'attempt_completed') {
         message.content += `\n\n${terminalAnswer}`
@@ -371,8 +384,8 @@ async function copyToClipboard(value: string): Promise<boolean> {
   return copied
 }
 
-function IconAction({ label, onClick, disabled = false, expanded, pressed, children }: { label: string; onClick?: () => void; disabled?: boolean; expanded?: boolean; pressed?: boolean; children: ReactNode }) {
-  return <button type="button" className="capstone-chat-action" aria-label={label} title={disabled ? `${label}（当前不可用）` : label} disabled={disabled} onClick={onClick} {...(expanded === undefined ? {} : { 'aria-expanded': expanded })} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })}>{children}</button>
+function IconAction({ label, description, evidenceState, onClick, disabled = false, expanded, pressed, children }: { label: string; description?: string; evidenceState?: AnswerEvidenceState; onClick?: () => void; disabled?: boolean; expanded?: boolean; pressed?: boolean; children: ReactNode }) {
+  return <button type="button" className="capstone-chat-action" aria-label={label} title={description || (disabled ? `${label}（当前不可用）` : label)} data-evidence-state={evidenceState} disabled={disabled} onClick={onClick} {...(expanded === undefined ? {} : { 'aria-expanded': expanded })} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })}>{children}</button>
 }
 
 function MoreAnswerActions() {
@@ -413,7 +426,7 @@ function MoreAnswerActions() {
   </div>
 }
 
-function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, onEditInstruction, activityOpen, showActivity }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean; showActivity?: boolean }) {
+function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, onEditInstruction, activityOpen, showActivity }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; onEditInstruction?: (text: string) => void; activityOpen?: boolean; showActivity?: boolean }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const copy = async () => {
@@ -430,12 +443,12 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} pressed={networkSelected} onClick={onShowNetwork}><Network /></IconAction>
     <IconAction label="查看分析结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
-    <IconAction label="查看证据" disabled={evidenceRefs.length === 0} expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
+    <IconAction label="查看证据" description={evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={evidenceState !== 'available'} expanded={evidenceState === 'available' && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
     <IconAction label="查看运行过程" disabled={showActivity === false || toolCount === 0 || !onShowActivity} expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>
     <IconAction label="重试本次指令" disabled={!onRegenerate} onClick={() => void onRegenerate?.()}><RotateCcw /></IconAction>
     <MoreAnswerActions />
   </div>
-  {showEvidence && <div className="capstone-chat-evidence" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong>{contextId && <small>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</small>}<div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
+  {evidenceState === 'available' && showEvidence && <div className="capstone-chat-evidence" role="region" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong>{contextId && <small>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</small>}<div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
   </>
 }
 
@@ -512,6 +525,66 @@ function ResultProjectionCard({ projection, onFocusElement }: { projection: Resu
   </section>
 }
 
+function FoldableAnswer({ id, text }: { id: string; text: string }) {
+  const body = useRef<HTMLDivElement>(null)
+  const { collapsed, toggle } = useContext(AnswerReadingContext)
+  // The zero-layout fallback is used by server/test rendering. Browsers use the
+  // actual Markdown height, including tables, headings and wrapped short text.
+  const [foldable, setFoldable] = useState(text.length > 220 || text.split('\n').length > 3)
+  const [previewHeight, setPreviewHeight] = useState(51.15)
+  useLayoutEffect(() => {
+    const node = body.current
+    if (!node) return
+    const measure = () => {
+      if (node.scrollHeight === 0) return
+      const lineHeight = Number.parseFloat(getComputedStyle(node).lineHeight) || 17.05
+      const height = lineHeight * 3
+      setPreviewHeight(height)
+      setFoldable(node.scrollHeight > height + 1)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(node)
+    window.addEventListener('resize', measure)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
+  }, [text])
+  const folded = foldable && collapsed.has(id)
+  return <div className="capstone-answer">
+    <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
+      <MarkdownMessage>{text}</MarkdownMessage>
+    </div>
+    {folded && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
+    {foldable && <button type="button" className="capstone-answer-toggle" aria-expanded={!folded} aria-controls={`${id}-content`} onClick={() => toggle(id)}>{folded ? '展开完整回答' : '折叠回答'}</button>}
+  </div>
+}
+
+function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolean; onFold: () => void; onUnfold: () => void }) {
+  const root = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
+  }, [open])
+  return <div ref={root} className="capstone-history-answers" onBlur={(event) => {
+    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+  }}>
+    <button type="button" disabled={disabled} aria-expanded={open} onClick={() => setOpen(!open)} title="整理当前已加载的历史回答，新回答仍完整显示">历史回答</button>
+    {open && <div className="capstone-history-answer-menu" role="group" aria-label="历史回答整理">
+      <button type="button" onClick={() => { onFold(); setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus() }}>折叠历史回答</button>
+      <button type="button" onClick={() => { onUnfold(); setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus() }}>展开历史回答</button>
+    </div>}
+  </div>
+}
+
 function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, onEditInstruction, modelSummary, showActivity = true, resultProjections, onFocusElement }: { selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; canRerunCompleted: boolean; onEditInstruction?: (text: string) => void; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
@@ -526,6 +599,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const evidenceRefs = stringRefs(custom?.evidenceRefs)
   const resultRefs = stringRefs(custom?.resultRefs)
   const admission = custom?.admission
+  const evidenceState = answerEvidenceState(
+    typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type === 'running' ? 'running' : undefined,
+    admission, evidenceRefs, typeof custom?.errorCode === 'string' ? custom.errorCode : undefined,
+  )
   const instruction = typeof custom?.instruction === 'string' ? custom.instruction : undefined
   const startedAt = typeof custom?.startedAt === 'string' ? custom.startedAt : undefined
   const durationMs = typeof custom?.durationMs === 'number' ? custom.durationMs : undefined
@@ -533,7 +610,6 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const contextId = typeof custom?.modelContextId === 'string' ? custom.modelContextId : undefined
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
-  const admitted = admissionAccepted(admission)
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
   const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
   const [resultOpen, setResultOpen] = useState(false)
@@ -552,16 +628,16 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
       (!modelSummary || contextId === modelSummary.contextId))
-  return <MessagePrimitive.Root className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+  return <MessagePrimitive.Root data-message-id={id} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
       <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
-      {hasText
+      {hasText && role === 'assistant' && status?.type === 'complete' ? <FoldableAnswer id={id} text={text} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
     {role === 'assistant' && <div className="capstone-chat-footer">
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
-      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={admitted ? evidenceRefs : []} resultAvailable={attemptResultProjections.length > 0} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={attemptResultProjections.length > 0} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     </div>}
     {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
@@ -570,7 +646,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {
+function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, historyActions, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; historyActions?: ReactNode; storageKey?: string }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -594,7 +670,7 @@ function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, cont
   }, [disabled, isRunning])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
     <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
-    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls || <span className="capstone-composer-context">自动路由</span>}</div><div className="capstone-composer-actions">
+    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls || <span className="capstone-composer-context">自动路由</span>}{historyActions}</div><div className="capstone-composer-actions">
       {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
     </div></div>
   </ComposerPrimitive.Root>
@@ -641,6 +717,47 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 export default function CapstoneAssistantThread({ events, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectAssistantMessages(events), [events])
+  const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
+  const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const scrollAnchor = useRef<{ node: Element; top: number } | null>(null)
+  function captureScrollAnchor() {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    const top = viewport.getBoundingClientRect().top
+    const node = Array.from(viewport.querySelectorAll('[data-message-id]')).find((item) => item.getBoundingClientRect().bottom > top)
+    // If the reader is inside a long answer, its former text offset disappears
+    // when folded. Keep that answer's start in view instead of an offscreen top.
+    scrollAnchor.current = node ? { node, top: Math.max(top, node.getBoundingClientRect().top) } : null
+  }
+  useLayoutEffect(() => {
+    const anchor = scrollAnchor.current
+    scrollAnchor.current = null
+    if (anchor?.node.isConnected && viewportRef.current) {
+      viewportRef.current.scrollTop += anchor.node.getBoundingClientRect().top - anchor.top
+    }
+  }, [foldState])
+  useEffect(() => {
+    setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
+  }, [storageKey])
+  function toggleAnswer(id: string) {
+    captureScrollAnchor()
+    setFoldState((state) => {
+      const ids = new Set(state.thread === storageKey ? state.ids : [])
+      if (ids.has(id)) ids.delete(id); else ids.add(id)
+      return { thread: storageKey, ids }
+    })
+  }
+  const completedAnswers = allMessages.filter((message) => message.role === 'assistant' && message.status?.type === 'complete')
+  function organizeHistory(fold: boolean) {
+    captureScrollAnchor()
+    const snapshot = completedAnswers.flatMap((message) => message.id ? [message.id] : [])
+    setFoldState((state) => {
+      const ids = new Set(state.thread === storageKey ? state.ids : [])
+      for (const id of snapshot) { if (fold) ids.add(id); else ids.delete(id) }
+      return { thread: storageKey, ids }
+    })
+  }
   const [windowAnchor, setWindowAnchor] = useState<string | null>(null)
   const anchoredIndex = windowAnchor === null ? -1 : allMessages.findIndex((message) => message.id === windowAnchor)
   const windowEnd = anchoredIndex < 0 ? allMessages.length : anchoredIndex + 1
@@ -687,6 +804,8 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
   }, [runtime, initialDraft])
 
   return <AssistantRuntimeProvider runtime={runtime}>
+    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer }}>
+    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, onEditInstruction: (text) => setEditRequest({ text, nonce: Date.now() }), modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
@@ -697,21 +816,23 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
-        {typeof ResizeObserver === 'undefined' ? <div className="capstone-chat-viewport">
+        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage selectedNetworkAttempt={selectedNetworkAttempt} networkAttemptIds={networkAttemptIds} onShowNetwork={onShowNetwork} onRegenerate={isRunning ? undefined : onRegenerate} canRerunCompleted={canRerunCompleted} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} resultProjections={resultProjections} onFocusElement={onFocusElement} /> }} />
-        </div> : <ThreadPrimitive.Viewport className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
+          <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
-          <ThreadPrimitive.Messages components={{ Message: () => <ChatMessage selectedNetworkAttempt={selectedNetworkAttempt} networkAttemptIds={networkAttemptIds} onShowNetwork={onShowNetwork} onRegenerate={isRunning ? undefined : onRegenerate} canRerunCompleted={canRerunCompleted} onEditInstruction={(text) => setEditRequest({ text, nonce: Date.now() })} modelSummary={modelSummary} showActivity={showActivity} resultProjections={resultProjections} onFocusElement={onFocusElement} /> }} />
+          <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
         </ThreadPrimitive.Viewport>}
         {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
           <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} storageKey={storageKey} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} historyActions={<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />} storageKey={storageKey} />
         </div>
       </ThreadPrimitive.Root>
     </div>
+    </ChatMessageContext.Provider>
+    </AnswerReadingContext.Provider>
   </AssistantRuntimeProvider>
 }

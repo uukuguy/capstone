@@ -497,7 +497,8 @@ describe('ThreadFixtureApp', () => {
     expect(document.querySelector('.network-branch-label')).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
     expect(document.querySelector('.network-branch-label')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    // Changing the viewed page preserves the open result panel.
+    expect(screen.getByRole('button', { name: '查看分析结果' }).getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: '定位线路 1' }))
     expect(await screen.findByText('已定位到 line:1')).toBeTruthy()
     expect(document.querySelector('.network-branch-label')?.textContent).toBe('line 1')

@@ -11,6 +11,141 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps evidence actions visible and distinguishes all five contract states', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '有已准入证据。', evidence_refs: ['evidence:1'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'available'),
+      event('attempt_completed', 2, { answer: '普通信息回答。', admission: { mode: 'offline_information', assurance: 'general_knowledge' } }, 'information'),
+      event('attempt_failed', 3, { error_code: 'capability_required' }, 'missing'),
+      event('attempt_failed', 4, { error_code: 'answer_admission_failed' }, 'unavailable'),
+      event('assistant_text_delta', 5, { text: '还在计算。' }, 'pending'),
+    ]} disabled={false} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const actions = screen.getAllByRole('button', { name: '查看证据' }) as HTMLButtonElement[]
+    expect(actions.map((action) => action.dataset.evidenceState)).toEqual(['available', 'not_applicable', 'missing', 'unavailable', 'pending'])
+    expect(actions.map((action) => action.disabled)).toEqual([false, true, true, true, true])
+    expect(actions.map((action) => action.title)).toEqual(['查看证据', '普通信息回答无需运行证据', '缺少所需证据', '证据暂不可用', '证据同步中'])
+    fireEvent.click(actions[0])
+    expect(screen.getByRole('region', { name: '当前运行证据' }).textContent).toContain('evidence:1')
+  })
+  it('uses the committed answer instead of provisional streamed text', () => {
+    const messages = projectAssistantMessages([
+      event('assistant_text_delta', 1, { text: '临时不完整回答。' }, 'attempt_1'),
+      event('attempt_completed', 2, { answer: '完整正式回答。', answer_summary: '正式回答。' }, 'attempt_1'),
+    ])
+    expect(messages[0].content).toEqual([{ type: 'text', text: '完整正式回答。' }])
+    expect(messages[0].metadata?.custom?.answerSummary).toBeUndefined()
+  })
+
+  it('organizes existing answers once and leaves new answers and drafts intact', () => {
+    const answer = '已有结论。\n\n' + '完整条件。'.repeat(160)
+    const onSend = vi.fn()
+    const props = { events: [event('attempt_completed', 1, { answer }, 'attempt_1')], disabled: false, isRunning: false, activity: [], onSend, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} storageKey="reading_thread" />)
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '下一条草稿' } })
+    expect(screen.queryByRole('combobox', { name: '回答显示模式' })).toBeNull()
+    const menu = screen.getByRole('button', { name: '历史回答' })
+    expect(menu.closest('.capstone-composer-footer')).toBeTruthy()
+    const first = screen.getByText(/完整条件。完整条件/).closest('.capstone-chat-message')!
+    expect(within(first as HTMLElement).getByRole('button', { name: '折叠回答' }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
+    expect(first.querySelector('.capstone-answer-content')?.getAttribute('aria-hidden')).toBe('true')
+    rerender(<CapstoneAssistantThread {...props} storageKey="reading_thread" events={[
+      ...props.events, event('attempt_completed', 2, { answer: '后续结论。\n\n' + '后续条件。'.repeat(160) }, 'attempt_2'),
+    ]} />)
+    expect(screen.getByText('后续结论。')).toBeTruthy()
+    expect(screen.getByText(/后续条件。后续条件/).closest('.capstone-answer-content')?.getAttribute('aria-hidden')).toBeNull()
+    expect(within(first as HTMLElement).getByRole('button', { name: '展开完整回答' })).toBeTruthy()
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '展开完整回答' }))
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '折叠回答' }))
+    fireEvent.click(menu)
+    fireEvent.click(screen.getByRole('button', { name: '展开历史回答' }))
+    expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(2)
+    expect(input.value).toBe('下一条草稿')
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('ignores old mode preferences and keeps short answers and failure recovery visible', () => {
+    sessionStorage.setItem('old_reading.readingMode', 'compact')
+    render(<CapstoneAssistantThread events={[
+      event('attempt_completed', 1, { answer: '没有摘要的正式回答。' }, 'attempt_1'),
+      event('attempt_completed', 2, { answer: '保留正式事实。', answer_summary: '额外虚构数值。' }, 'attempt_2'),
+      event('assistant_text_delta', 3, { text: '进行中。'.repeat(100) }, 'pending'),
+      event('attempt_failed', 4, { error_code: 'capability_required' }, 'failed'),
+    ]} storageKey="old_reading" disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
+    expect(screen.getByText('没有摘要的正式回答。')).toBeTruthy()
+    expect(screen.getByText('保留正式事实。')).toBeTruthy()
+    expect(screen.queryByText('额外虚构数值。')).toBeNull()
+    expect(screen.queryByRole('button', { name: '展开完整回答' })).toBeNull()
+    expect(screen.getByText(/进行中。进行中/)).toBeTruthy()
+    expect(screen.getByText(/本次回答缺少所需的权威系统校验/)).toBeTruthy()
+    sessionStorage.removeItem('old_reading.readingMode')
+  })
+
+  it('copies the full committed answer while its display is folded', async () => {
+    const answer = '结论。\n\n' + '完整条件。'.repeat(160)
+    const copy = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } })
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer, answer_summary: '结论。' }, 'attempt_1')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '复制回答' }))
+    await waitFor(() => expect(copy).toHaveBeenCalledWith(answer))
+  })
+
+  it('does not fold an answer that completes after a bulk action', () => {
+    const first = event('attempt_completed', 1, { answer: '历史回答。'.repeat(100) }, 'first')
+    const pending = event('assistant_text_delta', 2, { text: '生成中。'.repeat(100) }, 'pending')
+    const props = { events: [first, pending], disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
+    rerender(<CapstoneAssistantThread {...props} isRunning={false} events={[first, pending, event('attempt_completed', 3, { answer: '新完成回答。'.repeat(100) }, 'pending')]} />)
+    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(1)
+  })
+
+  it('clears folding when switching Threads or refreshing instead of saving a global preference', () => {
+    const props = { events: [event('attempt_completed', 1, { answer: '完整回答。'.repeat(100) }, 'first')], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender, unmount } = render(<CapstoneAssistantThread {...props} storageKey="fold_thread_a" />)
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    expect(screen.getByRole('button', { name: '展开完整回答' })).toBeTruthy()
+    rerender(<CapstoneAssistantThread {...props} storageKey="fold_thread_b" />)
+    expect(screen.getByRole('button', { name: '折叠回答' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    unmount()
+    render(<CapstoneAssistantThread {...props} storageKey="fold_thread_b" />)
+    expect(screen.getByRole('button', { name: '折叠回答' })).toBeTruthy()
+    expect(sessionStorage.getItem('fold_thread_b.readingMode')).toBeNull()
+  })
+
+  it('folds loaded answers outside the visible message window and retains individual overrides', () => {
+    const events = Array.from({ length: 60 }, (_, index) => event('attempt_completed', index + 1, { answer: `历史 ${index}。` + '完整条件。'.repeat(100) }, `history_${index}`))
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
+    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(50)
+    fireEvent.click(screen.getAllByRole('button', { name: '展开完整回答' }).at(-1)!)
+    fireEvent.click(screen.getByRole('button', { name: '查看之前的对话' }))
+    expect(screen.getAllByRole('button', { name: '展开完整回答' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: '折叠回答' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
+    expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(49)
+  })
+
+  it('closes the history actions on Escape and outside clicks', () => {
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '历史回答。' }, 'first')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const button = screen.getByRole('button', { name: '历史回答' })
+    fireEvent.click(button)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(button)
+    fireEvent.click(button)
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('group', { name: '历史回答整理' })).toBeNull()
+  })
   it('clears a reconciled draft once and preserves a later draft', async () => {
     const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
     const { rerender } = render(<CapstoneAssistantThread {...props} />)

@@ -562,6 +562,21 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-artifacts { display: grid; align-items: stretch; gap: 6px; margin-top: 9px; }
 .capstone-chat-reference-card { display: grid; }
 
+.capstone-answer-content.is-collapsed { overflow: hidden; }
+.capstone-answer-toggle { display: block; min-height: 32px; margin-top: 3px; padding: 3px 0; border: 0; background: transparent; color: #41685f; font: inherit; cursor: pointer; }
+.capstone-answer-toggle:focus-visible, .capstone-history-answers button:focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
+.capstone-history-answers { position: relative; flex-shrink: 0; }
+.capstone-history-answers > button { min-height: 28px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; color: #55736b; font: inherit; cursor: pointer; }
+.capstone-history-answers > button:hover, .capstone-history-answers > button[aria-expanded="true"] { background: #eef6f2; }
+.capstone-history-answers > button:disabled { opacity: .4; cursor: default; }
+.capstone-history-answer-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 6; width: 150px; padding: 4px; border: 1px solid #d9e6e0; border-radius: 7px; background: #fff; box-shadow: 0 4px 12px #31564816; }
+.capstone-history-answer-menu button { display: block; width: 100%; min-height: 36px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: #41685f; font: inherit; text-align: left; cursor: pointer; }
+.capstone-history-answer-menu button:hover { background: #eef6f2; }
+@media (max-width: 620px) {
+  .capstone-answer-toggle, .capstone-history-answers button { min-height: 44px; }
+  .capstone-assistant-runtime-label { flex-wrap: wrap; }
+}
+
 /* Compact diagnostics and authoritative result/evidence cards. */
 .thread-diagnostics-toggle { min-height: 24px; padding: 0 7px; border: 1px solid #c8ddd4; border-radius: 999px; background: #fff; color: #4a7770; font-size: 10px; cursor: pointer; }
 .thread-diagnostics-toggle:hover, .thread-diagnostics-toggle:focus-visible { border-color: #65a994; background: #eff8f4; color: #176f65; outline: none; }
