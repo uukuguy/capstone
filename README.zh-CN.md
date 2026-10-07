@@ -2,11 +2,63 @@
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
-**用智能体对话开展电网分析。**
+**连接智能体推理、领域能力、权威计算与可核查证据。**
 
-Capstone 把自然语言指令、电网模型和分析结果放在同一个工作台中。你可以让智能体检查网络、执行计算，或继续追问某项结果。智能体选择已发布的领域工具，pandapower 和 PyPSA 提供模型事实与计算能力；计算结果及其证据随对话保留，便于查看与核查。
+Capstone 是面向已登记业务系统与科学计算系统的领域中立智能体框架。应用选择 Domain Pack 和权威系统，智能体组合其中已发布的语义工具，权威系统负责模型事实与计算。框架将结果、证据和模型修订绑定到每次运行，再通过对话、报告和交互视图呈现。
+
+首个正式应用是**通过智能体对话开展电网静态分析**。工作台连接 pandapower 与 PyPSA 模型，支持连续分析：提出问题、执行领域工具、检查回答，再在电气拓扑图上定位相关元件。
+
+设计遵循四个原则：
+
+- **以契约组合能力。** 工具描述可复用的领域动作；选定的 Domain Pack 提供 schema、策略和指南。
+- **由权威系统产生事实。** 登记系统访问模型、执行计算、产生结果数据集与证据；智能体组织分析并解释返回的事实。
+- **Kernel 保持领域中立。** 上下文、步骤、执行轨迹、工件和回放属于共享框架服务；领域语义保留在独立安装的包中。
+- **回答关联模型与证据。** 已准入引用保留运行和修订来源，使 App 能联动回答、结果表、拓扑图和执行记录。
 
 ![当前 Capstone 智能体对话工作台：左侧 IEEE-39 拓扑图，右侧包含潮流结果的智能体回答](docs/images/capstone-agent-conversation.png)
+
+上图来自在线 App 对已完成 IEEE-39 分析的回看，数值属于对应运行。
+
+## 架构与执行机制
+
+四层结构规定职责归属和依赖方向：
+
+```mermaid
+flowchart LR
+    A[Application] --> P[Domain Pack]
+    P --> K[Kernel]
+    K --> R[Registered Authority]
+```
+
+| 层 | 负责什么 |
+| --- | --- |
+| Application | 选择配置、领域绑定与 Provider；拥有公开对话、API、CLI 和兼容输出 |
+| Domain Pack | 拥有语义工具、契约、策略、指南、执行、领域状态、结果与证据准入，以及投影 |
+| Kernel | 组合选定能力；管理受限上下文、步骤、轨迹、类型化提交、工件与回放 |
+| Registered Authority | 拥有模型访问、修订、计算或来源事实、结果数据集与证据 |
+
+职责图不要求调用或导入逐层经过每个相邻层。实际执行时，**Application 进入 Kernel 生命周期**，Kernel 调用**注入的 Domain Pack 执行器**，由执行器访问权威系统。结果返回时，**Domain Pack 准入并投影权威结果**，Kernel 提交类型化状态，Application 呈现回答和视图。Kernel 不导入权威系统的实现。
+
+智能体看到的是白名单中的语义工具及其明确契约。原始 pandapower/PyPSA 对象、任意 Python、shell 命令和通用文件访问位于这一接口之外。数值结论通过登记权威系统的契约返回；结果和证据引用必须经过当前运行与所需模型修订的准入检查，模型写出的引用本身不能确立证据。模型目录等信息性回答不创建计算证据。
+
+契约与生命周期见[框架架构](docs/architecture/capstone-framework.md)，首个应用的权威边界见 [pandapower 能力组合架构](docs/architecture/pandapower-capability-composition.md)。
+
+## 领域包接入与组合
+
+Domain Pack 通过公开 Kernel SPI，封装一个领域的工具目录、schema、策略、指南、执行器、权威适配器、状态和结果投影。Application Profile 选择具名绑定和工具前缀。各绑定拥有自己的领域状态和凭据范围；通用输出将框架 `core` 与 `domains.<binding_id>` 分开。
+
+当前 [PyPSA Application Profile](packages/pypsa-agent/src/pypsa_agent/profile.py) 展示了实际组合方式：
+
+| 绑定 | Domain Pack | 工具前缀 | 职责 |
+| --- | --- | --- | --- |
+| `source` | PyPSA 网络建模 | `pypsa_model_` | 检查登记模型，派生模型修订 |
+| `operations` | PyPSA 运行计算 | `pypsa_ops_` | 执行调度、运行优化和交流潮流校验 |
+
+应用显式授权运行计算绑定使用来自建模绑定的类型化模型引用。来源权威系统校验模型修订，交接收据持久化以支持回放，目标绑定准入引用后再执行。组合领域包不会自动共享原始 Network、凭据或可变状态。
+
+仓库还提供 PyPSA 容量规划与行业耦合包。这些能力分别选择接入；当前托管的 PyPSA 对话绑定网络建模和运行计算。只读库存参考包则在电网领域之外验证同一 SPI。
+
+新增领域时，登记权威系统契约，基于公开 SPI 实现独立安装的领域包，再在应用中选择绑定与所需引用授权。接入验证覆盖打包资源、契约、执行、结果与证据准入，以及真实权威系统下的回放。[Domain Pack 接入指南](docs/guides/domain-pack-onboarding.md) 给出实现步骤与一致性检查。
 
 ## 从一句指令开始
 
@@ -35,19 +87,24 @@ Capstone 把自然语言指令、电网模型和分析结果放在同一个工�
 
 可用操作取决于选定模型和已发布的能力契约。完整拓扑不可用时，模型菜单会说明原因。准确的执行范围见 [pandapower 能力矩阵](configs/capabilities/pandapower-3.4.0-static-analysis.json)、[PyPSA 建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)和 [PyPSA 运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)。
 
-例如，选择 PyPSA 的 `two-bus` 模型，要求先做经济调度，再执行交流潮流校验：
+## 对话、结果与拓扑图联动
 
-![当前 Capstone PyPSA 智能体对话：左侧双母线拓扑，右侧经济调度与交流潮流校验结果](docs/images/capstone-pypsa-conversation.png)
+拓扑图呈现权威系统拥有的模型，并通过明确引用关联分析。App 接收受限的几何投影，与智能体读取的模型上下文分开；模型坐标保留登记的电气示意或地理结构。
 
-这些截图来自在线 App 对已完成分析的回看。图中的数值属于对应运行，不是预设答案或性能基准。
+![当前智能体对话：分析结果表联动电气拓扑图，定位线路及其端点母线](docs/images/capstone-topology-interaction.png)
 
-## 从回答查看计算与证据
+在当前对话页中，选择结果表中的线路 `21`，即可在拓扑图中定位 `line 21` 及其端点母线。截图回看已完成的分析，模型名称和数值保留该次运行记录的修订。
 
-回答下方的操作可以打开该指令对应的电网图、查看已准入的结构化结果、读取证据，以及回看执行步骤。电网图支持平移、缩放和元件定位；标注使用模型名称，并带 `bus`、`line`、`trafo` 前缀，PyPSA 的 Link 使用 `link`。
+例如，得到“负载率最高的三条线路”后，可以沿关联视图检查：
 
-数值图层只使用匹配模型修订和当前运行的已准入结果，缺失值保持中性。线路负载率色阶描述返回数值的分布；是否越限由约束评估判断。
+1. 使用回答下方的电网图操作，回到该指令对应的模型视图。
+2. 展开结构化分析结果；结果行包含元件引用时，点击该元件即可在拓扑图中定位。
+3. 平移、缩放并查看元件。标注使用模型名称与 `bus`、`line`、`trafo` 前缀，PyPSA 的 Link 使用 `link`，图中名称与回答、结果表中的元件引用一致。
+4. 查看证据和执行步骤，追溯计算过程。历史指令视图保留对应模型上下文，选择结果时恢复与它匹配的视图。
 
-模型事实和数值结论来自已登记的权威系统。模型目录等信息性回答不会创建计算证据。结果、报告和证据可以经 API 回看；浏览器只读取私有存储中的受限投影。
+数值图层只使用匹配模型修订和当前运行的已准入结果，缺失值保持中性。线路负载率色阶描述返回数值的分布；是否越限由约束评估判断。模型变更与历史结果通过修订和运行引用保持可区分。
+
+结果、报告和证据可经 API 回看；浏览器读取私有存储中的受限投影。对话、结果表与拓扑图因此具备共同的模型身份和证据链。
 
 ## 在本地运行
 
@@ -73,23 +130,6 @@ make capstone-local-rebuild
 打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
 
 App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
-
-## 框架怎样支撑对话
-
-```text
-Application → Domain Pack → Kernel → registered Authority
-```
-
-| 层 | 负责什么 |
-| --- | --- |
-| Application | 选择模型家族、能力绑定和 Provider，提供对话、API、CLI 与答案视图 |
-| Domain Pack | 拥有语义工具、契约、策略、指南、执行，以及结果与证据准入 |
-| Kernel | 管理步骤、受限上下文、轨迹、工件和回放 |
-| Authority | 访问登记模型，执行计算或查询来源事实，产生结果与证据 |
-
-智能体只调用白名单中已发布且具有明确契约的语义工具。模型接口不开放原始 pandapower/PyPSA 对象、任意代码、shell 命令或通用文件访问。领域系统通过明确的结果和证据引用返回事实。Kernel 保持领域中立，其他应用也可以接入独立安装的 Domain Pack 和已登记权威系统。
-
-仓库还包含 PyPSA 容量规划与行业耦合 Domain Pack；当前托管的 PyPSA 对话选择建模和运行计算能力。组合机制见[框架架构](docs/architecture/capstone-framework.md)，扩展方式见 [Domain Pack 接入指南](docs/guides/domain-pack-onboarding.md)。
 
 ## CLI 与兼容入口
 
