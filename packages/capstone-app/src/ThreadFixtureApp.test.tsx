@@ -686,7 +686,8 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('button', { name: '展开历史回答' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '隐藏运行过程' })).toBeNull()
     expect(screen.queryByRole('button', { name: '显示运行过程' })).toBeNull()
-    expect(screen.getByText('仅已加载回答 · 新回答完整显示')).toBeTruthy()
+    expect(screen.queryByText('历史回答', { exact: true })).toBeNull()
+    expect(screen.queryByText('仅已加载回答 · 新回答完整显示')).toBeNull()
   })
 
   it('closes the flat input settings menu when focus moves outside it', async () => {

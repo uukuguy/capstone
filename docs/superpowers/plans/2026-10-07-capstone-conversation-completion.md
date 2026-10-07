@@ -173,6 +173,17 @@ Web §5.3 inline; no backend, answer content or evidence changes.
 
 ## Execution record
 
+### Follow-up: registered-tool visibility and compact history menu
+
+User rejects hiding PyPSA and the history-menu heading/hint rows. Apply these corrections inline
+to the existing approved UI contract; do not implement cross-family conversion.
+
+- [x] Show every registered catalog tool group in `ThreadControls`, with disabled incompatible rows and a short visible model-family reason; preserve exact compatible selection dispatch.
+- [x] Remove the redundant “历史回答” heading and scope hint from `HistoryAnswerActions`; retain only the two named history actions and their scope semantics. Preserve the verified stable answer toggle and focus behavior.
+- [x] Run focused red/green tests, full App tests/build, local rebuild, doctor and headless real-component desktop/mobile checks. Record scope, commit owned changes and checkpoint; no cloud deployment.
+
+- 2026-10-08: User screenshot identifies two missed requirements. Settings now shows all registered tool groups with visible compatibility reasons instead of hiding PyPSA. History controls retain only the two actions; redundant first/last text rows are removed. App298/build, rebuild and headless desktop/mobile/landscape checks pass. See [local verification](../../reviews/2026-10-08-thread-tool-menu-local-verification.md). Answer folding itself retains the verified stable-toggle behavior.
+
 - 2026-10-07: User supersedes forced instruction navigation with same-position folding controls and retained focus. One sticky toggle persists across both states; regular desktop/mobile/landscape cases move 0–0.44px. A last-answer boundary jump of about 465px was reproduced, then removed with only the required reading tail space; the corrected case moves 0px and expansion clears the space. Bulk Settings focus and drafts survive. See [local verification](../../reviews/2026-10-07-thread-stable-answer-toggle-local-verification.md). Earlier top/bottom-to-instruction receipts describe the superseded interaction.
 
 - 2026-10-07: User screenshot disproves the claimed Settings completion: nested Advanced/professional configuration and old names remained. Flat grid-tool rows now replace them; Save appears only for a changed selection, and unsupported empty submission is blocked with a short reason. App298/build, rebuild and headless desktop/375px/landscape checks pass. See [local verification](../../reviews/2026-10-07-thread-compact-grid-settings-local-verification.md). This closes the compact UI fix, not the zero-tool runtime or cloud release.

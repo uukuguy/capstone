@@ -572,10 +572,8 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
 function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolean; onFold: () => void; onUnfold: () => void }) {
   const close = useCloseThreadSettings()
   return <div className="thread-history-actions" role="group" aria-label="历史回答整理">
-    <span className="thread-settings-section">历史回答</span>
     <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onFold(); close() }}>折叠历史回答</button>
     <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onUnfold(); close() }}>展开历史回答</button>
-    <small>仅已加载回答 · 新回答完整显示</small>
   </div>
 }
 
