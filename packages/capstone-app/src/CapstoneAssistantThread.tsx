@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
+import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
 import {
   AssistantRuntimeProvider,
@@ -12,7 +13,7 @@ import {
   useAuiState,
   useExternalStoreRuntime,
 } from '@assistant-ui/react'
-import { Activity, ArrowUp, Check, Copy, FileCheck2, ListTree, Network, MoreHorizontal, Pencil, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Activity, ArrowUp, Check, ChevronRight, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, Pencil, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
@@ -26,7 +27,8 @@ type SendMode = 'automatic' | 'ordinary' | 'professional'
 const AnswerReadingContext = createContext<{
   collapsed: ReadonlySet<string>
   toggle: (id: string) => void
-}>({ collapsed: new Set(), toggle: () => {} })
+  restoreAnchor: (id: string) => void
+}>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {} })
 
 const ChatMessageContext = createContext<Parameters<typeof ChatMessage>[0] | null>(null)
 
@@ -240,7 +242,8 @@ function terminalContent(event: EventEnvelope): string {
 export function projectAssistantMessages(events: readonly EventEnvelope[]): ThreadMessageLike[] {
   const messages: ThreadMessageLike[] = []
   const assistantByAttempt = new Map<string, ThreadMessageLike & { content: string }>()
-  const instructionByAttempt = new Map<string, { text: string; mode: SendMode }>()
+  const instructionByAttempt = new Map<string, { text: string; mode: SendMode; messageId: string }>()
+  const instructionByTurn = new Map<string, { text: string; mode: SendMode; messageId: string }>()
   const startedAtByAttempt = new Map<string, string>()
   const contextByAttempt = new Map<string, { modelContextId?: string; selectionRevision?: string }>()
   const ensureAssistant = (key: string, startedAt?: string) => {
@@ -271,7 +274,9 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
       const text = payloadText(event, true)
       if (text) {
         const key = event.attemptId || event.turnId
-        if (key) instructionByAttempt.set(key, { text, mode: commandMode(event) })
+        const instruction = { text, mode: commandMode(event), messageId: `user-${event.eventId}` }
+        if (key) instructionByAttempt.set(key, instruction)
+        if (event.turnId) instructionByTurn.set(event.turnId, instruction)
         messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, receipt: `${commandMode(event)} · accepted` } } })
       }
       continue
@@ -300,6 +305,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
         message.content += `\n\n${terminalAnswer}`
       }
       if (message) {
+        const instruction = (key ? instructionByAttempt.get(key) : undefined) || (event.turnId ? instructionByTurn.get(event.turnId) : undefined)
         const status = event.eventType === 'attempt_completed'
           ? { type: 'complete' as const, reason: 'stop' as const }
           : { type: 'incomplete' as const, reason: event.eventType === 'attempt_cancelled' ? 'cancelled' as const : event.eventType === 'attempt_failed' ? 'error' as const : 'other' as const }
@@ -315,7 +321,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
             toolCount: relatedTools,
             modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
-            instruction: key ? instructionByAttempt.get(key)?.text : undefined,
+            instruction: instruction?.text,
+            instructionMessageId: instruction?.messageId,
             terminalPhase: event.eventType.replace(/^attempt_/, ''),
             errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
@@ -549,39 +556,23 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [text])
   const folded = foldable && collapsed.has(id)
-  return <div className="capstone-answer">
+  return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
+    {foldable && !folded && <button type="button" className="capstone-answer-toggle is-top" aria-label="折叠回答" title="收起并定位到用户指令" aria-expanded={true} aria-controls={`${id}-content`} onClick={() => toggle(id)}><ChevronUp aria-hidden="true" /><span>收起</span></button>}
     <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
       <MarkdownMessage>{text}</MarkdownMessage>
     </div>
     {folded && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
-    {foldable && <button type="button" className="capstone-answer-toggle" aria-expanded={!folded} aria-controls={`${id}-content`} onClick={() => toggle(id)}>{folded ? '展开完整回答' : '折叠回答'}</button>}
+    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ' is-bottom'}`} aria-label={folded ? '展开完整回答' : '折叠回答并返回指令'} title={folded ? '展开并定位到用户指令' : '收起并定位到用户指令'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={() => toggle(id)}>{folded ? <><ChevronRight aria-hidden="true" /><span className="capstone-answer-state">已折叠</span><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
   </div>
 }
 
 function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolean; onFold: () => void; onUnfold: () => void }) {
-  const root = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false)
-    }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus()
-    }
-    document.addEventListener('pointerdown', outside)
-    document.addEventListener('keydown', escape)
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
-  }, [open])
-  return <div ref={root} className="capstone-history-answers" onBlur={(event) => {
-    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
-  }}>
-    <button type="button" disabled={disabled} aria-expanded={open} onClick={() => setOpen(!open)} title="整理当前已加载的历史回答，新回答仍完整显示">历史回答</button>
-    {open && <div className="capstone-history-answer-menu" role="group" aria-label="历史回答整理">
-      <button type="button" onClick={() => { onFold(); setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus() }}>折叠历史回答</button>
-      <button type="button" onClick={() => { onUnfold(); setOpen(false); root.current?.querySelector<HTMLButtonElement>('button')?.focus() }}>展开历史回答</button>
-    </div>}
+  const close = useCloseThreadSettings()
+  return <div className="thread-history-actions" role="group" aria-label="历史回答整理">
+    <span className="thread-settings-section">历史回答</span>
+    <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onFold(); close() }}>折叠历史回答</button>
+    <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onUnfold(); close() }}>展开历史回答</button>
+    <small>仅整理已加载回答，新回答仍完整显示</small>
   </div>
 }
 
@@ -590,6 +581,8 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
   const id = useAuiState((state) => state.message.id)
+  const { restoreAnchor } = useContext(AnswerReadingContext)
+  useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
   const hasText = messageText({ content }).trim().length > 0
@@ -628,7 +621,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
       (!modelSummary || contextId === modelSummary.contextId))
-  return <MessagePrimitive.Root data-message-id={id} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+  return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
       <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
       {hasText && role === 'assistant' && status?.type === 'complete' ? <FoldableAnswer id={id} text={text} /> : hasText
@@ -646,7 +639,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   </MessagePrimitive.Root>
 }
 
-function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, historyActions, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; historyActions?: ReactNode; storageKey?: string }) {
+function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -670,7 +663,7 @@ function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, cont
   }, [disabled, isRunning])
   return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
     <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
-    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls || <span className="capstone-composer-context">自动路由</span>}{historyActions}</div><div className="capstone-composer-actions">
+    <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls}</div><div className="capstone-composer-actions">
       {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
     </div></div>
   </ComposerPrimitive.Root>
@@ -700,7 +693,7 @@ export type CapstoneAssistantThreadProps = {
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   canRerunCompleted?: boolean
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
-  composerControls?: ReactNode
+  composerControls?: (historyActions: ReactNode) => ReactNode
   showActivity?: boolean
   caseExecution?: CaseExecutionSnapshot | null
   caseCatalog?: readonly ThreadCatalogCase[]
@@ -720,28 +713,57 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
-  const scrollAnchor = useRef<{ node: Element; top: number } | null>(null)
-  function captureScrollAnchor() {
+  const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
+  const scrollAnchor = useRef<{ id: string; top: number; focus: boolean } | null>(null)
+  function captureScrollAnchor(answerId?: string) {
     const viewport = viewportRef.current
     if (!viewport) return
     const top = viewport.getBoundingClientRect().top
-    const node = Array.from(viewport.querySelectorAll('[data-message-id]')).find((item) => item.getBoundingClientRect().bottom > top)
-    // If the reader is inside a long answer, its former text offset disappears
-    // when folded. Keep that answer's start in view instead of an offscreen top.
-    scrollAnchor.current = node ? { node, top: Math.max(top, node.getBoundingClientRect().top) } : null
-  }
-  useLayoutEffect(() => {
-    const anchor = scrollAnchor.current
-    scrollAnchor.current = null
-    if (anchor?.node.isConnected && viewportRef.current) {
-      viewportRef.current.scrollTop += anchor.node.getBoundingClientRect().top - anchor.top
+    const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
+    const visible = nodes.find((item) => item.getBoundingClientRect().bottom > top)
+    const messageId = answerId || visible?.dataset.messageId
+    const message = allMessages.find((item) => item.id === messageId)
+    const instructionId = message?.metadata?.custom?.instructionMessageId
+    const id = typeof instructionId === 'string' ? instructionId : messageId
+    const instructionIndex = allMessages.findIndex((item) => item.id === id)
+    if (!id || instructionIndex < 0) return
+    setReadingLayoutChanging(true)
+    const isInstruction = allMessages[instructionIndex]?.role === 'user'
+    const node = nodes.find((item) => item.dataset.messageId === id)
+    scrollAnchor.current = { id, top: isInstruction || answerId ? top + 12 : Math.max(top, node?.getBoundingClientRect().top || top), focus: isInstruction || Boolean(answerId) }
+    if (!node) {
+      // The first answer in the 50-message window can have its instruction just
+      // outside it. Show the loaded instruction and its answer together.
+      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
     }
-  }, [foldState])
+  }
+  function restoreReadingAnchor(id?: string) {
+    const anchor = scrollAnchor.current
+    if (!anchor || (id && anchor.id !== id)) return
+    const viewport = viewportRef.current
+    const node = anchor && Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || []).find((item) => item.dataset.messageId === anchor.id)
+    if (anchor && node && viewport) {
+      scrollAnchor.current = null
+      viewport.scrollTop += node.getBoundingClientRect().top - anchor.top
+      if (anchor.focus) node.focus({ preventScroll: true })
+    }
+  }
+  useLayoutEffect(() => restoreReadingAnchor(), [foldState])
+  useEffect(() => {
+    if (!readingLayoutChanging) return
+    // Assistant-ui follows height changes while at the latest reply. Pause that
+    // behavior until the chosen instruction anchor and content resize settle.
+    let second: number | undefined
+    const first = window.requestAnimationFrame(() => {
+      second = window.requestAnimationFrame(() => setReadingLayoutChanging(false))
+    })
+    return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
+  }, [readingLayoutChanging, foldState])
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
   }, [storageKey])
   function toggleAnswer(id: string) {
-    captureScrollAnchor()
+    captureScrollAnchor(id)
     setFoldState((state) => {
       const ids = new Set(state.thread === storageKey ? state.ids : [])
       if (ids.has(id)) ids.delete(id); else ids.add(id)
@@ -804,7 +826,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
   }, [runtime, initialDraft])
 
   return <AssistantRuntimeProvider runtime={runtime}>
-    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer }}>
+    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, onEditInstruction: (text) => setEditRequest({ text, nonce: Date.now() }), modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
@@ -819,7 +841,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
         {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" scrollToBottomOnInitialize={false}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging} scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
         </ThreadPrimitive.Viewport>}
@@ -828,7 +850,7 @@ export default function CapstoneAssistantThread({ events, disabled, isRunning, a
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls} historyActions={<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />} storageKey={storageKey} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} editRequest={editRequest} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} />
         </div>
       </ThreadPrimitive.Root>
     </div>

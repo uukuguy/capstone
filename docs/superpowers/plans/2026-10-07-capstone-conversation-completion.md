@@ -111,7 +111,35 @@ npm --prefix packages/capstone-app run build
 - [ ] Review the change, fix material findings, commit task-owned implementation/plan paths, journal results and update the recovery baton.
 - [ ] Close CONV-01 only with evidence. Continue to the dependency-ready package while the user's continuation instruction remains active. Remote release remains governed by local-first verification and stage acceptance tags.
 
+## Follow-up: folded state, instruction focus and useful settings
+
+User directs a subtle folded state, top/bottom controls anchored to the user
+instruction, and integration into the existing Settings entry. Implement inline
+using the writing-plans and test-driven-development workflows.
+
+**Files:** `CapstoneAssistantThread.tsx`, `ThreadControls.tsx`, `ThreadFixtureApp.tsx`,
+`styles-light.css`, their App tests, and new `ThreadSettingsMenu.tsx`.
+
+- [x] Write failing tests for one Settings entry, meaningful default options, unchanged Profile dispatch under Advanced, folded state, two full-answer controls, and instruction focus including window boundaries.
+- [x] Extract a shared Settings popover. Pass history actions through the Composer controls render callback so the real App and isolated Thread use the same entry. Remove the independent history trigger and fixed routing/global trace options; keep per-answer runtime actions.
+- [x] Move Profile selection under Advanced as professional-function configuration, explain its effect, hide IDs/versions and disable no-change submission. Preserve existing availability and backend selection contracts.
+- [x] Associate each answer with its accepted user instruction using Attempt/Turn metadata. Toggle and bulk operations restore that instruction, adjust the loaded message window when needed, and transfer focus after layout. Missing instructions fall back to the answer, never a guessed question.
+- [x] Add subtle folded-state styles, top/bottom close controls, keyboard focus and reduced-motion handling. Verify the full clipboard, draft and evidence behavior.
+- [x] Run full App tests/build, doctor/package boundaries, local rebuild, link/symlink/diff checks, and headless actual-App desktop/mobile tests with instruction pairs, long answers, top/bottom transitions and Settings/Advanced interactions.
+- [ ] Record local verification, request independent review, commit owned paths and refresh the active recovery checkpoint; remote release remains separate.
+
+Run:
+```sh
+npm --prefix packages/capstone-app test
+npm --prefix packages/capstone-app run build
+make doctor check-package-boundaries
+make capstone-local-rebuild
+git diff --check
+```
+
 ## Execution record
+
+- 2026-10-07: User requests distinctive folded states, instruction anchors and useful unified Settings. App293 tests/build and desktop/mobile/landscape/reduced-motion browser checks pass; a runtime bottom-follow race and message-window focus timing were reproduced and fixed. Profile purpose was explained; selection remains behind Advanced with unchanged backend contracts. See [local verification](../../reviews/2026-10-07-thread-settings-and-instruction-focus-local-verification.md). Independent review dispatch is still unavailable; no remote release.
 
 - 2026-10-07: User rejects the two-purpose global mode and approves one-time history actions plus per-message folding. Revised §5.3 supersedes the earlier mode/summary implementation and acceptance. Re-test the new interaction; remove task-owned backend summary work.
 - 2026-10-07: Revised implementation passes App290 tests/build and headless desktop/mobile checks. A browser-found scroll-offset issue was fixed and re-tested, including collapse from inside a long answer. Backend source returns to its pre-task state. See [local verification](../../reviews/2026-10-07-thread-history-folding-local-verification.md). Independent review dispatch remains unavailable; no remote release or new tag.

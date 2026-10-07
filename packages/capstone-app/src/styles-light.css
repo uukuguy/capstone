@@ -563,17 +563,17 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-reference-card { display: grid; }
 
 .capstone-answer-content.is-collapsed { overflow: hidden; }
-.capstone-answer-toggle { display: block; min-height: 32px; margin-top: 3px; padding: 3px 0; border: 0; background: transparent; color: #41685f; font: inherit; cursor: pointer; }
-.capstone-answer-toggle:focus-visible, .capstone-history-answers button:focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
-.capstone-history-answers { position: relative; flex-shrink: 0; }
-.capstone-history-answers > button { min-height: 28px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; color: #55736b; font: inherit; cursor: pointer; }
-.capstone-history-answers > button:hover, .capstone-history-answers > button[aria-expanded="true"] { background: #eef6f2; }
-.capstone-history-answers > button:disabled { opacity: .4; cursor: default; }
-.capstone-history-answer-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 6; width: 150px; padding: 4px; border: 1px solid #d9e6e0; border-radius: 7px; background: #fff; box-shadow: 0 4px 12px #31564816; }
-.capstone-history-answer-menu button { display: block; width: 100%; min-height: 36px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: #41685f; font: inherit; text-align: left; cursor: pointer; }
-.capstone-history-answer-menu button:hover { background: #eef6f2; }
+.capstone-answer.is-collapsed { padding: 6px 9px; border-left: 2px solid #c5dbd1; border-radius: 0 6px 6px 0; background: #f7fbf9; }
+.capstone-answer-toggle { display: flex; align-items: center; gap: 4px; min-height: 28px; margin-top: 3px; padding: 3px 2px; border: 0; border-radius: 4px; background: transparent; color: #41685f; font: inherit; cursor: pointer; }
+.capstone-answer-toggle svg { width: 12px; height: 12px; }
+.capstone-answer-toggle.is-top, .capstone-answer-toggle.is-bottom { margin-left: auto; }
+.capstone-answer-toggle.is-top { margin-top: 0; margin-bottom: 3px; }
+.capstone-answer-state { margin-right: 5px; color: #4d7065; font-size: 10px; }
+.capstone-answer-toggle:hover { background: #edf5f0; }
+.capstone-answer-toggle:focus-visible, .thread-settings-menu :is(button, summary):focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
+.capstone-chat-message.is-user:focus-visible { outline: 2px solid #27866c; outline-offset: 4px; border-radius: 18px; }
 @media (max-width: 620px) {
-  .capstone-answer-toggle, .capstone-history-answers button { min-height: 44px; }
+  .capstone-answer-toggle { min-height: 44px; }
   .capstone-assistant-runtime-label { flex-wrap: wrap; }
 }
 
@@ -755,7 +755,24 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-settings-trigger::-webkit-details-marker { display: none; }
 .thread-settings-trigger svg { width: 13px; height: 13px; }
 .thread-settings-trigger:hover, .thread-settings-trigger:focus-visible { color: #287a6d; }
-.thread-settings-popover { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; display: grid; gap: 6px; width: min(268px, 76vw); padding: 8px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; }
+.thread-settings-popover { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; display: grid; gap: 6px; width: min(268px, 76vw); padding: 8px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; overflow-y: auto; }
+.thread-settings-menu .thread-settings-trigger { min-width: 44px; min-height: 28px; border: 0; font: inherit; }
+.thread-settings-menu .thread-settings-trigger[aria-expanded="true"] { color: #287a6d; }
+.thread-history-actions { display: grid; gap: 2px; }
+.thread-settings-section { padding: 3px 7px; color: #4f716b; font-size: 11px; font-weight: 500; }
+.thread-history-actions > small { padding: 4px 7px; color: #526e64; font-size: 11px; line-height: 1.5; }
+.thread-settings-popover .thread-settings-item { min-height: 36px; font-size: 11px; }
+.thread-settings-item:disabled { opacity: .45; cursor: default; }
+.thread-settings-advanced { border-top: 1px solid #e4eee8; padding-top: 4px; }
+.thread-settings-advanced > summary { min-height: 36px; padding: 8px 7px; color: #526e64; font-size: 11px; cursor: pointer; }
+.thread-settings-advanced .thread-profile-panel { padding-left: 7px; }
+.thread-settings-advanced .thread-profile-panel > small { color: #526e64; font-size: 11px; line-height: 1.5; }
+@media (max-width: 620px) {
+  .thread-settings-menu .thread-settings-trigger, .thread-settings-popover :is(button, summary) { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capstone-answer-toggle, .thread-settings-menu { transition: none; }
+}
 .thread-routing-status { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; border-radius: 8px; background: #f5faf7; color: #456b63; }
 .thread-routing-dot { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 5px; border-radius: 50%; background: #2c9b89; box-shadow: 0 0 0 3px #2c9b8922; }
 .thread-routing-status strong, .thread-routing-status small { display: block; }

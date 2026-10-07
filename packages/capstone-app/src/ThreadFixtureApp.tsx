@@ -62,7 +62,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [notice, setNotice] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   const [modelTarget, setModelTarget] = useState('ieee39')
-  const [traceVisible, setTraceVisible] = useState(true)
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
   const commandInFlight = useRef(false)
@@ -392,7 +391,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           {isInterrupted && <div className="thread-interrupted-banner" role="status"><strong>本次 Attempt 已中断</strong><span>重试将创建新的 Attempt，不覆盖旧 Attempt。</span></div>}
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
-            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} showActivity={traceVisible} canRerunCompleted={canSendText && !contextChangePending}
+            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={store.networkTasks.map((task) => task.attemptId)} onShowNetwork={(attemptId) => {
               setFocusedElement(undefined)
               setSelectedNetworkAttempt(attemptId)
@@ -418,10 +417,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={<><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
+            composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} activeFamily={snapshot.activeModelContext.implementationFamily}
               activeProfiles={snapshot.activeModelContext.enabledProfiles} pendingProfileSelection={snapshot.pendingSelection?.enabledProfiles}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} traceVisible={traceVisible}
-              onTraceToggle={() => setTraceVisible((value) => !value)} onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
+              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || caseActive || sending || projection.connection !== 'live'} historyActions={historyActions}
+              onProfileSelection={(profiles) => void dispatch('replace_selection', { enabled_profiles: profiles.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) })} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={readOnly || loading || unresolvedCommand || isHistorical || contextChangePending || isActive || isInterrupted || caseActive || sending || projection.connection !== 'live'} pending={contextChangePending}
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void sendConversation('automatic', `打开 ${modelId} 电网模型`).catch(() => {})} /></>}

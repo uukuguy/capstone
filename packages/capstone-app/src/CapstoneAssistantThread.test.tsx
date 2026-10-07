@@ -43,7 +43,7 @@ describe('CapstoneAssistantThread', () => {
     const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: '下一条草稿' } })
     expect(screen.queryByRole('combobox', { name: '回答显示模式' })).toBeNull()
-    const menu = screen.getByRole('button', { name: '历史回答' })
+    const menu = screen.getByRole('button', { name: '对话设置' })
     expect(menu.closest('.capstone-composer-footer')).toBeTruthy()
     const first = screen.getByText(/完整条件。完整条件/).closest('.capstone-chat-message')!
     expect(within(first as HTMLElement).getByRole('button', { name: '折叠回答' }).getAttribute('aria-expanded')).toBe('true')
@@ -73,7 +73,7 @@ describe('CapstoneAssistantThread', () => {
       event('assistant_text_delta', 3, { text: '进行中。'.repeat(100) }, 'pending'),
       event('attempt_failed', 4, { error_code: 'capability_required' }, 'failed'),
     ]} storageKey="old_reading" disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
     expect(screen.getByText('没有摘要的正式回答。')).toBeTruthy()
     expect(screen.getByText('保留正式事实。')).toBeTruthy()
@@ -99,7 +99,7 @@ describe('CapstoneAssistantThread', () => {
     const pending = event('assistant_text_delta', 2, { text: '生成中。'.repeat(100) }, 'pending')
     const props = { events: [first, pending], disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
     const { rerender } = render(<CapstoneAssistantThread {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={[first, pending, event('attempt_completed', 3, { answer: '新完成回答。'.repeat(100) }, 'pending')]} />)
     expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(1)
@@ -123,7 +123,7 @@ describe('CapstoneAssistantThread', () => {
   it('folds loaded answers outside the visible message window and retains individual overrides', () => {
     const events = Array.from({ length: 60 }, (_, index) => event('attempt_completed', index + 1, { answer: `历史 ${index}。` + '完整条件。'.repeat(100) }, `history_${index}`))
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: '历史回答' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
     expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(50)
     fireEvent.click(screen.getAllByRole('button', { name: '展开完整回答' }).at(-1)!)
@@ -137,7 +137,7 @@ describe('CapstoneAssistantThread', () => {
 
   it('closes the history actions on Escape and outside clicks', () => {
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '历史回答。' }, 'first')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    const button = screen.getByRole('button', { name: '历史回答' })
+    const button = screen.getByRole('button', { name: '对话设置' })
     fireEvent.click(button)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
@@ -145,6 +145,45 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(button)
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('group', { name: '历史回答整理' })).toBeNull()
+  })
+
+  it('marks folded answers subtly and returns top and bottom toggles to the user instruction', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', text: '检查这条用户指令的回答' }, 'first'),
+      event('attempt_completed', 2, { answer: '完整回答。'.repeat(160) }, 'first'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const instruction = screen.getByText('检查这条用户指令的回答').closest('[data-message-id]')!
+    expect(projectAssistantMessages(events)[1].metadata?.custom?.instructionMessageId).toBe('user-evt_1')
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答并返回指令' }))
+    const folded = screen.getByRole('button', { name: '展开完整回答' }).closest('.capstone-answer')!
+    expect(folded.getAttribute('data-answer-state')).toBe('collapsed')
+    expect(within(folded as HTMLElement).getByText('已折叠')).toBeTruthy()
+    expect(document.activeElement).toBe(instruction)
+    fireEvent.click(screen.getByRole('button', { name: '展开完整回答' }))
+    expect(document.activeElement).toBe(instruction)
+    expect(screen.getByRole('button', { name: '折叠回答' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '折叠回答并返回指令' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    expect(document.activeElement).toBe(instruction)
+  })
+
+  it('reveals an instruction just outside the message window when toggling its answer', () => {
+    const events = [event('command_accepted', 1, { kind: 'send_auto', text: '窗口边界的用户指令' }, 'first'), event('attempt_completed', 2, { answer: '边界回答。'.repeat(160) }, 'first'), ...Array.from({length:49}, (_, i) => event('attempt_completed', i + 3, { answer: `其他回答 ${i}` }, `other_${i}`))]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    expect(screen.getByText('窗口边界的用户指令')).toBeTruthy()
+    expect(document.activeElement?.getAttribute('data-message-id')).toBe('user-evt_1')
+  })
+
+  it('keeps focus on the answer when its instruction is not loaded instead of choosing another question', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', text: '无关用户指令' }, 'other'),
+      event('attempt_completed', 2, { answer: '原始指令未加载的回答。'.repeat(100) }, 'missing_instruction'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    expect(document.activeElement?.getAttribute('data-message-id')).toBe('assistant-missing_instruction')
   })
   it('clears a reconciled draft once and preserves a later draft', async () => {
     const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
@@ -256,7 +295,8 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText(/工具已启动/)).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Thread 指令' })).toBeTruthy()
     expect(screen.getByLabelText('输入工具栏')).toBeTruthy()
-    expect(screen.getByText('自动路由')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '对话设置' })).toBeTruthy()
+    expect(screen.queryByText('自动路由')).toBeNull()
     expect(screen.queryByRole('button', { name: '自动识别' })).toBeNull()
     expect(screen.queryByRole('button', { name: '专业分析' })).toBeNull()
     expect(screen.queryByText(/⌘\/Ctrl/)).toBeNull()

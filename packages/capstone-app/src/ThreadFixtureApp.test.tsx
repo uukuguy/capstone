@@ -657,33 +657,40 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
-    fireEvent.click(screen.getByRole('button', { name: /选择 Profile/ }))
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect(screen.queryByRole('button', { name: '历史回答' })).toBeNull()
+    expect(screen.queryByText('自动路由')).toBeNull()
+    expect(screen.queryByRole('button', { name: '选择 Profile' })).toBeNull()
+    fireEvent.click(screen.getByText('高级'))
+    fireEvent.click(screen.getByRole('button', { name: '专业功能配置' }))
     expect(screen.getByText('Pandapower Static Analysis')).toBeTruthy()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Pandapower Static Analysis' }))
-    fireEvent.click(screen.getByRole('button', { name: '应用 Profile 选择' }))
+    expect((screen.getByRole('button', { name: '应用功能配置' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '应用功能配置' }))
 
     expect(await screen.findByText('操作已提交。')).toBeTruthy()
   })
 
-  it('keeps the trace control compact and independently togglable', async () => {
+  it('keeps history actions inside Settings and per-answer activity accessible', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
-    const trace = screen.getByRole('button', { name: '隐藏运行过程' })
-    fireEvent.click(trace)
-    expect(screen.getByRole('button', { name: '显示运行过程' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect(screen.getByRole('button', { name: '折叠历史回答' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '展开历史回答' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '隐藏运行过程' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '显示运行过程' })).toBeNull()
+    expect(screen.getByText('仅整理已加载回答，新回答仍完整显示')).toBeTruthy()
   })
 
   it('closes the flat input settings menu when focus moves outside it', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.click(screen.getByRole('button', { name: '输入设置' }))
-    expect(document.querySelector('.thread-settings-menu[open]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    expect(document.querySelector('.thread-settings-menu.is-open')).toBeTruthy()
     fireEvent.click(document.body)
-    expect(document.querySelector('.thread-settings-menu[open]')).toBeNull()
+    expect(document.querySelector('.thread-settings-menu.is-open')).toBeNull()
   })
 
   it('projects a sent automatic instruction and fixture response into the chat', async () => {
