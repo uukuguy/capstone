@@ -1,104 +1,130 @@
 # Capstone Agent Framework
 
-简体中文 | [English](README.md)
+简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
-Capstone 让智能体组织分析任务，让专业系统负责计算，并把每一步的结果和证据留在同一次运行中。应用可以据此展示结论、回看过程，也能追查结论来自哪个模型和哪次计算。
+**用智能体对话开展电网分析。**
 
-电网分析是仓库中的第一批应用：pandapower 负责静态电网计算，PyPSA 负责已登记的建模、运行和规划能力。框架本身不绑定电力行业；接入其他领域时，由独立的 Domain Pack 定义可用能力和权威系统边界。
+Capstone 把自然语言指令、电网模型和分析结果放在同一个工作台中。你可以让智能体检查网络、执行计算，或继续追问某项结果。智能体选择已发布的领域工具，pandapower 和 PyPSA 提供模型事实与计算能力；计算结果及其证据随对话保留，便于查看与核查。
 
-![Capstone 电网分析工作台：案例库、IEEE-39 拓扑图和当前运行状态](docs/images/capstone-workbench.png)
+![当前 Capstone 智能体对话工作台：左侧 IEEE-39 拓扑图，右侧包含潮流结果的智能体回答](docs/images/capstone-agent-conversation.png)
 
-## 从工作台看起
+## 从一句指令开始
 
-[操作 App](packages/capstone-app/) 提供五个已登记案例：两个 IEEE-39 静态分析案例，以及区域负荷、SciGRID-DE 调度和 AC/DC 互联三个 PyPSA 案例。打开案例即可查看完整模型图；运行时可以逐步执行，也可以自动完成三条指令。
+打开[在线 Demo](https://capstone-app-production-975e.up.railway.app/)，或在本地运行 App。首页直接进入智能体对话。在**模型**菜单中选择已登记的电网模型，也可以通过自然语言打开模型，然后围绕它提出分析请求。
 
-电网图会随步骤定位到相关元件。已完成的步骤可点选回看；图中的数值着色只使用本轮已接纳的计算结果。每轮结束后，报告显示在分析过程下方，右侧可查看运行状态和证据。
-
-![IEEE-39 当前运行的电网拓扑图与线路负载率图层](docs/images/capstone-grid-topology.png)
-
-公开工作台使用已登记的脚本案例，不调用付费 LLM Provider。自然语言工具编排有单独的 CLI 路径和凭据配置，见[运行手册](docs/RUNBOOK.md)。
-
-## Capstone 怎样工作
+例如，分析 IEEE-39 时可以连续发送：
 
 ```text
-Application → Domain Pack → Kernel → registered Authority
+有哪些 pandapower 的电网模型？
+打开 ieee39 电网模型。
+执行一次交流潮流，报告收敛状态和全网有功损耗。
+基于刚才的结果，筛查负载率最高的三条线路。
+查看这些线路的端点母线，以及支持回答的结果与证据。
 ```
 
-| 部分 | 负责什么 |
+在同一段对话中继续追问结果或细化分析。每条指令都绑定到一个模型上下文和运行。**新建对话**会创建独立的 Thread；保存其链接后，刷新页面仍能回到同一段对话。
+
+智能体对话是主要入口。已登记案例保留为引导流程与验证样例；早期的案例库页面位于 `/old`。
+
+## 可以分析什么
+
+| 模型家族 | 当前对话提供的能力 |
 | --- | --- |
-| Application | 选择领域能力，提供 App 或 CLI，呈现答案和报告 |
-| Domain Pack | 定义领域工具、契约、策略、指南，以及结果和证据的准入规则 |
-| Kernel | 管理运行、步骤、受限上下文、轨迹、工件和回放 |
-| Authority | 访问登记模型，执行计算或查询，产生可信的结果与证据 |
+| pandapower | 登记模型检查、母线与支路查询、拓扑、交流与直流潮流、网损、负载率、模型约束检查和 N−1 分析 |
+| PyPSA | 登记模型检查与负荷派生、固定容量经济调度、机组启停、滚动储能调度、拥塞 OPF、登记故障集的安全调度，以及调度后的交流潮流校验 |
 
-智能体只能调用已发布的语义工具。它不能直接拿到 pandapower 对象、PyPSA 内部状态、任意命令或文件访问权。数值和网络结论来自相应的权威系统，并通过明确的结果、证据引用返回应用。Kernel 保持领域中立；一个应用可以显式组合多个 Domain Pack，但领域状态和凭据仍各自隔离。
+可用操作取决于选定模型和已发布的能力契约。完整拓扑不可用时，模型菜单会说明原因。准确的执行范围见 [pandapower 能力矩阵](configs/capabilities/pandapower-3.4.0-static-analysis.json)、[PyPSA 建模目录](configs/capabilities/pypsa-1.3.0-modeling.json)和 [PyPSA 运行计算目录](configs/capabilities/pypsa-1.3.0-power-operations.json)。
 
-完整的所有权与数据流见[框架架构](docs/architecture/capstone-framework.md)。想接入新领域，可从 [Domain Pack 接入指南](docs/guides/domain-pack-onboarding.md)开始。
+例如，选择 PyPSA 的 `two-bus` 模型，要求先做经济调度，再执行交流潮流校验：
 
-## 在本地打开工作台
+![当前 Capstone PyPSA 智能体对话：左侧双母线拓扑，右侧经济调度与交流潮流校验结果](docs/images/capstone-pypsa-conversation.png)
 
-需要 Docker Compose、Node.js 22.19+ 和 npm。先创建本地环境文件，把其中的示例密钥换成本地值：
+这些截图来自在线 App 对已完成分析的回看。图中的数值属于对应运行，不是预设答案或性能基准。
+
+## 从回答查看计算与证据
+
+回答下方的操作可以打开该指令对应的电网图、查看已准入的结构化结果、读取证据，以及回看执行步骤。电网图支持平移、缩放和元件定位；标注使用模型名称，并带 `bus`、`line`、`trafo` 前缀，PyPSA 的 Link 使用 `link`。
+
+数值图层只使用匹配模型修订和当前运行的已准入结果，缺失值保持中性。线路负载率色阶描述返回数值的分布；是否越限由约束评估判断。
+
+模型事实和数值结论来自已登记的权威系统。模型目录等信息性回答不会创建计算证据。结果、报告和证据可以经 API 回看；浏览器只读取私有存储中的受限投影。
+
+## 在本地运行
+
+需要 Python 3.12+、`uv`、Docker Compose、Node.js 22.19+ 和 npm。首次检出仓库时执行：
 
 ```sh
+git clone https://github.com/uukuguy/capstone.git
+cd capstone
+make setup
+make install-pi
+make install-pypsa-models
 cp deploy/local.env.example deploy/local.env
-docker compose --env-file deploy/local.env config --quiet
-docker compose --env-file deploy/local.env up --build -d
-make setup-capstone-app
-make capstone-app-dev
 ```
 
-源码修改后使用可重复执行的一键重构入口，避免 API 和 worker 继续使用旧镜像：
+编辑 Git 忽略的 `deploy/local.env`，替换数据库、存储、操作员和 Provider 的示例凭据。运行时选择项应与[共享宿主运行配置](configs/runtime/host-runtime-v1.json)一致。Provider 凭据仅保留在后端配置中；普通智能体对话使用已配置的 LLM，可能产生 Provider 费用。具体配置见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
+
+使用仓库统一入口启动 API、pandapower worker、PyPSA worker 和 App：
 
 ```sh
 make capstone-local-rebuild
 ```
 
-该入口会校验环境，重建并替换两个后端角色，等待服务就绪，并确认二者使用同一
-镜像摘要，同时确保 Vite App 可访问（未启动时会后台启动）。设置
-`CAPSTONE_START_APP=0` 可跳过 App 启动，需要同时刷新基础镜像时设置
-`CAPSTONE_LOCAL_PULL=1`。入口会先校验本机已安装的六个 PyPSA 模型并放入构建上下文，
-本地重构不会重复下载模型文件。
+打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
 
-打开 `http://127.0.0.1:5173/` 直接进入智能体对话工作台。本地 Compose 默认开放 Thread 访问，无需登录或输入浏览器令牌。对话区中的小型**新建对话**按钮创建独立 Thread。用户系统和历史会话列表暂缓。新建 Thread 后会记录专属链接，刷新不会重复创建。草稿保存在当前浏览器会话中；临时断线会自动恢复连接，较早消息按页加载。原登记案例工作台位于 `/old`，其受限访问凭证仍由 API 发放，无需手动输入；案例执行仍走真实 Provider/LLM 路径。本地 App 默认监听局域网接口；手机可通过 `http://<电脑局域网 IP>:5173/` 访问。Vite 通过同源代理转发到本机 API，API 本身仍只监听 loopback。若只需要本机访问，可设置 `CAPSTONE_APP_HOST=127.0.0.1`。报告和证据保存在私有工件存储中，浏览器只通过 API 读取受限内容。访问模式、端口、Provider 配置和故障排查说明见[运行手册](docs/RUNBOOK.md#hosted-app-and-deployment)。
+App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
 
-## 使用 CLI
+## 框架怎样支撑对话
 
-CLI 开发需要 Python 3.12+、`uv`、Node.js 22.19+ 和 npm。以下命令安装依赖并运行不调用 Provider 的检查：
+```text
+Application → Domain Pack → Kernel → registered Authority
+```
+
+| 层 | 负责什么 |
+| --- | --- |
+| Application | 选择模型家族、能力绑定和 Provider，提供对话、API、CLI 与答案视图 |
+| Domain Pack | 拥有语义工具、契约、策略、指南、执行，以及结果与证据准入 |
+| Kernel | 管理步骤、受限上下文、轨迹、工件和回放 |
+| Authority | 访问登记模型，执行计算或查询来源事实，产生结果与证据 |
+
+智能体只调用白名单中已发布且具有明确契约的语义工具。模型接口不开放原始 pandapower/PyPSA 对象、任意代码、shell 命令或通用文件访问。领域系统通过明确的结果和证据引用返回事实。Kernel 保持领域中立，其他应用也可以接入独立安装的 Domain Pack 和已登记权威系统。
+
+仓库还包含 PyPSA 容量规划与行业耦合 Domain Pack；当前托管的 PyPSA 对话选择建模和运行计算能力。组合机制见[框架架构](docs/architecture/capstone-framework.md)，扩展方式见 [Domain Pack 接入指南](docs/guides/domain-pack-onboarding.md)。
+
+## CLI 与兼容入口
+
+CLI 可用于自动化和定向检查。完成安装后，可执行不调用 Provider 的 pandapower 查询：
 
 ```sh
-make setup
 make doctor
 make run QUESTION="IEEE-39节点系统中线路11连接哪两个母线?"
 ```
 
-案例库的五个案例命令都和网页使用同一条真实 Provider/LLM 路径：
+需要 LLM 编排时，先按[运行手册](docs/RUNBOOK.md#llm-配置与-pi-rpc-路径)配置 CLI 的 Provider，再执行：
 
 ```sh
-make capstone-agent-pandapower-task
-make capstone-agent-pandapower-test
-make capstone-agent-pypsa-regional
-make capstone-agent-pypsa-scigrid
-make capstone-agent-pypsa-ac-dc
+make run-llm QUESTION="对 IEEE-39 执行交流潮流，并报告有功损耗。"
 ```
 
-运行前需要配置 Provider 凭据。名称带 `*-scripted*` 或 `*-demo` 的请求文件仅
-用于确定性的离线验证，不是 LLM 执行路径。
+`grid-agent` 保留为 pandapower 兼容 CLI，答案、报告和标准输出契约见 [pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)。统一的 `capstone-agent` CLI 和引导案例命令见[运行手册](docs/RUNBOOK.md#capstone-统一客户端)。确定性脚本样例用于离线验证，与普通 LLM 对话分开。
 
-`grid-agent` 是 pandapower 应用的兼容 CLI。其 `run`、`analysis` 和 `report` 命令在标准输出中只写一个包含 `question_id` 与 `answer_output` 的 JSON 对象；进度和诊断走标准错误输出。需要 LLM 的自然语言分析使用 `make run-llm`，先按[运行手册](docs/RUNBOOK.md)配置 Provider 与 Pi。凭据不能写进命令参数或提交到仓库。
+## 开发与部署
 
-## 部署
+本地 Compose 加 Vite 用于日常迭代，cloud-dev 用于远端集成验证，demo 提供已验证的用户试用版本。cloud-dev 与 demo 分别使用自己的数据库、工件存储、凭据和公开域名。demo 晋级使用在 cloud-dev 验收过的同一源码版本或工件。
 
-App 可托管在 Railway 或 Vercel，并通过 `VITE_API_ORIGIN` 连接 Capstone API。
+App 定向检查使用 `make test-capstone-app` 和 `make build-capstone-app`。仓库离线门禁为：
 
-- [Railway 部署说明](deploy/railway/README.md)
-- [Cloud Run + Vercel 部署说明](deploy/cloud-run/README.md)
-- [完整运行手册](docs/RUNBOOK.md)
+```sh
+make doctor
+make test
+make test-e2e
+make validate
+```
 
-前端定向检查使用 `make test-capstone-app` 和 `make build-capstone-app`。完整离线门禁包括 `make test`、`make test-e2e` 与 `make validate`；Provider 验证单独授权，可能计费。
+Provider 验证是需要单独授权的检查。部署步骤和运行配置集中在操作文档中：
 
-## 进一步阅读
-
-- [Capstone 框架架构](docs/architecture/capstone-framework.md)：四层所有权、组合输出、当前运行证据
-- [pandapower 能力架构](docs/architecture/pandapower-capability-composition.md)与[可执行能力矩阵](configs/capabilities/pandapower-3.4.0-static-analysis.json)
-- [Pandapower 应用说明](docs/PANDAPOWER-APPLICATION.md)：兼容 CLI、报告和证据契约
-- [项目当前状态](docs/status/CURRENT-STATE.md)：实现进度与已知边界
+- [开发与发布生命周期](docs/architecture/capstone-development-lifecycle.md)
+- [Railway 部署](deploy/railway/README.md)
+- [Cloud Run + Vercel 部署](deploy/cloud-run/README.md)
+- [运行手册](docs/RUNBOOK.md)
+- [项目当前状态](docs/status/CURRENT-STATE.md)
