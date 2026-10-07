@@ -655,22 +655,26 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
   })
 
-  it('renders catalog-driven Profiles in a compact control and submits one selection command', async () => {
-    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+  it('shows grid tools directly and explains unsupported all-off selection', async () => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    const snapshot = fixture.snapshot as { active_model_context: Record<string, unknown> }
+    snapshot.active_model_context.enabled_profiles = { schema: 'capstone-model-capability-selection/1',
+      enabled_profiles: [{ profile_id: 'pandapower-static-analysis', profile_version: '1.0.1' }] }
+    render(<ThreadFixtureApp client={new CapstoneThreadClient(createFixtureTransport(fixture))} threadId="thr_demo_39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     expect(screen.queryByRole('button', { name: '历史回答' })).toBeNull()
     expect(screen.queryByText('自动路由')).toBeNull()
     expect(screen.queryByRole('button', { name: '选择 Profile' })).toBeNull()
-    fireEvent.click(screen.getByText('高级'))
-    fireEvent.click(screen.getByRole('button', { name: '专业功能配置' }))
-    expect(screen.getByText('Pandapower Static Analysis')).toBeTruthy()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Pandapower Static Analysis' }))
-    expect((screen.getByRole('button', { name: '应用功能配置' }) as HTMLButtonElement).disabled).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: '应用功能配置' }))
-
-    expect(await screen.findByText('操作已提交。')).toBeTruthy()
+    expect(screen.queryByText('高级')).toBeNull()
+    expect(screen.queryByText('专业功能配置')).toBeNull()
+    expect(screen.getByText('电网计算分析工具')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '保存工具选择' })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'pandapower 静态分析' }))
+    expect((screen.getByRole('button', { name: '保存工具选择' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('当前版本尚不支持全部关闭')).toBeTruthy()
+    expect(screen.queryByText('操作已提交。')).toBeNull()
   })
 
   it('keeps history actions inside Settings and per-answer activity accessible', async () => {
@@ -682,7 +686,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByRole('button', { name: '展开历史回答' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '隐藏运行过程' })).toBeNull()
     expect(screen.queryByRole('button', { name: '显示运行过程' })).toBeNull()
-    expect(screen.getByText('仅整理已加载回答，新回答仍完整显示')).toBeTruthy()
+    expect(screen.getByText('仅已加载回答 · 新回答完整显示')).toBeTruthy()
   })
 
   it('closes the flat input settings menu when focus moves outside it', async () => {

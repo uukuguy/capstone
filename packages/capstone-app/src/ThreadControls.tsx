@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ChevronDown, SlidersHorizontal } from 'lucide-react'
-import ThreadSettingsMenu from './ThreadSettingsMenu'
+import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import type { ThreadCatalog, ThreadCatalogProfile } from './threadCatalog'
 import type { ProfileReference } from './threadProtocol'
 
@@ -19,15 +18,19 @@ export type ThreadControlsProps = {
   onProfileSelection: (profiles: ProfileReference[]) => void
 }
 
-export default function ThreadControls({ catalog, activeFamily, activeProfiles, pendingProfileSelection, pendingModel, disabled, historyActions, onProfileSelection }: ThreadControlsProps) {
-  const compatibleProfiles = useMemo(
-    () => (catalog?.profiles || []).filter((profile) => profile.implementationFamilies.includes(activeFamily)),
-    [activeFamily, catalog?.profiles],
-  )
-  const selectedProfiles = pendingProfileSelection || activeProfiles
+function toolName(profile: ThreadCatalogProfile): string {
+  if (profile.profileId === 'pandapower-static-analysis') return 'pandapower 静态分析'
+  if (profile.profileId === 'pypsa-business-cases') return 'PyPSA 电网分析'
+  return profile.displayName
+}
+
+function GridToolSelection({ profiles, selectedProfiles, pending, disabled, onSave }: {
+  profiles: ThreadCatalogProfile[]; selectedProfiles: ProfileReference[]; pending: boolean;
+  disabled: boolean; onSave: (profiles: ProfileReference[]) => void
+}) {
   const [draft, setDraft] = useState(selectedProfiles)
-  const [open, setOpen] = useState(false)
-  useEffect(() => setDraft(selectedProfiles), [pendingProfileSelection, activeProfiles])
+  const close = useCloseThreadSettings()
+  useEffect(() => setDraft(selectedProfiles), [selectedProfiles])
   const changed = draft.map(profileKey).sort().join(',') !== selectedProfiles.map(profileKey).sort().join(',')
 
   function toggleProfile(profile: ThreadCatalogProfile): void {
@@ -38,26 +41,26 @@ export default function ThreadControls({ catalog, activeFamily, activeProfiles, 
       : [...current, reference])
   }
 
+  return <div className="thread-grid-tools" role="group" aria-label="电网计算分析工具">
+    <div className="thread-grid-tools-heading"><span className="thread-settings-section">电网计算分析工具</span>
+      {changed && <button type="button" className="thread-tool-save" aria-label="保存工具选择" disabled={disabled || draft.length === 0} onClick={() => { onSave(draft); close() }}>保存</button>}
+    </div>
+    {profiles.map((profile) => <label key={profileKey(profile)} className="thread-profile-option" title={`适用于 ${profile.implementationFamilies.join('、')} 模型`}>
+      <input type="checkbox" aria-label={toolName(profile)} checked={draft.some((item) => profileKey(item) === profileKey(profile))} disabled={disabled} onChange={() => toggleProfile(profile)} />
+      <span>{toolName(profile)}</span>
+    </label>)}
+    {changed && draft.length === 0 && <small className="thread-tool-hint" role="status">当前版本尚不支持全部关闭</small>}
+    {pending && <small className="thread-tool-hint" role="status">下条指令生效</small>}
+  </div>
+}
+
+export default function ThreadControls({ catalog, activeFamily, activeProfiles, pendingProfileSelection, pendingModel, disabled, historyActions, onProfileSelection }: ThreadControlsProps) {
+  const compatibleProfiles = useMemo(() => (catalog?.profiles || []).filter((profile) => profile.implementationFamilies.includes(activeFamily)), [activeFamily, catalog?.profiles])
   return <div className="thread-compact-controls" aria-label="Thread 紧凑控制">
     <ThreadSettingsMenu>
       {historyActions}
-      {compatibleProfiles.length > 0 && <details className="thread-settings-advanced">
-        <summary>高级</summary>
-        <details className="thread-profile-menu" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-          <summary className="thread-settings-item" role="button" aria-label="专业功能配置" title="专业功能配置"><SlidersHorizontal aria-hidden="true" /><span>专业功能配置</span><ChevronDown aria-hidden="true" /></summary>
-          <div className="thread-profile-panel" role="group" aria-label="专业功能配置">
-            <strong>{pendingProfileSelection ? '配置将在下条指令生效' : '可用分析功能'}</strong>
-            <small>决定后续分析可使用的专业功能。已按模型配置，通常无需调整。</small>
-            {compatibleProfiles.length === 0
-              ? <small>当前模型没有可选专业功能</small>
-              : compatibleProfiles.map((profile) => {
-                const checked = draft.some((item) => item.profileId === profile.profileId && item.profileVersion === profile.profileVersion)
-                return <label key={`${profile.profileId}@${profile.profileVersion}`} className="thread-profile-option"><input type="checkbox" aria-label={profile.displayName} checked={checked} disabled={disabled || Boolean(pendingModel)} onChange={() => toggleProfile(profile)} /><span>{profile.displayName}</span></label>
-              })}
-            <button type="button" className="thread-compact-apply" disabled={disabled || Boolean(pendingModel) || !changed} onClick={() => { onProfileSelection(draft); setOpen(false) }}>应用功能配置</button>
-          </div>
-        </details>
-      </details>}
+      {compatibleProfiles.length > 0 && <GridToolSelection profiles={compatibleProfiles} selectedProfiles={pendingProfileSelection || activeProfiles}
+        pending={Boolean(pendingProfileSelection)} disabled={disabled || Boolean(pendingModel)} onSave={onProfileSelection} />}
     </ThreadSettingsMenu>
     {pendingModel && <span className="thread-control-pending" role="status">模型切换待生效</span>}
   </div>

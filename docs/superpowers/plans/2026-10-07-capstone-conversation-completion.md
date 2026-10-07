@@ -149,7 +149,20 @@ Use writing-plans and test-driven-development inline; no backend contract change
 - [x] Run App tests/build, local rebuild, doctor/boundaries and headless desktop/mobile checks; confirm history focus and drafts survive without Provider calls.
 - [x] Record verification and review status, commit task-owned files and update the active checkpoint. Remote release remains separate.
 
+## Follow-up: compact grid-tool settings
+
+The screenshot still shows the rejected nested Settings design. Apply approved
+Web §5.4 inline with writing-plans and test-driven-development. This is a
+presentation fix; the zero-tool runtime remains a separately tracked gap.
+
+- [x] Revise `ThreadFixtureApp.test.tsx` to require directly visible grid-tool names, no Advanced or professional-configuration layer, and Save only after a changed selection. Add `ThreadControls.test.tsx` for multi-group selection, family filtering, pending controls and explicit unsupported empty selection.
+- [x] Simplify `ThreadControls.tsx` to flat compatible tool rows. Use public grid names for known registered profiles. Keep exact Profile references and the existing replace-selection command. Show a small Save only for changes; block unsupported all-off submission with a short reason.
+- [x] Compact `HistoryAnswerActions` and `styles-light.css`: one-line scope hint, no bordered option cards, no nested sections. Check 375px and landscape popovers, keyboard closing and retained drafts in headless Playwright.
+- [x] Run App tests/build, doctor/boundaries, current-source local rebuild and document checks. Write a verification report, commit owned paths and checkpoint. Do not claim zero-tool runtime, independent review or cloud release.
+
 ## Execution record
+
+- 2026-10-07: User screenshot disproves the claimed Settings completion: nested Advanced/professional configuration and old names remained. Flat grid-tool rows now replace them; Save appears only for a changed selection, and unsupported empty submission is blocked with a short reason. App298/build, rebuild and headless desktop/375px/landscape checks pass. See [local verification](../../reviews/2026-10-07-thread-compact-grid-settings-local-verification.md). This closes the compact UI fix, not the zero-tool runtime or cloud release.
 
 - 2026-10-07: User approves system feedback in the message area. Quiet rows replace top banners; connection recovery updates one entry, rejected commands retain drafts, and Attempt errors keep partial answers without repeated error text. A diagnostic-only cursor regression was reproduced and fixed so recovery remains reachable at the live edge. See [local verification](../../reviews/2026-10-07-thread-system-notices-local-verification.md). Independent reviewer dispatch remains unavailable; no remote release.
 

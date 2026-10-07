@@ -775,12 +775,17 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-history-actions > small { padding: 4px 7px; color: #526e64; font-size: 11px; line-height: 1.5; }
 .thread-settings-popover .thread-settings-item { min-height: 36px; font-size: 11px; }
 .thread-settings-item:disabled { opacity: .45; cursor: default; }
-.thread-settings-advanced { border-top: 1px solid #e4eee8; padding-top: 4px; }
-.thread-settings-advanced > summary { min-height: 36px; padding: 8px 7px; color: #526e64; font-size: 11px; cursor: pointer; }
-.thread-settings-advanced .thread-profile-panel { padding-left: 7px; }
-.thread-settings-advanced .thread-profile-panel > small { color: #526e64; font-size: 11px; line-height: 1.5; }
+.thread-grid-tools { display: grid; gap: 2px; border-top: 1px solid #e4eee8; padding-top: 6px; }
+.thread-grid-tools-heading { display: flex; align-items: center; justify-content: space-between; }
+.thread-grid-tools .thread-profile-option { min-height: 36px; padding: 5px 7px; border: 0; border-radius: 6px; color: #4f716b; font: inherit; font-size: 11px; cursor: pointer; }
+.thread-grid-tools .thread-profile-option:hover { background: #f1f8f4; }
+.thread-grid-tools .thread-profile-option input { grid-row: auto; }
+.thread-tool-save { padding: 0 7px; min-height: 32px; border: 0; border-radius: 6px; background: #f1f8f4; color: #287a6d; font: inherit; font-size: 11px; cursor: pointer; }
+.thread-tool-save:disabled { opacity: .5; cursor: default; }
+.thread-tool-save:focus-visible, .thread-profile-option:focus-within { outline: 2px solid #27866c; outline-offset: 1px; }
+.thread-tool-hint { padding: 3px 7px; color: #6f5940; font-size: 11px; }
 @media (max-width: 620px) {
-  .thread-settings-menu .thread-settings-trigger, .thread-settings-popover :is(button, summary) { min-height: 44px; }
+  .thread-settings-menu .thread-settings-trigger, .thread-settings-popover :is(button, summary), .thread-grid-tools .thread-profile-option { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .capstone-answer-toggle, .thread-settings-menu { transition: none; }
@@ -790,17 +795,11 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-routing-status strong, .thread-routing-status small { display: block; }
 .thread-routing-status strong { font-size: 11px; font-weight: 700; }
 .thread-routing-status small { margin-top: 2px; color: #87a099; font-size: 9px; }
-.thread-profile-menu { border-top: 1px solid #e4eee9; padding-top: 5px; }
 .thread-settings-item { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 30px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: #4f716b; font-size: 9px; text-align: left; cursor: pointer; list-style: none; }
 .thread-settings-item::-webkit-details-marker { display: none; }
 .thread-settings-item svg { width: 14px; height: 14px; flex: 0 0 14px; }
 .thread-settings-item svg:last-child { margin-left: auto; width: 12px; height: 12px; }
 .thread-settings-item:hover, .thread-settings-item:focus-visible, .thread-settings-item.is-active { background: #f1f8f4; color: #1f7669; }
-.thread-profile-panel { display: grid; gap: 7px; padding: 6px 5px 3px 27px; }
-.thread-profile-panel > strong { color: #365f58; font-size: 10px; }
-.thread-profile-panel > small { color: #829b94; font-size: 9px; }
-.thread-profile-panel .thread-profile-option { padding: 6px; }
-.thread-profile-panel .thread-compact-apply { min-height: 28px; }
 .thread-trace-item { margin-top: 2px; }
 
 @media (max-width: 820px) {

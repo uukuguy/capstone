@@ -576,7 +576,7 @@ function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolea
     <span className="thread-settings-section">历史回答</span>
     <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onFold(); close() }}>折叠历史回答</button>
     <button type="button" className="thread-settings-item" disabled={disabled} onClick={() => { onUnfold(); close() }}>展开历史回答</button>
-    <small>仅整理已加载回答，新回答仍完整显示</small>
+    <small>仅已加载回答 · 新回答完整显示</small>
   </div>
 }
 
