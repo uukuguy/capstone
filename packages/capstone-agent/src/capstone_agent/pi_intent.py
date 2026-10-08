@@ -17,6 +17,7 @@ from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession
+from .execution_context import execution_plan_for
 from .request_intent import IntentDecision, IntentEngineIdentity, IntentRequest, NodeControl
 
 
@@ -159,6 +160,8 @@ class NativeConversationPiSessionBuilder:
             digest.update(name.encode() + b"\0" + content + b"\0")
         for name in ("conversation-context.mjs", "intent-decision.mjs"):
             digest.update(name.encode() + b"\0" + (_RESOURCES / name).read_bytes() + b"\0")
+        for name in ('execution_context.py', 'request_intent.py'):
+            digest.update(name.encode() + b'\0' + (Path(__file__).parent / name).read_bytes() + b'\0')
         digest.update(json.dumps({
             "provider": resolved_llm.config.provider, "model": resolved_llm.config.model,
             "base_url": resolved_llm.config.base_url, "pi_provider": resolved_llm.config.pi_provider,
@@ -203,8 +206,7 @@ class NativeConversationPiSessionBuilder:
         supplemental = {
             "phase": "execution", "history_cutoff": document["history_cutoff"],
             "history_truncated": document.get('history_truncated', False),
-            "decision": checked.to_document(),
-            "executable_goal_ids": [goal["goal_id"] for goal in checked.execution_goals],
+            "execution_plan": execution_plan_for(request, checked),
             "objects": [item for item in document["objects"] if item["object_id"] in object_refs],
             "capabilities": [item for item in document["capabilities"] if item["capability_id"] in capability_refs],
         }

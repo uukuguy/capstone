@@ -226,7 +226,9 @@ class IntentDecision:
         serialized = _canonical(document, MAX_DECISION_BYTES)
         value = _fields(json.loads(serialized), {
             "schema", "attempt_id", "history_cutoff", "relationship", "goals", "clarification",
-        })
+        }, {'clarification_required'})
+        if 'clarification_required' in value and type(value['clarification_required']) is not bool:
+            raise ValueError('clarification_required must be a boolean')
         source = request.to_document()
         if value["schema"] != DECISION_SCHEMA:
             raise ValueError("unsupported intent decision schema")
@@ -250,7 +252,11 @@ class IntentDecision:
         prior_goals: set[str] = set()
         for goal in goals:
             _fields(goal, {"goal_id", "description", "operation", "message_refs", "object_refs",
-                           "capability_refs", "missing_requirements"}, {"depends_on"})
+                           "capability_refs", "missing_requirements"}, {"depends_on", "instruction_excerpt"})
+            if 'instruction_excerpt' in goal:
+                _text(goal['instruction_excerpt'], 'instruction excerpt')
+                if goal['instruction_excerpt'] not in source['instruction']:
+                    raise ValueError('instruction excerpt is not present in the user instruction')
             if "depends_on" in goal:
                 dependencies = _items(goal["depends_on"], "goal dependencies", limit=MAX_GOALS)
                 for dependency in dependencies:
@@ -292,6 +298,11 @@ class IntentDecision:
                    for goal in self.to_document()["goals"])
 
     @property
+    def needs_clarification(self) -> bool:
+        document = self.to_document()
+        return document.get('clarification_required', document['clarification'] is not None)
+
+    @property
     def execution_goals(self) -> tuple[dict, ...]:
         """Return defensive goal copies whose requirements and dependencies hold.
 
@@ -300,7 +311,7 @@ class IntentDecision:
         A global clarification blocks execution of every goal.
         """
         document = self.to_document()
-        if document["clarification"] is not None:
+        if self.needs_clarification:
             return ()
         prior_goals: list[str] = []
         executable: set[str] = set()

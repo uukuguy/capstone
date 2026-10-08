@@ -262,7 +262,7 @@ def test_execution_projects_only_decision_resources_and_catalog_for_lookup(tmp_p
     assert context["objects"] == [{"object_id": "model_selected"}]
     assert [item["capability_id"] for item in context["capabilities"]] == ["cap_selected"]
     assert context["application_catalog"] == claim.application_catalog
-    assert context["executable_goal_ids"] == ["goal_1"]
+    assert context["execution_plan"]["executable_goal_ids"] == ["goal_1"]
 
 
 def test_business_native_policy_uses_frozen_bytes_and_provider_change_changes_identity(tmp_path):
@@ -375,6 +375,9 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                 intent_inputs.append(intent_request)
                 decision = decision_document()
                 decision.update(attempt_id=intent_request["attempt_id"], history_cutoff=intent_request["history_cutoff"])
+                decision['goals'][0]['instruction_excerpt'] = intent_request['instruction']
+                decision['clarification_required'] = False
+                decision['goals'][0]['description'] = 'PRIVATE_DIAGNOSTIC unrelated capability inventory'
                 if history_present:
                     decision["goals"][0]["message_refs"] = [next(message["message_id"]
                         for message in intent_request["messages"] if message["role"] == "assistant")]
@@ -382,7 +385,7 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                     decision['relationship'] = 'independent'
                     decision['goals'][0].update(description='Get today international news',
                         operation='external_lookup', message_refs=[intent_request['instruction_message_id']],
-                        missing_requirements=['No registered live news source'])
+                        missing_requirements=['PRIVATE_DIAGNOSTIC no registered live news source'])
                     decision['clarification'] = 'Provide news text to summarize.'
                 fields = request['tools'][0]['function']['parameters']['properties']['goals']['items']['properties']
                 assert set(decision['goals'][0]['message_refs']) <= set(fields['message_refs']['items']['enum'])
@@ -494,6 +497,13 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                 assert "What is available?" not in system
         assert [tool["function"]["name"] for tool in requests[0]["tools"]] == ["capstone_intent_decision"]
         assert not requests[1].get("tools")
+        assert 'PRIVATE_DIAGNOSTIC' not in json.dumps(requests[1])
+        resources = next(json.loads(message['content']) for message in requests[1]['messages']
+                         if message['role'] == 'user' and isinstance(message['content'], str)
+                         and '"supplemental_context"' in message['content'])
+        assert 'decision' not in resources['supplemental_context']
+        assert resources['supplemental_context']['execution_plan']['goals'][0]['instruction_excerpt'] == \
+            intent_inputs[0]['instruction']
     finally:
         server.shutdown()
         server.server_close()

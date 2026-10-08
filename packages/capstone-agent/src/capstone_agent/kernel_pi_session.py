@@ -205,6 +205,7 @@ class PreparedKernelPiRpcSessionBuilder:
             if claim.turn_plan is None or claim.turn_plan.intent_decision is None:
                 raise ValueError('semantic execution requires a validated intent decision')
             from .pi_intent import NativeConversationPiSessionBuilder, prepare_context_launch
+            from .execution_context import execution_plan_for
             native = NativeConversationPiSessionBuilder(
                 runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
                 workspace_root=workspace.root.parent, base_environment=self._base_environment,
@@ -218,8 +219,7 @@ class PreparedKernelPiRpcSessionBuilder:
             supplemental = {
                 'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
                 'history_truncated': request_document.get('history_truncated', False),
-                'decision': decision_document,
-                'executable_goal_ids': [goal['goal_id'] for goal in claim.turn_plan.intent_decision.execution_goals],
+                'execution_plan': execution_plan_for(intent_request, claim.turn_plan.intent_decision),
                 'model_context': claim.model_context.to_document(),
                 'bindings': [{'binding_id': profile.model_binding.binding_id,
                               'context_ref': profile.model_binding.context_ref} for profile in profiles],

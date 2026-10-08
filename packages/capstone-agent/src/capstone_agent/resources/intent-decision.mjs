@@ -4,10 +4,11 @@ import { readFileSync } from "node:fs";
 const strings = { type: "array", items: { type: "string" } };
 const goal = {
   type: "object", additionalProperties: false,
-  required: ["goal_id", "description", "operation", "message_refs", "object_refs", "capability_refs", "missing_requirements", "depends_on"],
+  required: ["goal_id", "description", "operation", "instruction_excerpt", "message_refs", "object_refs", "capability_refs", "missing_requirements", "depends_on"],
   properties: {
     goal_id: { type: "string", minLength: 1 },
     description: { type: "string", minLength: 1 },
+    instruction_excerpt: { type: "string", minLength: 1 },
     operation: { type: "string", enum: ["answer", "rewrite", "catalog_lookup", "external_lookup", "business_read", "business_execute"] },
     message_refs: strings, object_refs: strings, capability_refs: strings,
     missing_requirements: strings, depends_on: strings,
@@ -32,7 +33,7 @@ export default function (pi) {
     description: "Finish request understanding with one structured decision. This grants no execution permission.",
     parameters: {
       type: "object", additionalProperties: false,
-      required: ["schema", "attempt_id", "history_cutoff", "relationship", "goals", "clarification"],
+      required: ["schema", "attempt_id", "history_cutoff", "relationship", "goals", "clarification", "clarification_required"],
       properties: {
         schema: { type: "string", const: "capstone-intent-decision/1" },
         attempt_id: { type: "string", minLength: 1 },
@@ -40,6 +41,7 @@ export default function (pi) {
         relationship: { type: "string", enum: ["independent", "continuation", "supplement", "unclear"] },
         goals: { type: "array", minItems: 1, items: boundedGoal },
         clarification: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
+        clarification_required: { type: "boolean" },
       },
     },
     async execute(_callId, params) {

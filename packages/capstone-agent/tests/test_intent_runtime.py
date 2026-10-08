@@ -51,6 +51,22 @@ def test_hosted_intent_input_identifies_current_message_without_history():
     assert document['instruction_message_id'] == current.attempt.attempt_id + ':user'
 
 
+def test_diagnostic_clarification_text_cannot_bypass_business_authorization():
+    service, current = claim()
+    assert current is not None
+    class BusinessRecognizer(Recognizer):
+        def recognize(self, request, control):
+            document = super().recognize(request, control).to_document()
+            document.update(clarification='Diagnostic question only', clarification_required=False)
+            document['goals'][0]['operation'] = 'business_execute'
+            return IntentDecision.from_document(document, request)
+    factory = IntentRuntimeFactory(lambda _: pytest.fail('unauthorized execution'),
+                                   lambda: BusinessRecognizer(), lambda *args: SimpleNamespace())
+    with pytest.raises(ValueError, match='authorized capability'):
+        factory.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 5),
+                            service.freeze_attempt_input)
+
+
 def test_retry_rebinds_current_message_identity_with_frozen_history():
     _, current = claim()
     assert current is not None

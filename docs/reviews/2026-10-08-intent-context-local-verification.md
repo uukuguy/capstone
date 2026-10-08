@@ -137,3 +137,12 @@ their immutable configuration snapshot; use a new send to evaluate the fix.
 Only existing user-triggered Provider output was inspected. No new billed
 Provider request was made by the debugging agent. Real model retry and response
 quality acceptance remain open.
+
+## General boundary follow-up
+
+The next user trial completed but exposed intent explanations in ordinary answer
+text. The user rejected per-question prompt tuning. A shared source-bound
+execution projection now separates task structure from diagnostic prose in both
+ordinary and business builders. See the [general evaluation and verification](2026-10-08-execution-context-projection.md)
+for the current boundary, test scope and local image. Overall real-model acceptance
+remains open.

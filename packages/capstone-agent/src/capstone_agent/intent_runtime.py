@@ -118,8 +118,7 @@ class IntentRuntimeFactory:
                 ):
                     raise ValueError('intent requested a disabled or unavailable capability')
             if goal['operation'] in {'business_read', 'business_execute'} and not goal['capability_refs']:
-                if not goal['missing_requirements'] and document['clarification'] is None:
-                    raise ValueError('business intent has no authorized capability')
+                raise ValueError('business intent has no authorized capability')
             if goal['operation'] == 'external_lookup' and not goal['capability_refs'] and not goal['missing_requirements']:
                 raise ValueError('external lookup has no registered source')
             if goal['operation'] == 'external_lookup':

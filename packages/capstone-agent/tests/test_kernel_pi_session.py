@@ -76,6 +76,62 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     )
 
 
+def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capstone_agent.execution_context import execution_plan_for
+    from test_pi_intent import runtime_inputs
+    import capstone_agent.kernel_pi_session as module
+
+    host, llm = runtime_inputs(tmp_path)
+    host.system_policy_path.write_text('BUSINESS POLICY')
+    native = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+                                               workspace_root=tmp_path / 'runs')
+    source = IntentRequest.from_document({'schema': 'capstone-intent-request/1',
+        'thread_id': 'thread', 'turn_id': 'turn', 'attempt_id': 'attempt',
+        'instruction': '读取模型结果', 'history_cutoff': 0, 'messages': [],
+        'objects': [{'object_id': 'ctx'}], 'capabilities': [], 'mode_hint': None})
+    decision = IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
+        'attempt_id': 'attempt', 'history_cutoff': 0, 'relationship': 'independent',
+        'goals': [{'goal_id': 'g1', 'operation': 'business_read',
+            'instruction_excerpt': '读取模型结果', 'description': 'PRIVATE_DIAGNOSTIC inventory',
+            'message_refs': [], 'object_refs': ['ctx'], 'capability_refs': [],
+            'missing_requirements': [], 'depends_on': []}], 'clarification': None}, source)
+    claim = SimpleNamespace(instruction='读取模型结果', attempt=SimpleNamespace(attempt_id='attempt'),
+        model_context=ModelContextSnapshot('ctx', 'model', 'revision', 'pandapower', 'selection'),
+        run_id='run', application_catalog={'unrelated': 'PRIVATE_DIAGNOSTIC catalog'}, prior_results=(),
+        turn_plan=SimpleNamespace(route='professional', intent_request=source,
+            intent_decision=decision, intent_engine=native.identity.to_document()))
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs', binding_ids=('grid',))
+    resources = tmp_path / 'resource.json'
+    resources.write_text('{}')
+    runtime = SimpleNamespace(profile=SimpleNamespace(manifest=SimpleNamespace()),
+        tool_catalog_path=resources, guide_index_path=resources, guide_root_path=tmp_path)
+    profile = SimpleNamespace(workspace=workspace,
+        prepared_application=SimpleNamespace(bindings={'grid': SimpleNamespace(runtime=runtime)}),
+        profile=SimpleNamespace(reference_grants=(), manifest=SimpleNamespace(application_id='test')),
+        model_binding=SimpleNamespace(binding_id='grid', context_ref='current_authority_context'))
+    monkeypatch.setattr(module, 'descriptor_from_endpoint', lambda **kwargs: SimpleNamespace(search_path=()))
+    monkeypatch.setattr(module, 'write_runtime_descriptor', lambda *args: None)
+    launches = []
+    class Client:
+        def __init__(self, launch, *args, **kwargs):
+            launches.append(launch)
+        def stop(self):
+            pass
+    monkeypatch.setattr(module, 'PiRpcClient', Client)
+    session = module.PreparedKernelPiRpcSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', base_environment={'PATH': '/usr/bin'})(claim, None, (profile,))
+    session.stop()
+    context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']
+    assert context['execution_plan'] == execution_plan_for(source, decision)
+    assert 'decision' not in context
+    assert 'PRIVATE_DIAGNOSTIC' not in json.dumps(context)
+    assert context['bindings'] == [{'binding_id': 'grid', 'context_ref': 'current_authority_context'}]
+
+
 def test_catalog_admission_keeps_incomplete_answer_without_explicit_full_scope():
     claim = _catalog_claim()
     decision = _build_kernel_admission(())(

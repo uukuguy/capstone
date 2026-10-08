@@ -36,3 +36,13 @@ unclear. Include one or more goals with distinct goal_id, description, operation
 message_refs, object_refs, capability_refs, missing_requirements, and depends_on. clarification
 is null when no user question is needed. Your output is an application-validated
 request decision. It grants no permission and creates no results or evidence.
+
+Each goal must include instruction_excerpt: a nonempty exact excerpt of the
+current instruction identifying that task. Copy the user's words without
+paraphrasing or adding explanations. Use the whole instruction when a narrower
+excerpt cannot identify the task. This source text and the validated task
+structure are used for execution; diagnostic explanations are recorded separately.
+Include clarification_required as a boolean stating whether user clarification
+is required before execution. The clarification text is diagnostic data; it does
+not determine readiness. Do not block independent goals for unavailable resources
+when the user's task is clear; use each goal's unmet requirements and dependencies.
