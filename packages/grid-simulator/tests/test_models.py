@@ -118,6 +118,17 @@ def test_reopening_registered_model_keeps_same_context_and_revision(tmp_path: Pa
     assert second == first
 
 
+def test_randomized_registered_model_has_a_stable_revision_without_changing_random_state(tmp_path: Path) -> None:
+    import random
+
+    before = random.getstate()
+    first = ContextStore(SimulatorWorkspace(tmp_path / 'first'), ModelRegistry(Pandapower340Engine())).create('create_kerber_dorfnetz')
+    second = ContextStore(SimulatorWorkspace(tmp_path / 'second'), ModelRegistry(Pandapower340Engine())).create('create_kerber_dorfnetz')
+
+    assert first == second
+    assert random.getstate() == before
+
+
 def test_registry_rejects_arbitrary_model_ids_without_callable_resolution() -> None:
     registry = ModelRegistry(Pandapower340Engine())
 

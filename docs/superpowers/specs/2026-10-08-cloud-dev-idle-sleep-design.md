@@ -89,3 +89,9 @@ This snapshot covers only the immutable registered catalog for the image. It
 does not cache user model changes, current Context state, calculation results
 or evidence, and does not bypass exact revision checks when a model is opened.
 Repeat actual sleep and browser wake after the correction before acceptance.
+
+Independent image builds exposed random Kerber example generation. The
+pandapower Authority must seed registered factories by their stable factory
+identifier, serialize construction and restore the previous random state.
+Registered fixture revisions must match across independent exports and model
+opens. Existing stored model artifacts and historical evidence stay intact.

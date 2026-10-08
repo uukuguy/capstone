@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import random
+from threading import RLock
+
 import pandapower as pp
 import pandapower.networks as pn
 
@@ -19,6 +23,7 @@ def _network_factory_bindings():
 
 
 _NETWORK_FACTORIES = _network_factory_bindings()
+_REGISTERED_FACTORY_LOCK = RLock()
 
 
 class Pandapower340Engine:
@@ -41,7 +46,16 @@ class Pandapower340Engine:
         factory = _NETWORK_FACTORIES.get(factory_id)
         if factory is None:
             raise ModelNotFoundError(factory_id)
-        return factory()
+        # Registered examples are immutable fixtures. Kerber factories use the
+        # process random generator; keep their construction reproducible without
+        # changing the caller's random state, including concurrent opens.
+        with _REGISTERED_FACTORY_LOCK:
+            state = random.getstate()
+            try:
+                random.seed(int.from_bytes(hashlib.sha256(factory_id.encode()).digest(), 'big'))
+                return factory()
+            finally:
+                random.setstate(state)
 
     def serialize(self, net) -> str:
         return pp.to_json(net)
