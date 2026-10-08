@@ -157,6 +157,30 @@ Audit `catalog_answer.py` for implicit keyword reclassification.
 
 ## Review checkpoints
 
+## Follow-up: common execution projection
+
+Use the writing-plans and TDD workflow for the approved §5.2 boundary refinement.
+Preserve the main checkout's unrelated changes; execute inline.
+
+- [ ] Add red non-interference and scenario-matrix tests in
+  `tests/test_execution_context.py`: source-bound task excerpts, ready/blocked
+  goals, dependencies, clarification, exact request binding and diagnostic prose
+  exclusion. Add ordinary/native Pi integration assertions with hostile diagnostic
+  text; maintain existing source history and tool-admission checks.
+- [ ] Implement `execution_plan_for(request: IntentRequest, decision: IntentDecision)
+  -> dict` in `execution_context.py`, using only validated identities, operations,
+  excerpts, dependencies and application-generated blocker kinds. Keep full intent
+  receipt persistence separate. Add optional source-validated `instruction_excerpt`
+  to the decision contract, required by the native terminating tool.
+- [ ] Replace full decision loading in both `pi_intent.py` and
+  `kernel_pi_session.py`. Bind the projection implementation to configuration
+  identity. Change only the native configuration instruction for reading that
+  generic protocol; add no topic-specific answer rules.
+- [ ] Run focused contracts, native Pi loopback, Capstone regression, types and
+  boundaries; rebuild via `make capstone-local-rebuild`. Record exact results,
+  commit task-owned paths, journal and checkpoint. Real Provider quality remains
+  open; do not advance to pure Pi or install connectors.
+
 No runtime acceptance is implied by finishing Tasks 1–3. Task 4 must wire the node
 into the real hosted path, and Task 5 must verify it. Jev/small-model enhancement is
 a later implementation of the same interface, not a dependency of initial delivery.
