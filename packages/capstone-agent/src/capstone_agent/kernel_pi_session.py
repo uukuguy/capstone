@@ -22,6 +22,7 @@ from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, buil
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.application.workspace import ApplicationWorkspace
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
@@ -80,6 +81,7 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
+        workspace_root: Path | None = None,
     ) -> None:
         if not isinstance(runtime_host, RuntimeHost):
             raise TypeError("runtime_host must be a RuntimeHost")
@@ -93,6 +95,7 @@ class PreparedKernelPiRpcSessionBuilder:
         self._runtime_host = runtime_host
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
+        self._workspace_root = workspace_root
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
@@ -106,7 +109,7 @@ class PreparedKernelPiRpcSessionBuilder:
     ) -> PiPromptSession:
         del context
         if not profiles:
-            raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
+            return self._build_empty_session(claim)
         workspace = profiles[0].workspace
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
@@ -216,6 +219,35 @@ class PreparedKernelPiRpcSessionBuilder:
             reference_observer=handoffs.observe,
         )
 
+    def _build_empty_session(self, claim: AttemptClaim) -> PiPromptSession:
+        if self._workspace_root is None:
+            raise RuntimeError("Empty selection requires an application workspace root")
+        workspace = ApplicationWorkspace.create(self._workspace_root)
+        attempt_path = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
+        policy = _compose_attempt_policy(
+            attempt_path, None, include_generic=True,
+            application_catalog=claim.application_catalog,
+            model_context=claim.model_context,
+            previous_instruction=claim.previous_instruction,
+        )
+        paths = RuntimePaths(
+            command=self._runtime_host.command,
+            project_pi_dir=self._runtime_host.project_pi_dir,
+            session_dir=attempt_path / "session", workspace=workspace.root,
+            system_policy_path=policy,
+        )
+        launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+        secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
+        trace = JsonlTraceWriter(workspace.core_path / "pi-events.jsonl", secret_values=secrets)
+        client = PiRpcClient(
+            launch, _RpcWorkspace(workspace.root), trace, secret_values=secrets,
+            correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds,
+        )
+        return _KernelPiPromptSession(
+            client, trace, admission=_build_kernel_admission(()),
+            reference_observer=lambda event: None,
+        )
+
 
 def _require_prepared_kernel_profile(
     contribution: object, model_context: ModelContextSnapshot,
@@ -296,6 +328,8 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+    if not context.enabled_profiles:
+        lines.append("No calculation tools are enabled. Explain the capability boundary for model-specific facts or calculations; do not invent results or evidence.")
     if previous_instruction is not None:
         lines.extend([
             "## Latest previous instruction for this saved model Context",
@@ -350,6 +384,18 @@ def _render_application_catalog_context(
         if item.get("available") is False:
             availability = "worker unavailable"
         lines.append(f"- {display_name} ({model_id}) · family={family} · {availability}")
+    profiles = catalog.get("profiles")
+    if isinstance(profiles, list):
+        lines.extend([
+            "Registered calculation tool groups (catalog metadata, not enabled tools or calculation evidence):",
+            "Use Settings to enable compatible groups. The immutable Attempt selection determines which tools are actually enabled.",
+        ])
+        for profile in profiles[:128]:
+            if not isinstance(profile, Mapping):
+                continue
+            name, families = profile.get("display_name"), profile.get("implementation_families")
+            if isinstance(name, str) and isinstance(families, list) and all(isinstance(item, str) for item in families):
+                lines.append(f"- {name}: compatible families {', '.join(families)}")
     return "\n".join(lines)
 
 

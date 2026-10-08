@@ -7,6 +7,61 @@ from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from types import SimpleNamespace
 
+import pytest
+
+
+def test_empty_selection_builds_application_only_rpc_session(tmp_path, monkeypatch):
+    from capability_agent.runtime.environment import RuntimeHost
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+    from capability_agent.runtime.models import ResolvedLLM, ResolvedLLMConfig
+    from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
+    import capstone_agent.kernel_pi_session as module
+
+    launches = []
+    class Client:
+        def __init__(self, launch, *args, **kwargs):
+            launches.append(launch)
+        def stop(self):
+            pass
+    monkeypatch.setattr(module, "PiRpcClient", Client)
+    domain_policy = tmp_path / "domain.md"
+    domain_policy.write_text("DOMAIN POLICY MUST NOT LEAK")
+    host = RuntimeHost(
+        command=PiCommand(("node", "/opt/pi/cli.js"), PiRuntimeIdentity(
+            path=tmp_path / "cli.js", source="fixture", package_version="1", lock_sha256="lock")),
+        project_pi_dir=tmp_path / "pi", extension_path=tmp_path / "domain-extension.js",
+        system_policy_path=domain_policy,
+    )
+    resolved = ResolvedLLM(ResolvedLLMConfig(
+        provider="alpha", model="alpha-model", base_url="https://provider.example/v1",
+        auth_kind="none", credential_reference="ALPHA_KEY", timeout_seconds=10,
+        max_retries=0, pi_provider="alpha", compatibility_profile="generic",
+        descriptor_version="fixture", public_headers={}, field_sources={}, supports_tools=True,
+    ), None)
+    claim = _catalog_claim("你好")
+    claim.attempt = SimpleNamespace(attempt_id="attempt_empty")
+    claim.model_context = ModelContextSnapshot("ctx_empty", "ieee39", "7", "pandapower", "sel_empty")
+    claim.previous_instruction = None
+    claim.prior_results = ()
+    session = PreparedKernelPiRpcSessionBuilder(
+        runtime_host=host, resolved_llm=resolved, base_environment={"PATH": "/usr/bin"},
+        workspace_root=tmp_path / "workspaces",
+    )(claim, SimpleNamespace(contributions=()), ())
+    launch = launches[0]
+    assert "--extension" not in launch.argv
+    assert "--no-builtin-tools" in launch.argv
+    assert "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR" not in launch.environment
+    policy = __import__("pathlib").Path(launch.argv[launch.argv.index("--system-prompt") + 1]).read_text()
+    assert "general-purpose agent" in policy and "ieee39" in policy
+    assert "DOMAIN POLICY MUST NOT LEAK" not in policy
+    assert "No calculation tools are enabled" in policy
+    decision = session.admit_attempt(claim, "你好！", (), (), ())
+    assert decision.assurance == "general_knowledge"
+    assert decision.result_refs == decision.evidence_refs == ()
+    with pytest.raises(ValueError):
+        session.admit_attempt(claim, "unowned calculation", ("result:foreign",), (), ())
+    session.stop()
+
 
 def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     return SimpleNamespace(
@@ -103,6 +158,15 @@ def test_application_catalog_context_keeps_cross_family_models_visible() -> None
     assert "Current tool scope does not determine application-wide availability" in rendered
     assert "Only an explicit worker-unavailable catalog entry" in rendered
     assert "Do not apply the active binding's unsupported-operation or policy limits to another family" in rendered
+
+
+def test_application_catalog_exposes_registered_tool_groups_without_enabling_them():
+    rendered = _render_application_catalog_context({"models": [], "profiles": [{
+        "profile_id": "registered-analysis", "profile_version": "1.0.0",
+        "display_name": "Registered analysis tools", "implementation_families": ["pandapower"],
+    }]})
+    assert "Registered analysis tools" in rendered and "pandapower" in rendered
+    assert "not enabled tools or calculation evidence" in rendered
 
 
 def test_each_fresh_prompt_names_the_bound_model_and_authority_context():

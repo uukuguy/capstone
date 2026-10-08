@@ -525,7 +525,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
     }
     const tools = requireEnabledTools(family, text)
-    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text,
+    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : mode === 'ordinary' ? 'send_ordinary' : 'send_auto', { text,
       ...(projection.catalog?.profiles.length ? { enabled_profiles: tools.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) } : {}),
     })
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
@@ -564,12 +564,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       throw new MessageNotSentError('工具目录暂不可用。')
     }
     const tools = effectiveTools(profiles, disabledToolIds, family)
-    // The current Pi runtime still requires a prepared Pack. Keep the global
-    // preference, retain the draft and fail before any default can re-enable it.
-    if (profiles.length && !tools.length) {
-      addSystemNotice('未启用适用于此模型的计算分析工具。请在设置中启用后重试。', 'error', undefined, text)
-      throw new MessageNotSentError('未启用适用于此模型的计算分析工具。')
-    }
     return tools
   }
 

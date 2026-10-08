@@ -76,6 +76,11 @@ Show their endpoint buses and the results and evidence supporting the answer.
 
 Continue in the same conversation to inspect results or refine the analysis. Each instruction is bound to a model context and run. The **New conversation** action creates a separate Thread; its URL lets you return to it after a page refresh.
 
+The current local App also supports general questions and concept explanations
+when all calculation tools are disabled in **Settings**. Calculations require
+applicable enabled tools; ordinary replies create no Authority results or evidence.
+See the [local verification and release limits](docs/reviews/2026-10-08-ordinary-conversation-local-verification.md).
+
 The conversation is the primary interface. Registered cases remain available as guided workflows and validation fixtures; the earlier case-library page is at `/old`.
 
 ## What you can analyze

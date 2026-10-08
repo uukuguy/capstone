@@ -97,6 +97,7 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
+            workspace_root=workspace_root,
         )(claim, context, profiles)
 
     workspace_root = Path(
@@ -117,7 +118,10 @@ def build_registered_pandapower_thread_application():
         ),
     )
     from .thread_model_diagram import model_diagram
-    assembly.catalog.set_diagram_provider(model_diagram)
+    set_diagram_provider = getattr(assembly.catalog, "set_diagram_provider", None)
+    if not callable(set_diagram_provider):
+        raise TypeError("Thread catalog has no diagram provider registration")
+    set_diagram_provider(model_diagram)
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

@@ -148,7 +148,7 @@ class PreparedApplicationPiRuntimeFactory:
             session = self._session_factory(claim, context)
             admission = getattr(session, "admit_attempt", None)
             network_projection_provider = None
-            if self._network_projection_factory is not None:
+            if self._network_projection_factory is not None and context.contributions:
                 network_projection_provider = self._network_projection_factory(claim, context)
             return HarnessPiClient(
                 session,

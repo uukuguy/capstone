@@ -19,37 +19,70 @@ The user directs continued completion of these conversation plans. The core capa
 
 ## Delivery ledger
 
+### Current priority and release correction — 2026-10-08
+
+Ordinary Capstone conversation, including an empty enabled-tool selection, is
+the active package. The user directs cleanup first, then this implementation,
+then CONV-04 and CONV-05. Earlier priority and pending-release statements below
+are historical. CONV-01/02/06 implementations shipped in verified source
+`ed2524f` to cloud-dev and demo; independent review and dedicated full interaction
+acceptance remain open. See the indexed stage acceptance receipts. No release,
+Provider validation, resource removal, or user-data cleanup remains from that task.
+
+### Ordinary conversation implementation
+
+The approved baseline §5.1 and empty-capability decisions govern this work.
+Keep the Capstone gateway, immutable Attempt, current model, selection revision,
+history, cancellation and replay. This is not CONV-04 reference mode.
+
+- [x] Add failing regression coverage for empty-selection Pi construction:
+  application policy and model identity, no Domain Pack extension or built-in
+  tools, no result/evidence references, and rejection of unowned tool activity.
+- [x] In `kernel_pi_session.py`, accept an application-owned workspace root for
+  zero-contribution sessions. Compose the generic policy without domain policy
+  or prior result handles, and use the existing bounded Pi launch/RPC lifecycle.
+  Pass the same stage workspace root from both registered hosted adapters.
+- [x] Replace the App's blanket no-tool message guard with exact empty selection
+  dispatch. Preserve catalog-unavailable errors, draft recovery, model controls,
+  and scripted-case tool requirements. Cover sending after all tools are disabled.
+- [x] Verify professional requests cannot produce unadmitted claims or evidence;
+  run focused backend/App tests, full App tests/build, type/boundary checks,
+  doctor and current-source local rebuild. Verify the actual local entry point.
+- [x] Record evidence and limits, journal durable outcomes, and checkpoint.
+  Provider tests require separate explicit authorization; no remote release is
+  part of this package unless separately requested.
+
 | Package | Status | Scope | Depends on | Acceptance |
 | --- | --- | --- | --- | --- |
-| CONV-01 | local implementation and verification complete; independent review/release pending | One-time history folding and per-answer bidirectional toggles | Revised Web contract §5.3 | Existing completed answers only; future answers remain full; short/error/running messages remain visible; full copy, stable scroll/draft; local rebuild and browser checks |
-| CONV-02 | local implementation; acceptance in progress | Contract audit and completion of evidence-state/action feedback | Existing admitted public projections | Distinguish available/not_applicable/missing/pending/unavailable without inventing references; keyboard and touch interaction |
+| Ordinary conversation | local acceptance complete; real Provider and remote acceptance not tested | Capstone ordinary exchange with empty calculation-tool selection | Approved baseline §5.1 and empty-capability decisions | Application-only Pi RPC, exact selection, zero-evidence replies, capability prompt before Provider construction, current-source rebuild and full offline gates; [receipt](../../reviews/2026-10-08-ordinary-conversation-local-verification.md) |
+| CONV-01 | deployed and stage-verified; independent review and full interaction acceptance pending | One-time history folding and per-answer bidirectional toggles | Revised Web contract §5.3 | Existing completed answers only; future answers remain full; short/error/running messages remain visible; full copy, stable scroll/draft; local rebuild and browser checks |
+| CONV-02 | deployed and stage-verified; dedicated interaction acceptance pending | Contract audit and completion of evidence-state/action feedback | Existing admitted public projections | Distinguish available/not_applicable/missing/pending/unavailable without inventing references; keyboard and touch interaction |
 | CONV-03 | audit complete; record consolidation pending | Reconcile bounded M1–M11 closures and deferred successor work | Existing implementation and review evidence | Preserve M6 lightweight closure and later full gates; consolidate portable M6/M10 review records without reopening completed functionality |
 | CONV-04 | needs design review | Accepted pure Pi reference path and context isolation | Conversation completion audit | Separate bounded gateway path and explicit non-authoritative output; exact comparison scope and implementation plan before code |
 | CONV-05 | explicitly deferred adapter work; execution integration incomplete | Generic registered runtime capabilities | M2 review's successor requirement and mainline baseline §4.1 | Compile selected verified skill/MCP/plugin registrations into the runtime session and manage lifecycle; preserve domain-tool and authority boundaries; do not reopen M2 |
-| CONV-06 | local implementation verified; independent review and cloud acceptance pending | Persistent opened grid models, one current model, saved per-model work, compact model control and close lifecycle | User request and approval of 2026-10-08; existing Authority model references and immutable Attempt contract | Default IEEE-39; nonempty durable collection; exact-reference activation; saved Context/results/source view and camera restoration; atomic close/fallback; draft/recovery preservation; no Provider call for model controls |
+| CONV-06 | deployed and stage-verified; independent review and full interaction acceptance pending | Persistent opened grid models, one current model, saved per-model work, compact model control and close lifecycle | User request and approval of 2026-10-08; existing Authority model references and immutable Attempt contract | Default IEEE-39; nonempty durable collection; exact-reference activation; saved Context/results/source view and camera restoration; atomic close/fallback; draft/recovery preservation; no Provider call for model controls |
 | Final TUI / real DSH / multi-Run | deferred in existing decisions | Separate client/runtime designs | Applicable design decisions | Do not mark as complete; do not undo the accepted TUI freeze or M6/M11 exclusions |
 
 Status is based on implementation and evidence, not checkbox counts alone. Add newly found contract gaps to the owning package. Do not use the deployed Web version as proof that the complete conversation design is finished.
 
-The user's latest model-management request makes CONV-06 the immediate design
-focus. See the [opened-model design draft](../specs/2026-10-08-thread-open-models-design.md).
+CONV-06 model management is deployed. Its design and implementation records follow. See the [opened-model design draft](../specs/2026-10-08-thread-open-models-design.md).
 The approved [model work resume revision](../specs/2026-10-08-thread-model-work-resume-design.md)
 supersedes fresh Context creation on every activation. Its [local acceptance](../../reviews/2026-10-08-thread-model-work-resume-local-verification.md)
-covers stable members, saved Context continuity and view restoration; independent review and cloud release remain pending.
+covers stable members, saved Context continuity and view restoration; independent review and dedicated full interaction acceptance remain pending.
 User approved the design and historical topology retention; follow the
 [implementation plan](2026-10-08-thread-open-models.md) inline.
 Local implementation and acceptance are recorded in the
 [verification report](../../reviews/2026-10-08-thread-opened-models-local-verification.md).
 It is separate from CONV-04's pure Pi reference path. A parser-only fix or a
 menu over historical pages cannot close this package. The prior UI corrections
-remain locally verified, with independent review and release still pending.
+are deployed and stage-verified, with independent review and dedicated interaction acceptance still pending.
 
 ## Priority correction and major gaps
 
 The user asks for major unfinished work and questions further UI-detail changes.
 Do not expand Web styling or polish. Finish verification of the current small
-changes, then prioritize CONV-04: the accepted runtime comparison/isolation
-contract. `HarnessPiClient.runtime_mode` and the runtime registry are partial
+changes, then deliver ordinary conversation with an empty selection before
+CONV-04, the accepted runtime comparison/isolation contract. `HarnessPiClient.runtime_mode` and the runtime registry are partial
 seams; they do not establish gateway switching, immutable Attempt authority mode,
 separate business memory, or a non-authoritative reference history.
 

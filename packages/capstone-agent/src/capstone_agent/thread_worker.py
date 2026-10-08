@@ -68,6 +68,13 @@ def _run_claimed_attempt(
                      "fallback": plan.fallback},
         )
         claim = replace(claim, turn_plan=plan)
+        if plan.route == "professional" and not claim.model_context.enabled_profiles:
+            error_code = "capability_required"
+            service.finish_attempt(claim, phase="failed", payload={
+                "error_code": error_code,
+                "message": "未启用适用于当前模型的计算分析工具。请在设置中启用后重新发送计算指令；仍可继续普通对话。",
+            })
+            return HarnessAttemptResult("failed", None, error_code)
     try:
         lease.check()
         runtime = runtime_factory(claim)

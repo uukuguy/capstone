@@ -100,7 +100,7 @@ describe('ThreadFixtureApp', () => {
     expect(input.value).toBe('计算潮流')
   })
 
-  it('keeps global choices without commands and blocks disabled tools with the draft retained', async () => {
+  it('keeps global choices and submits empty selection for backend capability gating', async () => {
     const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
     const commands: ThreadCommand[] = []
     render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) } })} threadId="thr_demo_39" />)
@@ -112,9 +112,9 @@ describe('ThreadFixtureApp', () => {
     const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: '计算潮流' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
-    await screen.findByText(/未启用适用于此模型的计算分析工具。请在设置中启用后重试。/)
-    expect(commands).toEqual([])
-    expect(input.value).toBe('计算潮流')
+    await screen.findByText('Fixture 已接收自动指令：计算潮流')
+    expect(commands).toHaveLength(1)
+    expect(commands[0].payload.enabled_profiles).toEqual([])
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(true)
     expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(false)
@@ -761,7 +761,21 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
   })
 
-  it('shows grid tools directly and explains unsupported all-off selection', async () => {
+  it('sends ordinary conversation after all calculation tools are disabled', async () => {
+    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+    await screen.findByRole('region', { name: '电网模型区' })
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      if ((checkbox as HTMLInputElement).checked) fireEvent.click(checkbox)
+    }
+    fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '你好' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    expect(await screen.findByText('Fixture 已接收自动指令：你好')).toBeTruthy()
+    expect(screen.queryByText(/未启用适用于此模型/)).toBeNull()
+  })
+
+  it('shows grid tools directly and preserves all-off selection', async () => {
     const fixture = structuredClone(threadUiFixture('idle-ieee39'))
     const snapshot = fixture.snapshot as { active_model_context: Record<string, unknown> }
     snapshot.active_model_context.enabled_profiles = { schema: 'capstone-model-capability-selection/1',

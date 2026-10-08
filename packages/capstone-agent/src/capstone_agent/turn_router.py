@@ -60,11 +60,25 @@ def is_model_catalog_listing(instruction: str) -> bool:
 
 def _heuristic_route(instruction: str) -> str:
     text = instruction.lower()
+    subject = re.sub(r"^(?:你好|hello|hi)[，,！!。\s]*", "", text.lstrip())
+    conceptual = subject.startswith((
+        "什么是", "解释", "介绍", "请解释", "请介绍", "如何理解",
+        "explain ", "what is ", "what are ", "describe ", "你有哪些", "你能做哪些",
+    )) or ("工具" in subject and subject.startswith(("有哪些", "支持哪些")))
+    model_facts = any(hint in text for hint in (
+        "当前模型", "这个模型", "该模型", "ieee", "this model", "current model",
+        "结果", "result", "执行", "运行", "计算", "求解", "修改",
+        "calculate", "execute", "solve", "modify", " run ", "dispatch", "optimize", "调度", "优化",
+    ))
+    if conceptual and not model_facts:
+        return "ordinary"
     # Availability is answered from the application's bounded registered catalog.
     # A mixed catalog/calculation request still needs the professional lane.
     if _requests_model_catalog(text):
         return "ordinary" if is_model_catalog_listing(instruction) else "professional"
-    return "professional" if any(hint in text for hint in _DOMAIN_HINTS) else "ordinary"
+    return "professional" if any(hint in text for hint in (
+        *_DOMAIN_HINTS, "电压", "损耗", "power flow", "voltage", "losses",
+    )) else "ordinary"
 
 
 @dataclass(frozen=True, slots=True)

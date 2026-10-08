@@ -95,6 +95,25 @@ def test_auto_without_external_classifier_uses_bounded_domain_hint() -> None:
 
 
 @pytest.mark.parametrize("text", [
+    "什么是交流潮流？", "解释 PyPSA 和 pandapower 的区别", "介绍电网分析的基本概念",
+    "Explain power flow concepts", "What is a power flow?", "你有哪些电网分析工具？",
+    "你好，请解释交流潮流的基本概念", "有哪些电网分析工具？",
+])
+def test_general_domain_explanation_uses_ordinary_route(text):
+    service, claim = _claim(text=text)
+    assert DefaultTurnRouter().plan(claim).route == "ordinary"
+
+
+@pytest.mark.parametrize("text", [
+    "解释当前模型的电压结果", "介绍 IEEE-39 的线路拓扑", "什么是潮流？然后执行潮流计算",
+    "Explain power flow and calculate losses for this model",
+])
+def test_explanation_with_model_facts_or_calculation_keeps_professional_route(text):
+    service, claim = _claim(text=text)
+    assert DefaultTurnRouter().plan(claim).route == "professional"
+
+
+@pytest.mark.parametrize("text", [
     "有哪些 PyPSA 的电网模型？",
     "列出可用的 pandapower 模型",
     "支持哪些电网模型？",
