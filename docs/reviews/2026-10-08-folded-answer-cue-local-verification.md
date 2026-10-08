@@ -8,3 +8,9 @@ The user reports that the folded state is unclear and asks for a downward expand
 - Doctor, current-source local rebuild and whitespace checks passed. API and workers share the rebuild image; Vite serves the current App source. No cloud deployment or release tag.
 
 Ignored receipts and screenshots: `output/playwright/fold-cue-20261008/`. The temporary “展开” caption was superseded by the user's lighter-text suggestion before commit.
+
+## Follow-up: lighter body and separate heading tone
+
+The user asks for a lighter body. Folded body, emphasis, code and links now use `#81958f`; headings and their inline emphasis use slightly deeper `#6b847c`. Controls keep only the arrow and hover hint. Expanded styling is unchanged.
+
+Build, doctor, current-source rebuild and whitespace checks pass. Actual conversation checks at all three sizes verify body `rgb(129, 149, 143)`, heading `rgb(107, 132, 124)` and expanded body `rgb(41, 73, 72)`. Both toggle directions retain 0px shift, and screenshots were inspected. No backend POST or Provider requests. The isolated browser was closed after verification. Updated receipts: `lighter-browser.log` and `lighter-*.png` in the same ignored directory. This CSS-only revision does not require another full test suite.
