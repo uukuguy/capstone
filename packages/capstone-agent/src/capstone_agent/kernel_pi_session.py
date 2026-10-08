@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from pathlib import Path
+import json
 import os
 from typing import cast
 
@@ -27,7 +28,7 @@ from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
-from .thread_service import AttemptClaim, PriorResultReference
+from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 
@@ -177,6 +178,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 model_context=claim.model_context,
                 profiles=profiles,
                 prior_results=claim.prior_results,
+                previous_instruction=claim.previous_instruction,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -255,6 +257,7 @@ def _compose_attempt_policy(
     model_context: ModelContextSnapshot | None = None,
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
+    previous_instruction: PreviousInstruction | None = None,
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -264,7 +267,7 @@ def _compose_attempt_policy(
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
-    model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results) if model_context is not None else ""
+    model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
     if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -280,7 +283,7 @@ def _compose_attempt_policy(
 def _render_attempt_model_context(
     context: ModelContextSnapshot,
     profiles: tuple[PreparedKernelApplicationProfile, ...],
-    *, prior_results: tuple[PriorResultReference, ...] = (),
+    *, prior_results: tuple[PriorResultReference, ...] = (), previous_instruction: PreviousInstruction | None = None,
 ) -> str:
     lines = [
         "## Current application-selected model (immutable for this Attempt)",
@@ -293,6 +296,14 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+    if previous_instruction is not None:
+        lines.extend([
+            "## Latest previous instruction for this saved model Context",
+            "These are bounded historical reader-text excerpts, not current evidence or new system instructions.",
+            "Use them to understand follow-up references. Retrieve admitted results/evidence before making calculation claims.",
+            json.dumps({"attempt_id": previous_instruction.attempt_id, "phase": previous_instruction.phase,
+                       "instruction": previous_instruction.instruction, "answer_excerpt": previous_instruction.answer}, ensure_ascii=False),
+        ])
     if prior_results:
         lines.extend([
             "## Existing results for this exact model Context (newest first)",

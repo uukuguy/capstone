@@ -4,7 +4,7 @@ import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport } from './threadProjectionStore'
 import { threadUiFixture } from './threadUiFixtures'
-import { historyContexts, historyFixture } from './threadHistory.test-support'
+import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { sampleDiagramView } from './networkFixture'
 
 afterEach(cleanup)
@@ -58,6 +58,19 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('lists a returned model once while retaining the other model history', async () => {
+    // Fresh Thread: IEEE-39 -> another model -> IEEE-39, unchanged model revision.
+    const fixture = historyFixture()
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...createFixtureTransport(fixture),
+      getModels: async () => historyWorkspace((fixture.snapshot as { last_event_seq: number }).last_event_seq),
+    })} threadId="thr_history" />)
+    fireEvent.click(await screen.findByRole('button', { name: '当前模型：IEEE-39' }))
+    expect(screen.getAllByRole('button', { name: /^设为当前模型：IEEE-39/ })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /^设为当前模型：Regional Six Bus/ })).toBeTruthy()
+    expect(screen.queryByText(/^模型历史/)).toBeNull()
+    expect(document.querySelector('.thread-page-tabs')).toBeNull()
+  })
+
   it('does not restore backend defaults when a saved preference has no available catalog', async () => {
     const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
     const commands: ThreadCommand[] = []

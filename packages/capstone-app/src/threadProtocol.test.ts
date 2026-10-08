@@ -151,6 +151,15 @@ describe('browser Thread protocol parser', () => {
     })).toThrowError(/reason is invalid/)
   })
 
+  it('accepts a saved model workspace activation without treating it as a reopen', () => {
+    expect(parseEventEnvelope({
+      ...event(5), event_type: 'model_context_activated', payload: { reason: 'model_resume' },
+    }).payload.reason).toBe('model_resume')
+    expect(() => parseEventEnvelope({
+      ...event(5), event_type: 'model_context_reopened', payload: { reason: 'model_resume' },
+    })).toThrowError(/reason is invalid/)
+  })
+
   it('replays ordinary model switches before a later explicit reopen', () => {
     const eventPage = parseEventPage({
       schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39',

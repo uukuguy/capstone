@@ -48,7 +48,7 @@ from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
-from .thread_model_workspace import MAX_OPEN_MODELS, MODEL_COMMANDS, migrate_workspace, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
+from .thread_model_workspace import MAX_OPEN_MODELS, MODEL_COMMANDS, migrate_workspace, restore_work_contexts, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -94,8 +94,8 @@ def _workspace_blocked_reason(snapshot: ThreadSnapshot, archived: bool) -> str |
     return None if snapshot.run.state == "open" else "run_not_open"
 
 
-def _workspace_activation_payload(command: Mapping[str, Any], snapshot: ThreadSnapshot, context: ModelContextSnapshot) -> dict[str, Any]:
-    return {"command_id": command["command_id"], "reason": "model_switch",
+def _workspace_activation_payload(command: Mapping[str, Any], snapshot: ThreadSnapshot, context: ModelContextSnapshot, *, resumed: bool = False) -> dict[str, Any]:
+    return {"command_id": command["command_id"], "reason": "model_resume" if resumed else "model_switch",
             "previous_context": snapshot.active_model_context.to_document(),
             "previous_grid_page_id": snapshot.active_grid_page_id,
             "active_grid_page_id": page_id_for_model(context.model_id), "model_context": context.to_document()}
@@ -387,6 +387,57 @@ def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultRef
 
 
 @dataclass(frozen=True, slots=True)
+class PreviousInstruction:
+    """Bounded reader text from the saved Context; never calculation evidence."""
+
+    attempt_id: str
+    instruction: str
+    answer: str
+    phase: str
+
+    def __post_init__(self) -> None:
+        _identifier(self.attempt_id, name="previous_instruction.attempt_id")
+        if (not isinstance(self.instruction, str) or not self.instruction or len(self.instruction) > 4096
+                or not isinstance(self.answer, str) or len(self.answer) > 4096
+                or self.phase not in {"completed", "failed", "cancelled", "interrupted"}):
+            raise ThreadExecutionError("previous instruction is invalid")
+
+
+def _previous_instruction_from_events(events: list[EventEnvelope], attempts: Mapping[str, Any],
+                                      context: ModelContextSnapshot) -> PreviousInstruction | None:
+    terminal = next((event for event in reversed(events) if event.model_context_id == context.id
+        and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}), None)
+    record = attempts.get(terminal.attempt_id) if terminal is not None else None
+    if record is None:
+        return None
+    answer = terminal.payload.get("answer")
+    if not isinstance(answer, str):
+        answer = "".join(str(event.payload.get("text", ""))[:4096] for event in
+            [item for item in events if item.attempt_id == terminal.attempt_id and item.event_type == "assistant_text_delta"][:16])
+    return PreviousInstruction(terminal.attempt_id, record["instruction"][:4096], answer[:4096], record["attempt"].phase)
+
+
+def _previous_instruction_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
+                                        context: ModelContextSnapshot) -> PreviousInstruction | None:
+    row = connection.execute("""SELECT a.attempt_id, a.phase, substring(a.instruction FOR 4096) AS instruction,
+        substring(e.payload->>'answer' FOR 4096) AS answer FROM capstone_thread_events e
+        JOIN capstone_thread_attempts a ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
+        WHERE e.thread_id = %s AND e.model_context_id = %s AND e.visibility = 'public'
+        AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
+        ORDER BY e.event_seq DESC LIMIT 1""", (thread_id, context.id)).fetchone()
+    if row is None:
+        return None
+    answer = row["answer"]
+    if answer is None:
+        deltas = connection.execute("""SELECT substring(payload->>'text' FOR 4096) AS text FROM capstone_thread_events
+            WHERE thread_id = %s AND model_context_id = %s AND attempt_id = %s
+            AND event_type = 'assistant_text_delta' AND visibility = 'public' ORDER BY event_seq LIMIT 16""",
+            (thread_id, context.id, row["attempt_id"])).fetchall()
+        answer = "".join(item["text"] or "" for item in deltas)[:4096]
+    return PreviousInstruction(row["attempt_id"], row["instruction"], answer, row["phase"])
+
+
+@dataclass(frozen=True, slots=True)
 class AttemptClaim:
     """One immutable Attempt leased to exactly one Harness worker."""
 
@@ -402,8 +453,11 @@ class AttemptClaim:
     turn_plan: TurnPlan | None = None
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
+    previous_instruction: PreviousInstruction | None = None
 
     def __post_init__(self) -> None:
+        if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
+            raise ThreadExecutionError("attempt previous instruction is invalid")
         if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
             raise ThreadExecutionError("attempt prior results are invalid")
         if (
@@ -976,7 +1030,7 @@ class InMemoryThreadService:
                         previous = self._snapshot
                         if change.context is not None:
                             event = self._append_control_event(event_type="model_context_activated", context=change.context,
-                                payload=_workspace_activation_payload(parsed, previous, change.context))
+                                payload=_workspace_activation_payload(parsed, previous, change.context, resumed=change.resumed))
                             self._snapshot = replace(previous, active_model_context=change.context,
                                 active_grid_page_id=page_id_for_model(change.context.model_id), last_event_seq=event.event_seq)
                         if change.diagram is not None:
@@ -1352,6 +1406,7 @@ class InMemoryThreadService:
                     lease_token=token,
                     model_context=context,
                     prior_results=_prior_results_for_context(self._snapshot),
+                    previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     application_catalog=(
                         self._catalog_context
                         if self._catalog_context is not None
@@ -2129,6 +2184,24 @@ class PostgresThreadService:
                 AND payload->>'kind' = 'close_model'""", (snapshot.thread_id,)).fetchall()
             workspace = migrate_workspace(row.get("model_workspace"), snapshot,
                 [(item["seq"], item["document"]) for item in contexts], {item["name"] for item in closed}, self._model_catalog)
+        missing = [entry for entry in workspace["models"] if entry["work_context"] is None]
+        if missing:
+            # Recover work positions for preceding-release members, including
+            # Contexts created after the membership migration boundary.
+            saved = connection.execute("""SELECT DISTINCT ON (document->>'implementation_family', document->>'model_id', document->>'model_revision')
+                document, seq FROM capstone_thread_events e CROSS JOIN LATERAL
+                (VALUES (e.payload->'previous_context', e.event_seq - 1),
+                        (e.payload->'model_context', e.event_seq),
+                        (e.payload->'restored_context', e.event_seq)) AS c(document, seq)
+                CROSS JOIN jsonb_array_elements(%s) AS m(entry)
+                WHERE e.thread_id = %s AND e.visibility = 'public'
+                AND e.event_type IN ('model_context_activated', 'model_context_reopened', 'model_context_reverted')
+                AND document->>'implementation_family' = entry->>'implementation_family'
+                AND document->>'model_id' = entry->>'model_id'
+                AND document->>'model_revision' = entry->>'model_revision'
+                ORDER BY document->>'implementation_family', document->>'model_id', document->>'model_revision', seq DESC""",
+                (Jsonb(missing), snapshot.thread_id)).fetchall()
+            workspace = restore_work_contexts(workspace, [(item["seq"], item["document"]) for item in saved])
         if workspace != row.get("model_workspace") or not row.get("model_workspace_migrated"):
             connection.execute("UPDATE capstone_threads SET model_workspace = %s, model_workspace_migrated = true WHERE thread_id = %s",
                 (Jsonb(workspace), snapshot.thread_id))
@@ -2385,7 +2458,7 @@ class PostgresThreadService:
                     if change.changed:
                         events = []
                         if change.context is not None:
-                            events.append(("model_context_activated", _workspace_activation_payload(parsed, snapshot, context)))
+                            events.append(("model_context_activated", _workspace_activation_payload(parsed, snapshot, context, resumed=change.resumed)))
                         if change.diagram is not None:
                             events.append(("network_diagram", {"diagram": change.diagram}))
                         events.append(("model_workspace_changed", workspace_outcome(parsed, workspace, change.workspace)))
@@ -2973,6 +3046,7 @@ class PostgresThreadService:
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
+                previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 application_catalog=(
                     self._catalog_context
                     if self._catalog_context is not None

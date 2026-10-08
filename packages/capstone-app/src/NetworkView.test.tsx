@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
@@ -7,9 +8,27 @@ import { threadUiFixture } from './threadUiFixtures'
 import { sampleDiagramView, sampleView } from './networkFixture'
 import { threadPreviewDiagram } from './threadModelDiagram'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('restores the exact camera after switching model views and remounting', () => {
+    const canvas = (key: string) => <NetworkView key={key} view={sampleDiagramView} modelName={key}
+      focusKey={key} cameraStorageKey="camera-test" cameraViewKey={key} />
+    const mounted = render(canvas('model-a'))
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    const saved = screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')
+    mounted.rerender(canvas('model-b'))
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).not.toBe(saved)
+    mounted.rerender(canvas('model-a'))
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(saved)
+    mounted.rerender(<NetworkView key="model-a" view={{ ...sampleDiagramView, ordinal: 2 }} modelName="model-a"
+      focusKey="model-a" cameraStorageKey="camera-test" cameraViewKey="model-a" />)
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(saved)
+    mounted.unmount()
+    render(<StrictMode>{canvas('model-a')}</StrictMode>)
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(saved)
+  })
+
   it.each(['gridctl', 'pypsamodelctl'])('renders model names without renumbering for %s', (source) => {
     const view = structuredClone(sampleDiagramView)
     view.diagram.model.source = source

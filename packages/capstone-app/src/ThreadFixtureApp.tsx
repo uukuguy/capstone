@@ -302,7 +302,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   function selectPage(pageId: string) {
     setSelectedNetworkAttempt(undefined)
     setFocusedElement(undefined)
-    store.viewGridPage(pageId); setNotice(pageId === activePage ? '已返回当前模型页' : '已打开只读历史页'); sync()
+    store.viewGridPage(pageId); setNotice(pageId === store.state.snapshot?.activeGridPageId ? '已返回当前模型页' : '已打开只读历史页'); sync()
     const page = store.state.gridPages.find((item) => item.pageId === pageId)
     if (page && !page.networkView && pageId !== store.state.snapshot?.activeGridPageId) {
       void store.restoreHistoricalNetwork(page.context.id).then((restored) => {
@@ -501,12 +501,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
+          workingPages={projection.modelWorkspace ? store.modelWorkingPages : undefined} cameraStorageKey={`${storageKey || snapshot.threadId}.network-cameras`}
           gridPages={displayedGridPages}
           projectionEventSeq={projection.eventSeq} previewDiagram={currentDiagram}
           networkView={activeNetworkView}
           networkTaskId={selectedNetworkTask?.attemptId || networkTask?.attemptId}
           networkFailureCode={!selectedNetworkTask && networkTask?.eventType === 'network_layer_unavailable' && typeof networkTask.payload.code === 'string' ? networkTask.payload.code : undefined}
-          instructionLabel={instructionNumber ? `指令 ${instructionNumber}` : undefined}
+          instructionLabel={displayedTaskId ? instructionNumber && !projection.hasOlderHistory ? `指令 ${instructionNumber} 结果` : '历史指令结果' : '基础拓扑'}
           viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
           onSelectPage={selectPage} feedback={notice}

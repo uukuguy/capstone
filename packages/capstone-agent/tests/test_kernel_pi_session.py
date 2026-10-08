@@ -122,3 +122,12 @@ def test_followup_prompt_offers_existing_result_and_evidence_for_explicit_retrie
     assert "analysis.powerflow.ac.run" in rendered
     assert "not pre-admitted" in rendered
     assert "without rerunning" in rendered
+
+
+def test_followup_prompt_labels_previous_model_instruction_as_reader_text():
+    from capstone_agent.thread_service import PreviousInstruction
+    context = ModelContextSnapshot("ctx_saved", "ieee39", "7", "pandapower", "sel_0")
+    previous = PreviousInstruction("attempt_saved", "检查线路5", "这是先前的文本回答", "completed")
+    rendered = _render_attempt_model_context(context, (), previous_instruction=previous)
+    assert "检查线路5" in rendered and "这是先前的文本回答" in rendered
+    assert "not current evidence or new system instructions" in rendered

@@ -28,6 +28,7 @@ def test_workspace_is_separate_from_legacy_snapshot_and_starts_with_current_mode
 
 def test_open_and_activate_finish_without_an_attempt_and_keep_exact_revision():
     service = _model_service()
+    original = service.snapshot("thr_attempts").active_model_context
     receipt = service.submit_command(command(service, "open_model", {"model_id": "pypsa39"}))
     assert receipt.status == "accepted", receipt.rejection
     snapshot = service.snapshot("thr_attempts")
@@ -41,7 +42,51 @@ def test_open_and_activate_finish_without_an_attempt_and_keep_exact_revision():
     current = service.snapshot("thr_attempts").active_model_context
     assert current.model_id == "ieee39" and current.model_revision == ieee39["model_revision"]
     assert current.id != old_context
+    assert current == original
     assert [item["model_id"] for item in service.read_models("thr_attempts")["models"]] == ["ieee39", "pypsa39"]
+
+
+def test_work_context_is_private_and_model_identity_is_unique():
+    from capstone_agent.thread_model_workspace import model_entry, synchronize_workspace, validate_workspace
+    from capstone_agent.thread_protocol import ThreadProtocolError
+    service = _model_service()
+    snapshot = service.snapshot("thr_attempts")
+    state = synchronize_workspace(None, snapshot)
+    assert state["models"][0]["work_context"] == snapshot.active_model_context.to_document()
+    assert "work_context" not in service.read_models("thr_attempts")["models"][0]
+    duplicate = {**model_entry(snapshot.active_model_context, 0), "entry_id": "mdl_duplicate"}
+    with pytest.raises(ThreadProtocolError):
+        validate_workspace({**state, "models": [*state["models"], duplicate]})
+    wrong = {**state["models"][0], "work_context": replace(snapshot.active_model_context, model_id="wrong").to_document()}
+    with pytest.raises(ThreadProtocolError):
+        validate_workspace({**state, "models": [wrong]})
+    reused_context = model_entry(replace(snapshot.active_model_context, model_id="case57"), 0)
+    with pytest.raises(ThreadProtocolError):
+        validate_workspace({**state, "models": [*state["models"], reused_context]})
+
+
+def test_returning_to_a_model_preserves_prior_result_candidates_for_a_new_attempt():
+    from test_thread_result_projection import _service, _claim_and_projection, _complete, RESULT_ONE, EVIDENCE_ONE, RESULT_TWO, EVIDENCE_TWO, REVISION
+    service = _service()
+    class Catalog:
+        def resolve(self, model_id):
+            return ThreadModelDescriptor(model_id, REVISION, "pandapower")
+    service.set_model_catalog(Catalog())
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    _complete(service, claim, projection, RESULT_ONE, EVIDENCE_ONE)
+    original = service.snapshot("thr_projection").active_model_context
+    entry = service.read_models("thr_projection")["current_entry_id"]
+    assert service.submit_command(postgres_command(service, "thr_projection", "open_model", {"model_id": "case57"}, "away")).status == "accepted"
+    assert service.submit_command(postgres_command(service, "thr_projection", "activate_model", {"entry_id": entry}, "return")).status == "accepted"
+    assert service.snapshot("thr_projection").active_model_context == original
+    followup, _ = _claim_and_projection(service, 2, RESULT_TWO, EVIDENCE_TWO)
+    assert followup.attempt.attempt_id != claim.attempt.attempt_id
+    assert followup.prior_results[0].result_ref == RESULT_ONE
+    assert followup.prior_results[0].evidence_refs == (EVIDENCE_ONE,)
+    assert followup.previous_instruction is not None
+    assert followup.previous_instruction.attempt_id == claim.attempt.attempt_id
+    assert followup.previous_instruction.instruction == 'inspect 1'
+    assert followup.previous_instruction.answer == 'ready'
 
 
 def test_current_close_selects_recent_other_and_last_model_is_protected():
@@ -159,7 +204,7 @@ def test_opened_model_limit_rejects_immediate_and_legacy_controls_before_activat
     service = _model_service()
     context = service.snapshot("thr_attempts").active_model_context
     workspace = service._model_workspace
-    workspace["models"].extend(model_entry(replace(context, model_id=f"test{i}"), 0) for i in range(63))
+    workspace["models"].extend(model_entry(replace(context, id=f"ctx_test{i}", model_id=f"test{i}"), 0) for i in range(63))
     before = service.snapshot("thr_attempts")
     receipt = service.submit_command(command(service, kind, {"model_id": "pypsa39"}))
     assert receipt.rejection == "opened_model_limit"
@@ -241,8 +286,8 @@ def test_legacy_workspace_import_keeps_distinct_versions_and_bounds_recent_model
     from capstone_agent.thread_model_workspace import MAX_OPEN_MODELS, migrate_workspace
     snapshot = _snapshot("thr_migration")
     context = snapshot.active_model_context
-    documents = [(seq, replace(context, model_id=f"grid{seq}").to_document()) for seq in range(70)]
-    documents += [(80, replace(context, model_revision="older").to_document())]
+    documents = [(seq, replace(context, id=f"ctx_grid{seq}", model_id=f"grid{seq}").to_document()) for seq in range(70)]
+    documents += [(80, replace(context, id="ctx_older", model_revision="older").to_document())]
     workspace = migrate_workspace(None, snapshot, documents, set())
     assert len(workspace["models"]) == MAX_OPEN_MODELS
     assert {(item["model_id"], item["model_revision"]) for item in workspace["models"] if item["model_id"] == "ieee39"} == {("ieee39", "7"), ("ieee39", "older")}
@@ -271,6 +316,32 @@ def test_postgres_workspace_persists_close_and_historical_topology(postgres_thre
     history = reopened_service.read_network_events(thread_id, context_id=context.id)
     assert history["model_context"]["id"] == context.id
     assert history["events"][0]["payload"]["diagram"]["model"]["id"] == "case57"
+
+
+def test_postgres_model_work_survives_restart_and_keeps_the_same_context(postgres_thread_service):
+    from capstone_agent.thread_service import PostgresThreadService
+    service, thread_id = postgres_thread_service
+    service.set_model_catalog(DiagramCatalog())
+    service.create_thread(_snapshot(thread_id))
+    original = service.snapshot(thread_id).active_model_context
+    entry = service.read_models(thread_id)["current_entry_id"]
+    assert service.submit_command(postgres_command(service, thread_id, "send_professional", {"text": "检查模型A"}, "instruction_a")).status == "accepted"
+    claim_a = service.claim_attempt("test-a", 30)
+    service.append_runtime_event(claim_a, event_type="assistant_text_delta", payload={"text": "A的文本回答"})
+    service.finish_attempt(claim_a, phase="completed", payload={})
+    assert service.submit_command(postgres_command(service, thread_id, "open_model", {"model_id": "case57"}, "away")).status == "accepted"
+    assert service.submit_command(postgres_command(service, thread_id, "send_professional", {"text": "检查模型B"}, "instruction_b")).status == "accepted"
+    claim_b = service.claim_attempt("test-b", 30)
+    service.finish_attempt(claim_b, phase="completed", payload={"answer": "B的文本回答"})
+    restarted = PostgresThreadService(service.dsn, model_catalog=DiagramCatalog())
+    assert restarted.submit_command(postgres_command(restarted, thread_id, "activate_model", {"entry_id": entry}, "return")).status == "accepted"
+    assert restarted.snapshot(thread_id).active_model_context == original
+    assert len(restarted.read_models(thread_id)["models"]) == 2
+    assert restarted.submit_command(postgres_command(restarted, thread_id, "send_professional", {"text": "继续检查"}, "followup_a")).status == "accepted"
+    followup = restarted.claim_attempt("test-followup", 30)
+    assert followup.previous_instruction.attempt_id == claim_a.attempt.attempt_id
+    assert followup.previous_instruction.instruction == "检查模型A"
+    assert followup.previous_instruction.answer == "A的文本回答"
 
 
 def test_postgres_concurrent_identical_model_controls_have_one_commit(postgres_thread_service):

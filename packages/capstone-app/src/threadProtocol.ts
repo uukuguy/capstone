@@ -623,6 +623,7 @@ export function parseEventEnvelope(value: unknown): EventEnvelope {
     && payload.reason !== undefined
     && payload.reason !== 'explicit_reopen'
     && !(payload.reason === 'model_switch' && eventType !== 'model_context_reopened')
+    && !(payload.reason === 'model_resume' && eventType === 'model_context_activated')
   ) {
     throw new ThreadProtocolError('event.payload.reason is invalid')
   }

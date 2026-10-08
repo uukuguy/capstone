@@ -7,6 +7,16 @@ export const historyContexts = {
   active: { id: 'ctx_ieee_new', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_2' },
 }
 
+export function historyWorkspace(eventSeq: number) {
+  return { schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_history', run_id: 'run_history', event_seq: eventSeq,
+    current_entry_id: 'mdl_ieee', blocked_reason: null,
+    models: [historyContexts.active, historyContexts.historical].map((context, index) => ({
+      entry_id: index === 0 ? 'mdl_ieee' : 'mdl_regional', model_id: context.model_id, model_revision: context.model_revision,
+      implementation_family: context.implementation_family, display_name: index === 0 ? 'IEEE-39' : 'Regional Six Bus',
+      authority_model_ref: null, diagram_provider_id: null, last_active_seq: 0,
+    })) }
+}
+
 export function historyFixture(includeHistoricalNetwork = true): ThreadFixtureDocument {
   const events: Record<string, unknown>[] = []
   const append = (event_type: string, context: typeof historyContexts.initial, payload: Record<string, unknown>) => {

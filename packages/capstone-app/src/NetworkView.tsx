@@ -4,6 +4,7 @@ import { Crosshair, Maximize2, Minus, Plus } from 'lucide-react'
 import { layoutNetwork, usesModelCoordinates } from './networkLayout'
 import type { PositionedBus } from './networkLayout'
 import type { LegacyNetworkView, NetworkDiagram, NetworkView as NetworkViewData } from './types'
+import { readNetworkCamera, writeNetworkCamera } from './threadNetworkCamera'
 
 type Camera = { x: number; y: number; width: number; height: number }
 const FULL: Camera = { x: 0, y: 0, width: 1000, height: 600 }
@@ -58,7 +59,7 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel, compact = false,
                               nextTask = false, unavailable = false,
-                              previewUnavailable = false, failureCode, historyFocusIds = [] }: {
+                              previewUnavailable = false, failureCode, historyFocusIds = [], cameraStorageKey, cameraViewKey }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
   instructionLabel?: string
@@ -67,8 +68,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   unavailable?: boolean; previewUnavailable?: boolean
   failureCode?: string
   historyFocusIds?: string[]
+  cameraStorageKey?: string
+  cameraViewKey?: string
 }) {
-  const [camera, setCamera] = useState<Camera>(FULL)
+  const [camera, setCamera] = useState<Camera>(() => readNetworkCamera(cameraStorageKey, cameraViewKey) || FULL)
+  const restoredCamera = useRef(Boolean(readNetworkCamera(cameraStorageKey, cameraViewKey)))
+  const restoredFocus = useRef(focusKey)
   const [hovered, setHovered] = useState<string | null>(null)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
@@ -95,9 +100,16 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
     focusIds.includes(branch.id)).flatMap((branch) => [branch.from_bus, branch.to_bus]) || []), [geometry, focusIds])
 
   useEffect(() => {
+    if (!geometry) return
+    if (restoredCamera.current && focusKey === restoredFocus.current) return
+    restoredCamera.current = false
     setCamera(geometry ? taskCamera(geometry, nodes, focusIds) : FULL)
     // Focus changes on step/execution transitions or on arrival of a different diagram.
-  }, [focusKey, viewIdentity])
+  }, [focusKey, cameraViewKey || viewIdentity, Boolean(geometry)])
+
+  useEffect(() => {
+    if (geometry) writeNetworkCamera(cameraStorageKey, cameraViewKey, camera)
+  }, [cameraStorageKey, cameraViewKey, camera, geometry])
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {

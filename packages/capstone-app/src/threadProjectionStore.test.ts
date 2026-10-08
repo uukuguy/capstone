@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
-import { historyContexts, historyFixture } from './threadHistory.test-support'
+import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { parseEventEnvelope } from './threadProtocol'
 
 const context = {
@@ -35,6 +35,34 @@ it('loads durable model membership independently of the legacy snapshot', async 
       current_entry_id: model.entry_id, models: [model], blocked_reason: null }) }))
   await store.load('thr_demo_39')
   expect(store.state.modelWorkspace?.currentEntryId).toBe(model.entry_id)
+})
+
+it('keeps model working pages distinct from historical Context views', async () => {
+  const fixture = historyFixture()
+  const workspace = historyWorkspace((fixture.snapshot as { last_event_seq: number }).last_event_seq)
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(fixture), getModels: async () => workspace }))
+  await store.load('thr_history')
+  expect(store.state.gridPages).toHaveLength(3)
+  expect(store.modelWorkingPages).toHaveLength(2)
+  expect(store.modelWorkingPages.find(page => page.entryId === 'mdl_ieee')?.context?.id).toBe(historyContexts.active.id)
+  workspace.models = workspace.models.slice(0, 1)
+  await store.refreshModels()
+  expect(store.modelWorkingPages).toHaveLength(1)
+  expect(store.state.gridPages.find(page => page.context.id === historyContexts.historical.id)).toBeTruthy()
+})
+
+it('does not label a fresh baseline with an older analysis instruction', async () => {
+  const fixture = historyFixture()
+  const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
+  const source = [...document.events].reverse().find(event => event.event_type === 'network_diagram')!
+  const baseline = { ...source, event_id: 'evt_baseline', event_seq: document.events.length + 1, attempt_id: undefined }
+  document.events.push(baseline)
+  document.next_event_seq = baseline.event_seq
+  ;(fixture.snapshot as { last_event_seq: number }).last_event_seq = baseline.event_seq
+  const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
+  await store.load('thr_history')
+  expect(store.state.networkView).toBeTruthy()
+  expect(store.latestNetworkEvent).toBeUndefined()
 })
 
 it('loads only the latest history page and prepends older events without moving the live cursor', async () => {

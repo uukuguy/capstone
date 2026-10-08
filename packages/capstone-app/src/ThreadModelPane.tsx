@@ -2,7 +2,7 @@ import { NetworkView } from './NetworkView'
 import type { ResultProjection, ThreadSnapshot } from './threadProtocol'
 import type { ThreadCatalogModel } from './threadCatalog'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
-import type { ThreadGridPage } from './threadProjectionStore'
+import type { ThreadGridPage, ThreadModelWorkingPage } from './threadProjectionStore'
 
 function modelLabel(modelId: string | undefined, family?: string): string {
   const known = { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39', 'regional-six-bus': 'Regional Six Bus' }
@@ -20,6 +20,8 @@ export type ThreadModelPaneProps = {
   viewedPage: string
   activePage: string
   gridPages: readonly ThreadGridPage[]
+  workingPages?: readonly ThreadModelWorkingPage[]
+  cameraStorageKey?: string
   isHistorical: boolean
   projectionEventSeq: number
   previewDiagram: NetworkDiagram | null
@@ -78,7 +80,7 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 }
 
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
-export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
+export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, workingPages, cameraStorageKey, isHistorical,
   projectionEventSeq, previewDiagram,
   networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, onOpenHistoricalModel, modelBusy, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
@@ -99,6 +101,9 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
     ? projectActiveNetworkView(dynamicModelView, !isHistorical || viewingInstruction ? resultProjection : undefined,
         isHistorical ? undefined : focusedElementId)
     : modelDiagram ? projectionNetworkView(modelDiagram, resultProjection, focusedElementId) : null
+  const viewKey = `${viewedContext?.implementationFamily}:${viewedContext?.modelId}:${viewedContext?.modelRevision}:${viewedContext?.id}:${networkTaskId || 'base'}`
+  const historicalIsOpen = workingPages?.some(page => page.model.modelId === viewedContext?.modelId &&
+    page.model.modelRevision === viewedContext?.modelRevision && page.model.implementationFamily === viewedContext?.implementationFamily)
   return <section className="thread-model-pane" aria-label="电网模型区">
     <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
       <div className="capstone-intro-art notranslate" translate="no">
@@ -121,7 +126,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。智能体对话围绕当前电网模型连续开展工作：用自然语言打开模型、提出问题和组织分析，通过回答下方的操作查看对应电网图、运行过程和证据。</p>
       </div>
     </section>
-      {pages.length > 1 && <details className="thread-model-history"><summary>模型历史 · {pages.length - 1}</summary>
+      {!workingPages && pages.length > 1 && <details className="thread-model-history"><summary>模型历史 · {pages.length - 1}</summary>
         <div className="thread-page-tabs" aria-label="电网模型分页">
           {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}
             label={pageId === activePage ? `${activeModelName} · 当前模型` : `${pageModelName(pageId)} · 事件历史`} onClick={() => onSelectPage(pageId)} />)}
@@ -130,7 +135,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
     <div className="thread-network-card">
       {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>回到最新指令图</button></div>}
       {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
-        <NetworkView compact view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedPage}:${networkTaskId || ''}:${focusedElementId || ''}`}
+        <NetworkView key={viewKey} cameraStorageKey={cameraStorageKey} cameraViewKey={viewKey} compact view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedContext?.id}:${networkTaskId || ''}:${focusedElementId || ''}`}
           instructionLabel={instructionLabel}
           failureCode={networkFailureCode}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}
@@ -140,7 +145,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
       <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
       <p>{viewedContext?.implementationFamily} · revision {viewedContext?.modelRevision}</p>
     </details>
-    {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span>{viewedContext && onOpenHistoricalModel && <button type="button" disabled={modelBusy} onClick={() => onOpenHistoricalModel(viewedContext.modelId, viewedContext.modelRevision)}>打开此模型</button>}<button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
+    {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span>{viewedContext && onOpenHistoricalModel && <button type="button" disabled={modelBusy} onClick={() => onOpenHistoricalModel(viewedContext.modelId, viewedContext.modelRevision)}>{historicalIsOpen ? '设为当前模型' : '重新打开'}</button>}<button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
     {elementReference && !isHistorical && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{elementReference.element_kind} / {elementReference.element_id}</strong><small>{elementReference.model_id} · revision {elementReference.model_revision}</small></div>}
   </section>
 }

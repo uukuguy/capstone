@@ -2,7 +2,7 @@ import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type Even
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
-import type { ModelWorkspace } from './threadModelWorkspace'
+import type { ModelWorkspace, OpenedModel } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
@@ -19,6 +19,13 @@ export type ThreadGridPage = {
   pageId: string
   context: ModelContextSnapshot
   networkView: DiagramNetworkView | null
+}
+
+/** Stable model membership is independent of Context/Attempt replay views. */
+export type ThreadModelWorkingPage = {
+  entryId: string
+  model: OpenedModel
+  context: ModelContextSnapshot | null
 }
 
 export type ThreadNetworkTask = {
@@ -253,10 +260,21 @@ export class ThreadProjectionStore {
     return [...this.taskViews.values()]
   }
 
+  get modelWorkingPages(): readonly ThreadModelWorkingPage[] {
+    const workspace = this.current.modelWorkspace
+    if (!workspace) return []
+    return workspace.models.map(model => ({ entryId: model.entryId, model,
+      context: model.entryId === workspace.currentEntryId ? this.current.snapshot?.activeModelContext ?? null : null }))
+  }
+
   get latestNetworkEvent(): EventEnvelope | undefined {
+    const contextId = this.current.snapshot?.activeModelContext.id
+    const hasDiagramSource = Boolean(contextId && this.diagramAttempts.has(contextId))
+    const diagramAttempt = contextId ? this.diagramAttempts.get(contextId) : undefined
+    if (hasDiagramSource && !diagramAttempt) return undefined
     return [...this.networkContextEvents, ...this.eventLog].filter((event) =>
       ['network_layer', 'network_layer_unavailable'].includes(event.eventType)
-      && event.modelContextId === this.current.snapshot?.activeModelContext.id)
+      && event.modelContextId === contextId && (!hasDiagramSource || event.attemptId === diagramAttempt))
       .sort((a, b) => b.eventSeq - a.eventSeq)[0]
   }
 
@@ -467,6 +485,10 @@ export class ThreadProjectionStore {
       throw new Error('当前模型尚未同步，请重新连接。')
     }
     this.current = { ...this.current, modelWorkspace: workspace }
+    if (!this.current.networkView && active) {
+      try { await this.restoreHistoricalNetwork(active.id) } catch { /* Keep an explicit unavailable view; never substitute another Context. */ }
+      if (generation !== this.loadGeneration) return
+    }
     this.notify()
   }
 

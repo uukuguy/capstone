@@ -29,6 +29,7 @@ def model_entry(context: Any, seq: int, metadata: Any = None) -> dict[str, Any]:
         "display_name": getattr(metadata, "display_name", None) or context.model_id,
         "diagram_provider_id": getattr(metadata, "diagram_provider_id", None),
         "last_active_seq": seq,
+        "work_context": context.to_document() if isinstance(context, ModelContextSnapshot) else None,
     }
 
 
@@ -39,8 +40,10 @@ def validate_workspace(value: Any) -> dict[str, Any]:
     if not isinstance(models, list) or not 1 <= len(models) <= MAX_OPEN_MODELS:
         raise ThreadProtocolError("model workspace size is invalid")
     identifiers = set()
+    identities = set()
+    context_bindings = {}
     for entry in models:
-        if not isinstance(entry, dict) or set(entry) != _ENTRY_FIELDS:
+        if not isinstance(entry, dict) or set(entry) not in (_ENTRY_FIELDS, _ENTRY_FIELDS | {"work_context"}):
             raise ThreadProtocolError("opened model is invalid")
         try:
             validate_model_id(entry["model_id"])
@@ -55,6 +58,18 @@ def validate_workspace(value: Any) -> dict[str, Any]:
         if type(entry["last_active_seq"]) is not int or entry["last_active_seq"] < 0 or entry["entry_id"] in identifiers:
             raise ThreadProtocolError("opened model sequence or identity is invalid")
         identifiers.add(entry["entry_id"])
+        identity = tuple(entry[name] for name in ("implementation_family", "model_id", "model_revision"))
+        if identity in identities:
+            raise ThreadProtocolError("opened model identity is duplicated")
+        identities.add(identity)
+        entry.setdefault("work_context", None)
+        if entry["work_context"] is not None:
+            context = ModelContextSnapshot.from_document(entry["work_context"])
+            if (context.implementation_family, context.model_id, context.model_revision) != identity:
+                raise ThreadProtocolError("model work context belongs to another model")
+            if context.id in context_bindings and context_bindings[context.id] != identity:
+                raise ThreadProtocolError("model work context identity is reused")
+            context_bindings[context.id] = identity
     if value["current_entry_id"] not in identifiers:
         raise ThreadProtocolError("current model is not open")
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
@@ -68,9 +83,11 @@ def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = N
     context = snapshot.active_model_context
     workspace = validate_workspace(value) if value is not None else None
     entry = model_entry(context, snapshot.last_event_seq)
-    if workspace is not None and workspace["current_entry_id"] == entry["entry_id"]:
-        return workspace
     existing = next((item for item in workspace["models"] if item["entry_id"] == entry["entry_id"]), None) if workspace is not None else None
+    if workspace is not None and workspace["current_entry_id"] == entry["entry_id"]:
+        assert existing is not None
+        existing["work_context"] = context.to_document()
+        return validate_workspace(workspace)
     metadata = None
     if existing is None and catalog is not None:
         try:
@@ -84,8 +101,22 @@ def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = N
         workspace["models"].append(entry)
     else:
         existing["last_active_seq"] = snapshot.last_event_seq
+        existing["work_context"] = context.to_document()
     workspace["current_entry_id"] = entry["entry_id"]
     return validate_workspace(workspace)
+
+
+def restore_work_contexts(workspace: dict[str, Any], contexts: list[tuple[int, Mapping[str, Any]]]) -> dict[str, Any]:
+    """Seed old opened entries from retained Contexts without adding members."""
+    state = validate_workspace(workspace)
+    for _, document in sorted(contexts, key=lambda item: item[0], reverse=True):
+        context = ModelContextSnapshot.from_document(document)
+        identity = (context.implementation_family, context.model_id, context.model_revision)
+        entry = next((item for item in state["models"] if tuple(item[name] for name in
+            ("implementation_family", "model_id", "model_revision")) == identity), None)
+        if entry is not None and entry["work_context"] is None:
+            entry["work_context"] = context.to_document()
+    return validate_workspace(state)
 
 
 def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple[int, Mapping[str, Any]]],
@@ -118,9 +149,11 @@ def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple
 
 
 def workspace_projection(workspace: dict[str, Any], snapshot: ThreadSnapshot, blocked_reason: str | None) -> dict[str, Any]:
+    state = validate_workspace(workspace)
+    state["models"] = [{key: entry[key] for key in _ENTRY_FIELDS} for entry in state["models"]]
     return {"schema": "capstone-thread-model-workspace/1", "thread_id": snapshot.thread_id,
             "run_id": snapshot.run.run_id, "event_seq": snapshot.last_event_seq,
-            **validate_workspace(workspace), "blocked_reason": blocked_reason}
+            **state, "blocked_reason": blocked_reason}
 
 
 def workspace_has_capacity(workspace: dict[str, Any], target: Any) -> bool:
@@ -134,6 +167,7 @@ class WorkspaceChange:
     context: ModelContextSnapshot | None = None
     diagram: Mapping[str, Any] | None = None
     changed: bool = True
+    resumed: bool = False
 
 
 def workspace_outcome(command: Mapping[str, Any], before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
@@ -192,11 +226,12 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
         return WorkspaceChange(state, changed=False), None
     if not family_available(target["implementation_family"]):
         return None, "worker_unavailable"
-    context = ModelContextSnapshot(id="ctx_" + secrets.token_hex(10), model_id=target["model_id"],
+    resumed = target["work_context"] is not None
+    context = ModelContextSnapshot.from_document(target["work_context"]) if resumed else ModelContextSnapshot(id="ctx_" + secrets.token_hex(10), model_id=target["model_id"],
                                    model_revision=target["model_revision"], implementation_family=target["implementation_family"],
                                    selection_revision="sel_0", enabled_profiles=())
     diagram = None
-    if callable(getattr(catalog, "diagram", None)):
+    if not resumed and callable(getattr(catalog, "diagram", None)):
         try:
             diagram = normalize_network_diagram(catalog.diagram(context.model_id, context.model_revision))
             if diagram["model"]["id"] != context.model_id or diagram["model"]["revision"] != context.model_revision:
@@ -204,5 +239,6 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
         except (LookupError, TypeError, ValueError, RuntimeError, OSError):
             return None, "model_preparation_failed"
     target["last_active_seq"] = snapshot.last_event_seq + 1
+    target["work_context"] = context.to_document()
     state["current_entry_id"] = target["entry_id"]
-    return WorkspaceChange(validate_workspace(state), context, diagram), None
+    return WorkspaceChange(validate_workspace(state), context, diagram, resumed=resumed), None
