@@ -213,6 +213,15 @@ answers, and a stable reading subject during repeated global fold/unfold actions
 - [x] Remove the notice's answer-like left rail and full green surface; use an inset neutral notice, small label/icon and horizontal separator. Retain alert/status roles and recovery actions.
 - [x] Verify repeated actions at start/middle/end on desktop/mobile/landscape, explicit user scrolling, hidden-instruction fallback and existing per-answer behavior; run App gates and local rebuild. Record [local acceptance](../../reviews/2026-10-08-thread-notice-and-global-anchor-local-verification.md) and commit only owned paths.
 
+### Follow-up: answer icon beside the role label
+
+The user replaces the full-width answer-toggle row with a small icon next to
+CAPSTONE and a hover hint. Keep the same control, keyboard access and instruction
+visibility, with no extra row between the role label and answer.
+
+- [x] Extend the persistent-control regression for an icon-only header control and both hover hints; reproduce failure before implementation.
+- [x] Verify compact header geometry, desktop/mobile touch targets, long-answer instruction visibility and repeated global anchors. Run App gates and local rebuild; record [local acceptance](../../reviews/2026-10-08-thread-answer-header-icon-local-verification.md) and commit owned paths.
+
 ### Follow-up: registered-tool visibility and compact history menu
 
 User rejects hiding PyPSA and the history-menu heading/hint rows. Apply these corrections inline

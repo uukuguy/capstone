@@ -563,15 +563,19 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-reference-card { display: grid; }
 
 .capstone-answer-content.is-collapsed { overflow: hidden; }
-.capstone-answer { padding: 6px 9px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
-.capstone-answer.is-collapsed { border-left-color: #c5dbd1; }
-.capstone-answer-toggle { position: sticky; top: 6px; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 96px; min-height: 28px; margin: 0 0 3px auto; padding: 3px 4px; border: 0; border-radius: 4px; background: #fff; color: #41685f; font: inherit; cursor: pointer; }
+.capstone-answer-header { position: sticky; top: 6px; z-index: 2; display: flex; align-items: center; gap: 4px; width: fit-content; height: 18px; margin-bottom: 5px; border-radius: 3px; background: #fff; }
+.capstone-answer-header .capstone-chat-role { margin: 0; }
+.capstone-answer-body { padding: 6px 9px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
+.capstone-answer.is-collapsed .capstone-answer-body { border-left-color: #c5dbd1; }
+.capstone-answer-content .capstone-chat-markdown > :first-child { margin-top: 0; }
+.capstone-answer-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #41685f; font: inherit; cursor: pointer; }
 .capstone-answer-toggle svg { width: 12px; height: 12px; }
 .capstone-answer-toggle:hover { background: #edf5f0; }
 .capstone-answer-toggle:focus-visible, .thread-settings-menu :is(button, summary):focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
 .capstone-chat-message.is-user:focus-visible { outline: 2px solid #27866c; outline-offset: 4px; border-radius: 18px; }
 @media (max-width: 620px) {
-  .capstone-answer-toggle { min-height: 44px; }
+  .capstone-answer-header { height: 28px; top: 10px; }
+  .capstone-answer-toggle { justify-content: flex-start; flex-basis: 44px; width: 44px; height: 44px; padding-left: 6px; }
   .capstone-assistant-runtime-label { flex-wrap: wrap; }
 }
 

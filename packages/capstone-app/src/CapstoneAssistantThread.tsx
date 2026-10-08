@@ -561,9 +561,13 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   }, [text])
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
-    {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <><ChevronRight aria-hidden="true" /><span>展开</span></> : <><ChevronUp aria-hidden="true" /><span>收起</span></>}</button>}
-    <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
-      <MarkdownMessage>{text}</MarkdownMessage>
+    <div className="capstone-answer-header"><span className="capstone-chat-role">CAPSTONE</span>
+      {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronRight aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
+    </div>
+    <div className="capstone-answer-body">
+      <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
+        <MarkdownMessage>{text}</MarkdownMessage>
+      </div>
     </div>
     {folded && <span className="visually-hidden">{text.slice(0, 220)}…</span>}
   </div>
@@ -628,13 +632,14 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     <ThreadSystemNotice tone={notice.tone} instruction={notice.instruction} action={notice.action === 'resync' ? '重新同步' : notice.action === 'reconnect' ? '重新连接' : undefined} onAction={notice.action ? () => onSystemAction?.(notice.action!) : undefined}>{notice.text}</ThreadSystemNotice>
   </MessagePrimitive.Root>
   const terminalNotice = typeof custom?.terminalNotice === 'string' ? custom.terminalNotice : undefined
+  const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
-      <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>
+      {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : hasText && role === 'assistant' && status?.type === 'complete' ? <FoldableAnswer id={id} text={text} /> : hasText
+      </> : completedAnswer ? <FoldableAnswer id={id} text={text} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
