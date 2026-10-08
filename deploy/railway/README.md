@@ -117,6 +117,31 @@ demo instead of rebuilding it for the trial environment.
 
 ## Cloud-dev to demo promotion
 
+### Cloud-dev idle suspension
+
+Cloud-dev is an on-demand validation stage. Record its deployment IDs, source
+identities, service settings and GitHub trigger settings before suspension.
+Disable only its development deployment triggers, then remove the running
+deployments in this order: App, API, family workers, PostgreSQL. Railway's
+deployment Remove action stops compute; it does not delete the service. Keep
+the PostgreSQL volume and private bucket. Storage can still incur charges.
+Do not delete services, volumes, buckets or Threads to reduce idle compute.
+
+Check that all five deployments are stopped, the volume and bucket IDs are
+unchanged, and demo deployment IDs and readiness remain unchanged. The
+[2026-10-08 suspension receipt](../../docs/reviews/2026-10-08-cloud-dev-idle-suspension.md)
+records this stage's recovery boundary.
+
+Resume the recorded PostgreSQL deployment first, then both workers, API and
+App. Use the recorded source or deploy one locally verified revision to every
+backend role; check readiness and source identity before remote validation.
+Keep automatic development triggers disabled unless deliberately re-enabled
+for an active validation period. Suspension itself does not receive an
+acceptance tag. A resumed deployment must pass the usual stage validation
+before receiving a new cloud-dev tag or being promoted to demo.
+
+### Promotion checks
+
 1. Run local gates and exercise the local App with `make capstone-local-rebuild`.
 2. Deploy the same source revision to `capstone-cloud-dev`.
 3. Check `/health/ready`, a registered scripted case, a separately authorized Provider case, report

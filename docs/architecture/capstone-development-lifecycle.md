@@ -20,6 +20,15 @@ The local lane is the fastest loop. The cloud-development lane is a remote
 verification target, not a second production environment. The user-trial lane
 is a release surface and must remain stable while development continues.
 
+Cloud development runs on demand. When no remote validation is planned, stop
+its App, API, family workers and PostgreSQL deployments, while retaining the
+database volume, artifact bucket, service configuration and deployment history.
+Disable development push triggers while the stage is suspended so a normal
+push cannot restart idle compute. Resume PostgreSQL, workers, API and App for
+the next validation and check the selected source identity before use. A
+suspended stage cannot supply cloud acceptance. Suspension does not change
+the independently running user-trial stage or create an acceptance tag.
+
 ```mermaid
 flowchart LR
     L[Local Compose + Vite<br/>high-frequency iteration]
