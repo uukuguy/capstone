@@ -53,3 +53,21 @@ Source review was performed inline. Independent review and cloud acceptance
 remain pending. No backend behavior, answer/evidence contract, tool preference
 semantics or model conversion was changed. The separate zero-tool runtime and
 configuration persistence gaps remain on the owning worklist.
+
+## Follow-up: small text and a pale surface
+
+The user then requests small notice text and a faint background. This supersedes
+the transparent notice surface above: body and related instruction text are
+10px, the label is 9px, and both notice tones use pale neutral `#f7f8fa`.
+The answer remains transparent. Notice icons are 12px; inset spacing, the
+horizontal separator and the absence of an answer-like left rail remain.
+
+- Focused Thread tests: 50 passed. TypeScript/Vite build and doctor pass.
+- Desktop/mobile component checks confirm the exact font sizes and background,
+  status/alert roles, Enter-operated recovery and the 44px mobile target.
+- Current-checkout rebuild passes readiness with a matching API/worker digest:
+  `sha256:1a67e7cd63eaf8f2ed5d0abc90cc38a299454d1174e6b44412e607f0f2fad0ef`.
+- Artifacts: `output/playwright/notice-small-20261008/`; logs:
+  `/tmp/capstone-notice-small-{tests,build,doctor,rebuild}.log`.
+- No folding logic, Provider requests or remote deployment changed in this
+  follow-up.

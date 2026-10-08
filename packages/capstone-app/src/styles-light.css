@@ -750,14 +750,14 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 /* Keep advanced routing controls out of the primary composer path. */
 .thread-settings-menu { position: relative; }
 .capstone-chat-message.is-system { padding: 8px 0; }
-.capstone-system-notice { display: flex; gap: 8px; margin: 8px 12px; padding: 8px 0; border-top: 1px solid #e5e8eb; color: #616b76; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.capstone-system-notice { display: flex; gap: 8px; margin: 8px 12px; padding: 8px 10px; border-top: 1px solid #e5e8eb; border-radius: 6px; background: #f7f8fa; color: #616b76; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
 .capstone-system-notice.is-error { color: #795e3c; }
-.capstone-system-notice > svg { width: 14px; height: 14px; flex: 0 0 14px; margin-top: 3px; }
+.capstone-system-notice > svg { width: 12px; height: 12px; flex: 0 0 12px; margin-top: 2px; }
 .capstone-system-notice > div { min-width: 0; }
-.capstone-system-label { display: block; width: fit-content; margin-bottom: 3px; padding: 0 5px; border-radius: 3px; background: #f1f3f5; color: #616b76; font-size: 10px; line-height: 1.8; }
+.capstone-system-label { display: block; width: fit-content; margin-bottom: 3px; padding: 0 5px; border-radius: 3px; background: #f1f3f5; color: #616b76; font-size: 9px; line-height: 1.8; }
 .capstone-system-notice.is-error .capstone-system-label { background: #f7f2e9; color: #795e3c; }
 .capstone-system-text p { margin: 3px 0; }
-.capstone-system-instruction { margin: 4px 0; font-size: 11px; white-space: pre-wrap; }
+.capstone-system-instruction { margin: 4px 0; font-size: 10px; white-space: pre-wrap; }
 .capstone-system-notice button { min-height: 32px; margin-top: 4px; padding: 2px 8px; border: 1px solid #c5d8cf; border-radius: 6px; background: transparent; color: #286e5b; font: inherit; cursor: pointer; }
 .capstone-system-notice button:focus-visible { outline: 2px solid #27866c; outline-offset: 2px; }
 .thread-model-feedback { margin-bottom: 8px; color: #526e64; font-size: 12px; }
