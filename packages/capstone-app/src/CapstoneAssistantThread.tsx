@@ -727,6 +727,7 @@ export type CapstoneAssistantThreadProps = {
   onLoadOlder?: () => Promise<void>
   historyAtLatest?: boolean
   onReturnLatest?: () => void
+  instructionLocation?: { attemptId: string; nonce: number }
   events: readonly EventEnvelope[]
   disabled: boolean
   isRunning: boolean
@@ -755,7 +756,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -896,6 +897,53 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const windowEnd = anchoredIndex < 0 ? allMessages.length : anchoredIndex + 1
   const windowStart = Math.max(0, windowEnd - 50)
   const messages = allMessages.slice(windowStart, windowEnd)
+  const [locatingInstruction, setLocatingInstruction] = useState(false)
+  const currentLocation = useRef(instructionLocation)
+  currentLocation.current = instructionLocation
+  const handledLocation = useRef<CapstoneAssistantThreadProps['instructionLocation']>(undefined)
+  const locationHighlight = useRef<{ node: HTMLElement; timer: number }>(undefined)
+  useEffect(() => () => {
+    if (locationHighlight.current) { window.clearTimeout(locationHighlight.current.timer); locationHighlight.current.node.classList.remove('is-located-instruction') }
+  }, [])
+  useLayoutEffect(() => {
+    if (!instructionLocation) { setLocatingInstruction(false); return }
+    if (handledLocation.current === instructionLocation) return
+    const index = allMessages.findIndex(message => message.role === 'user' && message.metadata?.custom?.attemptId === instructionLocation.attemptId)
+    if (index < 0) return
+    setLocatingInstruction(true)
+    const viewport = viewportRef.current
+    const instruction = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
+      .find(node => node.dataset.messageId === allMessages[index].id)
+    if (!instruction) {
+      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, index + 24)]?.id || null)
+      return
+    }
+    if (!viewport) return
+    handledLocation.current = instructionLocation
+    if (locationHighlight.current) { window.clearTimeout(locationHighlight.current.timer); locationHighlight.current.node.classList.remove('is-located-instruction') }
+    const locate = () => {
+      if (currentLocation.current !== instructionLocation || !instruction.isConnected) return
+      const view = viewport.getBoundingClientRect()
+      const question = instruction.getBoundingClientRect()
+      if (question.top < view.top || question.height > view.height) viewport.scrollTop += question.top - view.top - 8
+      else if (question.bottom > view.bottom) viewport.scrollTop += question.bottom - view.bottom + 8
+      const visible = instruction.getBoundingClientRect()
+      if (visible.top < 0 || visible.bottom > window.innerHeight) instruction.scrollIntoView?.({ block: visible.height > window.innerHeight ? 'start' : 'nearest' })
+    }
+    locate()
+    window.requestAnimationFrame(() => {
+      if (currentLocation.current !== instructionLocation) return
+      locate()
+      window.requestAnimationFrame(() => {
+        if (currentLocation.current !== instructionLocation) return
+        locate()
+        setLocatingInstruction(false)
+      })
+    })
+    instruction.classList.add('is-located-instruction')
+    const timer = window.setTimeout(() => instruction.classList.remove('is-located-instruction'), 1200)
+    locationHighlight.current = { node: instruction, timer }
+  }, [instructionLocation, allMessages, windowAnchor])
   const [historyError, setHistoryError] = useState<string | null>(null)
   async function olderMessages() {
     setHistoryError(null)
@@ -953,7 +1001,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging} scrollToBottomOnInitialize={false}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}

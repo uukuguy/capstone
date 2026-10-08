@@ -11,6 +11,40 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('locates the requested instruction with minimal scrolling and preserves draft and input focus', () => {
+    const events = [event('command_accepted', 1, { kind: 'send_auto', text: '定位这条指令' }, 'first'), event('attempt_completed', 2, { answer: '回答。'.repeat(160) }, 'first')]
+    const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: '折叠回答' }))
+    const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '保留草稿' } })
+    input.focus()
+    const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+    const instruction = screen.getByLabelText('用户指令')
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 500, width: 500, x: 0, y: top, toJSON: () => ({}) })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(rect(100, 400))
+    const position = vi.spyOn(instruction, 'getBoundingClientRect').mockReturnValue(rect(150, 40))
+    viewport.scrollTop = 200
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'first', nonce: 1 }} />)
+    expect(viewport.scrollTop).toBe(200)
+    position.mockReturnValue(rect(50, 40))
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'first', nonce: 2 }} />)
+    expect(viewport.scrollTop).toBe(142)
+    expect(document.activeElement).toBe(input)
+    expect(input.value).toBe('保留草稿')
+    expect(screen.getByRole('button', { name: '展开完整回答' })).toBeTruthy()
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'unrelated', nonce: 3 }} />)
+    expect(viewport.scrollTop).toBe(142)
+  })
+  it('reveals a requested instruction outside the fifty-message rendering window', () => {
+    const events = Array.from({ length: 55 }, (_, index) => [event('command_accepted', index * 2 + 1, { kind: 'send_auto', text: `定位窗口指令 ${index}` }, `attempt_${index}`), event('attempt_completed', index * 2 + 2, { answer: `回答 ${index}` }, `attempt_${index}`)]).flat()
+    const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    expect(screen.queryByText('定位窗口指令 0')).toBeNull()
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'attempt_0', nonce: 1 }} />)
+    expect(screen.getByText('定位窗口指令 0')).toBeTruthy()
+  })
+
   it('shows the instruction model short name and preserves its historical binding after switching', () => {
     const first = { ...event('command_accepted', 1, { kind: 'send_auto', text: '检查电压' }, 'first'), modelContextId: 'ctx_a' }
     const switchEvent = event('model_context_activated', 2, { previous_context: { id: 'ctx_a', model_id: 'ieee39' }, model_context: { id: 'ctx_b', model_id: 'case57' } })

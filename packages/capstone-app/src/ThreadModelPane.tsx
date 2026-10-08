@@ -31,6 +31,8 @@ export type ThreadModelPaneProps = {
   instructionLabel?: string
   viewingInstruction?: boolean
   onLatestInstruction?: () => void
+  returnCurrentTaskLabel?: string
+  returnTaskRequest?: number
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
   modelOptions: ThreadCatalogModel[]
   onSelectPage: (pageId: string) => void
@@ -82,7 +84,7 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, workingPages, cameraStorageKey, isHistorical,
   projectionEventSeq, previewDiagram,
-  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, onOpenHistoricalModel, modelBusy, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
+  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, returnCurrentTaskLabel, returnTaskRequest, elementReference, modelOptions, onSelectPage, onOpenHistoricalModel, modelBusy, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -133,9 +135,10 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
         </div>
       </details>}
     <div className="thread-network-card">
-      {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>回到最新指令图</button></div>}
+      {viewingInstruction && <div className="thread-history-bar" role="status"><span>正在查看此回答对应的电网图</span><button type="button" onClick={onLatestInstruction}>{returnCurrentTaskLabel || '回到当前任务'}</button></div>}
       {isHistorical && !modelDiagram ? <div className="network-empty" role="status"><strong>历史电网视图暂不可用</strong><p>该历史模型上下文没有可验证的电网投影。</p></div> :
         <NetworkView key={viewKey} cameraStorageKey={cameraStorageKey} cameraViewKey={viewKey} compact view={displayedView} previewDiagram={modelDiagram} modelName={viewedModelName} focusKey={`${viewedContext?.id}:${networkTaskId || ''}:${focusedElementId || ''}`}
+          onReturnCurrentTask={onLatestInstruction} returnCurrentTaskLabel={returnCurrentTaskLabel} returnTaskRequest={returnTaskRequest}
           instructionLabel={instructionLabel}
           failureCode={networkFailureCode}
           unavailable={!modelDiagram} previewUnavailable={!modelDiagram} historyFocusIds={[]} />}

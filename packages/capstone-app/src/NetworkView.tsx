@@ -59,7 +59,7 @@ function valueColor(metric: 'loading_percent' | 'voltage_pu', value: number,
 
 export function NetworkView({ view, previewDiagram = null, modelName, focusKey, instructionLabel, compact = false,
                               nextTask = false, unavailable = false,
-                              previewUnavailable = false, failureCode, historyFocusIds = [], cameraStorageKey, cameraViewKey }: {
+                              previewUnavailable = false, failureCode, historyFocusIds = [], cameraStorageKey, cameraViewKey, onReturnCurrentTask, returnCurrentTaskLabel = '回到当前任务', returnTaskRequest }: {
   view: NetworkViewData | null; previewDiagram?: NetworkDiagram | null;
   modelName: string; focusKey: string
   instructionLabel?: string
@@ -70,6 +70,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   historyFocusIds?: string[]
   cameraStorageKey?: string
   cameraViewKey?: string
+  onReturnCurrentTask?: () => void
+  returnCurrentTaskLabel?: string
+  returnTaskRequest?: number
 }) {
   const [camera, setCamera] = useState<Camera>(() => readNetworkCamera(cameraStorageKey, cameraViewKey) || FULL)
   const restoredCamera = useRef(Boolean(readNetworkCamera(cameraStorageKey, cameraViewKey)))
@@ -110,6 +113,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   useEffect(() => {
     if (geometry) writeNetworkCamera(cameraStorageKey, cameraViewKey, camera)
   }, [cameraStorageKey, cameraViewKey, camera, geometry])
+  useEffect(() => {
+    if (returnTaskRequest !== undefined && geometry) setCamera(taskCamera(geometry, nodes, focusIds))
+  }, [returnTaskRequest, viewIdentity, Boolean(geometry)])
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {
@@ -184,7 +190,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
     <button type="button" onClick={() => zoom(1.25)} aria-label="缩小" title="缩小">{compact ? <Minus aria-hidden="true" /> : '－'}</button>
     {!compact && <span className="network-toolbar-divider" />}
     <button type="button" onClick={() => setCamera(FULL)} aria-label="适配全图" title="适配全图">{compact ? <Maximize2 aria-hidden="true" /> : '适配全图'}</button>
-    <button type="button" onClick={() => setCamera(taskCamera(geometry!, nodes, focusIds))} aria-label="回到当前任务" title="回到当前任务">{compact ? <Crosshair aria-hidden="true" /> : '回到当前任务'}</button>
+    <button type="button" onClick={() => onReturnCurrentTask ? onReturnCurrentTask() : setCamera(taskCamera(geometry!, nodes, focusIds))} aria-label={returnCurrentTaskLabel} title={returnCurrentTaskLabel}>{compact ? <Crosshair aria-hidden="true" /> : returnCurrentTaskLabel}</button>
   </div>
   return <section className={`network-card${compact ? ' is-compact' : ''}`} aria-labelledby="network-title">
     <div className="network-head"><div>{!compact && <span className="eyebrow">TOPOLOGY / VIEW</span>}

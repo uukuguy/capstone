@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport } from './threadProjectionStore'
@@ -17,9 +17,11 @@ function instructionViewsFixture() {
   const layer = { ...sampleDiagramView.layer, model_revision: diagram.model.revision }
   const reference = `result:sha256:${'a'.repeat(64)}`
   const events = [
+    ['command_accepted', 'attempt_flow', { kind: 'send_auto', text: '运行潮流' }],
     ['network_diagram', 'attempt_flow', { diagram }],
     ['network_layer', 'attempt_flow', { ordinal: 1, layer: { ...layer, focus_ids: [], overlay: { metric: 'loading_percent', unit: '%', source_ref: reference, values: [{ id: 'line:1', value: 25 }] } } }],
     ['attempt_completed', 'attempt_flow', { answer: '全网潮流完成。', result_refs: [reference] }],
+    ['command_accepted', 'attempt_rank', { kind: 'send_auto', text: '排序线路' }],
     ['network_diagram', 'attempt_rank', { diagram }],
     ['network_layer', 'attempt_rank', { ordinal: 1, layer: { ...layer, focus_ids: ['line:1'], overlay: { metric: 'loading_percent', unit: '%', source_ref: reference, values: [{ id: 'line:1', value: 42 }] } } }],
     ['attempt_completed', 'attempt_rank', { answer: '排序完成。', result_refs: [reference] }],
@@ -276,7 +278,7 @@ describe('ThreadFixtureApp', () => {
     const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
     document.events = [
       { ...document.events[0], event_seq: 1, event_type: 'command_accepted', payload: { kind: 'send_auto', payload: { text: '读取当前模型' } } },
-      { ...document.events[2], event_seq: 2, payload: { answer: '原回答已完成。' } },
+      { ...document.events.find(event => event.event_type === 'attempt_completed'), event_seq: 2, payload: { answer: '原回答已完成。' } },
     ]
     document.next_event_seq = 2
     ;(fixture.snapshot as { last_event_seq: number }).last_event_seq = 2
@@ -298,6 +300,7 @@ describe('ThreadFixtureApp', () => {
   it('puts the model directory beside Composer settings and preserves its draft', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
     const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    expect(screen.getByRole('button', { name: '回到当前模型' })).toBeTruthy()
     fireEvent.change(input, { target: { value: '保留此草稿' } })
     const opener = screen.getByRole('button', { name: '模型目录' })
     expect(opener.closest('.capstone-composer-toolbar')).toBeTruthy()
@@ -324,10 +327,11 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('正在查看此回答对应的电网图')).toBeTruthy()
     expect(document.querySelector('svg title')?.textContent).toContain('25.0')
     expect(document.querySelectorAll('.network-branch-label')).toHaveLength(0)
-    fireEvent.click(screen.getByRole('button', { name: '回到最新指令图' }))
-    expect(document.querySelector('svg title')?.textContent).toContain('42.0')
+    fireEvent.click(within(screen.getByLabelText('电网图操作')).getByRole('button', { name: '回到当前任务' }))
+    await waitFor(() => expect(document.querySelector('svg title')?.textContent).toContain('42.0'))
     expect(document.querySelectorAll('.network-branch-label')).toHaveLength(1)
     expect(commands).toEqual([])
+    expect(screen.getAllByLabelText('用户指令')[1].classList.contains('is-located-instruction')).toBe(true)
   })
   it.each(['model change', 'profile change', 'active attempt', 'repeated rejection'])('retains a preset draft after stale recovery with %s', async (condition) => {
     const fixture = structuredClone(threadUiFixture('idle-ieee39'))

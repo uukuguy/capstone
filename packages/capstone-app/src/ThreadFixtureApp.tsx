@@ -63,6 +63,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
+  const [instructionLocation, setInstructionLocation] = useState<{ attemptId: string; nonce: number }>()
+  const [taskReturn, setTaskReturn] = useState<{ contextId: string; attemptId?: string; nonce: number }>()
+  const taskReturnGeneration = useRef(0)
   const commandInFlight = useRef(false)
   const composerSend = useRef(false)
   const composerCommands = useRef(new Set<string>())
@@ -223,6 +226,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
   const networkTask = store.latestNetworkEvent
+  const currentModelTaskId = [...events].reverse().find(event => event.modelContextId === snapshot?.activeModelContext.id
+    && event.attemptId && event.eventType === 'command_accepted' && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))?.attemptId
+    || [...store.networkTasks].filter(task => task.context.id === snapshot?.activeModelContext.id).sort((a, b) => b.eventSeq - a.eventSeq)[0]?.attemptId
   const displayedTaskId = selectedNetworkTask?.attemptId || networkTask?.attemptId
   const instructionNumber = instructionOrdinal(events, displayedTaskId)
   const resultContext = selectedNetworkTask?.context || snapshot?.activeModelContext
@@ -242,6 +248,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
+    taskReturnGeneration.current++
+    setInstructionLocation(undefined)
+    setTaskReturn(undefined)
     if (readOnly) { addSystemNotice('这段对话已归档，可新建对话继续。', 'info', 'archive'); return }
     const latest = store.state.snapshot
     if (!latest) return
@@ -300,6 +309,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   function selectPage(pageId: string) {
+    taskReturnGeneration.current++
+    setInstructionLocation(undefined)
+    setTaskReturn(undefined)
     setSelectedNetworkAttempt(undefined)
     setFocusedElement(undefined)
     store.viewGridPage(pageId); setNotice(pageId === store.state.snapshot?.activeGridPageId ? '已返回当前模型页' : '已打开只读历史页'); sync()
@@ -309,6 +321,41 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         if (store.state.viewedGridPageId !== pageId) return
         store.viewGridPage(restored); sync()
       }).catch(() => { if (store.state.viewedGridPageId === pageId) setNotice('该历史模型的电网图暂不可用。') })
+    }
+  }
+
+  async function returnCurrentTask() {
+    const current = store.state.snapshot
+    if (!current) return
+    const generation = ++taskReturnGeneration.current
+    const contextId = current.activeModelContext.id
+    const target = currentModelTaskId
+    const stillCurrent = () => generation === taskReturnGeneration.current && store.state.snapshot?.threadId === current.threadId
+      && store.state.snapshot?.activeModelContext.id === contextId
+    try {
+      if (target && !store.networkTasks.some(task => task.attemptId === target && task.context.id === contextId)) {
+        await store.restoreHistoricalNetwork(contextId, target)
+      }
+      if (!stillCurrent()) return
+      store.viewGridPage(current.activeGridPageId)
+      setSelectedNetworkAttempt(target)
+      setFocusedElement(undefined)
+      setTaskReturn({ contextId, attemptId: target, nonce: generation })
+      setNotice(null)
+      sync()
+      if (!target) return
+      const hasInstruction = () => store.publicEvents.some(event => event.attemptId === target && event.eventType === 'command_accepted'
+        && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
+      for (let pages = 0; !hasInstruction() && store.state.hasOlderHistory && pages < 8; pages++) {
+        await store.loadOlderHistory()
+        if (!stillCurrent()) return
+        sync()
+      }
+      if (!stillCurrent()) return
+      if (hasInstruction()) setInstructionLocation({ attemptId: target, nonce: generation })
+      else setNotice('已恢复当前任务电网图，对应指令暂未加载。')
+    } catch {
+      if (stillCurrent()) { setNotice('当前任务视图暂不可用，请重试。'); sync() }
     }
   }
 
@@ -454,6 +501,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model', payload: Record<string, unknown>): Promise<boolean> {
+    taskReturnGeneration.current++
+    setInstructionLocation(undefined)
+    setTaskReturn(undefined)
     if (modelInFlight.current) return false
     modelInFlight.current = true
     setModelBusy(true)
@@ -508,7 +558,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           networkTaskId={selectedNetworkTask?.attemptId || networkTask?.attemptId}
           networkFailureCode={!selectedNetworkTask && networkTask?.eventType === 'network_layer_unavailable' && typeof networkTask.payload.code === 'string' ? networkTask.payload.code : undefined}
           instructionLabel={displayedTaskId ? instructionNumber && !projection.hasOlderHistory ? `指令 ${instructionNumber} 结果` : '历史指令结果' : '基础拓扑'}
-          viewingInstruction={Boolean(selectedNetworkTask)} onLatestInstruction={() => selectPage(activePage!)}
+          viewingInstruction={Boolean(selectedNetworkTask && selectedNetworkTask.attemptId !== currentModelTaskId)} onLatestInstruction={() => { void returnCurrentTask() }}
+          returnCurrentTaskLabel={currentModelTaskId ? '回到当前任务' : '回到当前模型'}
+          returnTaskRequest={taskReturn?.contextId === (selectedNetworkTask?.context.id || snapshot.activeModelContext.id)
+            && taskReturn.attemptId === (selectedNetworkTask?.attemptId || networkTask?.attemptId) ? taskReturn.nonce : undefined}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
           onSelectPage={selectPage} feedback={notice}
           modelBusy={modelBusy || readOnly || loading || isActive || isInterrupted || caseActive || unresolvedCommand || contextChangePending || sending || projection.connection !== 'live'}
@@ -518,8 +571,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
+            instructionLocation={instructionLocation}
             onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={[...new Set([...store.networkTasks.map((task) => task.attemptId), ...events.filter((event) => event.attemptId && (event.eventType === 'network_diagram' || projection.modelWorkspace && event.eventType === 'attempt_completed' && event.modelContextId)).map((event) => event.attemptId!)])]} onShowNetwork={(attemptId) => {
+              taskReturnGeneration.current++
+              setInstructionLocation(undefined)
+              setTaskReturn(undefined)
               setFocusedElement(undefined)
               setSelectedNetworkAttempt(attemptId)
               setNotice(null)
