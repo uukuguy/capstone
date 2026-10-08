@@ -17,6 +17,15 @@ function buildRevision() {
   catch { return '' }
 }
 
+function buildIdentity(development = false) {
+  let dirty = false
+  if (development) {
+    try { dirty = Boolean(execFileSync('git', ['status', '--porcelain', '--untracked-files=normal', '--', 'packages', 'configs', 'deploy', 'Dockerfile'], { cwd: '../..', encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()) }
+    catch { /* A source-only checkout has no Git worktree. */ }
+  }
+  return { version: JSON.parse(readFileSync('package.json', 'utf8')).version, revision: buildRevision(), dirty }
+}
+
 export default defineConfig(({ mode }) => {
   // Keep the API behind Vite's same-origin proxy. This lets a phone on the LAN
   // use the local UI without exposing the local operator API or requiring CORS
@@ -33,8 +42,17 @@ export default defineConfig(({ mode }) => {
     headers: { Origin: apiProxyOrigin },
   }
   return {
-    define: { __CAPSTONE_BUILD__: JSON.stringify({ version: JSON.parse(readFileSync('package.json', 'utf8')).version, revision: buildRevision() }) },
-    plugins: [react()],
+    define: { __CAPSTONE_BUILD__: JSON.stringify(buildIdentity(mode === 'development')) },
+    plugins: [react(), {
+      name: 'capstone-local-build-identity',
+      configureServer(server) {
+        server.middlewares.use('/__capstone-build', (_request, response) => {
+          response.setHeader('Content-Type', 'application/json')
+          response.setHeader('Cache-Control', 'no-store')
+          response.end(JSON.stringify(buildIdentity(true)))
+        })
+      },
+    }],
     test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
     server: {
       proxy: { '/api': localApiProxy, '/health': localApiProxy },

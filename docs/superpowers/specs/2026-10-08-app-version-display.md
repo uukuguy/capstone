@@ -11,6 +11,11 @@ upload. The tracked `development` marker is the local fallback. A release must
 verify that the visible revision matches its deployed source. This public build
 receipt contains no credentials and adds no hosted build environment variables.
 
+Local Vite also reports uncommitted product changes as “开发中”. Its local-only
+metadata route refreshes the header every 30 seconds and on focus, so a running
+development server tracks later commits. Production bundles have no metadata
+polling. Documentation and status edits do not mark product code as dirty.
+
 The source is built into the bundle; a deployment tag is created only after
 verification, so it cannot be the pre-build version. The package version remains
 the product version, while the commit distinguishes each tested release.

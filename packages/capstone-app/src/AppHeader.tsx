@@ -1,10 +1,26 @@
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 
 function Mark() {
   return <span className="mark" aria-hidden="true"><i /><i /><i /><i /></span>
 }
 
 export function PageHeader({ className = '', showThreadEntry = true, actions }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode }) {
+  const [build, setBuild] = useState(__CAPSTONE_BUILD__)
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.MODE === 'test') return
+    let active = true
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return
+      void fetch('/__capstone-build').then(response => response.ok ? response.json() : null).then(value => {
+        if (active && value && typeof value.version === 'string' && typeof value.revision === 'string' && typeof value.dirty === 'boolean') setBuild(value)
+      }).catch(() => {})
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 30_000)
+    window.addEventListener('focus', refresh)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [])
   const projectLink = <a className="project-link" href="https://github.com/uukuguy/capstone"
       target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 CAPSTONE 项目源代码" title="在 GitHub 查看 CAPSTONE 项目源代码">
       <svg className="project-link-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -13,8 +29,8 @@ export function PageHeader({ className = '', showThreadEntry = true, actions }: 
     </a>
   return <header className={`topbar ${className}`.trim()}>
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span>
-      <span className="app-version" aria-label="App 版本" title={`源代码版本：${__CAPSTONE_BUILD__.revision || '本地开发'}`}>
-        v{__CAPSTONE_BUILD__.version} · {__CAPSTONE_BUILD__.revision.slice(0, 7) || '开发版'}
+      <span className="app-version" aria-label="App 版本" title={`源代码版本：${build.revision || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
+        v{build.version} · {build.revision.slice(0, 7) || '开发版'}{build.dirty ? ' · 开发中' : ''}
       </span><span className="brand-divider" />
       <span className="brand-subtitle">电网分析工作台</span></div>
     {actions ? <div className="topbar-right">{actions}{projectLink}</div> : <>
