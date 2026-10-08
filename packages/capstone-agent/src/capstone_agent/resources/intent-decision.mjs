@@ -1,4 +1,6 @@
 // Trusted application output hook. This tool cannot call an authority or a shell.
+import { readFileSync } from "node:fs";
+
 const strings = { type: "array", items: { type: "string" } };
 const goal = {
   type: "object", additionalProperties: false,
@@ -13,6 +15,18 @@ const goal = {
 };
 
 export default function (pi) {
+  const projection = JSON.parse(readFileSync(process.env.CAPSTONE_PI_CONTEXT_PATH, "utf8"));
+  const request = projection.supplemental_context.request;
+  const references = (ids) => ids.length
+    ? { type: "array", uniqueItems: true, items: { type: "string", enum: ids } }
+    : { ...strings, maxItems: 0 };
+  const messageIds = projection.messages.map((message) => message.message_id);
+  if (request.instruction_message_id) messageIds.push(request.instruction_message_id);
+  const boundedGoal = { ...goal, properties: { ...goal.properties,
+    message_refs: references(messageIds),
+    object_refs: references(request.objects.map((object) => object.object_id)),
+    capability_refs: references(request.capabilities.map((capability) => capability.capability_id)),
+  } };
   pi.registerTool({
     name: "capstone_intent_decision", label: "Request decision",
     description: "Finish request understanding with one structured decision. This grants no execution permission.",
@@ -24,7 +38,7 @@ export default function (pi) {
         attempt_id: { type: "string", minLength: 1 },
         history_cutoff: { type: "integer", minimum: 0 },
         relationship: { type: "string", enum: ["independent", "continuation", "supplement", "unclear"] },
-        goals: { type: "array", minItems: 1, items: goal },
+        goals: { type: "array", minItems: 1, items: boundedGoal },
         clarification: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
       },
     },

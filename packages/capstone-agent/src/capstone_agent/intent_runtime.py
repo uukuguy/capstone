@@ -55,6 +55,7 @@ def intent_request_for_claim(claim: AttemptClaim) -> IntentRequest:
     return IntentRequest.from_document({
         'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
         'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
+        'instruction_message_id': claim.attempt.attempt_id + ':user',
         'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
         'history_truncated': history['truncated'],
         'messages': messages,
@@ -96,6 +97,8 @@ class IntentRuntimeFactory:
             raise ValueError('intent configuration changed since original Attempt')
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
+        if 'instruction_message_id' in request_doc:
+            request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
         request = IntentRequest.from_document(request_doc)
         decision = recognizer.recognize(request, control)
         # A pluggable engine cannot bypass request binding or grant permission.

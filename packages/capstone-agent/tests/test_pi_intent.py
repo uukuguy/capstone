@@ -12,6 +12,7 @@ def request_document():
     return {
         "schema": "capstone-intent-request/1", "thread_id": "thread_1",
         "turn_id": "turn_1", "attempt_id": "attempt_1", "instruction": "Translate that answer.",
+        "instruction_message_id": "attempt_1:user",
         "history_cutoff": 7, "messages": [{"message_id": "message_1", "role": "assistant",
             "content": "The result is available.", "turn_id": "turn_0", "attempt_id": "attempt_0",
             "model_context_id": "context_0", "status": "completed"}],
@@ -74,6 +75,27 @@ def test_recognizer_uses_validated_terminating_tool_and_closes():
     assert decision.to_document() == decision_document()
     assert json.loads(session.question) == request_document()
     assert session.stopped and control.calls >= 4
+
+
+def test_intent_tool_schema_limits_references_to_supplied_source_ids(tmp_path):
+    import subprocess
+    import shutil
+    node = shutil.which('node')
+    assert node is not None
+    projection = tmp_path / 'context.json'
+    request = request_document()
+    request['instruction_message_id'] = 'attempt_1:user'
+    projection.write_text(json.dumps({'messages': request['messages'],
+        'supplemental_context': {'request': request}}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/intent-decision.mjs'
+    result = subprocess.run([node, '--input-type=module', '-e',
+        'const {default: register} = await import(process.argv[1]); '
+        'register({registerTool: tool => console.log(JSON.stringify(tool.parameters)), on: () => {}});',
+        extension.as_uri()], env={**os.environ, 'CAPSTONE_PI_CONTEXT_PATH': str(projection)},
+        capture_output=True, text=True, check=True)
+    fields = json.loads(result.stdout)['properties']['goals']['items']['properties']
+    assert set(fields['message_refs']['items']['enum']) == {'message_1', 'attempt_1:user'}
+    assert fields['object_refs']['maxItems'] == fields['capability_refs']['maxItems'] == 0
 
 
 @pytest.mark.parametrize("events", [[], [{"type": "tool_result", "capability": "capstone.intent.decision",
@@ -320,7 +342,8 @@ def test_intent_native_launch_disables_session_persistence(tmp_path):
 
 
 @pytest.mark.parametrize("worker_tools_enabled", [None, False, True], ids=["adapter", "worker-tools-off", "worker-tools-on"])
-def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_path, worker_tools_enabled):
+@pytest.mark.parametrize("history_present", [True, False], ids=["shared-history", "fresh-news"])
+def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_path, worker_tools_enabled, history_present):
     """Real Pi, a local SSE fixture, no external provider or credentials."""
     import shutil
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -352,14 +375,24 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                 intent_inputs.append(intent_request)
                 decision = decision_document()
                 decision.update(attempt_id=intent_request["attempt_id"], history_cutoff=intent_request["history_cutoff"])
-                decision["goals"][0]["message_refs"] = [next(message["message_id"]
-                    for message in intent_request["messages"] if message["role"] == "assistant")]
+                if history_present:
+                    decision["goals"][0]["message_refs"] = [next(message["message_id"]
+                        for message in intent_request["messages"] if message["role"] == "assistant")]
+                else:
+                    decision['relationship'] = 'independent'
+                    decision['goals'][0].update(description='Get today international news',
+                        operation='external_lookup', message_refs=[intent_request['instruction_message_id']],
+                        missing_requirements=['No registered live news source'])
+                    decision['clarification'] = 'Provide news text to summarize.'
+                fields = request['tools'][0]['function']['parameters']['properties']['goals']['items']['properties']
+                assert set(decision['goals'][0]['message_refs']) <= set(fields['message_refs']['items']['enum'])
                 delta = {"role": "assistant", "tool_calls": [{"index": 0, "id": "call_fixture",
                     "type": "function", "function": {"name": "capstone_intent_decision",
                     "arguments": json.dumps(decision)}}]}
                 reason = "tool_calls"
             else:
-                delta = {"role": "assistant", "content": "Translated fixture answer."}
+                delta = {"role": "assistant", "content": "Translated fixture answer." if history_present
+                    else 'No live news source is registered.'}
                 reason = "stop"
             for content, finish in [(delta, None), ({}, reason)]:
                 chunk = {"id": "fixture_response", "object": "chat.completion.chunk", "created": 0,
@@ -382,7 +415,10 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
         builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
             workspace_root=tmp_path / "runs", base_environment={"PATH": os.environ["PATH"]})
         if worker_tools_enabled is None:
-            request = IntentRequest.from_document(request_document())
+            document = request_document()
+            if not history_present:
+                document.update(messages=[], instruction='今天的国际要闻')
+            request = IntentRequest.from_document(document)
             decision = PiIntentRecognizer(builder.build_intent, builder.identity).recognize(request, Control())
             assert len(requests) == 1, "Terminating decision must avoid a follow-up model request"
             assert not [path for path in (tmp_path / "runs").rglob("*.jsonl") if "session" in path.parts], \
@@ -390,7 +426,7 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
             session = builder.build_execution(SimpleNamespace(intent_request=request, application_catalog=None), decision)
             try:
                 session.start()
-                answer = session.prompt_and_wait("Translate that answer.", on_semantic_event=lambda event: None,
+                answer = session.prompt_and_wait(document['instruction'], on_semantic_event=lambda event: None,
                     correlation_id="attempt_1", on_heartbeat=lambda: None)
             finally:
                 session.stop()
@@ -416,11 +452,13 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                     "kind": "send_auto", "expected_event_seq": service.snapshot("thread_loopback").last_event_seq,
                     "payload": {"text": text}})
 
-            submit("command_prior", "What is available?")
-            prior = service.claim_attempt("seed_worker", 30)
-            assert prior is not None
-            service.finish_attempt(prior, phase="completed", payload={"answer": "The result is available."})
-            submit("command_current", "Translate that answer.")
+            prior = None
+            if history_present:
+                submit("command_prior", "What is available?")
+                prior = service.claim_attempt("seed_worker", 30)
+                assert prior is not None
+                service.finish_attempt(prior, phase="completed", payload={"answer": "The result is available."})
+            submit("command_current", "Translate that answer." if history_present else '今天的国际要闻')
             factory = IntentRuntimeFactory(
                 lambda claim: pytest.fail("Ordinary worker prepared a business Domain Pack"),
                 lambda: PiIntentRecognizer(builder.build_intent, builder.identity), builder.build_execution)
@@ -430,7 +468,7 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
             assert result.admission == {"mode": "offline_information", "assurance": "general_knowledge"}
             answer = result.answer
             events = service.read_events("thread_loopback", 0).events
-            current = [event for event in events if event.attempt_id != prior.attempt.attempt_id]
+            current = [event for event in events if prior is None or event.attempt_id != prior.attempt.attempt_id]
             types = [event.event_type for event in current]
             assert types.index("intent_started") < types.index("turn_plan_created") < types.index("attempt_completed")
             completed = next(event for event in current if event.event_type == "attempt_completed")
@@ -440,15 +478,17 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
             assert bool(intent_inputs[0]["capabilities"]) == worker_tools_enabled
             assert service.snapshot("thread_loopback").active_model_context.enabled_profiles == selection.enabled_profiles
             assert service.snapshot("thread_loopback").current_attempt is None
-        assert answer == "Translated fixture answer." and len(requests) == 2
+        assert answer == ("Translated fixture answer." if history_present else 'No live news source is registered.')
+        assert len(requests) == 2
         for captured in requests:
-            history = next(message for message in captured["messages"]
-                if message["role"] == "assistant" and "The result is available" in str(message["content"]))
-            assert history["role"] == "assistant"
+            if history_present:
+                history = next(message for message in captured["messages"]
+                    if message["role"] == "assistant" and "The result is available" in str(message["content"]))
+                assert history["role"] == "assistant"
             system = captured["messages"][0]["content"]
             assert "You are Capstone" in system and "The result is available" not in system
             assert "GRID DOMAIN ROLE" not in system
-            if worker_tools_enabled is not None:
+            if worker_tools_enabled is not None and history_present:
                 assert any(message["role"] == "user" and "What is available?" in str(message["content"])
                            for message in captured["messages"])
                 assert "What is available?" not in system

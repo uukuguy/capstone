@@ -36,6 +36,26 @@ def decision_document() -> dict:
     }
 
 
+def test_current_instruction_has_an_explicit_reference_without_history() -> None:
+    document = request_document()
+    document['messages'] = []
+    document['instruction_message_id'] = 'attempt_2:user'
+    request = IntentRequest.from_document(document)
+    output = decision_document()
+    output['goals'][0]['message_refs'] = ['attempt_2:user']
+    assert IntentDecision.from_document(output, request).to_document() == output
+    output['goals'][0]['message_refs'] = ['turn_2']
+    with pytest.raises(ValueError, match='unknown intent message_refs'):
+        IntentDecision.from_document(output, request)
+
+
+def test_current_instruction_reference_cannot_claim_another_attempt() -> None:
+    document = request_document()
+    document['instruction_message_id'] = 'attempt_other:user'
+    with pytest.raises(ValueError, match='instruction message'):
+        IntentRequest.from_document(document)
+
+
 def test_request_and_decision_defend_nested_input_and_output() -> None:
     document = request_document()
     original = deepcopy(document)

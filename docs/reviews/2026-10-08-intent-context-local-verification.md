@@ -103,3 +103,37 @@ against a different active model or admit historical results as current evidence
 
 The first implementation uses bounded recent history with explicit truncation.
 It does not add an automatic long-term summarizer or arbitrary history retrieval.
+
+## Follow-up: current-message reference failure
+
+The user's local news request failed with `intent_recognition_failed`. Private
+Pi traces show a completed structured tool call: the model selected
+`external_lookup` and correctly reported the unavailable live news source, but
+referenced a Turn ID as a message ID. A second existing request referenced a
+synthetic current-message ID absent from the supplied history. Offline replay
+reproduced `unknown intent message_refs reference`; execution never started.
+
+The original input supplied the current instruction and Thread/Turn/Attempt IDs,
+but gave only historical messages explicit source identities. The fix adds
+`instruction_message_id`, bound to the current Attempt's user message, without
+duplicating the current instruction in history. Retry rebinds that identity while
+preserving frozen history. The terminating tool now enumerates valid message,
+object and capability references from the same input. The native intent guide
+distinguishes message IDs from Turn and Attempt IDs. Unknown references remain
+rejected; no heuristic correction or fallback is added.
+
+Four regression tests first failed on the old source. Focused contract/runtime/
+worker/session checks then passed: 140 tests. Native Pi tests pass: 21, including
+fresh news requests through the real worker/ledger with calculation tools on and
+off, one recognition call and one ordinary execution call. These use a local SSE
+fixture, not an external Provider. Type checks report 0 errors; package boundaries
+and doctor pass. The general Capstone suite passes: 746 tests, with 46 optional
+infrastructure tests skipped. `make capstone-local-rebuild` passes; API and both
+workers use image
+`sha256:fbb4edf2cbabd7c232f2ef6b6939f968110ef2c32ee5f24381e46904f05112e9`.
+The API is ready and the local App is reachable. Existing failed Attempts retain
+their immutable configuration snapshot; use a new send to evaluate the fix.
+
+Only existing user-triggered Provider output was inspected. No new billed
+Provider request was made by the debugging agent. Real model retry and response
+quality acceptance remain open.

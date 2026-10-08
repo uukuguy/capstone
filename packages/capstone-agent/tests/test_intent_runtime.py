@@ -43,6 +43,31 @@ class Recognizer:
         }, request)
 
 
+def test_hosted_intent_input_identifies_current_message_without_history():
+    _, current = claim()
+    assert current is not None
+    document = intent_request_for_claim(current).to_document()
+    assert document['messages'] == []
+    assert document['instruction_message_id'] == current.attempt.attempt_id + ':user'
+
+
+def test_retry_rebinds_current_message_identity_with_frozen_history():
+    _, current = claim()
+    assert current is not None
+    frozen = []
+    factory = IntentRuntimeFactory(lambda _: SimpleNamespace(), lambda: Recognizer(),
+                                   lambda attempt, decision: SimpleNamespace())
+    control = NodeControl(lambda: None, time.monotonic() + 5)
+    factory.plan_intent(current, control, lambda claim, document: frozen.append(document) or document)
+    retry = replace(current, attempt=replace(current.attempt, attempt_id='attempt_retry'))
+    plan = factory.plan_intent(retry, control, lambda claim, document: frozen[0])
+    document = plan.intent_request.to_document()
+    assert document['attempt_id'] == 'attempt_retry'
+    assert document['instruction_message_id'] == 'attempt_retry:user'
+    assert document['messages'] == frozen[0]['request']['messages']
+    assert frozen[0]['request']['instruction_message_id'] != 'attempt_retry:user'
+
+
 def test_ordinary_semantics_bypass_domain_preparation_and_keep_model():
     service, current = claim()
     assert current is not None

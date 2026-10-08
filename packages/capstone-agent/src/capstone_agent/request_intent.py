@@ -135,11 +135,14 @@ class IntentRequest:
         value = _fields(json.loads(serialized), {
             "schema", "thread_id", "turn_id", "attempt_id", "instruction", "history_cutoff",
             "messages", "objects", "capabilities", "mode_hint",
-        }, {"history_truncated"})
+        }, {"history_truncated", "instruction_message_id"})
         if value["schema"] != REQUEST_SCHEMA:
             raise ValueError("unsupported intent request schema")
         for key in ("thread_id", "turn_id", "attempt_id"):
             _text(value[key], key, limit=256)
+        if 'instruction_message_id' in value:
+            if value['instruction_message_id'] != value['attempt_id'] + ':user':
+                raise ValueError('instruction message identity does not match its Attempt')
         _text(value["instruction"], "instruction")
         _integer(value["history_cutoff"], "history_cutoff")
         if "history_truncated" in value and type(value["history_truncated"]) is not bool:
@@ -242,6 +245,8 @@ class IntentDecision:
             "object_refs": _identities(source["objects"], "object_id"),
             "capability_refs": _identities(source["capabilities"], "capability_id"),
         }
+        if 'instruction_message_id' in source:
+            allowed['message_refs'].add(source['instruction_message_id'])
         prior_goals: set[str] = set()
         for goal in goals:
             _fields(goal, {"goal_id", "description", "operation", "message_refs", "object_refs",

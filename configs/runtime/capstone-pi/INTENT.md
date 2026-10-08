@@ -13,6 +13,12 @@ supplied by the application. Describe unclear references as missing requirements
 and give a useful clarification question. Operational limits do not prevent
 general conceptual discussion. The explicit mode is an intent hint, not a grant.
 
+The current instruction has its own instruction_message_id. Use that exact value
+when a goal refers to the current message. Historical message_refs must use a
+message_id from messages. Thread, Turn, Attempt and object IDs are not message
+IDs. Use [] when no message reference is needed. The tool schema lists the allowed
+references. Do not synthesize IDs from other request fields.
+
 When history_truncated is true, missing earlier details are unknown. Ask for the
 needed information when a reference cannot be resolved from the supplied messages.
 Historical object identities support discussion; only the current application
