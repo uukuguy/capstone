@@ -12,8 +12,12 @@ def verify(local: dict, cloud: dict, contract: dict, expected_contract_hash: str
     if set(local) != roles or set(cloud) != roles:
         raise ValueError("runtime roles differ")
     contract_hashes = set()
-    artifacts = set()
+    sources = set()
+    stage_artifacts = []
+    architectures = []
     for expected_stage, receipts in [("local", local), ("cloud-development", cloud)]:
+        artifacts = set()
+        stage_architectures = set()
         for role, receipt in receipts.items():
             expected = {"schema": "capstone-host-runtime-receipt/1",
                         "profile": contract["profile"], "stage": expected_stage,
@@ -23,9 +27,19 @@ def verify(local: dict, cloud: dict, contract: dict, expected_contract_hash: str
                 raise ValueError("runtime receipt differs: " + role)
             contract_hashes.add(receipt.get("contract_sha256"))
             artifacts.add(receipt.get("artifact_sha256"))
+            sources.add(receipt.get('source_artifact_sha256'))
+            stage_architectures.add(receipt.get('architecture'))
+        if len(artifacts) != 1 or not all(artifacts):
+            raise ValueError("runtime artifact hashes differ")
+        if len(stage_architectures) != 1 or not all(stage_architectures):
+            raise ValueError('runtime architectures differ')
+        stage_artifacts.append(next(iter(artifacts)))
+        architectures.append(next(iter(stage_architectures)))
     if contract_hashes != {expected_contract_hash}:
         raise ValueError("runtime contract hashes differ")
-    if len(artifacts) != 1 or not all(artifacts):
+    if len(sources) != 1 or not all(sources):
+        raise ValueError('source artifact hashes differ')
+    if architectures[0] == architectures[1] and stage_artifacts[0] != stage_artifacts[1]:
         raise ValueError("runtime artifact hashes differ")
 
 
@@ -42,7 +56,7 @@ def main() -> int:
     except (OSError, ValueError, KeyError):
         print("Host runtime alignment rejected", file=sys.stderr)
         return 1
-    print("Host runtime contract and artifacts match local acceptance")
+    print("Host runtime sources match local acceptance; installed artifacts agree within each stage")
     return 0
 
 

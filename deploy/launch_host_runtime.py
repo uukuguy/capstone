@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import sys
 import time
@@ -82,7 +83,7 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             sleep(settings["retry_seconds"])
 
 
-def artifact_identity(root: Path, model_dir: Path):
+def artifact_identity(root: Path, model_dir: Path, *, include_catalog: bool = True):
     """Hash installed logical sources, locks, package versions and model assets."""
     entries = {}
 
@@ -118,7 +119,7 @@ def artifact_identity(root: Path, model_dir: Path):
     for path in assets:
         entries["model-assets/" + path.name] = digest(path)
     snapshot_path = root / '.capstone-agent/federated-catalog.json'
-    if snapshot_path.exists():
+    if include_catalog and snapshot_path.exists():
         snapshot = json.loads(snapshot_path.read_bytes())
         # Exclude the declared identity to avoid a circular hash, but bind all
         # installed metadata. Any payload change changes the runtime receipt.
@@ -141,6 +142,8 @@ def main() -> int:
             "schema": "capstone-host-runtime-receipt/1", "profile": contract["profile"],
             "contract_sha256": hashlib.sha256((root / "configs/runtime/host-runtime-v1.json").read_bytes()).hexdigest(),
             "artifact_sha256": artifact_identity(root, Path(environment["CAPSTONE_PYPSA_MODEL_LIBRARY_DIR"])),
+            "source_artifact_sha256": artifact_identity(root, Path(environment["CAPSTONE_PYPSA_MODEL_LIBRARY_DIR"]), include_catalog=False),
+            "architecture": platform.machine(),
             "role": role, "application": spec["application"],
             "stage": environment["CAPSTONE_DEPLOYMENT_STAGE"], "dependencies_ready": True,
             "provider_configured": role != "api",

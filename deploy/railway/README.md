@@ -86,10 +86,15 @@ on workers and waits for both family workers before API startup. Settings that
 conflict with the profile fail startup with the configuration key only.
 Infrastructure origins, database, storage, credentials and capacity remain
 environment values. Compare `/app/.capstone-agent/host-runtime.json` in all
-three roles against the local receipt: contract and logical artifact hashes
-must match. The artifact hash includes source, locks, installed Python package
+three roles against the local receipt: contract and source artifact hashes
+must match. The source hash includes source, locks, installed Python package
 versions, the pinned build recipe and six model assets. It does not hash secrets
-or stage-specific infrastructure. A receipt proves alignment; actual App,
+or stage-specific infrastructure. The installed artifact hash also includes
+the Authority catalog and must match all backend roles within each stage.
+ARM and x86 can produce different floating-point revision hashes for generated
+models; compare source identity across architectures, and installed identity
+across stages with the same architecture. Snapshots still require their exact
+installed artifact identity. A receipt proves alignment; actual App,
 Provider and evidence checks still gate acceptance.
 Save role-keyed receipt objects (`api`, `pandapower`, `pypsa`) and run
 `python deploy/verify_host_runtime.py local-receipts.json cloud-receipts.json`.

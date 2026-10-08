@@ -119,12 +119,14 @@ def test_installed_catalog_payload_is_part_of_runtime_identity(tmp_path):
     snapshot = {'schema': 'capstone-federated-catalog-snapshot/1', 'documents': [{'model': 'original'}]}
     path.write_text(json.dumps(snapshot))
     original = RUNTIME.artifact_identity(tmp_path, models)
+    source = RUNTIME.artifact_identity(tmp_path, models, include_catalog=False)
     snapshot['artifact_sha256'] = original
     path.write_text(json.dumps(snapshot))
     assert RUNTIME.artifact_identity(tmp_path, models) == original
     snapshot['documents'][0]['model'] = 'changed'
     path.write_text(json.dumps(snapshot))
     assert RUNTIME.artifact_identity(tmp_path, models) != original
+    assert RUNTIME.artifact_identity(tmp_path, models, include_catalog=False) == source
 
 
 @pytest.mark.parametrize("origins", ["", "pandapower=http://pp", "pandapower=http://pp,pypsa=http://py,pypsa=http://other"])
@@ -144,7 +146,8 @@ def test_alignment_gate_rejects_cloud_artifact_and_stage_drift():
         return {role: {"schema": "capstone-host-runtime-receipt/1", "profile": contract["profile"],
                        "role": role, "application": value["application"], "stage": stage,
                        "dependencies_ready": True, "provider_configured": role != "api",
-                       "contract_sha256": "same-contract", "artifact_sha256": "same-artifact"}
+                       "contract_sha256": "same-contract", "artifact_sha256": "same-artifact",
+                       "source_artifact_sha256": "same-source", "architecture": "aarch64"}
                 for role, value in contract["roles"].items()}
     local, cloud = receipts("local"), receipts("cloud-development")
     gate.verify(local, cloud, contract, "same-contract")
@@ -156,3 +159,10 @@ def test_alignment_gate_rejects_cloud_artifact_and_stage_drift():
         gate.verify(local, cloud, contract, "same-contract")
     with pytest.raises(ValueError, match="contract hashes differ"):
         gate.verify(local, receipts("cloud-development"), contract, "new-contract")
+    cloud = receipts('cloud-development')
+    for receipt in cloud.values():
+        receipt.update(architecture='x86_64', artifact_sha256='cloud-installed-artifact')
+    gate.verify(local, cloud, contract, 'same-contract')
+    cloud['api']['source_artifact_sha256'] = 'changed-source'
+    with pytest.raises(ValueError, match='source artifact hashes differ'):
+        gate.verify(local, cloud, contract, 'same-contract')

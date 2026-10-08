@@ -126,8 +126,12 @@ role commands, Provider/model selectors and startup dependencies. Environment
 values supply stage-specific infrastructure and credentials. Conflicting
 runtime selectors fail before application startup. API startup waits for both
 family workers; subsequent catalog and admission checks refresh worker health.
-The deployment receipt records contract and logical artifact hashes without
-secrets. These hashes must match local acceptance and all cloud backend roles.
+The deployment receipt records contract, source artifact, installed artifact
+and architecture without secrets. Contract and source identity must match
+local acceptance and all cloud backend roles. Installed identity includes the
+Authority catalog and must match within each stage, and across stages with the
+same architecture. Generated-model floating-point revisions can differ on ARM
+and x86; this does not relax exact model revision or snapshot checks.
 Base images use pinned multi-platform digests and package installs use locks.
 Capacity and infrastructure can differ; application semantics must not.
 Bounded scripted validation is an explicit separate mode, not this profile.

@@ -95,3 +95,10 @@ pandapower Authority must seed registered factories by their stable factory
 identifier, serialize construction and restore the previous random state.
 Registered fixture revisions must match across independent exports and model
 opens. Existing stored model artifacts and historical evidence stay intact.
+
+Keep source identity separate from installed catalog identity in runtime
+receipts. Independent cloud workers must agree on both. Compare source identity
+with local acceptance; when local ARM and cloud x86 differ, generated-model
+floating-point revisions can differ. Compare full installed identity across
+stages with the same architecture. The snapshot remains bound to its full
+installed identity, so metadata modification still blocks startup.
