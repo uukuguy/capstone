@@ -81,11 +81,50 @@ def test_api_waits_for_both_workers_and_bounds_wait():
 
     RUNTIME.wait_for_workers(contract, settings, probe=probe, clock=lambda: elapsed[0], sleep=sleep)
     assert elapsed[0] == 2
-    assert seen[-2:] == ["http://pp/health", "http://py/health"]
+    assert set(seen[-2:]) == {"http://pp/health", "http://py/health"}
     with pytest.raises(ValueError, match="startup deadline"):
         RUNTIME.wait_for_workers(contract, settings, probe=lambda url: False,
                                  clock=lambda: elapsed[0], sleep=sleep)
     assert elapsed[0] >= contract["startup"]["timeout_seconds"]
+
+
+def test_api_wakes_both_cold_workers_concurrently():
+    import threading
+    contract = RUNTIME.select_runtime(ROOT, environment(), 'api')[0]
+    barrier = threading.Barrier(2)
+    seen = []
+    def probe(url):
+        seen.append(url)
+        barrier.wait(timeout=1)
+        return True
+    RUNTIME.wait_for_workers(contract,
+        {'CAPSTONE_FAMILY_HEALTH_URLS': 'pandapower=http://pp,pypsa=http://py'}, probe=probe)
+    assert set(seen) == {'http://pp/health', 'http://py/health'}
+
+
+def test_installed_catalog_payload_is_part_of_runtime_identity(tmp_path):
+    import json
+    (tmp_path / 'configs').mkdir()
+    (tmp_path / 'packages').mkdir()
+    (tmp_path / 'deploy').mkdir()
+    for name in ['Dockerfile', 'deploy/entrypoint.sh', 'deploy/launch_host_runtime.py', 'deploy/bake_catalog_snapshot.py']:
+        (tmp_path / name).write_text('fixed source')
+    models = tmp_path / 'models'
+    models.mkdir()
+    for number in range(6):
+        (models / f'{number}.nc').write_bytes(b'fixed asset')
+    directory = tmp_path / '.capstone-agent'
+    directory.mkdir()
+    path = directory / 'federated-catalog.json'
+    snapshot = {'schema': 'capstone-federated-catalog-snapshot/1', 'documents': [{'model': 'original'}]}
+    path.write_text(json.dumps(snapshot))
+    original = RUNTIME.artifact_identity(tmp_path, models)
+    snapshot['artifact_sha256'] = original
+    path.write_text(json.dumps(snapshot))
+    assert RUNTIME.artifact_identity(tmp_path, models) == original
+    snapshot['documents'][0]['model'] = 'changed'
+    path.write_text(json.dumps(snapshot))
+    assert RUNTIME.artifact_identity(tmp_path, models) != original
 
 
 @pytest.mark.parametrize("origins", ["", "pandapower=http://pp", "pandapower=http://pp,pypsa=http://py,pypsa=http://other"])

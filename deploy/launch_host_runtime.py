@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from urllib.request import urlopen
 
 
@@ -68,12 +69,17 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
 
     probe = probe or http_probe
     deadline = clock() + settings["timeout_seconds"]
-    while True:
-        if all(probe(endpoints[family]) for family in settings["required_families"]):
-            return
-        if clock() >= deadline:
-            raise RuntimeContractError("family worker startup deadline")
-        sleep(settings["retry_seconds"])
+    with ThreadPoolExecutor(max_workers=len(endpoints)) as pool:
+        while True:
+            # Submit every wake before waiting: a cold first family must not
+            # postpone starting the other family.
+            checks = [pool.submit(probe, endpoints[family]) for family in settings['required_families']]
+            ready = [check.result() for check in checks]
+            if all(ready):
+                return
+            if clock() >= deadline:
+                raise RuntimeContractError("family worker startup deadline")
+            sleep(settings["retry_seconds"])
 
 
 def artifact_identity(root: Path, model_dir: Path):
@@ -92,6 +98,7 @@ def artifact_identity(root: Path, model_dir: Path):
             if path.is_file() and "__pycache__" not in path.parts and path.suffix in {".py", ".mjs", ".js", ".json", ".md", ".patch"}:
                 entries[str(path.relative_to(root))] = digest(path)
     for path in [root / "Dockerfile", root / "deploy/entrypoint.sh", root / "deploy/launch_host_runtime.py",
+                 root / 'deploy/bake_catalog_snapshot.py',
                  *(root / "packages").glob("*/uv.lock"), *(root / "packages").glob("*/pyproject.toml"),
                  *(root / "packages").glob("*/package-lock.json")]:
         entries[str(path.relative_to(root))] = digest(path)
@@ -110,6 +117,14 @@ def artifact_identity(root: Path, model_dir: Path):
         raise RuntimeContractError("pinned PyPSA model assets")
     for path in assets:
         entries["model-assets/" + path.name] = digest(path)
+    snapshot_path = root / '.capstone-agent/federated-catalog.json'
+    if snapshot_path.exists():
+        snapshot = json.loads(snapshot_path.read_bytes())
+        # Exclude the declared identity to avoid a circular hash, but bind all
+        # installed metadata. Any payload change changes the runtime receipt.
+        metadata = {'schema': snapshot['schema'], 'documents': snapshot['documents']}
+        entries['installed-authority-catalog'] = hashlib.sha256(
+            json.dumps(metadata, sort_keys=True).encode()).hexdigest()
     payload = {"files": entries, "packages": versions, "python": list(sys.version_info[:3])}
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
@@ -130,6 +145,7 @@ def main() -> int:
             "stage": environment["CAPSTONE_DEPLOYMENT_STAGE"], "dependencies_ready": True,
             "provider_configured": role != "api",
         }
+        environment['CAPSTONE_RUNTIME_ARTIFACT_SHA256'] = receipt['artifact_sha256']
         directory = root / ".capstone-agent"
         directory.mkdir(exist_ok=True)
         path = directory / "host-runtime.json"

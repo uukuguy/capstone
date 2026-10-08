@@ -20,6 +20,7 @@ COPY schemas/ schemas/
 COPY third-party-notices/ third-party-notices/
 COPY deploy/entrypoint.sh deploy/entrypoint.sh
 COPY deploy/launch_host_runtime.py deploy/launch_host_runtime.py
+COPY deploy/bake_catalog_snapshot.py deploy/bake_catalog_snapshot.py
 COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
 COPY deploy/local-model-assets/ /opt/capstone-models/
@@ -41,6 +42,7 @@ RUN UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-agent \
        python -m pypsa_model_authority.model_library install --all \
     && UV_NO_SYNC=0 uv run --no-sync --project packages/pypsa-agent \
        python -c 'from pypsa_model_authority.model_library import list_official_examples, verified_asset_path; [verified_asset_path(item.catalog_id) for item in list_official_examples()]' \
+    && uv run --no-sync --project packages/capstone-agent python deploy/bake_catalog_snapshot.py \
     && groupadd --system capstone \
     && useradd --system --gid capstone --home-dir /app --no-create-home capstone \
     && mkdir -p /app/runs /app/.capstone-agent /app/.grid-agent /tmp/uv-cache \

@@ -68,3 +68,24 @@ precede cloud changes. Cloud-dev is resumed with Serverless enabled and kept
 available after validation. Development push triggers remain disabled to avoid
 unrelated builds while testing sleep. No demo mutation or Provider call is
 required. A cloud-dev acceptance tag follows complete stage validation.
+
+## Cold-start correction from cloud verification
+
+The first full browser wake of revision `2ef57c8` took 125.862 seconds. Input
+admission remained safe, but this delay is rejected as the UX acceptance result.
+Startup waited for family workers serially and each backend repeatedly ran
+Authority catalog exporters that load every registered model.
+
+Generate the bounded registered catalog documents once during the image build
+using the same fixed Authority exporters. Bake a read-only snapshot bound to
+the installed source, locks, versions, assets and build recipe. Its metadata
+payload participates in the runtime artifact identity. The launcher derives
+the identity; the loader rejects missing, malformed or mismatched snapshots.
+Plain CLI paths without a hosted artifact identity retain Authority export.
+Wake both family workers concurrently. Keep actual family availability probes
+and command admission checks; an installed catalog is not worker readiness.
+
+This snapshot covers only the immutable registered catalog for the image. It
+does not cache user model changes, current Context state, calculation results
+or evidence, and does not bypass exact revision checks when a model is opened.
+Repeat actual sleep and browser wake after the correction before acceptance.

@@ -83,6 +83,28 @@ def load_federated_catalog_documents(root: Path | None = None) -> tuple[dict[str
     """Run the two fixed metadata exporters and return their JSON documents."""
 
     resolved_root = (root or _root()).resolve()
+    artifact = os.environ.get('CAPSTONE_RUNTIME_ARTIFACT_SHA256')
+    if artifact is not None:
+        # The launcher derives this identity from installed sources and assets.
+        # Build-time Authority exports are valid only for that exact artifact.
+        path = resolved_root / '.capstone-agent/federated-catalog.json'
+        try:
+            if len(artifact) != 64 or any(char not in '0123456789abcdef' for char in artifact) or path.is_symlink():
+                raise ValueError('identity')
+            with path.open('rb') as source:
+                raw = source.read(2 * _MAX_EXPORT_BYTES + 1)
+            if len(raw) > 2 * _MAX_EXPORT_BYTES:
+                raise ValueError('size')
+            snapshot = json.loads(raw)
+            if snapshot.get('schema') != 'capstone-federated-catalog-snapshot/1' or snapshot.get('artifact_sha256') != artifact:
+                raise ValueError('identity')
+            documents = snapshot['documents']
+            if not isinstance(documents, list) or len(documents) != len(_EXPORTERS):
+                raise ValueError('documents')
+            build_catalog_from_documents(documents, expected_families=tuple(family for family, _ in _EXPORTERS))
+            return tuple(documents)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            raise RuntimeError('installed catalog snapshot is invalid') from error
     return tuple(
         _run_exporter(resolved_root, family, command)
         for family, command in _EXPORTERS

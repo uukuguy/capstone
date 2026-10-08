@@ -28,3 +28,9 @@
 
 No Provider test is authorized by this cost task. Use registered scripted
 cases and provider-free worker fixtures. Do not send commands in user Threads.
+
+Cloud feedback: the first complete sleep/wake cycle on `2ef57c8` confirms real
+automatic sleep but takes 125.862 seconds to enter the workbench. Reject that
+UX result. Bake exact-artifact registered metadata at build time, include its
+payload in the runtime identity, wake families concurrently, then repeat the
+local rebuild/gates and both real cloud idle/wake cycles before tagging.

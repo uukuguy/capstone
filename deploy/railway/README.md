@@ -66,6 +66,13 @@ worker deployments to succeed and pass
 health and artifact checks before deploying the API. Its catalog refreshes
 family availability on each catalog or admission check. Use the two private origins from
 [`cloud-dev.variables.example`](cloud-dev.variables.example).
+
+The shared Docker build bakes registered Authority catalog metadata, bound to
+the installed runtime artifact, so waking does not reload every registered
+model. The snapshot payload participates in artifact verification. A missing
+or mismatched snapshot blocks startup; it is not a cache of mutable models,
+results or worker health. Rebuild the local lane and all backend roles together
+when changing this build recipe.
 The existing demo retains port 8766; its worker origins use that same port.
 The [demo checklist](demo.variables.example) selects the same runtime profile
 with stage `user-trial`. A promoted open workbench has no browser login gate;

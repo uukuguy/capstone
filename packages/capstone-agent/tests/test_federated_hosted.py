@@ -7,6 +7,36 @@ import pytest
 from capstone_agent.federated_hosted import load_federated_catalog_documents
 
 
+def test_installed_catalog_snapshot_avoids_cold_authority_exports(monkeypatch, tmp_path):
+    documents = [_manifest('pandapower', 'ieee39', 'pandapower-static-analysis'),
+                 _manifest('pypsa', 'regional-six-bus', 'pypsa-business-cases')]
+    directory = tmp_path / '.capstone-agent'
+    directory.mkdir()
+    (directory / 'federated-catalog.json').write_text(json.dumps({
+        'schema': 'capstone-federated-catalog-snapshot/1',
+        'artifact_sha256': 'a' * 64, 'documents': documents,
+    }))
+    monkeypatch.setenv('CAPSTONE_RUNTIME_ARTIFACT_SHA256', 'a' * 64)
+    def no_export(*args, **kwargs):
+        raise AssertionError('installed metadata must not reload every model')
+    monkeypatch.setattr('capstone_agent.federated_hosted.subprocess.Popen', no_export)
+    assert load_federated_catalog_documents(tmp_path) == tuple(documents)
+
+
+@pytest.mark.parametrize('content', [None, '{', json.dumps({
+    'schema': 'capstone-federated-catalog-snapshot/1',
+    'artifact_sha256': 'b' * 64, 'documents': [],
+})])
+def test_installed_catalog_snapshot_rejects_missing_invalid_or_other_artifact(monkeypatch, tmp_path, content):
+    directory = tmp_path / '.capstone-agent'
+    directory.mkdir()
+    if content is not None:
+        (directory / 'federated-catalog.json').write_text(content)
+    monkeypatch.setenv('CAPSTONE_RUNTIME_ARTIFACT_SHA256', 'a' * 64)
+    with pytest.raises(RuntimeError, match='catalog snapshot'):
+        load_federated_catalog_documents(tmp_path)
+
+
 def test_family_probe_waits_for_cold_worker_without_idle_background_probes(monkeypatch):
     from capstone_agent.federated_hosted import _probe_family
     calls, waits = [], []

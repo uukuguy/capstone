@@ -68,6 +68,13 @@ Active tasks retain their lease. Recovery must preserve drafts and reading
 position, without replacing a loaded conversation with a sleep screen.
 The older compatibility host retains its bounded session pool and idle timeout.
 
+Hosted images bake bounded Authority catalog exports for their immutable
+registered models. The catalog payload is included in the installed artifact
+identity and checked on startup, avoiding a full model-library reload on each
+wake. Missing or mismatched metadata is fatal. Current model opening, mutable
+Context state, results, evidence and live family availability keep their
+existing Authority and admission checks. Family startup probes run concurrently.
+
 The shared limits and deadlines belong to
 [`configs/runtime/host-runtime-v1.json`](../../configs/runtime/host-runtime-v1.json).
 The local and cloud stages must select the same tested policy. Private worker
