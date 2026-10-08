@@ -11,7 +11,7 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
-  it('locates the requested instruction with minimal scrolling and preserves draft and input focus', () => {
+  it('places offscreen instructions at the reading start and preserves visible instructions, draft and input focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '定位这条指令' }, 'first'), event('attempt_completed', 2, { answer: '回答。'.repeat(160) }, 'first')]
     const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
     const { rerender } = render(<CapstoneAssistantThread {...props} />)
@@ -20,6 +20,8 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '保留草稿' } })
     input.focus()
     const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 10000 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 400 })
     const instruction = screen.getByLabelText('用户指令')
     const rect = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 500, width: 500, x: 0, y: top, toJSON: () => ({}) })
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(rect(100, 400))
@@ -29,12 +31,15 @@ describe('CapstoneAssistantThread', () => {
     expect(viewport.scrollTop).toBe(200)
     position.mockReturnValue(rect(50, 40))
     rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'first', nonce: 2 }} />)
-    expect(viewport.scrollTop).toBe(142)
+    expect(viewport.scrollTop).toBe(134)
+    position.mockReturnValue(rect(550, 40))
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'first', nonce: 3 }} />)
+    expect(viewport.scrollTop).toBe(568)
     expect(document.activeElement).toBe(input)
     expect(input.value).toBe('保留草稿')
     expect(screen.getByRole('button', { name: '展开完整回答' })).toBeTruthy()
-    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'unrelated', nonce: 3 }} />)
-    expect(viewport.scrollTop).toBe(142)
+    rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'unrelated', nonce: 4 }} />)
+    expect(viewport.scrollTop).toBe(568)
   })
   it('reveals a requested instruction outside the fifty-message rendering window', () => {
     const events = Array.from({ length: 55 }, (_, index) => [event('command_accepted', index * 2 + 1, { kind: 'send_auto', text: `定位窗口指令 ${index}` }, `attempt_${index}`), event('attempt_completed', index * 2 + 2, { answer: `回答 ${index}` }, `attempt_${index}`)]).flat()

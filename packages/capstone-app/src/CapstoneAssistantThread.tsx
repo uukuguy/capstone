@@ -921,14 +921,23 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     if (!viewport) return
     handledLocation.current = instructionLocation
     if (locationHighlight.current) { window.clearTimeout(locationHighlight.current.timer); locationHighlight.current.node.classList.remove('is-located-instruction') }
+    const initialView = viewport.getBoundingClientRect()
+    const initialQuestion = instruction.getBoundingClientRect()
+    const needsAlignment = initialQuestion.top < Math.max(0, initialView.top) || initialQuestion.bottom > Math.min(window.innerHeight, initialView.bottom)
+    if (needsAlignment) {
+      const desired = viewport.scrollTop + initialQuestion.top - initialView.top - 16
+      const missingSpace = desired - Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      if (missingSpace > 0) setReadingTailSpace(space => space + missingSpace)
+    }
     const locate = () => {
       if (currentLocation.current !== instructionLocation || !instruction.isConnected) return
       const view = viewport.getBoundingClientRect()
       const question = instruction.getBoundingClientRect()
-      if (question.top < view.top || question.height > view.height) viewport.scrollTop += question.top - view.top - 8
-      else if (question.bottom > view.bottom) viewport.scrollTop += question.bottom - view.bottom + 8
+      if (needsAlignment) {
+        viewport.scrollTop += question.top - view.top - 16
+      }
       const visible = instruction.getBoundingClientRect()
-      if (visible.top < 0 || visible.bottom > window.innerHeight) instruction.scrollIntoView?.({ block: visible.height > window.innerHeight ? 'start' : 'nearest' })
+      if (visible.top < 0 || visible.bottom > window.innerHeight) instruction.scrollIntoView?.({ block: 'start' })
     }
     locate()
     window.requestAnimationFrame(() => {
