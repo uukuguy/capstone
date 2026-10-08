@@ -19,6 +19,8 @@ import { commandKey } from './commandKey'
 import { canReconnect, reconnectDelay } from './threadSessionState'
 import type { ReactNode } from 'react'
 import { enabledTools, effectiveTools, updateToolPreferences } from './threadToolPreferences'
+import { useWorkbenchActivity, type PrepareConnection } from './useWorkbenchActivity'
+import WorkbenchPreparation from './WorkbenchPreparationView'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -37,9 +39,10 @@ export type ThreadWorkspaceProps = {
   sessionNotice?: string | null
   disabledToolIds?: string[]
   onDisabledToolIdsChange?: (ids: string[]) => void
+  prepareConnection?: PrepareConnection
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange, prepareConnection }: ThreadWorkspaceProps) {
   const [localDisabledToolIds, setLocalDisabledToolIds] = useState<string[]>([])
   const disabledToolIds = sharedDisabledToolIds ?? localDisabledToolIds
   const setDisabledToolIds = onDisabledToolIdsChange ?? setLocalDisabledToolIds
@@ -75,6 +78,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
   const reconnectFailures = useRef(0)
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== 'hidden')
+  const activity = useWorkbenchActivity(prepareConnection,
+    loading || sending || modelBusy || projection.pendingCommands.some(item => !item.receipt)
+      || Boolean(projection.snapshot?.currentAttempt && ACTIVE_PHASES.has(projection.snapshot.currentAttempt.phase)))
 
   useEffect(() => {
     const changed = () => setPageVisible(document.visibilityState !== 'hidden')
@@ -96,7 +102,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const unsubscribe = store.subscribe(() => {
       if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
     })
-    if (!pageVisible) return () => { active = false; abort.abort(); unsubscribe() }
+    if (!pageVisible || activity.paused) return () => { active = false; abort.abort(); unsubscribe() }
     setLoading(true); setError(null); setNotice(null)
     void (async () => {
       try {
@@ -149,7 +155,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
     })()
     return () => { active = false; abort.abort(); if (reconnectTimer) clearTimeout(reconnectTimer); if (stableTimer) clearTimeout(stableTimer); unsubscribe() }
-  }, [fixture, pageVisible, reload, store, threadId])
+  }, [fixture, pageVisible, activity.paused, reload, store, threadId])
 
   const snapshot = projection.snapshot
   const selectedTools = useMemo(() => enabledTools(projection.catalog?.profiles || [], disabledToolIds), [projection.catalog?.profiles, disabledToolIds])
@@ -210,8 +216,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
   const unresolvedCommand = projection.pendingCommands.some((entry) => !entry.receipt)
-  const canSendText = !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !modelBusy && !projection.resyncRequired
-  const canRetry = !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !modelBusy && !projection.resyncRequired
+  const canSendText = !activity.paused && !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !modelBusy && !projection.resyncRequired
+  const canRetry = !activity.paused && !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !modelBusy && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
     const active = snapshot ? {
@@ -248,6 +254,15 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function dispatch(kind: string, payload: Record<string, unknown> = {}, successNotice?: string) {
+    if (activity.paused) {
+      try {
+        await activity.ensureReady()
+        await store.load(threadId)
+        await store.catchUp()
+      } catch {
+        return
+      }
+    }
     taskReturnGeneration.current++
     setInstructionLocation(undefined)
     setTaskReturn(undefined)
@@ -563,6 +578,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   return <div className="thread-app-shell">
+    {(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
+      <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
+        onRetry={() => { void activity.ensureReady().catch(() => {}) }} />
+    </div>}
     <PageHeader className="thread-page-header" showThreadEntry={false} />
     {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
       <div className="thread-app-columns">
@@ -581,10 +600,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             && taskReturn.attemptId === (selectedNetworkTask?.attemptId || networkTask?.attemptId) ? taskReturn.nonce : undefined}
           elementReference={fixture?.local_view.element_reference} modelOptions={modelOptions} resultProjection={displayedResultProjection || undefined} focusedElementId={focusedElementId}
           onSelectPage={selectPage} feedback={notice}
-          modelBusy={modelBusy || readOnly || loading || isActive || isInterrupted || caseActive || unresolvedCommand || contextChangePending || sending || projection.connection !== 'live'}
+          modelBusy={activity.paused || modelBusy || readOnly || loading || isActive || isInterrupted || caseActive || unresolvedCommand || contextChangePending || sending || projection.connection !== 'live'}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
-          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{headerActions}</div></div>
+          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
@@ -626,7 +645,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
               onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
-                disabled={readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}
+                disabled={activity.paused || readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}
                 workspace={projection.modelWorkspace}
                 onActivate={(entryId) => { void changeModel('activate_model', { entry_id: entryId }).catch(() => addSystemNotice('模型切换尚未完成，请重新连接。', 'error')) }}
                 onClose={(entryId) => { void changeModel('close_model', { entry_id: entryId }).catch(() => addSystemNotice('模型关闭尚未完成，请重新连接。', 'error')) }}

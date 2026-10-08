@@ -20,14 +20,17 @@ The local lane is the fastest loop. The cloud-development lane is a remote
 verification target, not a second production environment. The user-trial lane
 is a release surface and must remain stable while development continues.
 
-Cloud development runs on demand. When no remote validation is planned, stop
-its App, API, family workers and PostgreSQL deployments, while retaining the
-database volume, artifact bucket, service configuration and deployment history.
-Disable development push triggers while the stage is suspended so a normal
-push cannot restart idle compute. Resume PostgreSQL, workers, API and App for
-the next validation and check the selected source identity before use. A
-suspended stage cannot supply cloud acceptance. Suspension does not change
-the independently running user-trial stage or create an acceptance tag.
+Cloud development must wake on access without an operator start. Its idle
+policy balances the total bill, cold-start latency, task reliability and state
+safety. A small measured database baseline is acceptable. Use platform
+Serverless sleep for API and family workers after idle/wake validation. A
+small static App can stay running to keep the first page reliable;
+an idle process alone still retains billable memory. Workers must not keep
+the stage awake by polling an empty ledger. Keep development push triggers
+disabled when deployments are controlled explicitly. Retain database history,
+the volume and artifact bucket. Manual deployment removal is a maintenance
+action, not acceptance of automatic sleep. Validate the resumed stage and its
+source identity before an acceptance tag. User trial remains independent.
 
 ```mermaid
 flowchart LR
@@ -54,7 +57,15 @@ Attempt prepares the registered model again after cache eviction.
 
 The API limits concurrent Thread event subscriptions, including a limit for
 each Thread. Disconnects and cancellation release subscription capacity. Worker
-wake throttling uses one process timestamp rather than a growing session map.
+wake throttling for reads uses one process timestamp rather than a growing
+session map. Each accepted Thread command sends a wake without that throttle,
+so fast consecutive work cannot be stranded after the worker drains its queue.
+Page entry waits for database and worker readiness and streams a bounded
+component projection before enabling the workbench. Browser presence alone
+does not retain compute. An inactive page releases subscriptions while keeping
+its local workspace; renewed intent prepares components before writes resume.
+Active tasks retain their lease. Recovery must preserve drafts and reading
+position, without replacing a loaded conversation with a sleep screen.
 The older compatibility host retains its bounded session pool and idle timeout.
 
 The shared limits and deadlines belong to

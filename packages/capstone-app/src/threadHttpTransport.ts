@@ -2,6 +2,7 @@ import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
 import { parseThreadDescriptor, parseThreadListPage } from './threadManagement'
+import { fetchWithReadRetry } from './httpRetry'
 
 const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 
@@ -31,7 +32,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<unknown> {
-    const response = await this.fetcher.call(globalThis, this.base + path, {
+    const response = await fetchWithReadRetry(this.base + path, {
       ...init,
       credentials: 'omit', cache: 'no-store',
       headers: {
@@ -39,7 +40,7 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
-    })
+    }, this.fetcher)
     const text = await response.text()
     if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) throw new Error('Thread 响应超过允许大小')
     let body: unknown = undefined
@@ -54,10 +55,10 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   private async streamRequest(path: string, signal?: AbortSignal): Promise<Response> {
-    const response = await this.fetcher.call(globalThis, this.base + path, {
+    const response = await fetchWithReadRetry(this.base + path, {
       signal, credentials: 'omit', cache: 'no-store',
       headers: this.token ? { Authorization: `Bearer ${this.token}` } : undefined,
-    })
+    }, this.fetcher)
     if (!response.ok) {
       const text = await response.text()
       let body: unknown

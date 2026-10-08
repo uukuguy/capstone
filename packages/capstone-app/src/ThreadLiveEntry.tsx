@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient } from './threadClient'
 import { CapstoneClient } from './api'
@@ -8,8 +8,16 @@ import type { NetworkDiagram } from './types'
 import { Plus } from 'lucide-react'
 import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
 import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
+import WorkbenchPreparation from './WorkbenchPreparationView'
+import { prepareWorkbench, type PreparationUpdate } from './workbenchPreparation'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
+const initialPreparation: PreparationUpdate[] = [
+  { component: 'api', status: 'preparing' },
+  { component: 'database', status: 'waiting' },
+  { component: 'worker:pandapower', status: 'waiting' },
+  { component: 'worker:pypsa', status: 'waiting' },
+]
 
 function readToken(): string {
   try { return sessionStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
@@ -41,6 +49,7 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const [accessMode, setAccessMode] = useState<ThreadAccessMode | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
   const [accessRetry, setAccessRetry] = useState(0)
+  const [preparation, setPreparation] = useState<PreparationUpdate[]>(initialPreparation)
   const [createdThreadId, setCreatedThreadId] = useState(threadId === 'new' ? '' : threadId)
   const [creating, setCreating] = useState(threadId === 'new')
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +58,8 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
   const [disabledToolIds, setDisabledToolIds] = useState<string[]>([])
   const newInFlight = useRef(false)
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || ''
+  const prepareConnection = useCallback((signal: AbortSignal, update: (value: PreparationUpdate) => void) =>
+    prepareWorkbench(apiOrigin, signal, update), [apiOrigin])
   const hasAccess = accessMode === 'open' || (accessMode === 'operator' && Boolean(token))
   const effectiveToken = accessMode === 'open' ? '' : token
   const transport = useMemo(
@@ -62,10 +73,14 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
 
   useEffect(() => {
     const abort = new AbortController()
-    const timeout = setTimeout(() => abort.abort(), 10000)
+    const timeout = setTimeout(() => abort.abort(), 180000)
     let active = true
     setAccessError(null)
-    void readThreadAccess(apiOrigin, abort.signal).then((mode) => {
+    setPreparation(initialPreparation)
+    void prepareWorkbench(apiOrigin, abort.signal, (update) => {
+      if (active) setPreparation(before => before.some(item => item.component === update.component)
+        ? before.map(item => item.component === update.component ? update : item) : [...before, update])
+    }).then(() => readThreadAccess(apiOrigin, abort.signal)).then((mode) => {
       if (active) setAccessMode(mode)
     }).catch(() => {
       if (active) setAccessError('暂时无法连接工作台，请重试。')
@@ -143,14 +158,15 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     return () => { active = false }
   }, [authorityClient, createdThreadId])
 
-  if (accessError) return <main className="thread-token-shell"><div className="thread-token-card" role="alert"><h1>连接工作台</h1><p>{accessError}</p><button type="button" onClick={() => setAccessRetry((value) => value + 1)}>重试连接</button></div></main>
-  if (accessMode === null) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在连接工作台…</main>
+  if (accessError || accessMode === null) return <WorkbenchPreparation updates={preparation} error={accessError}
+    onRetry={() => setAccessRetry(value => value + 1)} />
   if (accessMode === 'operator' && !token) return <TokenPrompt onSubmit={setToken} />
   if (error && !createdThreadId) return <main className="thread-token-shell"><div className="thread-token-card" role="alert"><h1>对话暂不可用</h1><p>{error}</p>{accessMode === 'open'
     ? <button type="button" onClick={() => void newThread()}>重试创建</button>
     : <button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button>}</div></main>
   if (!client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建对话…</main>
   return <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
+    prepareConnection={prepareConnection}
     disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
     sessionNotice={error} headerActions={<button type="button" className="thread-new-dialogue"

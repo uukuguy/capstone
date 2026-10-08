@@ -13,6 +13,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from capstone_agent.protocol import Frame
+from capstone_agent.database_connect import connect_database
 
 
 class Conflict(ValueError):
@@ -158,7 +159,7 @@ class Ledger:
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
         return cast(
             psycopg.Connection[dict[str, Any]],
-            psycopg.connect(self.dsn, row_factory=cast(Any, dict_row)),
+            connect_database(self.dsn, row_factory=cast(Any, dict_row)),
         )
 
     def initialize(self) -> None:

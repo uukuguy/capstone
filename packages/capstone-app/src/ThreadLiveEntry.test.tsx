@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import ThreadLiveEntry from './ThreadLiveEntry'
 import App from './App'
@@ -24,8 +24,30 @@ const snapshot = {
 }
 
 describe('ThreadLiveEntry', () => {
+  it('shows actual startup progress and hides all input until preparation completes', async () => {
+    let stream: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    const fetcher = vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/workbench-preparation')) return new Response(new ReadableStream({ start(controller) { stream = controller } }))
+      return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    render(<ThreadLiveEntry threadId="new" />)
+    const push = (component: string, status: string, complete = false) =>
+      stream.enqueue(encoder.encode(JSON.stringify({ schema: 'capstone-workbench-preparation/1', component, status, complete }) + '\n'))
+    await act(async () => { push('api', 'ready'); push('database', 'ready'); push('worker:pypsa', 'preparing') })
+    expect(screen.getByText('PyPSA 计算工具')).toBeTruthy()
+    expect(screen.getByText('准备中')).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    await act(async () => { push('worker:pypsa', 'ready'); push('workbench', 'ready', true) })
+    expect(await screen.findByLabelText('Operator token')).toBeTruthy()
+    expect(screen.queryByLabelText('工作台准备进度')).toBeNull()
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual(['/api/v1/workbench-preparation', '/api/v1/thread-access'])
+  })
   it('opens the workspace without a token and creates one Thread under StrictMode', async () => {
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/workbench-preparation')) return new Response('', { status: 404 })
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'open' }))
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
@@ -47,6 +69,7 @@ describe('ThreadLiveEntry', () => {
   it('creates a new conversation from a visible button without typing a URL', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/workbench-preparation')) return new Response('', { status: 404 })
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).endsWith('/catalog')) return new Response(JSON.stringify(threadUiFixture('idle-ieee39').catalog))
       const id = init?.method === 'POST' ? 'thr_second' : 'thr_demo_39'
@@ -77,6 +100,7 @@ describe('ThreadLiveEntry', () => {
   it('loads a real Thread workspace through HTTP snapshot, page, and SSE adapters', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/workbench-preparation')) return new Response('', { status: 404 })
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
@@ -97,6 +121,7 @@ describe('ThreadLiveEntry', () => {
   it('creates a default IEEE-39 Thread only once under StrictMode', async () => {
     sessionStorage.setItem('capstone.thread.operatorToken', 'private-token')
     const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/workbench-preparation')) return new Response('', { status: 404 })
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))

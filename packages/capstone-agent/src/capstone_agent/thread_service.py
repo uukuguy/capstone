@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from capstone_model_capability_spi import ModelCapabilitySelection
 
 import psycopg
+from capstone_agent.database_connect import connect_database
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
@@ -2083,7 +2084,7 @@ class PostgresThreadService:
     def _connect(self) -> psycopg.Connection[dict[str, Any]]:
         return cast(
             psycopg.Connection[dict[str, Any]],
-            psycopg.connect(self.dsn, row_factory=cast(Any, dict_row)),
+            connect_database(self.dsn, row_factory=cast(Any, dict_row)),
         )
 
     def initialize(self) -> None:

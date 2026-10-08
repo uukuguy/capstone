@@ -108,11 +108,12 @@ def serve_thread_attempts(
     lease_seconds: int = 30,
     poll_seconds: float = 0.25,
     stop_event: threading.Event | None = None,
+    wake_event: threading.Event | None = None,
     turn_router: TurnRouter | None = None,
     case_service: "CaseExecutionService | None" = None,
     implementation_family: str | None = None,
 ) -> None:
-    """Poll accepted Attempts until ``stop_event`` is set.
+    """Drain accepted Attempts after wake, or poll without a wake transport.
 
     Runtime construction is injected so this worker remains neutral about Pi,
     DSH, Domain Packs, and registered Authorities.
@@ -121,8 +122,28 @@ def serve_thread_attempts(
     if not worker_id or lease_seconds < 1 or poll_seconds <= 0:
         raise ValueError("thread worker configuration is invalid")
     stop = stop_event or threading.Event()
+    idle = False
     try:
         while not stop.is_set():
+            if idle and wake_event is not None:
+                # Local cache expiry must still run while idle, but no ledger
+                # connection is needed until an authenticated wake arrives.
+                sweep = getattr(runtime_factory, 'sweep_idle', None)
+                if callable(sweep):
+                    try:
+                        sweep()
+                    except Exception:
+                        _LOG.warning('Thread idle resource cleanup failed; retrying')
+                        stop.wait(1)
+                        continue
+                if not wake_event.wait(timeout=1):
+                    continue
+                if stop.is_set():
+                    break
+            if wake_event is not None:
+                # Clear before scanning so a wake during IO remains pending.
+                wake_event.clear()
+            idle = False
             try:
                 sweep = getattr(runtime_factory, 'sweep_idle', None)
                 if callable(sweep):
@@ -145,7 +166,10 @@ def serve_thread_attempts(
                 stop.wait(poll_seconds)
                 continue
             if result is None:
-                stop.wait(poll_seconds)
+                if wake_event is None:
+                    stop.wait(poll_seconds)
+                else:
+                    idle = True
     finally:
         close = getattr(runtime_factory, 'close', None)
         if callable(close):

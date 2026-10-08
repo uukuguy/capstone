@@ -1,12 +1,13 @@
 import type {
   Catalog, CommittedTurn, CreatedSession, NetworkDiagram, NetworkStory, NetworkView, SessionEvent, SessionStatus,
 } from './types'
+import { fetchWithReadRetry } from './httpRetry'
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
 const MAX_EVENT_BYTES = 2 * 1024 * 1024 + 128 * 1024
-const READ_ATTEMPTS = 8
+const VIEW_ATTEMPTS = 8
 
-function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
+function waitForView(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       signal?.removeEventListener('abort', abort)
@@ -70,29 +71,13 @@ export class CapstoneClient {
         ...init.headers,
       },
     }
-    const read = !init.method || init.method.toUpperCase() === 'GET'
-    const attempts = read ? READ_ATTEMPTS : 1
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      let response: Response
-      try {
-        response = await this.fetcher.call(globalThis, this.base + path, options)
-      } catch (cause) {
-        if (!read || attempt + 1 === attempts || !(cause instanceof TypeError)) throw cause
-        await waitForRetry(Math.min(400 * 2 ** attempt, 2000), init.signal)
-        continue
-      }
-      if (read && [502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
-        await waitForRetry(Math.min(400 * 2 ** attempt, 2000), init.signal)
-        continue
-      }
-      if (!response.ok) {
-        if (response.status === 401) throw new ApiError(401, '演示连接已失效，请重试连接。')
-        if (response.status === 409) throw new ApiError(409, '当前运行状态暂不接受该操作。')
-        throw new ApiError(response.status, `服务请求失败（${response.status}）。`)
-      }
-      return response
+    const response = await fetchWithReadRetry(this.base + path, options, this.fetcher)
+    if (!response.ok) {
+      if (response.status === 401) throw new ApiError(401, '演示连接已失效，请重试连接。')
+      if (response.status === 409) throw new ApiError(409, '当前运行状态暂不接受该操作。')
+      throw new ApiError(response.status, `服务请求失败（${response.status}）。`)
     }
-    throw new Error('读取请求未完成')
+    return response
   }
 
   private async json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -168,26 +153,26 @@ export class CapstoneClient {
       throw new Error('电网视图步骤无效')
     }
     const path = `/api/v1/sessions/${encodeURIComponent(sessionId)}/network?ordinal=${ordinal}`
-    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < VIEW_ATTEMPTS; attempt += 1) {
       try {
         return await this.json(path, { signal })
       } catch (cause) {
-        const retryable = cause instanceof ApiError && [404, 502, 503, 504].includes(cause.status)
-        if (!retryable || attempt + 1 === READ_ATTEMPTS) throw cause
-        await waitForRetry(Math.min(300 * 2 ** attempt, 1500), signal)
+        const retryable = cause instanceof ApiError && cause.status === 404
+        if (!retryable || attempt + 1 === VIEW_ATTEMPTS) throw cause
+        await waitForView(Math.min(300 * 2 ** attempt, 1500), signal)
       }
     }
     throw new Error('电网视图读取未完成')
   }
 
   async networkStory(sessionId: string, signal?: AbortSignal): Promise<NetworkStory> {
-    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < VIEW_ATTEMPTS; attempt += 1) {
       try {
         return await this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network-story`, { signal })
       } catch (cause) {
-        const retryable = cause instanceof ApiError && [409, 502, 503, 504].includes(cause.status)
-        if (!retryable || attempt + 1 === READ_ATTEMPTS) throw cause
-        await waitForRetry(Math.min(300 * 2 ** attempt, 1500), signal)
+        const retryable = cause instanceof ApiError && cause.status === 409
+        if (!retryable || attempt + 1 === VIEW_ATTEMPTS) throw cause
+        await waitForView(Math.min(300 * 2 ** attempt, 1500), signal)
       }
     }
     throw new Error('电气拓扑故事读取未完成')

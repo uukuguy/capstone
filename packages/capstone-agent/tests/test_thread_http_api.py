@@ -67,11 +67,13 @@ class _Ledger:
         return True
 
 
-def _app(service: InMemoryThreadService):
+def _app(service: InMemoryThreadService, wake_worker=None, prepare_workers=None):
     return create_host_app(
         _Ledger(), WorkerRegistry(()), operator_token="hosted-secret",
         allowed_hosts={"localhost"}, allowed_origins={"http://localhost:5173"},
         thread_service=service,
+        wake_worker=wake_worker,
+        prepare_workers=prepare_workers,
     )
 
 
@@ -276,6 +278,72 @@ def test_thread_command_is_idempotent_and_emits_a_replayable_event() -> None:
         events = client.get("/api/v1/threads/thr_demo_39/events", headers=_auth()).json()
         assert events["next_event_seq"] == 1
         assert events["events"][0]["event_type"] == "command_accepted"
+
+
+def test_accepted_thread_command_wakes_worker_but_rejected_command_does_not():
+    service = _service()
+    wakes = []
+    with TestClient(_app(service, wake_worker=lambda: wakes.append(1)), base_url='http://localhost') as client:
+        rejected = client.post('/api/v1/threads/thr_demo_39/commands', headers=_auth(), json={
+            'schema': 'capstone-command/1', 'command_id': 'cmd_bad', 'idempotency_key': 'idem_bad',
+            'thread_id': 'thr_demo_39', 'run_id': 'run_001', 'kind': 'not_registered', 'expected_event_seq': 0, 'payload': {},
+        })
+        assert rejected.json()['status'] == 'rejected'
+        assert wakes == []
+        accepted = client.post('/api/v1/threads/thr_demo_39/commands', headers=_auth(), json={
+            'schema': 'capstone-command/1', 'command_id': 'cmd_wake', 'idempotency_key': 'idem_wake',
+            'thread_id': 'thr_demo_39', 'run_id': 'run_001', 'kind': 'send_ordinary', 'expected_event_seq': service.snapshot('thr_demo_39').last_event_seq,
+            'payload': {'text': 'inspect'},
+        })
+        assert accepted.json()['status'] == 'accepted'
+        assert wakes == [1]
+        # Each accepted receipt must wake the scheduler, even inside the
+        # legacy read throttle window. The worker may already have drained.
+        replay = client.post('/api/v1/threads/thr_demo_39/commands', headers=_auth(), json={
+            'schema': 'capstone-command/1', 'command_id': 'cmd_wake', 'idempotency_key': 'idem_wake',
+            'thread_id': 'thr_demo_39', 'run_id': 'run_001', 'kind': 'send_ordinary',
+            'expected_event_seq': 0, 'payload': {'text': 'inspect'},
+        })
+        assert replay.json()['status'] == 'accepted'
+        assert wakes == [1, 1]
+
+
+def test_thread_entry_waits_for_database_and_all_worker_wakes():
+    ready = False
+    with TestClient(_app(_service(), wake_worker=lambda: ready), base_url='http://localhost') as client:
+        assert client.get('/api/v1/thread-access').status_code == 503
+        ready = True
+        response = client.get('/api/v1/thread-access')
+        assert response.status_code == 200
+        assert response.json()['mode'] == 'operator'
+
+
+def test_workbench_preparation_streams_actual_component_readiness():
+    import json
+    def workers():
+        yield {'component': 'worker:pandapower', 'status': 'preparing'}
+        yield {'component': 'worker:pandapower', 'status': 'ready'}
+    with TestClient(_app(_service(), prepare_workers=workers), base_url='http://localhost') as client:
+        response = client.get('/api/v1/workbench-preparation')
+        assert response.status_code == 200
+        updates = [json.loads(line) for line in response.text.splitlines()]
+        assert [(item['component'], item['status']) for item in updates] == [
+            ('api', 'ready'), ('database', 'preparing'), ('database', 'ready'),
+            ('worker:pandapower', 'preparing'), ('worker:pandapower', 'ready'), ('workbench', 'ready'),
+        ]
+        assert updates[-1]['complete'] is True
+        assert response.headers['cache-control'] == 'no-store'
+
+
+def test_failed_component_never_admits_workbench():
+    import json
+    def workers():
+        yield {'component': 'worker:pypsa', 'status': 'failed'}
+    with TestClient(_app(_service(), prepare_workers=workers), base_url='http://localhost') as client:
+        response = client.get('/api/v1/workbench-preparation')
+        updates = [json.loads(line) for line in response.text.splitlines()]
+        assert updates[-1]['status'] == 'failed'
+        assert not any(item.get('complete') for item in updates)
 
 
 def test_case_command_route_is_operator_only_and_uses_case_service() -> None:

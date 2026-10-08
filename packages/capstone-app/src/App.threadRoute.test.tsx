@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import App from './App'
 
-beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-  schema: 'capstone-thread-access/1', mode: 'operator',
-})))))
+beforeEach(() => vi.stubGlobal('fetch', vi.fn(async (url: string | URL) =>
+  String(url).endsWith('/workbench-preparation') ? new Response('', { status: 404 })
+    : new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' })))))
 afterEach(() => { cleanup(); window.history.replaceState({}, '', '/'); vi.unstubAllGlobals() })
 
 describe('Thread fixture entry point', () => {

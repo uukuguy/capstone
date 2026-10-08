@@ -59,8 +59,10 @@ source and roles to `capstone-demo` after human acceptance:
 | `capstone-worker-pypsa` | `pypsa` | `/app/deploy/entrypoint.sh worker` | `/health` |
 
 Set `PORT=8080` for all backend roles. Give workers no public domains. Keep
-one replica per worker and disable sleeping during Thread acceptance: Thread
-Attempts use polling. Wait for both new worker deployments to succeed and pass
+one replica per worker. Cloud-dev workers use authenticated event-driven wake
+for Thread and compatibility work, so an empty queue does not poll PostgreSQL.
+Enable Serverless only with this tested worker revision. Wait for both new
+worker deployments to succeed and pass
 health and artifact checks before deploying the API. Its catalog refreshes
 family availability on each catalog or admission check. Use the two private origins from
 [`cloud-dev.variables.example`](cloud-dev.variables.example).
@@ -117,18 +119,32 @@ demo instead of rebuilding it for the trial environment.
 
 ## Cloud-dev to demo promotion
 
-### Cloud-dev idle suspension
+### Cloud-dev idle policy
 
-Cloud-dev is an on-demand validation stage. Record its deployment IDs, source
-identities, service settings and GitHub trigger settings before suspension.
-Disable only its development deployment triggers, then remove the running
-deployments in this order: App, API, family workers, PostgreSQL. Railway's
-deployment Remove action stops compute; it does not delete the service. Keep
-the PostgreSQL volume and private bucket. Storage can still incur charges.
-Do not delete services, volumes, buckets or Threads to reduce idle compute.
+Cloud-dev must sleep automatically and wake on access. The accepted target is
+a very small idle bill with reliable first access, not absolute zero at the
+cost of a fragile startup chain. Start with Serverless on API and both family
+workers. Keep the small static App running for first-page reliability, plus a
+small PostgreSQL baseline. Measure database CPU and
+memory after removing idle worker polling; consider database sleep only if
+its residual cost justifies the extra TCP wake dependency. Storage remains
+billable. Keep the PostgreSQL volume, private bucket and all Thread history.
 
-Check that all five deployments are stopped, the volume and bucket IDs are
-unchanged, and demo deployment IDs and readiness remain unchanged. The
+Railway applies `sleepApplication` on the next deployment. Observe at least
+ten minutes with no App clients, event streams, health probes or task polling.
+Use control-plane metrics to check actual sleep without waking services. Page
+entry streams actual component readiness and admits controls only when all
+checks pass. A browser's bounded activity window can keep workers available;
+an indefinitely open idle page cannot. Stop inactive subscriptions and resume
+from durable state without clearing the local workspace. No-client keepalive
+is forbidden. Then
+check first-page recovery, an owned registered scripted case, reports, replay
+and source identity. Repeat the idle/wake cycle and record total residual
+cost plus cold-start time. A configured toggle alone is not acceptance.
+
+Disable cloud-dev automatic development triggers during controlled releases.
+Do not change demo. The earlier manual stop is a maintenance record, not
+acceptance of this automatic policy. The
 [2026-10-08 suspension receipt](../../docs/reviews/2026-10-08-cloud-dev-idle-suspension.md)
 records this stage's recovery boundary.
 
@@ -136,7 +152,7 @@ Resume the recorded PostgreSQL deployment first, then both workers, API and
 App. Use the recorded source or deploy one locally verified revision to every
 backend role; check readiness and source identity before remote validation.
 Keep automatic development triggers disabled unless deliberately re-enabled
-for an active validation period. Suspension itself does not receive an
+for an active validation period. Manual suspension itself does not receive an
 acceptance tag. A resumed deployment must pass the usual stage validation
 before receiving a new cloud-dev tag or being promoted to demo.
 

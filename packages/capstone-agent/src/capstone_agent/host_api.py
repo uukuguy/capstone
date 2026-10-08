@@ -13,9 +13,9 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from capstone_agent.artifacts import ArtifactService
@@ -58,6 +58,7 @@ def create_host_app(
     artifacts: ArtifactService | None = None,
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
     wake_worker: Callable[[], object] | None = None,
+    prepare_workers: Callable[[], Iterator[Mapping[str, str]]] | None = None,
     thread_service: ThreadService | None = None,
     thread_creator: ThreadCreator | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
@@ -93,12 +94,12 @@ def create_host_app(
     last_wake = float('-inf')
     wake_lock = threading.Lock()
 
-    def request_worker(session_id: str) -> None:
+    def request_worker(session_id: str, *, force: bool = False) -> None:
         nonlocal last_wake
         if wake_worker is None:
             return
         with wake_lock:
-            if time.monotonic() - last_wake < 2:
+            if not force and time.monotonic() - last_wake < 2:
                 return
         try:
             result = wake_worker()
@@ -132,7 +133,7 @@ def create_host_app(
             return JSONResponse({"error": "invalid_origin"}, status_code=403)
         if request.method == "OPTIONS" and origin is not None:
             response = Response(status_code=204)
-        elif request.url.path in {"/health/ready", "/api/v1/thread-access"} or (
+        elif request.url.path in {"/health/ready", "/api/v1/thread-access", "/api/v1/workbench-preparation"} or (
             public_demo and request.url.path == "/api/v1/demo-credential"
         ):
             response = await call_next(request)
@@ -184,8 +185,52 @@ def create_host_app(
 
     @app.get("/api/v1/thread-access")
     def get_thread_access():
+        # Keep cold-start waiting at the page entry, before any command UI is
+        # available. A successful private wake proves both schedulers are up.
+        health_ready()
+        try:
+            if wake_worker is not None and wake_worker() is False:
+                raise HTTPException(503, "workbench is preparing")
+        except (OSError, TimeoutError):
+            raise HTTPException(503, "workbench is preparing") from None
         return {"schema": "capstone-thread-access/1",
                 "mode": "open" if thread_open_access else "operator"}
+
+    @app.get("/api/v1/workbench-preparation")
+    def prepare_workbench():
+        def updates():
+            def frame(component, status, *, complete=False):
+                return json.dumps({'schema': 'capstone-workbench-preparation/1',
+                    'component': component, 'status': status, 'complete': complete}) + '\n'
+            yield frame('api', 'ready')
+            yield frame('database', 'preparing')
+            try:
+                health_ready()
+            except HTTPException:
+                yield frame('database', 'failed')
+                return
+            yield frame('database', 'ready')
+            if prepare_workers is not None:
+                try:
+                    for update in prepare_workers():
+                        yield frame(update['component'], update['status'])
+                        if update['status'] == 'failed':
+                            return
+                except (OSError, TimeoutError):
+                    yield frame('workbench', 'failed')
+                    return
+            elif wake_worker is not None:
+                yield frame('worker', 'preparing')
+                try:
+                    ready = wake_worker() is not False
+                except (OSError, TimeoutError):
+                    ready = False
+                yield frame('worker', 'ready' if ready else 'failed')
+                if not ready:
+                    return
+            yield frame('workbench', 'ready', complete=True)
+        return StreamingResponse(updates(), media_type='application/x-ndjson',
+                                 headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
 
     @app.get("/api/v1/validation/m11")
     def get_validation_status(request: Request):
@@ -335,7 +380,7 @@ def create_host_app(
 
         @app.post("/api/v1/threads/{thread_id}/commands", status_code=202)
         async def post_thread_command(
-            thread_id: str, request: Request,
+            thread_id: str, request: Request, background_tasks: BackgroundTasks,
             idempotency_key: Annotated[str | None, Header(max_length=200)] = None,
         ):
             require_private_thread(request)
@@ -362,7 +407,10 @@ def create_host_app(
                     }
                     else thread_service
                 )
-                return service.submit_command(command).to_document()
+                receipt = service.submit_command(command)
+                if receipt.status == 'accepted':
+                    background_tasks.add_task(request_worker, thread_id, force=True)
+                return receipt.to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadProtocolError as error:
@@ -389,6 +437,7 @@ def create_host_app(
                 page = initial_page
                 first_page = True
                 last_heartbeat = asyncio.get_running_loop().time()
+                last_worker_keepalive = last_heartbeat
                 idle_delay = 0.25
                 while True:
                     if not first_page:
@@ -420,6 +469,12 @@ def create_host_app(
                     if await request.is_disconnected():
                         return
                     now = asyncio.get_running_loop().time()
+                    if now - last_worker_keepalive >= 120:
+                        # A connected workbench is active use. Keep workers
+                        # available during reading; disconnect removes this
+                        # traffic so the whole compute lane can sleep.
+                        await asyncio.to_thread(request_worker, thread_id)
+                        last_worker_keepalive = asyncio.get_running_loop().time()
                     if now - last_heartbeat >= 15:
                         yield ": keepalive\n\n"
                         last_heartbeat = now

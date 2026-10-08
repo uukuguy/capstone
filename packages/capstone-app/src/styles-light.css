@@ -14,6 +14,31 @@
   --warm: #fffaf1;
 }
 
+.workbench-preparation-shell { min-height: calc(100dvh - 58px); display: grid; place-items: center; padding: 32px 20px; }
+.workbench-preparation { width: min(100%, 400px); padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.workbench-preparation h1 { margin: 12px 0 8px; font-size: 21px; line-height: 1.4; color: var(--text); }
+.workbench-preparation-intro { margin: 0; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.workbench-preparation ol { padding: 16px 0 0; margin: 18px 0 0; border-top: 1px solid var(--line-soft); list-style: none; }
+.workbench-preparation li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px; color: var(--muted); font-size: 14px; }
+.workbench-preparation li[data-state="ready"] > svg { color: var(--accent); }
+.workbench-preparation li[data-state="preparing"] > svg { color: var(--accent); }
+.workbench-preparation li small { font-size: 12px; color: var(--muted); }
+.workbench-preparation-error { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.workbench-preparation-error p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 12px; }
+.workbench-preparation-error button { min-height: 44px; padding: 8px 18px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--accent); cursor: pointer; }
+.workbench-preparation-error button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.workbench-preparation-error button:active { background: var(--surface-soft); }
+.preparation-spinner { animation: preparation-turn 1.3s linear infinite; }
+.thread-resume-progress { position: fixed; z-index: 45; right: 28px; bottom: 132px; width: min(320px, calc(100vw - 40px)); }
+.workbench-preparation-compact .workbench-preparation { width: 100%; padding: 18px; box-shadow: 0 8px 28px #172d3212; }
+.workbench-preparation-compact .eyebrow { display: none; }
+.workbench-preparation-compact h1 { margin-top: 0; font-size: 16px; }
+.workbench-preparation-compact ol { margin-top: 12px; padding-top: 10px; }
+.workbench-preparation-compact li { min-height: 32px; font-size: 13px; }
+.thread-idle-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
+@keyframes preparation-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .preparation-spinner { animation: none; } }
+
 body, .app-shell { background: #eef3f1; color: var(--text); }
 .topbar { max-width: 1280px; min-height: 58px; position: sticky; top: 4px; z-index: 10;
   margin: 4px auto 0;

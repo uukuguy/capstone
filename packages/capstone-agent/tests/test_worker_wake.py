@@ -39,6 +39,35 @@ def test_private_wake_requires_derived_token() -> None:
         assert wake.is_set()
 
 
+def test_authenticated_wake_signals_legacy_and_thread_schedulers():
+    legacy, thread = threading.Event(), threading.Event()
+    with TestClient(create_wake_app(legacy, 'operator-secret', additional_wake_events=(thread,))) as client:
+        assert client.post('/wake').status_code == 401
+        assert not legacy.is_set() and not thread.is_set()
+        assert client.post('/wake', headers={'Authorization': f"Bearer {wake_token('operator-secret')}"}).status_code == 204
+        assert legacy.is_set() and thread.is_set()
+
+
+def test_wake_cannot_report_ready_when_a_scheduler_has_stopped():
+    wake = threading.Event()
+    with TestClient(create_wake_app(wake, 'operator-secret', health_check=lambda: False)) as client:
+        response = client.post('/wake', headers={'Authorization': f"Bearer {wake_token('operator-secret')}"})
+        assert response.status_code == 503
+        assert not wake.is_set()
+
+
+def test_federated_wake_reaches_every_family_even_when_one_is_unavailable(monkeypatch):
+    from capstone_agent.worker_wake import configured_worker_wake
+    calls = []
+    def wake(self, **_kwargs):
+        calls.append(self.url)
+        return 'pypsa' in self.url
+    monkeypatch.setattr(WorkerWakeClient, 'wake', wake)
+    callback = configured_worker_wake('http://grid:8080', 'pandapower=http://grid:8080,pypsa=http://pypsa:8080', 'operator-secret')
+    assert callback() is False
+    assert calls == ['http://grid:8080/wake', 'http://pypsa:8080/wake']
+
+
 def test_wake_client_retries_transient_cold_start_response() -> None:
     class Handler(BaseHTTPRequestHandler):
         calls = 0

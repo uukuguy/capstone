@@ -238,7 +238,7 @@ def main(
             from capstone_agent.hosting import build_artifacts, load_host_settings
             from capstone_agent.ledger import Ledger
             from capstone_agent.thread_service import PostgresThreadService
-            from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app
+            from capstone_agent.worker_wake import configured_worker_wake, configured_worker_preparation, create_wake_app
             from capstone_agent.hosted_validation import build_validation_status, validation_mode
 
             settings = load_host_settings(os.environ)
@@ -256,11 +256,8 @@ def main(
             if args.command == "serve-hosted":
                 import uvicorn
 
-                wake_worker = None
-                if settings.worker_wake_url:
-                    wake_worker = WorkerWakeClient(
-                        settings.worker_wake_url, settings.operator_token,
-                    ).wake
+                wake_worker = configured_worker_wake(settings.worker_wake_url,
+                    os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token)
 
                 app = create_host_app(
                     ledger, selected_registry, operator_token=settings.operator_token,
@@ -272,6 +269,8 @@ def main(
                     public_model=settings.public_model,
                     artifacts=artifacts,
                     wake_worker=wake_worker,
+                    prepare_workers=configured_worker_preparation(settings.worker_wake_url,
+                        os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
                     validation_status=build_validation_status(os.environ),
                     thread_service=thread_service,
                     thread_creator=(
@@ -287,16 +286,19 @@ def main(
                             log_config=None, access_log=False)
             else:
                 thread_stop = None
+                thread_wake = None
                 thread_scheduler = None
                 if thread_runtime_factory is not None:
                     import threading
 
                     thread_stop = threading.Event()
+                    thread_wake = threading.Event() if settings.worker_wake_url else None
                     thread_scheduler = threading.Thread(
                         target=serve_thread_attempts,
                         args=(thread_service, thread_runtime_factory),
                         kwargs={
                             "stop_event": thread_stop,
+                            "wake_event": thread_wake,
                             "case_service": thread_case_service,
                             "implementation_family": settings.thread_family,
                             "turn_router": (
@@ -326,6 +328,7 @@ def main(
                         uvicorn.run(
                             create_wake_app(
                                 wake_event, settings.operator_token,
+                                additional_wake_events=(thread_wake,) if thread_wake is not None else (),
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
                                 resource_status=(thread_application.capability_context_owner.resource_counts
@@ -342,6 +345,8 @@ def main(
                         scheduler.join(timeout=3)
                         if thread_stop is not None:
                             thread_stop.set()
+                            if thread_wake is not None:
+                                thread_wake.set()
                             if thread_scheduler is not None:
                                 thread_scheduler.join(timeout=3)
                 else:

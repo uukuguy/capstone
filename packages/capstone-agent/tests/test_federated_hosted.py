@@ -7,6 +7,22 @@ import pytest
 from capstone_agent.federated_hosted import load_federated_catalog_documents
 
 
+def test_family_probe_waits_for_cold_worker_without_idle_background_probes(monkeypatch):
+    from capstone_agent.federated_hosted import _probe_family
+    calls, waits = [], []
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *_args): pass
+    def probe(url, timeout):
+        calls.append(url)
+        if len(calls) < 3: raise OSError('cold worker')
+        return Response()
+    monkeypatch.setattr('capstone_agent.federated_hosted.urlopen', probe)
+    assert _probe_family('http://worker:8080', sleep=waits.append)
+    assert len(calls) == 3 and len(waits) == 2
+
+
 def test_hosted_assembly_retains_health_probe_instead_of_its_startup_result(monkeypatch):
     from capstone_agent.federated_hosted import build_federated_thread_application
 

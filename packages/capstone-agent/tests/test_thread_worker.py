@@ -77,6 +77,58 @@ def test_thread_worker_stops_when_requested() -> None:
     assert service.read_events("thr_worker", 0).events == ()
 
 
+def test_idle_worker_avoids_ledger_queries_and_drains_work_after_wake(monkeypatch):
+    stop = Event()
+    calls = []
+    sweeps = []
+
+    class Factory:
+        def sweep_idle(self):
+            sweeps.append(1)
+
+        def close(self):
+            calls.append('closed')
+
+    class Wake(Event):
+        waits = 0
+
+        def wait(self, timeout=None):
+            self.waits += 1
+            assert calls == ['scan'] if self.waits < 3 else calls == ['scan', 'scan', 'scan']
+            if self.waits == 1:
+                return False
+            if self.waits == 2:
+                self.set()
+                return True
+            stop.set()
+            return False
+
+    results = iter([None, object(), None])
+    def scan(*_args, **_kwargs):
+        calls.append('scan')
+        return next(results)
+
+    monkeypatch.setattr('capstone_agent.thread_worker.run_pending_attempt', scan)
+    serve_thread_attempts(_service(), Factory(), wake_event=Wake(), stop_event=stop)
+    assert calls == ['scan', 'scan', 'scan', 'closed']
+    assert len(sweeps) >= 3
+
+
+def test_wake_arriving_during_a_scan_is_not_lost(monkeypatch):
+    stop, wake = Event(), Event()
+    calls = []
+    def scan(*_args, **_kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            wake.set()
+        else:
+            stop.set()
+        return None
+    monkeypatch.setattr('capstone_agent.thread_worker.run_pending_attempt', scan)
+    serve_thread_attempts(_service(), lambda _: _Runtime(), wake_event=wake, stop_event=stop)
+    assert len(calls) == 2
+
+
 def test_worker_sweeps_idle_resources_without_commands_and_closes_on_stop():
     service = _service()
     stop = Event()

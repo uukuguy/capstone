@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.request import urlopen
 
@@ -107,24 +109,36 @@ def build_federated_thread_catalog(
     return catalog
 
 
+def _probe_family(origin: str, *, sleep=time.sleep) -> bool:
+    for attempt in range(8):
+        try:
+            with urlopen(origin.rstrip('/') + '/health', timeout=2) as response:
+                if response.status == 200:
+                    return True
+        except OSError:
+            pass
+        if attempt < 7:
+            sleep(min(0.5 * 2 ** attempt, 3))
+    return False
+
+
 def _available_families() -> frozenset[str] | None:
     """Probe explicitly configured family-worker health endpoints."""
 
     configured = os.environ.get("CAPSTONE_FAMILY_HEALTH_URLS", "")
     if not configured.strip():
         return None
-    available: set[str] = set()
+    endpoints = []
     for entry in configured.split(","):
         family, separator, url = entry.partition("=")
         if not separator or not family or not url:
             raise RuntimeError("CAPSTONE_FAMILY_HEALTH_URLS is invalid")
-        try:
-            with urlopen(url.rstrip("/") + "/health", timeout=2) as response:
-                if response.status == 200:
-                    available.add(family)
-        except OSError:
-            continue
-    return frozenset(available)
+        endpoints.append((family, url))
+    # These probes run only for a caller's catalog/admission request. Cold
+    # families wake together rather than extending the first-request delay.
+    with ThreadPoolExecutor(max_workers=len(endpoints)) as pool:
+        readiness = list(pool.map(_probe_family, [url for _, url in endpoints]))
+    return frozenset(family for (family, _), ready in zip(endpoints, readiness) if ready)
 
 
 def _api_only_runtime(_claim: object) -> HarnessRuntime:
