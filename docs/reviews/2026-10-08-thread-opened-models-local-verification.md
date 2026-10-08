@@ -44,3 +44,15 @@ This is local acceptance. No cloud deployment, acceptance tag, Provider request 
 Historical replay requires retained admitted events. It does not reconstruct records deleted before this change. Baseline diagrams have no calculation overlay or result evidence. The complete unified model/conversion system and CONV-04/05 remain separate work.
 
 Task-owned validation Threads are archived after acceptance. User sessions, ignored authentication and existing `var/` data are preserved.
+
+## Legacy model-list correction
+
+The user's existing conversation retained activation records for IEEE-39, GBnetwork and case57, but the first migration seeded its workspace from only the current case57 Context. This caused the model history and composer list to disagree.
+
+The repair imports retained legacy Context identities once under the Thread row lock, before either reading the list or accepting its first model control. It also repairs a previously saved current-only workspace. Family and exact model revision remain part of entry identity; the current Context, instruction history and event cursor stay unchanged during import. The import observes the existing 64-entry/64KiB bounds and prefers recent identities on overflow. Live-cursor compaction does not exclude retained activation records.
+
+An internal migration marker prevents repeated imports. For workspaces managed by the preceding release, import stops at the first explicit membership event and honors recorded close outcomes. Existing explicit membership is preserved; an ambiguous legacy close name is handled conservatively. Closed models remain historical views and are not silently reopened on refresh.
+
+Regression checks passed: `make test-capstone-agent` (561 passed; database checks separately), isolated PostgreSQL workspace/persistence suites (35 passed), and `make doctor check-package-boundaries`. The regression first failed for both GET-first and command-first paths, then passed after repair. It covers persisted current-only state, exact old revisions, compaction, activation, close, restart and preceding-release closes without a migration marker.
+
+The checked-in local rebuild passed readiness and API/two-worker image identity checks: `sha256:6027b22ec927498990af7542b420adc199c0049089c8f2961abedaab3a6ff387`. On the user's original conversation, GET /models now returns IEEE-39, GBnetwork and case57, with case57 still current. The full snapshot before and after import is equal. Background headless browser checks at 1600×1000 and 375×812 show all three selectable entries, menus inside the viewport and Escape returning focus. No model command or Provider request was issued. Receipts/screenshots are under ignored `output/playwright/legacy-models-20261008/`; the user's original conversation was not activated, closed or archived by validation.

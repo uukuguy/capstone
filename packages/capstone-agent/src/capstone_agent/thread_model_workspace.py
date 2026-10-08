@@ -88,6 +88,35 @@ def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = N
     return validate_workspace(workspace)
 
 
+def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple[int, Mapping[str, Any]]],
+                      closed_names: set[str], catalog: Any = None) -> dict[str, Any]:
+    """Import retained legacy identities once; explicit membership stays authoritative."""
+    workspace = synchronize_workspace(value, snapshot, catalog)
+    identifiers = {item["entry_id"] for item in workspace["models"]}
+    # Prefer recent models when a legacy Thread exceeds the bounded workspace.
+    for seq, document in sorted(contexts, key=lambda item: item[0], reverse=True):
+        context = ModelContextSnapshot.from_document(document)
+        entry = model_entry(context, seq)
+        if entry["entry_id"] in identifiers or len(workspace["models"]) >= MAX_OPEN_MODELS:
+            continue
+        metadata = None
+        if catalog is not None:
+            try:
+                metadata = catalog.resolve(context.model_id)
+            except (LookupError, TypeError, ValueError, RuntimeError):
+                pass
+        entry = model_entry(context, seq, metadata)
+        if entry["display_name"] in closed_names:
+            continue
+        candidate = {**workspace, "models": [*workspace["models"], entry]}
+        if len(json.dumps(candidate, ensure_ascii=False).encode()) > MAX_WORKSPACE_BYTES:
+            continue
+        workspace = candidate
+        identifiers.add(entry["entry_id"])
+    workspace["models"].sort(key=lambda item: (item["last_active_seq"], item["entry_id"]))
+    return validate_workspace(workspace)
+
+
 def workspace_projection(workspace: dict[str, Any], snapshot: ThreadSnapshot, blocked_reason: str | None) -> dict[str, Any]:
     return {"schema": "capstone-thread-model-workspace/1", "thread_id": snapshot.thread_id,
             "run_id": snapshot.run.run_id, "event_seq": snapshot.last_event_seq,

@@ -190,6 +190,67 @@ def postgres_command(service, thread_id, kind, payload, key):
             "expected_event_seq": snapshot.last_event_seq, "payload": payload}
 
 
+@pytest.mark.parametrize("read_before_control", [False, True])
+def test_postgres_legacy_models_are_restored_once_without_reviving_closed_models(postgres_thread_service, read_before_control):
+    from psycopg.types.json import Jsonb
+    from capstone_agent.thread_model_workspace import synchronize_workspace
+    service, thread_id = postgres_thread_service
+    service.set_model_catalog(DiagramCatalog())
+    initial = _snapshot(thread_id)
+    service.create_thread(initial)
+    middle = replace(initial.active_model_context, id="ctx_middle", model_id="GBnetwork", model_revision="old-gb")
+    current = replace(initial.active_model_context, id="ctx_current", model_id="case57")
+    with service._connect() as connection:
+        for seq, previous, active in [(2, initial.active_model_context, middle), (3, middle, current)]:
+            event = service._make_control_event({"thread_id": thread_id, "run_id": initial.run.run_id}, active,
+                event_seq=seq, event_type="model_context_activated",
+                payload={"previous_context": previous.to_document(), "model_context": active.to_document()})
+            service._insert_event(connection, event)
+        snapshot = replace(initial, active_model_context=current, last_event_seq=3, base_event_seq=3)
+        # Reproduce the previous migration, which already persisted only the current model.
+        connection.execute("""UPDATE capstone_threads SET model_context_id = %s, model_id = %s,
+            last_event_seq = 3, base_event_seq = 3, model_workspace = %s WHERE thread_id = %s""",
+            (current.id, current.model_id, Jsonb(synchronize_workspace(None, snapshot, DiagramCatalog())), thread_id))
+    if read_before_control:
+        before_read = service.snapshot(thread_id)
+        workspace = service.read_models(thread_id)
+        assert {item["model_id"] for item in workspace["models"]} == {"ieee39", "GBnetwork", "case57"}
+        assert next(item for item in workspace["models"] if item["model_id"] == "GBnetwork")["model_revision"] == "old-gb"
+        assert service.snapshot(thread_id) == before_read
+    # The first command also migrates, without requiring a preceding GET /models.
+    entry = synchronize_workspace(None, initial)["current_entry_id"]
+    receipt = service.submit_command(postgres_command(service, thread_id, "activate_model", {"entry_id": entry}, "activate_legacy"))
+    assert receipt.status == "accepted", receipt.rejection
+    workspace = service.read_models(thread_id)
+    assert len(workspace["models"]) == 3
+    assert service.snapshot(thread_id).active_model_context.model_id == "ieee39"
+    gb = next(item for item in workspace["models"] if item["model_id"] == "GBnetwork")
+    assert service.submit_command(postgres_command(service, thread_id, "close_model", {"entry_id": gb["entry_id"]}, "close_legacy")).status == "accepted"
+    service.compact_before(thread_id, service.snapshot(thread_id).last_event_seq)
+    from capstone_agent.thread_service import PostgresThreadService
+    reloaded = PostgresThreadService(service.dsn, model_catalog=DiagramCatalog())
+    assert {item["model_id"] for item in reloaded.read_models(thread_id)["models"]} == {"ieee39", "case57"}
+    # A workspace managed by the preceding release has no migration marker yet.
+    with service._connect() as connection:
+        connection.execute("UPDATE capstone_threads SET model_workspace_migrated = false WHERE thread_id = %s", (thread_id,))
+    assert {item["model_id"] for item in reloaded.read_models(thread_id)["models"]} == {"ieee39", "case57"}
+    assert reloaded.read_network_events(thread_id, context_id=middle.id)["model_context"]["model_revision"] == "old-gb"
+
+
+def test_legacy_workspace_import_keeps_distinct_versions_and_bounds_recent_models():
+    from capstone_agent.thread_model_workspace import MAX_OPEN_MODELS, migrate_workspace
+    snapshot = _snapshot("thr_migration")
+    context = snapshot.active_model_context
+    documents = [(seq, replace(context, model_id=f"grid{seq}").to_document()) for seq in range(70)]
+    documents += [(80, replace(context, model_revision="older").to_document())]
+    workspace = migrate_workspace(None, snapshot, documents, set())
+    assert len(workspace["models"]) == MAX_OPEN_MODELS
+    assert {(item["model_id"], item["model_revision"]) for item in workspace["models"] if item["model_id"] == "ieee39"} == {("ieee39", "7"), ("ieee39", "older")}
+    assert "grid69" in {item["model_id"] for item in workspace["models"]}
+    assert "grid0" not in {item["model_id"] for item in workspace["models"]}
+    assert next(item for item in workspace["models"] if item["entry_id"] == workspace["current_entry_id"])["model_revision"] == "7"
+
+
 def test_postgres_workspace_persists_close_and_historical_topology(postgres_thread_service):
     from capstone_agent.thread_service import PostgresThreadService
     service, thread_id = postgres_thread_service

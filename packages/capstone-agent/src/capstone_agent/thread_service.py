@@ -48,7 +48,7 @@ from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
-from .thread_model_workspace import MODEL_COMMANDS, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
+from .thread_model_workspace import MAX_OPEN_MODELS, MODEL_COMMANDS, migrate_workspace, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -1930,6 +1930,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb N
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -2096,10 +2097,42 @@ class PostgresThreadService:
             if row is None:
                 raise ThreadNotFound(thread_id)
             snapshot = self._snapshot_from_row(row)
-            workspace = synchronize_workspace(row.get("model_workspace"), snapshot, self._model_catalog)
-            if workspace != row.get("model_workspace"):
-                connection.execute("UPDATE capstone_threads SET model_workspace = %s WHERE thread_id = %s", (Jsonb(workspace), thread_id))
+            workspace = self._synchronize_model_workspace(connection, row, snapshot)
             return workspace_projection(workspace, snapshot, _workspace_blocked_reason(snapshot, row["archived"]))
+
+    def _synchronize_model_workspace(self, connection: psycopg.Connection[dict[str, Any]],
+                                     row: Mapping[str, Any], snapshot: ThreadSnapshot) -> dict[str, Any]:
+        """Run under the Thread row lock, including before the first model command."""
+        if row.get("model_workspace_migrated"):
+            workspace = synchronize_workspace(row.get("model_workspace"), snapshot, self._model_catalog)
+        else:
+            # Read retained Context identities, independent of the compacted live cursor.
+            # Stop legacy import at the first explicit membership event.
+            contexts = connection.execute("""SELECT document, seq FROM (
+                SELECT DISTINCT ON (document->>'implementation_family', document->>'model_id', document->>'model_revision')
+                document, seq FROM capstone_thread_events e CROSS JOIN LATERAL
+                (VALUES (e.payload->'previous_context', e.event_seq - 1),
+                        (e.payload->'model_context', e.event_seq),
+                        (e.payload->'restored_context', e.event_seq)) AS c(document, seq)
+                WHERE e.thread_id = %s AND e.visibility = 'public'
+                AND e.event_type IN ('model_context_activated', 'model_context_reopened', 'model_context_reverted')
+                AND jsonb_typeof(document) = 'object'
+                AND e.event_seq < COALESCE((SELECT MIN(event_seq) FROM capstone_thread_events
+                    WHERE thread_id = %s AND event_type = 'model_workspace_changed'), 2147483647)
+                ORDER BY document->>'implementation_family', document->>'model_id', document->>'model_revision', seq DESC
+                ) AS identities ORDER BY seq DESC LIMIT %s""",
+                (snapshot.thread_id, snapshot.thread_id, MAX_OPEN_MODELS)).fetchall()
+            # Older membership events recorded display names. Treat a recorded close
+            # conservatively; entries already in the workspace are preserved.
+            closed = connection.execute("""SELECT DISTINCT payload->>'closed_model_name' AS name
+                FROM capstone_thread_events WHERE thread_id = %s AND event_type = 'model_workspace_changed'
+                AND payload->>'kind' = 'close_model'""", (snapshot.thread_id,)).fetchall()
+            workspace = migrate_workspace(row.get("model_workspace"), snapshot,
+                [(item["seq"], item["document"]) for item in contexts], {item["name"] for item in closed}, self._model_catalog)
+        if workspace != row.get("model_workspace") or not row.get("model_workspace_migrated"):
+            connection.execute("UPDATE capstone_threads SET model_workspace = %s, model_workspace_migrated = true WHERE thread_id = %s",
+                (Jsonb(workspace), snapshot.thread_id))
+        return workspace
 
     def set_available_families(self, families: FamilyAvailability) -> None:
         if not callable(families):
@@ -2339,7 +2372,7 @@ class PostgresThreadService:
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
             elif parsed["kind"] in MODEL_COMMANDS:
-                workspace = synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog)
+                workspace = self._synchronize_model_workspace(connection, thread, snapshot)
                 change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available)
                 if _application_case_active(snapshot):
                     rejection = "case_execution_active"
@@ -2398,7 +2431,7 @@ class PostgresThreadService:
                     )
             elif parsed["kind"] in {"switch_model", "reopen_model_context"}:
                 pending, rejection = self._model_switch_for_command(snapshot, parsed, allow_same=parsed["kind"] == "reopen_model_context")
-                if pending is not None and not workspace_has_capacity(synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog), pending):
+                if pending is not None and not workspace_has_capacity(self._synchronize_model_workspace(connection, thread, snapshot), pending):
                     rejection = "opened_model_limit"
                 if rejection is not None:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
@@ -3363,7 +3396,7 @@ class PostgresThreadService:
             },
         )
         self._insert_event(connection, event)
-        workspace = synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog)
+        workspace = self._synchronize_model_workspace(connection, thread, snapshot)
         workspace = synchronize_workspace(workspace, replace(snapshot, active_model_context=active, last_event_seq=event.event_seq), self._model_catalog)
         connection.execute("UPDATE capstone_threads SET model_workspace = %s WHERE thread_id = %s", (Jsonb(workspace), snapshot.thread_id))
         connection.execute(
