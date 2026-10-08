@@ -15,7 +15,7 @@ import {
   useAuiState,
   useExternalStoreRuntime,
 } from '@assistant-ui/react'
-import { Activity, ArrowUp, Check, ChevronRight, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Activity, ArrowUp, Check, ChevronDown, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
@@ -572,7 +572,7 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
     <div className="capstone-answer-header"><span className="capstone-chat-role">CAPSTONE</span>
-      {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronRight aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
+      {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
     </div>
     <div className="capstone-answer-body">
       <div ref={body} id={`${id}-content`} className={`capstone-answer-content${folded ? ' is-collapsed' : ''}`} style={folded ? { maxHeight: previewHeight } : undefined} aria-hidden={folded || undefined} inert={folded || undefined}>
