@@ -57,6 +57,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .brand-name { font-size: 15px; font-weight: 800; letter-spacing: .21em; color: #f3f7f3; }
 .brand-divider { height: 19px; width: 1px; background: #395056; margin: 0 5px; }
 .brand-subtitle { font-size: 12px; letter-spacing: .08em; color: #aabcb9; white-space: nowrap; }
+.app-version { font-size: 10px; font-weight: 400; color: #849b98; letter-spacing: .01em; white-space: nowrap; }
 .topbar-right { gap: 30px; }
 .project-link { display: inline-flex; align-items: center; justify-content: center; flex: none;
   color: #a7c5bc; width: 44px; min-height: 44px; border-radius: 6px;

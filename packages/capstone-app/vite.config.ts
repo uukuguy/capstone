@@ -1,6 +1,21 @@
 import { defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, existsSync } from 'node:fs'
+
+// Release archives carry a non-secret source receipt. Local development reads Git.
+function buildRevision() {
+  if (existsSync('build-revision.txt')) {
+    const revision = readFileSync('build-revision.txt', 'utf8').trim()
+    if (revision !== 'development') {
+      if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Invalid App build revision')
+      return revision
+    }
+  }
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() }
+  catch { return '' }
+}
 
 export default defineConfig(({ mode }) => {
   // Keep the API behind Vite's same-origin proxy. This lets a phone on the LAN
@@ -18,6 +33,7 @@ export default defineConfig(({ mode }) => {
     headers: { Origin: apiProxyOrigin },
   }
   return {
+    define: { __CAPSTONE_BUILD__: JSON.stringify({ version: JSON.parse(readFileSync('package.json', 'utf8')).version, revision: buildRevision() }) },
     plugins: [react()],
     test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
     server: {

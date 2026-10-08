@@ -46,6 +46,7 @@ body, .app-shell { background: #eef3f1; color: var(--text); }
 .brand-name { color: #132e33; font-size: 13px; }
 .brand-divider { background: #cedbd7; }
 .brand-subtitle { color: #59716e; font-size: 12px; }
+.app-version { color: #718582; }
 .mark i { border-color: #117b73; }
 .mark i:nth-child(1) { background: #117b73; }
 .text-button { color: #126f69; border-color: #9bc0b8; font-size: 13px; }

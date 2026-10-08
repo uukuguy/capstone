@@ -12,7 +12,10 @@ export function PageHeader({ className = '', showThreadEntry = true, actions }: 
       </svg>
     </a>
   return <header className={`topbar ${className}`.trim()}>
-    <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span><span className="brand-divider" />
+    <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span>
+      <span className="app-version" aria-label="App 版本" title={`源代码版本：${__CAPSTONE_BUILD__.revision || '本地开发'}`}>
+        v{__CAPSTONE_BUILD__.version} · {__CAPSTONE_BUILD__.revision.slice(0, 7) || '开发版'}
+      </span><span className="brand-divider" />
       <span className="brand-subtitle">电网分析工作台</span></div>
     {actions ? <div className="topbar-right">{actions}{projectLink}</div> : <>
       {showThreadEntry && <a className="thread-entry-link" href="/?thread=new">打开 Thread</a>}

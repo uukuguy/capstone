@@ -25,6 +25,13 @@ or public origins. Provider credentials are separate by default; the current
 user-approved function-validation stage permits an existing Provider key.
 `VITE_API_ORIGIN` contains only the selected API origin.
 
+The App header shows its package version and source commit. Before uploading an
+exact Git release archive, write that archive's full commit to
+`packages/capstone-app/build-revision.txt`. This public build receipt contains no
+secrets. Verify the header commit against the deployed source before acceptance.
+The tracked `development` marker lets local Vite read Git directly; do not accept
+a hosted release that shows the development marker.
+
 Set `CAPSTONE_THREAD_OPEN_ACCESS=true` on the cloud-development API after local
 App verification. The App reads `/api/v1/thread-access` and opens directly,
 with no login and no browser token. Provider keys remain on the backend workers.
