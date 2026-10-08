@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -16,7 +17,8 @@ from typing import TYPE_CHECKING
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
-from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
+from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
+from .request_intent import NodeControl
 
 if TYPE_CHECKING:
     from .case_service import CaseExecutionService
@@ -55,11 +57,35 @@ def _run_claimed_attempt(
 ) -> HarnessAttemptResult:
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
+        def check_intent() -> None:
+            lease.check()
+            if service.cancel_requested(claim):
+                raise InterruptedError('intent cancelled')
         try:
-            plan = router.plan(routing_input_for_claim(claim))
-        except DecisionUnavailable:
-            error_code = "ordinary_conversation_disabled"
-            service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
+            semantic = getattr(runtime_factory, 'plan_intent', None)
+            if callable(semantic):
+                if not router.ordinary_conversation_enabled:
+                    raise DecisionUnavailable('ordinary_conversation_disabled')
+                service.append_runtime_event(claim, event_type='intent_started',
+                                             payload={'stage': 'understanding'})
+                plan = semantic(claim, NodeControl(check_intent, time.monotonic() + 120),
+                                service.freeze_attempt_input)
+            else:
+                plan = router.plan(routing_input_for_claim(claim))
+            if not isinstance(plan, TurnPlan):
+                raise ValueError('intent node returned an invalid plan')
+        except InterruptedError:
+            service.finish_attempt(claim, phase='cancelled', payload={})
+            return HarnessAttemptResult('cancelled', None, None)
+        except Exception as error:
+            error_code = ('runtime_configuration_invalid' if isinstance(error, HarnessRuntimeConfigurationError)
+                          else 'ordinary_conversation_disabled'
+                          if isinstance(error, DecisionUnavailable) and str(error) == 'ordinary_conversation_disabled'
+                          else 'intent_recognition_failed')
+            payload = {'error_code': error_code}
+            if error_code == 'intent_recognition_failed':
+                payload['message'] = '本次请求暂时未能处理，请重试。会话和模型选择已保留。'
+            service.finish_attempt(claim, phase="failed", payload=payload)
             return HarnessAttemptResult("failed", None, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
         service.append_runtime_event(

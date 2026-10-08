@@ -16,6 +16,7 @@ from threading import Thread
 from typing import Protocol
 
 from .thread_service import AttemptClaim
+from .request_intent import IntentDecision, IntentRequest
 
 
 class DecisionUnavailable(RuntimeError):
@@ -26,61 +27,6 @@ _ROUTES = frozenset({"ordinary", "professional"})
 _MAX_HINT = 160
 _MAX_CONTEXT = 1024
 _MAX_ROUTING_TEXT = 2_048
-_DOMAIN_HINTS = (
-    "电网", "潮流", "线路", "母线", "变压器", "拓扑", "约束", "越限",
-    "n-1", "pandapower", "pypsa", "负载率", "短路", "孤岛", "收敛",
-)
-_MODEL_CATALOG_SUBJECTS = ("模型", "models", "networks", "model catalog", "模型目录")
-_MODEL_CATALOG_REQUESTS = (
-    "有哪些", "有什么", "哪些", "列出", "列一下", "目录", "清单",
-    "which", "what", "list", "available", "supported", "catalog",
-)
-_CALCULATION_HINTS = (
-    *(_hint for _hint in _DOMAIN_HINTS if _hint not in {"电网", "pandapower", "pypsa"}),
-    "运行", "执行", "计算", "求解", "调度", "优化", "损耗", "电压", "功率",
-    "容量", "成本", "发电", "储能", "负荷", "修改", "创建", "打开", "载入",
-    "run", "execute", "calculate", "solve", "dispatch", "optimi", "loss",
-    "voltage", "power flow", "overload", "line", "bus", "capacity", "cost",
-    "generator", "storage", "load", "modify", "create", "open",
-)
-
-
-def _requests_model_catalog(text: str) -> bool:
-    return (
-        any(subject in text for subject in _MODEL_CATALOG_SUBJECTS)
-        and any(request in text for request in _MODEL_CATALOG_REQUESTS)
-    )
-
-
-def is_model_catalog_listing(instruction: str) -> bool:
-    """Identify availability requests that contain no calculation or model change."""
-    text = instruction.lower()
-    return _requests_model_catalog(text) and not any(hint in text for hint in _CALCULATION_HINTS)
-
-
-def _heuristic_route(instruction: str) -> str:
-    text = instruction.lower()
-    subject = re.sub(r"^(?:你好|hello|hi)[，,！!。\s]*", "", text.lstrip())
-    conceptual = subject.startswith((
-        "什么是", "解释", "介绍", "请解释", "请介绍", "如何理解",
-        "explain ", "what is ", "what are ", "describe ", "你有哪些", "你能做哪些",
-    )) or ("工具" in subject and subject.startswith(("有哪些", "支持哪些")))
-    model_facts = any(hint in text for hint in (
-        "当前模型", "这个模型", "该模型", "ieee", "this model", "current model",
-        "结果", "result", "执行", "运行", "计算", "求解", "修改",
-        "calculate", "execute", "solve", "modify", " run ", "dispatch", "optimize", "调度", "优化",
-    ))
-    if conceptual and not model_facts:
-        return "ordinary"
-    # Availability is answered from the application's bounded registered catalog.
-    # A mixed catalog/calculation request still needs the professional lane.
-    if _requests_model_catalog(text):
-        return "ordinary" if is_model_catalog_listing(instruction) else "professional"
-    return "professional" if any(hint in text for hint in (
-        *_DOMAIN_HINTS, "电压", "损耗", "power flow", "voltage", "losses",
-    )) else "ordinary"
-
-
 @dataclass(frozen=True, slots=True)
 class RouterConfig:
     mode: str = "off"
@@ -88,7 +34,7 @@ class RouterConfig:
     schema: str = "capstone-routing-decision/1"
 
     def __post_init__(self) -> None:
-        if self.mode not in {"off", "heuristic", "jev_active", "jev_shadow"}:
+        if self.mode not in {"off", "semantic", "heuristic", "jev_active", "jev_shadow"}:
             raise ValueError("router mode is invalid")
         if any(not isinstance(value, str) or not value or len(value) > 128
                for value in (self.model, self.schema)):
@@ -159,6 +105,10 @@ class TurnPlan:
     router_config: RouterConfig = RouterConfig()
     fallback_reason: str | None = None
     shadow_decision: Future[TurnPlan] | None = field(default=None, repr=False, compare=False)
+    intent_decision: IntentDecision | None = None
+    intent_engine: Mapping[str, object] | None = None
+    intent_request: IntentRequest | None = field(default=None, repr=False)
+    intent_resources: Mapping[str, object] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not self.turn_id or not self.attempt_id or not self.plan_revision:
@@ -190,6 +140,9 @@ class TurnPlan:
             payload["confidence"] = self.confidence
         if self.fallback_reason is not None:
             payload["fallback_reason"] = self.fallback_reason
+        if self.intent_decision is not None:
+            payload['intent_decision'] = self.intent_decision.to_document()
+            payload['intent_engine'] = dict(self.intent_engine or {})
         return payload
 
 
@@ -233,7 +186,7 @@ def _sanitize_instruction(instruction: str) -> str:
 
 
 class DefaultTurnRouter:
-    """Route explicit commands and auto commands with a safe policy fallback."""
+    """Support explicit compatibility routes; auto requires an injected node."""
 
     def __init__(
         self,
@@ -271,19 +224,13 @@ class DefaultTurnRouter:
             intent = TurnIntent("ordinary", "explicit")
         elif routing_input.command_kind == "send_auto":
             if self._decision_router is None or self.config.mode in {"off", "heuristic", "jev_shadow"}:
-                intent = TurnIntent(
-                    _heuristic_route(routing_input.instruction), "heuristic", "bounded_heuristic",
-                )
+                raise DecisionUnavailable('intent_recognizer_unavailable')
             else:
                 try:
                     nested = self._decision_router.plan(routing_input)
                     intent = TurnIntent(nested.route, nested.source, nested.confidence)
                 except Exception:
-                    intent = TurnIntent(
-                        _heuristic_route(routing_input.instruction),
-                        "decision_unavailable",
-                    )
-                    return self._make(routing_input, intent, fallback=True)
+                    raise DecisionUnavailable('intent_recognition_failed') from None
         else:
             raise DecisionUnavailable("unsupported_turn_kind")
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:

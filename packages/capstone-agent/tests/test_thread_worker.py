@@ -8,6 +8,7 @@ from capstone_agent.harness import HarnessAttemptResult, HarnessAttemptRunner
 from capstone_agent.thread_service import InMemoryThreadService, ThreadModelDescriptor
 from capstone_agent.thread_protocol import ThreadSnapshot
 from capstone_agent.thread_worker import run_pending_attempt, serve_thread_attempts
+from capstone_agent.turn_router import DefaultTurnRouter, FakeDecisionRouter
 
 
 def _service() -> InMemoryThreadService:
@@ -88,7 +89,8 @@ def test_empty_selection_calculation_requires_capability_before_runtime_creation
     })
     def factory(claim):
         pytest.fail("A zero-tool calculation must not create a Provider runtime")
-    result = run_pending_attempt(service, factory, worker_id="thread-worker")
+    result = run_pending_attempt(service, factory, worker_id="thread-worker",
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("professional")))
     assert result.error_code == "capability_required"
     terminal = service.read_events("thr_worker", 0).events[-1]
     assert terminal.event_type == "attempt_failed"

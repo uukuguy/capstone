@@ -5,6 +5,7 @@ from capstone_agent.kernel_pi_session import _render_attempt_model_context
 from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.thread_protocol import ModelContextSnapshot
+from capstone_agent.request_intent import IntentDecision, IntentRequest
 from types import SimpleNamespace
 
 import pytest
@@ -75,15 +76,13 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     )
 
 
-def test_catalog_admission_replaces_incomplete_answer_from_attempt_snapshot():
+def test_catalog_admission_keeps_incomplete_answer_without_explicit_full_scope():
     claim = _catalog_claim()
     decision = _build_kernel_admission(())(
         claim, "有两个模型：Alpha（example-alpha）。", (), (), (),
     )
-    assert "example-alpha" in decision.answer and "example-beta" in decision.answer
-    assert "unrelated-model" not in decision.answer
-    assert "2" in decision.answer and "暂不可用" in decision.answer
-    assert decision.assurance == "deterministic_information"
+    assert decision.answer == "有两个模型：Alpha（example-alpha）。"
+    assert decision.assurance == "general_knowledge"
     assert decision.result_refs == decision.evidence_refs == ()
 
 
@@ -93,11 +92,11 @@ def test_catalog_admission_preserves_complete_llm_answer():
     assert decision.answer == answer
 
 
-def test_catalog_admission_checks_identifiers_instead_of_substrings():
+def test_catalog_admission_does_not_infer_scope_from_identifiers():
     claim = _catalog_claim()
     claim.application_catalog["models"][1]["model_id"] = "alpha"
     decision = _build_kernel_admission(())(claim, "目录有 example-alpha。", (), (), ())
-    assert "`alpha`" in decision.answer
+    assert decision.answer == "目录有 example-alpha。"
 
 
 def test_catalog_admission_does_not_replace_other_informational_answers():
@@ -112,17 +111,17 @@ def test_catalog_admission_does_not_replace_mixed_calculation_requests():
     assert decision.answer == answer
 
 
-def test_catalog_admission_lists_all_families_for_unscoped_query():
+def test_catalog_admission_does_not_infer_full_scope_from_unscoped_query():
     decision = _build_kernel_admission(())(_catalog_claim("列出模型目录"), "example-alpha", (), (), ())
-    assert "example-beta" in decision.answer and "unrelated-model" in decision.answer
+    assert decision.answer == "example-alpha"
 
 
-def test_catalog_admission_handles_other_registered_families():
+def test_catalog_admission_does_not_infer_family_scope_from_prose():
     claim = _catalog_claim("Which atlas models are available?")
     for item in claim.application_catalog["models"][:2]:
         item["implementation_family"] = "atlas"
     decision = _build_kernel_admission(())(claim, "example-alpha", (), (), ())
-    assert "example-beta" in decision.answer and "unrelated-model" not in decision.answer
+    assert decision.answer == "example-alpha"
 
 
 def test_catalog_admission_preserves_requested_examples_and_shortlists():
@@ -130,6 +129,27 @@ def test_catalog_admission_preserves_requested_examples_and_shortlists():
     for question in ["列出一个 PyPSA 模型", "列出 PyPSA 模型的几个示例", "List some PyPSA models", "List the first two PyPSA models"]:
         decision = _build_kernel_admission(())(_catalog_claim(question), answer, (), (), ())
         assert decision.answer == answer
+
+
+def test_semantic_catalog_goal_does_not_claim_an_unspecified_full_scope():
+    claim = _catalog_claim()
+    request = IntentRequest.from_document({
+        "schema": "capstone-intent-request/1", "thread_id": "thread_catalog",
+        "turn_id": "turn_catalog", "attempt_id": "attempt_catalog", "instruction": claim.instruction,
+        "history_cutoff": 0, "messages": [], "objects": [], "capabilities": [], "mode_hint": None,
+    })
+    claim.turn_plan.intent_decision = IntentDecision.from_document({
+        "schema": "capstone-intent-decision/1", "attempt_id": "attempt_catalog", "history_cutoff": 0,
+        "relationship": "independent", "clarification": None,
+        "goals": [{"goal_id": "catalog_goal", "description": "List requested catalog metadata",
+                   "operation": "catalog_lookup", "message_refs": [], "object_refs": [],
+                   "capability_refs": [], "missing_requirements": []}],
+    }, request)
+    answer = "example-alpha"
+    admitted = _build_kernel_admission(())(claim, answer, (), (), ())
+    assert admitted.answer == answer
+    assert admitted.assurance == "general_knowledge"
+    assert admitted.result_refs == admitted.evidence_refs == ()
 
 
 def test_application_catalog_context_keeps_cross_family_models_visible() -> None:

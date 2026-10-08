@@ -78,7 +78,9 @@ Domain Pack 通过公开 Kernel SPI，封装一个领域的工具目录、schema
 
 当前本地 App 也支持一般问题和概念解释，即使在**设置**中关闭全部计算工具。
 计算请求需要启用适用工具；普通回答不创建权威系统结果或证据。
-详见[本地验证与发布范围](docs/reviews/2026-10-08-ordinary-conversation-local-verification.md)。
+不同请求共享会话历史，由模型识别意图后加载所需上下文和工具。
+实时新闻或天气查询需要可用的已注册信息源。
+详见[本地验证与发布范围](docs/reviews/2026-10-08-intent-context-local-verification.md)。
 
 智能体对话是主要入口。已登记案例保留为引导流程与验证样例；早期的案例库页面位于 `/old`。
 

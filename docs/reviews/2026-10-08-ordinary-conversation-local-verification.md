@@ -1,5 +1,10 @@
 # Ordinary conversation with no calculation tools
 
+Acceptance correction: this record covers the earlier empty-selection transport
+and UI checks. It does not establish semantic intent recognition or real answer
+quality. The user required shared context and a model intent node; follow the
+[semantic intent verification](2026-10-08-intent-context-local-verification.md).
+
 ## Scope and behavior
 
 The approved mainline baseline §5.1 and empty-capability decisions govern this

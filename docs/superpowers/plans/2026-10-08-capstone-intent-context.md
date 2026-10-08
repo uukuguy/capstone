@@ -1,6 +1,6 @@
 # Capstone Intent and Conversation Context Implementation Plan
 
-**Execution:** Inline, in dependency order; preserve unrelated work. The canonical
+**Execution:** In dependency order, with bounded implementation and review delegation; preserve unrelated work. The canonical
 delivery ledger remains `2026-10-07-capstone-conversation-completion.md`.
 
 **Goal:** Recognize requests through an interchangeable model node, preserve shared
@@ -14,6 +14,18 @@ Thread ledger remains authoritative; Domain Packs retain calculation admission.
 RPC, a trusted TypeScript Pi extension, existing App event projection and tests.
 
 **Approved design:** [Conversation context](../specs/2026-10-08-capstone-conversation-context-design.md).
+
+## Implementation status — 2026-10-08
+
+Tasks 1–4 are implemented in the local hosted path. Their detailed lists below
+retain the original execution plan; the [verification receipt](../../reviews/2026-10-08-intent-context-local-verification.md)
+records the checks actually run. Task 5 remains open for real model and user
+acceptance. Loopback fixtures are not model-quality acceptance.
+
+The implementation adds explicit goal dependencies and frozen execution resource
+candidates to the planned contracts. Native Pi extensions are JavaScript modules;
+no Kernel policy change was needed. Task-owned implementation is delivered as one
+integrated commit after the release gates, rather than separate per-task commits.
 
 ## Global constraints
 

@@ -22,8 +22,12 @@ The user directs continued completion of these conversation plans. The core capa
 ### Current priority and release correction — 2026-10-08
 
 Ordinary Capstone conversation, including an empty enabled-tool selection, is
-the active package. The user directs cleanup first, then this implementation,
-then CONV-04 and CONV-05. Earlier priority and pending-release statements below
+the active package. The user directs cleanup, ordinary-answer support and actual
+Capstone response assessment first, then pure Pi comparison, then installation
+and configuration design for skills, MCP and related capabilities. Local fixture
+and transport checks do not complete response-quality acceptance. Do not advance
+to CONV-04 until Capstone ordinary-answer behavior has been assessed and accepted.
+Earlier priority and pending-release statements below
 are historical. CONV-01/02/06 implementations shipped in verified source
 `ed2524f` to cloud-dev and demo; independent review and dedicated full interaction
 acceptance remain open. See the indexed stage acceptance receipts. No release,
@@ -51,6 +55,44 @@ history, cancellation and replay. This is not CONV-04 reference mode.
 - [x] Record evidence and limits, journal durable outcomes, and checkpoint.
   Provider tests require separate explicit authorization; no remote release is
   part of this package unless separately requested.
+
+### Ordinary-answer behavior acceptance — active
+
+The governing design is now [conversation continuity and request context](../specs/2026-10-08-capstone-conversation-context-design.md).
+User-approved direction: shared history, Pi-native configuration, semantic request
+understanding, and selective resource loading. Keyword routing and keyword fallback
+are explicitly rejected. The two-stage design is now approved, with an independent
+intent node implemented first through Pi and later replaceable by Jev or a dedicated
+small model. Follow the [implementation plan](2026-10-08-capstone-intent-context.md).
+The earlier separate-ordinary-memory instruction below is superseded:
+ordinary and business replies share conversation continuity, while execution
+resources and evidence retain their own boundaries.
+
+- User clarification: Pi processes all instructions. Entering Pi is not evidence
+  that ordinary answers are supported. Acceptance requires explicit ordinary vs
+  business intent recognition and route-specific context preparation before Pi.
+- The news-question trace selected `ordinary`, but session preparation still
+  combined general conversation policy with the grid-agent role and business
+  ModelContext. The new semantic path fixes that context preparation defect;
+  real response-quality acceptance remains open. See the [local verification](../../reviews/2026-10-08-intent-context-local-verification.md).
+- [x] Give ordinary requests a dedicated Pi context without business role,
+  model-analysis constraints, domain tools or Authority result handles. Provide
+  bounded catalog metadata only when the request asks about available features.
+  Preserve business model and selection in the ledger, outside ordinary prompts.
+- [x] Test classification contracts and actual Pi context composition with tools both on
+  and off. Preserve shared ordinary/business dialogue, distinguish historical text
+  from admitted facts, and clarify ambiguous intent through Pi semantics.
+- [ ] Assess real Capstone replies through the local App/API, after explicit
+  authorization for billed Provider calls or through user-operated App trials.
+- [ ] Cover greeting, general questions, grid concept explanation, available-tool
+  questions, and a follow-up referring to the previous answer.
+- [ ] With calculation tools disabled, confirm requested numerical analysis gives
+  a clear capability prompt, preserves the model, and creates no evidence.
+- [ ] Check streaming, cancellation, recovery and replay; record the actual text
+  and distinguish response quality from transport or fixture success.
+- [ ] Fix observed failures and obtain user acceptance of Capstone behavior before
+  starting pure Pi comparison. Skills/MCP installation and configuration design
+  follows that comparison; existing CONV-05 wiring does not substitute for design.
 
 | Package | Status | Scope | Depends on | Acceptance |
 | --- | --- | --- | --- | --- |

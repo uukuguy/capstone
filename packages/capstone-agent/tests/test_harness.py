@@ -18,7 +18,7 @@ from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.thread_worker import run_pending_attempt
 
 
-def test_incomplete_catalog_stream_commits_the_complete_application_answer():
+def test_catalog_text_without_catalog_intent_keeps_the_model_answer():
     service = _thread_service()
     service.set_catalog_context({"models": [
         {"model_id": "model-first", "display_name": "First", "implementation_family": "pypsa"},
@@ -42,14 +42,15 @@ def test_incomplete_catalog_stream_commits_the_complete_application_answer():
     result = run_pending_attempt(
         service, lambda claim: HarnessPiClient(session, admission=_build_kernel_admission(())),
         worker_id="catalog-worker",
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("ordinary")),
     )
     assert result is not None and result.status == "completed" and session.stopped
     events = service.read_events("thr_harness", 0).events
     terminal = events[-1]
     assert terminal.event_type == "attempt_completed"
-    assert "model-first" in terminal.payload["answer"] and "model-second" in terminal.payload["answer"]
+    assert terminal.payload["answer"] == "有两个模型：model-first。"
     assert terminal.payload["result_refs"] == terminal.payload["evidence_refs"] == []
-    assert terminal.payload["admission"]["assurance"] == "deterministic_information"
+    assert terminal.payload["admission"]["assurance"] == "general_knowledge"
 
 
 class _PiSession:
@@ -615,6 +616,7 @@ def test_professional_model_observation_admission_is_accepted_without_evidence()
     session = _ObservationSession()
     result = HarnessAttemptRunner(
         service, HarnessPiClient(session, admission=session.admit_attempt),
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("professional")),
     ).run(claim)
 
     assert result.status == "completed"

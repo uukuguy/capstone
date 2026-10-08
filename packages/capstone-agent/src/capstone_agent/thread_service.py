@@ -46,6 +46,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .conversation_context import ConversationContext, MAX_HISTORY_TURNS, project_conversation
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
@@ -440,6 +441,76 @@ def _previous_instruction_from_postgres(connection: psycopg.Connection[dict[str,
     return PreviousInstruction(row["attempt_id"], row["instruction"], answer, row["phase"])
 
 
+def _conversation_model_object(context: object, context_id: str | None) -> dict[str, str] | None:
+    """Use saved ledger identity only; legacy absent metadata stays absent."""
+    if isinstance(context, Mapping):
+        try:
+            context = ModelContextSnapshot.from_document(context)
+        except ThreadProtocolError:
+            return None
+    if not isinstance(context, ModelContextSnapshot) or context.id != context_id:
+        return None
+    return {"object_id": context.id, "model_id": context.model_id,
+            "model_revision": context.model_revision, "implementation_family": context.implementation_family}
+
+
+def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str, Any],
+                              thread_id: str, cutoff: int) -> ConversationContext:
+    rows = []
+    for event in events:
+        if (event.thread_id != thread_id or event.event_seq > cutoff or event.visibility != "public"
+                or event.attempt_id is None
+                or event.event_type not in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}):
+            continue
+        record = attempts.get(event.attempt_id)
+        if record is None:
+            continue
+        answer = event.payload.get("answer")
+        if event.event_type == "attempt_completed" and not isinstance(answer, str):
+            answer = "".join(item.payload.get("text", "") for item in events
+                if item.thread_id == thread_id and item.attempt_id == event.attempt_id
+                and item.visibility == "public" and item.event_seq <= event.event_seq
+                and item.event_type == "assistant_text_delta")
+        rows.append({"turn_id": event.turn_id, "attempt_id": event.attempt_id,
+                     "model_context_id": event.model_context_id, "status": event.event_type.removeprefix("attempt_"),
+                     "instruction": record["instruction"], "answer": answer,
+                     "object": _conversation_model_object(record.get("model_context"), event.model_context_id)})
+    return project_conversation(rows, cutoff)
+
+
+def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
+                                cutoff: int) -> ConversationContext:
+    rows = connection.execute("""SELECT e.turn_id, e.attempt_id, e.model_context_id,
+        replace(e.event_type, 'attempt_', '') AS status, a.instruction, e.payload->>'answer' AS answer,
+        e.event_seq, a.model_context_snapshot FROM capstone_thread_events e JOIN capstone_thread_attempts a
+        ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
+        WHERE e.thread_id = %s AND e.event_seq <= %s AND e.visibility = 'public'
+        AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
+        ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, MAX_HISTORY_TURNS + 1)).fetchall()
+    for row in rows:
+        row["object"] = _conversation_model_object(row["model_context_snapshot"], row["model_context_id"])
+        if row["status"] == "completed" and row["answer"] is None:
+            deltas = connection.execute("""SELECT payload->>'text' AS text FROM capstone_thread_events
+                WHERE thread_id = %s AND attempt_id = %s AND event_seq <= %s
+                AND visibility = 'public' AND event_type = 'assistant_text_delta' ORDER BY event_seq""",
+                (thread_id, row["attempt_id"], row["event_seq"])).fetchall()
+            row["answer"] = "".join(item["text"] or "" for item in deltas)
+    return project_conversation(list(reversed(rows)), cutoff)
+
+
+def _attempt_conversation_document(connection: psycopg.Connection[dict[str, Any]],
+                                   attempt: Mapping[str, Any]) -> dict[str, object]:
+    saved = attempt["conversation_context_snapshot"]
+    if saved is not None:
+        return ConversationContext.from_document(saved).to_document()
+    accepted = connection.execute("""SELECT event_seq - 1 AS cutoff FROM capstone_thread_events
+        WHERE thread_id = %s AND attempt_id = %s AND event_type = 'command_accepted'
+        ORDER BY event_seq LIMIT 1""", (attempt["thread_id"], attempt["attempt_id"])).fetchone()
+    if accepted is None:
+        raise ThreadExecutionError("attempt acceptance event is unavailable")
+    return _conversation_from_postgres(connection, attempt["thread_id"], accepted["cutoff"]).to_document()
+
+
 @dataclass(frozen=True, slots=True)
 class AttemptClaim:
     """One immutable Attempt leased to exactly one Harness worker."""
@@ -457,8 +528,11 @@ class AttemptClaim:
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
+    conversation_context: ConversationContext = ConversationContext()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.conversation_context, ConversationContext):
+            raise ThreadExecutionError("attempt conversation context is invalid")
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
             raise ThreadExecutionError("attempt previous instruction is invalid")
         if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
@@ -481,6 +555,8 @@ class ThreadExecutionService(ThreadService, Protocol):
     """Durable Attempt operations used by the Harness worker."""
 
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None: ...
+
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]: ...
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
 
@@ -1208,6 +1284,8 @@ class InMemoryThreadService:
                             "lease_deadline": None,
                             "model_context": self._snapshot.active_model_context,
                             "command_id": parsed["command_id"],
+                            "conversation_context": prior["conversation_context"],
+                            "intent_input_snapshot": prior.get("intent_input_snapshot"),
                         }
                         receipt = self._receipt(
                             parsed, status="accepted", accepted_event_seq=event.event_seq,
@@ -1260,6 +1338,7 @@ class InMemoryThreadService:
                 "lease_deadline": None,
                 "model_context": self._snapshot.active_model_context,
                 "command_id": parsed["command_id"],
+                "conversation_context": _conversation_from_events(self._events, self._attempts, self._snapshot.thread_id, event_seq - 1),
             }
             receipt = self._receipt(
                 parsed, status="accepted", accepted_event_seq=event_seq,
@@ -1410,6 +1489,7 @@ class InMemoryThreadService:
                     model_context=context,
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
+                    conversation_context=record["conversation_context"],
                     application_catalog=(
                         self._catalog_context
                         if self._catalog_context is not None
@@ -1422,6 +1502,15 @@ class InMemoryThreadService:
                     ),
                 )
             return None
+
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:
+        """Save recognition input once; retries retain its source and config identity."""
+        _validate_bounded_json(document, name="attempt.intent_input", maximum=512 * 1024)
+        with self._lock:
+            record = self._require_claim(claim)
+            if record.get("intent_input_snapshot") is None:
+                record["intent_input_snapshot"] = json.loads(_canonical(document))
+            return json.loads(_canonical(record["intent_input_snapshot"]))
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
         if lease_seconds < 1:
@@ -2034,6 +2123,8 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     UNIQUE (thread_id, command_id)
 );
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_context_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
     ON capstone_thread_attempts(created_at, attempt_id)
@@ -2665,13 +2756,15 @@ class PostgresThreadService:
                                 """INSERT INTO capstone_thread_attempts
                                    (attempt_id, thread_id, run_id, turn_id, command_id, kind,
                                     instruction, model_context_id, selection_revision,
-                                    model_context_snapshot, phase)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                                    model_context_snapshot, conversation_context_snapshot, intent_input_snapshot, phase)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                                 (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                                  parsed["command_id"], prior["kind"], prior["instruction"],
                                  snapshot.active_model_context.id,
                                  snapshot.active_model_context.selection_revision,
-                                 Jsonb(snapshot.active_model_context.to_document())),
+                                 Jsonb(snapshot.active_model_context.to_document()),
+                                 Jsonb(_attempt_conversation_document(connection, prior)),
+                                 None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"])),
                             )
                             connection.execute(
                                 """UPDATE capstone_threads
@@ -2756,13 +2849,14 @@ class PostgresThreadService:
                 connection.execute(
                     """INSERT INTO capstone_thread_attempts
                        (attempt_id, thread_id, run_id, turn_id, command_id, kind,
-                        instruction, model_context_id, selection_revision, model_context_snapshot, phase)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                        instruction, model_context_id, selection_revision, model_context_snapshot, conversation_context_snapshot, phase)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                     (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                      parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
                      snapshot.active_model_context.id,
                      snapshot.active_model_context.selection_revision,
-                     Jsonb(snapshot.active_model_context.to_document())),
+                     Jsonb(snapshot.active_model_context.to_document()),
+                     Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document())),
                 )
                 connection.execute(
                     "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
@@ -3024,6 +3118,9 @@ class PostgresThreadService:
                 )
                 return None
             running = AttemptSnapshot.from_document({**current, "phase": "running"})
+            conversation = _attempt_conversation_document(connection, attempt_row)
+            if attempt_row["conversation_context_snapshot"] is None:
+                connection.execute("UPDATE capstone_thread_attempts SET conversation_context_snapshot = %s WHERE attempt_id = %s", (Jsonb(conversation), attempt_row["attempt_id"]))
             updated = connection.execute(
                 """UPDATE capstone_thread_attempts
                    SET phase = 'running', lease_token = %s,
@@ -3051,6 +3148,7 @@ class PostgresThreadService:
                 model_context=context,
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
+                conversation_context=ConversationContext.from_document(conversation),
                 application_catalog=(
                     self._catalog_context
                     if self._catalog_context is not None
@@ -3062,6 +3160,22 @@ class PostgresThreadService:
                     )
                 ),
             )
+
+    def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:
+        """Save input/config once; callers rebind the current retry Attempt identity."""
+        _validate_bounded_json(document, name="attempt.intent_input", maximum=512 * 1024)
+        with self._connect() as connection:
+            row = connection.execute("""SELECT intent_input_snapshot FROM capstone_thread_attempts
+                WHERE thread_id = %s AND attempt_id = %s AND lease_token = %s
+                AND phase = 'running' AND lease_deadline > clock_timestamp() FOR UPDATE""",
+                (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
+            if row is None:
+                raise ThreadExecutionError("attempt lease is unavailable")
+            frozen = row["intent_input_snapshot"]
+            if frozen is None:
+                frozen = json.loads(_canonical(document))
+                connection.execute("UPDATE capstone_thread_attempts SET intent_input_snapshot = %s WHERE attempt_id = %s", (Jsonb(frozen), claim.attempt.attempt_id))
+            return json.loads(_canonical(frozen))
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
         if lease_seconds < 1:

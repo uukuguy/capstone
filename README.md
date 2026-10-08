@@ -79,7 +79,9 @@ Continue in the same conversation to inspect results or refine the analysis. Eac
 The current local App also supports general questions and concept explanations
 when all calculation tools are disabled in **Settings**. Calculations require
 applicable enabled tools; ordinary replies create no Authority results or evidence.
-See the [local verification and release limits](docs/reviews/2026-10-08-ordinary-conversation-local-verification.md).
+Requests share conversation history and use model-based intent recognition before
+loading the required context and tools. Live news or weather requires an available
+registered source. See the [local verification and release limits](docs/reviews/2026-10-08-intent-context-local-verification.md).
 
 The conversation is the primary interface. Registered cases remain available as guided workflows and validation fixtures; the earlier case-library page is at `/old`.
 

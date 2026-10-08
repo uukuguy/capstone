@@ -1,0 +1,5 @@
+{
+  "compaction": {"enabled": false},
+  "retry": {"enabled": false},
+  "enableSkillCommands": false
+}

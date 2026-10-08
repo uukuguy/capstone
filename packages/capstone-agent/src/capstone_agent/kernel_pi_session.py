@@ -171,8 +171,9 @@ class PreparedKernelPiRpcSessionBuilder:
         single = len(binding_runtimes) == 1
         single_runtime = binding_runtimes[0][1] if single else None
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
+        intent_request = getattr(claim.turn_plan, 'intent_request', None)
         system_policy_path = self._runtime_host.system_policy_path
-        if profiles:
+        if profiles and intent_request is None:
             system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
@@ -200,6 +201,36 @@ class PreparedKernelPiRpcSessionBuilder:
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
+        if intent_request is not None:
+            if claim.turn_plan is None or claim.turn_plan.intent_decision is None:
+                raise ValueError('semantic execution requires a validated intent decision')
+            from .pi_intent import NativeConversationPiSessionBuilder, prepare_context_launch
+            native = NativeConversationPiSessionBuilder(
+                runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
+                workspace_root=workspace.root.parent, base_environment=self._base_environment,
+            )
+            if native.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
+                raise ValueError('intent configuration changed before business execution')
+            launch = native.apply_configuration(launch, workspace, claim.attempt.attempt_id,
+                                                 domain_policy=self._runtime_host.system_policy_path)
+            request_document = intent_request.to_document()
+            decision_document = claim.turn_plan.intent_decision.to_document()
+            supplemental = {
+                'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
+                'history_truncated': request_document.get('history_truncated', False),
+                'decision': decision_document,
+                'executable_goal_ids': [goal['goal_id'] for goal in claim.turn_plan.intent_decision.execution_goals],
+                'model_context': claim.model_context.to_document(),
+                'bindings': [{'binding_id': profile.model_binding.binding_id,
+                              'context_ref': profile.model_binding.context_ref} for profile in profiles],
+                'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
+                                   'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
+                                  for ref in claim.prior_results],
+            }
+            if any(goal['operation'] == 'catalog_lookup' for goal in decision_document['goals']):
+                supplemental['application_catalog'] = claim.application_catalog
+            launch = prepare_context_launch(launch, workspace, claim.attempt.attempt_id,
+                                             request_document['messages'], supplemental)
         trace = JsonlTraceWriter(
             workspace.core_path / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}
