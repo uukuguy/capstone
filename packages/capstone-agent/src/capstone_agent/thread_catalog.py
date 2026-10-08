@@ -132,6 +132,12 @@ class CompositeThreadModelCatalog:
         self.default_model_id = validate_model_id(default_model_id)
         self._catalogs: dict[str, AuthorityThreadModelCatalog] = {}
 
+    def set_diagram_provider(self, provider: Callable[[str, str], Mapping[str, Any]]) -> None:
+        if not callable(provider):
+            raise TypeError("model diagram provider is invalid")
+        # Installed only by the application composition root, never by a caller.
+        self.diagram = provider
+
     def register(self, catalog: "AuthorityThreadModelCatalog") -> None:
         if not isinstance(catalog, AuthorityThreadModelCatalog):
             raise TypeError("catalog registration is invalid")
@@ -184,6 +190,11 @@ class AuthorityThreadModelCatalog:
 
     def list_model_ids(self) -> tuple[str, ...]:
         return self._model_ids
+
+    def set_diagram_provider(self, provider: Callable[[str, str], Mapping[str, Any]]) -> None:
+        if not callable(provider):
+            raise TypeError("model diagram provider is invalid")
+        self.diagram = provider
 
     def list_entries(self) -> tuple[ThreadModelCatalogEntry, ...]:
         return tuple(_catalog_entry(self.resolve(model_id)) for model_id in self._model_ids)

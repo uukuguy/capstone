@@ -108,6 +108,20 @@ def _auth() -> dict[str, str]:
     return {"Authorization": "Bearer hosted-secret", "Origin": "http://localhost:5173"}
 
 
+def test_opened_model_projection_uses_the_private_thread_boundary():
+    service = _service()
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        path = "/api/v1/threads/thr_demo_39/models"
+        assert client.get(path).status_code == 401
+        response = client.get(path, headers=_auth())
+    assert response.status_code == 200
+    workspace = response.json()
+    assert workspace["thread_id"] == "thr_demo_39"
+    assert len(workspace["models"]) == 1
+    assert workspace["models"][0]["model_id"] == "ieee39"
+    assert workspace["current_entry_id"] == workspace["models"][0]["entry_id"]
+
+
 @pytest.mark.parametrize("kind", ["switch_model", "reopen_model_context"])
 def test_unregistered_model_command_returns_a_rejection_without_changing_thread(kind) -> None:
     service = _service()

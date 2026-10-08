@@ -77,8 +77,16 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/history?${query}`, { signal })
   }
 
-  readNetworkEvents(threadId: string, signal?: AbortSignal): Promise<unknown> {
-    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/network-events`, { signal })
+  readNetworkEvents(threadId: string, signal?: AbortSignal, contextId?: string, attemptId?: string): Promise<unknown> {
+    const query = new URLSearchParams()
+    if (contextId) query.set('context_id', contextId)
+    if (attemptId) query.set('attempt_id', attemptId)
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/network-events${query.size ? `?${query}` : ''}`, { signal })
+  }
+
+  async getModels(threadId: string, signal?: AbortSignal): Promise<unknown> {
+    try { return await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/models`, { signal }) }
+    catch (cause) { if (cause instanceof ThreadTransportError && cause.status === 404) return null; throw cause }
   }
 
   async listThreads(archived = false, before?: string, signal?: AbortSignal) {

@@ -1,9 +1,10 @@
 import {
-  parseCommandReceipt, parseEventPage, parseThreadSnapshot,
+  parseCommandReceipt, parseContext, parseEventPage, parseThreadSnapshot,
   type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
 } from './threadProtocol'
 import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
 import { parseNetworkContextEvents, parseThreadHistoryPage } from './threadHistory'
+import { parseModelWorkspace } from './threadModelWorkspace'
 
 export type ThreadCommand = {
   schema: 'capstone-command/1'
@@ -22,8 +23,9 @@ export interface ThreadTransport {
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
+  getModels?(threadId: string, signal?: AbortSignal): Promise<unknown>
   readHistory?(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown>
-  readNetworkEvents?(threadId: string, signal?: AbortSignal): Promise<unknown>
+  readNetworkEvents?(threadId: string, signal?: AbortSignal, contextId?: string, attemptId?: string): Promise<unknown>
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
   streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
@@ -78,6 +80,21 @@ export class CapstoneThreadClient {
   async networkContextEvents(threadId: string, contextId: string, signal?: AbortSignal): Promise<EventEnvelope[]> {
     if (!this.transport.readNetworkEvents) return []
     return parseNetworkContextEvents(await this.transport.readNetworkEvents(threadId, signal), threadId, contextId)
+  }
+
+  async models(threadId: string, signal?: AbortSignal) {
+    if (!this.transport.getModels) return null
+    const value = await this.transport.getModels(threadId, signal)
+    return value === null ? null : parseModelWorkspace(value, threadId)
+  }
+
+  async historicalNetwork(threadId: string, contextId: string, attemptId?: string) {
+    if (!this.transport.readNetworkEvents) throw new Error('历史电网投影不可用')
+    const value = await this.transport.readNetworkEvents(threadId, undefined, contextId, attemptId)
+    const body = value as Record<string, unknown>
+    const context = parseContext(body.model_context, 'historical model context')
+    if (context.id !== contextId) throw new Error('历史模型身份不一致')
+    return { context, events: parseNetworkContextEvents(value, threadId, contextId) }
   }
 
   async create(modelId?: string, signal?: AbortSignal): Promise<ThreadSnapshot> {

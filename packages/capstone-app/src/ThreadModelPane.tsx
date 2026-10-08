@@ -32,6 +32,8 @@ export type ThreadModelPaneProps = {
   elementReference?: { model_id: string; model_revision: string; element_kind: string; element_id: string }
   modelOptions: ThreadCatalogModel[]
   onSelectPage: (pageId: string) => void
+  onOpenHistoricalModel?: (modelId: string, revision: string) => void
+  modelBusy?: boolean
   resultProjection?: ResultProjection
   focusedElementId?: string
   feedback?: string | null
@@ -78,7 +80,7 @@ export function projectActiveNetworkView(view: DiagramNetworkView, projection: R
 /** Thread's copied center-column model surface. Legacy RunPanel remains untouched. */
 export default function ThreadModelPane({ snapshot, viewedPage, activePage, gridPages, isHistorical,
   projectionEventSeq, previewDiagram,
-  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
+  networkView, networkTaskId, networkFailureCode, instructionLabel, viewingInstruction, onLatestInstruction, elementReference, modelOptions, onSelectPage, onOpenHistoricalModel, modelBusy, resultProjection, focusedElementId, feedback }: ThreadModelPaneProps) {
   const pages = Array.from(new Set([...gridPages.map((page) => page.pageId), activePage, viewedPage]))
   const historicalPage = isHistorical ? gridPages.find((page) => page.pageId === viewedPage) : undefined
   const viewedContext = isHistorical ? historicalPage?.context : snapshot.activeModelContext
@@ -138,7 +140,7 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
       <div className="thread-grid-meta"><div><span>MODEL CONTEXT</span><strong>{viewedContext?.id || '不可用'}</strong></div><div><span>SELECTION</span><strong>{viewedContext?.selectionRevision || '不可用'}</strong></div><div><span>EVENT CURSOR</span><strong>#{projectionEventSeq}</strong></div></div>
       <p>{viewedContext?.implementationFamily} · revision {viewedContext?.modelRevision}</p>
     </details>
-    {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span><button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
+    {isHistorical && <div className="thread-history-bar"><span>历史页 · 只读视图</span>{viewedContext && onOpenHistoricalModel && <button type="button" disabled={modelBusy} onClick={() => onOpenHistoricalModel(viewedContext.modelId, viewedContext.modelRevision)}>打开此模型</button>}<button type="button" onClick={() => onSelectPage(activePage)}>返回当前模型</button></div>}
     {elementReference && !isHistorical && <div className="thread-element-reference"><span>ELEMENT REFERENCE</span><strong>{elementReference.element_kind} / {elementReference.element_id}</strong><small>{elementReference.model_id} · revision {elementReference.model_revision}</small></div>}
   </section>
 }

@@ -42,7 +42,7 @@ def _root() -> Path:
     return Path(configured).resolve() if configured else Path(__file__).resolve().parents[4]
 
 
-def _run_exporter(root: Path, family: str, command: tuple[str, ...]) -> dict[str, Any]:
+def _run_exporter(root: Path, family: str, command: tuple[str, ...], *, max_bytes: int = _MAX_EXPORT_BYTES) -> dict[str, Any]:
     environment = {
         key: os.environ[key]
         for key in ("PATH", "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR", "CAPSTONE_GRID_MODEL_LIBRARY_DIR")
@@ -57,14 +57,14 @@ def _run_exporter(root: Path, family: str, command: tuple[str, ...]) -> dict[str
             )
             process.communicate(timeout=_EXPORT_TIMEOUT_SECONDS)
             output.seek(0)
-            raw_stdout = output.read(_MAX_EXPORT_BYTES + 1)
+            raw_stdout = output.read(max_bytes + 1)
             returncode = process.returncode
     except (OSError, subprocess.SubprocessError) as error:
         if process is not None and process.poll() is None:
             process.kill()
             process.wait()
         raise RuntimeError(f"{family} catalog exporter failed") from error
-    if len(raw_stdout) > _MAX_EXPORT_BYTES:
+    if len(raw_stdout) > max_bytes:
         raise RuntimeError(f"{family} catalog export is too large")
     if returncode != 0:
         raise RuntimeError(f"{family} catalog exporter failed")
@@ -91,10 +91,20 @@ def build_federated_thread_catalog(
     root: Path | None = None, *, default_model_id: str | None = None,
 ) -> FederatedThreadCatalog:
     documents = load_federated_catalog_documents(root)
-    return build_catalog_from_documents(
+    catalog = build_catalog_from_documents(
         documents, default_model_id=default_model_id,
         expected_families=tuple(family for family, _ in _EXPORTERS),
     )
+    def diagram(model_id: str, revision: str) -> dict[str, Any]:
+        from .network_diagram import MAX_DIAGRAM_BYTES, normalize_network_diagram
+        descriptor = catalog.model_catalog.resolve(model_id)
+        if descriptor.model_revision != revision or not descriptor.available:
+            raise ValueError("exact registered model revision is unavailable")
+        command = next(command for family, command in _EXPORTERS if family == descriptor.implementation_family)
+        return normalize_network_diagram(_run_exporter((root or _root()).resolve(), descriptor.implementation_family,
+            (*command, "--diagram", model_id, revision), max_bytes=MAX_DIAGRAM_BYTES + 64 * 1024))
+    catalog.model_catalog.set_diagram_provider(diagram)
+    return catalog
 
 
 def _available_families() -> frozenset[str] | None:

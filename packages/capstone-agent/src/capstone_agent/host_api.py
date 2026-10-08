@@ -242,10 +242,15 @@ def create_host_app(
                 raise HTTPException(404, "thread not found") from None
 
         @app.get("/api/v1/threads/{thread_id}/network-events")
-        def get_thread_network_events(thread_id: str, request: Request):
+        def get_thread_network_events(thread_id: str, request: Request,
+                                     context_id: Annotated[str | None, Query(max_length=64)] = None,
+                                     attempt_id: Annotated[str | None, Query(max_length=64)] = None):
             require_private_thread(request)
             try:
-                return thread_service.read_network_events(thread_id)
+                if attempt_id is not None and context_id is None:
+                    raise ThreadProtocolError("attempt target requires context")
+                return (thread_service.read_network_events(thread_id) if context_id is None else
+                        thread_service.read_network_events(thread_id, context_id=context_id, attempt_id=attempt_id))
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadProtocolError:
@@ -302,6 +307,14 @@ def create_host_app(
                 if case_service is not None:
                     return case_service.catalog(thread_id)
                 return thread_service.catalog(thread_id)
+            except ThreadNotFound:
+                raise HTTPException(404, "thread not found") from None
+
+        @app.get("/api/v1/threads/{thread_id}/models")
+        def get_thread_models(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                return thread_service.read_models(thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 

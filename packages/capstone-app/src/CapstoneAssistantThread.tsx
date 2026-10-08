@@ -279,7 +279,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
         const instruction = { text, mode: commandMode(event), messageId: `user-${event.eventId}` }
         if (key) instructionByAttempt.set(key, instruction)
         if (event.turnId) instructionByTurn.set(event.turnId, instruction)
-        messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, receipt: `${commandMode(event)} · accepted` } } })
+        messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, sentAt: event.occurredAt, receipt: `${commandMode(event)} · accepted` } } })
       }
       continue
     }
@@ -649,9 +649,23 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>}
     {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
-    {role === 'user' && hasText && <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} onEditInstruction={onEditInstruction} />}
+    {role === 'user' && hasText && <div className="capstone-instruction-meta">
+      <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} onEditInstruction={onEditInstruction} />
+      {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
+    </div>}
     {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
+}
+
+function InstructionTime({ value }: { value: string }) {
+  const date = new Date(value)
+  const now = new Date()
+  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const day = date.toLocaleDateString('zh-CN', { ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}), month: '2-digit', day: '2-digit' })
+  const full = date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'short' })
+  return <time className="capstone-instruction-time" dateTime={value} title={full} aria-label={`指令发出时间：${full}`}>
+    {date.toDateString() === now.toDateString() ? clock : `${day} ${clock}`}
+  </time>
 }
 
 function ComposerSurface({ disabled, isRunning, editRequest, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; editRequest?: { text: string; nonce: number }; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {

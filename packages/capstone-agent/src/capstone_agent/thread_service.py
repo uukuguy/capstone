@@ -48,6 +48,7 @@ from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
+from .thread_model_workspace import MODEL_COMMANDS, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -73,12 +74,64 @@ _CONTROL_COMMAND_KINDS = frozenset({
     "cancel_live_attempt", "retry_new_attempt",
     "enable_profile", "disable_profile", "replace_selection",
     "switch_model", "reopen_model_context",
-})
+}) | MODEL_COMMANDS
 _SELECTION_COMMAND_KINDS = frozenset({"enable_profile", "disable_profile", "replace_selection"})
 _CONTEXT_LOCK_COMMAND_KINDS = frozenset({
     "switch_model", "reopen_model_context", "enable_profile", "disable_profile", "replace_selection",
-})
+}) | MODEL_COMMANDS
 _CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt"}
+
+
+def _workspace_blocked_reason(snapshot: ThreadSnapshot, archived: bool) -> str | None:
+    if archived:
+        return "thread_archived"
+    if _application_context_lock(snapshot) or _application_case_active(snapshot):
+        return "case_execution_active"
+    if snapshot.current_attempt is not None:
+        return "attempt_in_progress"
+    if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None:
+        return "context_change_pending"
+    return None if snapshot.run.state == "open" else "run_not_open"
+
+
+def _workspace_activation_payload(command: Mapping[str, Any], snapshot: ThreadSnapshot, context: ModelContextSnapshot) -> dict[str, Any]:
+    return {"command_id": command["command_id"], "reason": "model_switch",
+            "previous_context": snapshot.active_model_context.to_document(),
+            "previous_grid_page_id": snapshot.active_grid_page_id,
+            "active_grid_page_id": page_id_for_model(context.model_id), "model_context": context.to_document()}
+
+
+def _historical_network_page(snapshot: ThreadSnapshot, events: list[EventEnvelope], context_id: str,
+                             attempt_id: str | None) -> dict[str, Any]:
+    _identifier(context_id, name="context_id")
+    if attempt_id is not None:
+        _identifier(attempt_id, name="attempt_id")
+    context = snapshot.active_model_context if context_id == snapshot.active_model_context.id else None
+    for event in reversed(events):
+        for key in ("model_context", "previous_context", "restored_context"):
+            document = event.payload.get(key)
+            if isinstance(document, Mapping) and document.get("id") == context_id:
+                context = ModelContextSnapshot.from_document(document)
+                break
+        if context is not None:
+            break
+    if context is None:
+        raise ThreadProtocolError("historical model context is unavailable")
+    eligible = [event for event in events if event.model_context_id == context_id and event.visibility == "public"]
+    layers = [event for event in eligible if event.event_type in {"network_layer", "network_layer_unavailable"}
+              and (attempt_id is None or event.attempt_id == attempt_id)]
+    layer = max(layers, key=lambda event: event.event_seq) if layers else None
+    target_attempt = layer.attempt_id if layer is not None else attempt_id
+    selected = [] if layer is None else [layer]
+    for kind in ("network_diagram", "attempt_completed"):
+        candidates = [event for event in eligible if event.event_type == kind and event.attempt_id == target_attempt]
+        if not candidates and kind == "network_diagram":
+            candidates = [event for event in eligible if event.event_type == kind and event.attempt_id is None]
+        if candidates:
+            selected.append(max(candidates, key=lambda event: event.event_seq))
+    page = network_context_page(replace(snapshot, active_model_context=context), selected)
+    page["model_context"] = context.to_document()
+    return page
 
 
 def _terminal_result_projections(
@@ -260,6 +313,8 @@ class ThreadService(Protocol):
 
     def catalog(self, thread_id: str) -> dict[str, object]: ...
 
+    def read_models(self, thread_id: str) -> dict[str, Any]: ...
+
     def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]: ...
 
     def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]: ...
@@ -268,7 +323,7 @@ class ThreadService(Protocol):
 
     def read_history(self, thread_id: str, *, before: int | None = None, limit: int = 128) -> dict[str, Any]: ...
 
-    def read_network_events(self, thread_id: str) -> dict[str, Any]: ...
+    def read_network_events(self, thread_id: str, *, context_id: str | None = None, attempt_id: str | None = None) -> dict[str, Any]: ...
 
     def context_lock(self, thread_id: str) -> str | None: ...
 
@@ -548,10 +603,16 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
             target = next(iter(payload.values()))
             if not isinstance(target, str) or not _IDENTIFIER.fullmatch(target):
                 return "retry_target_invalid"
-        elif command["kind"] in {"switch_model", "reopen_model_context"}:
-            required = {"model_id"} if command["kind"] == "switch_model" else {"model_id", "reason"}
-            if set(payload) != required:
+        elif command["kind"] in {"activate_model", "close_model"}:
+            if set(payload) != {"entry_id"} or not isinstance(payload["entry_id"], str) or not _IDENTIFIER.fullmatch(payload["entry_id"]):
+                return "model_target_invalid"
+        elif command["kind"] in {"switch_model", "reopen_model_context", "open_model"}:
+            required = {"model_id", "reason"} if command["kind"] == "reopen_model_context" else {"model_id"}
+            allowed = [required, required | {"model_revision"}] if command["kind"] == "open_model" else [required]
+            if set(payload) not in allowed:
                 return "model_target_required"
+            if "model_revision" in payload and (not isinstance(payload["model_revision"], str) or not payload["model_revision"].strip() or len(payload["model_revision"]) > 256):
+                return "model_target_invalid"
             if not isinstance(payload["model_id"], str):
                 return "model_target_invalid"
             try:
@@ -694,6 +755,7 @@ class InMemoryThreadService:
         self._lock = RLock()
         self._created_at = datetime.now(timezone.utc).isoformat()
         self._archived = False
+        self._model_workspace = synchronize_workspace(None, snapshot, model_catalog)
 
     @classmethod
     def from_document(
@@ -745,6 +807,13 @@ class InMemoryThreadService:
         with self._lock:
             self._check_thread(thread_id)
             return _thread_catalog_document(self._model_catalog, self._capability_catalog, _resolve_available_families(self._available_families))
+
+    def read_models(self, thread_id: str) -> dict[str, Any]:
+        with self._lock:
+            self._check_thread(thread_id)
+            self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
+            blocked = _workspace_blocked_reason(self._snapshot, self._archived)
+            return workspace_projection(self._model_workspace, self._snapshot, blocked)
 
     def set_available_families(self, families: FamilyAvailability) -> None:
         if not callable(families):
@@ -806,14 +875,18 @@ class InMemoryThreadService:
                 if event.event_seq < cursor and event.visibility == "public"), limit + 1))
             return history_page(thread_id, cursor, events, limit)
 
-    def read_network_events(self, thread_id: str) -> dict[str, Any]:
+    def read_network_events(self, thread_id: str, *, context_id: str | None = None, attempt_id: str | None = None) -> dict[str, Any]:
         with self._lock:
             self._check_thread(thread_id)
+            if context_id is not None:
+                return _historical_network_page(self._snapshot, self._events, context_id, attempt_id)
             layer = next((event for event in reversed(self._events)
                 if event.model_context_id == self._snapshot.active_model_context.id
                 and event.visibility == "public"
                 and event.event_type in {"network_layer", "network_layer_unavailable"}), None)
-            events = [] if layer is None else [layer]
+            baseline = next((event for event in reversed(self._events) if event.model_context_id == self._snapshot.active_model_context.id
+                             and event.event_type == "network_diagram" and event.attempt_id is None), None)
+            events = ([] if baseline is None else [baseline]) if layer is None else [layer]
             if layer is not None and layer.event_type == "network_layer":
                 for kind in ("network_diagram", "attempt_completed"):
                     source = next((event for event in reversed(self._events)
@@ -890,6 +963,33 @@ class InMemoryThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
+            if parsed["kind"] in MODEL_COMMANDS:
+                self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
+                change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available)
+                if _application_case_active(self._snapshot):
+                    rejection = "case_execution_active"
+                if rejection is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection=rejection)
+                else:
+                    assert change is not None
+                    if change.changed:
+                        previous = self._snapshot
+                        if change.context is not None:
+                            event = self._append_control_event(event_type="model_context_activated", context=change.context,
+                                payload=_workspace_activation_payload(parsed, previous, change.context))
+                            self._snapshot = replace(previous, active_model_context=change.context,
+                                active_grid_page_id=page_id_for_model(change.context.model_id), last_event_seq=event.event_seq)
+                        if change.diagram is not None:
+                            event = self._append_control_event(event_type="network_diagram", payload={"diagram": change.diagram})
+                            self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
+                        event = self._append_control_event(event_type="model_workspace_changed", payload=workspace_outcome(parsed, self._model_workspace, change.workspace))
+                        self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
+                        self._model_workspace = change.workspace
+                    receipt = self._receipt(parsed, status="accepted", accepted_event_seq=self._snapshot.last_event_seq,
+                        target={"entry_id": change.workspace["current_entry_id"], "changed": change.changed})
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
+                return receipt
             if parsed["kind"] == "cancel_live_attempt":
                 current = self._snapshot.current_attempt
                 target = parsed["payload"]["attempt_id"]
@@ -919,6 +1019,8 @@ class InMemoryThreadService:
                 return receipt
             if parsed["kind"] in {"switch_model", "reopen_model_context"}:
                 pending, rejection = self._model_switch_for_command(parsed, allow_same=parsed["kind"] == "reopen_model_context")
+                if pending is not None and not workspace_has_capacity(synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog), pending):
+                    rejection = "opened_model_limit"
                 if rejection is not None:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
@@ -1573,6 +1675,7 @@ class InMemoryThreadService:
             pending_selection=None,
             last_event_seq=event.event_seq,
         )
+        self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
 
     def _activate_pending_selection(self, turn_id: str) -> None:
         pending = self._snapshot.pending_selection
@@ -1646,7 +1749,6 @@ class InMemoryThreadService:
                 raise ValueError("event base is invalid")
             if base_event_seq > self._snapshot.last_event_seq:
                 raise ValueError("event base exceeds last event")
-            self._events = [event for event in self._events if event.event_seq > base_event_seq]
             self._snapshot = replace(self._snapshot, base_event_seq=base_event_seq)
 
     def _check_thread(self, thread_id: str) -> None:
@@ -1827,6 +1929,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -1935,6 +2038,11 @@ class PostgresThreadService:
 
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
+        initial_diagram = None
+        if callable(getattr(self._model_catalog, "diagram", None)):
+            initial_diagram = normalize_network_diagram(self._model_catalog.diagram(context.model_id, context.model_revision))
+            if initial_diagram["model"]["id"] != context.model_id or initial_diagram["model"]["revision"] != context.model_revision:
+                raise ThreadProtocolError("initial model diagram identity mismatch")
         with self._connect() as connection:
             try:
                 connection.execute(
@@ -1960,6 +2068,12 @@ class PostgresThreadService:
                 )
             except psycopg.errors.UniqueViolation:
                 raise ValueError("thread identity already exists") from None
+            if initial_diagram is not None:
+                event = self._make_control_event({"thread_id": snapshot.thread_id, "run_id": snapshot.run.run_id}, context,
+                    event_seq=snapshot.last_event_seq + 1, event_type="network_diagram", payload={"diagram": initial_diagram})
+                self._insert_event(connection, event)
+                snapshot = replace(snapshot, last_event_seq=event.event_seq)
+                connection.execute("UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s", (event.event_seq, snapshot.thread_id))
         return snapshot
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
@@ -1975,6 +2089,17 @@ class PostgresThreadService:
     def catalog(self, thread_id: str) -> dict[str, object]:
         self.snapshot(thread_id)
         return _thread_catalog_document(self._model_catalog, self._capability_catalog, _resolve_available_families(self._available_families))
+
+    def read_models(self, thread_id: str) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute("SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE", (thread_id,)).fetchone()
+            if row is None:
+                raise ThreadNotFound(thread_id)
+            snapshot = self._snapshot_from_row(row)
+            workspace = synchronize_workspace(row.get("model_workspace"), snapshot, self._model_catalog)
+            if workspace != row.get("model_workspace"):
+                connection.execute("UPDATE capstone_threads SET model_workspace = %s WHERE thread_id = %s", (Jsonb(workspace), thread_id))
+            return workspace_projection(workspace, snapshot, _workspace_blocked_reason(snapshot, row["archived"]))
 
     def set_available_families(self, families: FamilyAvailability) -> None:
         if not callable(families):
@@ -2101,9 +2226,31 @@ class PostgresThreadService:
         events = tuple(self._event_from_row(row) for row in rows)
         return _bounded_event_page(thread_id, after_event_seq, snapshot.last_event_seq, events)
 
-    def read_network_events(self, thread_id: str) -> dict[str, Any]:
+    def read_network_events(self, thread_id: str, *, context_id: str | None = None, attempt_id: str | None = None) -> dict[str, Any]:
         snapshot = self.snapshot(thread_id)
         with self._connect() as connection:
+            if context_id is not None:
+                _identifier(context_id, name="context_id")
+                if attempt_id is not None:
+                    _identifier(attempt_id, name="attempt_id")
+                target_attempt = attempt_id
+                if target_attempt is None:
+                    latest_layer = connection.execute("""SELECT attempt_id FROM capstone_thread_events WHERE thread_id = %s
+                        AND model_context_id = %s AND visibility = 'public'
+                        AND event_type IN ('network_layer', 'network_layer_unavailable') ORDER BY event_seq DESC LIMIT 1""", (thread_id, context_id)).fetchone()
+                    target_attempt = latest_layer["attempt_id"] if latest_layer is not None else None
+                rows = connection.execute("""SELECT DISTINCT ON (event_type, attempt_id) * FROM capstone_thread_events WHERE thread_id = %s
+                    AND model_context_id = %s AND visibility = 'public'
+                    AND event_type IN ('model_context_activated', 'model_context_reopened', 'model_context_reverted', 'network_diagram', 'network_layer', 'network_layer_unavailable', 'attempt_completed')
+                    AND (attempt_id IS NULL OR attempt_id = %s) ORDER BY event_type, attempt_id, event_seq DESC LIMIT 8""",
+                    (thread_id, context_id, target_attempt)).fetchall()
+                identity = connection.execute("""SELECT * FROM capstone_thread_events WHERE thread_id = %s
+                    AND (payload->'model_context'->>'id' = %s OR payload->'previous_context'->>'id' = %s OR payload->'restored_context'->>'id' = %s)
+                    AND event_type IN ('model_context_activated', 'model_context_reopened', 'model_context_reverted')
+                    AND visibility = 'public' ORDER BY event_seq DESC LIMIT 1""", (thread_id, context_id, context_id, context_id)).fetchone()
+                if identity is not None:
+                    rows.append(identity)
+                return _historical_network_page(snapshot, sorted([self._event_from_row(row) for row in rows], key=lambda event: event.event_seq), context_id, attempt_id)
             layer = connection.execute(
                 """SELECT * FROM capstone_thread_events WHERE thread_id = %s
                    AND model_context_id = %s AND visibility = 'public'
@@ -2112,6 +2259,12 @@ class PostgresThreadService:
                 (thread_id, snapshot.active_model_context.id),
             ).fetchone()
             rows = [] if layer is None else [layer]
+            if layer is None:
+                baseline = connection.execute("""SELECT * FROM capstone_thread_events WHERE thread_id = %s
+                    AND model_context_id = %s AND event_type = 'network_diagram' AND attempt_id IS NULL
+                    AND visibility = 'public' ORDER BY event_seq DESC LIMIT 1""", (thread_id, snapshot.active_model_context.id)).fetchone()
+                if baseline is not None:
+                    rows.append(baseline)
             if layer is not None and layer["event_type"] == "network_layer":
                 rows.extend(connection.execute(
                     """SELECT DISTINCT ON (event_type) * FROM capstone_thread_events
@@ -2141,6 +2294,14 @@ class PostgresThreadService:
             if thread is None:
                 raise ThreadNotFound(parsed["thread_id"])
             snapshot = self._snapshot_from_row(thread)
+            # Recheck after the Thread lock: a concurrent identical request may
+            # have committed while this connection waited for the row.
+            existing = connection.execute("SELECT request_hash, receipt FROM capstone_thread_commands WHERE thread_id = %s AND idempotency_key = %s",
+                (parsed["thread_id"], parsed["idempotency_key"])).fetchone()
+            if existing is not None:
+                if existing["request_hash"] != request_hash:
+                    return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
+                return CommandReceipt.from_document(existing["receipt"])
             message_selection, message_selection_rejection = _message_selection_for_command(snapshot, parsed, self._capability_catalog)
             command_row = connection.execute(
                 "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
@@ -2177,6 +2338,35 @@ class PostgresThreadService:
                 )
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            elif parsed["kind"] in MODEL_COMMANDS:
+                workspace = synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog)
+                change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available)
+                if _application_case_active(snapshot):
+                    rejection = "case_execution_active"
+                if rejection is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection=rejection)
+                else:
+                    assert change is not None
+                    context = change.context or snapshot.active_model_context
+                    seq = snapshot.last_event_seq
+                    if change.changed:
+                        events = []
+                        if change.context is not None:
+                            events.append(("model_context_activated", _workspace_activation_payload(parsed, snapshot, context)))
+                        if change.diagram is not None:
+                            events.append(("network_diagram", {"diagram": change.diagram}))
+                        events.append(("model_workspace_changed", workspace_outcome(parsed, workspace, change.workspace)))
+                        for event_type, payload in events:
+                            seq += 1
+                            self._insert_event(connection, self._make_control_event(thread, context, event_seq=seq, event_type=event_type, payload=payload))
+                        connection.execute("""UPDATE capstone_threads SET model_context_id = %s, model_id = %s,
+                            model_revision = %s, implementation_family = %s, selection_revision = %s,
+                            enabled_profiles = %s, active_grid_page_id = %s, model_workspace = %s, last_event_seq = %s
+                            WHERE thread_id = %s""", (context.id, context.model_id, context.model_revision, context.implementation_family,
+                            context.selection_revision, Jsonb([{"profile_id": pid, "profile_version": version} for pid, version in context.enabled_profiles]),
+                            page_id_for_model(context.model_id), Jsonb(change.workspace), seq, snapshot.thread_id))
+                    receipt = self._receipt(parsed, status="accepted", accepted_event_seq=seq,
+                        target={"entry_id": change.workspace["current_entry_id"], "changed": change.changed})
             elif parsed["kind"] == "cancel_live_attempt":
                 current = snapshot.current_attempt
                 target = parsed["payload"]["attempt_id"]
@@ -2208,6 +2398,8 @@ class PostgresThreadService:
                     )
             elif parsed["kind"] in {"switch_model", "reopen_model_context"}:
                 pending, rejection = self._model_switch_for_command(snapshot, parsed, allow_same=parsed["kind"] == "reopen_model_context")
+                if pending is not None and not workspace_has_capacity(synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog), pending):
+                    rejection = "opened_model_limit"
                 if rejection is not None:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
@@ -3171,6 +3363,9 @@ class PostgresThreadService:
             },
         )
         self._insert_event(connection, event)
+        workspace = synchronize_workspace(thread.get("model_workspace"), snapshot, self._model_catalog)
+        workspace = synchronize_workspace(workspace, replace(snapshot, active_model_context=active, last_event_seq=event.event_seq), self._model_catalog)
+        connection.execute("UPDATE capstone_threads SET model_workspace = %s WHERE thread_id = %s", (Jsonb(workspace), snapshot.thread_id))
         connection.execute(
             """UPDATE capstone_threads
                SET model_context_id = %s, model_id = %s, model_revision = %s,
@@ -3301,10 +3496,6 @@ class PostgresThreadService:
                 raise ThreadNotFound(thread_id)
             if base_event_seq < row["base_event_seq"] or base_event_seq > row["last_event_seq"]:
                 raise ValueError("event base is invalid")
-            connection.execute(
-                "DELETE FROM capstone_thread_events WHERE thread_id = %s AND event_seq <= %s",
-                (thread_id, base_event_seq),
-            )
             connection.execute(
                 "UPDATE capstone_threads SET base_event_seq = %s WHERE thread_id = %s",
                 (base_event_seq, thread_id),

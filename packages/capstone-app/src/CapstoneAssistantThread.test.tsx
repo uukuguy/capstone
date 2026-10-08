@@ -11,6 +11,21 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows the accepted instruction time without changing it on refresh', () => {
+    const sentAt = '2026-10-08T01:24:23Z'
+    const events = [event('command_accepted', 1, { kind: 'send_auto', text: '打开 IEEE-39' }, 'first', sentAt)]
+    const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    const instruction = screen.getByLabelText('用户指令')
+    const time = instruction.querySelector('time')
+    expect(time?.getAttribute('datetime')).toBe(sentAt)
+    expect(time?.getAttribute('title')).toContain('2026')
+    expect(time?.textContent).toMatch(/\d{2}:\d{2}$/)
+    const label = time?.textContent
+    rerender(<CapstoneAssistantThread {...props} />)
+    expect(screen.getByLabelText('用户指令').querySelector('time')?.textContent).toBe(label)
+    expect(projectAssistantMessages(events)[0].metadata?.custom?.sentAt).toBe(sentAt)
+  })
   it('keeps recovery available after a diagnostic cursor and excludes it from an older history page', () => {
     const props = { events: [event('attempt_completed', 2, { answer: '已完成回答' }, 'first')],
       systemNotices: [{ id: 'connection', afterEventSeq: 3, text: '连接需要恢复', tone: 'error' as const, action: 'reconnect' as const }],

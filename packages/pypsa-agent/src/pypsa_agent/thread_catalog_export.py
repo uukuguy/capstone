@@ -83,6 +83,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if argv is None:
         argv = sys.argv[1:]
+    if len(argv) == 3 and argv[0] == "--diagram":
+        from .thread_model_diagram import model_diagram
+        json.dump(model_diagram(argv[1], argv[2]), sys.stdout, separators=(",", ":"))
+        sys.stdout.write("\n")
+        return 0
     if argv:
         raise SystemExit("catalog export does not accept arguments")
     json.dump(build_catalog_document(), sys.stdout, sort_keys=True, separators=(",", ":"))

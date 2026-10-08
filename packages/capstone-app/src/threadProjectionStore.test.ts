@@ -27,6 +27,16 @@ const idleFixture = {
   },
 }
 
+it('loads durable model membership independently of the legacy snapshot', async () => {
+  const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
+    implementation_family: context.implementation_family, authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'gridctl', last_active_seq: 0 }
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture),
+    getModels: async () => ({ schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_demo_39', run_id: 'run_001', event_seq: 0,
+      current_entry_id: model.entry_id, models: [model], blocked_reason: null }) }))
+  await store.load('thr_demo_39')
+  expect(store.state.modelWorkspace?.currentEntryId).toBe(model.entry_id)
+})
+
 it('loads only the latest history page and prepends older events without moving the live cursor', async () => {
   const events = Array.from({ length: 10 }, (_, index) => ({
     event_id: `evt_${index + 1}`, event_seq: index + 1, event_type: 'command_accepted', event_version: 1,
@@ -53,6 +63,63 @@ it('loads only the latest history page and prepends older events without moving 
   await store.loadOlderHistory()
   expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([7, 8, 9, 10])
   expect(store.state.eventSeq).toBe(10)
+})
+
+it('catches up a workspace projection ahead of the loaded snapshot before exposing model controls', async () => {
+  const nextContext = { ...context, id: 'ctx_case57', model_id: 'case57' }
+  const event = { event_id: 'evt_switch', event_seq: 1, event_type: 'model_context_activated', event_version: 1,
+    thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: nextContext.id,
+    occurred_at: '2026-10-08T00:00:00Z', visibility: 'public',
+    payload: { model_context: nextContext, active_grid_page_id: 'page_case57', previous_context: context, previous_grid_page_id: 'page_ieee39' } }
+  const transport = createFixtureTransport(idleFixture)
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport,
+    readEvents: async (_threadId, after) => ({ schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: after,
+      next_event_seq: 1, has_more: false, events: after < 1 ? [event] : [] }),
+    getModels: async () => ({ schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_demo_39', run_id: 'run_001',
+      event_seq: 1, current_entry_id: 'mdl_case57', blocked_reason: null, models: [{ entry_id: 'mdl_case57', model_id: 'case57',
+        model_revision: '7', implementation_family: 'pandapower', authority_model_ref: 'gridctl:case57', display_name: 'case57',
+        diagram_provider_id: 'gridctl', last_active_seq: 1 }] }),
+  }))
+  await store.load('thr_demo_39')
+  expect(store.state.eventSeq).toBe(1)
+  expect(store.state.snapshot?.activeModelContext.id).toBe('ctx_case57')
+  expect(store.state.modelWorkspace?.currentEntryId).toBe('mdl_case57')
+})
+
+it('recovers a lost model-control receipt with its original identity and one activation', async () => {
+  const nextContext = { ...context, id: 'ctx_case57', model_id: 'case57' }
+  const command: ThreadCommand = { schema: 'capstone-command/1', thread_id: 'thr_demo_39', run_id: 'run_001',
+    command_id: 'cmd_lost_model', idempotency_key: 'idem_lost_model', kind: 'activate_model', expected_event_seq: 0,
+    payload: { entry_id: 'mdl_case57' } }
+  let committed = false
+  const transport = createFixtureTransport(idleFixture)
+  const event = { event_id: 'evt_switch', event_seq: 1, event_type: 'model_context_activated', event_version: 1,
+    thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: nextContext.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public',
+    payload: { model_context: nextContext, active_grid_page_id: 'page_case57', previous_context: context, previous_grid_page_id: 'page_ieee39' } }
+  const sendCommand = vi.fn(async (submitted: ThreadCommand) => {
+    expect(submitted).toEqual(command)
+    if (!committed) { committed = true; throw new Error('response lost after commit') }
+    return { schema: 'capstone-command-receipt/1', thread_id: command.thread_id, command_id: command.command_id,
+      idempotency_key: command.idempotency_key, status: 'accepted', accepted_event_seq: 1 }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...transport, sendCommand,
+    getSnapshot: async () => ({ ...idleFixture.snapshot, active_model_context: committed ? nextContext : context,
+      active_grid_page_id: committed ? 'page_case57' : 'page_ieee39', last_event_seq: committed ? 1 : 0 }),
+    readEvents: async (_id, after) => ({ schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: after,
+      next_event_seq: committed ? 1 : 0, has_more: false, events: committed && after < 1 ? [event] : [] }),
+    getModels: async () => ({ schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_demo_39', run_id: 'run_001',
+      event_seq: committed ? 1 : 0, current_entry_id: committed ? 'mdl_case57' : 'mdl_ieee39', blocked_reason: null,
+      models: ['ieee39', 'case57'].map((model_id) => ({ entry_id: `mdl_${model_id}`, model_id, model_revision: '7',
+        implementation_family: 'pandapower', authority_model_ref: `gridctl:${model_id}`, display_name: model_id, diagram_provider_id: 'gridctl', last_active_seq: 0 })) }),
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.dispatch(command)).rejects.toThrow('response lost')
+  await store.load('thr_demo_39')
+  expect(store.state.modelWorkspace?.currentEntryId).toBe('mdl_case57')
+  expect((await store.dispatch(command)).status).toBe('accepted')
+  expect(sendCommand).toHaveBeenCalledTimes(2)
+  expect(store.publicEvents.filter((item) => item.eventType === 'model_context_activated')).toHaveLength(1)
+  expect(store.state.snapshot?.currentAttempt).toBeNull()
 })
 
 it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
@@ -350,7 +417,8 @@ describe('ThreadProjectionStore', () => {
     const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(historyFixture())))
     await store.load('thr_history')
 
-    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ieee39', 'page_regional-six-bus'])
+    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ctx_ieee_old', 'page_regional-six-bus', 'page_ieee39'])
+    expect(store.state.gridPages.find((page) => page.context.id === historyContexts.initial.id)?.networkView?.diagram.model.id).toBe('ieee39')
     const historical = store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')!
     expect(historical.context.id).toBe(historyContexts.historical.id)
     expect(historical.networkView?.diagram.model).toMatchObject({ id: 'regional-six-bus', revision: historyContexts.historical.model_revision })
@@ -370,6 +438,26 @@ describe('ThreadProjectionStore', () => {
 
     expect(store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')?.networkView).toBeNull()
     expect(store.state.networkView?.diagram.model.id).toBe('ieee39')
+  })
+
+  it('restores a closed model baseline from its exact Context without activating it', async () => {
+    const historical = historyContexts.historical
+    const snapshotBefore = structuredClone(idleFixture.snapshot)
+    const diagram = { ...sampleDiagramView.diagram, model: { id: historical.model_id, revision: historical.model_revision, source: 'pypsamodelctl' } }
+    const readNetworkEvents = vi.fn(async (_threadId: string, _signal?: AbortSignal, contextId?: string) => {
+      if (!contextId) return { schema: 'capstone-thread-network-events/1', thread_id: 'thr_demo_39', model_context_id: context.id, events: [] }
+      expect(contextId).toBe(historical.id)
+      return { schema: 'capstone-thread-network-events/1', thread_id: 'thr_demo_39', model_context_id: historical.id,
+        model_context: historical, events: [{ event_id: 'evt_closed_diagram', event_seq: 1, event_type: 'network_diagram', event_version: 1,
+          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } }] }
+    })
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture), readNetworkEvents }))
+    await store.load('thr_demo_39')
+    const pageId = await store.restoreHistoricalNetwork(historical.id, 'attempt_closed')
+    expect(pageId).toBe(`page_${historical.id}`)
+    expect(store.state.snapshot?.toDocument()).toEqual(snapshotBefore)
+    expect(store.networkTasks.find((task) => task.attemptId === 'attempt_closed')?.view.diagram.model.revision).toBe(historical.model_revision)
+    expect(store.state.pendingCommands).toEqual([])
   })
 
   it('does not reuse an earlier diagram when a historical model was reopened at the same revision', async () => {
@@ -393,7 +481,8 @@ describe('ThreadProjectionStore', () => {
     const store = new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
     await store.load('thr_history')
 
-    expect(store.state.gridPages).toHaveLength(2)
+    expect(store.state.gridPages).toHaveLength(4)
+    expect(store.state.gridPages.find((page) => page.context.id === historyContexts.historical.id)?.networkView?.diagram.model.id).toBe('regional-six-bus')
     const historical = store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')!
     expect(historical.context.id).toBe(nextContext.id)
     expect(historical.networkView).toBeNull()
@@ -423,7 +512,7 @@ describe('ThreadProjectionStore', () => {
 
     expect(store.state.viewedGridPageId).toBe('page_regional-six-bus')
     expect(store.state.snapshot?.activeModelContext.id).toBe(nextContext.id)
-    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ieee39', 'page_regional-six-bus', 'page_pypsa39'])
+    expect(store.state.gridPages.map((page) => page.pageId)).toEqual(['page_ctx_ieee_old', 'page_regional-six-bus', 'page_ieee39', 'page_pypsa39'])
     expect(store.state.gridPages.find((page) => page.pageId === 'page_regional-six-bus')).toEqual(historical)
     expect(store.state.networkView).toBeNull()
   })

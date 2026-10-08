@@ -38,7 +38,7 @@ def thread_list_page(rows: Sequence[Mapping[str, Any]], limit: int) -> dict[str,
 def history_cursor(snapshot: ThreadSnapshot, before: int | None) -> int:
     if before is None:
         return snapshot.last_event_seq + 1
-    if type(before) is not int or not snapshot.base_event_seq < before <= snapshot.last_event_seq + 1:
+    if type(before) is not int or not 1 <= before <= snapshot.last_event_seq + 1:
         raise ThreadProtocolError("history cursor is invalid")
     return before
 

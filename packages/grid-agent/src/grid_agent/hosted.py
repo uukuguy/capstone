@@ -116,6 +116,8 @@ def build_registered_pandapower_thread_application():
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,),
         ),
     )
+    from .thread_model_diagram import model_diagram
+    assembly.catalog.set_diagram_provider(model_diagram)
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

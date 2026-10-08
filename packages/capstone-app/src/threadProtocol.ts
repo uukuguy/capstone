@@ -412,7 +412,7 @@ function parseRun(value: unknown): RunSnapshot {
   return { runId: identifier(document.run_id, 'run.run_id'), state }
 }
 
-function parseContext(value: unknown, name = 'active_model_context'): ModelContextSnapshot {
+export function parseContext(value: unknown, name = 'active_model_context'): ModelContextSnapshot {
   const document = object(value, name)
   const keys = ['id', 'model_id', 'model_revision', 'implementation_family', 'selection_revision', 'enabled_profiles']
   fields(document, new Set(keys), name)

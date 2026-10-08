@@ -34,9 +34,17 @@ export function projectSystemNotices(messages: readonly ThreadMessageLike[], eve
       : typeof custom?.attemptId === 'string' ? attemptSequences.get(custom.attemptId) : undefined
     return { message, seq: seq ?? 0, order: index }
   })
+  const workspaceCommands = new Set(events.filter((event) => event.eventType === 'model_workspace_changed').map((event) => event.payload.command_id))
   const durable = events.flatMap((event): ThreadSystemNotice[] => {
+    if (event.eventType === 'model_workspace_changed') {
+      const current = typeof event.payload.current_model_name === 'string' ? event.payload.current_model_name : ''
+      const closed = typeof event.payload.closed_model_name === 'string' ? event.payload.closed_model_name : ''
+      const text = closed ? `已关闭 ${closed}，当前模型为 ${current}。` : `当前模型已切换至 ${current}。`
+      return [{ id: event.eventId, afterEventSeq: event.eventSeq, text, tone: 'info' }]
+    }
     if (event.eventType === 'selection_activated') return [{ id: event.eventId, afterEventSeq: event.eventSeq, text: '电网计算分析工具选择已生效。', tone: 'info' }]
     if (!['model_context_activated', 'model_context_reopened'].includes(event.eventType)) return []
+    if (workspaceCommands.has(event.payload.command_id)) return []
     const context = event.payload.model_context as Record<string, unknown> | undefined
     const model = typeof context?.model_id === 'string' ? context.model_id : ''
     return [{ id: event.eventId, afterEventSeq: event.eventSeq, text: `${event.eventType === 'model_context_reopened' ? '已重新打开' : '已打开'}电网模型${model ? ` ${model}` : ''}。`, tone: 'info' }]

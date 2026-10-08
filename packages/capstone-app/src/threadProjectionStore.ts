@@ -2,6 +2,7 @@ import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type Even
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
+import type { ModelWorkspace } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
@@ -36,6 +37,7 @@ export type ThreadProjectionState = {
   pendingCommands: readonly PendingThreadCommand[]
   viewedGridPageId: string | null
   catalog: ThreadCatalog | null
+  modelWorkspace?: ModelWorkspace | null
   networkView: DiagramNetworkView | null
   gridPages: readonly ThreadGridPage[]
   hasOlderHistory: boolean
@@ -390,6 +392,7 @@ export class ThreadProjectionStore {
       this.trimProjectionCaches()
       this.notify()
       this.loadedThreadId = threadId
+      await this.refreshModels()
     } catch (error) {
       if (generation !== this.loadGeneration) return
       const snapshot = resyncSnapshot(error)
@@ -446,6 +449,45 @@ export class ThreadProjectionStore {
     }
   }
 
+  async refreshModels(): Promise<void> {
+    const snapshot = this.current.snapshot
+    const generation = this.loadGeneration
+    if (!snapshot) return
+    let workspace = await this.client.models(snapshot.threadId)
+    if (generation !== this.loadGeneration) return
+    if (workspace === null) { this.current = { ...this.current, modelWorkspace: null }; return }
+    if (workspace.eventSeq > this.current.eventSeq) await this.catchUpThrough(workspace.eventSeq)
+    if (workspace.eventSeq < this.current.eventSeq) workspace = await this.client.models(snapshot.threadId)
+    if (generation !== this.loadGeneration || !workspace) return
+    if (workspace.eventSeq > this.current.eventSeq) await this.catchUpThrough(workspace.eventSeq)
+    const active = this.current.snapshot?.activeModelContext
+    const entry = workspace.models.find((item) => item.entryId === workspace.currentEntryId)
+    if (workspace.runId !== this.current.snapshot?.run.runId || !entry || entry.modelId !== active?.modelId || entry.modelRevision !== active?.modelRevision || entry.implementationFamily !== active?.implementationFamily) {
+      this.current = { ...this.current, modelWorkspace: null }
+      throw new Error('当前模型尚未同步，请重新连接。')
+    }
+    this.current = { ...this.current, modelWorkspace: workspace }
+    this.notify()
+  }
+
+  async restoreHistoricalNetwork(contextId: string, attemptId?: string): Promise<string> {
+    const snapshot = this.current.snapshot
+    const generation = this.loadGeneration
+    if (!snapshot) throw new Error('会话尚未加载')
+    const history = await this.client.historicalNetwork(snapshot.threadId, contextId, attemptId)
+    if (generation !== this.loadGeneration) throw new Error('会话已改变')
+    const pageId = contextId === this.current.snapshot?.activeModelContext.id ? this.current.snapshot.activeGridPageId : `page_${contextId}`
+    this.rememberGridPage(pageId, history.context)
+    for (const event of history.events) this.applyNetworkProjection(event, this.current.snapshot!, this.admittedNetworkRefs(history.events, event))
+    if (attemptId && !this.taskViews.has(attemptId)) {
+      const view = this.networkViews.get(contextId)
+      if (view) this.taskViews.set(attemptId, { attemptId, eventSeq: history.events.at(-1)?.eventSeq || 0, pageId, context: history.context, view })
+    }
+    this.trimProjectionCaches()
+    this.notify()
+    return pageId
+  }
+
   async consumeEvents(signal?: AbortSignal): Promise<void> {
     const generation = this.loadGeneration
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
@@ -457,6 +499,7 @@ export class ThreadProjectionStore {
       for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal)) {
         if (generation !== this.loadGeneration) return
         this.applyEvent(event)
+        if (['model_workspace_changed', 'model_context_activated', 'model_context_reopened', 'model_context_reverted', 'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) await this.refreshModels()
       }
       if (signal && !signal.aborted && generation === this.loadGeneration) throw new Error('实时连接已关闭，正在恢复。')
     } catch (error) {
@@ -699,6 +742,12 @@ export class ThreadProjectionStore {
 
   private rememberGridPage(pageId: string, context: ModelContextSnapshot): void {
     const existing = this.current.gridPages.find((page) => page.pageId === pageId)
+    if (existing && existing.context.id !== context.id) {
+      const historical = { ...existing, pageId: `page_${existing.context.id}` }
+      this.contextPages.set(existing.context.id, historical)
+      this.current = { ...this.current, gridPages: this.current.gridPages.map((item) => item === existing ? historical : item),
+        viewedGridPageId: this.current.viewedGridPageId === pageId && pageId !== this.current.snapshot?.activeGridPageId ? historical.pageId : this.current.viewedGridPageId }
+    }
     const page: ThreadGridPage = {
       pageId, context,
       networkView: (() => {
@@ -707,7 +756,7 @@ export class ThreadProjectionStore {
       })(),
     }
     this.contextPages.set(context.id, page)
-    this.current = { ...this.current, gridPages: existing
+    this.current = { ...this.current, gridPages: existing && existing.context.id === context.id
       ? this.current.gridPages.map((item) => item.pageId === pageId ? page : item)
       : [...this.current.gridPages, page] }
   }
@@ -763,7 +812,9 @@ export class ThreadProjectionStore {
       }
       this.networkDiagrams.set(context.id, diagram)
       this.diagramAttempts.set(context.id, event.attemptId)
-      setView(null)
+      setView(event.attemptId ? null : parseNetworkView({ schema: 'capstone-network-view/2.0', ordinal: 1, diagram,
+        layer: { schema: 'capstone-network-layer/1.0', ordinal: 1, diagram_ref: diagram.ref, model_revision: diagram.model.revision,
+          focus_ids: [], next_focus_ids: [], overlay: null } }, 1, []) as DiagramNetworkView | null)
       return
     }
     if (event.eventType === 'network_layer') {

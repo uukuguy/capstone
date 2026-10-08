@@ -12,6 +12,28 @@ const models: ThreadCatalogModel[] = [
 const props = { models, currentModelId: 'grid-a', target: 'grid-a', disabled: false, pending: false, onTargetChange: vi.fn(), onSwitch: vi.fn() }
 
 describe('on-demand registered model directory', () => {
+  it('shows opened models first and keeps close independent of activation', () => {
+    const onActivate = vi.fn(), onClose = vi.fn()
+    const workspace = { threadId: 'thr_demo', runId: 'run_demo', eventSeq: 1, currentEntryId: 'mdl_a', blockedReason: null,
+      models: models.slice(0, 2).map((model, index) => ({ ...model, entryId: index ? 'mdl_b' : 'mdl_a', modelRevision: '7',
+        authorityModelRef: model.authorityModelRef || null, diagramProviderId: model.diagramProviderId || null, lastActiveSeq: index })) }
+    render(<ThreadModelDirectory {...props} workspace={workspace} onActivate={onActivate} onClose={onClose} />)
+    const trigger = screen.getByRole('button', { name: /当前模型：Grid Alpha/ })
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('searchbox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '关闭 Grid Beta' }))
+    expect(onClose).toHaveBeenCalledWith('mdl_b')
+    expect(onActivate).not.toHaveBeenCalled()
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: '设为当前模型：Grid Beta' }))
+    expect(onActivate).toHaveBeenCalledWith('mdl_b')
+    expect(document.activeElement).toBe(trigger)
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: '打开其他模型…' }))
+    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: '已打开电网模型' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
   it('disables an authority-rejected diagram before a user can open it', () => {
     const onSwitch = vi.fn()
     render(<ThreadModelDirectory models={[{ ...models[0], available: false, unavailableReason: 'diagram_limit' }]} currentModelId="other" target="" disabled={false} pending={false} onTargetChange={() => {}} onSwitch={onSwitch} />)

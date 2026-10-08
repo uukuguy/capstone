@@ -26,13 +26,17 @@ The user directs continued completion of these conversation plans. The core capa
 | CONV-03 | audit complete; record consolidation pending | Reconcile bounded M1–M11 closures and deferred successor work | Existing implementation and review evidence | Preserve M6 lightweight closure and later full gates; consolidate portable M6/M10 review records without reopening completed functionality |
 | CONV-04 | needs design review | Accepted pure Pi reference path and context isolation | Conversation completion audit | Separate bounded gateway path and explicit non-authoritative output; exact comparison scope and implementation plan before code |
 | CONV-05 | explicitly deferred adapter work; execution integration incomplete | Generic registered runtime capabilities | M2 review's successor requirement and mainline baseline §4.1 | Compile selected verified skill/MCP/plugin registrations into the runtime session and manage lifecycle; preserve domain-tool and authority boundaries; do not reopen M2 |
-| CONV-06 | design draft; user review pending; not implemented | Persistent opened grid models, one current model, compact model control and close lifecycle | User request of 2026-10-08; existing Authority model references and immutable Attempt contract | Default IEEE-39; nonempty durable collection; exact-reference activation; atomic close/fallback; draft/recovery preservation; no Provider call for model controls |
+| CONV-06 | local implementation verified; independent review and cloud acceptance pending | Persistent opened grid models, one current model, compact model control and close lifecycle | User request and approval of 2026-10-08; existing Authority model references and immutable Attempt contract | Default IEEE-39; nonempty durable collection; exact-reference activation; atomic close/fallback; draft/recovery preservation; no Provider call for model controls |
 | Final TUI / real DSH / multi-Run | deferred in existing decisions | Separate client/runtime designs | Applicable design decisions | Do not mark as complete; do not undo the accepted TUI freeze or M6/M11 exclusions |
 
 Status is based on implementation and evidence, not checkbox counts alone. Add newly found contract gaps to the owning package. Do not use the deployed Web version as proof that the complete conversation design is finished.
 
 The user's latest model-management request makes CONV-06 the immediate design
 focus. See the [opened-model design draft](../specs/2026-10-08-thread-open-models-design.md).
+User approved the design and historical topology retention; follow the
+[implementation plan](2026-10-08-thread-open-models.md) inline.
+Local implementation and acceptance are recorded in the
+[verification report](../../reviews/2026-10-08-thread-opened-models-local-verification.md).
 It is separate from CONV-04's pure Pi reference path. A parser-only fix or a
 menu over historical pages cannot close this package. The prior UI corrections
 remain locally verified, with independent review and release still pending.
