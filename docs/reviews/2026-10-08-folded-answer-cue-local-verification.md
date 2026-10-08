@@ -14,3 +14,9 @@ Ignored receipts and screenshots: `output/playwright/fold-cue-20261008/`. The te
 The user asks for a lighter body. Folded body, emphasis, code and links now use `#81958f`; headings and their inline emphasis use slightly deeper `#6b847c`. Controls keep only the arrow and hover hint. Expanded styling is unchanged.
 
 Build, doctor, current-source rebuild and whitespace checks pass. Actual conversation checks at all three sizes verify body `rgb(129, 149, 143)`, heading `rgb(107, 132, 124)` and expanded body `rgb(41, 73, 72)`. Both toggle directions retain 0px shift, and screenshots were inspected. No backend POST or Provider requests. The isolated browser was closed after verification. Updated receipts: `lighter-browser.log` and `lighter-*.png` in the same ignored directory. This CSS-only revision does not require another full test suite.
+
+## Correction: actual paragraph color
+
+The user identifies that the body did not get lighter. The earlier color receipt measured the Markdown container, not its paragraph descendants. The independent `.capstone-chat-body p` rule kept actual paragraphs at `rgb(41, 73, 72)` even when the container was muted. The earlier paragraph-color claim is superseded by this receipt.
+
+The folded rule now explicitly includes paragraphs, list items and blockquotes, retaining the separate heading tone. The real browser reproduces the old container/paragraph mismatch before the fix (`body-red.log`). After the fix, all four actual paragraphs and four inline emphasis/code elements use `rgb(129, 149, 143)`; expansion restores all four paragraphs to `rgb(41, 73, 72)`. Desktop, mobile and landscape checks retain 0px toggle shift and make zero backend POST requests. The expanded browser check now asserts descendant paragraph colors so it catches this regression. Screenshots were inspected; build, doctor and current-source local rebuild pass. Receipts: `body-fixed-browser.log` and updated `lighter-*.png`.

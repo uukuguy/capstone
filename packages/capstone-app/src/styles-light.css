@@ -579,7 +579,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 
 .capstone-answer-content.is-collapsed { overflow: hidden; }
 .capstone-answer-content.is-collapsed .capstone-chat-markdown,
-.capstone-answer-content.is-collapsed .capstone-chat-markdown :is(strong, em, code, a, th, td) { color: #81958f; }
+.capstone-answer-content.is-collapsed .capstone-chat-markdown :is(p, li, blockquote, strong, em, code, a, th, td) { color: #81958f; }
 .capstone-answer-content.is-collapsed .capstone-chat-markdown :is(h1, h2, h3, h4, h5, h6),
 .capstone-answer-content.is-collapsed .capstone-chat-markdown :is(h1, h2, h3, h4, h5, h6) :is(strong, em, code, a) { color: #6b847c; }
 .capstone-answer-header { position: sticky; top: 6px; z-index: 2; display: flex; align-items: center; gap: 4px; width: fit-content; height: 18px; margin-bottom: 5px; border-radius: 3px; background: #fff; }
