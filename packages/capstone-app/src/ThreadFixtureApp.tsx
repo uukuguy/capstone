@@ -324,6 +324,31 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     }
   }
 
+  async function locateTaskInstruction(target: string, stillCurrent: () => boolean, generation: number) {
+    const hasInstruction = () => store.publicEvents.some(event => event.attemptId === target && event.eventType === 'command_accepted'
+      && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
+    for (let pages = 0; !hasInstruction() && store.state.hasOlderHistory && pages < 8; pages++) {
+      await store.loadOlderHistory()
+      if (!stillCurrent()) return
+      sync()
+    }
+    if (!stillCurrent()) return
+    if (hasInstruction()) setInstructionLocation({ attemptId: target, nonce: generation })
+    else setNotice('该电网图对应的任务指令暂未加载。')
+  }
+
+  async function locateDisplayedTask() {
+    const current = store.state.snapshot
+    if (!current || !displayedTaskId) return
+    const generation = ++taskReturnGeneration.current
+    const contextId = selectedNetworkTask?.context.id || current.activeModelContext.id
+    const stillCurrent = () => generation === taskReturnGeneration.current && store.state.snapshot?.threadId === current.threadId
+    setTaskReturn({ contextId, attemptId: displayedTaskId, nonce: generation })
+    setNotice(null)
+    try { await locateTaskInstruction(displayedTaskId, stillCurrent, generation) }
+    catch { if (stillCurrent()) setNotice('任务指令暂不可用，请重试。') }
+  }
+
   async function returnCurrentTask() {
     const current = store.state.snapshot
     if (!current) return
@@ -344,16 +369,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       setNotice(null)
       sync()
       if (!target) return
-      const hasInstruction = () => store.publicEvents.some(event => event.attemptId === target && event.eventType === 'command_accepted'
-        && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
-      for (let pages = 0; !hasInstruction() && store.state.hasOlderHistory && pages < 8; pages++) {
-        await store.loadOlderHistory()
-        if (!stillCurrent()) return
-        sync()
-      }
-      if (!stillCurrent()) return
-      if (hasInstruction()) setInstructionLocation({ attemptId: target, nonce: generation })
-      else setNotice('已恢复当前任务电网图，对应指令暂未加载。')
+      await locateTaskInstruction(target, stillCurrent, generation)
     } catch {
       if (stillCurrent()) { setNotice('当前任务视图暂不可用，请重试。'); sync() }
     }
@@ -559,6 +575,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           networkFailureCode={!selectedNetworkTask && networkTask?.eventType === 'network_layer_unavailable' && typeof networkTask.payload.code === 'string' ? networkTask.payload.code : undefined}
           instructionLabel={displayedTaskId ? instructionNumber && !projection.hasOlderHistory ? `指令 ${instructionNumber} 结果` : '历史指令结果' : '基础拓扑'}
           viewingInstruction={Boolean(selectedNetworkTask && selectedNetworkTask.attemptId !== currentModelTaskId)} onLatestInstruction={() => { void returnCurrentTask() }}
+          onLocateInstruction={displayedTaskId ? () => { void locateDisplayedTask() } : undefined}
           returnCurrentTaskLabel={currentModelTaskId ? '回到当前任务' : '回到当前模型'}
           returnTaskRequest={taskReturn?.contextId === (selectedNetworkTask?.context.id || snapshot.activeModelContext.id)
             && taskReturn.attemptId === (selectedNetworkTask?.attemptId || networkTask?.attemptId) ? taskReturn.nonce : undefined}

@@ -9,7 +9,7 @@ import { sampleDiagramView } from './networkFixture'
 
 afterEach(cleanup)
 
-function instructionViewsFixture() {
+function instructionViewsFixture(otherModel = false) {
   const fixture = structuredClone(threadUiFixture('idle-ieee39'))
   const snapshot = fixture.snapshot as { active_model_context: { id: string; model_revision: string }; last_event_seq: number }
   const diagram = structuredClone(sampleDiagramView.diagram)
@@ -26,9 +26,21 @@ function instructionViewsFixture() {
     ['network_layer', 'attempt_rank', { ordinal: 1, layer: { ...layer, focus_ids: ['line:1'], overlay: { metric: 'loading_percent', unit: '%', source_ref: reference, values: [{ id: 'line:1', value: 42 }] } } }],
     ['attempt_completed', 'attempt_rank', { answer: '排序完成。', result_refs: [reference] }],
   ].map(([event_type, attempt_id, payload], index) => ({ event_id: `evt_graph_${index}`, event_seq: index + 1,
-    event_type, attempt_id, payload, event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+    event_type: String(event_type), attempt_id: String(attempt_id) as string | undefined, payload: payload as Record<string, unknown>, event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
     model_context_id: snapshot.active_model_context.id, occurred_at: '2026-10-05T00:00:00Z', visibility: 'public' }))
   snapshot.last_event_seq = events.length
+  if (otherModel) {
+    const previous = { ...snapshot.active_model_context, id: 'ctx_case57', model_id: 'case57', implementation_family: 'pandapower' }
+    for (const entry of events.slice(0, 4)) {
+      entry.model_context_id = previous.id
+      if (entry.event_type === 'network_diagram') entry.payload = { diagram: { ...diagram, model: { ...diagram.model, id: 'case57' } } }
+    }
+    events.splice(4, 0, { ...events[0], event_id: 'evt_switch', event_type: 'model_context_activated', attempt_id: undefined,
+      model_context_id: snapshot.active_model_context.id, payload: { previous_context: previous, previous_grid_page_id: 'page_case57',
+        model_context: snapshot.active_model_context, active_grid_page_id: 'page_ieee39' } })
+    events.forEach((entry, index) => { entry.event_seq = index + 1 })
+    snapshot.last_event_seq = events.length
+  }
   fixture.events = { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: events.length, has_more: false, events }
   return fixture
 }
@@ -300,7 +312,7 @@ describe('ThreadFixtureApp', () => {
   it('puts the model directory beside Composer settings and preserves its draft', async () => {
     render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
     const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
-    expect(screen.getByRole('button', { name: '回到当前模型' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '回到模型视角' })).toBeTruthy()
     fireEvent.change(input, { target: { value: '保留此草稿' } })
     const opener = screen.getByRole('button', { name: '模型目录' })
     expect(opener.closest('.capstone-composer-toolbar')).toBeTruthy()
@@ -311,8 +323,8 @@ describe('ThreadFixtureApp', () => {
     expect((input as HTMLTextAreaElement).value).toBe('保留此草稿')
     expect(screen.queryByText('Fixture 已接收自动指令：保留此草稿')).toBeNull()
   })
-  it('restores an old instruction graph locally and returns to the latest graph', async () => {
-    const fixture = instructionViewsFixture()
+  it.each([false, true])('resets the viewed task camera and locates its own instruction, other model: %s', async (otherModel) => {
+    const fixture = instructionViewsFixture(otherModel)
     const transport = createFixtureTransport(fixture)
     const commands: ThreadCommand[] = []
     const client = new CapstoneThreadClient({ ...transport, sendCommand: async (command) => {
@@ -327,7 +339,20 @@ describe('ThreadFixtureApp', () => {
     expect(await screen.findByText('正在查看此回答对应的电网图')).toBeTruthy()
     expect(document.querySelector('svg title')?.textContent).toContain('25.0')
     expect(document.querySelectorAll('.network-branch-label')).toHaveLength(0)
-    fireEvent.click(within(screen.getByLabelText('电网图操作')).getByRole('button', { name: '回到当前任务' }))
+    const canvas = screen.getByRole('img', { name: '电网拓扑' })
+    const initialCamera = canvas.getAttribute('viewBox')
+    const currentModel = document.querySelector('.thread-model-short')?.textContent
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    fireEvent.keyDown(canvas, { key: 'ArrowRight' })
+    expect(canvas.getAttribute('viewBox')).not.toBe(initialCamera)
+    fireEvent.click(within(screen.getByLabelText('电网图操作')).getByRole('button', { name: '回到任务' }))
+    await waitFor(() => expect(screen.getAllByLabelText('用户指令')[0].classList.contains('is-located-instruction')).toBe(true))
+    expect(document.querySelector('svg title')?.textContent).toContain('25.0')
+    expect(document.querySelectorAll('.network-branch-label')).toHaveLength(0)
+    expect(canvas.getAttribute('viewBox')).toBe(initialCamera)
+    expect(document.querySelector('.thread-model-short')?.textContent).toBe(currentModel)
+    expect(commands).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: '回到当前任务' }))
     await waitFor(() => expect(document.querySelector('svg title')?.textContent).toContain('42.0'))
     expect(document.querySelectorAll('.network-branch-label')).toHaveLength(1)
     expect(commands).toEqual([])
