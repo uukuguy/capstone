@@ -1,5 +1,10 @@
 # Cloud-dev idle suspension
 
+Historical operation: manual suspension was rejected as the ongoing cost
+policy. The stage now uses verified automatic idle sleep and access wake.
+See the [automatic sleep acceptance](2026-10-08-cloud-dev-automatic-sleep.md)
+for the current deployments, recovery measurements and residual cost.
+
 The user reports no cloud-dev users and requests reducing idle CPU and memory
 costs there first. Demo remains available for user trials. This operation
 stops cloud-dev compute without deleting persistent storage or changing demo.
