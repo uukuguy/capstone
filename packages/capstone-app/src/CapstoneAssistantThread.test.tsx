@@ -11,6 +11,19 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows the instruction model short name and preserves its historical binding after switching', () => {
+    const first = { ...event('command_accepted', 1, { kind: 'send_auto', text: '检查电压' }, 'first'), modelContextId: 'ctx_a' }
+    const switchEvent = event('model_context_activated', 2, { previous_context: { id: 'ctx_a', model_id: 'ieee39' }, model_context: { id: 'ctx_b', model_id: 'case57' } })
+    const second = { ...event('command_accepted', 3, { kind: 'send_auto', text: '检查负荷' }, 'second'), modelContextId: 'ctx_b' }
+    const props = { events: [first], instructionModels: [{ contextId: 'ctx_a', modelId: 'ieee39' }], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} />)
+    expect(within(screen.getByLabelText('用户指令')).getByText('IEEE-39')).toBeTruthy()
+    rerender(<CapstoneAssistantThread {...props} events={[first, switchEvent, second]} instructionModels={[{ contextId: 'ctx_b', modelId: 'case57' }]} />)
+    const instructions = screen.getAllByLabelText('用户指令')
+    expect(within(instructions[0]).getByText('IEEE-39')).toBeTruthy()
+    expect(within(instructions[1]).getByText('case57')).toBeTruthy()
+    expect(projectAssistantMessages([first, switchEvent, second])[0].metadata?.custom?.modelId).toBe('ieee39')
+  })
   it('shows the accepted instruction time without changing it on refresh', () => {
     const sentAt = '2026-10-08T01:24:23Z'
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '打开 IEEE-39' }, 'first', sentAt)]

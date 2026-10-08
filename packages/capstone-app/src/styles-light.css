@@ -677,6 +677,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-message.is-user .capstone-chat-actions { top: calc(100% - 3px); }
 .capstone-instruction-meta { position: relative; display: flex; align-items: flex-start; gap: 7px; width: fit-content; min-height: 14px; margin-left: auto; padding-top: 3px; line-height: 14px; }
 .capstone-instruction-time { color: #6a817d; font: 10px/1.4 Inter, "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.capstone-instruction-model { color: #5b7974; font: 10px/1.4 Inter, "PingFang SC", sans-serif; font-weight: 500; overflow-wrap: anywhere; max-width: 22ch; }
+.capstone-instruction-model + .capstone-instruction-time::before { content: "·"; margin-right: 7px; color: #a5b7b2; }
 .capstone-chat-message.is-user .capstone-instruction-meta .capstone-chat-actions { top: 0; right: calc(100% + 7px); min-height: 20px; }
 .capstone-chat-message.is-user:not(:first-child) { margin-top: 18px; }
 .capstone-chat-message.is-user + .capstone-chat-message.is-assistant { margin-top: -10px; }

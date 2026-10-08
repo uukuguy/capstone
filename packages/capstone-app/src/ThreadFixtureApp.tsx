@@ -558,6 +558,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
                 onClose={(entryId) => { void changeModel('close_model', { entry_id: entryId }).catch(() => addSystemNotice('模型关闭尚未完成，请重新连接。', 'error')) }}
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void (projection.modelWorkspace ? changeModel('open_model', { model_id: modelId }) : sendConversation('automatic', `打开 ${modelId} 电网模型`)).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
+            instructionModels={[snapshot.activeModelContext, ...projection.gridPages.map(page => page.context), ...store.networkTasks.map(task => task.context)].map(context => ({ contextId: context.id, modelId: context.modelId }))}
             onSend={(mode, text) => sendConversation(mode, text, true)}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
             onRegenerate={canRetry ? async (attemptId, instruction) => {

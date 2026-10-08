@@ -241,7 +241,17 @@ function terminalContent(event: EventEnvelope): string {
   return '**本次 Attempt 已中断**\n\n可以查看运行过程，并在确认模型上下文后重新运行。'
 }
 
-export function projectAssistantMessages(events: readonly EventEnvelope[]): ThreadMessageLike[] {
+export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
+  const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
+  for (const event of events) {
+    for (const key of ['model_context', 'previous_context', 'restored_context']) {
+      const context = event.payload[key]
+      if (context && typeof context === 'object' && !Array.isArray(context)) {
+        const document = context as Record<string, unknown>
+        if (typeof document.id === 'string' && typeof document.model_id === 'string') models.set(document.id, document.model_id)
+      }
+    }
+  }
   const messages: ThreadMessageLike[] = []
   const assistantByAttempt = new Map<string, ThreadMessageLike & { content: string }>()
   const instructionByAttempt = new Map<string, { text: string; mode: SendMode; messageId: string }>()
@@ -279,7 +289,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[]): Thre
         const instruction = { text, mode: commandMode(event), messageId: `user-${event.eventId}` }
         if (key) instructionByAttempt.set(key, instruction)
         if (event.turnId) instructionByTurn.set(event.turnId, instruction)
-        messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, sentAt: event.occurredAt, receipt: `${commandMode(event)} · accepted` } } })
+        messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, modelId: event.modelContextId ? models.get(event.modelContextId) : undefined, sentAt: event.occurredAt, receipt: `${commandMode(event)} · accepted` } } })
       }
       continue
     }
@@ -651,10 +661,16 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} onEditInstruction={onEditInstruction} />
+      {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
     {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
+}
+
+function instructionModelName(modelId: string): string {
+  const known: Record<string, string> = { ieee39: 'IEEE-39', pypsa39: 'PyPSA-39', case24_ieee_rts: 'RTS-24' }
+  return known[modelId] || modelId.split('/').at(-1) || modelId
 }
 
 function InstructionTime({ value }: { value: string }) {
@@ -724,6 +740,7 @@ export type CapstoneAssistantThreadProps = {
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   canRerunCompleted?: boolean
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
+  instructionModels?: readonly { contextId: string; modelId: string }[]
   composerControls?: (historyActions: ReactNode) => ReactNode
   showActivity?: boolean
   caseExecution?: CaseExecutionSnapshot | null
@@ -741,8 +758,8 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
-  const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events), events, systemNotices, historyAtLatest), [events, systemNotices, historyAtLatest])
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest }: CapstoneAssistantThreadProps) {
+  const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
