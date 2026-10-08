@@ -500,8 +500,9 @@ describe('CapstoneAssistantThread', () => {
     expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '继续分析' } })
     expect(screen.getByRole('button', { name: '发送指令' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '编辑指令' }))
-    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('查看当前模型'))
+    expect(screen.queryByRole('button', { name: '编辑指令' })).toBeNull()
+    expect(screen.getByRole('button', { name: '复制指令' })).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('继续分析')
   })
 
   it('shows evidence actions only for admitted current-run references', () => {

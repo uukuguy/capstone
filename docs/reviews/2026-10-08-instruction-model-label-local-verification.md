@@ -8,3 +8,9 @@ User-requested change: show the model short name beside the accepted instruction
 - Artifacts: ignored `output/playwright/instruction-model-20261008/`. No Provider request or cloud deployment. No release tag.
 
 An old instruction without a retained, verifiable model association does not receive a guessed current-model label. That limitation does not affect the existing conversation checked above.
+
+## Follow-up: remove redundant instruction editing
+
+The user rejects “编辑指令” because it only copies old text into the composer. The button, callback, edit request state and composer overwrite effect are removed. User instructions retain only Copy; accepted history remains unchanged.
+
+App328 and build pass after removal. Headless actual Vite fixture checks at 1600x900, 375x812 and 812x375 confirm Copy is present, Edit is absent and the existing draft survives. The fixture sends no backend requests or Provider calls. Artifacts are under ignored `output/playwright/remove-edit-instruction-20261008/`. Doctor and current-source local rebuild pass; cloud acceptance remains pending.
