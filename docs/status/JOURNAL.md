@@ -1684,3 +1684,19 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-05 Expanded complete operator geometry and catalogue eligibility to prevent unavailable model choices. [7afca7c]
 - 2026-10-05 Validated typed operator capacity limits to preserve contract bounds and pass static checks. [2e59e06]
 - 2026-10-05 Verified complete large-model browser views, real PostgreSQL paging, full offline gates and zero-error types; independent review approved.
+
+- 2026-10-08 18:09 — dbaec61 Seeded registered Authority factories to keep model revisions consistent across independent builds and opens.
+
+- 2026-10-08 18:14 — cdd4e74 Recorded the deterministic simulator tree digest so release gates verify the corrected Authority baseline.
+
+- 2026-10-08 18:20 — 8b88af9 Separated source and installed identities to verify ARM/x86 builds without masking within-stage model drift.
+
+- 2026-10-08 18:25 — Verified cloud worker identities agree and match local sources; started API/App deployment before actual sleep acceptance.
+
+- 2026-10-08 18:32 — Verified final cloud identities, cases, reports, replay and App; revoked temporary key and began actual idle observation.
+
+- 2026-10-08 18:46 — Confirmed all compute sleeps; normal first entry now takes 20 seconds with readiness admission intact.
+
+- 2026-10-08 19:04 — bdd6b65 Recorded both real sleep/wake cycles and preserved workspace state to accept cloud-dev source 8b88af9.
+
+- 2026-10-08 19:05 — Pushed cloud-dev-20261008-1904-8b88af9 and acceptance records; demo unchanged and temporary verification resources removed.

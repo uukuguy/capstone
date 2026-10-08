@@ -5,6 +5,7 @@
 | File | Purpose |
 | --- | --- |
 | `CURRENT-STATE.md` | Structural project snapshot. |
+| [Cloud-dev automatic sleep acceptance](../reviews/2026-10-08-cloud-dev-automatic-sleep.md) | Accepted 8b88af9/tag: real sleep with an open idle page, 20s first entry, 11s recovery, preserved workspace and small retained resource cost; demo unchanged. |
 | `JOURNAL.md` | Append-only durable event log. |
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
 | `INDEX.md` | This discovery index. |

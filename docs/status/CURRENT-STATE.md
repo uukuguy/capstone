@@ -3,6 +3,7 @@
 ## Project Snapshot
 
 - Project: Capstone Agent Framework
+- Cloud-dev idle cost: source `8b88af9` is deployed and accepted under pushed tag `cloud-dev-20261008-1904-8b88af9`. API and both workers sleep even with an idle page open; first entry takes 20.165s and retained workspace recovery 11.408s. Local sources match; retained App/PostgreSQL compute estimates USD 0.83–0.89/month before plan, storage, transfer and active work. Demo is unchanged. See [acceptance](../reviews/2026-10-08-cloud-dev-automatic-sleep.md).
 - Theme-level focus: Professional conversation, practical grid work, and continued Skill/tool integration over authority-backed Thread state
 - Project route: direct
 - Evolution discussion: `docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md` is the ongoing research notebook. User direction, candidate mechanisms, and unresolved questions are recorded separately; no upgrade implementation plan is approved.
