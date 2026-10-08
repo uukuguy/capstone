@@ -1700,3 +1700,10 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-08 19:04 — bdd6b65 Recorded both real sleep/wake cycles and preserved workspace state to accept cloud-dev source 8b88af9.
 
 - 2026-10-08 19:05 — Pushed cloud-dev-20261008-1904-8b88af9 and acceptance records; demo unchanged and temporary verification resources removed.
+- 2026-10-08 19:24 — 720c5cc Added visible App build identity so users can distinguish local and deployed releases.
+- 2026-10-08 19:26 — ed2524f Refresh local App revision and dirty status so frequent edits remain identifiable.
+- 2026-10-08 19:41 — 90b9a71 Recorded fresh cloud-dev version acceptance; full gates and deployment identities permit exact-source demo promotion.
+- 2026-10-08 19:41 — Pushed cloud-dev-20261008-1941-ed2524f; demo worker identities match the accepted source and installed artifact.
+- 2026-10-08 19:46 — Rejected demo App root upload; corrected to the existing App-directory build entry while old App stayed available.
+- 2026-10-08 20:27 — 6b13498 Accepted demo promotion after cases, history and per-page recovery checks; records live-traffic cold-timing limits.
+- 2026-10-08 20:27 — Pushed demo-20261008-2027-ed2524f; exact-source release verified, owned test resources removed, customer connections preserved.

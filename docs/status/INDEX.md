@@ -5,6 +5,8 @@
 | File | Purpose |
 | --- | --- |
 | `CURRENT-STATE.md` | Structural project snapshot. |
+| [Demo sleep and App version acceptance](../reviews/2026-10-08-demo-sleep-and-app-version.md) | Accepted ed2524f/demo tag; exact cloud promotion, preserved history, per-page idle recovery and explicit live-traffic cold-timing limits. |
+| [Cloud-dev App version acceptance](../reviews/2026-10-08-cloud-dev-app-version.md) | Accepted ed2524f/cloud tag; visible exact build identity, local dirty metadata, runtime alignment and release gates. |
 | [Cloud-dev automatic sleep acceptance](../reviews/2026-10-08-cloud-dev-automatic-sleep.md) | Accepted 8b88af9/tag: real sleep with an open idle page, 20s first entry, 11s recovery, preserved workspace and small retained resource cost; demo unchanged. |
 | `JOURNAL.md` | Append-only durable event log. |
 | `RESUME-NEXT-SESSION.md` | Current recovery baton. |
