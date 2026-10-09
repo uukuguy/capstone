@@ -24,6 +24,26 @@ def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):
     assert models['providers']['capstone-general']['apiKey'] == 'task-grant'
 
 
+def test_native_sdk_launch_uses_host_input_and_immutable_config(tmp_path):
+    from capstone_agent.general_pi_executor import native_pi_launch
+    config = tmp_path / 'config'
+    config.mkdir()
+    (config / 'settings.json').write_text('{}')
+    sdk = {'sdk': '/opt/pi/packages/coding-agent/dist/index.js', 'input': {'kind': 'text', 'text': '/literal'}}
+    (config / 'skills').mkdir()
+    (config / 'skills/current-unaccepted.md').write_text('Current inputs must not replace acceptance.')
+    workspace = tmp_path / 'task'
+    argv, _ = native_pi_launch(command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'),
+        workspace=workspace, config_root=config, model='test', relay_url='http://127.0.0.1/relay',
+        relay_token='grant', context_extension=Path('/opt/context.mjs'), sdk_config=sdk)
+    assert argv[1].endswith('general-sdk.mjs') and '--mode' not in argv
+    path = Path(argv[2])
+    assert path.parent.name == '.inputs-task' and path.parent.parent == workspace.parent
+    assert path.stat().st_mode & 0o222 == 0
+    assert json.loads(path.read_text())['input'] == sdk['input']
+    assert not (workspace / '.agent/skills').exists()
+
+
 def test_native_launch_snapshots_managed_config_without_business_files(tmp_path):
     from capstone_agent.general_pi_executor import native_pi_launch
     config = tmp_path / 'config'

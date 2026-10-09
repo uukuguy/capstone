@@ -139,9 +139,12 @@ class DelegatedRuntime:
         task_fields = {}
         if context is not None:
             if 'capstone-pi-task/2' in frozen['capability'].get('task_schemas', ()):
+                role = 'direct_pi' if self._direct else 'delegated_pi'
+                accepted_profile = frozen['capability'].get('resource_profiles', {}).get(role)
                 task_fields = {'business_context': context, 'resource_profile': {
-                    'profile_id': 'direct_pi' if self._direct else 'delegated_pi',
-                    'revision': frozen['identity']['config_revision']},
+                    'profile_id': role,
+                    'revision': (accepted_profile['revision'] if accepted_profile is not None
+                                 else frozen['identity']['config_revision'])},
                     'input': {'kind': 'text', 'text': instruction}}
             elif context.to_document()['selection']['state'] != 'none':
                 raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')

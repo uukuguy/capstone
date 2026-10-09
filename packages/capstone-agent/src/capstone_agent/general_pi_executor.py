@@ -25,7 +25,7 @@ def collect_artifacts(workspace: Path, task_id: str, parent_attempt_id: str) -> 
     artifacts = []
     for path in sorted(workspace.rglob('*')):
         relative = path.relative_to(workspace)
-        if (relative.parts[0].startswith('.') or relative.parts[0] == 'context.json'
+        if (relative.parts[0].startswith('.') or relative.parts[0] in {'context.json', 'AGENTS.md', 'CLAUDE.md'}
                 or any(part.is_symlink() for part in [path, *path.parents] if part != workspace.parent)
                 or not path.resolve().is_relative_to(workspace.resolve())):
             continue
@@ -53,14 +53,14 @@ def task_workspace(root: Path, task_id: str) -> Path:
 
 def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: Path,
                      model: str, relay_url: str, relay_token: str,
-                     context_extension: Path) -> tuple[tuple[str, ...], dict[str, str]]:
+                     context_extension: Path, sdk_config: dict | None = None) -> tuple[tuple[str, ...], dict[str, str]]:
     """Load native managed config; no business launcher or developer HOME."""
     if not command or any(not isinstance(part, str) or not part for part in command):
         raise ValueError('General Pi command is invalid')
     workspace.mkdir(mode=0o700, parents=True, exist_ok=False)
     agent = workspace / '.agent'
     agent.mkdir(mode=0o700)
-    for path in config_root.iterdir():
+    for path in (config_root.iterdir() if sdk_config is None else ()):
         if path.name in {'auth.json', 'models.json'} or path.is_symlink():
             raise ValueError('General Pi config contains protected transport or symbolic links')
         target = workspace / path.name if path.name in {'AGENTS.md', 'CLAUDE.md'} else agent / path.name
@@ -83,6 +83,35 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
     argv = (*command, '--mode', 'rpc', '--provider', 'capstone-general', '--model', model,
             '--approve', '--offline', '--session-dir', str(agent / 'sessions'),
             '--extension', str(context_extension))
+    if sdk_config is not None:
+        sdk_values: dict = json.loads(json.dumps(sdk_config))
+        # A task can replace paths inside its writable output directory. Keep
+        # accepted inputs under the root-owned parent instead.
+        inputs = workspace.parent / ('.inputs-' + workspace.name)
+        inputs.mkdir(mode=0o755)
+        settings = sdk_values.get('settings', {})
+        for key in ('skills', 'extensions', 'packages', 'prompts', 'themes'):
+            entries = []
+            for index, entry in enumerate(settings.get(key, [])):
+                source = Path(entry if isinstance(entry, str) else entry['source'])
+                target = inputs / f'{key}-{index}'
+                if source.is_dir():
+                    shutil.copytree(source, target)
+                else:
+                    shutil.copyfile(source, target)
+                entries.append(str(target) if isinstance(entry, str) else {**entry, 'source': str(target)})
+            settings[key] = entries
+        sdk_values['settings'] = settings
+        sdk_values['model'] = model
+        sdk_values['extensions'] = [str(context_extension), str(Path(__file__).parent / 'resources/general-mcp.mjs')]
+        path = inputs / 'sdk.json'
+        sdk_values['configPath'] = str(path)
+        if sdk_values.get('mcp') is not None:
+            sdk_values['mcp']['input_root'] = str(inputs)
+        path.write_text(json.dumps(sdk_values))
+        for item in [inputs, *inputs.rglob('*')]:
+            item.chmod(0o555 if item.is_dir() else 0o444)
+        argv = (command[0], str(Path(__file__).parent / 'resources/general-sdk.mjs'), str(path))
     return argv, environment
 
 
@@ -98,6 +127,7 @@ class GeneralPiProcess:
         self.process: subprocess.Popen | None = None
         self.usage: dict = {}
         self.tools: list[str] = []
+        self.inventory: dict = {}
 
     def run(self, instruction: str, *, timeout: float, cancelled: Callable[[], bool],
             on_event: Callable[[dict], None], inventory_only: bool = False) -> str:
@@ -170,6 +200,8 @@ class GeneralPiProcess:
                     except (ValueError, TypeError):
                         continue
                     if isinstance(notice, dict) and notice.get('type') == 'general_pi_inventory':
+                        if any(part.endswith('general-sdk.mjs') for part in self.command):
+                            continue  # SDK emits the checked final publication after binding.
                         event = notice
                 if event.get('type') == 'general_pi_inventory':
                     tools = event.get('tools')
@@ -178,6 +210,7 @@ class GeneralPiProcess:
                             or not {'bash', 'read', 'write', 'edit'} <= set(tools)):
                         raise ValueError('General Pi native tools are unavailable')
                     self.tools = sorted(set(tools))
+                    self.inventory = event
                     if inventory_only:
                         return ''
                     continue

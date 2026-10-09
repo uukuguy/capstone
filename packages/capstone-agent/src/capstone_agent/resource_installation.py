@@ -214,7 +214,7 @@ def inspect_installation(managed: Path, *, install_id: str | None = None, expect
         if hashlib.sha256(interpreter.resolve(strict=True).read_bytes()).hexdigest() != descriptor["runtime_identity"]["base_interpreter_sha256"]:
             raise ValueError("MCP base interpreter bytes changed")
         code = "import pandapower,networkx,powerio,powermcp,mcp.server.mcpserver; import importlib.metadata as m,json,platform,hashlib,pathlib,sys; print(json.dumps({'dependencies':{d.metadata['Name']:d.version for d in m.distributions()},'runtime_identity':{'python':platform.python_version(),'implementation':platform.python_implementation(),'platform':platform.system(),'machine':platform.machine(),'base_interpreter_sha256':hashlib.sha256(pathlib.Path(sys.executable).resolve().read_bytes()).hexdigest()}},sort_keys=True))"
-        actual = json.loads(_run([str(interpreter), "-I", "-c", code], env=private_environment(install / "private"), timeout=30))
+        actual = json.loads(_run([str(interpreter), "-I", "-B", "-c", code], env=private_environment(install / "private"), timeout=30))
         if actual["dependencies"] != descriptor["dependencies"] or actual["runtime_identity"] != descriptor["runtime_identity"]:
             raise ValueError("MCP dependency versions changed")
         return descriptor, None

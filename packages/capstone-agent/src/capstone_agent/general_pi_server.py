@@ -117,10 +117,32 @@ class GeneralPiHost:
                     digest = sha256(body).hexdigest()
                     observation_id = 'observation-' + str(len(sources)) + '-' + digest
                     self.storage.observation(request.task_id, observation_id, body)
+                    source_kind = 'native_tool_observation'
+                    metadata = {'tool_name': payload['tool_name'], 'tool_call_id': payload['tool_call_id'],
+                                'output_sha256': digest}
+                    details = event.get('result', {}).get('details', {})
+                    if details.get('kind') == 'external_mcp_observation':
+                        role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
+                        receipt = self.capability.get('resource_profiles', {}).get(role, {}).get('load_receipt', {})
+                        store = getattr(self._run, 'resources', None)
+                        if store is not None and request.resource_profile is not None:
+                            receipt = store.accepted(role, request.resource_profile['revision'])['load_receipt']
+                        content = event['result']['content']
+                        def invalid_constant(_value):
+                            raise ValueError('external MCP observation is not strict JSON')
+                        json.loads(content[0]['text'], parse_constant=invalid_constant)
+                        if (details.get('task_id') != request.task_id
+                                or details.get('parent_attempt_id') != request.parent_attempt_id
+                                or details.get('tool') != payload['tool_name']
+                                or details.get('descriptor_sha256') != receipt.get('descriptor_sha256')
+                                or details.get('tool_schema_sha256') != receipt.get('tool_schema_hashes', {}).get(payload['tool_name'])
+                                or details.get('output_sha256') != sha256(content[0]['text'].encode()).hexdigest()):
+                            raise ValueError('external MCP observation identity changed')
+                        source_kind = 'external_mcp_observation'
+                        metadata.update(descriptor_sha256=details['descriptor_sha256'],
+                            tool_schema_sha256=details['tool_schema_sha256'], mcp_output_sha256=details['output_sha256'])
                     sources.append({'source_id': observation_id, 'task_id': request.task_id,
-                        'parent_attempt_id': request.parent_attempt_id, 'kind': 'native_tool_observation',
-                        'metadata': {'tool_name': payload['tool_name'], 'tool_call_id': payload['tool_call_id'],
-                                     'output_sha256': digest}})
+                        'parent_attempt_id': request.parent_attempt_id, 'kind': source_kind, 'metadata': metadata})
             elif kind == 'message_update':
                 change = event.get('assistantMessageEvent', {})
                 if change.get('type') == 'text_delta':
@@ -184,6 +206,11 @@ class NativeTaskRunner:
         self.grants = self.relay.grants
         root.mkdir(mode=0o711, parents=True, exist_ok=True)
         (root / 'tasks').mkdir(mode=0o711, exist_ok=True)
+        self.resources = None
+        resource_config = config_root.parent
+        if (resource_config / 'agent-resources.json').is_file():
+            from .native_resources import NativeResourceStore
+            self.resources = NativeResourceStore(resource_config, root / 'profiles')
 
     def __call__(self, request, cancelled, emit, *, inventory_only=False):
         with self._lock:
@@ -198,22 +225,44 @@ class NativeTaskRunner:
         workspace = task_workspace(self.root / 'tasks', request.task_id)
         process = None
         try:
+            role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
+            document = request.to_document()
+            context = {'messages': document['messages'], 'dependency_results': document['dependency_results']}
+            if request.business_context is not None:
+                context['business_context'] = request.business_context.to_document()
+            task_input = document.get('input', {'kind': 'text', 'text': request.instruction})
+            sdk_config = {'sdk': str(Path(self.command[1]).with_name('index.js')),
+                          'input': task_input, 'skillName': None, 'settings': {}, 'allowedSkills': [],
+                          'contextFiles': [], 'mcp': None, 'inventoryOnly': inventory_only,
+                          'context': context,
+                          'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
+                          'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
+                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest()}
+            if self.resources is not None:
+                accepted = document.get('resource_profile', {
+                    'profile_id': role, 'revision': self.resources.profiles[role].revision})
+                if accepted['profile_id'] != role:
+                    raise ValueError('native resource profile role changed')
+                sdk_config.update(self.resources.task_config(role, accepted['revision'], workspace=workspace,
+                                                            request=request, inventory_only=inventory_only))
+                if sdk_config['mcp']:
+                    sdk_config['interpreter'] = str(Path(sdk_config['mcp']['install']) / 'venv/bin/python')
+            elif task_input['kind'] != 'text':
+                raise ValueError('native skills require an accepted resource profile')
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
-                context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs')
-            document = request.to_document()
-            context = {'messages': document['messages'],
-                       'dependency_results': document['dependency_results']}
-            if request.business_context is not None:
-                context['business_context'] = request.business_context.to_document()
-            (workspace / 'context.json').write_text(json.dumps(context))
+                context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs', sdk_config=sdk_config)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
+            inputs = workspace.parent / ('.inputs-' + workspace.name)
+            for path in [inputs, *inputs.rglob('*')]:
+                os.chown(path, 0, uid)
+                path.chmod(0o550 if path.is_dir() else 0o440)
             process = GeneralPiProcess(argv, environment, workspace, uid=uid)
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only)
-            return answer, ({'native_tools': process.tools} if inventory_only else process.usage)
+            return answer, ({'native_tools': process.tools, 'inventory': process.inventory} if inventory_only else process.usage)
         finally:
             try:
                 if process is not None:
@@ -221,6 +270,7 @@ class NativeTaskRunner:
             finally:
                 with self._lock:
                     self.relay.revoke(request.task_id)
+                shutil.rmtree(workspace.parent / ('.inputs-' + workspace.name), ignore_errors=True)
 
     def verify_tools(self, identity):
         task_id = 'readiness-' + secrets.token_hex(8)
@@ -231,6 +281,28 @@ class NativeTaskRunner:
             return self(request, lambda: False, lambda _: None, inventory_only=True)[1]['native_tools']
         finally:
             shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
+
+    def verify_resources(self, identity):
+        if self.resources is None:
+            return {}
+        result = {}
+        for role in ('direct_pi', 'delegated_pi'):
+            task_id = 'resources-' + secrets.token_hex(8)
+            request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': task_id,
+                'parent_attempt_id': task_id, 'entrypoint': 'direct' if role == 'direct_pi' else 'delegated',
+                'instruction': 'Readiness', 'messages': [], 'dependency_results': [],
+                'executor_identity': identity, 'timeout_seconds': 90})
+            try:
+                inventory = self(request, lambda: False, lambda _: None, inventory_only=True)[1]['inventory']
+                if inventory['adapter_sha256'] != sha256(b''.join((Path(__file__).parent / name).read_bytes()
+                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest():
+                    raise ValueError('native adapter publication changed')
+                profile = self.resources.confirm_loaded(role, inventory)
+                result[role] = {**profile.to_document(),
+                    'load_receipt': self.resources.accepted(role, profile.revision)['load_receipt']}
+            finally:
+                shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
+        return result
 
 
 def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, int],
@@ -358,7 +430,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
 def main():
     if os.environ.get('CAPSTONE_GENERAL_SANDBOX') != 'container':
         raise RuntimeError('General Pi service must run in the isolated container')
-    config = Path('/opt/general/config')
+    config = Path('/opt/general/configs/runtime/general-pi')
     root = Path('/var/lib/general-pi')
     providers = json.loads(Path('/opt/general/llm-providers.json').read_bytes())['providers']
     provider = providers[os.environ['CAPSTONE_PUBLIC_PROVIDER']]
@@ -367,10 +439,9 @@ def main():
         raise ValueError('General Pi relay requires an API-key chat-completions transport')
     key = os.environ[provider['auth']['default_env']]
     port = int(os.environ.get('PORT', '8790'))
-    revision = sha256()
-    for path in sorted(config.rglob('*')):
-        if path.is_file():
-            revision.update(str(path.relative_to(config)).encode() + b'\0' + path.read_bytes())
+    # Accepted native configuration belongs to its role profile. Engine and
+    # fixed dispatch changes remain bound by executor_revision below.
+    revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp')
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
     identity = {'engine': 'pi', 'model': os.environ['CAPSTONE_PUBLIC_MODEL'],
                 'provider': os.environ['CAPSTONE_PUBLIC_PROVIDER'],
@@ -378,12 +449,14 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py',
-                                 'resources/general-context.mjs'))).hexdigest()}
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
         relay_origin=f'http://127.0.0.1:{port}')
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.capability['native_tools'] = runner.verify_tools(identity)
+    host.capability['resource_profiles'] = runner.verify_resources(identity)
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key)
     server.serve_forever()

@@ -162,6 +162,12 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
       - general-pi-receipts:/var/lib/general-pi/receipts
+      - general-pi-profiles:/var/lib/general-pi/profiles
+      - type: volume
+        source: general-pi-resources
+        target: /opt/general/.grid-agent/runtime
+        volume:
+          nocopy: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
       - /var/lib/general-pi/tasks:rw,nosuid,size=256m,mode=0711
@@ -178,3 +184,5 @@ volumes:
   postgres-data:
   object-data:
   general-pi-receipts:
+  general-pi-profiles:
+  general-pi-resources:

@@ -293,7 +293,13 @@ class IntentRuntimeFactory:
             raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
         if current is not None:
             if not isinstance(previous, Mapping) or any(current[key] != previous.get(key)
-                for key in ('identity', 'capability', 'timeout_seconds')):
+                for key in ('identity', 'timeout_seconds')):
+                raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
+            # New catalog publication changes new acceptance. The host resolves
+            # an old accepted revision against its retained private snapshot.
+            current_capability = {key: value for key, value in current['capability'].items() if key != 'resource_profiles'}
+            previous_capability = {key: value for key, value in previous['capability'].items() if key != 'resource_profiles'}
+            if current_capability != previous_capability:
                 raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:

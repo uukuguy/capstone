@@ -39,11 +39,12 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     captured = []
     def launch(**kwargs):
         kwargs['workspace'].mkdir(parents=True)
+        (kwargs['workspace'].parent / ('.inputs-' + kwargs['workspace'].name)).mkdir()
+        captured.append(__import__('json').dumps(kwargs['sdk_config']['context']))
         return ('pi',), {}
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     class Process:
         def __init__(self, argv, environment, workspace, **kwargs):
-            captured.append((workspace / 'context.json').read_text())
             self.usage = {}
         def run(self, *_args, **kwargs):
             return 'Answer'
@@ -52,7 +53,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     monkeypatch.setattr(module, 'GeneralPiProcess', Process)
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
-    runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('pi',),
+    runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
         model='fixture', relay_origin='http://127.0.0.1:8790')
     context = BusinessContext.empty('workspace', 0)
     request = PiTaskRequest('task', 'attempt', 'direct', 'Explain', (), (), {'engine': 'pi'}, 2,
@@ -61,6 +62,42 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     runner(request, lambda: False, lambda _: None)
     import json
     assert json.loads(captured[0])['business_context'] == context.to_document()
+
+
+@pytest.mark.parametrize('raw,tamper,completed', [
+    ('{"number":1.0,"text":"电网"}', False, True),
+    ('{"number":1.0,"text":"电网"}', True, False),
+    ('{"number":NaN}', False, False),
+])
+def test_mcp_observation_is_host_bound_external_data(tmp_path, raw, tamper, completed):
+    import json
+    from capstone_agent.general_pi_server import GeneralPiHost
+    descriptor_sha, tool_sha = 'a' * 64, 'b' * 64
+    def run(request, _cancelled, emit):
+        emit({'type': 'tool_execution_end', 'toolName': 'audit_network', 'toolCallId': 'call-1',
+            'result': {'content': [{'type': 'text', 'text': raw}], 'details': {
+                'kind': 'external_mcp_observation', 'task_id': request.task_id,
+                'parent_attempt_id': request.parent_attempt_id, 'descriptor_sha256': descriptor_sha,
+                'tool': 'audit_network', 'tool_schema_sha256': tool_sha,
+                'output_sha256': __import__('hashlib').sha256((raw + ' ' if tamper else raw).encode()).hexdigest()}}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    host.capability['resource_profiles'] = {'direct_pi': {'load_receipt': {
+        'descriptor_sha256': descriptor_sha, 'tool_schema_hashes': {'audit_network': tool_sha}}}}
+    request = PiTaskRequest('task-mcp', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(0.01)
+    result = host.read(request.task_id)['result']
+    if not completed:
+        assert result['status'] == 'failed'
+        assert not result['sources']
+        return
+    source = result['sources'][0]
+    assert source['kind'] == 'external_mcp_observation'
+    assert source['metadata']['tool_schema_sha256'] == tool_sha
+    assert 'result_refs' not in json.dumps(result) and 'evidence_refs' not in json.dumps(result)
 
 
 def test_executor_service_binds_identity_and_control_authorization(tmp_path):

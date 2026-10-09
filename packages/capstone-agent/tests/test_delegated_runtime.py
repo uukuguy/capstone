@@ -38,6 +38,32 @@ class Executor:
         self.cancelled.append(task_id)
 
 
+def test_native_task_uses_accepted_role_profile_revision():
+    executor = Executor()
+    executor.capability = {**executor.capability, 'resource_profiles': {
+        role: {'profile_id': role, 'revision': 'accepted-' + role}
+        for role in ('direct_pi', 'delegated_pi')}}
+    service, current = claim()
+    current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    result = run(service, current, factory(executor, SimpleNamespace(identity=None)))
+    assert result.status == 'completed'
+    assert executor.requests[0].to_document()['resource_profile'] == {
+        'profile_id': 'direct_pi', 'revision': 'accepted-direct_pi'}
+
+
+def test_current_resource_catalog_does_not_replace_frozen_profile_on_retry():
+    previous = {'identity': {'engine': 'pi', 'config_revision': 'fixed'},
+        'timeout_seconds': 10, 'capability': {'capability_id': 'general-pi',
+            'resource_profiles': {'direct_pi': {'revision': 'old'}}}}
+    current = {**previous, 'capability': {**previous['capability'],
+        'resource_profiles': {'direct_pi': {'revision': 'new'}}}}
+    IntentRuntimeFactory._check_general_configuration(current, {'general_executor': previous})
+    assert previous['capability']['resource_profiles']['direct_pi']['revision'] == 'old'
+    current['identity'] = {'engine': 'pi', 'config_revision': 'changed'}
+    with pytest.raises(HarnessRuntimeConfigurationError):
+        IntentRuntimeFactory._check_general_configuration(current, {'general_executor': previous})
+
+
 def goal(identity, operation='answer', *, refs=(), depends=(), excerpt=None, missing=()):
     result = {'goal_id': identity, 'description': 'Untrusted plan prose',
               'operation': operation, 'message_refs': [], 'object_refs': [],
@@ -444,6 +470,16 @@ def test_host_executor_discovery_is_explicit_bounded_and_credential_private(monk
     assert calls[0][:2] == ('GET', '/health/ready')
     assert calls[0][2]['total_timeout'] <= 2
     assert 'private-control' not in str(dict(executor.identity)) + str(dict(executor.capability))
+
+
+@pytest.mark.parametrize('profiles', [{'direct_pi': {'private_path': '/private/input'}}, {'harness_engine': {}}])
+def test_executor_discovery_rejects_private_or_professional_resource_profiles(monkeypatch, profiles):
+    from capstone_agent.general_executor_composition import configured_general_executor
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor
+    monkeypatch.setattr(HttpGeneralPiExecutor, '_call', lambda *_args, **_kwargs: {
+        'identity': Executor.identity, 'capability': {**Executor.capability, 'resource_profiles': profiles}})
+    with pytest.raises(HarnessRuntimeConfigurationError):
+        configured_general_executor({'CAPSTONE_GENERAL_EXECUTOR_ORIGIN': 'http://general-pi:8790'})
 
 
 def test_typed_external_observations_are_supplemental_not_authority_refs():
