@@ -25,8 +25,7 @@ def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, 
         ('open_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
         ('activate_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
         ('close_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
-        ('start_case_execution', 'workspace', 'harness_engine', idle and family_available
-            and snapshot.runtime_mode == 'capstone' and bool(context.enabled_profiles), 'case_capability_unavailable'),
+        ('start_case_execution', 'workspace', 'harness_engine', False, 'case_capability_unavailable'),
     ):
         operations.append({'operation_id': operation, 'scope': scope, 'role': role,
             'input_schema': {'type': 'object'}, 'available': available,
@@ -37,6 +36,14 @@ def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, 
         'selection_revision': context.selection_revision, 'resource_profiles': profiles,
         'objects': objects, 'materials': [], 'operations': operations,
         'coverage': {'full_model_tables': False, 'history': 'bounded', 'material_status': 'unavailable'}}
+    return {**public, 'revision': content_hash(public)}
+
+
+def with_case_availability(document: dict, availability: dict) -> dict:
+    """The host that owns Case dispatch supplies its registered availability."""
+    public = {key: value for key, value in document.items() if key != 'revision'}
+    public['operations'] = [{**item, **availability} if item['operation_id'] == 'start_case_execution' else item
+                            for item in document['operations']]
     return {**public, 'revision': content_hash(public)}
 
 

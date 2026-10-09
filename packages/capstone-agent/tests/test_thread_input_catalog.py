@@ -54,6 +54,23 @@ def test_common_operations_are_available_in_both_modes_but_cases_need_harness():
         assert document['coverage']['full_model_tables'] is False
 
 
+def test_case_projection_requires_registered_application_case_runtime():
+    from test_thread_http_api import _app, _case_app, _service, _auth
+    from capstone_agent.thread_input_catalog import catalog_provider
+    service = _service()
+    service.set_input_catalog_provider(catalog_provider(service, lambda snapshot: {}, family_available=lambda family: True))
+    context = service.snapshot('thr_demo_39').active_model_context
+    snapshot = replace(service.snapshot('thr_demo_39'), active_model_context=replace(context,
+        enabled_profiles=(('unrelated-profile', '1'),)))
+    document = input_catalog_document(snapshot, {}, [], family_available=True)
+    assert next(item for item in document['operations'] if item['operation_id'] == 'start_case_execution')['available'] is False
+    for factory, expected in ((_app, False), (_case_app, True)):
+        with TestClient(factory(service), base_url='http://localhost') as client:
+            document = client.get('/api/v1/threads/thr_demo_39/input-catalog', headers=_auth()).json()
+            operation = next(item for item in document['operations'] if item['operation_id'] == 'start_case_execution')
+            assert operation['available'] is expected
+
+
 def test_resource_endpoint_uses_internal_auth_and_server_thread_identity():
     service, _ = claim()
     calls = []

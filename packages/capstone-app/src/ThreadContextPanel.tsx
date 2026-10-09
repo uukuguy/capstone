@@ -1,7 +1,7 @@
 import type { ContextChoice, InputCatalog } from './threadInput'
 
-export default function ThreadContextPanel({ catalog, value, onChange, onClose }: {
-  catalog?: InputCatalog; value: ContextChoice; onChange: (value: ContextChoice) => void; onClose: () => void
+export default function ThreadContextPanel({ catalog, value, onChange, onClose, disabled }: {
+  catalog?: InputCatalog; value: ContextChoice; onChange: (value: ContextChoice) => void; onClose: () => void; disabled?: boolean
 }) {
   return <section role="dialog" aria-label="本轮上下文" className="thread-settings-popover thread-input-panel">
     <div className="thread-input-heading"><strong>本轮上下文</strong><button type="button" onClick={onClose} aria-label="关闭上下文">关闭</button></div>
@@ -13,7 +13,7 @@ export default function ThreadContextPanel({ catalog, value, onChange, onClose }
         <span>{object.model_id}{object.object_id === catalog.context_id ? ' · 当前' : ' · 历史'}</span>
         <details><summary>版本详情</summary><small>{object.model_revision}</small></details>
         <div role="group" aria-label={`${object.model_id} 上下文选择`}>
-          {([['auto', '自动'], ['include', '包含'], ['exclude', '排除']] as const).map(([choice, label]) => <button type="button" key={choice} aria-pressed={state === choice} onClick={() => onChange({
+          {([['auto', '自动'], ['include', '包含'], ['exclude', '排除']] as const).map(([choice, label]) => <button disabled={disabled} type="button" key={choice} aria-pressed={state === choice} onClick={() => onChange({
             include_refs: [...value.include_refs.filter(ref => ref !== object.object_id), ...(choice === 'include' ? [object.object_id] : [])],
             exclude_refs: [...value.exclude_refs.filter(ref => ref !== object.object_id), ...(choice === 'exclude' ? [object.object_id] : [])],
           })}>{label}</button>)}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport } from './threadProjectionStore'
@@ -72,6 +72,108 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it.each(['running', 'uncertain'] as const)('freezes configuration but preserves next-draft edits during %s', async state => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    if (state === 'running') Object.assign(fixture.snapshot as object, { current_attempt: { turn_id: 'turn_live', attempt_id: 'attempt_live', phase: 'running', target_model_context_id: 'ctx_ieee39_7' } })
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: async command => { commands.push(command); throw new Error('receipt unavailable') } })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    if (state === 'uncertain') {
+      fireEvent.change(input, { target: { value: 'accepted candidate' } })
+      fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+      await screen.findByText(/操作提交结果尚未确认/)
+    }
+    expect(input.disabled).toBe(false)
+    for (const name of ['运行模式', '选择技能', '本轮上下文']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+    for (const checkbox of screen.getAllByRole('checkbox')) expect((checkbox as HTMLInputElement).disabled).toBe(true)
+    fireEvent.change(input, { target: { value: 'next draft preserved' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    expect(input.value).toBe('next draft preserved')
+    expect(commands).toHaveLength(state === 'running' ? 0 : 1)
+  })
+  it.each([['send', 'click'], ['runtime', 'click'], ['send', 'Enter'], ['runtime', 'Enter']] as const)('admits only one operation for same-tick %s-first %s actions and keeps editing available', async (first, trigger) => {
+    const transport = createFixtureTransport(structuredClone(threadUiFixture('idle-ieee39')))
+    const commands: ThreadCommand[] = []
+    let release!: () => void
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport, sendCommand: command => {
+      commands.push(command)
+      return new Promise(resolve => { release = () => resolve({ schema: 'capstone-command-receipt/1', command_id: command.command_id,
+        idempotency_key: command.idempotency_key, thread_id: command.thread_id, status: 'rejected', rejection: 'stale_event_seq' }) })
+    } })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'keep draft' } })
+    fireEvent.click(screen.getByRole('button', { name: '运行模式' }))
+    const mode = screen.getByRole('menuitemradio', { name: 'Pi' })
+    const send = screen.getByRole('button', { name: '发送指令' })
+    const submit = () => trigger === 'click' ? send.click() : fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+    act(() => { if (first === 'send') { submit(); mode.click() } else { mode.click(); submit() } })
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0].kind).toBe(first === 'send' ? 'send_auto' : 'switch_runtime')
+    expect(input.disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '选择技能' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(input, { target: { value: 'next draft' } })
+    expect(input.value).toBe('next draft')
+    release()
+    await waitFor(() => expect((screen.getByRole('button', { name: '运行模式' }) as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it.each(['capstone', 'pi_reference'])('rebuilds typed context input and recovers the original draft after an ordered model change in %s', async mode => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    const snapshot = fixture.snapshot as Record<string, any>
+    snapshot.runtime_mode = mode
+    const original = structuredClone(snapshot.active_model_context)
+    let transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    let catalogReads = 0
+    let loseReceipt = true
+    const client = new CapstoneThreadClient({
+      getSnapshot: id => transport.getSnapshot(id), getCatalog: id => transport.getCatalog!(id),
+      readEvents: (id, cursor) => transport.readEvents(id, cursor),
+      getModels: async () => ({ schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_demo_39', run_id: 'run_001', event_seq: snapshot.last_event_seq,
+        current_entry_id: 'mdl_current', blocked_reason: null, models: [{ entry_id: 'mdl_current', ...snapshot.active_model_context,
+          authority_model_ref: null, display_name: snapshot.active_model_context.model_id, diagram_provider_id: null, last_active_seq: 0 }].map(({ id, selection_revision, ...entry }) => entry) }),
+      getInputCatalog: async () => { catalogReads++; return { schema: 'capstone-thread-input-catalog/1', revision: 'catalog',
+        context_id: snapshot.active_model_context.id, selection_revision: snapshot.active_model_context.selection_revision,
+        objects: [original, snapshot.active_model_context].filter((value, index, values) => values.findIndex(item => item.id === value.id) === index)
+          .map(value => ({ object_id: value.id, model_id: value.model_id, model_revision: value.model_revision, implementation_family: value.implementation_family })),
+        materials: [], operations: [], resource_profiles: {} } },
+      sendCommand: async command => {
+        commands.push(command)
+        if (command.kind === 'open_model') {
+          snapshot.active_model_context = { ...original, id: 'ctx_pypsa', model_id: 'pypsa39', implementation_family: 'pypsa' }
+          snapshot.last_event_seq = 1; snapshot.active_grid_page_id = 'page_pypsa39'
+          fixture.events = { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 1, has_more: false,
+            events: [{ event_id: 'evt_model', event_seq: 1, event_type: 'model_context_activated', event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+              occurred_at: '2026-10-09T00:00:00Z', visibility: 'public', payload: { previous_context: original, model_context: snapshot.active_model_context, active_grid_page_id: 'page_pypsa39' } }] }
+          transport = createFixtureTransport(fixture)
+          return { schema: 'capstone-command-receipt/1', command_id: command.command_id, idempotency_key: command.idempotency_key, thread_id: command.thread_id, status: 'accepted', accepted_event_seq: 1 }
+        }
+        const receipt = await transport.sendCommand(command)
+        if (loseReceipt) { loseReceipt = false; throw new Error('accepted receipt lost') }
+        return receipt
+      },
+    })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+    fireEvent.click(screen.getByRole('button', { name: '本轮上下文' }))
+    fireEvent.click(await screen.findByRole('button', { name: '包含' }))
+    await act(async () => {})
+    fireEvent.keyDown(input, { key: 'Escape' })
+    fireEvent.change(input, { target: { value: '打开 pypsa39，然后分析电压' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands.map(command => command.kind)).toEqual(['open_model', 'send_auto'])
+    expect(commands[1].payload).toMatchObject({ text: '分析电压', input: { kind: 'text', text: '分析电压' }, context_selection: { include_refs: [original.id], exclude_refs: [] } })
+    expect(catalogReads).toBeGreaterThan(1)
+    await screen.findByText(/操作提交结果尚未确认/)
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('打开 pypsa39，然后分析电压'))
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }))
+    await waitFor(() => expect(commands).toHaveLength(3))
+    expect(commands[2]).toEqual(commands[1])
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe(''))
+  })
   it.each(['capstone', 'pi_reference'])('retries a direct Pi attempt with disabled domain tools in %s mode', async (mode) => {
     const fixture = instructionViewsFixture()
     const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
@@ -181,6 +283,7 @@ describe('ThreadFixtureApp', () => {
     expect(commands).toEqual([])
     const input = screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: '计算潮流' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
     await screen.findByText('Fixture 已接收自动指令：计算潮流')
     expect(commands).toHaveLength(1)
@@ -703,7 +806,7 @@ describe('ThreadFixtureApp', () => {
     expect(screen.getByText('sel_1')).toBeTruthy()
     expect(screen.getByRole('img', { name: '电网拓扑' })).toBeTruthy()
     expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
-    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(false)
     expect(document.querySelector('.thread-model-short')?.textContent).toBe('ieee39 · pandapower')
     expect(commands).toEqual([])
     fireEvent.click(screen.getAllByRole('button', { name: '返回当前模型' })[0])
@@ -841,6 +944,7 @@ describe('ThreadFixtureApp', () => {
     }
     fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '你好' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
     expect(await screen.findByText('Fixture 已接收自动指令：你好')).toBeTruthy()
     expect(screen.queryByText(/未启用适用于此模型/)).toBeNull()
@@ -985,7 +1089,7 @@ describe('ThreadFixtureApp', () => {
     render(<ThreadFixtureApp fixtureId="resync-required" />)
 
     expect((await screen.findAllByText('需要重新同步')).length).toBeGreaterThan(0)
-    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(true)
+    expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: '重新同步' }) as HTMLButtonElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: '发送指令' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText('需要重新同步').closest('.capstone-chat-viewport')).toBeTruthy()
