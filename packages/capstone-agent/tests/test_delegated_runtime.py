@@ -9,7 +9,7 @@ from capstone_agent.intent_runtime import IntentRuntimeFactory
 from capstone_agent.pi_delegation import PiTaskResult
 from capstone_agent.request_intent import IntentDecision, IntentEngineIdentity, NodeControl
 from capstone_agent.thread_worker import _run_claimed_attempt
-from test_intent_runtime import claim
+from test_intent_runtime import claim, historical_direct_claim
 
 
 class Executor:
@@ -51,8 +51,9 @@ def goal(identity, operation='answer', *, refs=(), depends=(), excerpt=None, mis
 class Recognizer:
     identity = IntentEngineIdentity('fixture', 'model', 'config_1')
 
-    def __init__(self, goals):
+    def __init__(self, goals, *, clarification=None):
         self.goals = goals
+        self.clarification = clarification
         self.requests = []
 
     def recognize(self, request, control):
@@ -60,7 +61,8 @@ class Recognizer:
         source = request.to_document()
         return IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
             'attempt_id': source['attempt_id'], 'history_cutoff': source['history_cutoff'],
-            'relationship': 'independent', 'goals': self.goals, 'clarification': None}, request)
+            'relationship': 'independent', 'goals': self.goals,
+            'clarification': self.clarification}, request)
 
 
 class ContextSelector:
@@ -116,6 +118,74 @@ def test_delegated_general_goals_have_distinct_public_object_contexts():
     assert result.status == 'completed'
     assert executor.requests[0].business_context.to_document()['object_refs'][0]['display_name'] == 'ieee39'
     assert executor.requests[1].business_context.to_document()['selection']['state'] == 'none'
+
+
+@pytest.mark.parametrize('clarification', [None, 'Which historical model version should I use?'])
+def test_unresolved_historical_general_goal_returns_blocked_or_clarification(clarification):
+    service, current = claim()
+    current = historical_direct_claim(current, resolved=False)
+    current = replace(current, attempt=replace(current.attempt, runtime_mode='capstone'))
+    blocked = goal('historical', missing=('The historical model version is unavailable',)
+                   if clarification is None else ())
+    blocked['object_refs'] = ['ctx_old']
+    executor = Executor()
+    selected = factory(executor, Recognizer([blocked], clarification=clarification))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 5),
+        service.freeze_attempt_input, freeze_decision=service.freeze_attempt_decision)
+    assert plan.intent_resources['business_contexts'] == {}
+    assert plan.intent_request.to_document()['objects'][-1] == {'object_id': 'ctx_old'}
+    accepted = service.freeze_attempt_decision(current, None)
+    assert accepted['goals'][0] == blocked
+    result = run(service, current, selected)
+    assert result.status == 'completed'
+    assert result.answer == (clarification or
+        'General task was not executed: prerequisites are not complete.')
+    assert result.result_refs == result.evidence_refs == ()
+    assert executor.requests == []
+    assert not any(event.payload.get('child_status') == 'started'
+                   for event in service.read_events(current.thread_id, 0).events)
+
+
+def test_blocked_historical_goal_preserves_independent_goal_context():
+    service, current = claim()
+    current = historical_direct_claim(current, resolved=False)
+    history = {'message_id': 'current:assistant', 'role': 'assistant', 'content': 'Current background',
+        'turn_id': 'current-turn', 'attempt_id': 'current-old',
+        'model_context_id': 'ctx_test', 'status': 'completed'}
+    current = replace(current, attempt=replace(current.attempt, runtime_mode='capstone'),
+        conversation_context=replace(current.conversation_context,
+            messages=(*current.conversation_context.messages, history)))
+    blocked = goal('historical', excerpt='解释刚才的结论',
+                   missing=('The historical model version is unavailable',))
+    blocked['object_refs'] = ['ctx_old']
+    independent = goal('independent', excerpt='翻译成英文')
+    independent['object_refs'] = ['ctx_test']
+    independent['message_refs'] = ['current:assistant']
+    executor = Executor()
+    selected = factory(executor, Recognizer([blocked, independent]))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 5),
+        service.freeze_attempt_input, freeze_decision=service.freeze_attempt_decision)
+    contexts = plan.intent_resources['business_contexts']
+    assert set(contexts) == {'independent'}
+    assert plan.intent_request.to_document()['objects'][-1] == {'object_id': 'ctx_old'}
+    assert service.freeze_attempt_decision(current, None)['goals'][0] == blocked
+    result = run(service, current, selected)
+    assert result.status == 'completed'
+    assert 'General task was not executed: prerequisites are not complete.' in result.answer
+    assert 'General answer' in result.answer
+    assert result.result_refs == result.evidence_refs == ()
+    assert len(executor.requests) == 1
+    task = executor.requests[0]
+    assert task.instruction == '翻译成英文'
+    assert task.to_document()['schema'] == 'capstone-pi-task/2'
+    assert list(task.messages) == [{**history, 'model_context_id': ''}]
+    context = task.business_context.to_document()
+    assert context == contexts['independent']
+    assert [item['object_id'] for item in context['object_refs']] == ['ctx_test']
+    assert context['object_refs'][0]['source']['message_refs'] == ['current:assistant']
+    events = service.read_events(current.thread_id, 0).events
+    assert [(event.payload['goal_id'], event.payload['goal_status']) for event in events
+            if 'goal_status' in event.payload] == [('historical', 'blocked'), ('independent', 'completed')]
 
 
 def test_required_context_cannot_be_dropped_for_v1_server():

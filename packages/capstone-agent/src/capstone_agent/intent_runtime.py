@@ -228,10 +228,12 @@ class IntentRuntimeFactory:
             _rebind_decision(decision.to_document(), frozen['request']['attempt_id']), original)
         execution_resources = dict(frozen['resources'])
         if self._general is not _LEGACY:
+            # Blocked goals retain unresolved references in the accepted decision.
+            # Only ready goals need a version-bound context for child execution.
             execution_resources['business_contexts'] = {goal['goal_id']: business_context_for(
                 original, original_decision, goal_id=goal['goal_id'],
                 current_object_id=execution_resources.get('current_object_id', original.to_document()['objects'][0]['object_id'])
-            ).to_document() for goal in original_decision.to_document()['goals']
+            ).to_document() for goal in original_decision.execution_goals
                 if goal['operation'] not in {'business_read', 'business_execute', 'catalog_lookup'}}
         return TurnPlan(
             turn_id=claim.attempt.turn_id, attempt_id=claim.attempt.attempt_id,
