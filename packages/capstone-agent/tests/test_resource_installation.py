@@ -5,6 +5,7 @@ import hashlib
 import subprocess
 import sys
 import platform
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -172,6 +173,69 @@ def test_retained_schema_bytes_remain_bound_to_accepted_descriptor(tmp_path: Pat
     monkeypatch.setattr("capstone_agent.resource_installation._run", lambda *args, **kwargs: calls.append(args) or PROBE_OUTPUT)
     assert inspect_installation(managed, install_id=document["install_id"], expected_descriptor_sha256=content_hash(document))[0] is None
     assert not calls
+
+
+@pytest.mark.parametrize("mode", ["current", "retained"])
+@pytest.mark.parametrize("identity", ["schema_digest_mismatch", "bound_remote_reference"])
+def test_schema_references_cannot_fetch_or_launch_probe(tmp_path: Path, monkeypatch, mode: str, identity: str) -> None:
+    managed, install, document = prepared(tmp_path)
+    schema_path = install / "descriptor-schema.json"
+    schema_path.write_text('{"$schema":"https://json-schema.org/draft/2020-12/schema","$ref":"https://example.invalid/remote-schema"}')
+    if identity == "bound_remote_reference":
+        document["descriptor_schema_sha256"] = hashlib.sha256(schema_path.read_bytes()).hexdigest()
+        (install / "prepared-mcp.json").write_text(json.dumps(document))
+        (tmp_path / "configs/runtime/prepared-mcp-v1.schema.json").write_bytes(schema_path.read_bytes())
+        (managed / "current.json").write_text(json.dumps({"install_id": document["install_id"], "descriptor_sha256": content_hash(document)}))
+    network_calls, probe_calls = [], []
+    def blocked_opener(*args, **kwargs):
+        network_calls.append(args)
+        raise OSError("network access is forbidden")
+    monkeypatch.setattr(urllib.request, "urlopen", blocked_opener)
+    monkeypatch.setattr("capstone_agent.resource_installation._run", lambda *args, **kwargs: probe_calls.append(args) or PROBE_OUTPUT)
+    options = {} if mode == "current" else {"install_id": document["install_id"], "expected_descriptor_sha256": content_hash(document)}
+    descriptor, reason = inspect_installation(managed, **options)
+    assert descriptor is None
+    assert reason == "managed source, tool schema or dependency verification failed"
+    assert not network_calls
+    assert not probe_calls
+
+
+def test_accepted_descriptor_digest_is_checked_before_schema_validation(tmp_path: Path, monkeypatch) -> None:
+    managed, install, document = prepared(tmp_path)
+    accepted = content_hash(document)
+    schema = install / "descriptor-schema.json"
+    schema.write_bytes(schema.read_bytes() + b"\n")
+    document["descriptor_schema_sha256"] = hashlib.sha256(schema.read_bytes()).hexdigest()
+    (install / "prepared-mcp.json").write_text(json.dumps(document))
+    validations = []
+    monkeypatch.setattr("capstone_agent.resource_installation.Draft202012Validator.check_schema", lambda *args, **kwargs: validations.append(args))
+    descriptor, _ = inspect_installation(managed, install_id=document["install_id"], expected_descriptor_sha256=accepted)
+    assert descriptor is None
+    assert not validations
+
+
+@pytest.mark.parametrize("reference_exists", [True, False])
+def test_retained_schema_resolves_only_embedded_references(tmp_path: Path, monkeypatch, reference_exists: bool) -> None:
+    managed, install, document = prepared(tmp_path)
+    schema_path = install / "descriptor-schema.json"
+    embedded = json.loads(schema_path.read_text())
+    schema_path.write_text(json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {"descriptor": embedded}, "$ref": "#/$defs/descriptor" if reference_exists else "#/$defs/missing"}))
+    document["descriptor_schema_sha256"] = hashlib.sha256(schema_path.read_bytes()).hexdigest()
+    (install / "prepared-mcp.json").write_text(json.dumps(document))
+    calls = []
+    monkeypatch.setattr("capstone_agent.resource_installation._run", lambda *args, **kwargs: calls.append(args) or PROBE_OUTPUT)
+    def forbidden_opener(*args, **kwargs):
+        pytest.fail("embedded schema references must not use the network")
+    monkeypatch.setattr(urllib.request, "urlopen", forbidden_opener)
+    descriptor, reason = inspect_installation(managed, install_id=document["install_id"], expected_descriptor_sha256=content_hash(document))
+    if reference_exists:
+        assert descriptor == document and reason is None
+        assert len(calls) == 1
+    else:
+        assert descriptor is None
+        assert reason == "managed source, tool schema or dependency verification failed"
+        assert not calls
 
 
 def test_base_interpreter_link_change_is_rejected_before_execution(tmp_path: Path, monkeypatch) -> None:

@@ -10,8 +10,11 @@ import shutil
 import subprocess
 import tarfile
 import uuid
+from typing import NoReturn
 
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
+from referencing import Registry
+from referencing.exceptions import NoSuchResource, Unresolvable
 
 from .runtime_resources import ROLES, content_hash, safe_path
 
@@ -146,6 +149,11 @@ def install_managed_resources(config_root: Path, *, source_root: Path | None = N
         raise
 
 
+def _deny_schema_retrieval(uri: str) -> NoReturn:
+    """References can resolve inside the supplied schema, never through I/O."""
+    raise NoSuchResource(ref=uri)
+
+
 def inspect_installation(managed: Path, *, install_id: str | None = None, expected_descriptor_sha256: str | None = None) -> tuple[dict | None, str | None]:
     """Verify bytes, schema identities and real importability without network access."""
     try:
@@ -157,30 +165,35 @@ def inspect_installation(managed: Path, *, install_id: str | None = None, expect
             selected_install_id = install_id
         install = safe_path(managed, selected_install_id)
         descriptor = json.loads((install / "prepared-mcp.json").read_text())
+        if not isinstance(descriptor, dict):
+            raise ValueError("prepared MCP descriptor must be an object")
+        descriptor_sha256 = content_hash(descriptor)
+        if pointer and pointer["descriptor_sha256"] != descriptor_sha256:
+            raise ValueError("prepared MCP descriptor changed")
+        if expected_descriptor_sha256 and expected_descriptor_sha256 != descriptor_sha256:
+            raise ValueError("accepted MCP descriptor changed")
         retained_schema_bytes = (install / "descriptor-schema.json").read_bytes()
-        schema = json.loads(retained_schema_bytes)
-        Draft202012Validator.check_schema(schema)
-        Draft202012Validator(schema).validate(descriptor)
         if descriptor["descriptor_schema_sha256"] != hashlib.sha256(retained_schema_bytes).hexdigest():
             raise ValueError("retained descriptor schema changed")
-        if descriptor["install_id"] != selected_install_id or descriptor["server"] != "sources/PowerMCP/pandapower/panda_mcp.py":
-            raise ValueError("prepared MCP installation or server identity changed")
-        if pointer and pointer["descriptor_sha256"] != content_hash(descriptor):
-            raise ValueError("prepared MCP descriptor changed")
-        if expected_descriptor_sha256 and expected_descriptor_sha256 != content_hash(descriptor):
-            raise ValueError("accepted MCP descriptor changed")
         config = managed.parents[2] / "configs/runtime"
         # Explicit historical identity uses its retained installation snapshot.
         # The caller must persist and supply the accepted descriptor hash.
         lock_path = install / "installation-lock.json" if install_id else config / "power-samples.lock.json"
         schema_path = install / "descriptor-schema.json" if install_id else config / "prepared-mcp-v1.schema.json"
         lock = json.loads(lock_path.read_text())
+        if (descriptor["lock_sha256"] != content_hash(lock)
+                or descriptor["descriptor_schema_sha256"] != hashlib.sha256(schema_path.read_bytes()).hexdigest()):
+            raise ValueError("prepared MCP schema or lock identity changed")
+        schema = json.loads(retained_schema_bytes)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema, registry=Registry(retrieve=_deny_schema_retrieval)).validate(descriptor)
+        if descriptor["install_id"] != selected_install_id or descriptor["server"] != "sources/PowerMCP/pandapower/panda_mcp.py":
+            raise ValueError("prepared MCP installation or server identity changed")
         expected_files = {"sources/" + source["id"] + "/" + name: digest for source in lock["sources"] for name, digest in source["files"].items()}
         expected_sources = [{"id": item["id"], "url": item["url"], "commit": item["commit"]} for item in lock["sources"]]
-        if (descriptor["lock_sha256"] != content_hash(lock) or descriptor["source_files"] != expected_files
+        if (descriptor["source_files"] != expected_files
                 or descriptor["sources"] != expected_sources or descriptor["dependencies"] != lock["dependencies"]
-                or descriptor["tool_schema_hashes"] != lock["tool_schema_hashes"]
-                or descriptor["descriptor_schema_sha256"] != hashlib.sha256(schema_path.read_bytes()).hexdigest()):
+                or descriptor["tool_schema_hashes"] != lock["tool_schema_hashes"]):
             raise ValueError("prepared MCP differs from versioned lock")
         verify_source_tree(install, descriptor["source_files"])
         if descriptor["tool_schemas"].keys() != descriptor["tool_schema_hashes"].keys():
@@ -205,7 +218,7 @@ def inspect_installation(managed: Path, *, install_id: str | None = None, expect
         if actual["dependencies"] != descriptor["dependencies"] or actual["runtime_identity"] != descriptor["runtime_identity"]:
             raise ValueError("MCP dependency versions changed")
         return descriptor, None
-    except (ValueError, KeyError, OSError, subprocess.SubprocessError, SchemaError, ValidationError):
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError, SchemaError, ValidationError, Unresolvable):
         # Public reason contains no exception text with local paths or secrets.
         return None, "managed source, tool schema or dependency verification failed"
 

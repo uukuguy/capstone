@@ -108,6 +108,7 @@ dependencies = [
     { name = "jsonschema" },
     { name = "psycopg", extra = ["binary"] },
     { name = "python-dotenv" },
+    { name = "referencing" },
     { name = "textual" },
     { name = "uvicorn" },
 ]
@@ -128,6 +129,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.26,<5" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "python-dotenv", specifier = ">=1.2,<2" },
+    { name = "referencing", specifier = ">=0.37,<1" },
     { name = "textual", specifier = ">=8,<9" },
     { name = "uvicorn", specifier = ">=0.51,<1" },
 ]
