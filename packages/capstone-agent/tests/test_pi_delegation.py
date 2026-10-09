@@ -39,6 +39,100 @@ def test_documents_are_defensive_and_immutable():
     assert result.usage["tokens"] == 1
 
 
+def v2_document(kind='text'):
+    from capstone_agent.business_context import BusinessContext
+    document = request_document()
+    document.update(schema='capstone-pi-task/2', business_context=BusinessContext.empty('thread1', 12).to_document(),
+                    resource_profile={'profile_id': 'general', 'revision': 'sha256:' + 'b' * 64},
+                    input={'kind': kind, 'text': document['instruction']})
+    if kind == 'skill_invocation':
+        document['input'].update(skill_id='explain', skill_version='v1')
+    return document
+
+
+def test_legacy_positional_constructor_preserves_exact_v1_document():
+    document = request_document()
+    request = PiTaskRequest(*(document[field] for field in
+        ('task_id', 'parent_attempt_id', 'entrypoint', 'instruction', 'messages',
+         'dependency_results', 'executor_identity', 'timeout_seconds')))
+    assert request.to_document() == document
+
+
+@pytest.mark.parametrize('kind', ['text', 'skill_invocation'])
+def test_v2_round_trip_freezes_context_profile_and_typed_input(kind):
+    document = v2_document(kind)
+    original = copy.deepcopy(document)
+    request = PiTaskRequest.from_document(document)
+    document['resource_profile']['revision'] = 'changed'
+    request.to_document()['input']['text'] = 'changed'
+    assert request.to_document() == original
+    assert request.business_context.to_document() == original['business_context']
+    with pytest.raises(TypeError):
+        request.resource_profile['revision'] = 'changed'
+    constructed = PiTaskRequest(**{k: v for k, v in original.items() if k != 'schema'})
+    assert constructed.to_document() == original
+    assert PiTaskResult.from_document(result_document(request), request).status == 'completed'
+
+
+@pytest.mark.parametrize('field', ['business_context', 'resource_profile', 'input'])
+def test_v2_rejects_partial_fields_and_v1_downgrade(field):
+    document = v2_document()
+    document.pop(field)
+    with pytest.raises(ValueError):
+        PiTaskRequest.from_document(document)
+    with pytest.raises(ValueError):
+        PiTaskRequest(**{k: v for k, v in document.items() if k != 'schema'})
+    document = v2_document()
+    document['schema'] = 'capstone-pi-task/1'
+    with pytest.raises(ValueError):
+        PiTaskRequest.from_document(document)
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda d: d['input'].update(text='different'),
+    lambda d: d['input'].update(kind='shell'),
+    lambda d: d['input'].update(skill_id='not-typed'),
+    lambda d: d['input'].update(token='secret'),
+    lambda d: d['input'].update(kind='skill_invocation'),
+    lambda d: d['resource_profile'].update(revision=''),
+    lambda d: d['resource_profile'].update(extra='private'),
+    lambda d: d['resource_profile'].update(profile_id='x' * 257),
+    lambda d: d['business_context'].update(snapshot_id='sha256:' + '0' * 64),
+    lambda d: d['executor_identity'].update(model_revision='private'),
+    lambda d: d.update(extra=True),
+])
+def test_v2_rejects_invalid_inputs_and_retains_generic_protected_fields(mutation):
+    document = v2_document()
+    mutation(document)
+    with pytest.raises(ValueError):
+        PiTaskRequest.from_document(document)
+
+
+def test_v2_enforces_total_envelope_bounds_and_rejects_forged_result_evidence():
+    document = v2_document()
+    document['executor_identity'].update({f'field{i}': 'x' * 65536 for i in range(4)})
+    with pytest.raises(ValueError, match='byte bounds'):
+        PiTaskRequest.from_document(document)
+    request = PiTaskRequest.from_document(v2_document())
+    result = result_document(request)
+    result['usage']['evidence_refs'] = ['forged']
+    with pytest.raises(ValueError, match='protected'):
+        PiTaskResult.from_document(result, request)
+
+
+def test_v2_combined_envelope_budget_includes_input_and_context():
+    document = v2_document()
+    document['instruction'] = 'x' * 65536
+    document['input']['text'] = document['instruction']
+    document['executor_identity'].update({f'field{i}': 'x' * 45000 for i in range(3)})
+    # Each part and the v1 request fit, but their v2 combination does not.
+    legacy = {k: v for k, v in document.items() if k not in {'business_context', 'resource_profile', 'input'}}
+    legacy['schema'] = 'capstone-pi-task/1'
+    PiTaskRequest.from_document(legacy)
+    with pytest.raises(ValueError, match='byte bounds'):
+        PiTaskRequest.from_document(document)
+
+
 @pytest.mark.parametrize("field,value", [("extra", 1), ("timeout_seconds", 0), ("timeout_seconds", float("nan")),
     ("timeout_seconds", True), ("timeout_seconds", 3601), ("instruction", "x" * 65537),
     ("entrypoint", "shell"), ("executor_identity", {}), ("dependency_results", [{"evidence_refs": []}])])

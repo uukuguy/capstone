@@ -6,7 +6,7 @@ them to the accepted task before it saves or presents the result.
 """
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import asyncio
 import json
 import math
@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .conversation_context import ConversationContext
+from .business_context import BusinessContext
 from .request_intent import NodeControl
 
 MAX_DOCUMENT_BYTES = 256 * 1024
@@ -27,6 +28,9 @@ CANCELLATION_TIMEOUT_SECONDS = 0.5
 STATUSES = frozenset({"completed", "needs_clarification", "capability_unavailable", "failed", "cancelled"})
 _FORBIDDEN = {"authority", "authority_refs", "result_refs", "evidence_refs", "model_revision",
               "api_key", "credentials", "password", "token", "secret", "endpoint"}
+_TASK_V1_FIELDS = ('task_id', 'parent_attempt_id', 'entrypoint', 'instruction',
+                   'messages', 'dependency_results', 'executor_identity', 'timeout_seconds')
+_TASK_V2_FIELDS = ('business_context', 'resource_profile', 'input')
 
 
 def _json_document(value: object) -> dict:
@@ -84,6 +88,33 @@ def _fields(document, fields, schema):
         raise ValueError("Pi document fields or schema are invalid")
 
 
+def _task_v2_values(business_context, resource_profile, task_input, instruction):
+    """Validate the public context separately from generic untrusted JSON."""
+    context = (business_context if isinstance(business_context, BusinessContext)
+               else BusinessContext.from_document(business_context))
+    profile = _json_document(resource_profile)
+    if set(profile) != {'profile_id', 'revision'}:
+        raise ValueError('Pi resource profile fields are invalid')
+    for value in profile.values():
+        if not isinstance(value, str) or not value.strip() or len(value.encode('utf-8')) > 256:
+            raise ValueError('Pi resource profile identity is invalid')
+    task_input = _json_document(task_input)
+    kind = task_input.get('kind')
+    if kind == 'text':
+        expected = {'kind', 'text'}
+    elif kind == 'skill_invocation':
+        expected = {'kind', 'text', 'skill_id', 'skill_version'}
+        _id(task_input.get('skill_id'))
+        version = task_input.get('skill_version')
+        if not isinstance(version, str) or not version.strip() or len(version.encode('utf-8')) > 256:
+            raise ValueError('Pi skill version is invalid')
+    else:
+        raise ValueError('Pi typed input kind is invalid')
+    if set(task_input) != expected or task_input['text'] != instruction:
+        raise ValueError('Pi typed input fields or instruction are invalid')
+    return context, _freeze(profile), _freeze(task_input)
+
+
 @dataclass(frozen=True, slots=True)
 class PiTaskRequest:
     task_id: str
@@ -94,9 +125,12 @@ class PiTaskRequest:
     dependency_results: tuple
     executor_identity: Mapping
     timeout_seconds: float
+    business_context: BusinessContext | Mapping | None = field(default=None, kw_only=True)
+    resource_profile: Mapping | None = field(default=None, kw_only=True)
+    input: Mapping | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
-        document = _json_document({field: getattr(self, field) for field in self.__dataclass_fields__})
+        document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
         _id(self.task_id)
         _id(self.parent_attempt_id)
         if not isinstance(self.entrypoint, str) or self.entrypoint not in {"delegated", "direct"}:
@@ -130,16 +164,45 @@ class PiTaskRequest:
             seen.add(dependency["task_id"])
         for field in ("messages", "dependency_results", "executor_identity"):
             object.__setattr__(self, field, _freeze(document[field]))
+        extras = [getattr(self, name) is not None for name in _TASK_V2_FIELDS]
+        if any(extras):
+            if not all(extras):
+                raise ValueError('Pi v2 requires context, resource profile and typed input')
+            context, profile, task_input = _task_v2_values(
+                self.business_context, self.resource_profile, self.input, self.instruction)
+            object.__setattr__(self, 'business_context', context)
+            object.__setattr__(self, 'resource_profile', profile)
+            object.__setattr__(self, 'input', task_input)
+        # Include the schema and every v2 field in the total transport budget.
+        self.to_document()
 
     @classmethod
     def from_document(cls, document):
-        document = _json_document(document)
-        _fields(document, cls.__dataclass_fields__, "capstone-pi-task/1")
+        if not isinstance(document, Mapping):
+            raise ValueError('Pi document must be an object')
+        schema = document.get('schema')
+        if schema == 'capstone-pi-task/1':
+            document = _json_document(document)
+            _fields(document, _TASK_V1_FIELDS, schema)
+        elif schema == 'capstone-pi-task/2':
+            _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS, schema)
+            base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
+            document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS}}
+            if any(document[key] is None for key in _TASK_V2_FIELDS):
+                raise ValueError('Pi v2 fields cannot be null')
+        else:
+            raise ValueError('Pi task schema is invalid')
         return cls(**{k: v for k, v in document.items() if k != "schema"})
 
     def to_document(self):
-        return {"schema": "capstone-pi-task/1", **_json_document(
-            {field: getattr(self, field) for field in self.__dataclass_fields__})}
+        document = {'schema': 'capstone-pi-task/1', **_json_document(
+            {name: getattr(self, name) for name in _TASK_V1_FIELDS})}
+        if self.business_context is not None:
+            document.update(schema='capstone-pi-task/2', business_context=self.business_context.to_document(),
+                            resource_profile=_json_document(self.resource_profile), input=_json_document(self.input))
+        if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_DOCUMENT_BYTES:
+            raise ValueError('Pi JSON exceeds byte bounds')
+        return document
 
 
 def _validate_result(document, task_id, parent_attempt_id, executor_identity):
