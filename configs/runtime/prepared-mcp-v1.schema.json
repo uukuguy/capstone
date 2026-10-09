@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capstone-prepared-mcp/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "install_id",
+    "transport",
+    "interpreter",
+    "server",
+    "sources",
+    "source_files",
+    "dependencies",
+    "runtime_identity",
+    "tool_schemas",
+    "tool_schema_hashes",
+    "smoke_sha256",
+    "lock_sha256",
+    "descriptor_schema_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "capstone-prepared-mcp/1"
+    },
+    "install_id": {
+      "type": "string",
+      "pattern": "^installs/[a-f0-9]{32}$"
+    },
+    "transport": {
+      "const": "stdio"
+    },
+    "interpreter": {
+      "const": "venv/bin/python"
+    },
+    "server": {
+      "const": "sources/PowerMCP/pandapower/panda_mcp.py"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "url",
+          "commit"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "PowerSkills",
+              "PowerMCP"
+            ]
+          },
+          "url": {
+            "enum": [
+              "https://github.com/Power-Agent/PowerSkills",
+              "https://github.com/Power-Agent/PowerMCP"
+            ]
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          }
+        }
+      }
+    },
+    "source_files": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 256,
+      "propertyNames": {
+        "pattern": "^sources/(PowerSkills|PowerMCP)/[A-Za-z0-9_./-]+$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 256,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 64
+      }
+    },
+    "runtime_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python",
+        "implementation",
+        "platform",
+        "machine",
+        "base_interpreter_sha256"
+      ],
+      "properties": {
+        "base_interpreter_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "python": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "implementation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "machine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "tool_schemas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_network",
+        "create_empty_network",
+        "export_network_to_format",
+        "get_network_info",
+        "load_network",
+        "load_network_from_any",
+        "load_network_from_json",
+        "run_contingency_analysis",
+        "run_power_flow",
+        "validate_operating_point"
+      ],
+      "properties": {
+        "audit_network": {
+          "type": "object"
+        },
+        "create_empty_network": {
+          "type": "object"
+        },
+        "export_network_to_format": {
+          "type": "object"
+        },
+        "get_network_info": {
+          "type": "object"
+        },
+        "load_network": {
+          "type": "object"
+        },
+        "load_network_from_any": {
+          "type": "object"
+        },
+        "load_network_from_json": {
+          "type": "object"
+        },
+        "run_contingency_analysis": {
+          "type": "object"
+        },
+        "run_power_flow": {
+          "type": "object"
+        },
+        "validate_operating_point": {
+          "type": "object"
+        }
+      }
+    },
+    "tool_schema_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_network",
+        "create_empty_network",
+        "export_network_to_format",
+        "get_network_info",
+        "load_network",
+        "load_network_from_any",
+        "load_network_from_json",
+        "run_contingency_analysis",
+        "run_power_flow",
+        "validate_operating_point"
+      ],
+      "properties": {
+        "audit_network": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "create_empty_network": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "export_network_to_format": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "get_network_info": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "load_network": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "load_network_from_any": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "load_network_from_json": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "run_contingency_analysis": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "run_power_flow": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "validate_operating_point": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "smoke_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "lock_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "descriptor_schema_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
