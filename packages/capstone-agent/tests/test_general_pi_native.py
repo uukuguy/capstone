@@ -1,11 +1,13 @@
 """Opt-in offline Docker verification of real native Pi tools and isolation."""
 import json
+from dataclasses import replace
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import subprocess
 import threading
 import time
 from uuid import uuid4
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -127,6 +129,45 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
         check = 'from pathlib import Path; print(sum(p.stat().st_uid==10003 for p in Path("/proc").glob("[0-9]*")))'
         alive = subprocess.run(['docker','exec',name,'python','-c',check], capture_output=True, text=True, check=True)
         assert alive.stdout.strip() == '0', 'Detached child with inherited pipes survived task timeout'
+        # Verify the same real native engine behind both hosted worker entry points.
+        from capstone_agent.conversation_context import ConversationContext
+        from capstone_agent.intent_runtime import IntentRuntimeFactory
+        from capstone_agent.request_intent import IntentDecision, IntentEngineIdentity
+        from capstone_agent.thread_worker import _run_claimed_attempt
+        from test_intent_runtime import claim
+        class Recognizer:
+            identity = IntentEngineIdentity('fixture', 'model', 'config_1')
+            calls = 0
+            def recognize(self, request, control):
+                self.calls += 1
+                document = request.to_document()
+                return IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
+                    'attempt_id': document['attempt_id'], 'history_cutoff': document['history_cutoff'],
+                    'relationship': 'continuation', 'goals': [{'goal_id': 'lookup', 'description': 'General task',
+                        'operation': 'external_lookup', 'message_refs': ['old:assistant'], 'object_refs': [],
+                        'capability_refs': ['general-pi'], 'missing_requirements': [], 'depends_on': []}],
+                    'clarification': None}, request)
+        for mode in ('capstone', 'pi_reference'):
+            service, current = claim()
+            history = ConversationContext(messages=({'message_id': 'old:assistant', 'role': 'assistant',
+                'content': 'Shared history marker', 'turn_id': 'old-turn', 'attempt_id': 'old',
+                'model_context_id': 'ctx_test', 'status': 'completed'},))
+            current = replace(current, attempt=replace(current.attempt, runtime_mode=mode), conversation_context=history)
+            recognizer = Recognizer()
+            def unavailable(*_):
+                pytest.fail('Professional or legacy ordinary runtime was prepared')
+            factory = IntentRuntimeFactory(unavailable, lambda: recognizer, unavailable, general_executor=client)
+            before = len(calls)
+            result = _run_claimed_attempt(service, factory, current, SimpleNamespace(check=lambda: None), 30, None)
+            assert result.status == 'completed'
+            assert result.answer == 'Native general task complete.'
+            assert result.result_refs == result.evidence_refs == ()
+            assert recognizer.calls == (1 if mode == 'capstone' else 0)
+            assert len(calls) == before + 2
+            assert 'Shared history marker' in str(calls[before]['messages'])
+            receipts = [event.payload for event in service.read_events(current.thread_id, 0).events
+                        if event.event_type == 'runtime_event']
+            assert any(receipt.get('child_status') == 'completed' for receipt in receipts)
     finally:
         subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
         provider.shutdown()

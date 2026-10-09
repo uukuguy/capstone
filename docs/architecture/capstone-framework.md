@@ -17,8 +17,33 @@ Capstone is not an LLM shell, a generic REST client, a route around a domain's
 access controls, or a generic replacement for an authoritative system. It does
 not expose shell access, arbitrary subprocesses, arbitrary code execution,
 generic filesystem access, raw business objects, credentials, arbitrary network
-endpoints, or undeclared capability aliases to the model. The framework also
+endpoints, or undeclared capability aliases to a professional Domain Pack session. The framework also
 does not make a domain-specific output envelope a Kernel requirement.
+
+### General Pi task delegation
+
+The application can delegate general goals to a separate native Pi executor.
+Capstone mode first uses a model-based intent node to select goals and dependencies.
+Business goals retain the Domain Pack and Authority path. General goals use the
+isolated executor. Direct Pi mode bypasses intent recognition and domain preparation
+and uses the same executor, managed configuration and native tools. Both modes
+retain the visible Thread history and current model selection.
+
+The general executor owns private task workspaces and native read/write/edit/bash
+execution. It cannot access business files, model assets, authority endpoints or
+host credentials. Provider access uses a revocable relay grant. Pi discovers
+managed settings, context files, skills and extensions through its native conventions;
+the application supplies bounded conversation and dependency observations.
+Installation and configuration management for skills/MCP remains separate work.
+
+Requests and results cross `capstone-pi-task/1` and `capstone-pi-task-result/1`.
+Host-issued sources identify observed tool output; they do not prove that a web
+document is correct. Saved work products have bounded, hash-checked bytes.
+Neither result type admits Authority results, simulator evidence or model revisions.
+Typed external observations may supplement a business goal; changing a business
+model still requires an explicit Domain Pack contract and authority admission.
+Accepted recognition decisions, executor identity and child task identity are fixed
+for retry. An unknown prior execution outcome must not trigger blind side-effect replay.
 
 ## Four layers and dependency direction
 

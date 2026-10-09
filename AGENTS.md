@@ -73,10 +73,14 @@ before changing deployment, release, or environment behavior.
 
 ## Authority and Model Boundaries
 
-- An agent may call only published, allowlisted semantic tools with exact
+- A professional Domain Pack session may call only published, allowlisted semantic tools with exact
   contracts. Do not give it shell commands, arbitrary subprocesses, Python
   execution, generic file access, caller-selected endpoints, raw DataFrames,
   `pandapowerNet` objects, or authority internals.
+- Application-owned general tasks may delegate to the isolated native Pi
+  executor. Its native tools operate only in private task workspaces, without
+  business files, authority handles, or host credentials. General observations
+  and products never become Authority results or simulator evidence implicitly.
 - New tools must describe reusable domain actions, not a particular question,
   fixture, network, expected answer, or legacy query alias.
 - For pandapower, numerical and network claims cross `gridctl` through

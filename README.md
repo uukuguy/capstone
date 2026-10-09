@@ -76,12 +76,15 @@ Show their endpoint buses and the results and evidence supporting the answer.
 
 Continue in the same conversation to inspect results or refine the analysis. Each instruction is bound to a model context and run. The **New conversation** action creates a separate Thread; its URL lets you return to it after a page refresh.
 
-The current local App also supports general questions and concept explanations
-when all calculation tools are disabled in **Settings**. Calculations require
-applicable enabled tools; ordinary replies create no Authority results or evidence.
-Requests share conversation history and use model-based intent recognition before
-loading the required context and tools. Live news or weather requires an available
-registered source. See the [local verification and release limits](docs/reviews/2026-10-08-intent-context-local-verification.md).
+In **Capstone** mode, model-based intent recognition separates professional and
+general goals. Professional goals use enabled Domain Packs; general goals delegate
+to an isolated native Pi agent. **Pi 通用** (direct Pi) mode sends the task directly to that
+same executor. Switch modes while the Thread is idle; history, draft and model
+selection remain available. General outputs create no Authority results or evidence.
+Live news or weather still needs an accessible source. See the
+[shared executor design](docs/superpowers/specs/2026-10-09-capstone-pi-delegation-design.md).
+Actual model response quality requires separate acceptance; offline checks alone do
+not establish it.
 
 The conversation is the primary interface. Registered cases remain available as guided workflows and validation fixtures; the earlier case-library page is at `/old`.
 

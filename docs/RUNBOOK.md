@@ -94,6 +94,40 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
+### Capstone 委托与 Pi 通用入口
+
+对话空闲时可在运行模式中切换 **Capstone** 和 **Pi 通用**。
+Capstone 先由模型识别目标：专业目标交给 Domain Pack，通用目标委托给原生 Pi。
+Pi 通用直接交给同一个执行器，不调用意图节点或专业工具准备。
+两个入口共享可见历史，保留当前模型；已接受的请求和重试沿用原模式、配置及识别决策。
+执行中或案例进行中不能切换，Pi 通用模式不能启动登记的专业案例。
+
+本地 `make capstone-local-rebuild` 同时构建并启动独立的 `general-pi` 服务。
+`deploy/local.env` 需设置独立的 `CAPSTONE_GENERAL_CONTROL_TOKEN`；不要写入 App 构建变量。
+worker 使用私有 `CAPSTONE_GENERAL_EXECUTOR_ORIGIN`。执行器启动时通过原生 Pi 读取实际工具清单，
+不调用 Provider；任务执行使用所选 Provider，可能计费。当前 relay 支持 API-key 的
+chat-completions 传输，Anthropic 和 OAuth 配置会明确拒绝。没有配置执行器时不会退回受限 Pi 并声称通用任务已接通。
+
+原生设置目录为 `configs/runtime/general-pi/`。每个任务按 Pi 约定复制受控 settings、
+AGENTS、skills 和 extensions，加载有限的共享历史与依赖观察，不加载专业策略或 Authority 句柄。
+read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可撤销 relay grant 隔离。
+skills/MCP 的安装、配置和管理界面尚未实现。
+
+执行器将工具观察和文件产物保存为外部任务记录，不将其视为电网结果或证据。
+文件字节先校验并保存，才提交成功；私有控制端支持按任务和产物 ID 读取。
+当前 App 尚无产物下载入口。默认保留内容 24 小时，私有存储限 64 MiB，最多 4096 个
+收据或去重墓碑；启动和请求时清理到期内容。容量满时拒绝新任务，不能靠删除墓碑重做未知副作用。
+终态释放任务工作区；原生 token/cache 用量保留，费用标为未知，不能用合成的零价格估算真实费用。
+
+离线真实 Pi 检查需要先构建本地 general-pi 镜像，再运行：
+
+```sh
+CAPSTONE_GENERAL_NATIVE_TESTS=1 uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_general_pi_native.py -q
+```
+
+该检查只调用 loopback 假 Provider。它验证工具、隔离、取消和产物，不能证明真实新闻检索质量。
+真实 Provider 的回答验收仍按单独授权进行。
+
 App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口只返回访问模式，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
 
 对话区的小型「新建对话」创建独立 Thread，不取消原有后台任务。用户系统、历史会话列表、归档恢复界面和 LLM 会话命名暂缓，后续计划记录在[会话管理计划](superpowers/plans/2026-10-06-thread-session-management.md#current-scope-2026-10-06-1124)。当前 App 只管理已连接的 Thread；既有消息、结果和证据仍保留。
@@ -346,6 +380,9 @@ make run-llm PROVIDER=deepseek QUESTION="IEEE-39节点系统中线路11连接哪
 当前没有领域选择命令；CLI 固定选择内建 pandapower 静态分析 Profile。需要切换领域时必须先经过后续 Workstream 的设计和命令契约变更。
 
 ## Skill 与工具边界
+
+以下边界适用于专业 Domain Pack 会话。隔离的 Pi 通用执行器使用原生工具，
+其外部观察和产物通过应用委托契约返回；不进入专业权威系统的结果与证据准入。
 
 Pi 只能访问项目发布的 grid domain tools 和 `grid_guide_open`。工具描述由发布的 capability 契约生成；`skills/grid-static-analysis/` 说明如何组合不可变模型、完整网络/结果数据集、分析和证据。模型不得在回答正文中暴露内部 result/evidence/context/asset/constraint/path/nonce 标识；运行时根据当前回合已消费和已产生的 lineage 提交答案。
 
