@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 from typing import cast
 
-from .harness import HarnessPiClient, HarnessRuntime, PiPromptSession
+from .harness import HarnessPiClient, HarnessRuntime, PiPromptSession, HarnessRuntimeConfigurationError
 from .request_intent import IntentDecision, IntentRecognizer, IntentRequest, NodeControl
 from .thread_service import AttemptClaim, PriorResultReference
 from .turn_router import RouterConfig, TurnPlan, routing_input_for_claim
@@ -120,7 +120,7 @@ class IntentRuntimeFactory:
         if claim.attempt.runtime_mode == 'pi_reference':
             if (general is None or general['capability'].get('enabled') is not True
                 or general['capability'].get('available') is not True):
-                raise ValueError('general Pi executor is unavailable')
+                raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
             frozen = freeze(claim, {'entrypoint': 'direct',
                 'instruction': claim.instruction,
                 'messages': claim.conversation_context.to_document()['messages'],
@@ -142,7 +142,7 @@ class IntentRuntimeFactory:
         frozen = freeze(claim, {'request': request_document,
                                'engine_identity': identity, 'resources': resources})
         if frozen['engine_identity'] != identity:
-            raise ValueError('intent configuration changed since original Attempt')
+            raise HarnessRuntimeConfigurationError('intent configuration changed since original Attempt')
         self._check_general_configuration(general, frozen['resources'])
         request_doc = dict(frozen['request'])
         request_doc['attempt_id'] = claim.attempt.attempt_id
@@ -172,6 +172,8 @@ class IntentRuntimeFactory:
                 if goal['operation'] in {'business_read', 'business_execute', 'external_lookup'} and (
                     entry.get('enabled') is not True or entry.get('available') is not True
                 ):
+                    if general is not None and ref == general['capability']['capability_id']:
+                        raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
                     raise ValueError('intent requested a disabled or unavailable capability')
             if goal['operation'] in {'business_read', 'business_execute'} and not goal['capability_refs']:
                 raise ValueError('business intent has no authorized capability')
@@ -179,12 +181,12 @@ class IntentRuntimeFactory:
             if goal['operation'] in {'business_read', 'business_execute'} and general_id in goal['capability_refs']:
                 raise ValueError('business execution requires a domain capability')
             if goal['operation'] == 'external_lookup' and general is None:
-                raise ValueError('general Pi executor is unavailable')
+                raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
             if goal['operation'] not in {'business_read', 'business_execute', 'catalog_lookup'} and self._general is not _LEGACY:
                 if general is None or general['capability'].get('enabled') is not True or general['capability'].get('available') is not True:
-                    raise ValueError('general Pi executor is unavailable')
+                    raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
                 if goal['operation'] not in general['capability'].get('operations', ()):
-                    raise ValueError('general Pi operation is unavailable')
+                    raise HarnessRuntimeConfigurationError('general Pi operation is unavailable')
                 if any(ref != general_id for ref in goal['capability_refs']):
                     raise ValueError('general execution cannot use domain capabilities')
             if goal['operation'] in {'business_read', 'business_execute'} and any(
@@ -212,11 +214,11 @@ class IntentRuntimeFactory:
     def _check_general_configuration(current: dict | None, resources: Mapping) -> None:
         previous = resources.get('general_executor')
         if (current is None) != (previous is None):
-            raise ValueError('general Pi configuration changed since original Attempt')
+            raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
         if current is not None:
             if not isinstance(previous, Mapping) or any(current[key] != previous.get(key)
                 for key in ('identity', 'capability', 'timeout_seconds')):
-                raise ValueError('general Pi configuration changed since original Attempt')
+                raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         plan = claim.turn_plan
@@ -224,7 +226,7 @@ class IntentRuntimeFactory:
             from .delegated_runtime import DelegatedRuntime
             resources = plan.intent_resources
             if not isinstance(resources, Mapping) or not isinstance(resources.get('resources'), Mapping):
-                raise ValueError('frozen direct execution resources are unavailable')
+                raise HarnessRuntimeConfigurationError('frozen direct execution resources are unavailable')
             self._check_general_configuration(self._general_resources(claim), cast(Mapping, resources['resources']))
             return DelegatedRuntime(claim, cast(GeneralPiExecutor, self._general), self._business, direct=True)
         if plan is None or plan.intent_decision is None:
@@ -278,7 +280,7 @@ def with_intent_runtime(assembly: ThreadApplicationAssembly,
     def ordinary(claim: AttemptClaim, decision: IntentDecision) -> PiPromptSession:
         builder = builder_factory()
         if claim.turn_plan is None or builder.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
-            raise ValueError('intent configuration changed before execution')
+            raise HarnessRuntimeConfigurationError('intent configuration changed before execution')
         return builder.build_execution(claim, decision)
 
     factory = IntentRuntimeFactory(assembly.runtime_factory, recognizer, ordinary,

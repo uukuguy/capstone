@@ -76,7 +76,8 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     )
 
 
-def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch):
+@pytest.mark.parametrize('dependency,identity_drift', [(False, False), (True, False), (False, True)])
+def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch, dependency, identity_drift):
     import json
     from pathlib import Path
     from capability_agent.application.workspace import ApplicationWorkspace
@@ -92,18 +93,32 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
     source = IntentRequest.from_document({'schema': 'capstone-intent-request/1',
         'thread_id': 'thread', 'turn_id': 'turn', 'attempt_id': 'attempt',
         'instruction': '读取模型结果', 'history_cutoff': 0, 'messages': [],
-        'objects': [{'object_id': 'ctx'}], 'capabilities': [], 'mode_hint': None})
+        'objects': [{'object_id': 'ctx'}], 'capabilities': [
+            {'capability_id': 'grid@1', 'available': True, 'enabled': True}], 'mode_hint': None})
     decision = IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
         'attempt_id': 'attempt', 'history_cutoff': 0, 'relationship': 'independent',
         'goals': [{'goal_id': 'g1', 'operation': 'business_read',
             'instruction_excerpt': '读取模型结果', 'description': 'PRIVATE_DIAGNOSTIC inventory',
-            'message_refs': [], 'object_refs': ['ctx'], 'capability_refs': [],
+            'message_refs': [], 'object_refs': ['ctx'], 'capability_refs': ['grid@1'],
             'missing_requirements': [], 'depends_on': []}], 'clarification': None}, source)
     claim = SimpleNamespace(instruction='读取模型结果', attempt=SimpleNamespace(attempt_id='attempt'),
+        model_context_id='ctx',
         model_context=ModelContextSnapshot('ctx', 'model', 'revision', 'pandapower', 'selection'),
         run_id='run', application_catalog={'unrelated': 'PRIVATE_DIAGNOSTIC catalog'}, prior_results=(),
         turn_plan=SimpleNamespace(route='professional', intent_request=source,
             intent_decision=decision, intent_engine=native.identity.to_document()))
+    dependency_document = None
+    if dependency:
+        from capstone_agent.business_goal_dependency import AdmittedBusinessGoalDependency
+        from capstone_agent.harness import AdmittedAttemptAnswer
+        receipt = AdmittedBusinessGoalDependency('attempt', 'baseline', 'ctx', ('grid@1',),
+            AdmittedAttemptAnswer('Admitted baseline facts', 'authority_backed', 'lineage_verified',
+                                 ('result-baseline',), ('evidence-baseline',)), ())
+        dependency_document = receipt.to_document()
+        claim.turn_plan.intent_resources = {'business_goal_dependencies': (receipt,),
+                                          'resolved_goal_dependencies': ('baseline',)}
+    if identity_drift:
+        claim.turn_plan.intent_engine = {**native.identity.to_document(), 'config_revision': 'changed'}
     workspace = ApplicationWorkspace.create(tmp_path / 'runs', binding_ids=('grid',))
     resources = tmp_path / 'resource.json'
     resources.write_text('{}')
@@ -122,14 +137,25 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
         def stop(self):
             pass
     monkeypatch.setattr(module, 'PiRpcClient', Client)
-    session = module.PreparedKernelPiRpcSessionBuilder(runtime_host=host, resolved_llm=llm,
-        workspace_root=tmp_path / 'runs', base_environment={'PATH': '/usr/bin'})(claim, None, (profile,))
+    builder = module.PreparedKernelPiRpcSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', base_environment={'PATH': '/usr/bin'})
+    if identity_drift:
+        from capstone_agent.harness import HarnessRuntimeConfigurationError
+        with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
+            builder(claim, None, (profile,))
+        assert not launches
+        return
+    session = builder(claim, None, (profile,))
     session.stop()
     context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']
     assert context['execution_plan'] == execution_plan_for(source, decision)
     assert 'decision' not in context
     assert 'PRIVATE_DIAGNOSTIC' not in json.dumps(context)
     assert context['bindings'] == [{'binding_id': 'grid', 'context_ref': 'current_authority_context'}]
+    if dependency:
+        assert context['business_goal_dependencies'] == [dependency_document]
+        assert context['prior_results'] == []
+        assert 'from this Attempt' in context['business_dependency_policy']
 
 
 def test_catalog_admission_keeps_incomplete_answer_without_explicit_full_scope():

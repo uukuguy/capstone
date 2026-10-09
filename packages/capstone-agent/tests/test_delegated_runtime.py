@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from capstone_agent.harness import AdmittedAttemptAnswer
+from capstone_agent.harness import AdmittedAttemptAnswer, HarnessRuntimeConfigurationError
 from capstone_agent.intent_runtime import IntentRuntimeFactory
 from capstone_agent.pi_delegation import PiTaskResult
 from capstone_agent.request_intent import IntentDecision, IntentEngineIdentity, NodeControl
@@ -121,7 +121,7 @@ def test_retry_reuses_task_identity_and_frozen_general_configuration():
     selected(replace(retry, turn_plan=second)).prompt(current.instruction, on_event=lambda _: None)
     assert executor.requests[0].to_document() == executor.requests[1].to_document()
     executor.identity = {'engine': 'pi', 'config_revision': 'changed'}
-    with pytest.raises(ValueError, match='configuration'):
+    with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
         selected.plan_intent(retry, control, freeze)
 
 
@@ -513,7 +513,7 @@ def test_executor_configuration_cannot_change_between_plan_and_runtime_preparati
     plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 10),
                                 service.freeze_attempt_input)
     executor.identity = {'engine': 'pi', 'config_revision': 'changed'}
-    with pytest.raises(ValueError, match='configuration'):
+    with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
         selected(replace(current, turn_plan=plan))
 
 

@@ -8,13 +8,17 @@ import json
 import time
 from typing import Any, cast
 
-from .harness import AdmittedAttemptAnswer, HarnessRuntime
+from .harness import AdmittedAttemptAnswer, HarnessRuntime, terminal_payload_for_admission, HarnessRuntimeConfigurationError
 from .pi_delegation import GeneralPiExecutor, PiTaskRequest, PiTaskResult
 from .request_intent import IntentDecision, IntentRequest, NodeControl
 from .thread_service import AttemptClaim
 from .turn_router import TurnPlan
+from .business_goal_dependency import AdmittedBusinessGoalDependency, business_dependencies_for_claim
+from .thread_network import normalize_thread_network_projection
 
 BUSINESS_OPERATIONS = frozenset({'business_read', 'business_execute'})
+PARENT_PAYLOAD_BUDGET = 64 * 1024 - 2048
+SHORTENED_NOTICE = '\n\n[Reply shortened. Complete task results are retained in the saved records.]'
 
 
 def json_document(value):
@@ -47,11 +51,44 @@ class DelegatedRuntime:
         self._general_results: dict[str, PiTaskResult] = {}
         self._business_admissions: list[AdmittedAttemptAnswer] = []
         self._business_answers: dict[str, str] = {}
+        self._business_dependencies: dict[str, AdmittedBusinessGoalDependency] = {}
+        self._network_projection_requested = False
+        self._network_projection: dict | None = None
+        self._network_projection_refs: tuple[str, ...] = ()
+        self.network_projection_failure_code = 'projection_unavailable'
         self._business_started: set[str] = set()
         self._statuses: dict[str, str] = {}
 
     def start(self):
         return None
+
+    @property
+    def network_projection_enabled(self) -> bool:
+        return self._network_projection_requested
+
+    def network_projection(self, claim, result_refs, evidence_refs, tool_events):
+        del tool_events
+        if (claim.model_context != self._claim.model_context or
+            not set(self._network_projection_refs).issubset((*result_refs, *evidence_refs))):
+            self.network_projection_failure_code = 'projection_invalid'
+            return None
+        return json_document(self._network_projection)
+
+    def _capture_network_projection(self, runtime, scoped, admission, events):
+        hook = getattr(runtime, 'network_projection', None)
+        if not getattr(runtime, 'network_projection_enabled', False) or not callable(hook):
+            return
+        self._network_projection_requested = True
+        self._network_projection_refs = (*admission.result_refs, *admission.evidence_refs)
+        try:
+            value = hook(scoped, admission.result_refs, admission.evidence_refs, tuple(events))
+            self._network_projection = normalize_thread_network_projection(value, scoped,
+                self._network_projection_refs) if value is not None else None
+            self.network_projection_failure_code = ('projection_invalid' if value is not None
+                else getattr(runtime, 'network_projection_failure_code', 'projection_unavailable'))
+        except Exception:
+            self._network_projection = None
+            self.network_projection_failure_code = 'projection_source_unavailable'
 
     def stop(self):
         if self._active is not None:
@@ -78,7 +115,7 @@ class DelegatedRuntime:
             instruction = goal.get('instruction_excerpt', document['instruction'])
             messages = document['messages']
         if self._executor is None or frozen is None:
-            raise ValueError('general Pi executor is unavailable')
+            raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
         parent = frozen['original_attempt_id']
         task_id = 'pi-' + sha256((parent + '\0' + goal['goal_id']).encode()).hexdigest()
         # Historical text stays historical. No Authority resources or internal
@@ -112,7 +149,7 @@ class DelegatedRuntime:
                 'native_type': kind if isinstance(kind, str) else 'unknown',
                 **({'tool_name': event['toolName'][:256]} if isinstance(event.get('toolName'), str) else {})})
             if self._direct or (self._decision is not None and len(self._decision.to_document()['goals']) == 1):
-                delta = event.get('text') if kind == 'text_delta' else None
+                delta = event.get('text') if kind in {'text_delta', 'assistant_delta'} else None
                 update = event.get('assistantMessageEvent')
                 if isinstance(update, Mapping) and update.get('type') == 'text_delta':
                     delta = update.get('delta')
@@ -173,6 +210,9 @@ class DelegatedRuntime:
         observations = tuple(self._general_results[identity] for identity in dependencies
                              if identity in self._general_results)
         resources['external_observations'] = observations
+        resources['resolved_goal_dependencies'] = tuple(dependencies)
+        resources['business_goal_dependencies'] = tuple(self._business_dependencies[identity]
+            for identity in dependencies if identity in self._business_dependencies)
         executor = self._resources.get('general_executor')
         resources['delegation_parent_attempt_id'] = (executor['original_attempt_id']
             if executor else self._claim.attempt.attempt_id)
@@ -185,8 +225,10 @@ class DelegatedRuntime:
             prior_results=tuple(ref for ref in self._claim.prior_results if ref.attempt_id in visible),
             turn_plan=replace(plan, intent_request=request, intent_decision=checked,
                               intent_resources=resources))
-        events = []
-        result_refs, evidence_refs = [], []
+        admitted_dependencies = business_dependencies_for_claim(scoped)
+        events = [event for item in admitted_dependencies for event in item['tool_receipts']]
+        result_refs = [ref for item in admitted_dependencies for ref in item['admission']['result_refs']]
+        evidence_refs = [ref for item in admitted_dependencies for ref in item['admission']['evidence_refs']]
 
         def emit(event):
             control.checkpoint()
@@ -223,6 +265,10 @@ class DelegatedRuntime:
                 raise BusinessAdmissionError('business answer admission failed')
             self._business_admissions.append(admitted)
             self._business_answers[goal['goal_id']] = admitted.answer
+            self._business_dependencies[goal['goal_id']] = AdmittedBusinessGoalDependency(
+                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.model_context_id,
+                tuple(goal['capability_refs']), admitted, tuple(events))
+            self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
         finally:
             runtime.stop()
@@ -238,6 +284,7 @@ class DelegatedRuntime:
         goals: list[dict] = ([dict(goal_id='direct', operation='answer', depends_on=[], missing_requirements=[])]
             if self._direct else cast(IntentDecision, self._decision).to_document()['goals'])
         answers, prior = [], []
+        protected: set[int] = set()
         for goal in goals:
             control.checkpoint()
             identity = goal['goal_id']
@@ -260,7 +307,7 @@ class DelegatedRuntime:
                         answer = answer or 'The application catalog is unavailable.'
                     else:
                         status, answer = self._general_task(goal, dependencies, control, on_event)
-                except (BusinessAdmissionError, GoalReceiptPersistenceError):
+                except (BusinessAdmissionError, GoalReceiptPersistenceError, HarnessRuntimeConfigurationError):
                     raise
                 except Exception:
                     control.checkpoint()  # Parent cancellation and deadline stay fatal.
@@ -273,12 +320,61 @@ class DelegatedRuntime:
             if len(goals) > 1 and status == 'completed':
                 label = 'Business result' if goal['operation'] in BUSINESS_OPERATIONS else 'General result (external observation)'
                 answer = f'{label}:\n{answer}'
+            if goal['operation'] in BUSINESS_OPERATIONS or status != 'completed':
+                protected.add(len(answers))
             answers.append(answer or 'A task requires clarification.')
         if not any(status == 'completed' for status in self._statuses.values()):
             clarification = None if self._decision is None else self._decision.to_document()['clarification']
             if clarification:
-                return clarification
-        return '\n\n'.join(answers)
+                return self._bounded_reply([clarification], {0}, on_event)
+        return self._bounded_reply(answers, protected, on_event)
+
+    def _bounded_reply(self, answers: list[str], protected: set[int], on_event) -> str:
+        admission = self.admit_attempt(self._claim, 'Pending response.', (), (), ())
+
+        def fits(text):
+            payload = terminal_payload_for_admission(admission, answer=text)
+            return len(text) <= 64000 and len(json.dumps(payload, ensure_ascii=False,
+                allow_nan=False, sort_keys=True).encode()) <= PARENT_PAYLOAD_BUDGET
+
+        full = '\n\n'.join(answers)
+        if fits(full):
+            return full
+        pieces = [answer if ordinal in protected else '' for ordinal, answer in enumerate(answers)]
+
+        def render():
+            return '\n\n'.join(piece for piece in pieces if piece) + SHORTENED_NOTICE
+
+        if not fits(render()):
+            # If professional text itself exceeds the public payload budget,
+            # retain its full admitted receipt before making a visible excerpt.
+            for dependency in self._business_dependencies.values():
+                document = dependency.to_document()
+                serialized = json.dumps(document, ensure_ascii=False, allow_nan=False, sort_keys=True)
+                digest = sha256(serialized.encode()).hexdigest()
+                chunks = [serialized[index:index + 4096] for index in range(0, len(serialized), 4096)]
+                for ordinal, chunk in enumerate(chunks):
+                    self._emit(on_event, {'business_answer_receipt': digest,
+                        'goal_id': document['goal_id'], 'chunk_index': ordinal,
+                        'chunk_count': len(chunks), 'content': chunk})
+            pieces = [''] * len(answers)
+        if not fits(render()):
+            # Never discard admitted references or result projections to make
+            # room. An impossible metadata envelope is an admission failure.
+            raise BusinessAdmissionError('admitted metadata exceeds the parent payload budget')
+        for ordinal in [*sorted(protected), *(index for index in range(len(answers)) if index not in protected)]:
+            if pieces[ordinal]:
+                continue
+            low, high = 0, len(answers[ordinal])
+            while low < high:
+                middle = (low + high + 1) // 2
+                pieces[ordinal] = answers[ordinal][:middle]
+                if fits(render()):
+                    low = middle
+                else:
+                    high = middle - 1
+            pieces[ordinal] = answers[ordinal][:low]
+        return render()
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
         del claim, tool_events
@@ -287,8 +383,16 @@ class DelegatedRuntime:
             evidence = tuple(dict.fromkeys(ref for item in self._business_admissions for ref in item.evidence_refs))
             mode, assurance = ('authority_backed', 'lineage_verified') if evidence else ('offline_information', 'deterministic_information')
             codes = tuple(dict.fromkeys(code for item in self._business_admissions for code in item.diagnostic_codes))
-            projections = tuple(item for admitted in self._business_admissions for item in admitted.result_projections)
-            return AdmittedAttemptAnswer(answer, mode, assurance, refs, evidence, codes, projections)
+            projections: dict[str, Mapping[str, object]] = {}
+            for admitted in self._business_admissions:
+                for item in admitted.result_projections:
+                    identity = item.get('result_id')
+                    if not isinstance(identity, str) or not identity:
+                        raise BusinessAdmissionError('admitted result projection identity is invalid')
+                    if identity in projections and projections[identity] != item:
+                        raise BusinessAdmissionError('admitted result projections conflict')
+                    projections[identity] = item
+            return AdmittedAttemptAnswer(answer, mode, assurance, refs, evidence, codes, tuple(projections.values()))
         if self._business_started or result_refs or evidence_refs:
             raise BusinessAdmissionError('professional execution has no admitted result')
         from .harness import AdmittedPartialGoalAnswer

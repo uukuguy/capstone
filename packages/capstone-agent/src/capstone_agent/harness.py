@@ -110,6 +110,19 @@ class HarnessRuntimeConfigurationError(RuntimeError):
     """Application runtime settings are invalid; prepared model resources remain valid."""
 
 
+def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None) -> dict[str, object]:
+    """One payload projection shared by answer rendering and Thread persistence."""
+    assurance: dict[str, object] = {'mode': admission.mode, 'assurance': admission.assurance}
+    if admission.diagnostic_codes:
+        assurance['diagnostic_codes'] = list(admission.diagnostic_codes)
+    payload: dict[str, object] = {'answer': admission.answer if answer is None else answer,
+        'result_refs': list(admission.result_refs), 'evidence_refs': list(admission.evidence_refs),
+        'admission': assurance}
+    if admission.result_projections:
+        payload['result_projections'] = [dict(item) for item in admission.result_projections]
+    return payload
+
+
 @dataclass(frozen=True, slots=True)
 class HarnessAttemptResult:
     status: str
@@ -579,6 +592,8 @@ class HarnessAttemptRunner:
             }
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
+            if candidate is not None:
+                terminal_payload = terminal_payload_for_admission(candidate)
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
@@ -638,6 +653,9 @@ class HarnessAttemptRunner:
         except _AttemptAdmissionError as error:
             self._finish_failed(claim, error.code)
             return HarnessAttemptResult("failed", None, error.code)
+        except HarnessRuntimeConfigurationError:
+            self._finish_failed(claim, 'runtime_configuration_invalid')
+            return HarnessAttemptResult('failed', None, 'runtime_configuration_invalid')
         except _AttemptCancelled:
             self._finish_cancelled(claim)
             return HarnessAttemptResult("cancelled", None, "attempt_cancelled")

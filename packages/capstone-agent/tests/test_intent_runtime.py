@@ -5,6 +5,7 @@ import time
 import pytest
 
 from capstone_agent.intent_runtime import IntentRuntimeFactory, intent_request_for_claim
+from capstone_agent.harness import HarnessRuntimeConfigurationError
 from capstone_agent.request_intent import IntentDecision, IntentEngineIdentity, NodeControl
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
@@ -123,7 +124,7 @@ def test_retry_refuses_changed_recognizer_configuration():
     class Changed(Recognizer):
         identity = IntentEngineIdentity('fixture', 'model', 'config_2')
     changed = IntentRuntimeFactory(lambda _: None, lambda: Changed(), lambda *_: None)
-    with pytest.raises(ValueError, match='configuration'):
+    with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
         changed.plan_intent(current, control, service.freeze_attempt_input)
 
 

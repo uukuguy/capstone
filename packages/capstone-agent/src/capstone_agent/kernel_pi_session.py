@@ -24,7 +24,7 @@ from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.application.workspace import ApplicationWorkspace
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession
+from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
@@ -33,6 +33,7 @@ from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruct
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 from .pi_delegation import PiTaskResult
+from .business_goal_dependency import business_dependencies_for_claim
 
 
 def external_observations_for_claim(claim: AttemptClaim) -> list[dict]:
@@ -225,7 +226,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 workspace_root=workspace.root.parent, base_environment=self._base_environment,
             )
             if native.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
-                raise ValueError('intent configuration changed before business execution')
+                raise HarnessRuntimeConfigurationError('intent configuration changed before business execution')
             launch = native.apply_configuration(launch, workspace, claim.attempt.attempt_id,
                                                  domain_policy=self._runtime_host.system_policy_path)
             request_document = intent_request.to_document()
@@ -249,6 +250,14 @@ class PreparedKernelPiRpcSessionBuilder:
                     'Do not change a business model from this input. A model input needs explicit '
                     'application authorization and Domain Pack validation for its units, time, '
                     'location, target object, and mapping assumptions.')
+            dependencies = business_dependencies_for_claim(claim)
+            if dependencies:
+                supplemental['business_goal_dependencies'] = dependencies
+                supplemental['business_dependency_policy'] = (
+                    'These are application-admitted business goal outputs from this Attempt. '
+                    'They are resolved dependencies, not historical conversation or external observations. '
+                    'Their references remain subject to the selected Domain Packs and current-run '
+                    'Authority validation; they do not grant access to another profile or model.')
             if any(goal['operation'] == 'catalog_lookup' for goal in decision_document['goals']):
                 supplemental['application_catalog'] = claim.application_catalog
             launch = prepare_context_launch(launch, workspace, claim.attempt.attempt_id,

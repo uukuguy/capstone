@@ -254,6 +254,35 @@ exit 1, no matches
 
 The pinned Pi 0.80.6 dependency-audit finding remains out of scope and was not changed.
 
+## 2026-10-09 Task 3 review fixes
+
+Status: all four confirmed runtime findings fixed; focused checks passed. Independent final review and repository gates remain with the root agent.
+
+- Business dependencies now use `AdmittedBusinessGoalDependency`, an immutable, bounded application receipt. A prepared business goal receives the admitted answer, references, projections, and filtered tool receipts through supplemental context. Admission validates the current Attempt, model, resolved goal, and selected capability scope. No historical messages or general `PiTaskResult` objects carry these professional dependencies. The selected Domain Pack still verifies the references against the Authority before admitting the dependent answer.
+- Each prepared business network projection hook runs before its child session stops, with that goal's scoped claim and admitted refs. The wrapper retains the last normalized current-model projection for the public Thread diagram/layer events. General-only tasks do not prepare domain projections.
+- The native callback accepts the service's normalized `assistant_delta` shape and emits bounded public `assistant_text_delta` events. Both semantic/delegated and direct entries pass the real localhost GeneralPiHost-to-HTTP-executor worker regression.
+- Parent replies use the same terminal payload projection as Harness persistence. Rendering budgets encoded UTF-8 JSON, including escaped answer text, admitted refs, diagnostics, and result projections, with 2 KiB reserved. Professional text and explicit unexecuted statuses have priority. Shortened replies carry a visible notice; full general results remain in the executor records. If professional text itself needs an excerpt, its full typed admission receipt is saved in bounded diagnostic chunks before shortening. Metadata that cannot fit fails safely; references and projections are never removed to make room.
+- Repeated identical current-Attempt result projections are deduplicated by result ID and complete document equality. Conflicting documents fail admission instead of replacing an admitted projection.
+- Executor unavailability, configuration drift, and business recognizer identity drift now use `HarnessRuntimeConfigurationError`, which returns the safe `runtime_configuration_invalid` code and preserves model resources.
+
+RED evidence: the first 11 regressions reproduced the four findings and configuration classification. A later Kernel builder regression reproduced identity drift raising `ValueError`. A further dependency projection regression reproduced duplicate identical result IDs causing terminal persistence failure.
+
+Final focused verification:
+
+```text
+uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_delegated_review.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_intent_runtime.py packages/capstone-agent/tests/test_harness.py packages/capstone-agent/tests/test_kernel_pi_session.py packages/capstone-agent/tests/test_intent_decision_persistence.py packages/capstone-agent/tests/test_thread_worker.py packages/capstone-agent/tests/test_result_projection.py -q --tb=short
+153 passed, 1 skipped in 12.29s
+
+uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/business_goal_dependency.py packages/capstone-agent/src/capstone_agent/delegated_runtime.py packages/capstone-agent/src/capstone_agent/harness.py packages/capstone-agent/src/capstone_agent/intent_runtime.py packages/capstone-agent/src/capstone_agent/kernel_pi_session.py
+0 errors, 0 warnings, 0 informations
+```
+
+Coverage includes same-Attempt dependency transfer through the real Kernel supplemental builder; foreign/raw dependency rejection; each child projection hook and unavailable projection events; both HTTP worker entry streams; multiple 40k answers, escaped quotes, multibyte text; complete professional text priority; exact projection overhead; recovery of full shortened professional receipts; metadata-only overflow with all 128 refs retained; identical projection reuse and conflicting projection failure; configuration failure classification and model preservation.
+
+The root agent reports the actual pinned-Pi Docker-to-HTTP worker test passing both entries and public streamed text assertions: 1 passed in 7.53s, `/tmp/capstone-general-pi-final-stream.log`. Its earlier full Capstone gate reported 886 passed, 49 skipped and full Pyright/workbench type checks passing; that gate preceded the final identity-drift and projection-dedup source edits and is not final acceptance evidence for this patch. The root will repeat it after commit.
+
+Limits: cross-profile business receipt transfer requires an explicit application grant and is refused by this scoped contract; each receipt is bounded to 256 KiB and at most 16 source dependencies. The public network view represents the last prepared business projection. PostgreSQL persistence code is unchanged by this patch; the optional Pg test skipped here, while the earlier Task 3 isolated PostgreSQL 17 verification remains recorded above. No paid Provider call or deployment was performed.
+
 ## 2026-10-09 Task 3: Shared General Pi Delegation and Direct Execution
 
 ### Delivered behavior
