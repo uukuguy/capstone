@@ -262,6 +262,14 @@ class PreparedKernelPiRpcSessionBuilder:
                 supplemental['application_catalog'] = claim.application_catalog
             launch = prepare_context_launch(launch, workspace, claim.attempt.attempt_id,
                                              request_document['messages'], supplemental)
+        resources = {} if claim.turn_plan is None else getattr(claim.turn_plan, 'intent_resources', None) or {}
+        selected_skill = resources.get('harness_skill_selection')
+        if selected_skill is not None:
+            from .professional_resources import apply_harness_skill
+            prepared_bindings = {key: value for profile in profiles
+                                 for key, value in cast(Mapping, getattr(profile.prepared_application, "bindings")).items()}
+            launch = apply_harness_skill(launch, selected_skill, prepared_bindings,
+                workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id)
         trace = JsonlTraceWriter(
             workspace.core_path / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}

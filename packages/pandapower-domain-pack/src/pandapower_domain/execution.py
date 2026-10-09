@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import threading
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import BinaryIO
@@ -17,6 +18,11 @@ from uuid import uuid4
 _RUNTIME_ENVIRONMENT_NAMES = frozenset(
     {
         "COMSPEC",
+        # Trusted operator installation identity. These exact names cannot be
+        # supplied by semantic tool input. No prefix family is admitted.
+        "CAPSTONE_POWERMCP_MANAGED_ROOT",
+        "CAPSTONE_POWERMCP_INSTALL_ID",
+        "CAPSTONE_POWERMCP_DESCRIPTOR_SHA256",
         "__CF_USER_TEXT_ENCODING",
         "LANG",
         "LANGUAGE",
@@ -117,6 +123,19 @@ class GridctlExecutor:
         self._environment = sanitize_environment(
             os.environ if base_environment is None else base_environment
         )
+        managed = self._environment.get("CAPSTONE_POWERMCP_MANAGED_ROOT")
+        if managed and "CAPSTONE_POWERMCP_INSTALL_ID" not in self._environment:
+            try:
+                pointer = json.loads((Path(managed) / "current.json").read_text())
+                if not (re.fullmatch(r"installs/[a-f0-9]{32}", pointer["install_id"])
+                    and re.fullmatch(r"[a-f0-9]{64}", pointer["descriptor_sha256"])):
+                    raise ValueError("invalid managed runtime pointer")
+                self._environment["CAPSTONE_POWERMCP_INSTALL_ID"] = pointer["install_id"]
+                self._environment["CAPSTONE_POWERMCP_DESCRIPTOR_SHA256"] = pointer["descriptor_sha256"]
+            except (OSError, ValueError, KeyError, TypeError):
+                # Authority reports explicit unavailable; do not substitute a
+                # different runtime or fail unrelated native analyses.
+                self._environment["CAPSTONE_POWERMCP_INSTALL_ID"] = "unavailable"
         self.last_diagnostics = ""
 
     def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:

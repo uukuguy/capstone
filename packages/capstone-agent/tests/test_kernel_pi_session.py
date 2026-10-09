@@ -76,8 +76,8 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     )
 
 
-@pytest.mark.parametrize('dependency,identity_drift', [(False, False), (True, False), (False, True)])
-def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch, dependency, identity_drift):
+@pytest.mark.parametrize('dependency,identity_drift,selected_skill', [(False, False, False), (True, False, False), (False, True, False), (False, False, True)])
+def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch, dependency, identity_drift, selected_skill):
     import json
     from pathlib import Path
     from capability_agent.application.workspace import ApplicationWorkspace
@@ -119,6 +119,14 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
                                           'resolved_goal_dependencies': ('baseline',)}
     if identity_drift:
         claim.turn_plan.intent_engine = {**native.identity.to_document(), 'config_revision': 'changed'}
+    loaded = []
+    if selected_skill:
+        import capstone_agent.professional_resources as resources_module
+        claim.turn_plan.intent_resources = {'harness_skill_selection': 'accepted-selection'}
+        def apply(launch, selection, bindings, attempt_path):
+            loaded.append((selection, tuple(bindings), attempt_path.name))
+            return launch
+        monkeypatch.setattr(resources_module, 'apply_harness_skill', apply, raising=False)
     workspace = ApplicationWorkspace.create(tmp_path / 'runs', binding_ids=('grid',))
     resources = tmp_path / 'resource.json'
     resources.write_text('{}')
@@ -147,6 +155,8 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
         return
     session = builder(claim, None, (profile,))
     session.stop()
+    if selected_skill:
+        assert loaded == [('accepted-selection', ('grid',), 'attempt')]
     context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']
     assert context['execution_plan'] == execution_plan_for(source, decision)
     assert 'decision' not in context
