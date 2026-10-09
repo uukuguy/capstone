@@ -9,7 +9,7 @@ export type InputCatalog = {
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
   objects: { object_id: string; model_id: string; model_revision: string; implementation_family: string }[]
   materials: { material_id: string; display_name: string }[]
-  resource_profiles: Partial<Record<SkillRole, { revision: string; resources: { id: string; kind: string; version: string; source: string; ready: boolean; reason: string | null }[] }>>
+  resource_profiles: Partial<Record<SkillRole, { revision: string; resources: { id: string; native_name?: string | null; description?: string | null; kind: string; version: string; source: string; ready: boolean; reason: string | null }[] }>>
   operations: { operation_id: string; scope: string; role: string; available: boolean; reason: string | null; revision: string }[]
 }
 export const emptyInputDraft = (mode: RuntimeMode): InputDraft => ({ mode, context: { include_refs: [], exclude_refs: [] } })

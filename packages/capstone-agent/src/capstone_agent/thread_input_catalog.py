@@ -48,6 +48,14 @@ def with_case_availability(document: dict, availability: dict) -> dict:
     return {**public, 'revision': content_hash(public)}
 
 
+def public_input_catalog(document: dict) -> dict:
+    public = {**document, 'resource_profiles': {
+        role: {key: value for key, value in profile.items() if key != '_professional_selection'}
+        for role, profile in document['resource_profiles'].items()}}
+    public.pop('revision', None)
+    return {**public, 'revision': content_hash(public)}
+
+
 def historical_objects(service, snapshot) -> list[dict]:
     page = service.read_history(snapshot.thread_id, limit=128)
     result = {}
@@ -86,7 +94,7 @@ class PreparedResourceCatalog:
         self._cache = OrderedDict()
 
     def __call__(self, snapshot):
-        from .professional_resources import resolve_harness_resource_profile
+        from .professional_resources import resolve_harness_resource_profile, backend_environment
         from .thread_service import AttemptClaim
         from .delegated_runtime import json_document
         native = {} if self.executor is None else cast(dict[str, object],
@@ -102,10 +110,17 @@ class PreparedResourceCatalog:
                 claim = AttemptClaim(snapshot.thread_id, snapshot.run.run_id,
                     AttemptSnapshot('catalog', 'catalog', 'accepted', context.id), 'catalog', 'Read resource availability',
                     context.id, context.selection_revision, 'catalog', context)
+                if base.installation_id and base.prepared_descriptor_json:
+                    from dataclasses import replace
+                    claim = replace(claim, submission={'_professional_backend': backend_environment(
+                        self.config_root, base.installation_id, content_hash(json.loads(base.prepared_descriptor_json)))})
                 prepared = self.owner.acquire(claim)
                 try:
                     profile = resolve_harness_resource_profile(self.config_root, prepared_bindings(prepared))
-                    self._cache[key] = profile.document_json
+                    document = profile.to_document()
+                    if profile.private_json is not None:
+                        document['_professional_selection'] = profile.private_document()
+                    self._cache[key] = json.dumps(document)
                 finally:
                     self.owner.release(prepared)
                 while len(self._cache) > 8:

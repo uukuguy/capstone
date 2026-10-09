@@ -24,6 +24,50 @@ def idle_service():
     return service
 
 
+def test_professional_private_selection_is_server_owned_and_frozen_on_retry():
+    import hashlib
+    import json
+    from capstone_agent.thread_input_catalog import input_catalog_document, public_input_catalog
+    service = idle_service()
+    private = {'schema': 'capstone-harness-selection/1', 'profile_revision': 'a' * 64,
+        'skill_id': 'powerskills-pandapower', 'skill_version': 'v1', 'binding_id': 'grid',
+        'native_loaded_identity': 'c' * 64, 'backend_descriptor_sha256': 'd' * 64,
+        'guide': {'resource_id': 'powerskills-pandapower-adapter', 'title': 'Guide',
+                  'text': 'private accepted guide', 'sha256': hashlib.sha256(b'private accepted guide').hexdigest()},
+        'installation_id': 'installs/' + 'a' * 32}
+    profile = {'revision': 'a' * 64, 'resources': [{'id': 'powerskills-pandapower', 'version': 'v1',
+        'kind': 'skill', 'ready': True}], '_professional_selection': private}
+    service.set_input_catalog_provider(lambda snapshot: input_catalog_document(snapshot, {'harness_engine': profile}, []))
+    submitted = command(service, input={'kind': 'skill_invocation', 'text': 'Use this method',
+        'skill_id': 'powerskills-pandapower', 'skill_version': 'v1'},
+        resource_profile={'profile_id': 'harness_engine', 'revision': 'a' * 64})
+    forged = deepcopy(submitted)
+    forged.update(command_id='cmd_forged', idempotency_key='idem_forged')
+    forged['payload']['professional_resource'] = private
+    assert service.submit_command(forged).status == 'rejected'
+    assert service.submit_command(submitted).status == 'accepted'
+    profile['revision'] = 'B'
+    profile['_professional_selection'] = {**private, 'profile_revision': 'B'}
+    current = service.claim_attempt('worker_test', 30)
+    assert current.submission['professional_resource'] == private
+    assert '_professional_selection' not in current.submission['resource_profiles']['harness_engine']
+    assert 'private accepted guide' not in str(public_input_catalog(service.input_catalog('thr_intent')))
+    assert 'private accepted guide' not in json.dumps(service.snapshot('thr_intent').to_document())
+    assert 'private accepted guide' not in json.dumps(service.read_events('thr_intent', 0).to_document())
+    assert 'private accepted guide' not in json.dumps(service.read_history('thr_intent'))
+    assert 'private accepted guide' not in json.dumps(intent_request_for_claim(current).to_document())
+    from capstone_agent.turn_router import TurnPlan
+    details = TurnPlan(current.attempt.turn_id, current.attempt.attempt_id, 'professional', 'fixture', '1', None, {},
+        intent_request=intent_request_for_claim(current), intent_resources={'submission': current.submission}).to_payload()
+    assert 'private accepted guide' not in json.dumps(details)
+    service.finish_attempt(current, phase='failed', payload={})
+    retry = command(service)
+    retry.update(command_id='cmd_retry', idempotency_key='idem_retry', kind='retry_new_attempt',
+                 payload={'attempt_id': current.attempt.attempt_id})
+    assert service.submit_command(retry).status == 'accepted'
+    assert service.claim_attempt('worker_test', 30).submission['professional_resource'] == private
+
+
 def test_acceptance_preserves_typed_literal_and_context_on_retry():
     service = idle_service()
     payload = {'input': {'kind': 'text', 'text': '/unknown literal'},
@@ -146,7 +190,9 @@ def test_intent_cannot_drop_or_duplicate_explicit_skill_step():
 
 
 @pytest.mark.parametrize('backend', ['memory', 'postgres'])
-def test_receipt_and_retry_keep_accepted_skill_when_catalog_changes(backend):
+@pytest.mark.parametrize('professional', [False, True])
+def test_receipt_and_retry_keep_accepted_skill_when_catalog_changes(backend, professional):
+    import hashlib
     import os
     import uuid
     import psycopg
@@ -163,29 +209,48 @@ def test_receipt_and_retry_keep_accepted_skill_when_catalog_changes(backend):
         service.create_thread(snapshot)
     else:
         service = InMemoryThreadService(snapshot)
-    profiles = {'delegated_pi': {'revision': 'old', 'resources': [
-        {'id': 'skill-a', 'version': '1', 'kind': 'skill', 'ready': True}]}}
+    role = 'harness_engine' if professional else 'delegated_pi'
+    skill_id = 'powerskills-pandapower' if professional else 'skill-a'
+    profiles = {role: {'revision': 'a' * 64, 'resources': [
+        {'id': skill_id, 'version': '1', 'kind': 'skill', 'ready': True}]}}
+    if professional:
+        profiles[role]['_professional_selection'] = {'schema': 'capstone-harness-selection/1',
+            'profile_revision': 'a' * 64, 'skill_id': skill_id, 'skill_version': '1', 'binding_id': 'grid',
+            'native_loaded_identity': 'c' * 64, 'backend_descriptor_sha256': 'd' * 64,
+            'installation_id': 'installs/' + 'a' * 32, 'guide': {'resource_id': 'powerskills-pandapower-adapter',
+                'title': 'Guide', 'text': 'retained guide A', 'sha256': hashlib.sha256(b'retained guide A').hexdigest()}}
     service.set_input_catalog_provider(lambda snapshot: {'resource_profiles': profiles, 'objects': [
         {'object_id': 'ctx_test', 'model_id': 'ieee39', 'model_revision': 'rev_1', 'implementation_family': 'pandapower'}]})
     submitted = {'schema': 'capstone-command/1', 'thread_id': thread_id, 'kind': 'send_auto',
         'command_id': 'cmd_skill', 'idempotency_key': 'idem_skill', 'expected_event_seq': 0,
-        'payload': {'text': 'task', 'input': {'kind': 'skill_invocation', 'text': 'task', 'skill_id': 'skill-a', 'skill_version': '1'},
-                    'resource_profile': {'profile_id': 'delegated_pi', 'revision': 'old'},
+        'payload': {'text': 'task', 'input': {'kind': 'skill_invocation', 'text': 'task', 'skill_id': skill_id, 'skill_version': '1'},
+                    'resource_profile': {'profile_id': role, 'revision': 'a' * 64},
                     'context_selection': {'include_refs': ['ctx_test'], 'exclude_refs': []}}}
     try:
         receipt = service.submit_command(submitted)
         assert receipt.status == 'accepted'
-        profiles['delegated_pi']['revision'] = 'new'
+        profiles[role]['revision'] = 'b' * 64
         assert service.submit_command(submitted) == receipt
+        if backend == 'postgres':
+            # Recreate the service before first start. Only the database retains A.
+            service = PostgresThreadService(dsn)
         current = service.claim_attempt('worker', 30)
-        assert current.submission['resource_profile']['revision'] == 'old'
+        assert current.submission['resource_profile']['revision'] == 'a' * 64
+        if professional:
+            assert current.submission['professional_resource']['guide']['text'] == 'retained guide A'
+            assert current.submission['professional_resource']['installation_id'] == 'installs/' + 'a' * 32
         service.finish_attempt(current, phase='failed', payload={})
         stale = {**submitted, 'command_id': 'cmd_stale', 'idempotency_key': 'idem_stale',
                  'expected_event_seq': service.snapshot(thread_id).last_event_seq}
+        if backend == 'postgres':
+            service.set_input_catalog_provider(lambda snapshot: {'resource_profiles': profiles, 'objects': [
+                {'object_id': 'ctx_test', 'model_id': 'ieee39', 'model_revision': 'rev_1', 'implementation_family': 'pandapower'}]})
         assert service.submit_command(stale).rejection == 'resource_catalog_stale'
         retry = {**stale, 'command_id': 'cmd_retry', 'idempotency_key': 'idem_retry',
                  'kind': 'retry_new_attempt', 'payload': {'attempt_id': current.attempt.attempt_id}}
         assert service.submit_command(retry).status == 'accepted'
+        if backend == 'postgres':
+            service = PostgresThreadService(dsn)
         assert service.claim_attempt('worker', 30).submission == current.submission
     finally:
         if backend == 'postgres':

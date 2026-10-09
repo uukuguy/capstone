@@ -181,3 +181,81 @@ canonical main rebuild, exact running image identity and App readiness. No main
 service or user data was changed by this worker. Paid Provider validation,
 cloud-dev/demo deployment, promotion and acceptance tags were skipped. They are
 not prerequisites for this local offline implementation receipt.
+
+## Final review fixes: retained professional resources
+
+The I1 fix adds a private accepted professional selection to the existing
+submission snapshot. It retains guide bytes/hash, skill/version, binding,
+native content identity, installation ID, descriptor hash and profile revision.
+The worker sends this only through its authenticated catalog endpoint.
+Admission rejects client-supplied private fields. Public catalog, snapshot,
+events, history, intent and accepted-context projections omit these bytes.
+
+Application preparation uses the accepted selection before normal Kernel
+composition and Authority model binding. It derives an immutable Domain Pack
+provisioner with only the three existing backend settings. A/B contexts have
+separate cache identities and leases. Retained installation inspection and
+current role revocation checks are separate; moving the current pointer does
+not select B for an accepted A task.
+
+The final real retained-runtime test passed **1 test in 189.35 s**. It accepts A,
+publishes a distinct B installation before the first claim, starts and retries
+A, starts a newly accepted B, and restores A with a new owner from serialized
+private selection. The standard application preparer/model binder, production
+session builder and real Authority structural audit verify each installation
+and model revision. It checks materialized guide bytes and an actual missing
+retained directory. Its Pi RPC client only records launch configuration; the
+separate combined image test covers the real SDK loop. Four existing pandapower
+legacy tap-table warnings remain.
+
+Focused checks passed **140 tests**, with one opt-in image test skipped and the
+existing Starlette/httpx warning. These include PostgreSQL service recreation
+before first start and retry, current revocation, private-field forgery and
+projection, and A/B cache pin/release/close isolation. Normal preparation and
+Domain provisioning passed **19 tests**. Source types and `make doctor` passed.
+
+M1 is fixed: native-name slash lookup preserves exact binding/version and
+refuses same-name ambiguity; the picker shows original name, version and source.
+The affected App tests passed **8 tests**, and its build passed with its
+existing notices. M2 is fixed: image cleanup now attempts all exact owned names,
+keeps bounded errors, preserves a primary failure, and verifies removal.
+M3 remains open: captured installer stderr still lacks bounded sanitized
+operator diagnostics. This fix does not clear the dependency advisories above.
+
+Both images were rebuilt after the final runtime-source change:
+
+| Image | Exact image ID |
+| --- | --- |
+| `capstone-backend:final-resource-fixes` | `sha256:97654214807c10ecae7958701f15dd9f73ff63f778f49a5e7a69648115076f8b` |
+| `capstone-general-pi:final-resource-fixes` | `sha256:76ea9966f2229f27f9707df8b4eca6e1cea0ec326de15acbb871f5c8eb421325` |
+
+The backend installation is `installs/a4809f34616841f78746ab52037672a9`,
+descriptor SHA-256
+`0ce2779aa8a073d99e55fb02f6e33fb0cd04bc1b63df73b74efbe1d1187dcba0`.
+The native seed installation is `installs/d94af151ac06469082f1f0d9f84c897f`,
+descriptor SHA-256
+`72b2d80d9b63b3e322529e0f81a455bc88a0fd01d4e6f3b85680f36342938cfd`.
+
+The first two combined runs failed at worker startup because the closed
+executor-discovery validator rejected the new native name and description.
+A focused regression reproduced the failure. The validator now permits only
+these bounded optional fields and still rejects unknown/private fields.
+Discovery and delegation checks passed **84 tests**. Both failed runs verified
+cleanup, and the images above include the correction.
+
+The final combined image check passed **2 tests in 104.75 s**, including cleanup
+behavior and direct Pi, delegated Pi and Harness execution. Its real SDK made
+**18 controlled Provider requests**; the Harness path ran the real Authority
+structural audit and evidence flow. The runtime image IDs match the table above.
+The test-owned containers, retained-resource volume and network were verified
+absent after completion. The independent PostgreSQL fixture was also removed.
+The ignored evidence log is
+`.superpowers/sdd/business-workspace/final-fix-combined-final.log`.
+
+The professional retention claim requires the old managed installation at its
+stable path. Same-host/same-image process and ledger restart are covered.
+Backend images currently carry their own runtime; replacing an image without
+retaining A produces an explicit unavailable result. This work adds no backend
+volume or automatic migration and does not claim seamless cross-backend-image
+recovery. The earlier native-Pi cross-image retention proof remains separate.
+No active installation cleanup was added.

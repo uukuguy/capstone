@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +18,45 @@ from uuid import uuid4
 
 import httpx
 import pytest
+
+
+def cleanup_owned_resources(names, volumes, network, *, run=subprocess.run):
+    errors = []
+    groups = [('container', list(reversed(names)), ['rm', '-f', '-v'], ['ps', '-a', '--format', '{{.Names}}']),
+              ('volume', volumes, ['volume', 'rm'], ['volume', 'ls', '--format', '{{.Name}}']),
+              ('network', [network], ['network', 'rm'], ['network', 'ls', '--format', '{{.Name}}'])]
+    for kind, owned, remove, listing in groups:
+        for name in owned:
+            try:
+                result = run(['docker', *remove, name], capture_output=True, text=True, timeout=30)
+                if result.returncode:
+                    errors.append(f'{kind} removal failed: {name}: {result.stderr[:512]}')
+            except (OSError, subprocess.SubprocessError) as error:
+                errors.append(f'{kind} removal failed: {name}: {type(error).__name__}')
+        try:
+            result = run(['docker', *listing], capture_output=True, text=True, timeout=30)
+            if result.returncode:
+                errors.append(f'{kind} cleanup verification failed: {result.stderr[:512]}')
+            else:
+                remaining = set(result.stdout.splitlines()) & set(owned)
+                errors.extend(f'{kind} still exists: {name}' for name in sorted(remaining))
+        except (OSError, subprocess.SubprocessError) as error:
+            errors.append(f'{kind} cleanup verification failed: {type(error).__name__}')
+    return errors
+
+
+def test_cleanup_attempts_every_owned_resource_and_checks_removal():
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[-1] == 'owned-a':
+            return subprocess.CompletedProcess(args, 1, '', 'bounded diagnostic' * 100)
+        return subprocess.CompletedProcess(args, 0, 'owned-a\nother-user-resource\n', '')
+    errors = cleanup_owned_resources(['owned-a', 'owned-b'], ['owned-volume'], 'owned-network', run=run)
+    assert len(calls) == 7
+    assert any('still exists: owned-a' in item for item in errors)
+    assert all('other-user-resource' not in item for item in errors)
+    assert max(map(len, errors)) < 600
 
 
 @pytest.mark.skipif(os.environ.get("CAPSTONE_WORKSPACE_IMAGE_TESTS") != "1",
@@ -220,6 +260,9 @@ raise SystemExit(subprocess.call(['/app/deploy/entrypoint.sh','worker']))
         with httpx.Client(base_url=origin, timeout=120) as client:
             created = client.post("/api/v1/threads", json={"model_id": "ieee39"})
             print("Thread creation HTTP status:", created.status_code, flush=True)
+            if created.status_code != 201:
+                print('Thread creation worker diagnostics:', docker('logs', worker)[-12000:], flush=True)
+                print('Thread creation API diagnostics:', docker('logs', api)[-12000:], flush=True)
             assert created.status_code == 201, created.text
             snapshot = created.json()
             thread_id = snapshot["thread_id"]
@@ -272,11 +315,14 @@ raise SystemExit(subprocess.call(['/app/deploy/entrypoint.sh','worker']))
         print("Native image:", docker("inspect", "-f", "{{.Image}}", general))
         print("Controlled model requests:", len(calls))
     finally:
-        for name in reversed(names):
-            subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True)
-        for volume in volumes:
-            subprocess.run(["docker", "volume", "rm", volume], capture_output=True)
-        subprocess.run(["docker", "network", "rm", prefix], capture_output=True)
+        primary = sys.exception()
+        cleanup_errors = cleanup_owned_resources(names, volumes, prefix)
         provider.shutdown()
         provider_thread.join(timeout=5)
         provider.server_close()
+        if cleanup_errors:
+            message = 'Owned Docker resource cleanup failed:\n' + '\n'.join(cleanup_errors)
+            if primary is not None:
+                primary.add_note(message)
+            else:
+                pytest.fail(message)

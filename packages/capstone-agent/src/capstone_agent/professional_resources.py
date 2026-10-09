@@ -7,9 +7,10 @@ No Domain Pack source or state is sent to the native executor.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,14 @@ class HarnessSkillSelection:
     guide_sha256: str
     native_loaded_identity: str
     backend_descriptor_sha256: str
+    installation_id: str | None = None
+    guide_json: str | None = None
+
+    @property
+    def guide_document(self) -> dict[str, Any]:
+        if self.guide_json is None:
+            raise ValueError('accepted Harness guide is unavailable')
+        return json.loads(self.guide_json)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,9 +77,15 @@ class HarnessResourceProfile:
     binding_id: str | None
     guide_sha256: str | None
     backend_descriptor_sha256: str | None
+    private_json: str | None = None
 
     def to_document(self) -> dict[str, Any]:
         return json.loads(self.document_json)
+
+    def private_document(self) -> dict[str, Any]:
+        if self.private_json is None:
+            raise ValueError('Harness private selection is unavailable')
+        return json.loads(self.private_json)
 
 
 def _guide(runtime: Any) -> dict[str, Any]:
@@ -85,6 +100,7 @@ def resolve_harness_resource_profile(config_root: Path, bindings: Mapping[str, P
     binding_id = None
     guide_sha256 = None
     descriptor_sha256 = None
+    guide = None
     reason = "selected professional adapter is unavailable"
     for candidate, binding in sorted(bindings.items()):
         runtime = binding.runtime
@@ -130,8 +146,108 @@ def resolve_harness_resource_profile(config_root: Path, bindings: Mapping[str, P
         "binding_id": binding_id, "adapter_id": ADAPTER_ID, "guide_sha256": guide_sha256,
         "backend_descriptor_sha256": descriptor_sha256})
     public["revision"] = revision
+    private = None
+    if binding_id and guide is not None:
+        skill = next(item for item in resources if item['id'] == 'powerskills-pandapower')
+        private = {'schema': 'capstone-harness-selection/1', 'profile_revision': revision,
+            'skill_id': skill['id'], 'skill_version': skill['version'], 'binding_id': binding_id,
+            'guide': guide, 'native_loaded_identity': skill['loaded_identity'],
+            'installation_id': base.installation_id, 'backend_descriptor_sha256': descriptor_sha256}
     return HarnessResourceProfile(revision, json.dumps(public, sort_keys=True, separators=(",", ":")),
-                                  binding_id, guide_sha256, descriptor_sha256)
+                                  binding_id, guide_sha256, descriptor_sha256,
+                                  json.dumps(private) if private else None)
+
+
+def parse_harness_selection(document: object) -> HarnessSkillSelection:
+    """Validate bounded private catalog/ledger data without accessing runtime state."""
+    keys = {'schema', 'profile_revision', 'skill_id', 'skill_version', 'binding_id', 'guide',
+            'native_loaded_identity', 'installation_id', 'backend_descriptor_sha256'}
+    if not isinstance(document, dict) or set(document) != keys or len(json.dumps(document).encode()) > 32768:
+        raise ValueError('accepted Harness selection is invalid')
+    if document['schema'] != 'capstone-harness-selection/1' or document['skill_id'] != 'powerskills-pandapower':
+        raise ValueError('accepted Harness selection is invalid')
+    for name in keys - {'guide', 'schema'}:
+        if not isinstance(document[name], str) or not 1 <= len(document[name]) <= 256:
+            raise ValueError('accepted Harness identity is invalid')
+    for name in ('profile_revision', 'backend_descriptor_sha256'):
+        if not re.fullmatch('[a-f0-9]{64}', document[name]):
+            raise ValueError('accepted Harness hash is invalid')
+    if not re.fullmatch('installs/[a-f0-9]{32}', document['installation_id']):
+        raise ValueError('accepted Harness installation is invalid')
+    if not re.fullmatch('[a-z][a-z0-9-]{0,63}', document['binding_id']):
+        raise ValueError('accepted Harness binding is invalid')
+    guide = document['guide']
+    if (not isinstance(guide, dict) or set(guide) != {'resource_id', 'title', 'text', 'sha256'}
+            or guide['resource_id'] != GUIDE_ID or any(not isinstance(value, str) for value in guide.values())
+            or hashlib.sha256(guide['text'].encode()).hexdigest() != guide['sha256']):
+        raise ValueError('accepted Harness guide identity changed')
+    return HarnessSkillSelection(document['profile_revision'], document['skill_id'], document['skill_version'],
+        document['binding_id'], GUIDE_ID, guide['sha256'], document['native_loaded_identity'],
+        document['backend_descriptor_sha256'], document['installation_id'], json.dumps(guide))
+
+
+def restore_harness_selection(config_root: Path, document: object) -> HarnessSkillSelection:
+    """Resolve only trusted ledger/catalog bytes; a current pointer is not revocation."""
+    from .resource_installation import inspect_installation
+    selection = parse_harness_selection(document)
+    current = json.loads((config_root / 'agent-resources.json').read_text())
+    enabled = {item['id'] for item in current['resources'] if item['enabled'] and 'harness_engine' in item['roles']}
+    if not {'powerskills-pandapower', 'powermcp-pandapower'} <= enabled:
+        raise ValueError('accepted Harness resource was revoked')
+    managed = config_root.parent.parent / '.grid-agent/runtime/agent-resources'
+    descriptor, _ = inspect_installation(managed, install_id=selection.installation_id,
+        expected_descriptor_sha256=selection.backend_descriptor_sha256)
+    if descriptor is None:
+        raise ValueError('accepted Harness installation is unavailable')
+    return selection
+
+
+def backend_environment(config_root: Path, installation_id: str, descriptor_sha256: str) -> dict[str, str]:
+    return {'CAPSTONE_POWERMCP_MANAGED_ROOT': str(config_root.parent.parent / '.grid-agent/runtime/agent-resources'),
+            'CAPSTONE_POWERMCP_INSTALL_ID': installation_id,
+            'CAPSTONE_POWERMCP_DESCRIPTOR_SHA256': descriptor_sha256}
+
+
+class _AcceptedGuideProvider:
+    """Materialize an accepted pack-authored guide through the public guide SPI."""
+    def __init__(self, provider, guide):
+        self.provider, self.guide = provider, guide
+
+    def load(self):
+        other = tuple(item for item in self.provider.load() if item['resource_id'] != GUIDE_ID)
+        return (*other, {key: value for key, value in self.guide.items() if key != 'text'})
+
+    def open(self, resource_id):
+        return dict(self.guide) if resource_id == GUIDE_ID else self.provider.open(resource_id)
+
+
+def selected_application_profile(profile, claim):
+    """Derive a claim-owned declaration before normal Kernel/Authority preparation."""
+    from .pi_intent import default_config_root
+    root = default_config_root().parent
+    private = (claim.submission or {}).get('professional_resource')
+    pending = (claim.submission or {}).get('_professional_backend')
+    if private is None and pending is None:
+        return profile
+    selection = restore_harness_selection(root, private) if private is not None else None
+    if selection is not None:
+        install_id = selection.installation_id
+        if install_id is None:
+            raise ValueError('accepted Harness installation is unavailable')
+        environment = backend_environment(root, install_id, selection.backend_descriptor_sha256)
+    else:
+        environment = pending
+    domains = []
+    for binding in profile.domains:
+        select = getattr(binding.profile.provisioner, 'with_prepared_backend', None)
+        if callable(select) and (selection is None or selection.binding_id == binding.binding_id):
+            provider = binding.profile.guide_provider
+            if selection is not None:
+                provider = _AcceptedGuideProvider(provider, selection.guide_document)
+            domain = replace(binding.profile, provisioner=select(environment), guide_provider=provider)
+            binding = replace(binding, profile=domain)
+        domains.append(binding)
+    return replace(profile, domains=tuple(domains))
 
 
 def bind_harness_skill(profile: HarnessResourceProfile, *, skill_id: str, skill_version: str,

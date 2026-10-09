@@ -23,15 +23,12 @@ def test_standard_prepared_session_binds_harness_skill_server_side(monkeypatch):
     from capstone_agent.request_intent import IntentRequest
     plan = TurnPlan(current.attempt.turn_id, current.attempt.attempt_id, 'professional',
                     'fixture', '1', None, {}, intent_request=IntentRequest(source), intent_resources={})
-    current = replace(current, turn_plan=plan)
-    typed = object()
-    profile = object()
-    monkeypatch.setattr(resources, 'resolve_harness_resource_profile', lambda root, bindings: profile)
-    def bind(actual, **choice):
-        assert actual is profile
-        assert choice == {'profile_revision': 'accepted', 'skill_id': 'powerskills-pandapower', 'skill_version': 'v1'}
+    current = replace(current, turn_plan=plan, submission={'professional_resource': {'trusted': 'A'}})
+    typed = SimpleNamespace(profile_revision='accepted', skill_id='powerskills-pandapower', skill_version='v1')
+    def restore(root, actual):
+        assert actual == {'trusted': 'A'}
         return typed
-    monkeypatch.setattr(resources, 'bind_harness_skill', bind)
+    monkeypatch.setattr(resources, 'restore_harness_selection', restore)
     received = []
     def builder(scoped, context, profiles):
         received.append(scoped)
@@ -110,11 +107,12 @@ def test_catalog_cache_releases_its_own_pin_and_preserves_active_attempt(tmp_pat
     active = owner.acquire(current)
     (tmp_path / 'agent-resources.json').write_text('{}')
     revision = ['source1']
-    monkeypatch.setattr(module, 'resolve_resource_profile', lambda *args: SimpleNamespace(revision=revision[0]))
+    monkeypatch.setattr(module, 'resolve_resource_profile', lambda *args: SimpleNamespace(
+        revision=revision[0], installation_id=None, prepared_descriptor_json=None))
     calls = []
     def resolve(*args):
         calls.append(1)
-        return SimpleNamespace(document_json='{"revision":"prepared","resources":[]}')
+        return SimpleNamespace(to_document=lambda: {'revision': 'prepared', 'resources': []}, private_json=None)
     monkeypatch.setattr(resources, 'resolve_harness_resource_profile', resolve)
     provider = PreparedResourceCatalog(owner, None, tmp_path)
     snapshot = ThreadSnapshot(current.thread_id, RunSnapshot(current.run_id, 'open'), current.model_context,

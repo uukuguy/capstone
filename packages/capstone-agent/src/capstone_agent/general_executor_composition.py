@@ -37,8 +37,12 @@ def _resource_profiles(profiles):
         if not isinstance(resources, list) or len(resources) > 128:
             raise ValueError('general executor resource catalog is invalid')
         for resource in resources:
-            if (set(resource) != {'id', 'kind', 'version', 'source', 'roles', 'enabled', 'installed', 'ready',
-                                  'reason', 'required_tools', 'loaded_identity'}
+            required = {'id', 'kind', 'version', 'source', 'roles', 'enabled', 'installed', 'ready',
+                        'reason', 'required_tools', 'loaded_identity'}
+            name, description = resource.get('native_name'), resource.get('description')
+            if (not required <= resource.keys() or resource.keys() - required - {'native_name', 'description'}
+                    or name is not None and (not isinstance(name, str) or not re.fullmatch('[A-Za-z0-9_-]{1,128}', name))
+                    or description is not None and (not isinstance(description, str) or len(description) > 512)
                     or resource['kind'] not in {'skill', 'mcp', 'plugin'} or role not in resource['roles']
                     or any(type(resource[key]) is not bool for key in ('enabled', 'installed', 'ready'))
                     or not isinstance(resource['source'], str) or resource['source'].startswith(('/', 'file:'))

@@ -577,3 +577,20 @@ def test_application_profile_bridge_rejects_catalog_mismatch_and_factory_failure
     owner.seal()
     with pytest.raises(RuntimeError, match="profile factory failed"):
         owner.prepare(_claim(profiles=(descriptor.reference,)))
+def test_resource_identity_separates_prepared_cache_and_release():
+    from dataclasses import replace
+    owner, _ = _owner([])
+    claim = _claim()
+    a = replace(claim, submission={'professional_resource': {'profile_revision': 'A'}})
+    b = replace(claim, submission={'professional_resource': {'profile_revision': 'B'}})
+    first = owner.acquire(a)
+    second = owner.acquire(b)
+    assert first is not second
+    assert owner.acquire(a) is first
+    assert owner.resource_counts() == {'retained': 2, 'active': 2}
+    owner.release(first)
+    owner.release(first)
+    assert not first.closed and not second.closed
+    owner.release(second)
+    owner.close()
+    assert first.closed and second.closed

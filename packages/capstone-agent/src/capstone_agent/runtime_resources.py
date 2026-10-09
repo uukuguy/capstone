@@ -37,12 +37,15 @@ class ResourceDescriptor:
     reason: str | None
     required_tools: tuple[str, ...]
     loaded_identity: str | None
+    native_name: str | None = None
+    description: str | None = None
 
     def to_document(self) -> dict:
         return {"id": self.resource_id, "kind": self.kind, "version": self.version,
                 "source": self.source, "roles": list(self.roles), "enabled": self.enabled,
                 "installed": self.installed, "ready": self.ready, "reason": self.reason,
-                "required_tools": list(self.required_tools), "loaded_identity": self.loaded_identity}
+                "required_tools": list(self.required_tools), "loaded_identity": self.loaded_identity,
+                "native_name": self.native_name, "description": self.description}
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,9 +217,16 @@ def resolve_resource_profile(config_root: Path, role: str) -> ResolvedResourcePr
             reason = "execution adapter is unavailable"
         elif set(required) - available_tools:
             reason = "required tool is unavailable"
+        description = None
+        if item['kind'] == 'skill' and item.get('native_name') in skill_paths:
+            body = (skill_paths[item['native_name']] / 'SKILL.md').read_text()
+            frontmatter = re.match(r'\A---\s*\n(.*?)\n---', body, re.S)
+            match = re.search(r'(?m)^description:\s*(.+)$', frontmatter[1]) if frontmatter else None
+            if match and match[1].strip() not in {'>', '|'}:
+                description = match[1].strip().strip('\"\'')[:512]
         descriptors.append(ResourceDescriptor(item["id"], item["kind"], item["version"], item["source"],
             tuple(item["roles"]), item["enabled"], installed, reason is None, reason,
-            tuple(required), identity))
+            tuple(required), identity, item.get('native_name'), description))
     public = [item.to_document() for item in descriptors]
     revision = content_hash({"manifest": manifest, "role": role, "native": native, "resources": public})
     return ResolvedResourceProfile(manifest["profile_id"], revision, role, tuple(paths), tuple(descriptors), tuple(sorted(native.items())),

@@ -26,7 +26,7 @@ from .thread_service import AttemptClaim, ThreadModelDescriptor
 from .request_intent import IntentDecision
 
 
-_ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...]]
+_ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...], str]
 
 
 def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
@@ -162,6 +162,15 @@ class ApplicationProfileCapabilityAdapter:
             self.descriptor, model_context, handle.profile, prepared,
         )
 
+    def prepare_for_claim(self, handle: ModelCapabilityProfileHandle, claim: AttemptClaim):
+        prepare = getattr(self._prepare_profile, 'prepare_for_claim', None)
+        if not callable(prepare):
+            return self.prepare(handle, model_context=claim.model_context)
+        if not isinstance(handle, ApplicationProfileCapabilityHandle) or handle.closed:
+            raise ValueError('application profile handle is unavailable')
+        prepared = prepare(handle.profile, claim)
+        return ApplicationProfileCapabilityContribution(self.descriptor, claim.model_context, handle.profile, prepared)
+
 
 def register_application_profile(
     owner: "ModelCapabilityContextOwner",
@@ -204,6 +213,7 @@ class PreparedModelCapabilityContext:
     contributions: tuple[PreparedModelCapabilityContribution, ...]
     _closed: bool = False
     selected_profiles: tuple[tuple[str, str], ...] = ()
+    resource_revision: str = ''
 
     @property
     def closed(self) -> bool:
@@ -288,9 +298,13 @@ class ModelCapabilityContextOwner:
             raise TypeError("claim must be an AttemptClaim")
         model_context = claim.model_context
         references = _selected_references(claim)
+        from .runtime_resources import content_hash
+        selection = (claim.submission or {}).get('professional_resource')
+        backend = (claim.submission or {}).get('_professional_backend')
+        resource_revision = content_hash(selection or backend) if selection or backend else ''
         key = (
             claim.thread_id, claim.run_id, model_context.id,
-            model_context.selection_revision, references,
+            model_context.selection_revision, references, resource_revision,
         )
         with self._lock:
             if self._closed:
@@ -330,13 +344,18 @@ class ModelCapabilityContextOwner:
             try:
                 for reference, handle in zip(references, handles, strict=True):
                     adapter = self._adapters[reference]
-                    contribution = adapter.prepare(handle, model_context=model_context)
+                    prepare = getattr(adapter, 'prepare_for_claim', None)
+                    contribution = (prepare(handle, claim) if callable(prepare)
+                                    else adapter.prepare(handle, model_context=model_context))
                     self._validate_contribution(contribution, reference, model_context)
+                    if not isinstance(contribution, PreparedModelCapabilityContribution):
+                        raise TypeError('prepared contribution is invalid')
                     contributions.append(contribution)
                 context = PreparedModelCapabilityContext(
                     claim.thread_id, claim.run_id, model_context,
                     tuple(handles), tuple(contributions),
                     selected_profiles=references,
+                    resource_revision=resource_revision,
                 )
                 self._contexts[key] = context
                 self._usage[key] = 0, self._clock()
@@ -403,7 +422,7 @@ class ModelCapabilityContextOwner:
     @staticmethod
     def _context_key(context: PreparedModelCapabilityContext) -> _ContextKey:
         return (context.thread_id, context.run_id, context.model_context.id,
-                context.model_context.selection_revision, context.selected_profiles)
+                context.model_context.selection_revision, context.selected_profiles, context.resource_revision)
 
     def _evict_locked(self, key: _ContextKey) -> None:
         context = self._contexts.pop(key)

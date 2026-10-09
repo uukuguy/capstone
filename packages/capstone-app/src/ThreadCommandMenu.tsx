@@ -21,7 +21,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const allSkills = Object.entries(catalog?.resource_profiles || {}).flatMap(([role, profile]) => profile!.resources
     .filter(resource => resource.kind === 'skill' && skillCompatible({ role } as SkillChoice, draft.mode))
     .map(resource => ({ ...resource, role: role as SkillRole, revision: profile!.revision })))
-  const skills = allSkills.filter(skill => `${skill.id} ${skill.source}`.toLowerCase().includes(search.toLowerCase()))
+  const skills = allSkills.filter(skill => `${skill.id} ${skill.native_name || ''} ${skill.description || ''} ${skill.source}`.toLowerCase().includes(search.toLowerCase()))
   const focus = () => root.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus({ preventScroll: true })
   function close() { setPanel(null); setDismissed(text); focus() }
   function open(value: 'skills' | 'context') { setPanel(value); setSearch(''); onRefresh?.() }
@@ -38,8 +38,9 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
     if (disabled) return true
     if (command.kind === 'skills' || command.kind === 'context') { aui.composer.setText(command.rest); open(command.kind); return true }
     if (command.kind === 'skill') {
-      const matching = allSkills.filter(skill => skill.id === command.name && skill.ready)
-      if (matching.length === 1) select(matching[0], command.rest)
+      const byId = allSkills.filter(skill => skill.id === command.name)
+      const matching = byId.length ? byId : allSkills.filter(skill => skill.native_name === command.name)
+      if (matching.length === 1 && matching[0].ready) select(matching[0], command.rest)
       else { open('skills'); setSearch(command.name) }
       return true
     }
@@ -87,7 +88,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
       {loading && <p role="status">正在读取可用技能…</p>}
       {!loading && !skills.length && <p role="status">当前没有可用技能。可稍后重新打开目录。</p>}
       {skills.map(skill => <button type="button" className="thread-input-skill" key={`${skill.role}:${skill.id}`} disabled={disabled || !skill.ready} onClick={() => select(skill, parseInputCommand(text)?.kind === 'skill' ? parseInputCommand(text)!.rest : undefined)}>
-        <span>{skill.id} · {skill.role === 'delegated_pi' ? '委托 Pi' : skill.role === 'direct_pi' ? 'Pi' : 'Capstone 专业适配'}</span><small>{skill.ready ? skill.source : skill.reason || '暂不可用'}</small>
+        <span>{skill.native_name || skill.id} · {skill.role === 'delegated_pi' ? '委托 Pi' : skill.role === 'direct_pi' ? 'Pi' : 'Capstone 专业适配'}</span><small>{skill.id} · {skill.version} · {skill.ready ? skill.source : skill.reason || '暂不可用'}</small>{skill.description && <small>{skill.description}</small>}
       </button>)}
     </section>}
     {panel === 'context' && <ThreadContextPanel disabled={disabled} catalog={catalog} value={draft.context} onChange={context => { if (onBeforeChange?.() !== false) onChange({ ...draft, context }) }} onClose={close} />}

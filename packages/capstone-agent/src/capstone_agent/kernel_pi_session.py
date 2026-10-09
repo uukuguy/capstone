@@ -84,16 +84,20 @@ class PreparedKernelPiSessionFactory:
         plan = claim.turn_plan
         selected = (plan.intent_request.to_document().get('selected_skill')
                     if plan is not None and plan.intent_request is not None else None)
+        if selected is None and claim.submission is not None and claim.submission.get('professional_resource') is not None:
+            selected = {**claim.submission['resource_profile'],
+                        'skill_id': claim.submission['input']['skill_id'],
+                        'skill_version': claim.submission['input']['skill_version']}
         if selected is not None and plan is not None:
             if selected['profile_id'] != 'harness_engine':
                 raise ValueError('native skill cannot enter a professional session')
-            from .professional_resources import resolve_harness_resource_profile, bind_harness_skill
+            from .professional_resources import restore_harness_selection
             from .pi_intent import default_config_root
-            bindings = {key: value for profile in prepared
-                for key, value in cast(PreparedApplication, profile.prepared_application).bindings.items()}
-            profile = resolve_harness_resource_profile(default_config_root().parent, bindings)
-            skill = bind_harness_skill(profile, skill_id=selected['skill_id'], skill_version=selected['skill_version'],
-                                       profile_revision=selected['revision'])
+            skill = restore_harness_selection(default_config_root().parent,
+                (claim.submission or {}).get('professional_resource'))
+            if (skill.profile_revision != selected['revision'] or skill.skill_id != selected['skill_id']
+                    or skill.skill_version != selected['skill_version']):
+                raise ValueError('accepted Harness selection does not match the task')
             claim = replace(claim, turn_plan=replace(plan,
                 intent_resources={**(plan.intent_resources or {}), 'harness_skill_selection': skill}))
         session = self._builder(claim, context, prepared)

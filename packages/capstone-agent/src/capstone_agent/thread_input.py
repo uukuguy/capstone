@@ -26,6 +26,8 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
                         profiles: Mapping | None = None) -> dict:
     """Resolve only declared public identities; never accept a client adapter."""
     try:
+        if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
+            raise ValueError('private resource selection is not a public input')
         raw = payload.get('input', {'kind': 'text', 'text': payload['text']})
         if not isinstance(raw, dict):
             raise ValueError('input must be an object')
@@ -36,7 +38,8 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
             raise ValueError('input does not match message')
         _text(raw['text'], 'input text')
         result = {'input': raw, 'runtime_mode': mode, 'objects': objects,
-                  'resource_profiles': profiles or {},
+                  'resource_profiles': {role: {key: value for key, value in profile.items()
+                      if key != '_professional_selection'} for role, profile in (profiles or {}).items()},
                   'context_selection': context_selection(payload.get('context_selection',
                       {'include_refs': [], 'exclude_refs': []}), {item['object_id'] for item in objects})}
         if kind == 'skill_invocation':
@@ -56,6 +59,14 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
             if skill is None or skill['version'] != raw['skill_version'] or not skill['ready']:
                 raise InputRejected('resource_unavailable')
             result['resource_profile'] = selected
+            if role == 'harness_engine':
+                from .professional_resources import parse_harness_selection
+                private = profile.get('_professional_selection')
+                if (not isinstance(private, dict) or private.get('profile_revision') != selected['revision']
+                        or private.get('skill_id') != raw['skill_id'] or private.get('skill_version') != raw['skill_version']):
+                    raise InputRejected('resource_unavailable')
+                parse_harness_selection(private)
+                result['professional_resource'] = private
         elif 'resource_profile' in payload:
             raise ValueError('plain text cannot select a resource profile')
         return json.loads(_canonical(result, 65536))
@@ -69,6 +80,8 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     if command['kind'] not in {'send_auto', 'send_ordinary', 'send_professional', 'send_control'}:
         return None, None
     payload = command['payload']
+    if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
+        return None, 'input_invalid'
     if not {'input', 'context_selection', 'resource_profile'} & payload.keys():
         return None, None  # Existing clients retain their accepted legacy contract.
     context = snapshot.active_model_context

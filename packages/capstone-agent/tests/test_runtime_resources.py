@@ -197,3 +197,23 @@ def test_local_resource_source_and_version_remain_operator_metadata(tmp_path: Pa
     resource = resolve_resource_profile(root, "direct_pi").resources[0]
     assert resource.installed and resource.ready
     assert (resource.source, resource.version) == ("operator-local", "local-revision")
+def test_public_native_metadata_crosses_closed_executor_discovery():
+    from capstone_agent.general_executor_composition import _resource_profiles
+    from capstone_agent.runtime_resources import ResourceDescriptor
+    resource = ResourceDescriptor('binding-name', 'skill', '1', 'managed', ('direct_pi', 'delegated_pi'),
+        True, True, True, None, (), 'a' * 64, 'pandapower', 'Original skill description').to_document()
+    profiles = {role: {'schema': 'capstone-resource-profile/1', 'profile_id': role, 'role': role,
+        'revision': 'b' * 64, 'resources': [dict(resource)], 'load_receipt': {
+            'schema': 'capstone-resource-adapter-check/1', 'status': 'passed', 'role': role,
+            'adapter_id': 'native-pi-resources/1', 'source_sha256': 'c' * 64,
+            'published_tool_ids': [], 'skills': {'pandapower': 'a' * 64}, 'tool_schema_hashes': {},
+            'descriptor_sha256': None}}
+        for role in ('direct_pi', 'delegated_pi')}
+    _resource_profiles(profiles)
+    for field, value in (('native_name', '../private'), ('description', 'x' * 513), ('private_path', '/secret')):
+        changed = {**profiles['direct_pi']['resources'][0], field: value}
+        original = profiles['direct_pi']['resources']
+        profiles['direct_pi']['resources'] = [changed]
+        with pytest.raises(ValueError):
+            _resource_profiles(profiles)
+        profiles['direct_pi']['resources'] = original
