@@ -31,9 +31,10 @@
 | 1 | A | Public business context and versioned Pi task contracts |
 | 2 | A | Semantic selection, frozen hosted wiring and native context delivery |
 | 3 | B | Native resource installation, role profiles and real sample receipts |
-| 4 | B | Native input/MCP adapter and direct Harness skill/MCP integration |
-| 5 | C | Public operations, capability UI and typed slash/context inputs |
-| 6 | A–C | Cross-role actual-entry validation, review, main integration and rebuild |
+| 4 | B | Native input and executable skill/MCP adapters |
+| 5 | B | Direct Harness skill integration and Authority-backed MCP structural audit |
+| 6 | C | Public operations, capability UI and typed slash/context inputs |
+| 7 | A–C | Cross-role actual-entry validation, review, main integration and rebuild |
 
 ## Task 1: Public business context and Pi task v2
 
@@ -79,7 +80,7 @@ assert request.to_document()['objects'][0]['model_revision'] not in repr(documen
 
 ## Task 2: Hosted selection and native context delivery
 
-**Files:** Modify `intent_runtime.py`, `delegated_runtime.py`, `pi_intent.py`, `general_pi_server.py`, `general_executor_composition.py`, `resources/general-context.mjs`; create `resources/context-selection.mjs` if a dedicated native decision tool is needed. Extend `test_intent_runtime.py`, `test_delegated_runtime.py`, `test_general_pi_server.py`, `test_pi_intent.py` and `test_general_pi_native.py`.
+**Files:** Modify `intent_runtime.py`, `delegated_runtime.py`, `pi_intent.py`, `general_pi_server.py`, `general_executor_composition.py`, `resources/general-context.mjs`; create `context_selection.py` and `resources/context-selection.mjs` for the dedicated native decision tool. Update `deploy/general-pi.Dockerfile` to include new required contract modules. Extend `test_intent_runtime.py`, `test_delegated_runtime.py`, `test_general_pi_server.py`, `test_pi_intent.py` and `test_general_pi_native.py`.
 
 **Interfaces:** Consume Task 1 BusinessContext and PiTaskRequest v2. Frozen direct resources store a source request, checked semantic selection and context snapshot. Delegated goals each derive context from the accepted decision; source request is immutable. General executor advertises `task_schemas` in its capability descriptor. Existing `/1` recovery remains supported.
 
@@ -114,7 +115,7 @@ Use user-selected sources, pinned to fetched commits: PowerSkills `05bda3a51d5f1
 - [ ] Run actual sample server tools/list and one bounded read/solve sequence in a private runtime through MCP; store receipt with input hashes and dependency versions. Do not present its sample network as current Capstone model.
 - [ ] Verify role profile loading, commit owned source/config/tests/receipt paths and report limitations precisely.
 
-## Task 4: Executable skills/MCP and direct Harness enhancement
+## Task 4: Native executable skills/MCP and typed input
 
 **Files:** Create bounded MCP adapter and role dispatch modules under `packages/capstone-agent/src/capstone_agent/`; add managed Pi SDK input/skill/MCP extensions under its `resources/`; modify `general_pi_executor.py`, `general_pi_server.py`, and professional runtime composition as needed. Add a focused skill adapter under the pandapower Domain Pack when tool semantics belong there; tests beside each owner.
 
@@ -123,11 +124,28 @@ Use user-selected sources, pinned to fetched commits: PowerSkills `05bda3a51d5f1
 - [ ] Test literal `/...` remains text and skill invocation uses pinned native content. Use Pi SDK `session.prompt` with expandPromptTemplates false for text, true only for validated skill command after collision checks.
 - [ ] Implement bounded MCP initialize/list/call lifecycle with actual fixed SDK/protocol support. Validate tool name/schema and result bounds; report unknown side-effect outcome without retry.
 - [ ] Connect native Pi tools through a managed extension. Test discovery plus real PowerMCP tool call through Pi with a loopback model response.
-- [ ] Adapt PowerSkills pandapower workflow for Harness's published tools, keeping upstream origin and adapter version. Prove method guides are actually loaded and the intended professional tool is invoked.
-- [ ] Expose compatible PowerMCP semantic operations directly to Harness where existing registered facts/admission contracts permit. Assess each candidate against current-model identity and exact output contract. Any capability needing a new Authority admission path must receive that typed path before being marked ready; no fake numerical evidence or silent delegation counted as direct enhancement.
 - [ ] Validate cross-role isolation, external observation identity, cancellation, missing dependencies and resource version mismatch. Commit and report direct, adapted and delegated-only capability results separately.
 
-## Task 5: Shared operations and useful input controls
+## Task 5: Direct professional skill and MCP enhancement
+
+**Files:** Add `packages/grid-simulator/src/grid_simulator/bindings/powermcp_audit.py` and an Authority-owned runner; update `bindings/__init__.py`, analysis registry metadata and result table declarations as needed. Add an original adapter guide to `packages/pandapower-domain-pack/src/pandapower_domain/resources/guides/`, hook actual role/skill loading and tests. Authority code never imports `capstone_agent` or the Kernel.
+
+**Interfaces:** Publish reusable `diagnostic.structural` through the existing `analysis.run` semantic contract. The operator configures a pinned PowerMCP Python/runtime and server; no path/command/endpoint is supplied by the model. The Authority takes its own selected model snapshot, exports a private JSON copy, starts an isolated MCP process, invokes `load_network` then `audit_network`, validates the exact output and records results through existing ResultStore/evidence admission.
+
+```python
+AnalysisOperation('diagnostic.structural', 'Structural network audit',
+                  'powermcp.audit_network', closed_schema({}), run)
+```
+
+- [ ] Write failing Authority tests for a model-bound successful structural audit, unavailable runtime, malformed upstream result, timeout, context/revision mismatch and no model mutation.
+- [ ] Implement bounded subprocess/MCP lifecycle and validate pinned runtime/server identity. `res_structural_audit` stores typed severity/code/message/element/index findings; metadata includes upstream commit, tool schema hashes, input digest, runtime versions and count/status. No raw upstream object crosses Authority boundary. Pin the sidecar to pandapower3.4.0 as well, which upstream permits, to avoid silent snapshot conversion by a different library version.
+- [ ] Let existing `analysis.run` bind context/revision and persist result/evidence. Explicitly expose missing dependency as unavailable; never fabricate an empty successful audit. Keep grid-simulator pandapower3.4.0 pin; external solver version is recorded separately.
+- [ ] Mark result field provenance as PowerMCP, not pandapower's native result columns. Validate structural audit coverage, including topology dependencies; upstream's omitted topology check cannot become a successful complete audit. Sanitize the runner parent environment because MCP stdio SDK inherits selected parent variables.
+- [ ] Author a concise Capstone adapter guide based on upstream workflow concepts; do not vendor unlicensed PowerSkills text. Bind its declared operations to existing published gridctl tools plus optional structural audit, with truthful missing-operation status.
+- [ ] Prove a Harness task actually loads the selected guide and calls the semantic tool, whose Authority backend actually calls PowerMCP. This is distinct from delegated Pi execution.
+- [ ] Run focused simulator/pack/Harness checks and real isolated MCP sample; commit and report.
+
+## Task 6: Shared operations and useful input controls
 
 **Files:** Add resource/operation/context API projections in `thread_application.py`, `thread_http_api.py` and focused modules; extend existing command and thread client/protocol; add `ThreadCommandMenu.tsx`, `ThreadContextPanel.tsx`, resource selection components and tests under `packages/capstone-app/src/`; integrate Composer and existing themed controls.
 
@@ -141,7 +159,7 @@ Use user-selected sources, pinned to fetched commits: PowerSkills `05bda3a51d5f1
 - [ ] Remove blanket Pi disablement for common application operations. Do not enable Case/calculation without corresponding runtime capability.
 - [ ] Run focused App tests/types and API tests; commit and report.
 
-## Task 6: Integration, actual entry verification and delivery
+## Task 7: Integration, actual entry verification and delivery
 
 **Files:** Extend provider-free validation scripts/tests; update architecture/runbook and bilingual product facts; create `docs/reviews/2026-10-09-business-workspace-resources-verification.md`.
 

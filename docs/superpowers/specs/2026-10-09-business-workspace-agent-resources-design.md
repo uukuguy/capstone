@@ -1,7 +1,12 @@
 # 共享业务工作域、Pi 角色与 skills/MCP 接入设计
 
-状态：2026-10-09 设计草案。业务边界及原生配置优先原则已获用户认可；
-本文的具体契约、交互与实施分段待评审，尚未实现。
+状态：2026-10-09 用户已批准按方案实施。实施进行中，尚未完成验收。
+实施记录见[分任务计划](../plans/2026-10-09-business-workspace-agent-resources.md)。
+
+用户指定 PowerSkills pandapower 与 PowerMCP 为实际接入样本，并要求验证它们对
+Capstone Harness 的直接领域增强。固定版本的兼容性检查已确定一个具体路径：
+在 gridctl Authority 内通过 PowerMCP 执行结构检查，经现有 analysis.run 结果契约
+返回，保持模型版本和证据绑定。原生 Pi 的技能/MCP 试用与这项专业增强分别验收。
 
 归属：[普通对话主线](../plans/2026-10-07-capstone-conversation-completion.md)。
 延续[Pi 委托设计](2026-10-09-capstone-pi-delegation-design.md)和
