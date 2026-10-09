@@ -78,7 +78,7 @@ Continue in the same conversation to inspect results or refine the analysis. Eac
 
 In **Capstone** mode, model-based intent recognition separates professional and
 general goals. Professional goals use enabled Domain Packs; general goals delegate
-to an isolated native Pi agent. **Pi 通用** (direct Pi) mode sends the task directly to that
+to an isolated native Pi agent. **Pi** (direct Pi) mode sends the task directly to that
 same executor. Switch modes while the Thread is idle; history, draft and model
 selection remain available. General outputs create no Authority results or evidence.
 Live news or weather still needs an accessible source. See the

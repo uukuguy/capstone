@@ -13,6 +13,7 @@ import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
 import { PageHeader } from './AppHeader'
 import ThreadControls from './ThreadControls'
+import ThreadRuntimeMenu from './ThreadRuntimeMenu'
 import { parseThreadModelCommand, resolveThreadModelCommandReference, resolveThreadModelReference } from './threadCatalog'
 import { parseModelControl } from './threadModelWorkspace'
 import { commandKey } from './commandKey'
@@ -610,7 +611,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             instructionLocation={instructionLocation}
-            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
+            onLoadOlder={() => store.loadOlderHistory()} events={events} runtimeMode={(isActive && snapshot.currentAttempt?.runtimeMode) || snapshot.runtimeMode} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={[...new Set([...store.networkTasks.map((task) => task.attemptId), ...events.filter((event) => event.attemptId && (event.eventType === 'network_diagram' || projection.modelWorkspace && event.eventType === 'attempt_completed' && event.modelContextId)).map((event) => event.attemptId!)])]} onShowNetwork={(attemptId) => {
               taskReturnGeneration.current++
               setInstructionLocation(undefined)
@@ -647,16 +648,16 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
               onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
-              <label>运行模式 <select aria-label="运行模式" value={snapshot.runtimeMode}
+              <ThreadRuntimeMenu value={snapshot.runtimeMode}
                 disabled={!canSendText || runtimeBusy || contextChangePending}
-                onChange={(event) => {
+                onChange={(mode) => {
                   if (runtimeBusy) return
                   setRuntimeBusy(true)
-                  void dispatch('switch_runtime', { runtime_mode: event.target.value }, '运行模式已切换。')
+                  void dispatch('switch_runtime', { runtime_mode: mode }, `已切换至 ${mode === 'pi_reference' ? 'Pi' : 'Capstone'} 模式。`)
                     .then(async (receipt) => { if (receipt?.acceptedEventSeq !== undefined) await store.catchUpThrough(receipt.acceptedEventSeq) })
                     .catch(() => addSystemNotice('运行模式切换未完成，请重新连接。', 'error'))
                     .finally(() => setRuntimeBusy(false))
-                }}><option value="capstone">Capstone</option><option value="pi_reference">Pi 通用</option></select></label>
+                }} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={activity.paused || readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}
                 workspace={projection.modelWorkspace}

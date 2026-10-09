@@ -18,7 +18,7 @@ import {
 import { Activity, ArrowUp, Check, ChevronDown, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { EventEnvelope, ResultProjection } from './threadProtocol'
+import type { EventEnvelope, ResultProjection, RuntimeMode } from './threadProtocol'
 import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
 import type { ThreadTransportState } from './threadClient'
 import type { ThreadCatalogCase } from './threadCatalog'
@@ -243,7 +243,12 @@ function terminalContent(event: EventEnvelope): string {
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
+  const runtimeModes = new Map<string, RuntimeMode>()
   for (const event of events) {
+    const attempt = event.attemptId || event.turnId
+    if (event.eventType === 'command_accepted' && attempt) {
+      runtimeModes.set(attempt, event.payload.runtime_mode === 'pi_reference' ? 'pi_reference' : 'capstone')
+    }
     for (const key of ['model_context', 'previous_context', 'restored_context']) {
       const context = event.payload[key]
       if (context && typeof context === 'object' && !Array.isArray(context)) {
@@ -366,8 +371,9 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     if (message.role !== 'assistant') return message
     const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
     const attemptId = typeof custom.attemptId === 'string' ? custom.attemptId : undefined
+    const runtimeMode = attemptId ? runtimeModes.get(attemptId) || 'capstone' : 'capstone'
     const activities = attemptId ? projectAssistantActivity(events.filter((candidate) => candidate.attemptId === attemptId)) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, runtimeMode } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -546,7 +552,7 @@ function ResultProjectionCard({ projection, onFocusElement }: { projection: Resu
   </section>
 }
 
-function FoldableAnswer({ id, text }: { id: string; text: string }) {
+function FoldableAnswer({ id, text, author }: { id: string; text: string; author: string }) {
   const body = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useContext(AnswerReadingContext)
   // The zero-layout fallback is used by server/test rendering. Browsers use the
@@ -571,7 +577,7 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   }, [text])
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
-    <div className="capstone-answer-header"><span className="capstone-chat-role">CAPSTONE</span>
+    <div className="capstone-answer-header"><span className="capstone-chat-role">{author}</span>
       {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
     </div>
     <div className="capstone-answer-body">
@@ -600,6 +606,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
+  const author = custom?.runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'
   const hasText = messageText({ content }).trim().length > 0
   const text = messageText({ content })
   const attemptId = id.replace(/^assistant-/, '')
@@ -645,11 +652,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
-      {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>}
+      {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? <FoldableAnswer id={id} text={text} /> : hasText
+      </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
@@ -719,6 +726,7 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  runtimeMode?: RuntimeMode
   systemNotices?: readonly SystemNotice[]
   onSystemAction?: (action: 'reconnect' | 'resync') => void
   storageKey?: string
@@ -757,7 +765,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -998,7 +1006,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
-      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
+      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
           {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}

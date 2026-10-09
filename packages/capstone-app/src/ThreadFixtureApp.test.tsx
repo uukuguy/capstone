@@ -101,12 +101,13 @@ describe('ThreadFixtureApp', () => {
     })} threadId="thr_demo_39" />)
     const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: 'keep this draft' } })
-    const selector = screen.getByRole('combobox', { name: '运行模式' }) as HTMLSelectElement
-    fireEvent.change(selector, { target: { value: 'pi_reference' } })
+    const selector = screen.getByRole('button', { name: '运行模式' }) as HTMLButtonElement
+    fireEvent.click(selector)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Pi' }))
     await waitFor(() => expect(selector.disabled).toBe(true))
     resolve(undefined)
     await waitFor(() => expect(selector.disabled).toBe(false))
-    expect(selector.value).toBe('capstone')
+    expect(selector.textContent).toBe('Capstone')
     expect(input.value).toBe('keep this draft')
   })
   it('shows why a registered Case cannot start in direct Pi mode', async () => {
@@ -128,9 +129,12 @@ describe('ThreadFixtureApp', () => {
     })} threadId="thr_demo_39" />)
     const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: '打开 case57 电网模型' } })
-    const selector = screen.getByRole('combobox', { name: '运行模式' })
-    fireEvent.change(selector, { target: { value: 'pi_reference' } })
-    await waitFor(() => expect((selector as HTMLSelectElement).value).toBe('pi_reference'))
+    const selector = screen.getByRole('button', { name: '运行模式' })
+    fireEvent.click(selector)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Pi' }))
+    await waitFor(() => expect(selector.textContent).toBe('Pi'))
+    await screen.findByText('已切换至 Pi 模式。')
+    await waitFor(() => expect((selector as HTMLButtonElement).disabled).toBe(false))
     expect(input.value).toBe('打开 case57 电网模型')
     expect(document.querySelector('.thread-model-short')?.textContent).toContain('ieee39')
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
@@ -512,7 +516,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
-    expect((screen.getByRole('combobox', { name: '运行模式' }) as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '运行模式' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '停止生成' }) as HTMLButtonElement).disabled).toBe(false)
   })
   it('uses the selected earlier result overlay when focusing its current-context row', async () => {

@@ -94,13 +94,13 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
-### Capstone 委托与 Pi 通用入口
+### Capstone 委托与 Pi 直接入口
 
-对话空闲时可在运行模式中切换 **Capstone** 和 **Pi 通用**。
+对话空闲时可切换 **Capstone** 和 **Pi**。
 Capstone 先由模型识别目标：专业目标交给 Domain Pack，通用目标委托给原生 Pi。
-Pi 通用直接交给同一个执行器，不调用意图节点或专业工具准备。
+Pi 模式直接交给同一个执行器，不调用意图节点或专业工具准备。
 两个入口共享可见历史，保留当前模型；已接受的请求和重试沿用原模式、配置及识别决策。
-执行中或案例进行中不能切换，Pi 通用模式不能启动登记的专业案例。
+执行中或案例进行中不能切换，Pi 模式不能启动登记的专业案例。
 
 本地 `make capstone-local-rebuild` 同时构建并启动独立的 `general-pi` 服务。
 `deploy/local.env` 需设置独立的 `CAPSTONE_GENERAL_CONTROL_TOKEN`；不要写入 App 构建变量。
