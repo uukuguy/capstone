@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 // Managed runtime context, separate from the professional policy and tools.
 export default function (pi) {
   const context = JSON.parse(readFileSync(resolve(process.cwd(), "context.json"), "utf8"));
+  pi.on("session_start", async (_event, ctx) => {
+    ctx.ui.notify(JSON.stringify({ type: "general_pi_inventory", tools: pi.getActiveTools() }), "info");
+  });
   pi.on("context", async (event, ctx) => {
     const history = context.messages.map((message) => message.role === "user"
       ? { role: "user", content: message.content, timestamp: 0 }

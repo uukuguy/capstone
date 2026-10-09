@@ -74,7 +74,9 @@ for line in sys.stdin:
     events = []
     assert process.run('task', timeout=5, cancelled=lambda: False, on_event=events.append) == 'Done'
     assert any(event['type'] == 'tool_execution_end' for event in events)
-    assert process.usage == {'input': 3, 'output': 2}
+    assert process.usage['input'] == 3 and process.usage['output'] == 2
+    assert process.usage['cost_status'] == 'unknown'
+    assert process.usage['reported_usage'] == [{'input': 3, 'output': 2}]
     assert process.process is None
 
 

@@ -45,6 +45,8 @@ x-host-service: &host-service
       condition: service_healthy
     objects-init:
       condition: service_completed_successfully
+    general-pi:
+      condition: service_healthy
 
 services:
   postgres:

@@ -25,7 +25,12 @@ def test_real_general_pi_builtin_bash_isolated_and_same_for_both_entrypoints():
             calls.append(document)
             assert self.headers['Authorization'] == 'Bearer fixture-provider-credential'
             previous = [message for message in document['messages'] if message['role'] == 'tool']
-            if not previous:
+            if 'Cancel inherited pipes' in str(document['messages']):
+                command = "python -c 'import os,time; pid=os.fork(); os.setsid() if pid==0 else None; time.sleep(120) if pid==0 else None'"
+                delta = {'role': 'assistant', 'tool_calls': [{'index': 0, 'id': 'call_block',
+                    'type': 'function', 'function': {'name': 'bash', 'arguments': json.dumps({'command': command})}}]}
+                reason = 'tool_calls'
+            elif not previous:
                 delta = {'role': 'assistant', 'tool_calls': [{'index': 0, 'id': 'call_tool',
                     'type': 'function', 'function': {'name': 'bash', 'arguments': json.dumps({'command':
                         'printf "native output" > result.txt; '
@@ -55,21 +60,24 @@ from pathlib import Path
 from capstone_agent.general_pi_server import GeneralPiHost,NativeTaskRunner,make_server
 import traceback
 class FixtureRunner(NativeTaskRunner):
-    def __call__(self,*args):
+    def __call__(self,*args,**kwargs):
         try:
-            return super().__call__(*args)
+            return super().__call__(*args,**kwargs)
         except Exception:
             traceback.print_exc()
             raise
-root=Path('/tmp/general-pi')
+root=Path('/var/lib/general-pi')
 runner=FixtureRunner(root=root,config_root=Path('/opt/general/config'),command=('node','/opt/pi/packages/coding-agent/dist/cli.js'),model='fixture-model',relay_origin='http://127.0.0.1:8790')
 host=GeneralPiHost(root=root,identity={{'engine':'pi','config_revision':'fixture','model':'fixture-model'}},run_task=runner)
+host.capability['native_tools']=runner.verify_tools(host.identity)
 make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner=runner,upstream='http://host.docker.internal:{provider.server_port}',provider_key='fixture-provider-credential').serve_forever()
 '''
     try:
         subprocess.run(['docker', 'run', '-d', '--init', '--name', name, '--cap-drop=ALL',
             '--cap-add=SETUID', '--cap-add=SETGID', '--cap-add=CHOWN', '--cap-add=DAC_OVERRIDE', '--cap-add=KILL',
             '--security-opt=no-new-privileges', '--memory=512m', '--pids-limit=128',
+            '--read-only', '--tmpfs', '/var/lib/general-pi/tasks:rw,nosuid,size=256m,mode=0711',
+            '--tmpfs', '/tmp:rw,nosuid,noexec,size=64m', '--tmpfs', '/var/lib/general-pi/receipts:rw,nosuid,size=64m,mode=0700',
             '-p', '127.0.0.1::8790', 'capstone-general-pi:local', 'python', '-c', script],
             check=True, capture_output=True)
         binding = subprocess.run(['docker', 'port', name, '8790'], check=True,
@@ -86,6 +94,7 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
                 time.sleep(0.1)
         client = HttpGeneralPiExecutor(origin, identity=health['identity'], capability=health['capability'],
                                       control_token='fixture-control')
+        assert {'bash', 'read', 'write', 'edit'} <= set(health['capability']['native_tools'])
         for index, entrypoint in enumerate(['delegated', 'direct']):
             events = []
             request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': f'task-{index}',
@@ -96,12 +105,28 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             assert result.answer == 'Native general task complete.'
             assert any(event['type'] == 'tool_execution_end' and event['tool_name'] == 'bash' for event in events)
             assert result.artifacts[0]['metadata']['path'] == 'result.txt'
-            check = 'from pathlib import Path; print(sum(p.stat().st_uid==' + str(10000+index) + ' for p in Path("/proc").glob("[0-9]*")))'
+            product = httpx.get(origin + '/tasks/' + request.task_id + '/artifacts/' + result.artifacts[0]['artifact_id'],
+                                headers={'Authorization': 'Bearer fixture-control'})
+            assert product.content == b'native output'
+            check = 'from pathlib import Path; print(sum(p.stat().st_uid==' + str(10001+index) + ' for p in Path("/proc").glob("[0-9]*")))'
             alive = subprocess.run(['docker','exec',name,'python','-c',check], capture_output=True, text=True, check=True)
             assert alive.stdout.strip() == '0', 'A native tool descendant survived task completion'
         assert len(calls) == 4
         tools = {item['function']['name'] for item in calls[0]['tools']}
         assert {'bash', 'read', 'write', 'edit'} <= tools
+        request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 'task-cancel',
+            'parent_attempt_id': 'attempt-1', 'entrypoint': 'delegated', 'instruction': 'Cancel inherited pipes',
+            'messages': [], 'dependency_results': [], 'executor_identity': health['identity'], 'timeout_seconds': 2})
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            client.execute(request, NodeControl(lambda: None, time.monotonic()+5), lambda _: None)
+        assert time.monotonic() - started < 3
+        assert len(calls) >= 5
+        receipt = httpx.get(origin + '/tasks/task-cancel', headers={'Authorization': 'Bearer fixture-control'}).json()
+        assert receipt['status'] in {'failed', 'cancelled'}
+        check = 'from pathlib import Path; print(sum(p.stat().st_uid==10003 for p in Path("/proc").glob("[0-9]*")))'
+        alive = subprocess.run(['docker','exec',name,'python','-c',check], capture_output=True, text=True, check=True)
+        assert alive.stdout.strip() == '0', 'Detached child with inherited pipes survived task timeout'
     finally:
         subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
         provider.shutdown()

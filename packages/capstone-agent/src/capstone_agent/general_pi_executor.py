@@ -97,9 +97,10 @@ class GeneralPiProcess:
         self.uid = uid
         self.process: subprocess.Popen | None = None
         self.usage: dict = {}
+        self.tools: list[str] = []
 
     def run(self, instruction: str, *, timeout: float, cancelled: Callable[[], bool],
-            on_event: Callable[[dict], None]) -> str:
+            on_event: Callable[[dict], None], inventory_only: bool = False) -> str:
         if timeout <= 0:
             raise ValueError('General Pi deadline is invalid')
         privilege = {} if self.uid is None else {'user': self.uid, 'group': self.uid, 'extra_groups': []}
@@ -144,8 +145,9 @@ class GeneralPiProcess:
         deadline = time.monotonic() + timeout
         try:
             assert process.stdin is not None
-            process.stdin.write((json.dumps({'type': 'prompt', 'message': instruction}) + '\n').encode())
-            process.stdin.flush()
+            if not inventory_only:
+                process.stdin.write((json.dumps({'type': 'prompt', 'message': instruction}) + '\n').encode())
+                process.stdin.flush()
             while True:
                 if cancelled():
                     raise InterruptedError('General Pi task cancelled')
@@ -162,6 +164,23 @@ class GeneralPiProcess:
                 event = json.loads(frame)
                 if not isinstance(event, dict):
                     raise ValueError('General Pi event is invalid')
+                if event.get('type') == 'extension_ui_request' and event.get('method') == 'notify':
+                    try:
+                        notice = json.loads(event.get('message', ''))
+                    except (ValueError, TypeError):
+                        continue
+                    if isinstance(notice, dict) and notice.get('type') == 'general_pi_inventory':
+                        event = notice
+                if event.get('type') == 'general_pi_inventory':
+                    tools = event.get('tools')
+                    if (not isinstance(tools, list) or len(tools) > 128
+                            or any(not isinstance(tool, str) or len(tool) > 128 for tool in tools)
+                            or not {'bash', 'read', 'write', 'edit'} <= set(tools)):
+                        raise ValueError('General Pi native tools are unavailable')
+                    self.tools = sorted(set(tools))
+                    if inventory_only:
+                        return ''
+                    continue
                 if event.get('type') == 'response' and event.get('success') is False:
                     raise RuntimeError('General Pi rejected request')
                 if event.get('type') == 'agent_end':
@@ -170,10 +189,14 @@ class GeneralPiProcess:
                     if not assistants or assistants[-1].get('stopReason') in {'error', 'aborted'}:
                         raise RuntimeError('General Pi did not complete')
                     self.usage = {key: sum(item.get('usage', {}).get(key, 0) for item in assistants)
-                                  for key in ('input', 'output')}
+                                  for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')}
+                    # The relay has no price contract. Native token counts remain diagnostics.
+                    self.usage['cost_status'] = 'unknown'
+                    self.usage['reported_usage'] = [item.get('usage', {}) for item in assistants]
+                    self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
-                    if not answer.strip() or len(answer) > 64_000:
+                    if not answer.strip() or len(answer.encode('utf-8')) > 64_000:
                         raise ValueError('General Pi answer is invalid')
                     return answer
                 if event.get('type') in {'tool_execution_start', 'tool_execution_end', 'message_update'}:
@@ -192,7 +215,7 @@ class GeneralPiProcess:
         except ProcessLookupError:
             pass
         try:
-            process.wait(timeout=1)
+            process.wait(timeout=0.1)
         except subprocess.TimeoutExpired:
             pass
         try:
@@ -200,9 +223,6 @@ class GeneralPiProcess:
         except ProcessLookupError:
             pass
         process.wait(timeout=1)
-        for stream in (process.stdin, process.stdout, process.stderr):
-            if stream is not None:
-                stream.close()
         if self.uid is not None:
             # A tool can create another process session. Each task has a unique UID.
             for _ in range(3):
@@ -212,8 +232,11 @@ class GeneralPiProcess:
                         if path.stat().st_uid == self.uid:
                             os.kill(int(path.name), signal.SIGKILL)
                             alive = True
-                    except ProcessLookupError:
+                    except (ProcessLookupError, FileNotFoundError):
                         pass
                 if not alive:
                     break
                 time.sleep(0.01)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()

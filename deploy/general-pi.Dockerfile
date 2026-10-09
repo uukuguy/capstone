@@ -11,6 +11,7 @@ COPY packages/capstone-agent/src/capstone_agent/__init__.py capstone_agent/__ini
 COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_agent/general_pi_executor.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
+COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs

@@ -9,17 +9,20 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import threading
 import time
 from urllib.parse import urlsplit
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
 from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES
+from .general_pi_storage import GeneralPiStorage, request_hash
 
 
 class GeneralPiHost:
     def __init__(self, *, root: Path, identity: dict, run_task: Callable,
-                 max_tasks: int = 8, max_records: int = 256) -> None:
+                 max_tasks: int = 8, max_records: int = 256, retention_seconds: float = 86400,
+                 max_storage_bytes: int = 64 * 1024 * 1024, max_saved_receipts: int = 4096) -> None:
         self.root, self.identity, self._run = root, dict(identity), run_task
         self.capability = {'capability_id': 'general-pi', 'display_name': 'General Pi agent',
             'enabled': True, 'available': True, 'operations': ['answer', 'rewrite', 'external_lookup'],
@@ -30,26 +33,31 @@ class GeneralPiHost:
         root.mkdir(parents=True, exist_ok=True, mode=0o711)
         (root / 'receipts').mkdir(exist_ok=True, mode=0o700)
         (root / 'receipts').chmod(0o700)
+        self.storage = GeneralPiStorage(root / 'receipts', retention_seconds=retention_seconds,
+            max_receipts=max_saved_receipts, max_bytes=max_storage_bytes)
+        self.storage.sweep(set())
 
     def submit(self, request: PiTaskRequest) -> None:
         if request.to_document()['executor_identity'] != self.identity:
             raise ValueError('General Pi configuration changed')
         with self._lock:
+            self.sweep()
             old = self._tasks.get(request.task_id)
             if old is not None:
                 if old['request'].to_document() != request.to_document():
                     raise ValueError('General Pi task identity conflict')
                 return
-            receipt = self.root / 'receipts' / (request.task_id + '.json')
-            if receipt.exists():
-                saved = json.loads(receipt.read_bytes())
-                if saved['request'] != request.to_document():
+            self._make_room()
+            saved = self.storage.load(request.task_id)
+            if saved is not None:
+                if saved['request_hash'] != request_hash(request.to_document()):
                     raise ValueError('General Pi task identity conflict')
                 if saved['result'] is None:
                     saved['result'] = {'schema': 'capstone-pi-task-result/1',
                         'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
                         'executor_identity': self.identity, 'status': 'failed',
-                        'answer': 'Previous execution outcome is unknown; the task was not repeated.',
+                        'answer': ('Result retention expired; task was not repeated.' if saved.get('expired')
+                                   else 'Previous execution outcome is unknown; the task was not repeated.'),
                         'sources': [], 'artifacts': [], 'usage': {}}
                 result = PiTaskResult.from_document(saved['result'], request)
                 self._tasks[request.task_id] = {'request': request, 'status': result.status,
@@ -57,27 +65,35 @@ class GeneralPiHost:
                 return
             if sum(item['status'] in {'queued', 'running'} for item in self._tasks.values()) >= self._max_tasks:
                 raise RuntimeError('General Pi executor capacity reached')
-            if len(self._tasks) >= self._max_records:
-                completed = next((key for key, item in self._tasks.items() if item['status'] not in {'queued', 'running'}), None)
-                if completed is None:
-                    raise RuntimeError('General Pi record capacity reached')
-                del self._tasks[completed]
             record = {'request': request, 'status': 'running', 'events': [], 'result': None,
                       'cancel': threading.Event()}
-            self._tasks[request.task_id] = record
             # An accepted receipt prevents replaying an unknown side effect after restart.
             self._save(request, None)
+            self._tasks[request.task_id] = record
             threading.Thread(target=self._execute, args=(request, record), daemon=True).start()
 
     def _save(self, request: PiTaskRequest, result: dict | None) -> None:
-        receipt = self.root / 'receipts' / (request.task_id + '.json')
-        temp = receipt.with_suffix('.tmp')
-        with temp.open('w') as stream:
-            os.chmod(temp, 0o600)
-            json.dump({'request': request.to_document(), 'result': result}, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        temp.replace(receipt)
+        self.storage.save(request.to_document(), result)
+
+    def _make_room(self):
+        if len(self._tasks) >= self._max_records:
+            completed = next((key for key, item in self._tasks.items()
+                              if item['status'] not in {'queued', 'running'}), None)
+            if completed is None:
+                raise RuntimeError('General Pi record capacity reached')
+            del self._tasks[completed]
+
+    def sweep(self):
+        with self._lock:
+            active = {key for key, item in self._tasks.items() if item['status'] in {'queued', 'running'}}
+            for task_id in self.storage.sweep(active):
+                self._tasks.pop(task_id, None)
+
+    def read_artifact(self, task_id, artifact_id):
+        task_workspace(self.root, task_id)
+        task_workspace(self.root, artifact_id)
+        self.sweep()
+        return self.storage.read_artifact(task_id, artifact_id)
 
     def _execute(self, request: PiTaskRequest, record: dict) -> None:
         started = time.monotonic()
@@ -95,10 +111,7 @@ class GeneralPiHost:
                     body = json.dumps(event.get('result', {}), ensure_ascii=False).encode()
                     digest = sha256(body).hexdigest()
                     observation_id = 'observation-' + str(len(sources)) + '-' + digest
-                    path = self.root / 'receipts' / (request.task_id + '-' + observation_id + '.json')
-                    with path.open('wb') as stream:
-                        os.chmod(path, 0o600)
-                        stream.write(body)
+                    self.storage.observation(request.task_id, observation_id, body)
                     sources.append({'source_id': observation_id, 'task_id': request.task_id,
                         'parent_attempt_id': request.parent_attempt_id, 'kind': 'native_tool_observation',
                         'metadata': {'tool_name': payload['tool_name'], 'tool_call_id': payload['tool_call_id'],
@@ -121,18 +134,25 @@ class GeneralPiHost:
         if cancelled():
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
             answer = ''
-        artifacts = []
-        if isinstance(self._run, NativeTaskRunner) and status == 'completed':
-            artifacts = collect_artifacts(self.root / 'tasks' / request.task_id, request.task_id,
-                                          request.parent_attempt_id)
-        result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/1',
-            'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
-            'executor_identity': self.identity, 'status': status, 'answer': answer,
-            'sources': sources, 'artifacts': artifacts, 'usage': usage}, request).to_document()
+        workspace = self.root / 'tasks' / request.task_id
         try:
+            artifacts = collect_artifacts(workspace, request.task_id, request.parent_attempt_id) if status == 'completed' else []
+            self.storage.artifacts(request.task_id, workspace, artifacts)
+            result = PiTaskResult.from_document({'schema': 'capstone-pi-task-result/1',
+                'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                'executor_identity': self.identity, 'status': status, 'answer': answer,
+                'sources': sources, 'artifacts': artifacts, 'usage': usage}, request).to_document()
             self._save(request, result)
-        except OSError:
-            result['status'], result['answer'] = 'failed', ''
+        except (OSError, ValueError, TypeError):
+            result = {'schema': 'capstone-pi-task-result/1', 'task_id': request.task_id,
+                'parent_attempt_id': request.parent_attempt_id, 'executor_identity': self.identity,
+                'status': 'failed', 'answer': '', 'sources': [], 'artifacts': [], 'usage': {}}
+            try:
+                self._save(request, result)
+            except OSError:
+                pass  # Initial accepted receipt remains an unknown-outcome replay guard.
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
         with self._lock:
             record['status'], record['result'] = result['status'], result
 
@@ -159,7 +179,7 @@ class NativeTaskRunner:
         root.mkdir(mode=0o711, parents=True, exist_ok=True)
         (root / 'tasks').mkdir(mode=0o711, exist_ok=True)
 
-    def __call__(self, request, cancelled, emit):
+    def __call__(self, request, cancelled, emit, *, inventory_only=False):
         with self._lock:
             counter = self.root / 'receipts' / 'next-uid'
             uid = int(counter.read_text()) if counter.exists() else 10000
@@ -170,24 +190,38 @@ class NativeTaskRunner:
             grant = secrets.token_urlsafe(32)
             self.grants[request.task_id] = grant
         workspace = task_workspace(self.root / 'tasks', request.task_id)
-        argv, environment = native_pi_launch(command=self.command, workspace=workspace,
-            config_root=self.config_root, model=self.model,
-            relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
-            context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs')
-        context = {'messages': request.to_document()['messages'],
-                   'dependency_results': request.to_document()['dependency_results']}
-        (workspace / 'context.json').write_text(json.dumps(context))
-        for path in [workspace, *workspace.rglob('*')]:
-            os.chown(path, uid, uid)
-        process = GeneralPiProcess(argv, environment, workspace, uid=uid)
+        process = None
         try:
+            argv, environment = native_pi_launch(command=self.command, workspace=workspace,
+                config_root=self.config_root, model=self.model,
+                relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
+                context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs')
+            context = {'messages': request.to_document()['messages'],
+                       'dependency_results': request.to_document()['dependency_results']}
+            (workspace / 'context.json').write_text(json.dumps(context))
+            for path in [workspace, *workspace.rglob('*')]:
+                os.chown(path, uid, uid)
+            process = GeneralPiProcess(argv, environment, workspace, uid=uid)
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
-                                 cancelled=cancelled, on_event=emit)
-            return answer, process.usage
+                                 cancelled=cancelled, on_event=emit, inventory_only=inventory_only)
+            return answer, ({'native_tools': process.tools} if inventory_only else process.usage)
         finally:
-            process.stop()
-            with self._lock:
-                self.grants.pop(request.task_id, None)
+            try:
+                if process is not None:
+                    process.stop()
+            finally:
+                with self._lock:
+                    self.grants.pop(request.task_id, None)
+
+    def verify_tools(self, identity):
+        task_id = 'readiness-' + secrets.token_hex(8)
+        request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': task_id,
+            'parent_attempt_id': task_id, 'entrypoint': 'direct', 'instruction': 'Readiness',
+            'messages': [], 'dependency_results': [], 'executor_identity': identity, 'timeout_seconds': 15})
+        try:
+            return self(request, lambda: False, lambda _: None, inventory_only=True)[1]['native_tools']
+        finally:
+            shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
 
 
 def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, int],
@@ -196,7 +230,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
     if not control_token:
         raise ValueError('General Pi control authentication is required')
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
+        def log_message(self, format, *args):
             pass
 
         def send_json(self, status, document):
@@ -216,10 +250,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             if not self.authorized():
                 return self.send_json(401, {'error': 'unauthorized'})
             try:
+                parts = self.path.split('/')
+                if len(parts) == 5 and parts[1] == 'tasks' and parts[3] == 'artifacts':
+                    data = host.read_artifact(parts[2], parts[4])
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/octet-stream')
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 if not self.path.startswith('/tasks/'):
                     raise KeyError()
                 self.send_json(200, host.read(self.path.removeprefix('/tasks/')))
-            except KeyError:
+            except (KeyError, OSError, ValueError):
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_DELETE(self):
@@ -246,7 +289,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(202, {'task_id': request.task_id})
             except (ValueError, KeyError):
                 self.send_json(400, {'error': 'invalid_task'})
-            except RuntimeError:
+            except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
 
         def relay_provider(self):
@@ -268,6 +311,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if document.get('model') != runner.model:
                     raise ValueError()
                 target = urlsplit(upstream)
+                if target.hostname is None or target.scheme not in {'http', 'https'}:
+                    raise ValueError()
                 connection_type = http.client.HTTPSConnection if target.scheme == 'https' else http.client.HTTPConnection
                 connection = connection_type(target.hostname, target.port, timeout=60)
                 connection.request('POST', target.path.rstrip('/') + '/chat/completions', body,
@@ -302,8 +347,9 @@ def main():
     root = Path('/var/lib/general-pi')
     providers = json.loads(Path('/opt/general/llm-providers.json').read_bytes())['providers']
     provider = providers[os.environ['CAPSTONE_PUBLIC_PROVIDER']]
-    if provider['auth']['kind'] != 'api_key_env':
-        raise ValueError('General Pi relay requires configured API-key transport')
+    if (provider['auth']['kind'] != 'api_key_env'
+            or provider['compatibility_profile'] == 'anthropic-messages'):
+        raise ValueError('General Pi relay requires an API-key chat-completions transport')
     key = os.environ[provider['auth']['default_env']]
     port = int(os.environ.get('PORT', '8790'))
     revision = sha256()
@@ -316,12 +362,13 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'pi_delegation.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'pi_delegation.py',
                                  'resources/general-context.mjs'))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
         relay_origin=f'http://127.0.0.1:{port}')
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
+    host.capability['native_tools'] = runner.verify_tools(identity)
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key)
     server.serve_forever()
