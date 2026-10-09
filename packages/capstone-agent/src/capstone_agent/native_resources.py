@@ -4,11 +4,46 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import shutil
+import tempfile
 
 from .runtime_resources import ResolvedResourceProfile, content_hash, resolve_resource_profile, safe_path, _tree_identity, _read_settings
 from .resource_installation import inspect_installation, verify_source_tree
+
+
+def native_resource_root(path: Path, boundary: Path) -> Path:
+    """A declared directory, or a declared file's finite sibling package."""
+    root = path if path.is_dir() else path.parent
+    if not root.resolve().is_relative_to(boundary.resolve()):
+        raise ValueError('native resource escapes its declared root')
+    files = list(root.rglob('*'))
+    if root.is_symlink() or any(file.is_symlink() for file in files):
+        raise ValueError('native resource contains a symbolic link')
+    if any(file.name in {'auth.json', 'models.json', '.env'} for file in files):
+        raise ValueError('native resource contains protected transport state')
+    patterns = (r'''\b(?:import|export)\s+[^;]*?\bfrom\s*["']([^"']+)["']''',
+                r'''\bimport\s*["']([^"']+)["']''',
+                r'''\b(?:import|require)\s*\(\s*["']([^"']+)["']''',
+                r'''\bnew\s+URL\s*\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url''')
+    for file in files:
+        if file.is_file() and file.suffix in {'.js', '.mjs', '.cjs', '.ts', '.tsx'}:
+            body = file.read_text()
+            for reference in (item for pattern in patterns for item in re.findall(pattern, body)):
+                if (reference.startswith(('/', 'file:', 'http:', 'https:')) or
+                        reference.startswith('.') and not (file.parent / reference).resolve().is_relative_to(root.resolve())):
+                    raise ValueError('native resource import escapes its declared root')
+    return root
+
+
+def _remove_unpublished(path: Path) -> None:
+    """Remove only an unpublished task-owned stage, including read-only copies."""
+    for item in [path, *path.rglob('*')]:
+        if not item.is_symlink():
+            item.chmod(0o700 if item.is_dir() else 0o600)
+    shutil.rmtree(path)
 
 
 def validate_native_input(task_input, profile: ResolvedResourceProfile):
@@ -41,9 +76,21 @@ class NativeResourceStore:
             roots = []
             for path in profile.native_settings_paths:
                 boundary = self.config_root if path.is_relative_to(self.config_root) else safe_path(self.managed, profile.installation_id or '')
-                if any((path.parent / name).exists() for name in ('auth.json', 'models.json')):
-                    raise ValueError('native settings contain protected transport state')
-                roots.append(_tree_identity(path.parent, boundary))
+                native_resource_root(path.parent, boundary)
+                values = json.loads(path.read_text())
+                resources = {}
+                for key in ('skills', 'extensions', 'packages', 'prompts', 'themes'):
+                    entries = values.get(key, [])
+                    if not isinstance(entries, list):
+                        raise ValueError('native resource settings must be arrays')
+                    if key != 'packages' and (path.parent / key).is_dir():
+                        entries = [*entries, key]
+                    resources[key] = []
+                    for entry in entries:
+                        selected = safe_path(boundary, entry if isinstance(entry, str) else entry['source'], base=path.parent)
+                        resources[key].append(_tree_identity(native_resource_root(selected, boundary), boundary)
+                                              if selected.exists() else None)
+                roots.append({'source': _tree_identity(path.parent, boundary), 'resources': resources})
             profile = replace(profile, revision=content_hash({'resolved': profile.revision, 'native_roots': roots}))
             self._resolved = getattr(self, '_resolved', {})
             self._resolved[role] = profile
@@ -58,14 +105,23 @@ class NativeResourceStore:
 
     def _retain(self, profile, load_receipt=None, source_state=None):
         destination = self.root / profile.revision
-        if not destination.exists():
-            destination.mkdir()
+        if destination.is_symlink():
+            raise ValueError('accepted native snapshot contains a symbolic link')
+        if destination.exists():
+            if (destination / 'accepted.json').is_file():
+                self.accepted(profile.role, profile.revision)
+                return profile
+            if not destination.is_dir():
+                raise ValueError('unpublished native snapshot is not a directory')
+            _remove_unpublished(destination)
+        staging = Path(tempfile.mkdtemp(prefix='.pending-' + profile.revision + '-', dir=self.root))
+        try:
             settings = []
             for index, path in enumerate(profile.native_settings_paths):
-                target = destination / f'native-{index}'
+                target = staging / f'native-{index}'
                 if source_state is not None:
                     shutil.copytree(Path(source_state['settings'][index]).parent, target)
-                    settings.append(str(target / 'settings.json'))
+                    settings.append(str(destination / f'native-{index}' / 'settings.json'))
                     continue
                 # Copy settings together with their native local resources. Managed
                 # source references stay in the immutable retained install.
@@ -86,22 +142,26 @@ class NativeResourceStore:
                         # Settings-local resources are frozen. Managed external
                         # source bytes are checked by the retained descriptor.
                         chosen = target / f'{key}-{number}'
-                        if resolved.is_dir():
-                            shutil.copytree(resolved, chosen)
-                        else:
-                            shutil.copyfile(resolved, chosen)
-                        rebased.append(chosen.name if isinstance(entry, str) else {**entry, 'source': chosen.name})
+                        source_root = native_resource_root(resolved, boundary)
+                        shutil.copytree(source_root, chosen)
+                        selected = str(chosen.relative_to(target) / resolved.relative_to(source_root))
+                        rebased.append(selected if isinstance(entry, str) else {**entry, 'source': selected})
                     values[key] = rebased
                 (target / 'settings.json').write_text(json.dumps(values))
-                settings.append(str(target / 'settings.json'))
+                settings.append(str(destination / f'native-{index}' / 'settings.json'))
             state = {'profile': profile.to_document(), 'configuration_json': profile.configuration_json,
                 'installation_id': profile.installation_id, 'descriptor': json.loads(profile.prepared_descriptor_json) if profile.prepared_descriptor_json else None,
                 'settings': settings, 'role': profile.role, 'load_receipt': load_receipt}
-            state['tree_identity'] = _tree_identity(destination, destination)
-            (destination / 'accepted.json').write_text(json.dumps(state))
-            for path in destination.rglob('*'):
+            state['tree_identity'] = _tree_identity(staging, staging)
+            (staging / 'accepted.json').write_text(json.dumps(state))
+            for path in staging.rglob('*'):
                 path.chmod(0o555 if path.is_dir() else 0o444)
+            os.replace(staging, destination)
             destination.chmod(0o555)
+        except BaseException:
+            if staging.exists():
+                _remove_unpublished(staging)
+            raise
         return profile
 
     def confirm_loaded(self, role, inventory):
@@ -226,7 +286,7 @@ class NativeResourceStore:
                 'systemPrompt': system_prompt, 'appendSystemPrompt': append_system_prompt,
                 'skillName': _input_name(request.to_document().get('input', {'kind': 'text', 'text': request.instruction}),
                                          state['profile'], json.loads(state['configuration_json'])),
-                'settings': settings,
+                'settings': settings, 'inputBoundary': str(self.root / revision),
                 'mcp': ({'install': str(safe_path(self.managed, state['installation_id'])),
                     'workspace': str(workspace), 'descriptor': descriptor,
                     'descriptor_sha256': content_hash(descriptor), 'task_id': request.task_id,

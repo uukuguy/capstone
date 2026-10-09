@@ -95,11 +95,11 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
             for index, entry in enumerate(settings.get(key, [])):
                 source = Path(entry if isinstance(entry, str) else entry['source'])
                 target = inputs / f'{key}-{index}'
-                if source.is_dir():
-                    shutil.copytree(source, target)
-                else:
-                    shutil.copyfile(source, target)
-                entries.append(str(target) if isinstance(entry, str) else {**entry, 'source': str(target)})
+                from .native_resources import native_resource_root
+                source_root = native_resource_root(source, Path(sdk_values.get('inputBoundary', str(source if source.is_dir() else source.parent))))
+                shutil.copytree(source_root, target)
+                selected = str(target / source.relative_to(source_root))
+                entries.append(selected if isinstance(entry, str) else {**entry, 'source': selected})
             settings[key] = entries
         sdk_values['settings'] = settings
         sdk_values['model'] = model

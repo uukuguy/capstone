@@ -44,6 +44,25 @@ def test_native_sdk_launch_uses_host_input_and_immutable_config(tmp_path):
     assert not (workspace / '.agent/skills').exists()
 
 
+def test_sdk_task_preserves_extension_relative_imports_and_assets(tmp_path):
+    from capstone_agent.general_pi_executor import native_pi_launch
+    import subprocess
+    config = tmp_path / 'config'
+    config.mkdir()
+    (config / 'extension.mjs').write_text('import {value} from "./helper.mjs"; export {value};')
+    (config / 'helper.mjs').write_text('import {readFileSync} from "node:fs"; export const value=readFileSync(new URL("./asset.txt",import.meta.url),"utf8");')
+    (config / 'asset.txt').write_text('Accepted asset')
+    sdk = {'settings': {'extensions': [str(config / 'extension.mjs')]}, 'inputBoundary': str(config)}
+    argv, _ = native_pi_launch(command=('node', '/opt/pi/cli.js'), workspace=tmp_path / 'task',
+        config_root=config, model='test', relay_url='http://127.0.0.1/relay', relay_token='grant',
+        context_extension=Path('/opt/context.mjs'), sdk_config=sdk)
+    frozen = Path(json.loads(Path(argv[2]).read_text())['settings']['extensions'][0])
+    result = subprocess.run(['node', '--input-type=module', '-e', 'console.log((await import(' + json.dumps(frozen.as_uri()) + ')).value)'],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == 'Accepted asset'
+
+
 def test_native_launch_snapshots_managed_config_without_business_files(tmp_path):
     from capstone_agent.general_pi_executor import native_pi_launch
     config = tmp_path / 'config'

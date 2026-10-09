@@ -207,3 +207,119 @@ def test_full_native_config_and_policy_are_frozen_for_retry(tmp_path):
     assert values['appendSystemPrompt'] == ['Accepted APPEND_SYSTEM.md']
     assert values['contextFiles'][0]['content'] == 'Accepted AGENTS.md'
     assert Path(values['settings']['prompts'][0], 'example.md').read_text() == 'Accepted prompt'
+
+
+@pytest.mark.parametrize('key,filename', [('prompts', 'example.md'), ('themes', 'example.json')])
+def test_external_native_resource_bytes_change_new_revision_only(tmp_path, key, filename):
+    from test_runtime_resources import config
+    from capstone_agent.native_resources import NativeResourceStore
+    root = config(tmp_path)
+    shared = root / ('shared-' + key)
+    shared.mkdir()
+    (shared / filename).write_text('version one')
+    settings = json.loads((root / 'native/settings.json').read_text())
+    settings[key] = ['../' + shared.name]
+    (root / 'native/settings.json').write_text(json.dumps(settings))
+    first = NativeResourceStore(root, tmp_path / 'profiles')
+    old = first.profiles['direct_pi']
+    state = first.accepted('direct_pi', old.revision)
+    retained = Path(state['settings'][0]).parent / (key + '-0') / filename
+    (shared / filename).write_text('version two')
+    second = NativeResourceStore(root, tmp_path / 'profiles')
+    current = second.profiles['direct_pi']
+    assert current.revision != old.revision
+    new_state = second.accepted('direct_pi', current.revision)
+    assert (Path(new_state['settings'][0]).parent / (key + '-0') / filename).read_text() == 'version two'
+    assert retained.read_text() == 'version one'
+    assert second.accepted('direct_pi', old.revision)['profile']['revision'] == old.revision
+
+
+def test_extension_sibling_bytes_and_original_layout_are_retained(tmp_path):
+    from test_runtime_resources import config
+    from capstone_agent.native_resources import NativeResourceStore
+    root = config(tmp_path)
+    package = root / 'extension-package'
+    package.mkdir()
+    (package / 'extension.mjs').write_text('import {value} from "./helper.mjs"; export default function(){}')
+    (package / 'helper.mjs').write_text('export const value="old";')
+    settings = json.loads((root / 'native/settings.json').read_text())
+    settings['extensions'] = ['../extension-package/extension.mjs']
+    (root / 'native/settings.json').write_text(json.dumps(settings))
+    store = NativeResourceStore(root, tmp_path / 'profiles')
+    old = store.profiles['direct_pi']
+    state = store.accepted('direct_pi', old.revision)
+    frozen_settings = Path(state['settings'][0])
+    extension = frozen_settings.parent / json.loads(frozen_settings.read_text())['extensions'][0]
+    assert extension.name == 'extension.mjs'
+    assert (extension.parent / 'helper.mjs').read_text() == 'export const value="old";'
+    (package / 'helper.mjs').write_text('export const value="new";')
+    second = NativeResourceStore(root, tmp_path / 'profiles')
+    assert second.profiles['direct_pi'].revision != old.revision
+    assert (extension.parent / 'helper.mjs').read_text() == 'export const value="old";'
+
+
+@pytest.mark.parametrize('unsafe', ['parent-import', 'auth'])
+def test_native_resource_declared_root_rejects_escape_and_auth(tmp_path, unsafe):
+    from test_runtime_resources import config
+    from capstone_agent.native_resources import NativeResourceStore
+    root = config(tmp_path)
+    package = root / 'native/extensions'
+    package.mkdir()
+    (package / 'extension.mjs').write_text('import "../outside.mjs"; export default function(){}'
+                                         if unsafe == 'parent-import' else 'export default function(){}')
+    (root / 'native/outside.mjs').write_text('export const value=1;')
+    if unsafe == 'auth':
+        (package / 'auth.json').write_text('{"fixture":"no-secret"}')
+    settings = json.loads((root / 'native/settings.json').read_text())
+    settings['extensions'] = ['extensions/extension.mjs']
+    (root / 'native/settings.json').write_text(json.dumps(settings))
+    with pytest.raises(ValueError, match='declared root|protected transport'):
+        NativeResourceStore(root, tmp_path / 'profiles')
+
+
+def test_interrupted_snapshot_restarts_and_preserves_valid_old_snapshot(tmp_path, monkeypatch):
+    from test_runtime_resources import config
+    import capstone_agent.native_resources as module
+    root = config(tmp_path)
+    snapshots = tmp_path / 'profiles'
+    first = module.NativeResourceStore(root, snapshots)
+    old = first.profiles['direct_pi']
+    before = {str(path.relative_to(snapshots / old.revision)): path.read_bytes()
+              for path in (snapshots / old.revision).rglob('*') if path.is_file()}
+    skill = root / 'native/skill/SKILL.md'
+    skill.write_text(skill.read_text() + 'New resource version.\n')
+    copy = module.shutil.copytree
+    def interrupt(source, destination, *args, **kwargs):
+        copy(source, destination, *args, **kwargs)
+        raise OSError('fixture mid-copy interruption')
+    monkeypatch.setattr(module.shutil, 'copytree', interrupt)
+    with pytest.raises(OSError, match='mid-copy'):
+        module.NativeResourceStore(root, snapshots)
+    monkeypatch.setattr(module.shutil, 'copytree', copy)
+    restored = module.NativeResourceStore(root, snapshots)
+    current = restored.profiles['direct_pi']
+    assert current.revision != old.revision
+    assert restored.accepted('direct_pi', current.revision)['profile']['revision'] == current.revision
+    after = {str(path.relative_to(snapshots / old.revision)): path.read_bytes()
+             for path in (snapshots / old.revision).rglob('*') if path.is_file()}
+    assert after == before
+    assert not list(snapshots.glob('.pending-*'))
+
+
+def test_existing_unpublished_final_snapshot_is_recovered(tmp_path):
+    from test_runtime_resources import config
+    from capstone_agent.native_resources import NativeResourceStore
+    import shutil
+    root = config(tmp_path)
+    snapshots = tmp_path / 'profiles'
+    first = NativeResourceStore(root, snapshots)
+    profile_ = first.profiles['direct_pi']
+    destination = snapshots / profile_.revision
+    for path in [destination, *destination.rglob('*')]:
+        path.chmod(0o700 if path.is_dir() else 0o600)
+    shutil.rmtree(destination)
+    destination.mkdir()
+    (destination / 'partial-copy').write_text('unpublished fixture')
+    restarted = NativeResourceStore(root, snapshots)
+    assert restarted.accepted('direct_pi', profile_.revision)['profile']['revision'] == profile_.revision
+    assert not (destination / 'partial-copy').exists()

@@ -143,14 +143,25 @@ def test_real_general_pi_builtin_bash_isolated_and_same_for_both_entrypoints(tmp
     settings['extensions'] = ['sentinel.mjs']
     settings_path.write_text(json.dumps(settings))
     (configs / 'general-pi/AGENTS.md').write_text('Frozen policy v1')
+    (configs / 'general-pi/sentinel-helper.mjs').write_text('''import {readFileSync} from "node:fs";
+export function checkAsset(){if(readFileSync(new URL("./sentinel-asset.txt",import.meta.url),"utf8")!=="fixture asset") throw new Error("native relative asset changed");}''')
+    (configs / 'general-pi/sentinel-asset.txt').write_text('fixture asset')
     (configs / 'general-pi/sentinel.mjs').write_text('''import {readFileSync} from "node:fs";
+import {checkAsset} from "./sentinel-helper.mjs";
 export default function(pi){pi.on("session_start",async()=>{
+checkAsset();
 if(process.getuid()<10000 || process.env.CAPSTONE_SENTINEL) throw new Error("readiness privilege leak");
 let denied=false;try{readFileSync("/var/lib/general-pi/receipts/sentinel-secret")}catch{denied=true}
 if(!denied) throw new Error("readiness private file leak");
 });}''')
     name = 'capstone-general-test-' + uuid4().hex[:12]
     volumes = [name + '-profiles', name + '-resources']
+    source_overrides = []
+    if source_root := os.environ.get('CAPSTONE_GENERAL_NATIVE_SOURCE_DIR'):
+        for module in ('native_resources.py', 'general_pi_executor.py'):
+            path = Path(source_root) / module
+            assert path.is_file()
+            source_overrides.extend(['-v', str(path.resolve()) + ':/opt/general/capstone_agent/' + module + ':ro'])
     script = f'''
 from pathlib import Path
 from capstone_agent.general_pi_server import GeneralPiHost,NativeTaskRunner,make_server
@@ -181,7 +192,8 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             '--mount', 'type=volume,src=' + volumes[1] + ',dst=/opt/general/.grid-agent/runtime,volume-nocopy',
             '--tmpfs', '/tmp:rw,nosuid,noexec,size=64m', '--tmpfs', '/var/lib/general-pi/receipts:rw,nosuid,size=64m,mode=0700',
             '-v', str(configs) + ':/opt/general/configs/runtime:ro', '-e', 'CAPSTONE_SENTINEL=fixture-only-sentinel',
-            '-p', '127.0.0.1::8790', os.environ.get('CAPSTONE_GENERAL_NATIVE_IMAGE', 'capstone-general-pi:local'), 'python', '-c', script],
+            '-p', '127.0.0.1::8790', *source_overrides,
+            os.environ.get('CAPSTONE_GENERAL_NATIVE_IMAGE', 'capstone-general-pi:local'), 'python', '-c', script],
             check=True, capture_output=True)
         binding = subprocess.run(['docker', 'port', name, '8790'], check=True,
                                   capture_output=True, text=True).stdout.strip()
@@ -335,7 +347,7 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
                 '--tmpfs', '/tmp:rw,nosuid,noexec,size=64m',
                 '--mount', 'type=volume,src=' + volumes[0] + ',dst=/var/lib/general-pi/profiles,volume-nocopy',
                 '--mount', 'type=volume,src=' + volumes[1] + ',dst=/opt/general/.grid-agent/runtime,volume-nocopy',
-                '-v', str(configs) + ':/opt/general/configs/runtime:ro', '-p', '127.0.0.1::8790', updated_image,
+                '-v', str(configs) + ':/opt/general/configs/runtime:ro', '-p', '127.0.0.1::8790', *source_overrides, updated_image,
                 'python', '-c', script]
             subprocess.run(args, check=True, capture_output=True)
             origin = 'http://' + subprocess.run(['docker','port',name,'8790'],check=True,capture_output=True,text=True).stdout.strip()
