@@ -671,7 +671,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               if (events.some((event) => event.attemptId === attemptId && event.eventType === 'attempt_completed')) {
                 if (canSendText && !contextChangePending && instruction?.trim()) await sendConversation('automatic', instruction)
               } else {
-                if (snapshot.activeModelContext.enabledProfiles.some((profile) => disabledToolIds.includes(profile.profileId))) {
+                const acceptedMode = events.find(event => event.attemptId === attemptId && event.eventType === 'command_accepted')?.payload.runtime_mode
+                if (acceptedMode !== 'pi_reference' && snapshot.activeModelContext.enabledProfiles.some((profile) => disabledToolIds.includes(profile.profileId))) {
                   addSystemNotice('工具选择已改变，请发送新指令使用当前设置。', 'error')
                   return
                 }

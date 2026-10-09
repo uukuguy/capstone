@@ -72,6 +72,26 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it.each(['capstone', 'pi_reference'])('retries a direct Pi attempt with disabled domain tools in %s mode', async (mode) => {
+    const fixture = instructionViewsFixture()
+    const document = fixture.events as { events: Record<string, unknown>[]; next_event_seq: number }
+    document.events = [
+      { ...document.events[0], event_seq: 1, payload: { kind: 'send_auto', runtime_mode: 'pi_reference', payload: { text: 'Explain a poem' } } },
+      { ...document.events[0], event_id: 'evt_failed', event_seq: 2, event_type: 'attempt_failed', payload: { diagnostic_code: 'execution_failed' } },
+    ]
+    document.next_event_seq = 2
+    Object.assign(fixture.snapshot as object, { last_event_seq: 2, runtime_mode: mode })
+    Object.assign((fixture.snapshot as { active_model_context: object }).active_model_context,
+      { enabled_profiles: { schema: 'capstone-model-capability-selection/1', enabled_profiles: [{ profile_id: 'pandapower-static-analysis', profile_version: '1.0.1' }] } })
+    const transport = createFixtureTransport(fixture)
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp disabledToolIds={['pandapower-static-analysis']} client={new CapstoneThreadClient({ ...transport,
+      sendCommand: async command => { commands.push(command); return transport.sendCommand(command) },
+    })} threadId="thr_demo_39" />)
+    fireEvent.click(await screen.findByRole('button', { name: '重试本次指令' }))
+    await waitFor(() => expect(commands).toHaveLength(1))
+    expect(commands[0]).toMatchObject({ kind: 'retry_new_attempt', payload: { attempt_id: 'attempt_flow' } })
+  })
   it('holds the runtime selector during submission and retains draft after rejection', async () => {
     const transport = createFixtureTransport(structuredClone(threadUiFixture('idle-ieee39')))
     let resolve!: (value: unknown) => void
