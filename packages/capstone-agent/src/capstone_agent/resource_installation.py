@@ -11,6 +11,8 @@ import subprocess
 import tarfile
 import uuid
 
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
+
 from .runtime_resources import ROLES, content_hash, safe_path
 
 
@@ -147,13 +149,21 @@ def install_managed_resources(config_root: Path, *, source_root: Path | None = N
 def inspect_installation(managed: Path, *, install_id: str | None = None, expected_descriptor_sha256: str | None = None) -> tuple[dict | None, str | None]:
     """Verify bytes, schema identities and real importability without network access."""
     try:
-        pointer = json.loads((managed / "current.json").read_text()) if install_id is None else None
-        install = safe_path(managed, install_id or pointer["install_id"])
+        if install_id is None:
+            pointer = json.loads((managed / "current.json").read_text())
+            selected_install_id = pointer["install_id"]
+        else:
+            pointer = None
+            selected_install_id = install_id
+        install = safe_path(managed, selected_install_id)
         descriptor = json.loads((install / "prepared-mcp.json").read_text())
-        expected = {"schema", "install_id", "transport", "interpreter", "server", "sources", "source_files", "dependencies", "runtime_identity", "tool_schemas", "tool_schema_hashes", "smoke_sha256", "lock_sha256", "descriptor_schema_sha256"}
-        if set(descriptor) != expected or descriptor["schema"] != "capstone-prepared-mcp/1" or descriptor["transport"] != "stdio":
-            raise ValueError("prepared MCP schema is invalid")
-        if descriptor["install_id"] != (install_id or pointer["install_id"]) or descriptor["server"] != "sources/PowerMCP/pandapower/panda_mcp.py":
+        retained_schema_bytes = (install / "descriptor-schema.json").read_bytes()
+        schema = json.loads(retained_schema_bytes)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(descriptor)
+        if descriptor["descriptor_schema_sha256"] != hashlib.sha256(retained_schema_bytes).hexdigest():
+            raise ValueError("retained descriptor schema changed")
+        if descriptor["install_id"] != selected_install_id or descriptor["server"] != "sources/PowerMCP/pandapower/panda_mcp.py":
             raise ValueError("prepared MCP installation or server identity changed")
         if pointer and pointer["descriptor_sha256"] != content_hash(descriptor):
             raise ValueError("prepared MCP descriptor changed")
@@ -173,6 +183,8 @@ def inspect_installation(managed: Path, *, install_id: str | None = None, expect
                 or descriptor["descriptor_schema_sha256"] != hashlib.sha256(schema_path.read_bytes()).hexdigest()):
             raise ValueError("prepared MCP differs from versioned lock")
         verify_source_tree(install, descriptor["source_files"])
+        if descriptor["tool_schemas"].keys() != descriptor["tool_schema_hashes"].keys():
+            raise ValueError("MCP tool schema catalog changed")
         for name, schema in descriptor["tool_schemas"].items():
             if descriptor["tool_schema_hashes"].get(name) != content_hash(schema):
                 raise ValueError("MCP tool schema changed")
@@ -193,7 +205,7 @@ def inspect_installation(managed: Path, *, install_id: str | None = None, expect
         if actual["dependencies"] != descriptor["dependencies"] or actual["runtime_identity"] != descriptor["runtime_identity"]:
             raise ValueError("MCP dependency versions changed")
         return descriptor, None
-    except (ValueError, KeyError, OSError, subprocess.SubprocessError):
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError, SchemaError, ValidationError):
         # Public reason contains no exception text with local paths or secrets.
         return None, "managed source, tool schema or dependency verification failed"
 

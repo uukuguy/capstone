@@ -129,3 +129,71 @@ def test_native_default_skill_directory_is_discovered(tmp_path: Path) -> None:
     (root / "native/skills").mkdir()
     (root / "native/skill").rename(root / "native/skills/sample")
     assert resolve_resource_profile(root, "direct_pi").resources[0].ready
+
+
+def managed_config(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
+    from test_resource_installation import PROBE_OUTPUT, prepared
+    _, install, descriptor = prepared(tmp_path)
+    root = tmp_path / "configs/runtime"
+    native = root / "native"
+    native.mkdir()
+    (native / "settings.json").write_text('{"skills":[],"extensions":[],"packages":[]}')
+    settings = install / "native/direct_pi/settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({"skills": ["../../sources/PowerSkills/powerskills-tool/skills/pandapower"], "extensions": [], "packages": []}))
+    resources = []
+    for resource_id, kind, source in zip(("powerskills-pandapower", "powermcp-pandapower"), ("skill", "mcp"), descriptor["sources"], strict=True):
+        resources.append({"id": resource_id, "kind": kind, "version": source["commit"], "source": source["url"],
+                          "roles": ["direct_pi"], "enabled": True, "managed": True, "native_name": "pandapower",
+                          "required_tools": [], "adapter": None})
+    (root / "agent-resources.json").write_text(json.dumps({"schema": "capstone-agent-resources/1", "profile_id": "managed",
+        "roles": {"direct_pi": {"settings": "native/settings.json", "adapters": {}}}, "resources": resources}))
+    monkeypatch.setattr("capstone_agent.resource_installation._run", lambda *args, **kwargs: PROBE_OUTPUT)
+    return root, install
+
+
+@pytest.mark.parametrize("resource_index", [0, 1])
+@pytest.mark.parametrize("field,value", [("source", "https://example.org/uninstalled"), ("version", "c" * 40), ("kind", "plugin")])
+def test_managed_declaration_must_match_loaded_source(tmp_path: Path, monkeypatch, resource_index: int, field: str, value: str) -> None:
+    root, _ = managed_config(tmp_path, monkeypatch)
+    assert all(resource.ready and resource.installed for resource in resolve_resource_profile(root, "direct_pi").resources)
+    path = root / "agent-resources.json"
+    manifest = json.loads(path.read_text())
+    manifest["resources"][resource_index][field] = value
+    path.write_text(json.dumps(manifest))
+    resource = resolve_resource_profile(root, "direct_pi").resources[resource_index]
+    assert not resource.installed
+    assert not resource.ready
+    assert resource.loaded_identity is None
+    assert "identity" in resource.reason
+
+
+@pytest.mark.parametrize("change", ["native_name", "selected_path"])
+def test_managed_skill_must_load_selected_skill_path(tmp_path: Path, monkeypatch, change: str) -> None:
+    root, install = managed_config(tmp_path, monkeypatch)
+    assert resolve_resource_profile(root, "direct_pi").resources[0].ready
+    if change == "native_name":
+        path = root / "agent-resources.json"
+        manifest = json.loads(path.read_text())
+        manifest["resources"][0]["native_name"] = "other"
+        path.write_text(json.dumps(manifest))
+    else:
+        alternate = install / "unselected-skill"
+        alternate.mkdir()
+        alternate.joinpath("SKILL.md").write_bytes((install / "sources/PowerSkills/powerskills-tool/skills/pandapower/SKILL.md").read_bytes())
+        (install / "native/direct_pi/settings.json").write_text('{"skills":["../../unselected-skill"]}')
+    resource = resolve_resource_profile(root, "direct_pi").resources[0]
+    assert not resource.installed
+    assert not resource.ready
+    assert "identity" in resource.reason
+
+
+def test_local_resource_source_and_version_remain_operator_metadata(tmp_path: Path) -> None:
+    root = config(tmp_path)
+    path = root / "agent-resources.json"
+    manifest = json.loads(path.read_text())
+    manifest["resources"][0].update(source="operator-local", version="local-revision")
+    path.write_text(json.dumps(manifest))
+    resource = resolve_resource_profile(root, "direct_pi").resources[0]
+    assert resource.installed and resource.ready
+    assert (resource.source, resource.version) == ("operator-local", "local-revision")

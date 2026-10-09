@@ -63,9 +63,10 @@ class ResolvedResourceProfile:
                 "resources": [item.to_document() for item in self.resources]}
 
 
-def _read_settings(path: Path, boundary: Path) -> tuple[dict[str, str], dict[str, str]]:
+def _read_settings(path: Path, boundary: Path) -> tuple[dict[str, str], dict[str, str], dict[str, Path]]:
     settings = json.loads(path.read_text())
     skills: dict[str, str] = {}
+    skill_paths: dict[str, Path] = {}
     identities = {"settings": hashlib.sha256(path.read_bytes()).hexdigest()}
     for key in ("skills", "extensions", "packages"):
         entries = settings.get(key, [])
@@ -93,7 +94,8 @@ def _read_settings(path: Path, boundary: Path) -> tuple[dict[str, str], dict[str
                 if name[1] in skills:
                     raise ValueError(f"duplicate skill name: {name[1]}")
                 skills[name[1]] = _tree_identity(skill.parent, boundary)
-    return skills, identities
+                skill_paths[name[1]] = skill.parent.resolve()
+    return skills, identities, skill_paths
 
 
 def _tree_identity(path: Path, boundary: Path) -> str:
@@ -117,7 +119,7 @@ def resolve_resource_profile(config_root: Path, role: str) -> ResolvedResourcePr
         raise ValueError("unsupported resource schema")
     binding = manifest["roles"][role]
     settings = safe_path(root, binding["settings"])
-    skills, native = _read_settings(settings, root)
+    skills, native, skill_paths = _read_settings(settings, root)
     if (root / "power-samples.lock.json").is_file():
         native["resource-lock"] = hashlib.sha256((root / "power-samples.lock.json").read_bytes()).hexdigest()
     paths = [settings]
@@ -133,10 +135,11 @@ def resolve_resource_profile(config_root: Path, role: str) -> ResolvedResourcePr
         if prepared is not None:
             install = safe_path(managed, prepared["install_id"])
             native_path = install / "native" / role / "settings.json"
-            loaded, installed_native = _read_settings(native_path, install)
+            loaded, installed_native, loaded_paths = _read_settings(native_path, install)
             if skills.keys() & loaded.keys():
                 raise ValueError("duplicate skill name across native settings")
             skills.update(loaded)
+            skill_paths.update(loaded_paths)
             native.update({"managed:" + key: value for key, value in installed_native.items()})
             paths.append(native_path)
     adapters = binding.get("adapters", {})
@@ -173,12 +176,36 @@ def resolve_resource_profile(config_root: Path, role: str) -> ResolvedResourcePr
             raise ValueError("unknown resource kind")
         identity = skills.get(item.get("native_name")) if item["kind"] == "skill" else (content_hash(prepared) if prepared else None)
         installed = identity is not None or (item.get("managed", False) and managed_present)
+        identity_mismatch = False
+        if item.get("managed") and prepared is not None:
+            # These two fixed samples are the only resources prepared by setup.
+            # Local operator resources keep their independent declaration metadata.
+            install = safe_path(managed, prepared["install_id"])
+            if item["id"] == "powerskills-pandapower":
+                source_id, kind = "PowerSkills", "skill"
+                selected = "sources/PowerSkills/powerskills-tool/skills/pandapower/SKILL.md"
+                loaded_selected = (item.get("native_name") == "pandapower"
+                                   and skill_paths.get("pandapower") == safe_path(install, selected).parent)
+            elif item["id"] == "powermcp-pandapower":
+                source_id, kind = "PowerMCP", "mcp"
+                selected = "sources/PowerMCP/pandapower/panda_mcp.py"
+                loaded_selected = prepared["server"] == selected
+            else:
+                source_id, kind, selected, loaded_selected = "", "", "", False
+            source = next((source for source in prepared["sources"] if source["id"] == source_id), None)
+            identity_mismatch = (source is None or item["kind"] != kind or not loaded_selected
+                                 or selected not in prepared["source_files"]
+                                 or item["source"] != source["url"] or item["version"] != source["commit"])
+            if identity_mismatch:
+                identity, installed = None, False
         required = item["required_tools"]
         if isinstance(required, dict):
             required = required[role]
         reason = None
         if not item["enabled"]:
             reason = "disabled"
+        elif identity_mismatch:
+            reason = "managed resource identity does not match installed source"
         elif not installed:
             reason = prepared_reason if item.get("managed") else "native resource is missing"
         elif item.get("managed") and prepared is None:
