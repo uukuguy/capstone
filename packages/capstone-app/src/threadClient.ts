@@ -23,6 +23,7 @@ export interface ThreadTransport {
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
+  getInputCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
   getModels?(threadId: string, signal?: AbortSignal): Promise<unknown>
   readHistory?(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown>
   readNetworkEvents?(threadId: string, signal?: AbortSignal, contextId?: string, attemptId?: string): Promise<unknown>
@@ -122,6 +123,12 @@ export class CapstoneThreadClient {
   async catalog(threadId: string, signal?: AbortSignal): Promise<ThreadCatalog> {
     if (!this.transport.getCatalog) return { models: [], profiles: [] }
     return parseThreadCatalog(await this.transport.getCatalog(threadId, signal))
+  }
+
+  async inputCatalog(threadId: string, signal?: AbortSignal) {
+    if (!this.transport.getInputCatalog) return undefined
+    const { parseInputCatalog } = await import('./threadInput')
+    return parseInputCatalog(await this.transport.getInputCatalog(threadId, signal))
   }
 
   async readAfter(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<EventPage> {

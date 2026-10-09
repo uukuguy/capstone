@@ -136,6 +136,9 @@ class DelegatedRuntime:
         while len(messages) > 32 or sum(len(item['content'].encode()) for item in messages) > 32768:
             messages.pop(0)
         context = None if context_document is None else BusinessContext.from_document(context_document)
+        submission = resources.get('submission')
+        selected_input = (submission if submission and submission['input']['kind'] == 'skill_invocation'
+                          and (self._direct or goal.get('uses_selected_skill')) else None)
         task_fields = {}
         if context is not None:
             if 'capstone-pi-task/2' in frozen['capability'].get('task_schemas', ()):
@@ -146,8 +149,15 @@ class DelegatedRuntime:
                     'revision': (accepted_profile['revision'] if accepted_profile is not None
                                  else frozen['identity']['config_revision'])},
                     'input': {'kind': 'text', 'text': instruction}}
+                if selected_input is not None:
+                    if selected_input['resource_profile']['profile_id'] != role:
+                        raise HarnessRuntimeConfigurationError('selected skill execution role changed')
+                    task_fields['resource_profile'] = selected_input['resource_profile']
+                    task_fields['input'] = {**selected_input['input'], 'text': instruction}
             elif context.to_document()['selection']['state'] != 'none':
                 raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')
+        if selected_input is not None and 'input' not in task_fields:
+            raise HarnessRuntimeConfigurationError('general Pi task schema does not support selected skill')
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
@@ -218,6 +228,12 @@ class DelegatedRuntime:
         source['capabilities'] = [item for item in source['capabilities']
                                   if item['capability_id'] in goal['capability_refs']]
         source['instruction'] = goal.get('instruction_excerpt', source['instruction'])
+        if 'context_selection' in source:
+            available_objects = {item['object_id'] for item in source['objects']}
+            source['context_selection'] = {key: [ref for ref in refs if ref in available_objects and
+                (key == 'exclude_refs' or ref in goal['object_refs'])] for key, refs in source['context_selection'].items()}
+        if not goal.get('uses_selected_skill'):
+            source.pop('selected_skill', None)
         request = IntentRequest.from_document(source)
         decision = self._decision.to_document()
         decision['goals'] = [{**goal, 'depends_on': []}]

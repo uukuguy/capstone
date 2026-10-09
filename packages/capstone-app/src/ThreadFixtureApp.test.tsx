@@ -140,7 +140,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
     await waitFor(() => expect(commands).toHaveLength(2))
     expect(commands.map(command => command.kind)).toEqual(['switch_runtime', 'send_auto'])
-    expect(commands[1].payload).toEqual({ text: '打开 case57 电网模型' })
+    expect(commands[1].payload).toEqual({ text: '打开 case57 电网模型', input: { kind: 'text', text: '打开 case57 电网模型' } })
   })
   it('lists a returned model once while retaining the other model history', async () => {
     // Fresh Thread: IEEE-39 -> another model -> IEEE-39, unchanged model revision.

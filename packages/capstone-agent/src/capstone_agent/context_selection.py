@@ -25,7 +25,7 @@ class ContextSelectionRequest:
         serialized = _canonical(document, 262144)
         source = _fields(json.loads(serialized), {'schema', 'workspace_id', 'turn_id',
             'attempt_id', 'instruction_message_id', 'instruction', 'history_cutoff',
-            'history_truncated', 'current_object_id', 'messages', 'objects'})
+            'history_truncated', 'current_object_id', 'messages', 'objects'}, {'context_selection'})
         if source['schema'] != REQUEST_SCHEMA:
             raise ValueError('context selection request schema is invalid')
         # Reuse the exact existing history/identity bounds. No professional catalog
@@ -62,6 +62,9 @@ class ContextSelectionRequest:
         if any(item['relation'] != ('current' if item['object_id'] == source['current_object_id'] else 'historical')
                for item in source['objects']):
             raise ValueError('context object relation is invalid')
+        if 'context_selection' in source:
+            from .thread_input import context_selection
+            context_selection(source['context_selection'], ids)
         object.__setattr__(self, '_document_json', serialized)
 
     @classmethod
@@ -85,6 +88,10 @@ class ContextSelectionDecision:
         value = _fields(json.loads(serialized), {'schema', 'attempt_id', 'history_cutoff',
             'object_refs', 'message_refs', 'clarification_required', 'clarification'})
         source = request.to_document()
+        from .thread_input import validate_context_decision, selected_context_refs
+        validate_context_decision(source, value['object_refs'])
+        if not value['clarification_required'] and not set(selected_context_refs(source, [])) <= set(value['object_refs']):
+            raise ValueError('explicitly included context must be selected or clarified')
         if (value['schema'] != DECISION_SCHEMA or value['attempt_id'] != source['attempt_id']
             or value['history_cutoff'] != source['history_cutoff']):
             raise ValueError('context selection decision is not bound to its request')

@@ -143,6 +143,25 @@ class TurnPlan:
         if self.intent_decision is not None:
             payload['intent_decision'] = self.intent_decision.to_document()
             payload['intent_engine'] = dict(self.intent_engine or {})
+        if self.intent_resources is not None:
+            contexts = list(self.intent_resources.get('business_contexts', {}).values())
+            if 'business_context' in self.intent_resources:
+                contexts.append(self.intent_resources['business_context'])
+            objects = {item['object_id']: {'object_id': item['object_id'], 'display_name': item['display_name'],
+                'version': item['version']} for context in contexts for item in context['object_refs']}
+            if self.intent_request is not None and self.intent_decision is not None:
+                source = self.intent_request.to_document()
+                business = [goal for goal in self.intent_decision.execution_goals if goal['operation'] in {'business_read', 'business_execute'}]
+                refs = {ref for goal in business for ref in goal['object_refs']}
+                if business:
+                    refs.add(self.intent_resources.get('current_object_id'))
+                for item in source['objects']:
+                    if item['object_id'] in refs:
+                        objects[item['object_id']] = {'object_id': item['object_id'],
+                            'display_name': item.get('display_name', item.get('model_id', item['object_id'])),
+                            'version': item.get('model_revision')}
+            payload['accepted_context'] = {'objects': list(objects.values())[:16], 'materials': [],
+                'full_model_tables': False, 'truncated': len(objects) > 16}
         return payload
 
 

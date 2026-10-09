@@ -71,6 +71,8 @@ def intent_request_for_claim(claim: AttemptClaim, general_capability: Mapping | 
         if identity and identity not in known_objects:
             objects.append({'object_id': identity})
             known_objects.add(identity)
+    if claim.submission is not None:
+        objects = claim.submission['objects']
     return IntentRequest.from_document({
         'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
         'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
@@ -81,6 +83,11 @@ def intent_request_for_claim(claim: AttemptClaim, general_capability: Mapping | 
         'objects': objects,
         'capabilities': capabilities,
         'mode_hint': {'send_ordinary': 'ordinary', 'send_professional': 'professional'}.get(claim.kind),
+        **({'context_selection': claim.submission['context_selection']} if claim.submission is not None else {}),
+        **({'selected_skill': {**claim.submission['resource_profile'],
+            'skill_id': claim.submission['input']['skill_id'], 'skill_version': claim.submission['input']['skill_version']}}
+            if claim.submission is not None and claim.submission['input']['kind'] == 'skill_invocation'
+                and claim.attempt.runtime_mode != 'pi_reference' else {}),
     })
 
 
@@ -103,7 +110,8 @@ def context_selection_request_for_claim(claim: AttemptClaim) -> ContextSelection
     return ContextSelectionRequest.from_document({'schema': 'capstone-context-selection-request/1',
         'workspace_id': source['thread_id'], 'current_object_id': claim.model_context.id,
         **{key: source[key] for key in ('turn_id', 'attempt_id', 'instruction_message_id',
-            'instruction', 'history_cutoff', 'history_truncated', 'messages')}, 'objects': objects})
+            'instruction', 'history_cutoff', 'history_truncated', 'messages')}, 'objects': objects,
+        **({'context_selection': source['context_selection']} if 'context_selection' in source else {})})
 
 
 class IntentRuntimeFactory:
@@ -132,8 +140,12 @@ class IntentRuntimeFactory:
         executor = cast(GeneralPiExecutor, self._general)
         # Export fresh JSON; private origins and control tokens are not resources.
         from .delegated_runtime import json_document
+        capability = json_document(executor.capability)
+        if claim.submission is not None and 'resource_profiles' in claim.submission:
+            capability['resource_profiles'] = {role: profile for role, profile in claim.submission['resource_profiles'].items()
+                                               if role in {'direct_pi', 'delegated_pi'}}
         return {'identity': json_document(executor.identity),
-                'capability': json_document(executor.capability),
+                'capability': capability,
                 'original_attempt_id': claim.attempt.attempt_id,
                 'timeout_seconds': self._general_timeout}
 
@@ -162,6 +174,7 @@ class IntentRuntimeFactory:
                                         'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                        for ref in claim.prior_results if ref.attempt_id in visible_attempts]}
         resources['general_executor'] = general
+        resources['submission'] = claim.submission
         frozen = freeze(claim, {'request': request_document,
                                'engine_identity': identity, 'resources': resources})
         if frozen['engine_identity'] != identity:
@@ -200,6 +213,8 @@ class IntentRuntimeFactory:
                     raise ValueError('intent requested a disabled or unavailable capability')
             if goal['operation'] in {'business_read', 'business_execute'} and not goal['capability_refs']:
                 raise ValueError('business intent has no authorized capability')
+            if goal['operation'] in {'business_read', 'business_execute'} and claim.model_context.id in request_doc.get('context_selection', {}).get('exclude_refs', []):
+                raise ValueError('business execution cannot use the explicitly excluded current object')
             general_id = None if general is None else general['capability']['capability_id']
             if goal['operation'] in {'business_read', 'business_execute'} and general_id in goal['capability_refs']:
                 raise ValueError('business execution requires a domain capability')
@@ -254,7 +269,8 @@ class IntentRuntimeFactory:
         identity = selector.identity.to_document()
         frozen = freeze(claim, {'entrypoint': 'direct',
             'request': context_selection_request_for_claim(claim).to_document(),
-            'engine_identity': identity, 'resources': {'general_executor': general}})
+            'engine_identity': identity, 'submission': claim.submission,
+            'resources': {'general_executor': general}})
         self._check_general_configuration(general, frozen['resources'])
         # Existing accepted /1 direct tasks can still recover their exact inputs.
         if 'request' not in frozen:
@@ -375,7 +391,11 @@ def with_intent_runtime(assembly: ThreadApplicationAssembly,
         context_selector_factory=context_selector)
     registry = HarnessRuntimeRegistry()
     registry.register('pi', factory)
-    return replace(assembly, runtime_factory=factory, runtime_registry=registry, runtime_name='pi')
+    from .thread_input_catalog import PreparedResourceCatalog
+    from .pi_intent import default_config_root
+    resources = PreparedResourceCatalog(assembly.capability_context_owner, general_executor, default_config_root().parent)
+    return replace(assembly, runtime_factory=factory, runtime_registry=registry, runtime_name='pi',
+                   resource_profiles=resources)
 
 
 def _rebind_decision(document: dict, attempt_id: str) -> dict:

@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
+import ThreadCommandMenu from './ThreadCommandMenu'
+import { buildInputSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
@@ -373,7 +375,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const attemptId = typeof custom.attemptId === 'string' ? custom.attemptId : undefined
     const runtimeMode = attemptId ? runtimeModes.get(attemptId) || 'capstone' : 'capstone'
     const activities = attemptId ? projectAssistantActivity(events.filter((candidate) => candidate.attemptId === attemptId)) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, runtimeMode } } }
+    const acceptedContext = events.find(event => event.attemptId === attemptId && event.eventType === 'turn_plan_created')?.payload.accepted_context
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, runtimeMode, acceptedContext } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -666,6 +669,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>}
     {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
+    {role === 'assistant' && Boolean(custom?.acceptedContext) && <AcceptedContextDetails value={custom?.acceptedContext} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
@@ -680,6 +684,15 @@ function instructionModelName(modelId: string): string {
   return known[modelId] || modelId.split('/').at(-1) || modelId
 }
 
+function AcceptedContextDetails({ value }: { value: unknown }) {
+  const context = value as { objects?: { object_id: string; display_name: string; version: string }[]; materials?: unknown[] }
+  if (!Array.isArray(context?.objects)) return null
+  return <details className="capstone-chat-activity"><summary>本轮采用的上下文 · {context.objects.length} 个对象</summary>
+    {context.objects.length ? <ul>{context.objects.map(object => <li key={object.object_id}>{object.display_name} · {object.version}</li>)}</ul> : <p>本轮未采用业务对象。</p>}
+    <p>未提供完整网络表或文件资料。</p>
+  </details>
+}
+
 function InstructionTime({ value }: { value: string }) {
   const date = new Date(value)
   const now = new Date()
@@ -691,7 +704,9 @@ function InstructionTime({ value }: { value: string }) {
   </time>
 }
 
-function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {
+type AcceptedDraft = { text: string; commandId: string; submission?: InputSubmission }
+
+function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storageKey, inputDraft, onInputChange, inputCatalog, inputCatalogLoading, onRefreshInputCatalog }: { disabled: boolean; isRunning: boolean; acceptedDraft?: AcceptedDraft; controls?: ReactNode; storageKey?: string; inputDraft: InputDraft; onInputChange: (value: InputDraft) => void; inputCatalog?: InputCatalog; inputCatalogLoading?: boolean; onRefreshInputCatalog?: () => void }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -703,19 +718,27 @@ function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storage
   useEffect(() => {
     if (acceptedDraft && resolvedCommand.current !== acceptedDraft.commandId) {
       resolvedCommand.current = acceptedDraft.commandId
-      if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) aui.composer.setText('')
+      if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) {
+        try {
+          const current = buildInputSubmission(acceptedDraft.text.trim(), inputDraft)
+          if (!acceptedDraft.submission || JSON.stringify(current) === JSON.stringify(acceptedDraft.submission)) {
+            aui.composer.setText('')
+            onInputChange(emptyInputDraft(inputDraft.mode))
+          }
+        } catch { /* Keep an edited or incompatible next draft. */ }
+      }
     }
-  }, [aui, acceptedDraft])
+  }, [aui, acceptedDraft, inputDraft, onInputChange])
   useEffect(() => {
     const input = inputRef.current
     if (input && !input.disabled) input.focus()
   }, [disabled, isRunning])
-  return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
-    <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
+  return <ThreadCommandMenu catalog={inputCatalog} loading={inputCatalogLoading} onRefresh={onRefreshInputCatalog} draft={inputDraft} onChange={onInputChange}><ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
+    <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条任务，完成后发送…' : disabled ? '当前状态暂不可提交新任务' : '描述你的任务，或输入 / 查看操作…'} disabled={disabled && !isRunning} submitMode="enter" />
     <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls}</div><div className="capstone-composer-actions">
-      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
+      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty || Boolean(inputDraftError(inputDraft, inputCatalog))} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
     </div></div>
-  </ComposerPrimitive.Root>
+  </ComposerPrimitive.Root></ThreadCommandMenu>
 }
 
 function EmptyThreadState({ disabled }: { disabled: boolean }) {
@@ -739,9 +762,12 @@ export type CapstoneAssistantThreadProps = {
   events: readonly EventEnvelope[]
   disabled: boolean
   isRunning: boolean
-  acceptedDraft?: { text: string; commandId: string }
+  acceptedDraft?: AcceptedDraft
   activity: readonly (ChatActivity | string)[]
-  onSend: (mode: SendMode, text: string) => Promise<void>
+  onSend: (mode: SendMode, text: string, input?: InputSubmission) => Promise<void>
+  inputCatalog?: InputCatalog
+  inputCatalogLoading?: boolean
+  onRefreshInputCatalog?: () => void
   onCancel: () => Promise<void>
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   canRerunCompleted?: boolean
@@ -765,7 +791,10 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog }: CapstoneAssistantThreadProps) {
+  const [inputDraft, setInputDraft] = useState<InputDraft>(() => readInputDraft(storageKey) || emptyInputDraft(runtimeMode))
+  const activeInput = { ...inputDraft, mode: runtimeMode }
+  useEffect(() => { writeInputDraft(storageKey, activeInput) }, [storageKey, inputDraft, runtimeMode])
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -982,12 +1011,17 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
     convertMessage: (message) => message,
-    isSendDisabled: disabled,
+    isSendDisabled: disabled || Boolean(inputDraftError(activeInput, inputCatalog)),
     isRunning,
     onNew: async (message) => {
       const text = messageText(message)
       if (text.trim()) {
-        await onSend('automatic', text.trim()); setWindowAnchor(null)
+        const sent = inputDraft
+        const metadata = buildInputSubmission(text.trim(), activeInput)
+        if (inputDraft.skill || inputDraft.literal || inputDraft.context.include_refs.length || inputDraft.context.exclude_refs.length) await onSend('automatic', text.trim(), metadata)
+        else await onSend('automatic', text.trim())
+        setInputDraft(current => current === sent ? emptyInputDraft(runtimeMode) : current)
+        setWindowAnchor(null)
         if (!historyAtLatest) onReturnLatest?.()
       }
     },
@@ -1029,7 +1063,7 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} inputDraft={activeInput} onInputChange={setInputDraft} inputCatalog={inputCatalog} inputCatalogLoading={inputCatalogLoading} onRefreshInputCatalog={onRefreshInputCatalog} />
         </div>
       </ThreadPrimitive.Root>
     </div>

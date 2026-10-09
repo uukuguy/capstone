@@ -22,6 +22,7 @@ import type { ReactNode } from 'react'
 import { enabledTools, effectiveTools, updateToolPreferences } from './threadToolPreferences'
 import { useWorkbenchActivity, type PrepareConnection } from './useWorkbenchActivity'
 import WorkbenchPreparation from './WorkbenchPreparationView'
+import type { InputCatalog, InputSubmission } from './threadInput'
 
 const ACTIVE_PHASES = new Set(['created', 'accepted', 'running', 'waiting', 'committing'])
 
@@ -76,8 +77,21 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [sending, setSending] = useState(false)
   const [modelBusy, setModelBusy] = useState(false)
   const [runtimeBusy, setRuntimeBusy] = useState(false)
+  const [inputCatalog, setInputCatalog] = useState<InputCatalog>()
+  const [inputCatalogLoading, setInputCatalogLoading] = useState(false)
+  const catalogReading = useRef(false)
+  async function refreshInputCatalog() {
+    if (!client || catalogReading.current) return
+    catalogReading.current = true
+    setInputCatalogLoading(true)
+    try { setInputCatalog(await client.inputCatalog(threadId)) }
+    catch { setInputCatalog(undefined) }
+    finally { catalogReading.current = false; setInputCatalogLoading(false) }
+  }
+  useEffect(() => { void refreshInputCatalog() }, [client, threadId, projection.snapshot?.runtimeMode,
+    projection.snapshot?.activeModelContext.id, projection.snapshot?.activeModelContext.selectionRevision])
   const modelInFlight = useRef(false)
-  const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
+  const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string; submission?: InputSubmission }>()
   const reconnectFailures = useRef(0)
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== 'hidden')
   const activity = useWorkbenchActivity(prepareConnection,
@@ -130,7 +144,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               if (composerCommands.current.has(entry.command.command_id)
                   && ['send_auto', 'send_ordinary', 'send_professional'].includes(entry.command.kind)
                   && typeof entry.command.payload.text === 'string') {
-                setAcceptedDraft({ text: entry.command.payload.text, commandId: entry.command.command_id })
+                const payload = entry.command.payload
+                const submission = payload.input ? { input: payload.input,
+                  ...(payload.resource_profile ? { resource_profile: payload.resource_profile } : {}),
+                  context_selection: payload.context_selection || { include_refs: [], exclude_refs: [] } } as InputSubmission : undefined
+                setAcceptedDraft({ text: entry.command.payload.text, commandId: entry.command.command_id, submission })
               }
               addSystemNotice('已确认原操作提交成功。', 'info', `receipt-${entry.command.command_id}`)
             } else {
@@ -429,7 +447,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   function startCase(caseId: string, caseVersion: string): void {
-    if (snapshot?.runtimeMode === 'pi_reference') { addSystemNotice('请先切换到 Capstone', 'info'); return }
+    if (inputCatalog?.operations.find(item => item.operation_id === 'start_case_execution')?.available === false) { addSystemNotice('当前执行角色或能力不支持此案例。', 'info'); return }
     const entry = projection.catalog?.cases?.find((item) => item.caseId === caseId && item.caseVersion === caseVersion)
     const families = projection.catalog?.models.filter((model) => entry?.modelIds.includes(model.modelId)).map((model) => model.implementationFamily) || []
     const needed = projection.catalog?.profiles.filter((profile) => profile.implementationFamilies.some((family) => families.includes(family))) || []
@@ -441,13 +459,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     void dispatch('start_case_execution', { case_id: caseId, case_version: caseVersion, strategy_id: 'sequential_batch' })
   }
 
-  async function sendConversation(mode: 'automatic' | 'ordinary' | 'professional', text: string, fromComposer = false): Promise<void> {
+  async function sendConversation(mode: 'automatic' | 'ordinary' | 'professional', text: string, fromComposer = false, input?: InputSubmission): Promise<void> {
     if (commandInFlight.current || isHistorical) throw new MessageNotSentError('当前页面不可发送，请返回当前模型后重试。')
     commandInFlight.current = true
     composerSend.current = fromComposer
     setSending(true)
     try {
-      await selectModelAndSend(mode, text)
+      await selectModelAndSend(mode, text, input)
     } catch (cause) {
       if (cause instanceof MessageNotSentError) throw cause
       setError(cause instanceof Error ? cause.message : '指令未发送')
@@ -459,13 +477,8 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     }
   }
 
-  async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
-    if (store.state.snapshot?.runtimeMode === 'pi_reference') {
-      const receipt = await dispatch('send_auto', { text })
-      if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
-      return
-    }
-    const control = store.state.modelWorkspace ? parseModelControl(text) : null
+  async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string, input?: InputSubmission): Promise<void> {
+    const control = !input?.resource_profile && store.state.modelWorkspace ? parseModelControl(text) : null
     if (control && projection.catalog) {
       const workspace = store.state.modelWorkspace!
       const openedCatalog = { ...projection.catalog, models: workspace.models.map((model) => ({ ...model,
@@ -498,8 +511,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       if (!control.task) return
       text = control.task
     }
+    if (store.state.snapshot?.runtimeMode === 'pi_reference') {
+      const receipt = await dispatch('send_auto', { text, ...input, input: input?.input || { kind: 'text', text } })
+      if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
+      return
+    }
     let family = store.state.snapshot?.pendingModelSwitch?.implementationFamily || store.state.snapshot?.activeModelContext.implementationFamily || ''
-    const intent = parseThreadModelCommand(text)
+    const intent = input?.resource_profile ? null : parseThreadModelCommand(text)
     if (intent && projection.catalog) {
       const resolution = resolveThreadModelCommandReference(projection.catalog, intent.reference)
       // Keep unresolved model requests on the conversation path. The agent
@@ -534,7 +552,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
     }
     const tools = requireEnabledTools(family, text)
-    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : mode === 'ordinary' ? 'send_ordinary' : 'send_auto', { text,
+    const receipt = await dispatch(mode === 'professional' ? 'send_professional' : mode === 'ordinary' ? 'send_ordinary' : 'send_auto', { text, ...input, input: input?.input || { kind: 'text', text },
       ...(projection.catalog?.profiles.length ? { enabled_profiles: tools.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) } : {}),
     })
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
@@ -643,7 +661,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               setNotice(`已定位到 ${elementId}`)
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
-            caseStartDisabledReason={snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
+            caseStartDisabledReason={inputCatalog?.operations.find(item => item.operation_id === 'start_case_execution')?.available === false ? '当前执行角色或能力不支持案例' : !inputCatalog && snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
@@ -666,7 +684,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
                 onTargetChange={setModelTarget} onSwitch={(modelId) => void (projection.modelWorkspace ? changeModel('open_model', { model_id: modelId }) : sendConversation('automatic', `打开 ${modelId} 电网模型`)).catch(() => {})} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             instructionModels={[snapshot.activeModelContext, ...projection.gridPages.map(page => page.context), ...store.networkTasks.map(task => task.context)].map(context => ({ contextId: context.id, modelId: context.modelId }))}
-            onSend={(mode, text) => sendConversation(mode, text, true)}
+            inputCatalog={inputCatalog?.context_id === snapshot.activeModelContext.id && inputCatalog?.selection_revision === snapshot.activeModelContext.selectionRevision ? inputCatalog : undefined}
+            inputCatalogLoading={inputCatalogLoading} onRefreshInputCatalog={() => void refreshInputCatalog()}
+            onSend={(mode, text, input) => sendConversation(mode, text, true, input)}
             onCancel={async () => { await dispatch('cancel_live_attempt', { attempt_id: attempt?.attemptId }) }}
             onRegenerate={canRetry ? async (attemptId, instruction) => {
               if (events.some((event) => event.attemptId === attemptId && event.eventType === 'attempt_completed')) {

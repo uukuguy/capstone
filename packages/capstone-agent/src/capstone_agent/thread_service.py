@@ -7,6 +7,8 @@ Pi, DSH, Domain Packs, or authority internals.
 
 from __future__ import annotations
 
+from .thread_input import admission_submission, freeze_activated_submission
+
 from collections.abc import Callable
 import hashlib
 import json
@@ -529,6 +531,7 @@ class AttemptClaim:
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
     conversation_context: ConversationContext = ConversationContext()
+    submission: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.conversation_context, ConversationContext):
@@ -873,6 +876,14 @@ class InMemoryThreadService:
     HTTP projection.
     """
 
+    def set_input_catalog_provider(self, provider) -> None:
+        self._input_catalog_provider = provider
+
+    def input_catalog(self, thread_id: str) -> dict:
+        if self._input_catalog_provider is None:
+            raise ThreadExecutionError('input catalog is unavailable')
+        return self._input_catalog_provider(self.snapshot(thread_id))
+
     def __init__(
         self,
         snapshot: ThreadSnapshot,
@@ -884,6 +895,7 @@ class InMemoryThreadService:
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
         self._catalog_context: Mapping[str, object] | None = None
+        self._input_catalog_provider = None
         self._available_families: FamilyAvailability = None
         self._events: list[EventEnvelope] = []
         self._commands: dict[str, _StoredCommand] = {}
@@ -1072,6 +1084,8 @@ class InMemoryThreadService:
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
             semantic_rejection = _admission_rejection(parsed)
+            submission, input_rejection = admission_submission(self._snapshot, parsed, self._input_catalog_provider)
+            semantic_rejection = semantic_rejection or input_rejection
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1307,6 +1321,7 @@ class InMemoryThreadService:
                             "conversation_context": prior["conversation_context"],
                             "intent_input_snapshot": prior.get("intent_input_snapshot"),
                             "intent_decision_snapshot": prior.get("intent_decision_snapshot"),
+                            "submission": prior.get("submission"),
                         }
                         receipt = self._receipt(
                             parsed, status="accepted", accepted_event_seq=event.event_seq,
@@ -1331,6 +1346,7 @@ class InMemoryThreadService:
             turn_id = "turn_" + token
             self._activate_pending_model_switch(turn_id)
             self._activate_pending_selection(turn_id)
+            submission = freeze_activated_submission(submission, self._snapshot.active_model_context)
 
             event_seq = self._snapshot.last_event_seq + 1
             attempt_id = "attempt_" + token
@@ -1357,6 +1373,7 @@ class InMemoryThreadService:
             self._attempts[attempt_id] = {
                 "attempt": attempt, "kind": parsed["kind"],
                 "instruction": parsed["payload"]["text"], "lease_token": None,
+                "submission": submission,
                 "lease_deadline": None,
                 "model_context": self._snapshot.active_model_context,
                 "command_id": parsed["command_id"],
@@ -1512,6 +1529,7 @@ class InMemoryThreadService:
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     conversation_context=record["conversation_context"],
+                    submission=record.get("submission"),
                     application_catalog=(
                         self._catalog_context
                         if self._catalog_context is not None
@@ -2160,6 +2178,7 @@ ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snap
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS submission_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
@@ -2177,6 +2196,14 @@ def _timestamp(value: Any) -> str:
 class PostgresThreadService:
     """Durable Thread projection store kept separate from the legacy session ledger."""
 
+    def set_input_catalog_provider(self, provider) -> None:
+        self._input_catalog_provider = provider
+
+    def input_catalog(self, thread_id: str) -> dict:
+        if self._input_catalog_provider is None:
+            raise ThreadExecutionError('input catalog is unavailable')
+        return self._input_catalog_provider(self.snapshot(thread_id))
+
     def __init__(
         self,
         dsn: str,
@@ -2187,6 +2214,7 @@ class PostgresThreadService:
         if not dsn:
             raise ValueError("database URL is required")
         self.dsn = dsn
+        self._input_catalog_provider = None
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
         self._catalog_context: Mapping[str, object] | None = None
@@ -2540,6 +2568,7 @@ class PostgresThreadService:
                     return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
                 return CommandReceipt.from_document(existing["receipt"])
             message_selection, message_selection_rejection = _message_selection_for_command(snapshot, parsed, self._capability_catalog)
+            submission, input_rejection = admission_submission(snapshot, parsed, self._input_catalog_provider)
             command_row = connection.execute(
                 "SELECT 1 FROM capstone_thread_commands WHERE thread_id = %s AND command_id = %s",
                 (parsed["thread_id"], parsed["command_id"]),
@@ -2554,6 +2583,8 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
             elif (semantic_rejection := _admission_rejection(parsed)) is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
+            elif input_rejection is not None:
+                receipt = self._receipt(parsed, status="rejected", rejection=input_rejection)
             elif (
                 (context_lock := _application_context_lock(snapshot)) is not None
                 and parsed["kind"] in _CONTEXT_LOCK_COMMAND_KINDS
@@ -2805,8 +2836,8 @@ class PostgresThreadService:
                                    (attempt_id, thread_id, run_id, turn_id, command_id, kind,
                                     instruction, model_context_id, selection_revision,
                                     model_context_snapshot, conversation_context_snapshot, intent_input_snapshot,
-                                    intent_decision_snapshot, runtime_mode, phase)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                                    intent_decision_snapshot, runtime_mode, submission_snapshot, phase)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                                 (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                                  parsed["command_id"], prior["kind"], prior["instruction"],
                                  snapshot.active_model_context.id,
@@ -2815,7 +2846,7 @@ class PostgresThreadService:
                                  Jsonb(_attempt_conversation_document(connection, prior)),
                                  None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"]),
                                  None if prior['intent_decision_snapshot'] is None else Jsonb(prior['intent_decision_snapshot']),
-                                 attempt.runtime_mode),
+                                 attempt.runtime_mode, None if prior['submission_snapshot'] is None else Jsonb(prior['submission_snapshot'])),
                             )
                             connection.execute(
                                 """UPDATE capstone_threads
@@ -2869,6 +2900,7 @@ class PostgresThreadService:
                         "pending_selection": None,
                         "last_event_seq": snapshot.last_event_seq,
                     }
+                submission = freeze_activated_submission(submission, snapshot.active_model_context)
                 event_seq = snapshot.last_event_seq + 1
                 attempt_id = "attempt_" + token
                 attempt = AttemptSnapshot(
@@ -2901,14 +2933,15 @@ class PostgresThreadService:
                 connection.execute(
                     """INSERT INTO capstone_thread_attempts
                        (attempt_id, thread_id, run_id, turn_id, command_id, kind,
-                        instruction, model_context_id, selection_revision, model_context_snapshot, conversation_context_snapshot, runtime_mode, phase)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                        instruction, model_context_id, selection_revision, model_context_snapshot, conversation_context_snapshot, runtime_mode, submission_snapshot, phase)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                     (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                      parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
                      snapshot.active_model_context.id,
                      snapshot.active_model_context.selection_revision,
                      Jsonb(snapshot.active_model_context.to_document()),
-                     Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document()), attempt.runtime_mode),
+                     Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document()), attempt.runtime_mode,
+                     None if submission is None else Jsonb(submission)),
                 )
                 connection.execute(
                     "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
@@ -3201,6 +3234,7 @@ class PostgresThreadService:
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 conversation_context=ConversationContext.from_document(conversation),
+                submission=updated.get('submission_snapshot'),
                 application_catalog=(
                     self._catalog_context
                     if self._catalog_context is not None

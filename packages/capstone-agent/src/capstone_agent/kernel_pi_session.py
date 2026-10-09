@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 import json
 import os
@@ -79,6 +80,20 @@ class PreparedKernelPiSessionFactory:
             _require_prepared_kernel_profile(contribution, claim.model_context)
             for contribution in context.contributions
         )
+        plan = claim.turn_plan
+        selected = (plan.intent_request.to_document().get('selected_skill')
+                    if plan is not None and plan.intent_request is not None else None)
+        if selected is not None:
+            if selected['profile_id'] != 'harness_engine':
+                raise ValueError('native skill cannot enter a professional session')
+            from .professional_resources import resolve_harness_resource_profile, bind_harness_skill
+            from .pi_intent import default_config_root
+            bindings = {key: value for profile in prepared for key, value in profile.prepared_application.bindings.items()}
+            profile = resolve_harness_resource_profile(default_config_root().parent, bindings)
+            skill = bind_harness_skill(profile, skill_id=selected['skill_id'], skill_version=selected['skill_version'],
+                                       profile_revision=selected['revision'])
+            claim = replace(claim, turn_plan=replace(plan,
+                intent_resources={**(plan.intent_resources or {}), 'harness_skill_selection': skill}))
         session = self._builder(claim, context, prepared)
         if not callable(getattr(session, "start", None)) or not callable(
             getattr(session, "prompt_and_wait", None)

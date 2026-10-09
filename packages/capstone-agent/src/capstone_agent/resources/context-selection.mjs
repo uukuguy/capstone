@@ -9,7 +9,7 @@ export default function (pi) {
     items: ids.length ? { type: "string", enum: ids } : { type: "string" } });
   pi.registerTool({
     name: "capstone_context_selection", label: "Select task context",
-    description: "Select public business objects and conversation messages for a direct task. This grants no authority.",
+    description: "Select public business objects and conversation messages for a direct task. Respect context_selection: exclusions win; includes must be selected or clarified. This grants no authority.",
     parameters: { type: "object", additionalProperties: false,
       required: ["schema", "attempt_id", "history_cutoff", "object_refs", "message_refs", "clarification_required", "clarification"],
       properties: {

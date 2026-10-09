@@ -12,6 +12,7 @@ const goal = {
     operation: { type: "string", enum: ["answer", "rewrite", "catalog_lookup", "external_lookup", "business_read", "business_execute"] },
     message_refs: strings, object_refs: strings, capability_refs: strings,
     missing_requirements: strings, depends_on: strings,
+    uses_selected_skill: { type: "boolean", description: "When selected_skill is supplied, mark exactly one compatible execution goal. Preserve the user's selected role. Do not apply the skill to other goals." },
   },
 };
 
@@ -30,7 +31,7 @@ export default function (pi) {
   } };
   pi.registerTool({
     name: "capstone_intent_decision", label: "Request decision",
-    description: "Finish request understanding with one structured decision. This grants no execution permission.",
+    description: "Finish request understanding with one structured decision. Respect context_selection: exclusions win; includes must be assigned to a relevant goal or clarified. Preserve selected_skill in exactly one compatible goal. This grants no execution permission.",
     parameters: {
       type: "object", additionalProperties: false,
       required: ["schema", "attempt_id", "history_cutoff", "relationship", "goals", "clarification", "clarification_required"],

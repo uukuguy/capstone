@@ -135,7 +135,7 @@ class IntentRequest:
         value = _fields(json.loads(serialized), {
             "schema", "thread_id", "turn_id", "attempt_id", "instruction", "history_cutoff",
             "messages", "objects", "capabilities", "mode_hint",
-        }, {"history_truncated", "instruction_message_id"})
+        }, {"history_truncated", "instruction_message_id", "context_selection", "selected_skill"})
         if value["schema"] != REQUEST_SCHEMA:
             raise ValueError("unsupported intent request schema")
         for key in ("thread_id", "turn_id", "attempt_id"):
@@ -170,6 +170,15 @@ class IntentRequest:
                 if message["event_seq"] > value["history_cutoff"]:
                     raise ValueError("history message exceeds the cutoff")
         _identities(value["objects"], "object_id")
+        if 'context_selection' in value:
+            from .thread_input import context_selection
+            context_selection(value['context_selection'], {item['object_id'] for item in value['objects']})
+        if 'selected_skill' in value:
+            selected = _fields(value['selected_skill'], {'profile_id', 'revision', 'skill_id', 'skill_version'})
+            if selected['profile_id'] not in {'harness_engine', 'delegated_pi'}:
+                raise ValueError('intent skill role is invalid')
+            for key, item in selected.items():
+                _text(item, key, limit=256)
         object_metadata = {"model_id", "model_revision", "implementation_family", "display_name"}
         for entry in value["objects"]:
             _fields(entry, {"object_id"}, object_metadata)
@@ -250,9 +259,27 @@ class IntentDecision:
         if 'instruction_message_id' in source:
             allowed['message_refs'].add(source['instruction_message_id'])
         prior_goals: set[str] = set()
+        from .thread_input import validate_context_decision, selected_context_refs
+        all_refs = [ref for goal in goals for ref in goal['object_refs']]
+        validate_context_decision(source, all_refs)
+        if not value.get('clarification_required', bool(value['clarification'])) and not set(selected_context_refs(source, [])) <= set(all_refs):
+            raise ValueError('explicitly included context must be selected or clarified')
+        selected_goals = [goal for goal in goals if goal.get('uses_selected_skill') is True]
+        if 'selected_skill' in source:
+            if len(selected_goals) != 1:
+                raise ValueError('explicit skill requires exactly one selected goal')
+            professional = source['selected_skill']['profile_id'] == 'harness_engine'
+            if (selected_goals[0]['operation'] in {'business_read', 'business_execute'}) != professional:
+                raise ValueError('selected skill goal uses an incompatible execution role')
+            if selected_goals[0]['operation'] == 'catalog_lookup':
+                raise ValueError('selected skill cannot execute as a catalog lookup')
+        elif selected_goals:
+            raise ValueError('intent cannot invent a selected skill')
         for goal in goals:
             _fields(goal, {"goal_id", "description", "operation", "message_refs", "object_refs",
-                           "capability_refs", "missing_requirements"}, {"depends_on", "instruction_excerpt"})
+                           "capability_refs", "missing_requirements"}, {"depends_on", "instruction_excerpt", "uses_selected_skill"})
+            if 'uses_selected_skill' in goal and type(goal['uses_selected_skill']) is not bool:
+                raise ValueError('selected skill goal flag must be a boolean')
             if 'instruction_excerpt' in goal:
                 _text(goal['instruction_excerpt'], 'instruction excerpt')
                 if goal['instruction_excerpt'] not in source['instruction']:
