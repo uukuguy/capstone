@@ -98,9 +98,11 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 对话空闲时可切换 **Capstone** 和 **Pi**。
 Capstone 先由模型识别目标：专业目标交给 Domain Pack，通用目标委托给原生 Pi。
-Pi 模式直接交给同一个执行器，不调用意图节点或专业工具准备。
+Pi 模式先用独立的语义选择节点确定公共业务背景，再交给同一个执行器，不准备专业计划或领域工具。
 两个入口共享可见历史，保留当前模型；已接受的请求和重试沿用原模式、配置及识别决策。
-执行中或案例进行中不能切换，Pi 模式不能启动登记的专业案例。
+配置变更、提交、未知提交结果和执行中不能切换或再提交；输入框仍可编辑下一条草稿。
+默认联合对话没有装配 Case 执行服务，对应操作显示不可用。Case 是独立完整模块；
+本次工作不增加 Case 装配。旧 `/old` 入口与 Case 模块保持各自契约。
 
 本地 `make capstone-local-rebuild` 同时构建并启动独立的 `general-pi` 服务。
 `deploy/local.env` 需设置独立的 `CAPSTONE_GENERAL_CONTROL_TOKEN`；不要写入 App 构建变量。
@@ -109,9 +111,44 @@ worker 使用私有 `CAPSTONE_GENERAL_EXECUTOR_ORIGIN`。执行器启动时通�
 chat-completions 传输，Anthropic 和 OAuth 配置会明确拒绝。没有配置执行器时不会退回受限 Pi 并声称通用任务已接通。
 
 原生设置目录为 `configs/runtime/general-pi/`。每个任务按 Pi 约定复制受控 settings、
-AGENTS、skills 和 extensions，加载有限的共享历史与依赖观察，不加载专业策略或 Authority 句柄。
+AGENTS、skills 和 extensions，加载有限的共享历史、公共业务投影与依赖观察，不加载专业策略或 Authority 句柄。
 read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可撤销 relay grant 隔离。
-skills/MCP 的安装、配置和管理界面尚未实现。
+角色资源由版本化配置准备；任务不能自行安装依赖。
+
+### 共享背景与角色资源
+
+`/skills` 打开资源选择器，显示来源、版本、可用状态与实际执行角色。
+`/skill:<name> <任务>` 提交绑定技能的类型化输入；`/context` 打开背景选择面板，
+保留原草稿。`/skills` 和 `/context` 只打开面板，不调用模型，也不创建假消息。未知斜杠文字需要明确按普通
+文字提交；普通文字始终关闭原生 skill/template 展开。模式改变时，不兼容的技能显示原因，
+不能静默改为其他角色。配置与提交共用同步操作约束；移动端与桌面均保留下一条草稿编辑。
+
+两个入口共用 Thread 公共对象索引，按任务选择当前或历史对象。显式排除优先；必要资料
+缺失时返回缺口或澄清。当前实际模型背景是身份、公共版本与历史，不含完整模型数据表。
+技能附带的示例电网不能替代已选业务对象。公共资料只按已授权 ID 解析，副本进入只读
+任务输入区，不能通过任意宿主文件路径取数；它们不会自动上传为新产物。
+
+操作者在 `configs/runtime/agent-resources.json` 固定来源、版本与适用角色，原生配置位于
+`configs/runtime/general-pi/` 和 `configs/runtime/capstone-pi/`。安装入口：
+
+```sh
+make install-agent-resources
+make capstone-local-rebuild
+```
+
+安装器校验固定源码、schema、依赖和实际 MCP 调用，成功后才发布当前不可变安装。
+安装不是角色就绪证明：原生 SDK 加载、角色工具发布与专业适配分别检查。失败不覆盖
+可用版本；任务启动不下载依赖。安装状态保留在忽略的 `.grid-agent/runtime/agent-resources/`。
+Compose 的 `general-pi-profiles` 与 `general-pi-resources` 卷保存已接受配置及固定安装，
+不迁移或删除原有任务、收据、数据库或对象存储。旧任务重试使用已接受版本，撤销或缺失
+资源明确失败。不要复制或移动其他系统的 venv；后端与 general-pi 镜像各自在 Linux 最终路径安装。
+
+原生 Pi 可加载固定 PowerSkills pandapower 内容，并通过受控扩展执行十项 PowerMCP 工具。
+Harness 使用领域能力包原创适配指南，将结构检查映射到既有 `analysis.run` 的
+`diagnostic.structural` 操作。Authority 导出当前模型，调用 `load_network`/`audit_network`，
+保存有版本和来源的结果并经当前运行准入绑定证据。结构检查不证明潮流收敛或运行安全。
+上游技能和所有 MCP 工具不会因安装自动兼容 Harness；版本、适配器、精确参数、模型修订
+和结果/证据校验共同约束专业执行。领域映射仍由 Domain Pack/Authority 拥有，不进入 Kernel。
 
 执行器将工具观察和文件产物保存为外部任务记录，不将其视为电网结果或证据。
 文件字节先校验并保存，才提交成功；私有控制端支持按任务和产物 ID 读取。

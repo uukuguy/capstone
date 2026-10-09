@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, replace
 import json
 import re
 from threading import Thread
-from typing import Protocol
+from typing import Protocol, cast
 
 from .thread_service import AttemptClaim
 from .request_intent import IntentDecision, IntentRequest
@@ -144,9 +144,10 @@ class TurnPlan:
             payload['intent_decision'] = self.intent_decision.to_document()
             payload['intent_engine'] = dict(self.intent_engine or {})
         if self.intent_resources is not None:
-            contexts = list(self.intent_resources.get('business_contexts', {}).values())
+            contexts = list(cast(Mapping[str, dict],
+                self.intent_resources.get('business_contexts', {})).values())
             if 'business_context' in self.intent_resources:
-                contexts.append(self.intent_resources['business_context'])
+                contexts.append(cast(dict, self.intent_resources['business_context']))
             objects = {item['object_id']: {'object_id': item['object_id'], 'display_name': item['display_name'],
                 'version': item['version']} for context in contexts for item in context['object_refs']}
             if self.intent_request is not None and self.intent_decision is not None:

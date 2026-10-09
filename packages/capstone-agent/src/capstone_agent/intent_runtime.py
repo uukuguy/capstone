@@ -140,7 +140,7 @@ class IntentRuntimeFactory:
         executor = cast(GeneralPiExecutor, self._general)
         # Export fresh JSON; private origins and control tokens are not resources.
         from .delegated_runtime import json_document
-        capability = json_document(executor.capability)
+        capability = cast(dict[str, object], json_document(executor.capability))
         if claim.submission is not None and 'resource_profiles' in claim.submission:
             capability['resource_profiles'] = {role: profile for role, profile in claim.submission['resource_profiles'].items()
                                                if role in {'direct_pi', 'delegated_pi'}}

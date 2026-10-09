@@ -24,6 +24,7 @@ from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.application.composition import PreparedApplication
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
@@ -83,12 +84,13 @@ class PreparedKernelPiSessionFactory:
         plan = claim.turn_plan
         selected = (plan.intent_request.to_document().get('selected_skill')
                     if plan is not None and plan.intent_request is not None else None)
-        if selected is not None:
+        if selected is not None and plan is not None:
             if selected['profile_id'] != 'harness_engine':
                 raise ValueError('native skill cannot enter a professional session')
             from .professional_resources import resolve_harness_resource_profile, bind_harness_skill
             from .pi_intent import default_config_root
-            bindings = {key: value for profile in prepared for key, value in profile.prepared_application.bindings.items()}
+            bindings = {key: value for profile in prepared
+                for key, value in cast(PreparedApplication, profile.prepared_application).bindings.items()}
             profile = resolve_harness_resource_profile(default_config_root().parent, bindings)
             skill = bind_harness_skill(profile, skill_id=selected['skill_id'], skill_version=selected['skill_version'],
                                        profile_revision=selected['revision'])

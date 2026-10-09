@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import json
 from pathlib import Path
 from threading import RLock
+from typing import cast
 from urllib.request import Request, urlopen
 
 from .runtime_resources import content_hash, resolve_resource_profile
@@ -88,7 +89,8 @@ class PreparedResourceCatalog:
         from .professional_resources import resolve_harness_resource_profile
         from .thread_service import AttemptClaim
         from .delegated_runtime import json_document
-        native = {} if self.executor is None else json_document(self.executor.capability.get('resource_profiles', {}))
+        native = {} if self.executor is None else cast(dict[str, object],
+            json_document(self.executor.capability.get('resource_profiles', {})))
         if snapshot.runtime_mode == 'pi_reference' or self.owner is None or not (self.config_root / 'agent-resources.json').is_file():
             return native
         base = resolve_resource_profile(self.config_root, 'harness_engine')

@@ -25,25 +25,67 @@ does not make a domain-specific output envelope a Kernel requirement.
 The application can delegate general goals to a separate native Pi executor.
 Capstone mode first uses a model-based intent node to select goals and dependencies.
 Business goals retain the Domain Pack and Authority path. General goals use the
-isolated executor. Direct Pi mode bypasses intent recognition and domain preparation
-and uses the same executor, managed configuration and native tools. Both modes
-retain the visible Thread history and current model selection.
+isolated executor. Direct Pi mode uses a separate semantic context selector, then
+the same executor, managed configuration and native tools. It does not prepare a
+professional plan or Domain Pack tools. Both modes retain the visible Thread
+history and current model selection. Selection failures remain retryable; there
+is no keyword fallback.
 
 The general executor owns private task workspaces and native read/write/edit/bash
-execution. It cannot access business files, model assets, authority endpoints or
-host credentials. Provider access uses a revocable relay grant. Pi discovers
+execution. It cannot access business host directories, Authority endpoints or
+host credentials. The application can provide authorized public material copies
+in a protected task input area. Provider access uses a revocable relay grant. Pi discovers
 managed settings, context files, skills and extensions through its native conventions;
-the application supplies bounded conversation and dependency observations.
-Installation and configuration management for skills/MCP remains separate work.
+the application supplies bounded conversation, dependency observations and public
+business context. The present model projection supplies identity, public version
+and history, not full model tables. A sample network bundled with a skill does
+not stand for the selected business model.
 
-Requests and results cross `capstone-pi-task/1` and `capstone-pi-task-result/1`.
+New typed requests cross `capstone-pi-task/2`; text-only legacy `/1` recovery is
+retained. Results use `capstone-pi-task-result/1`.
 Host-issued sources identify observed tool output; they do not prove that a web
 document is correct. Saved work products have bounded, hash-checked bytes.
-Neither result type admits Authority results, simulator evidence or model revisions.
+Native results admit neither Authority results nor simulator evidence. Public
+object versions in the separate checked context are bound by the host.
 Typed external observations may supplement a business goal; changing a business
 model still requires an explicit Domain Pack contract and authority admission.
 Accepted recognition decisions, executor identity and child task identity are fixed
 for retry. An unknown prior execution outcome must not trigger blind side-effect replay.
+
+### Shared business context and role resources
+
+The application owns `capstone-business-context/1`: an immutable Thread snapshot,
+per-goal object and material selection, explicit exclusions, public outcomes and
+coverage. Public projections keep source identity and version. Historical results
+need new current-run admission before professional reuse. Domain Packs own domain
+projection semantics; the Kernel owns no grid-specific mapping. Context grants
+data access within the task; it does not publish tools.
+
+Three execution roles have distinct resource profiles: `harness_engine`,
+`delegated_pi` and `direct_pi`. The last two are execution identities under the
+existing Capstone/Pi modes. Checked-in native settings and
+[`agent-resources.json`](../../configs/runtime/agent-resources.json) select fixed
+sources and role adapters. Managed installation, actual SDK loading and exact
+tool schema checks must succeed before a resource is ready. Accepted profile
+revisions and protected installations persist for retry; revocation or missing
+bytes fail explicitly. New tasks use the new configuration.
+
+Native Pi loads the pinned PowerSkills pandapower skill and ten bounded PowerMCP
+tools through the managed MCP extension. Harness uses an original Domain Pack
+adapter guide and the Authority-owned `analysis.run` operation
+`diagnostic.structural`. The Authority exports its current model snapshot and
+invokes PowerMCP `load_network` and `audit_network`; exact contracts, frozen
+revision, result persistence and evidence admission enforce the boundary. Prompt
+text alone does not enforce it. Raw upstream skills and MCP tools require role
+adaptation; installation alone does not make them professionally compatible.
+
+The App selects `/skills`, typed `/skill:<name> <task>` and `/context` from the
+server's bounded input catalog. UI actions create no model request. Ordinary text,
+including unknown slash text, cannot expand into a native command. Submission
+binds role, resource revision, original input and context choices atomically.
+The default federated conversation has no assembled Case execution service;
+its Case operation is unavailable. The independent Case module and `/old`
+compatibility entry remain separate contracts.
 
 ## Four layers and dependency direction
 

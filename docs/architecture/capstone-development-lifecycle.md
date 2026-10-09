@@ -86,6 +86,16 @@ records use persistent storage, which can grow independently of process memory.
 Automatic record deletion requires a separate retention contract. Preserve
 existing data while that contract is deferred.
 
+Native resource profiles and installations have a separate persistent lifecycle.
+The general Pi service retains accepted role revisions and immutable Linux
+installations in its profile and resource volumes. A new image adds its tested
+installation at the final runtime path; it does not relocate an existing venv or
+replace accepted bytes. Profile revocation, absent bytes or incompatible executor
+identity fails an old task explicitly. Process-cache eviction does not delete
+these resources. Backend Authority resources are installed independently in that
+backend image; task startup never installs dependencies. Stage isolation applies
+to these private volumes as well as the ledger and artifact storage.
+
 ## Isolation invariants
 
 Cloud development and user trial are separate deployment stages. They must not

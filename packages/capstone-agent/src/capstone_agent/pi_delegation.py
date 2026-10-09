@@ -14,7 +14,7 @@ import re
 import sys
 import time
 from types import MappingProxyType
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 from urllib.parse import urlsplit
 
 import httpx
@@ -198,7 +198,7 @@ class PiTaskRequest:
         document = {'schema': 'capstone-pi-task/1', **_json_document(
             {name: getattr(self, name) for name in _TASK_V1_FIELDS})}
         if self.business_context is not None:
-            document.update(schema='capstone-pi-task/2', business_context=self.business_context.to_document(),
+            document.update(schema='capstone-pi-task/2', business_context=cast(BusinessContext, self.business_context).to_document(),
                             resource_profile=_json_document(self.resource_profile), input=_json_document(self.input))
         if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_DOCUMENT_BYTES:
             raise ValueError('Pi JSON exceeds byte bounds')
