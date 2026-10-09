@@ -22,6 +22,7 @@ from .conversation_context import ConversationContext
 from .request_intent import NodeControl
 
 MAX_DOCUMENT_BYTES = 256 * 1024
+CANCELLATION_TIMEOUT_SECONDS = 0.5
 STATUSES = frozenset({"completed", "needs_clarification", "capability_unavailable", "failed", "cancelled"})
 _FORBIDDEN = {"authority", "authority_refs", "result_refs", "evidence_refs", "model_revision",
               "api_key", "credentials", "password", "token", "secret", "endpoint"}
@@ -243,6 +244,7 @@ class HttpGeneralPiExecutor:
         return self._capability
 
     def _call(self, method, path, *, document=None, timeout=0.25, checkpoint=lambda: None):
+        checkpoint()
         try:
             with httpx.Client(trust_env=False, follow_redirects=False, headers=self._headers) as client:
                 with client.stream(method, self._origin + path, json=document, timeout=timeout) as response:
@@ -253,14 +255,46 @@ class HttpGeneralPiExecutor:
                         body.extend(chunk)
                         if len(body) > MAX_DOCUMENT_BYTES:
                             raise ValueError("Pi response exceeds byte bounds")
-            return _json_document(json.loads(body))
+            checkpoint()
+            document = _json_document(json.loads(body))
+            checkpoint()
+            return document
         except (httpx.HTTPError, json.JSONDecodeError, UnicodeDecodeError):
             checkpoint()
             raise RuntimeError("Pi executor transport failed; task state may be unknown") from None
 
     def cancel(self, task_id):
+        """Request cancellation and confirm a bound terminal state within cleanup budget."""
         _id(task_id)
-        self._call("DELETE", "/tasks/" + task_id)
+        control = NodeControl(lambda: None, time.monotonic() + CANCELLATION_TIMEOUT_SECONDS)
+
+        def call(method):
+            control.checkpoint()
+            return self._call(method, "/tasks/" + task_id,
+                              timeout=max(0.001, min(0.1, control.deadline - time.monotonic())),
+                              checkpoint=control.checkpoint)
+
+        receipt = call("DELETE")
+        if receipt != {"task_id": task_id, "status": "cancellation_requested"}:
+            raise ValueError("Pi cancellation receipt is invalid; task state is unknown")
+        while True:
+            response = call("GET")
+            if (set(response) != {"status", "events", "result"}
+                    or not isinstance(response["status"], str)
+                    or not isinstance(response["events"], list) or len(response["events"]) > 128):
+                raise ValueError("Pi cancellation status is invalid; task state is unknown")
+            status = response["status"]
+            if status in STATUSES:
+                document = _json_document(response["result"])
+                _validate_result(document, task_id, document.get("parent_attempt_id"),
+                                 _json_document(self.identity))
+                if document["status"] != status:
+                    raise ValueError("Pi cancellation terminal status is invalid")
+                control.checkpoint()
+                return
+            if status not in {"queued", "running"} or response["result"] is not None:
+                raise ValueError("Pi cancellation status is invalid; task state is unknown")
+            time.sleep(min(self._poll_interval, max(0, control.deadline - time.monotonic())))
 
     def execute(self, request, control, on_event):
         if request.executor_identity != self.identity:
@@ -301,6 +335,7 @@ class HttpGeneralPiExecutor:
                             raise ValueError("Pi event history exceeds bounds")
                         seen_events[event_id] = event
                         on_event(_json_document(event))
+                        checkpoint()
                 status = response["status"]
                 if not isinstance(status, str):
                     raise ValueError("Pi task status is invalid")
@@ -308,6 +343,7 @@ class HttpGeneralPiExecutor:
                     result = PiTaskResult.from_document(response["result"], request)
                     if result.status != status:
                         raise ValueError("Pi terminal status does not match result")
+                    checkpoint()
                     complete = True
                     return result
                 if status not in {"queued", "running"} or response["result"] is not None:

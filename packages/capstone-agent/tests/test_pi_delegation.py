@@ -117,7 +117,12 @@ def service():
             state["polls"] += 1
             if state.get("delay"):
                 time.sleep(state["delay"])
-            request = PiTaskRequest.from_document(state["requests"][-1])
+            request = PiTaskRequest.from_document(state["requests"][-1] if state["requests"] else request_document())
+            if state["cancelled"] and not state.get("cancel_running"):
+                result = result_document(request)
+                result["status"] = "cancelled"
+                self.send(state.get("cancel_response", {"status": "cancelled", "events": [], "result": result}))
+                return
             if "response" in state:
                 self.send(state["response"])
                 return
@@ -127,7 +132,23 @@ def service():
 
         def do_DELETE(self):
             state["cancelled"].append(self.path)
-            self.send({"task_id": "task-1"})
+            if state.get("slow_delete"):
+                body = json.dumps({"task_id": "task-1", "status": "cancellation_requested"}).encode()
+                body += b" " * 40
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                try:
+                    self.wfile.write(body[:-40])
+                    self.wfile.flush()
+                    for _ in range(40):
+                        time.sleep(0.025)
+                        self.wfile.write(b" ")
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return
+            self.send(state.get("delete_response", {"task_id": "task-1", "status": "cancellation_requested"}))
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -253,3 +274,73 @@ def test_slow_response_obeys_parent_deadline(service):
         executor(origin).execute(PiTaskRequest.from_document(request_document()),
                                  NodeControl(lambda: None, time.monotonic() + 0.06), lambda _: None)
     assert state["cancelled"] == ["/tasks/task-1"]
+
+
+@pytest.mark.parametrize("receipt", [{}, {"task_id": "other", "status": "cancellation_requested"},
+    {"task_id": "task-1", "status": "completed"},
+    {"task_id": "task-1", "status": "cancellation_requested", "extra": True}])
+def test_cancel_requires_bound_exact_receipt(service, receipt):
+    origin, state = service
+    state["delete_response"] = receipt
+    with pytest.raises(ValueError, match="cancellation receipt"):
+        executor(origin).cancel("task-1")
+
+
+def test_cancel_has_total_budget_for_continuous_slow_body(service):
+    origin, state = service
+    state["slow_delete"] = True
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        executor(origin).cancel("task-1")
+    assert time.monotonic() - start < 0.85
+
+
+@pytest.mark.parametrize("reason", ["cancel", "deadline"])
+def test_event_callback_parent_stop_prevents_completed_return(service, reason):
+    origin, state = service
+    stopped = False
+
+    def check():
+        if stopped:
+            raise RuntimeError("parent stopped during event")
+
+    def on_event(_):
+        nonlocal stopped
+        if reason == "cancel":
+            stopped = True
+        else:
+            time.sleep(0.09)
+
+    with pytest.raises(RuntimeError if reason == "cancel" else TimeoutError):
+        executor(origin).execute(PiTaskRequest.from_document(request_document()),
+                                 NodeControl(check, time.monotonic() + 0.07), on_event)
+    assert state["cancelled"] == ["/tasks/task-1"]
+
+
+def test_cancel_waits_for_stopped_state_and_reports_unknown(service):
+    origin, state = service
+    state["running"] = True
+    state["cancel_running"] = True
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        executor(origin).cancel("task-1")
+    assert state["polls"] > 1
+    assert time.monotonic() - start < 0.85
+
+
+def test_cancel_rejects_terminal_result_for_other_task(service):
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    result = result_document(request)
+    result["task_id"] = "other"
+    state["cancel_response"] = {"status": "completed", "events": [], "result": result}
+    with pytest.raises(ValueError):
+        executor(origin).cancel("task-1")
+
+
+def test_cancel_accepts_already_completed_bound_task(service):
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    state["cancel_response"] = {"status": "completed", "events": [], "result": result_document(request)}
+    executor(origin).cancel("task-1")
+    assert state["polls"] == 1
