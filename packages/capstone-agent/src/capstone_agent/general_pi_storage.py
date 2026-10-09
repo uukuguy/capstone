@@ -13,6 +13,14 @@ def request_hash(document: dict) -> str:
     return sha256(json.dumps(document, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 class GeneralPiStorage:
     def __init__(self, root: Path, *, retention_seconds: float = 86400,
                  max_receipts: int = 4096, max_bytes: int = 64 * 1024 * 1024):
@@ -24,6 +32,7 @@ class GeneralPiStorage:
         for path in [root, *(root / name for name in ('records', 'observations', 'artifacts'))]:
             path.mkdir(parents=True, mode=0o700, exist_ok=True)
             path.chmod(0o700)
+        sync_directory(root)
 
     def _write(self, path: Path, data: bytes) -> None:
         with self.lock:
@@ -32,6 +41,7 @@ class GeneralPiStorage:
             if total - current + len(data) > self.max_bytes:
                 raise OSError('General Pi private storage quota reached')
             path.parent.mkdir(mode=0o700, exist_ok=True)
+            sync_directory(path.parent.parent)
             temp = path.with_suffix('.tmp')
             with temp.open('wb') as stream:
                 os.chmod(temp, 0o600)
@@ -39,6 +49,7 @@ class GeneralPiStorage:
                 stream.flush()
                 os.fsync(stream.fileno())
             temp.replace(path)
+            sync_directory(path.parent)
 
     def load(self, task_id: str) -> dict | None:
         with self.lock:

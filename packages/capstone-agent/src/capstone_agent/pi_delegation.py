@@ -284,7 +284,8 @@ class HttpGeneralPiExecutor:
             return await asyncio.wait_for(checked_fetch(), timeout=total_timeout)
 
         try:
-            return asyncio.run(bounded_fetch())
+            from .bounded_http_loop import run_http
+            return run_http(bounded_fetch())
         except TimeoutError:
             checkpoint()
             raise TimeoutError("Pi transport deadline expired; task state is unknown") from None

@@ -4,7 +4,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import http.client
+import asyncio
+from concurrent.futures import CancelledError
 import json
 import os
 from pathlib import Path
@@ -13,10 +14,13 @@ import shutil
 import threading
 import time
 from urllib.parse import urlsplit
+import httpx
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
 from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES
 from .general_pi_storage import GeneralPiStorage, request_hash
+from .general_pi_relay import ProviderRelay, forward_provider
+from .bounded_http_loop import run_http
 
 
 class GeneralPiHost:
@@ -175,7 +179,8 @@ class NativeTaskRunner:
         self.root, self.config_root, self.command = root, config_root, command
         self.model, self.relay_origin = model, relay_origin
         self._lock = threading.Lock()
-        self.grants: dict[str, str] = {}
+        self.relay = ProviderRelay()
+        self.grants = self.relay.grants
         root.mkdir(mode=0o711, parents=True, exist_ok=True)
         (root / 'tasks').mkdir(mode=0o711, exist_ok=True)
 
@@ -188,7 +193,7 @@ class NativeTaskRunner:
             counter.write_text(str(uid + 1))
             counter.chmod(0o600)
             grant = secrets.token_urlsafe(32)
-            self.grants[request.task_id] = grant
+            self.relay.register(request.task_id, grant, time.monotonic() + request.timeout_seconds)
         workspace = task_workspace(self.root / 'tasks', request.task_id)
         process = None
         try:
@@ -211,7 +216,7 @@ class NativeTaskRunner:
                     process.stop()
             finally:
                 with self._lock:
-                    self.grants.pop(request.task_id, None)
+                    self.relay.revoke(request.task_id)
 
     def verify_tools(self, identity):
         task_id = 'readiness-' + secrets.token_hex(8)
@@ -230,6 +235,10 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
     if not control_token:
         raise ValueError('General Pi control authentication is required')
     class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(2)
+
         def log_message(self, format, *args):
             pass
 
@@ -298,11 +307,16 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             if (runner is None or upstream is None or not provider_key or len(parts) != 5
                     or parts[3:] != ['chat', 'completions']):
                 return self.send_json(404, {'error': 'relay_not_found'})
-            grant = runner.grants.get(parts[2])
-            if not grant or not secrets.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + grant):
-                return self.send_json(401, {'error': 'unauthorized'})
-            connection = None
             try:
+                authorization = self.headers.get('Authorization', '')
+                grant = authorization.removeprefix('Bearer ') if authorization.startswith('Bearer ') else ''
+                lease = runner.relay.acquire(parts[2], grant, self.connection)
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            except RuntimeError:
+                return self.send_json(503, {'error': 'relay_capacity_reached'})
+            try:
+                self.connection.settimeout(0.2)
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 2 * 1024 * 1024:
                     raise ValueError()
@@ -313,31 +327,28 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 target = urlsplit(upstream)
                 if target.hostname is None or target.scheme not in {'http', 'https'}:
                     raise ValueError()
-                connection_type = http.client.HTTPSConnection if target.scheme == 'https' else http.client.HTTPConnection
-                connection = connection_type(target.hostname, target.port, timeout=60)
-                connection.request('POST', target.path.rstrip('/') + '/chat/completions', body,
-                    {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider_key})
-                response = connection.getresponse()
-                self.send_response(response.status)
-                self.send_header('Content-Type', response.getheader('Content-Type', 'application/json'))
-                self.send_header('Connection', 'close')
-                self.end_headers()
-                self.close_connection = True
-                total = 0
-                while chunk := response.read1(8192):
-                    total += len(chunk)
-                    if total > 4 * 1024 * 1024:
-                        break
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
-            except (ValueError, OSError, http.client.HTTPException):
-                if connection is None:
-                    self.send_json(400, {'error': 'relay_request_invalid'})
+                run_http(forward_provider(self, lease, upstream, body, provider_key))
+            except (ValueError, OSError, httpx.HTTPError, asyncio.CancelledError, CancelledError):
                 self.close_connection = True
             finally:
-                if connection is not None:
-                    connection.close()
-    return ThreadingHTTPServer(address, Handler)
+                runner.relay.release(lease)
+    class BoundedServer(ThreadingHTTPServer):
+        slots = threading.BoundedSemaphore(32)
+        def process_request(self, request, client_address):
+            if not self.slots.acquire(blocking=False):
+                self.close_request(request)
+                return
+            try:
+                super().process_request(request, client_address)
+            except BaseException:
+                self.slots.release()
+                raise
+        def process_request_thread(self, request, client_address):
+            try:
+                super().process_request_thread(request, client_address)
+            finally:
+                self.slots.release()
+    return BoundedServer(address, Handler)
 
 
 def main():
@@ -362,7 +373,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'pi_delegation.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py',
                                  'resources/general-context.mjs'))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
