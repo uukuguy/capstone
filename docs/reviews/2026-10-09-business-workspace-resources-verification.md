@@ -2,8 +2,8 @@
 
 Date: 2026-10-09. Scope: local offline integration of Tasks 1–7.
 This receipt records actual execution and controlled-fixture limits. Main
-integration, its canonical rebuild and independent final review are separate
-delivery steps. No cloud deployment, acceptance tag, paid Provider request or
+integration, canonical rebuild and independent final review are complete under
+the bounded scope recorded below. No cloud deployment, acceptance tag, paid Provider request or
 personal authentication configuration was used.
 
 ## Runtime proof
@@ -259,3 +259,53 @@ retaining A produces an explicit unavailable result. This work adds no backend
 volume or automatic migration and does not claim seamless cross-backend-image
 recovery. The earlier native-Pi cross-image retention proof remains separate.
 No active installation cleanup was added.
+
+## Main integration and actual App verification
+
+The full branch review approved `a1e086a` after I1, M1 and M2 were resolved.
+No Critical or Important finding remains. M3 installer diagnostics and the
+upstream dependency debt above remain deferred. Main was fast-forwarded without
+overwriting the seven pre-existing modified paths or existing runtime data.
+
+The first main App check found a mobile layout defect: the skills panel opened
+above an overflow-hidden thread boundary, which clipped its heading and close
+button. Follow-up `7fda5e9` limits all input panels to the measured available
+thread space. The fix passed independent review, **385 App tests in 36 files**,
+TypeScript and the production build. The existing build warnings remain.
+
+The final `make capstone-local-rebuild` ran from main at `7fda5e9` and exited
+zero. Its log is `/tmp/capstone-business-workspace-main-final-rebuild.log`.
+The final runtime identities are:
+
+| Runtime | Exact image ID |
+| --- | --- |
+| API, pandapower worker and PyPSA worker | `sha256:85f8c9ca57a086ec38a5fae922b4392051f2e439e17063c760813cb781e471f9` |
+| Native Pi executor | `sha256:8b3b8908f4bfa93f6d1bf00d1fc970d890acbfc915420793312f96edae8da74d` |
+
+All four services reported healthy. API `/health/ready` returned `ready` at
+`http://127.0.0.1:8767`; the App was reachable at
+`http://192.168.2.5:5173/`. Main `make doctor` passed. The merged input-control
+check passed **16 tests in three files** before the layout fix; the final fix's
+complete App suite covers that change. No paid Provider request was sent.
+
+Actual Chromium checks used a new test Thread, `thr_382bc11e0b3c2b792aa7`, at
+1280×820 and 390×844. The live catalog returned both delegated and professional
+skills in Capstone mode, and the native skill in Pi mode. Context showed the
+selected IEEE-39 identity and the truthful absence of complete network tables.
+An explicit include choice and draft survived mode changes and page reload.
+An incompatible skill remained visible, with a reason and disabled submission.
+`/skills` plus Enter opened the picker without submitting a task. The final
+page had zero console errors or warnings.
+
+After removing temporary browser probe styles by reload, the final mobile
+panel started at y=363.515 inside the thread's y=355.515 boundary. Its close
+button passed a center-point hit test and an actual click. The same check
+passed with an incompatibility warning present. Document width equalled the
+390px viewport. Desktop skills/context layout remained usable. Screenshots
+and snapshots are retained under ignored
+`output/playwright/business-workspace-main/`; the named test browser was closed.
+
+These actual main checks prove readiness and UI integration. Actual execution
+with controlled model responses and real sample tools is the separate fresh
+image proof above. Live model answer quality, complete business model exports,
+cloud deployment and Case module expansion remain outside this acceptance.
