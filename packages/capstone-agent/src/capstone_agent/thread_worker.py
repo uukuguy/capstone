@@ -68,8 +68,13 @@ def _run_claimed_attempt(
                     raise DecisionUnavailable('ordinary_conversation_disabled')
                 service.append_runtime_event(claim, event_type='intent_started',
                                              payload={'stage': 'understanding'})
-                plan = semantic(claim, NodeControl(check_intent, time.monotonic() + 120),
-                                service.freeze_attempt_input)
+                control = NodeControl(check_intent, time.monotonic() + 120)
+                if getattr(runtime_factory, 'supports_frozen_intent_decision', False):
+                    plan = semantic(claim, control, service.freeze_attempt_input,
+                                    freeze_decision=service.freeze_attempt_decision)
+                else:
+                    # Existing custom planners retain their three-argument seam.
+                    plan = semantic(claim, control, service.freeze_attempt_input)
             else:
                 plan = router.plan(routing_input_for_claim(claim))
             if not isinstance(plan, TurnPlan):

@@ -254,6 +254,77 @@ exit 1, no matches
 
 The pinned Pi 0.80.6 dependency-audit finding remains out of scope and was not changed.
 
+## 2026-10-09 Task 3: Shared General Pi Delegation and Direct Execution
+
+### Delivered behavior
+
+- Hosted pandapower and PyPSA applications discover only an explicitly configured
+  general executor. The health request has a two-second total limit and does not
+  call a Provider. Private origins and control tokens stay outside task resources.
+- The semantic catalog contains Domain Pack profiles and the actual general Pi
+  executor operation and native-tool description. External lookup can select
+  `general-pi` without naming the child's retrieval source. Business execution
+  cannot select that executor.
+- Direct `pi_reference` execution bypasses recognition and Domain Pack preparation.
+  Direct and delegated execution use the same injected general executor. Missing
+  host configuration does not activate the restricted ordinary-session fallback.
+- Accepted resources freeze the executor identity, capability, timeout, original
+  parent Attempt, instruction, and shared history. General tasks receive reader
+  text and no prior Authority resource collection or internal model projection.
+- The scheduler executes source-bound goals in dependency order. A failed goal
+  blocks its dependants while independent work can finish. Business preparation
+  receives only that goal's requested profiles, referenced history, and typed
+  `PiTaskResult` external observations. Observation input creates no Authority
+  reference and does not apply an automatic model change.
+- A single general answer is returned directly. Mixed output identifies business
+  results and general observations. Professional admission remains required for
+  every completed business goal; a limited answer cannot forge professional
+  success. Typed partial admission applies only when business work never started.
+- General tool observations, child lifecycle, source receipts, artifact receipts,
+  and usage are diagnostic Thread events. Assistant text uses the public text
+  event contract. Metadata receipts are bounded and retain the full metadata hash.
+  Required receipt or professional admission failures remain fatal.
+- Parent heartbeat, cancellation, lease checks, and deadlines reach child control.
+  Stable task identities use the frozen original parent and accepted goal identity.
+  The host replay test proves a repeated task request does not repeat its action.
+- Memory and PostgreSQL now save an immutable accepted decision separately from
+  input. Retry copies both snapshots, rebinds only current Attempt/message identity,
+  and does not call recognition again. Existing custom planners keep their
+  three-argument contract through an explicit optional planner feature flag.
+  Retry acceptance mode is verified through the existing central event helpers.
+
+### Red and green evidence
+
+- Initial new delegation tests: five failures for the absent executor API.
+- Follow-up red checks covered mixed source excerpts, failed general assurance,
+  discovery, typed observations, business dependencies, child receipts, large
+  source metadata, and configuration changes before execution.
+- Decision persistence tests first failed for absent memory/PostgreSQL methods.
+  The changing-recognizer regression then proved one recognition call and
+  identical child request documents across retry.
+- Final delegation suite: **31 passed**.
+- Final focused runtime, admission, worker, history, and decision persistence
+  suite: **123 passed, 2 skipped** in 11.20 seconds.
+- Actual PostgreSQL 17 checks: decision persistence, PostgreSQL Thread, and
+  conversation context suites: **29 passed** in 1.88 seconds. These used a
+  temporary localhost Docker database. The container was removed. The live
+  Capstone database was not used.
+- Broad Capstone suite excluding registered-worker integration: **866 passed,
+  49 skipped**, one existing Starlette deprecation warning, in 45.69 seconds.
+  The final focused suite also checked the admission-persistence guards.
+- Hosted application checks: pandapower **2 passed**; PyPSA **5 passed**.
+- Pyright over all changed source files: **0 errors, 0 warnings**.
+- `git diff --check`: passed.
+
+### Delivery limits
+
+No paid Provider call, deployment, or local image rebuild was performed by this
+task. The parent owns the rebuild, full repository gates, and final review.
+External observations do not implement automatic unit/location/time mapping or
+model-input authorization. Source and artifact receipts do not imply that the
+browser has a public download endpoint. Real general Pi task quality and cost
+remain separate authorized acceptance work.
+
 ## Workstream B Task 3 Second Review Fix: Boundary Hardening and Compatibility
 
 ### RED Evidence

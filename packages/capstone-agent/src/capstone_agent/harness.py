@@ -86,6 +86,22 @@ class AdmittedAttemptAnswer:
             raise ValueError("offline admission must not create run evidence")
 
 
+@dataclass(frozen=True, slots=True)
+class AdmittedPartialGoalAnswer(AdmittedAttemptAnswer):
+    """Trusted scheduler receipt: general work finished; business never started."""
+
+    completed_general_goal_ids: tuple[str, ...] = ()
+    unexecuted_business_goal_ids: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        super(AdmittedPartialGoalAnswer, self).__post_init__()
+        if (self.mode != 'limited' or self.result_refs or self.evidence_refs
+            or not self.completed_general_goal_ids or not self.unexecuted_business_goal_ids
+            or any(not isinstance(identity, str) or not identity for identity in
+                   (*self.completed_general_goal_ids, *self.unexecuted_business_goal_ids))):
+            raise ValueError('partial goal admission is invalid')
+
+
 class HarnessRuntimeUnavailable(RuntimeError):
     """The requested replaceable runtime is not installed or enabled."""
 
@@ -533,7 +549,8 @@ class HarnessAttemptRunner:
             )
             if plan is not None and plan.route == "professional" and (
                 candidate is None
-                or (candidate.mode != "authority_backed" and not observation_admitted)
+                or (candidate.mode != "authority_backed" and not observation_admitted
+                    and not isinstance(candidate, AdmittedPartialGoalAnswer))
                 or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
             ):
                 raise _AttemptAdmissionError("capability_required")

@@ -133,7 +133,11 @@ def build_registered_pandapower_thread_application():
                 resolved_llm=resolved, workspace_root=workspace_root,
                 base_environment=environment,
             )
-        assembly = with_intent_runtime(assembly, conversation_builder)
+        from capstone_agent.general_executor_composition import configured_general_executor
+        environment = load_runtime_environment(root)
+        assembly = with_intent_runtime(assembly, conversation_builder,
+            general_executor=configured_general_executor(environment),
+            general_timeout_seconds=float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600')))
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

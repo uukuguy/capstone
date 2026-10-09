@@ -558,6 +558,8 @@ class ThreadExecutionService(ThreadService, Protocol):
 
     def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]: ...
 
+    def freeze_attempt_decision(self, claim: AttemptClaim, document: Mapping[str, Any] | None) -> dict[str, Any] | None: ...
+
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool: ...
 
     def cancel_requested(self, claim: AttemptClaim) -> bool: ...
@@ -1304,6 +1306,7 @@ class InMemoryThreadService:
                             "command_id": parsed["command_id"],
                             "conversation_context": prior["conversation_context"],
                             "intent_input_snapshot": prior.get("intent_input_snapshot"),
+                            "intent_decision_snapshot": prior.get("intent_decision_snapshot"),
                         }
                         receipt = self._receipt(
                             parsed, status="accepted", accepted_event_seq=event.event_seq,
@@ -1530,6 +1533,17 @@ class InMemoryThreadService:
             if record.get("intent_input_snapshot") is None:
                 record["intent_input_snapshot"] = json.loads(_canonical(document))
             return json.loads(_canonical(record["intent_input_snapshot"]))
+
+    def freeze_attempt_decision(self, claim: AttemptClaim, document: Mapping[str, Any] | None) -> dict[str, Any] | None:
+        """Save the accepted semantic goal identity once, including across retry."""
+        if document is not None:
+            _validate_bounded_json(document, name='attempt.intent_decision', maximum=32_768)
+        with self._lock:
+            record = self._require_claim(claim)
+            if record.get('intent_decision_snapshot') is None and document is not None:
+                record['intent_decision_snapshot'] = json.loads(_canonical(document))
+            frozen = record.get('intent_decision_snapshot')
+            return None if frozen is None else json.loads(_canonical(frozen))
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
         if lease_seconds < 1:
@@ -2145,6 +2159,7 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
@@ -2789,15 +2804,18 @@ class PostgresThreadService:
                                 """INSERT INTO capstone_thread_attempts
                                    (attempt_id, thread_id, run_id, turn_id, command_id, kind,
                                     instruction, model_context_id, selection_revision,
-                                    model_context_snapshot, conversation_context_snapshot, intent_input_snapshot, runtime_mode, phase)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                                    model_context_snapshot, conversation_context_snapshot, intent_input_snapshot,
+                                    intent_decision_snapshot, runtime_mode, phase)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                                 (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                                  parsed["command_id"], prior["kind"], prior["instruction"],
                                  snapshot.active_model_context.id,
                                  snapshot.active_model_context.selection_revision,
                                  Jsonb(snapshot.active_model_context.to_document()),
                                  Jsonb(_attempt_conversation_document(connection, prior)),
-                                 None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"]), attempt.runtime_mode),
+                                 None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"]),
+                                 None if prior['intent_decision_snapshot'] is None else Jsonb(prior['intent_decision_snapshot']),
+                                 attempt.runtime_mode),
                             )
                             connection.execute(
                                 """UPDATE capstone_threads
@@ -3210,6 +3228,23 @@ class PostgresThreadService:
                 frozen = json.loads(_canonical(document))
                 connection.execute("UPDATE capstone_thread_attempts SET intent_input_snapshot = %s WHERE attempt_id = %s", (Jsonb(frozen), claim.attempt.attempt_id))
             return json.loads(_canonical(frozen))
+
+    def freeze_attempt_decision(self, claim: AttemptClaim, document: Mapping[str, Any] | None) -> dict[str, Any] | None:
+        if document is not None:
+            _validate_bounded_json(document, name='attempt.intent_decision', maximum=32_768)
+        with self._connect() as connection:
+            row = connection.execute("""SELECT intent_decision_snapshot FROM capstone_thread_attempts
+                WHERE thread_id = %s AND attempt_id = %s AND lease_token = %s
+                AND phase = 'running' AND lease_deadline > clock_timestamp() FOR UPDATE""",
+                (claim.thread_id, claim.attempt.attempt_id, claim.lease_token)).fetchone()
+            if row is None:
+                raise ThreadExecutionError('attempt lease is unavailable')
+            frozen = row['intent_decision_snapshot']
+            if frozen is None and document is not None:
+                frozen = json.loads(_canonical(document))
+                connection.execute('UPDATE capstone_thread_attempts SET intent_decision_snapshot = %s WHERE attempt_id = %s',
+                                   (Jsonb(frozen), claim.attempt.attempt_id))
+            return None if frozen is None else json.loads(_canonical(frozen))
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
         if lease_seconds < 1:
