@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import replace
+from hashlib import sha256
+import json
 from typing import TYPE_CHECKING
 from typing import cast
 
@@ -11,6 +13,9 @@ from .request_intent import IntentDecision, IntentRecognizer, IntentRequest, Nod
 from .thread_service import AttemptClaim, PriorResultReference
 from .turn_router import RouterConfig, TurnPlan, routing_input_for_claim
 from .pi_delegation import GeneralPiExecutor
+from .business_context import BusinessContext, business_context_for
+from .context_selection import (ContextSelectionRequest, ContextSelectionDecision,
+                                ContextSelector, selected_business_context)
 
 _LEGACY = object()
 
@@ -79,6 +84,28 @@ def intent_request_for_claim(claim: AttemptClaim, general_capability: Mapping | 
     })
 
 
+def context_selection_request_for_claim(claim: AttemptClaim) -> ContextSelectionRequest:
+    """Project public identities and history; no Domain Pack catalog leaves the host."""
+    source = intent_request_for_claim(claim).to_document()
+    objects = []
+    for item in source['objects']:
+        revision = item.get('model_revision')
+        version = None if revision is None else 'sha256:' + sha256(json.dumps({
+            'workspace_id': source['thread_id'], 'object_id': item['object_id'], 'revision': revision},
+            sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+        objects.append({'object_id': item['object_id'],
+            'display_name': item.get('display_name', item.get('model_id', item['object_id'])),
+            'kind': 'model', 'version': version,
+            'relation': 'current' if item['object_id'] == claim.model_context.id else 'historical',
+            'source': {'kind': 'workspace', 'workspace_id': source['thread_id'],
+                'message_refs': [message['message_id'] for message in source['messages']
+                    if message['model_context_id'] == item['object_id']]}})
+    return ContextSelectionRequest.from_document({'schema': 'capstone-context-selection-request/1',
+        'workspace_id': source['thread_id'], 'current_object_id': claim.model_context.id,
+        **{key: source[key] for key in ('turn_id', 'attempt_id', 'instruction_message_id',
+            'instruction', 'history_cutoff', 'history_truncated', 'messages')}, 'objects': objects})
+
+
 class IntentRuntimeFactory:
     """Keep recognition interchangeable while enforcing application permissions."""
 
@@ -88,11 +115,13 @@ class IntentRuntimeFactory:
                  recognizer_factory: Callable[[], IntentRecognizer],
                  ordinary_session_factory: Callable[[AttemptClaim, IntentDecision], PiPromptSession],
                  *, general_executor: GeneralPiExecutor | None | object = _LEGACY,
-                 general_timeout_seconds: float = 600):
+                 general_timeout_seconds: float = 600,
+                 context_selector_factory: Callable[[], ContextSelector] | None = None):
         self._business = business_factory
         self._recognizer = recognizer_factory
         self._ordinary = ordinary_session_factory
         self._general = general_executor
+        self._context_selector = context_selector_factory
         if not 1 <= general_timeout_seconds <= 3600:
             raise ValueError('general task timeout is invalid')
         self._general_timeout = general_timeout_seconds
@@ -121,20 +150,14 @@ class IntentRuntimeFactory:
             if (general is None or general['capability'].get('enabled') is not True
                 or general['capability'].get('available') is not True):
                 raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
-            frozen = freeze(claim, {'entrypoint': 'direct',
-                'instruction': claim.instruction,
-                'messages': claim.conversation_context.to_document()['messages'],
-                'resources': {'general_executor': general}})
-            self._check_general_configuration(general, frozen['resources'])
-            return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
-                'ordinary', 'direct_pi', 'turn-direct-pi-v1', None, {},
-                intent_resources=frozen)
+            return self._plan_direct(claim, control, freeze, freeze_decision, general)
         recognizer = self._recognizer()
         identity = recognizer.identity.to_document()
         request_document = intent_request_for_claim(claim, None if general is None else general['capability']).to_document()
         visible_attempts = {message['attempt_id'] for message in request_document['messages']
                             if message['status'] == 'completed'}
         resources = {'application_catalog': claim.application_catalog,
+                     'current_object_id': claim.model_context.id,
                      'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
                                         'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                        for ref in claim.prior_results if ref.attempt_id in visible_attempts]}
@@ -198,6 +221,18 @@ class IntentRuntimeFactory:
             if stored is None:
                 raise ValueError('accepted intent decision was not saved')
             decision = IntentDecision.from_document(_rebind_decision(stored, claim.attempt.attempt_id), request)
+        # Project from the original accepted identities. Retry message rebinding
+        # must not alter the task snapshot or its public content identity.
+        original = IntentRequest.from_document(frozen['request'])
+        original_decision = IntentDecision.from_document(
+            _rebind_decision(decision.to_document(), frozen['request']['attempt_id']), original)
+        execution_resources = dict(frozen['resources'])
+        if self._general is not _LEGACY:
+            execution_resources['business_contexts'] = {goal['goal_id']: business_context_for(
+                original, original_decision, goal_id=goal['goal_id'],
+                current_object_id=execution_resources.get('current_object_id', original.to_document()['objects'][0]['object_id'])
+            ).to_document() for goal in original_decision.to_document()['goals']
+                if goal['operation'] not in {'business_read', 'business_execute', 'catalog_lookup'}}
         return TurnPlan(
             turn_id=claim.attempt.turn_id, attempt_id=claim.attempt.attempt_id,
             route='professional' if any(goal['operation'] in {'business_read', 'business_execute'}
@@ -207,8 +242,47 @@ class IntentRuntimeFactory:
             router_config=RouterConfig(mode='semantic', model=recognizer.identity.model,
                                        schema='capstone-intent-decision/1'),
             intent_decision=decision, intent_engine=identity, intent_request=request,
-            intent_resources=frozen['resources'],
+            intent_resources=execution_resources,
         )
+
+    def _plan_direct(self, claim, control, freeze, freeze_decision, general):
+        if self._context_selector is None:
+            raise HarnessRuntimeConfigurationError('direct Pi context selector is unavailable')
+        selector = self._context_selector()
+        identity = selector.identity.to_document()
+        frozen = freeze(claim, {'entrypoint': 'direct',
+            'request': context_selection_request_for_claim(claim).to_document(),
+            'engine_identity': identity, 'resources': {'general_executor': general}})
+        self._check_general_configuration(general, frozen['resources'])
+        # Existing accepted /1 direct tasks can still recover their exact inputs.
+        if 'request' not in frozen:
+            return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
+                'ordinary', 'direct_pi', 'turn-direct-pi-v1', None, {}, intent_resources=frozen)
+        if frozen['engine_identity'] != identity:
+            raise HarnessRuntimeConfigurationError('context selection configuration changed since original Attempt')
+        request = ContextSelectionRequest.from_document(frozen['request'])
+        accepted = None if freeze_decision is None else freeze_decision(claim, None)
+        if accepted is None:
+            decision = ContextSelectionDecision.from_document(selector.select(request, control).to_document(), request)
+            context = selected_business_context(request, decision)
+            accepted = {'decision': decision.to_document(), 'business_context': context.to_document()}
+            control.checkpoint()
+            if freeze_decision is not None:
+                accepted = freeze_decision(claim, accepted)
+                if accepted is None:
+                    raise ValueError('accepted context selection was not saved')
+        if set(accepted) != {'decision', 'business_context'}:
+            raise ValueError('frozen context selection fields are invalid')
+        decision = ContextSelectionDecision.from_document(accepted['decision'], request)
+        context = BusinessContext.from_document(accepted['business_context'])
+        if context != selected_business_context(request, decision):
+            raise ValueError('frozen context selection snapshot does not match its decision')
+        source = request.to_document()
+        execution = {**frozen, **accepted, 'instruction': source['instruction'],
+            'messages': [item for item in source['messages'] if item['message_id'] in decision.to_document()['message_refs']]}
+        return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
+            'ordinary', 'direct_pi', 'turn-direct-pi-v2', None, {},
+            intent_engine=identity, intent_resources=execution)
 
     @staticmethod
     def _check_general_configuration(current: dict | None, resources: Mapping) -> None:
@@ -272,6 +346,7 @@ def with_intent_runtime(assembly: ThreadApplicationAssembly,
     """Install semantic preparation in a registered hosted application."""
     from .harness import HarnessRuntimeRegistry
     from .pi_intent import PiIntentRecognizer
+    from .context_selection import PiContextSelector
 
     def recognizer() -> IntentRecognizer:
         builder = builder_factory()
@@ -283,8 +358,13 @@ def with_intent_runtime(assembly: ThreadApplicationAssembly,
             raise HarnessRuntimeConfigurationError('intent configuration changed before execution')
         return builder.build_execution(claim, decision)
 
+    def context_selector() -> ContextSelector:
+        builder = builder_factory()
+        return PiContextSelector(builder.build_context_selection, builder.identity)
+
     factory = IntentRuntimeFactory(assembly.runtime_factory, recognizer, ordinary,
-        general_executor=general_executor, general_timeout_seconds=general_timeout_seconds)
+        general_executor=general_executor, general_timeout_seconds=general_timeout_seconds,
+        context_selector_factory=context_selector)
     registry = HarnessRuntimeRegistry()
     registry.register('pi', factory)
     return replace(assembly, runtime_factory=factory, runtime_registry=registry, runtime_name='pi')

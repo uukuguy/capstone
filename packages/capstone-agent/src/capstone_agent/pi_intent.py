@@ -19,10 +19,11 @@ from capability_agent.runtime.trace import JsonlTraceWriter
 from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .execution_context import execution_plan_for
 from .request_intent import IntentDecision, IntentEngineIdentity, IntentRequest, NodeControl
+from .context_selection import ContextSelectionRequest
 
 
 _RESOURCES = Path(__file__).parent / "resources"
-_CONFIG_NAMES = ("SYSTEM.md", "APPEND_SYSTEM.md", "INTENT.md", "settings.json")
+_CONFIG_NAMES = ("SYSTEM.md", "APPEND_SYSTEM.md", "INTENT.md", "CONTEXT.md", "settings.json")
 _SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,255}\Z")
 
 
@@ -158,9 +159,9 @@ class NativeConversationPiSessionBuilder:
         digest = sha256()
         for name, content in self._config.items():
             digest.update(name.encode() + b"\0" + content + b"\0")
-        for name in ("conversation-context.mjs", "intent-decision.mjs"):
+        for name in ("conversation-context.mjs", "intent-decision.mjs", "context-selection.mjs"):
             digest.update(name.encode() + b"\0" + (_RESOURCES / name).read_bytes() + b"\0")
-        for name in ('execution_context.py', 'request_intent.py'):
+        for name in ('execution_context.py', 'request_intent.py', 'context_selection.py', 'business_context.py'):
             digest.update(name.encode() + b'\0' + (Path(__file__).parent / name).read_bytes() + b'\0')
         digest.update(json.dumps({
             "provider": resolved_llm.config.provider, "model": resolved_llm.config.model,
@@ -192,6 +193,13 @@ class NativeConversationPiSessionBuilder:
             {"phase": "intent", "request": {key: value for key, value in document.items() if key != "messages"}},
             intent=True, control=control)
 
+    def build_context_selection(self, request: ContextSelectionRequest, control: NodeControl) -> PiPromptSession:
+        control.checkpoint()
+        document = request.to_document()
+        return self._build(request.request_id, document['messages'],
+            {'phase': 'context_selection', 'request': {key: value for key, value in document.items() if key != 'messages'}},
+            intent=False, context_selection=True, control=control)
+
     def build_execution(self, claim: object, decision: IntentDecision) -> PiPromptSession:
         request = getattr(claim, "intent_request", None)
         if request is None:
@@ -215,14 +223,16 @@ class NativeConversationPiSessionBuilder:
         return self._build(request.request_id, document["messages"], supplemental, intent=False)
 
     def _build(self, attempt_id: str, messages: list[dict], supplemental: dict, *,
-               intent: bool, control: NodeControl | None = None) -> PiPromptSession:
+               intent: bool, control: NodeControl | None = None,
+               context_selection: bool = False) -> PiPromptSession:
         workspace = ApplicationWorkspace.create(self._workspace_root)
         directory = _attempt_directory(workspace, attempt_id)
         paths = RuntimePaths(command=self._host.command,
             project_pi_dir=self._host.project_pi_dir, session_dir=directory / "session",
             workspace=workspace.root)
         launch = build_pi_launch(self._llm, paths, base_environment=self._environment)
-        launch = self.apply_configuration(launch, workspace, attempt_id, intent=intent)
+        launch = self.apply_configuration(launch, workspace, attempt_id, intent=intent,
+                                          context_selection=context_selection)
         launch = prepare_context_launch(launch, workspace, attempt_id, messages, supplemental)
         secrets = {self._llm.secret.value} if self._llm.secret is not None else set()
         trace = JsonlTraceWriter(workspace.core_path / "pi-events.jsonl", secret_values=secrets)
@@ -232,17 +242,18 @@ class NativeConversationPiSessionBuilder:
             timeout = min(timeout, max(0.001, control.deadline - time.monotonic()))
         client = PiRpcClient(launch, _RpcWorkspace(workspace.root), trace, secret_values=secrets,
                              correlation_id=attempt_id, timeout_seconds=timeout)
-        return _ConversationPiPromptSession(client, trace, intent=intent)
+        return _ConversationPiPromptSession(client, trace, intent=intent or context_selection)
 
     def apply_configuration(self, launch: PiLaunch, workspace: ApplicationWorkspace,
                             attempt_id: str, *, intent: bool = False,
-                            domain_policy: Path | None = None) -> PiLaunch:
+                            domain_policy: Path | None = None,
+                            context_selection: bool = False) -> PiLaunch:
         """Select native base configuration and optional domain policy for a launch.
 
         The existing launch retains its prepared tools and protected provider
         configuration. The caller must run Pi from ``workspace.root``.
         """
-        if intent and domain_policy is not None:
+        if (intent or context_selection) and domain_policy is not None:
             raise ValueError("Intent preparation cannot load a domain policy")
         transport_config = self._host.project_pi_dir / "models.json"
         current_transport_sha256 = sha256(transport_config.read_bytes()).hexdigest() if transport_config.is_file() else None
@@ -277,6 +288,11 @@ class NativeConversationPiSessionBuilder:
         if intent:
             argv = (*argv, "--no-session", "--append-system-prompt", str(config_dir / "INTENT.md"),
                     "--extension", str(_RESOURCES / "intent-decision.mjs"))
+        if context_selection:
+            if intent:
+                raise ValueError('context selection cannot load professional intent configuration')
+            argv = (*argv, '--no-session', '--append-system-prompt', str(config_dir / 'CONTEXT.md'),
+                    '--extension', str(_RESOURCES / 'context-selection.mjs'))
         if domain_policy is not None:
             if domain_policy != self._host.system_policy_path or self._domain_policy is None:
                 raise ValueError("Selected domain policy is not bound to the configuration snapshot")
@@ -290,12 +306,15 @@ class NativeConversationPiSessionBuilder:
         if intent:
             loaded_files.append({"path": str(config_dir / "INTENT.md"),
                                  "sha256": sha256(self._config["INTENT.md"]).hexdigest()})
+        if context_selection:
+            loaded_files.append({'path': str(config_dir / 'CONTEXT.md'),
+                                 'sha256': sha256(self._config['CONTEXT.md']).hexdigest()})
         if domain_policy is not None:
             loaded_files.append({"path": str(config_dir / "DOMAIN.md"),
                                  "sha256": sha256(self._domain_policy or b"").hexdigest()})
         _write_json(directory / "config-manifest.json", {
             "schema": "capstone-pi-config/1", "config_revision": self.config_revision,
-            "phase": "intent" if intent else "execution",
+            "phase": 'context_selection' if context_selection else "intent" if intent else "execution",
             "protected_transport_sha256": self._transport_sha256,
             "protected_global_settings_sha256": self._global_settings_sha256,
             "files": loaded_files,

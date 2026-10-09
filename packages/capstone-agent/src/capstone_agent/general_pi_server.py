@@ -29,6 +29,7 @@ class GeneralPiHost:
                  max_storage_bytes: int = 64 * 1024 * 1024, max_saved_receipts: int = 4096) -> None:
         self.root, self.identity, self._run = root, dict(identity), run_task
         self.capability = {'capability_id': 'general-pi', 'display_name': 'General Pi agent',
+            'task_schemas': ['capstone-pi-task/1', 'capstone-pi-task/2'],
             'enabled': True, 'available': True, 'operations': ['answer', 'rewrite', 'external_lookup'],
             'executor_identity': self.identity}
         self._max_tasks, self._max_records = max_tasks, max_records
@@ -201,8 +202,11 @@ class NativeTaskRunner:
                 config_root=self.config_root, model=self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs')
-            context = {'messages': request.to_document()['messages'],
-                       'dependency_results': request.to_document()['dependency_results']}
+            document = request.to_document()
+            context = {'messages': document['messages'],
+                       'dependency_results': document['dependency_results']}
+            if request.business_context is not None:
+                context['business_context'] = request.business_context.to_document()
             (workspace / 'context.json').write_text(json.dumps(context))
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
@@ -373,7 +377,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py',
                                  'resources/general-context.mjs'))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],

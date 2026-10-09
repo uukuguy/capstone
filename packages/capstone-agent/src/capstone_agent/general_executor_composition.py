@@ -22,6 +22,11 @@ def configured_general_executor(environment: Mapping[str, str]) -> GeneralPiExec
             or not isinstance(capability.get('operations'), list)
             or not set(capability['operations']) <= {'answer', 'rewrite', 'external_lookup'}):
             raise ValueError('general executor capability is invalid')
+        schemas = capability.get('task_schemas', ['capstone-pi-task/1'])
+        if (not isinstance(schemas, list) or not schemas or any(not isinstance(schema, str) for schema in schemas)
+            or len(set(schemas)) != len(schemas)
+            or not set(schemas) <= {'capstone-pi-task/1', 'capstone-pi-task/2'}):
+            raise ValueError('general executor task schemas are invalid')
         if 'executor_identity' in capability and capability['executor_identity'] != document['identity']:
             raise ValueError('general executor capability identity is invalid')
         return cast(GeneralPiExecutor, HttpGeneralPiExecutor(origin,

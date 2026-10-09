@@ -9,6 +9,60 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+def test_v2_service_advertises_support_and_retains_public_context(tmp_path):
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.general_pi_server import GeneralPiHost
+    received = []
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'},
+        run_task=lambda request, *_: received.append(request) or ('Answer', {}))
+    assert host.capability['task_schemas'] == ['capstone-pi-task/1', 'capstone-pi-task/2']
+    request = PiTaskRequest('task-v2', 'attempt', 'direct', 'Explain', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert received[0].business_context == request.business_context
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity,
+        run_task=lambda *_: pytest.fail('Task repeated'))
+    restarted.submit(request)
+    assert restarted.read(request.task_id)['result']['answer'] == 'Answer'
+
+
+def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeypatch):
+    import capstone_agent.general_pi_server as module
+    from capstone_agent.business_context import BusinessContext
+    monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(module.os, 'chown', lambda *_: None)
+    captured = []
+    def launch(**kwargs):
+        kwargs['workspace'].mkdir(parents=True)
+        return ('pi',), {}
+    monkeypatch.setattr(module, 'native_pi_launch', launch)
+    class Process:
+        def __init__(self, argv, environment, workspace, **kwargs):
+            captured.append((workspace / 'context.json').read_text())
+            self.usage = {}
+        def run(self, *_args, **kwargs):
+            return 'Answer'
+        def stop(self):
+            pass
+    monkeypatch.setattr(module, 'GeneralPiProcess', Process)
+    root = tmp_path / 'private'
+    (root / 'receipts').mkdir(parents=True)
+    runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('pi',),
+        model='fixture', relay_origin='http://127.0.0.1:8790')
+    context = BusinessContext.empty('workspace', 0)
+    request = PiTaskRequest('task', 'attempt', 'direct', 'Explain', (), (), {'engine': 'pi'}, 2,
+        business_context=context, resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'})
+    runner(request, lambda: False, lambda _: None)
+    import json
+    assert json.loads(captured[0])['business_context'] == context.to_document()
+
+
 def test_executor_service_binds_identity_and_control_authorization(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'},

@@ -15,6 +15,7 @@ from test_intent_runtime import claim
 class Executor:
     identity = {'engine': 'pi', 'config_revision': 'general-v1'}
     capability = {'capability_id': 'general-pi', 'enabled': True, 'available': True,
+                  'task_schemas': ['capstone-pi-task/1', 'capstone-pi-task/2'],
                   'operations': ['answer', 'rewrite', 'external_lookup']}
 
     def __init__(self, statuses=None):
@@ -62,10 +63,72 @@ class Recognizer:
             'relationship': 'independent', 'goals': self.goals, 'clarification': None}, request)
 
 
-def factory(executor, recognizer, business=None):
+class ContextSelector:
+    identity = IntentEngineIdentity('fixture', 'model', 'context_1')
+
+    def __init__(self, objects=(), messages=(), clarify=False):
+        self.objects, self.messages, self.clarify = list(objects), list(messages), clarify
+        self.requests = []
+
+    def select(self, request, control):
+        from capstone_agent.context_selection import ContextSelectionDecision
+        control.checkpoint()
+        self.requests.append(request)
+        source = request.to_document()
+        return ContextSelectionDecision.from_document({
+            'schema': 'capstone-context-selection-decision/1', 'attempt_id': source['attempt_id'],
+            'history_cutoff': source['history_cutoff'], 'object_refs': self.objects,
+            'message_refs': self.messages, 'clarification_required': self.clarify,
+            'clarification': 'Which object?' if self.clarify else None}, request)
+
+
+def factory(executor, recognizer, business=None, selector=None):
     return IntentRuntimeFactory(business or (lambda _: pytest.fail('Domain Pack prepared')),
         lambda: recognizer, lambda *_: pytest.fail('legacy ordinary Pi called'),
-        general_executor=executor)
+        general_executor=executor, context_selector_factory=lambda: selector or ContextSelector())
+
+
+@pytest.mark.parametrize('selected', [False, True])
+def test_direct_context_selection_is_public_and_independent(selected):
+    service, current = claim()
+    current = replace(current, instruction='Explain line 11',
+                      attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    selector = ContextSelector(['ctx_test'] if selected else [])
+    executor = Executor()
+    result = run(service, current, factory(executor, SimpleNamespace(identity=None), selector=selector))
+    assert result.status == 'completed'
+    source = selector.requests[0].to_document()
+    assert 'capabilities' not in source and 'model_revision' not in repr(source)
+    task = executor.requests[0]
+    assert task.entrypoint == 'direct'
+    assert task.to_document()['schema'] == 'capstone-pi-task/2'
+    context = task.business_context.to_document()
+    assert context['selection']['state'] == ('selected' if selected else 'none')
+    assert [item['object_id'] for item in context['object_refs']] == (['ctx_test'] if selected else [])
+
+
+def test_delegated_general_goals_have_distinct_public_object_contexts():
+    service, current = claim()
+    executor = Executor()
+    goals = [goal('background', excerpt='解释刚才的结论'), goal('translation', excerpt='翻译成英文')]
+    goals[0]['object_refs'] = ['ctx_test']
+    result = run(service, current, factory(executor, Recognizer(goals)))
+    assert result.status == 'completed'
+    assert executor.requests[0].business_context.to_document()['object_refs'][0]['display_name'] == 'ieee39'
+    assert executor.requests[1].business_context.to_document()['selection']['state'] == 'none'
+
+
+def test_required_context_cannot_be_dropped_for_v1_server():
+    service, current = claim()
+    executor = Executor()
+    executor.capability = {**executor.capability, 'task_schemas': ['capstone-pi-task/1']}
+    selected_goal = goal('one')
+    selected_goal['object_refs'] = ['ctx_test']
+    with pytest.raises(HarnessRuntimeConfigurationError, match='schema'):
+        selected = factory(executor, Recognizer([selected_goal]))
+        plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 5), service.freeze_attempt_input)
+        selected(replace(current, turn_plan=plan)).prompt(current.instruction, on_event=lambda _: None)
+    assert executor.requests == []
 
 
 def run(service, current, selected):
@@ -385,7 +448,9 @@ def test_general_history_has_text_but_no_model_state_or_prior_authority_refs():
     current = replace(current, conversation_context=ConversationContext(messages=(message,)),
         prior_results=(PriorResultReference('result:sha256:' + 'a' * 64, (), 'flow', 'old-attempt'),))
     executor = Executor()
-    result = run(service, current, factory(executor, Recognizer([goal('one')])))
+    selected_goal = goal('one')
+    selected_goal['message_refs'] = [message['message_id']]
+    result = run(service, current, factory(executor, Recognizer([selected_goal])))
     assert result.status == 'completed'
     request = executor.requests[0].to_document()
     assert request['messages'][0]['content'] == message['content']

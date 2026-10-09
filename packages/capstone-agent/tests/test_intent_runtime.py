@@ -211,3 +211,148 @@ def test_wrapper_preserves_business_preparation_rollback_contract():
         def __call__(self, claim):
             raise RuntimeError('preparation failed')
     assert IntentRuntimeFactory(Business(), lambda: Recognizer(), lambda *_: None).rollback_selection_on_failure
+
+
+def historical_direct_claim(current, *, resolved=True):
+    from capstone_agent.conversation_context import ConversationContext
+    message = {'message_id': 'old:user', 'role': 'user', 'content': 'Use the old model',
+        'turn_id': 'old-turn', 'attempt_id': 'old', 'model_context_id': 'ctx_old', 'status': 'completed'}
+    objects = ({'object_id': 'ctx_old', 'model_id': 'old-model', 'model_revision': 'old-revision',
+                'implementation_family': 'pandapower'},) if resolved else ()
+    return replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'),
+        conversation_context=ConversationContext(messages=(message,), objects=objects))
+
+
+def test_direct_historical_selection_and_retry_preserve_original_snapshot():
+    from test_delegated_runtime import ContextSelector, Executor, factory
+    service, current = claim()
+    current = historical_direct_claim(current)
+    executor = Executor()
+    selector = ContextSelector(['ctx_old'], ['old:user'])
+    selected = factory(executor, SimpleNamespace(identity=None), selector=selector)
+    control = NodeControl(lambda: None, time.monotonic() + 5)
+    inputs, decisions = [], []
+    def freeze(_, document):
+        if not inputs:
+            inputs.append(document)
+        return inputs[0]
+    def freeze_decision(_, document):
+        if not decisions and document is not None:
+            decisions.append(document)
+        return decisions[0] if decisions else None
+    first = selected.plan_intent(current, control, freeze, freeze_decision=freeze_decision)
+    selected(replace(current, turn_plan=first)).prompt(current.instruction, on_event=lambda _: None)
+    selector.objects = ['ctx_test']
+    retry = replace(current, attempt=replace(current.attempt, attempt_id='retry', target_model_context_id='ctx_new'),
+        model_context_id='ctx_new',
+        model_context=replace(current.model_context, id='ctx_new', model_revision='new-revision'))
+    second = selected.plan_intent(retry, control, freeze, freeze_decision=freeze_decision)
+    selected(replace(retry, turn_plan=second)).prompt(retry.instruction, on_event=lambda _: None)
+    assert len(selector.requests) == 1
+    assert executor.requests[0].to_document() == executor.requests[1].to_document()
+    context = executor.requests[0].business_context.to_document()
+    assert context['object_refs'][0]['object_id'] == 'ctx_old'
+    assert context['object_refs'][0]['relation'] == 'historical'
+    assert context == decisions[0]['business_context']
+
+
+def test_direct_unresolved_historical_object_requires_clarification():
+    from test_delegated_runtime import ContextSelector, Executor, factory, run
+    service, current = claim()
+    current = historical_direct_claim(current, resolved=False)
+    executor = Executor()
+    selected = factory(executor, SimpleNamespace(identity=None), selector=ContextSelector(['ctx_old'], clarify=True))
+    result = run(service, current, selected)
+    assert result.answer == 'Which object?'
+    assert executor.requests == []
+    service, current = claim()
+    selected = factory(executor, SimpleNamespace(identity=None), selector=ContextSelector(['ctx_old']))
+    with pytest.raises(ValueError, match='version is unavailable'):
+        selected.plan_intent(historical_direct_claim(current, resolved=False),
+            NodeControl(lambda: None, time.monotonic() + 5), service.freeze_attempt_input)
+
+
+def test_direct_selection_failure_never_falls_back_to_execution():
+    from test_delegated_runtime import ContextSelector, Executor, factory, run
+    service, current = claim()
+    current = historical_direct_claim(current)
+    class Broken(ContextSelector):
+        def select(self, request, control):
+            raise RuntimeError('selector unavailable')
+    executor = Executor()
+    assert run(service, current, factory(executor, SimpleNamespace(identity=None), selector=Broken())).status == 'failed'
+    assert executor.requests == []
+
+
+@pytest.mark.parametrize('backend', ['memory', 'postgres'])
+def test_direct_saved_selection_survives_real_ledger_retry(backend):
+    from contextlib import ExitStack
+    import os
+    from uuid import uuid4
+    from capstone_agent.thread_service import PostgresThreadService
+    from test_delegated_runtime import ContextSelector, Executor, factory
+    from test_thread_postgres import _snapshot, _command
+    with ExitStack() as cleanup:
+        if backend == 'postgres':
+            import psycopg
+            dsn = os.environ.get('CAPSTONE_TEST_DATABASE_URL')
+            if not dsn:
+                pytest.skip('CAPSTONE_TEST_DATABASE_URL is required')
+            service = PostgresThreadService(dsn)
+            service.initialize()
+            thread_id = 'thr_context_' + uuid4().hex[:16]
+            service.create_thread(_snapshot(thread_id))
+            def remove():
+                with psycopg.connect(dsn) as connection:
+                    connection.execute('DELETE FROM capstone_threads WHERE thread_id = %s', (thread_id,))
+            cleanup.callback(remove)
+            command = _command(thread_id)
+        else:
+            # A separate ledger avoids reusing the fixture's active lease.
+            snapshot = _snapshot('thr_context_memory')
+            service = InMemoryThreadService(snapshot)
+            command = _command(snapshot.thread_id)
+        command.update(kind='switch_runtime', payload={'runtime_mode': 'pi_reference'})
+        assert service.submit_command(command).status == 'accepted'
+        command.update(kind='send_auto', payload={'text': 'Explain this model'},
+            command_id='cmd_context_send', idempotency_key='idem_context_send',
+            expected_event_seq=service.snapshot(command['thread_id']).last_event_seq)
+        assert service.submit_command(command).status == 'accepted'
+        current = service.claim_attempt('context-worker', 30)
+        assert current is not None
+        selector = ContextSelector([current.model_context.id])
+        executor = Executor()
+        selected = factory(executor, SimpleNamespace(identity=None), selector=selector)
+        control = NodeControl(lambda: None, time.monotonic() + 10)
+        plan = selected.plan_intent(current, control, service.freeze_attempt_input,
+                                    freeze_decision=service.freeze_attempt_decision)
+        selected(replace(current, turn_plan=plan)).prompt(current.instruction, on_event=lambda _: None)
+        service.finish_attempt(current, phase='failed', payload={'error_code': 'test_failure'})
+        command.update(kind='retry_new_attempt', payload={'attempt_id': current.attempt.attempt_id},
+            command_id='cmd_context_retry', idempotency_key='idem_context_retry',
+            expected_event_seq=service.snapshot(command['thread_id']).last_event_seq)
+        assert service.submit_command(command).status == 'accepted'
+        retry = service.claim_attempt('context-worker', 30)
+        assert retry is not None
+        selector.objects = []
+        plan = selected.plan_intent(retry, control, service.freeze_attempt_input,
+                                    freeze_decision=service.freeze_attempt_decision)
+        selected(replace(retry, turn_plan=plan)).prompt(retry.instruction, on_event=lambda _: None)
+        assert len(selector.requests) == 1
+        assert executor.requests[0].to_document() == executor.requests[1].to_document()
+
+
+def test_direct_legacy_frozen_input_keeps_exact_v1_recovery():
+    from test_delegated_runtime import ContextSelector, Executor, factory
+    service, current = claim()
+    current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    executor = Executor()
+    selector = ContextSelector(['ctx_test'])
+    selected = factory(executor, SimpleNamespace(identity=None), selector=selector)
+    frozen = {'entrypoint': 'direct', 'instruction': current.instruction, 'messages': [],
+        'resources': {'general_executor': selected._general_resources(current)}}
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 5),
+                                lambda *_: frozen)
+    selected(replace(current, turn_plan=plan)).prompt(current.instruction, on_event=lambda _: None)
+    assert executor.requests[0].to_document()['schema'] == 'capstone-pi-task/1'
+    assert selector.requests == []

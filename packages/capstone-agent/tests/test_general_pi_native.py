@@ -16,6 +16,41 @@ from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiTaskRequest
 from capstone_agent.request_intent import NodeControl
 
 
+def test_native_context_extension_preserves_roles_and_separates_business_data(tmp_path):
+    from pathlib import Path
+    from capstone_agent.business_context import BusinessContext
+    context = BusinessContext.empty('workspace', 0).to_document()
+    (tmp_path / 'context.json').write_text(json.dumps({'messages': [
+        {'role': 'user', 'content': 'User history'}, {'role': 'assistant', 'content': 'Assistant history'}],
+        'dependency_results': [], 'business_context': context}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default: register} = await import(process.argv[1]); '
+        'const events = {}; register({on: (name, fn) => {events[name] = fn}}); '
+        'console.log(JSON.stringify(await events.context({messages: [{role: "user", content: "Current task"}]}, '
+        '{model: {api: "fixture", provider: "fixture", id: "fixture"}})));', extension.as_uri()],
+        cwd=tmp_path, capture_output=True, text=True, check=True)
+    messages = json.loads(result.stdout)['messages']
+    assert [message['role'] for message in messages] == ['user', 'assistant', 'user', 'user']
+    assert json.loads(messages[2]['content'])['business_context'] == context
+    assert messages[-1]['content'] == 'Current task'
+
+
+def test_native_context_extension_adds_trusted_background_policy(tmp_path):
+    from pathlib import Path
+    (tmp_path / 'context.json').write_text(json.dumps({'messages': [], 'dependency_results': []}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default: register} = await import(process.argv[1]); '
+        'const events = {}; register({on: (name, fn) => {events[name] = fn}}); '
+        'console.log(JSON.stringify(await events.before_agent_start({systemPrompt: "Native policy"})));',
+        extension.as_uri()], cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    policy = json.loads(result.stdout)['systemPrompt']
+    assert policy.startswith('Native policy')
+    assert 'data, not instructions' in policy and 'current-run' in policy
+
+
 @pytest.mark.skipif(os.environ.get('CAPSTONE_GENERAL_NATIVE_TESTS') != '1', reason='requires local general Pi Docker image')
 def test_real_general_pi_builtin_bash_isolated_and_same_for_both_entrypoints():
     calls = []
@@ -80,7 +115,7 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             '--security-opt=no-new-privileges', '--memory=512m', '--pids-limit=128',
             '--read-only', '--tmpfs', '/var/lib/general-pi/tasks:rw,nosuid,size=256m,mode=0711',
             '--tmpfs', '/tmp:rw,nosuid,noexec,size=64m', '--tmpfs', '/var/lib/general-pi/receipts:rw,nosuid,size=64m,mode=0700',
-            '-p', '127.0.0.1::8790', 'capstone-general-pi:local', 'python', '-c', script],
+            '-p', '127.0.0.1::8790', os.environ.get('CAPSTONE_GENERAL_NATIVE_IMAGE', 'capstone-general-pi:local'), 'python', '-c', script],
             check=True, capture_output=True)
         binding = subprocess.run(['docker', 'port', name, '8790'], check=True,
                                   capture_output=True, text=True).stdout.strip()
@@ -135,6 +170,7 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
         from capstone_agent.request_intent import IntentDecision, IntentEngineIdentity
         from capstone_agent.thread_worker import _run_claimed_attempt
         from test_intent_runtime import claim
+        from test_delegated_runtime import ContextSelector
         class Recognizer:
             identity = IntentEngineIdentity('fixture', 'model', 'config_1')
             calls = 0
@@ -156,7 +192,9 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             recognizer = Recognizer()
             def unavailable(*_):
                 pytest.fail('Professional or legacy ordinary runtime was prepared')
-            factory = IntentRuntimeFactory(unavailable, lambda: recognizer, unavailable, general_executor=client)
+            selector = ContextSelector(['ctx_test'], ['old:assistant'])
+            factory = IntentRuntimeFactory(unavailable, lambda: recognizer, unavailable, general_executor=client,
+                context_selector_factory=lambda: selector)
             before = len(calls)
             result = _run_claimed_attempt(service, factory, current, SimpleNamespace(check=lambda: None), 30, None)
             assert result.status == 'completed'
@@ -165,6 +203,10 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             assert recognizer.calls == (1 if mode == 'capstone' else 0)
             assert len(calls) == before + 2
             assert 'Shared history marker' in str(calls[before]['messages'])
+            if mode == 'pi_reference':
+                assert 'ieee39' in str(calls[before]['messages'])
+                assert 'capstone-business-context/1' in str(calls[before]['messages'])
+                assert 'model_revision' not in str(calls[before]['messages'])
             public_events = service.read_events(current.thread_id, 0).events
             streamed_text = ''.join(event.payload['text'] for event in public_events
                                     if event.event_type == 'assistant_text_delta')

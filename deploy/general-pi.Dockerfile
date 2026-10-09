@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates
 WORKDIR /opt/general
 COPY packages/capstone-agent/src/capstone_agent/__init__.py capstone_agent/__init__.py
 COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
+COPY packages/capstone-agent/src/capstone_agent/business_context.py capstone_agent/business_context.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_agent/general_pi_executor.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py

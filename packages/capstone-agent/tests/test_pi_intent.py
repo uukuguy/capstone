@@ -77,6 +77,165 @@ def test_recognizer_uses_validated_terminating_tool_and_closes():
     assert session.stopped and control.calls >= 4
 
 
+def selection_request():
+    from capstone_agent.context_selection import ContextSelectionRequest
+    from capstone_agent.intent_runtime import context_selection_request_for_claim
+    from test_intent_runtime import claim
+    _, current = claim()
+    return ContextSelectionRequest.from_document(context_selection_request_for_claim(current).to_document())
+
+
+def selection_decision(request):
+    source = request.to_document()
+    return {'schema': 'capstone-context-selection-decision/1', 'attempt_id': source['attempt_id'],
+        'history_cutoff': source['history_cutoff'], 'object_refs': ['ctx_test'], 'message_refs': [],
+        'clarification_required': False, 'clarification': None}
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda d: d.update(object_refs=['unknown']),
+    lambda d: d.update(message_refs=['unknown']),
+    lambda d: d.update(clarification_required=1),
+    lambda d: d.update(capability_refs=['grid@1']),
+    lambda d: d.update(attempt_id='unknown'),
+])
+def test_context_selector_rejects_unbound_or_invalid_decisions(mutate):
+    from capstone_agent.context_selection import ContextSelectionDecision
+    request = selection_request()
+    decision = selection_decision(request)
+    mutate(decision)
+    with pytest.raises(ValueError):
+        ContextSelectionDecision.from_document(decision, request)
+
+
+def test_context_selector_requires_one_checked_tool_result_and_closes():
+    from capstone_agent.context_selection import PiContextSelector
+    from capstone_agent.request_intent import IntentEngineIdentity
+    request = selection_request()
+    session = Session([{'type': 'tool_result', 'capability': 'capstone.context.selection',
+                        'ok': True, 'result': selection_decision(request)}])
+    # Use this fixture's expected correlation identity.
+    source = request.to_document()
+    source.update(attempt_id='attempt_1', instruction_message_id='attempt_1:user')
+    request = type(request).from_document(source)
+    session.events[0]['result'] = selection_decision(request)
+    selector = PiContextSelector(lambda *_: session, IntentEngineIdentity('pi', 'fixture', 'fixture'))
+    assert selector.select(request, Control()).to_document() == selection_decision(request)
+    assert session.stopped
+    assert 'capabilities' not in json.loads(session.question)
+
+
+def test_native_context_selection_uses_dedicated_config_and_extension(tmp_path, monkeypatch):
+    import capstone_agent.pi_intent as module
+    captured = []
+    class Client:
+        def __init__(self, launch, workspace, trace, **kwargs):
+            captured.append((launch, workspace))
+        def stop(self):
+            pass
+    monkeypatch.setattr(module, 'PiRpcClient', Client)
+    host, llm = runtime_inputs(tmp_path)
+    host.system_policy_path.write_text('PRIVATE DOMAIN POLICY')
+    builder = module.NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'workspaces')
+    session = builder.build_context_selection(selection_request(), Control())
+    launch, workspace = captured[0]
+    argv = ' '.join(launch.argv)
+    assert 'context-selection.mjs' in argv and 'intent-decision.mjs' not in argv
+    assert '--no-session' in launch.argv
+    context = json.loads(Path(launch.environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())
+    assert context['supplemental_context']['phase'] == 'context_selection'
+    assert 'capabilities' not in repr(context) and 'PRIVATE DOMAIN' not in repr(context)
+    manifest = json.loads(next(workspace.root_path.rglob('config-manifest.json')).read_text())
+    assert manifest['phase'] == 'context_selection'
+    assert any(item['path'].endswith('CONTEXT.md') for item in manifest['files'])
+    session.stop()
+
+
+def test_native_context_selection_tool_has_exact_reference_enums(tmp_path):
+    import subprocess
+    request = selection_request().to_document()
+    projection = tmp_path / 'context.json'
+    projection.write_text(json.dumps({'messages': request['messages'],
+        'supplemental_context': {'request': request}}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/context-selection.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default: register} = await import(process.argv[1]); '
+        'register({registerTool: tool => console.log(JSON.stringify(tool.parameters)), on: () => {}});',
+        extension.as_uri()], env={**os.environ, 'CAPSTONE_PI_CONTEXT_PATH': str(projection)},
+        capture_output=True, text=True, check=True)
+    fields = json.loads(result.stdout)['properties']
+    assert fields['object_refs']['items']['enum'] == ['ctx_test']
+    assert fields['message_refs']['items']['enum'] == [request['instruction_message_id']]
+    assert fields['clarification_required'] == {'type': 'boolean'}
+    assert fields['attempt_id']['const'] == request['attempt_id']
+    assert 'capability_refs' not in fields and 'goals' not in fields
+
+
+def test_real_native_context_selector_emits_bound_public_decision(tmp_path):
+    import shutil
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capstone_agent.context_selection import PiContextSelector
+    cli = Path(__file__).resolve().parents[3] / '.grid-agent/runtime/pi/source/packages/coding-agent/dist/cli.js'
+    node = shutil.which('node')
+    if not cli.is_file() or node is None:
+        pytest.skip('Managed Pi runtime is not installed')
+    calls = []
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_POST(self):
+            document = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            calls.append(document)
+            content = document['messages'][-1]['content']
+            if isinstance(content, list):
+                content = ''.join(item['text'] for item in content if item.get('type') == 'text')
+            source = json.loads(content)
+            decision = {'schema': 'capstone-context-selection-decision/1',
+                'attempt_id': source['attempt_id'], 'history_cutoff': source['history_cutoff'],
+                'object_refs': ['ctx_test'], 'message_refs': [], 'clarification_required': False,
+                'clarification': None}
+            delta = {'role': 'assistant', 'tool_calls': [{'index': 0, 'id': 'call_context', 'type': 'function',
+                'function': {'name': 'capstone_context_selection', 'arguments': json.dumps(decision)}}]}
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            for value, finish in ((delta, None), ({}, 'tool_calls')):
+                chunk = {'id': 'fixture', 'object': 'chat.completion.chunk', 'created': 0,
+                    'model': 'fixture-model', 'choices': [{'index': 0, 'delta': value, 'finish_reason': finish}]}
+                self.wfile.write(('data: ' + json.dumps(chunk) + '\n\n').encode())
+            self.wfile.write(b'data: [DONE]\n\n')
+            self.wfile.flush()
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        command = PiCommand((node, str(cli)), PiRuntimeIdentity(path=cli, source='fixture',
+            package_version='0.84.4', lock_sha256='fixture'))
+        host, llm = runtime_inputs(tmp_path, f'http://127.0.0.1:{server.server_port}/v1', command)
+        host.project_pi_dir.mkdir()
+        (host.project_pi_dir / 'models.json').write_text(json.dumps({'providers': {'fixture': {
+            'baseUrl': llm.config.base_url, 'api': 'openai-completions', 'apiKey': '$FIXTURE_API_KEY',
+            'models': [{'id': 'fixture-model', 'reasoning': False}]}}}))
+        host.system_policy_path.write_text('PRIVATE DOMAIN CONTENT')
+        builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+            workspace_root=tmp_path / 'runs', base_environment={'PATH': os.environ['PATH']})
+        request = selection_request()
+        decision = PiContextSelector(builder.build_context_selection, builder.identity).select(request, Control())
+        assert decision.to_document()['object_refs'] == ['ctx_test']
+        assert len(calls) == 1
+        assert [tool['function']['name'] for tool in calls[0]['tools']] == ['capstone_context_selection']
+        assert 'PRIVATE DOMAIN CONTENT' not in repr(calls)
+        assert 'model_revision' not in repr(calls)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_intent_tool_schema_limits_references_to_supplied_source_ids(tmp_path):
     import subprocess
     import shutil

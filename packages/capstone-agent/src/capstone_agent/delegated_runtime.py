@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from .harness import AdmittedAttemptAnswer, HarnessRuntime, terminal_payload_for_admission, HarnessRuntimeConfigurationError
 from .pi_delegation import GeneralPiExecutor, PiTaskRequest, PiTaskResult
+from .business_context import BusinessContext
 from .request_intent import IntentDecision, IntentRequest, NodeControl
 from .thread_service import AttemptClaim
 from .turn_router import TurnPlan
@@ -108,12 +109,14 @@ class DelegatedRuntime:
         if self._direct:
             frozen = resources['resources']['general_executor']
             instruction, messages = resources['instruction'], resources['messages']
+            context_document = resources.get('business_context')
         else:
             frozen = resources['general_executor']
             assert self._request is not None
             document = self._request.to_document()
             instruction = goal.get('instruction_excerpt', document['instruction'])
-            messages = document['messages']
+            messages = [message for message in document['messages'] if message['message_id'] in goal['message_refs']]
+            context_document = resources.get('business_contexts', {}).get(goal['goal_id'])
         if self._executor is None or frozen is None:
             raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
         parent = frozen['original_attempt_id']
@@ -132,10 +135,20 @@ class DelegatedRuntime:
                 'model_context_id': '', 'status': 'completed'})
         while len(messages) > 32 or sum(len(item['content'].encode()) for item in messages) > 32768:
             messages.pop(0)
+        context = None if context_document is None else BusinessContext.from_document(context_document)
+        task_fields = {}
+        if context is not None:
+            if 'capstone-pi-task/2' in frozen['capability'].get('task_schemas', ()):
+                task_fields = {'business_context': context, 'resource_profile': {
+                    'profile_id': 'direct_pi' if self._direct else 'delegated_pi',
+                    'revision': frozen['identity']['config_revision']},
+                    'input': {'kind': 'text', 'text': instruction}}
+            elif context.to_document()['selection']['state'] != 'none':
+                raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
-            frozen['identity'], frozen['timeout_seconds'])
+            frozen['identity'], frozen['timeout_seconds'], **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
             'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint})
@@ -283,6 +296,9 @@ class DelegatedRuntime:
         control = NodeControl(heartbeat, time.monotonic() + timeout)
         goals: list[dict] = ([dict(goal_id='direct', operation='answer', depends_on=[], missing_requirements=[])]
             if self._direct else cast(IntentDecision, self._decision).to_document()['goals'])
+        if self._direct and frozen.get('decision', {}).get('clarification_required') is True:
+            self._statuses['direct'] = 'blocked'
+            return self._bounded_reply([frozen['decision']['clarification']], {0}, on_event)
         answers, prior = [], []
         protected: set[int] = set()
         for goal in goals:
