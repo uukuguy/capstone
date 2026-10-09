@@ -688,6 +688,8 @@ class CaseExecutionService:
         snapshot, rejection = self._snapshot_or_rejection(command)
         if rejection is not None:
             return rejection
+        if snapshot.runtime_mode != "capstone":
+            return self._reject(command, "case_requires_capstone_runtime")
         try:
             definition = self._case_catalog.get(case_id, case_version)
         except LookupError:

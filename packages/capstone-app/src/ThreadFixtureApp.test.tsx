@@ -72,6 +72,52 @@ function focusFixture() {
 }
 
 describe('ThreadFixtureApp', () => {
+  it('holds the runtime selector during submission and retains draft after rejection', async () => {
+    const transport = createFixtureTransport(structuredClone(threadUiFixture('idle-ieee39')))
+    let resolve!: (value: unknown) => void
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport,
+      sendCommand: async (command) => new Promise(done => { resolve = () => done({ schema: 'capstone-command-receipt/1', command_id: command.command_id,
+        idempotency_key: command.idempotency_key, thread_id: command.thread_id, run_id: command.run_id, status: 'rejected', rejection: 'attempt_in_progress' }) }),
+    })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'keep this draft' } })
+    const selector = screen.getByRole('combobox', { name: '运行模式' }) as HTMLSelectElement
+    fireEvent.change(selector, { target: { value: 'pi_reference' } })
+    await waitFor(() => expect(selector.disabled).toBe(true))
+    resolve(undefined)
+    await waitFor(() => expect(selector.disabled).toBe(false))
+    expect(selector.value).toBe('capstone')
+    expect(input.value).toBe('keep this draft')
+  })
+  it('shows why a registered Case cannot start in direct Pi mode', async () => {
+    const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+    ;(fixture.snapshot as Record<string, unknown>).runtime_mode = 'pi_reference'
+    const transport = createFixtureTransport(fixture)
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport,
+      getCatalog: async () => ({ schema: 'capstone-thread-catalog/1', models: [], profiles: [],
+        cases: [{ case_id: 'case_demo', case_version: '1', title: 'Demo', summary: 'Registered', model_ids: ['ieee39'], step_count: 1 }] }),
+    })} threadId="thr_demo_39" />)
+    expect(await screen.findByText('请先切换到 Capstone')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '开始案例' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+  it('switches runtime without losing draft or model and sends direct tasks unchanged', async () => {
+    const transport = createFixtureTransport(structuredClone(threadUiFixture('idle-ieee39')))
+    const commands: ThreadCommand[] = []
+    render(<ThreadFixtureApp client={new CapstoneThreadClient({ ...transport,
+      sendCommand: async (command) => { commands.push(command); return transport.sendCommand(command) },
+    })} threadId="thr_demo_39" />)
+    const input = await screen.findByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '打开 case57 电网模型' } })
+    const selector = screen.getByRole('combobox', { name: '运行模式' })
+    fireEvent.change(selector, { target: { value: 'pi_reference' } })
+    await waitFor(() => expect((selector as HTMLSelectElement).value).toBe('pi_reference'))
+    expect(input.value).toBe('打开 case57 电网模型')
+    expect(document.querySelector('.thread-model-short')?.textContent).toContain('ieee39')
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await waitFor(() => expect(commands).toHaveLength(2))
+    expect(commands.map(command => command.kind)).toEqual(['switch_runtime', 'send_auto'])
+    expect(commands[1].payload).toEqual({ text: '打开 case57 电网模型' })
+  })
   it('lists a returned model once while retaining the other model history', async () => {
     // Fresh Thread: IEEE-39 -> another model -> IEEE-39, unchanged model revision.
     const fixture = historyFixture()
@@ -446,6 +492,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '模型目录' }))
     fireEvent.change(screen.getByRole('listbox', { name: '目标电网模型' }), { target: { value: 'pypsa39' } })
     expect((screen.getByRole('listbox', { name: '目标电网模型' }) as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByRole('combobox', { name: '运行模式' }) as HTMLSelectElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '停止生成' }) as HTMLButtonElement).disabled).toBe(false)
   })
   it('uses the selected earlier result overlay when focusing its current-context row', async () => {

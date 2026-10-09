@@ -46,6 +46,18 @@ def _catalog() -> CaseCatalog:
     )
 
 
+def test_case_start_requires_capstone_runtime_and_replays_rejection():
+    base = _thread_service().snapshot("thr_case")
+    thread = InMemoryThreadService(replace(base, runtime_mode="pi_reference"))
+    service = CaseExecutionService(_catalog(), thread)
+    command = ThreadCommandFactory("thr_case").start_case_execution("case_demo", command_id="cmd_start", idempotency_key="idem_start", expected_event_seq=0)
+    receipt = service.submit_command(command)
+    assert receipt.rejection == "case_requires_capstone_runtime"
+    assert service.submit_command(command) == receipt
+    assert thread.snapshot("thr_case").application_state is None
+    assert thread.snapshot("thr_case").current_attempt is None
+
+
 def _thread_service(
     *,
     model_id: str = "ieee39",

@@ -74,6 +74,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const composerCommands = useRef(new Set<string>())
   const [sending, setSending] = useState(false)
   const [modelBusy, setModelBusy] = useState(false)
+  const [runtimeBusy, setRuntimeBusy] = useState(false)
   const modelInFlight = useRef(false)
   const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
   const reconnectFailures = useRef(0)
@@ -216,7 +217,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   } : caseExecution
   const caseActive = Boolean(caseExecution && ['created', 'running', 'waiting_step', 'blocked'].includes(caseExecution.status))
   const unresolvedCommand = projection.pendingCommands.some((entry) => !entry.receipt)
-  const canSendText = !activity.paused && !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !modelBusy && !projection.resyncRequired
+  const canSendText = !activity.paused && !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !isInterrupted && !caseActive && !sending && !modelBusy && !runtimeBusy && !projection.resyncRequired
   const canRetry = !activity.paused && !readOnly && !loading && projection.connection === 'live' && !unresolvedCommand && !isHistorical && !isActive && !caseActive && !sending && !modelBusy && !projection.resyncRequired
   const modelOptions = useMemo(() => {
     const fromCatalog = projection.catalog?.models || []
@@ -273,6 +274,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     const initialCursor = store.state.eventSeq
     const contextIdentity = () => JSON.stringify([
       store.state.snapshot?.run, store.state.snapshot?.activeModelContext,
+      store.state.snapshot?.runtimeMode,
       store.state.snapshot?.pendingModelSwitch, store.state.snapshot?.pendingSelection,
       store.state.viewedGridPageId,
     ])
@@ -426,6 +428,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   function startCase(caseId: string, caseVersion: string): void {
+    if (snapshot?.runtimeMode === 'pi_reference') { addSystemNotice('请先切换到 Capstone', 'info'); return }
     const entry = projection.catalog?.cases?.find((item) => item.caseId === caseId && item.caseVersion === caseVersion)
     const families = projection.catalog?.models.filter((model) => entry?.modelIds.includes(model.modelId)).map((model) => model.implementationFamily) || []
     const needed = projection.catalog?.profiles.filter((profile) => profile.implementationFamilies.some((family) => families.includes(family))) || []
@@ -456,6 +459,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
+    if (store.state.snapshot?.runtimeMode === 'pi_reference') {
+      const receipt = await dispatch('send_auto', { text })
+      if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
+      return
+    }
     const control = store.state.modelWorkspace ? parseModelControl(text) : null
     if (control && projection.catalog) {
       const workspace = store.state.modelWorkspace!
@@ -634,10 +642,21 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               setNotice(`已定位到 ${elementId}`)
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
+            caseStartDisabledReason={snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
               onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
+              <label>运行模式 <select aria-label="运行模式" value={snapshot.runtimeMode}
+                disabled={!canSendText || runtimeBusy || contextChangePending}
+                onChange={(event) => {
+                  if (runtimeBusy) return
+                  setRuntimeBusy(true)
+                  void dispatch('switch_runtime', { runtime_mode: event.target.value }, '运行模式已切换。')
+                    .then(async (receipt) => { if (receipt?.acceptedEventSeq !== undefined) await store.catchUpThrough(receipt.acceptedEventSeq) })
+                    .catch(() => addSystemNotice('运行模式切换未完成，请重新连接。', 'error'))
+                    .finally(() => setRuntimeBusy(false))
+                }}><option value="capstone">Capstone</option><option value="pi_reference">Pi 通用</option></select></label>
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={activity.paused || readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}
                 workspace={projection.modelWorkspace}

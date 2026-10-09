@@ -743,6 +743,7 @@ export type CapstoneAssistantThreadProps = {
   showActivity?: boolean
   caseExecution?: CaseExecutionSnapshot | null
   caseCatalog?: readonly ThreadCatalogCase[]
+  caseStartDisabledReason?: string
   caseConnection?: ThreadTransportState | 'connecting'
   onCaseAction?: (actionId: CaseActionSnapshot['actionId']) => void
   onCaseStart?: (caseId: string, caseVersion: string) => void
@@ -756,7 +757,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -1004,7 +1005,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>返回最新对话</button>}
           {historyError && <span role="alert">{historyError}</span>}
         </div>}
-        {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
+        {!caseExecution && caseCatalog.length > 0 && <><ThreadCasePicker cases={caseCatalog} disabled={disabled || Boolean(caseStartDisabledReason) || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />{caseStartDisabledReason && <small>{caseStartDisabledReason}</small>}</>}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
         {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}

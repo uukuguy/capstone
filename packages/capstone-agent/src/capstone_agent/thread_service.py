@@ -75,13 +75,13 @@ _MESSAGE_COMMAND_KINDS = frozenset({"send_auto", "send_ordinary", "send_professi
 _CONTROL_COMMAND_KINDS = frozenset({
     "cancel_live_attempt", "retry_new_attempt",
     "enable_profile", "disable_profile", "replace_selection",
-    "switch_model", "reopen_model_context",
+    "switch_model", "reopen_model_context", "switch_runtime",
 }) | MODEL_COMMANDS
 _SELECTION_COMMAND_KINDS = frozenset({"enable_profile", "disable_profile", "replace_selection"})
 _CONTEXT_LOCK_COMMAND_KINDS = frozenset({
     "switch_model", "reopen_model_context", "enable_profile", "disable_profile", "replace_selection",
 }) | MODEL_COMMANDS
-_CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt"}
+_CASE_ACTIVE_BLOCKED_COMMAND_KINDS = _MESSAGE_COMMAND_KINDS | {"retry_new_attempt", "switch_runtime"}
 
 
 def _workspace_blocked_reason(snapshot: ThreadSnapshot, archived: bool) -> str | None:
@@ -725,7 +725,10 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
 
     if command["kind"] in _CONTROL_COMMAND_KINDS:
         payload = command["payload"]
-        if command["kind"] == "cancel_live_attempt":
+        if command["kind"] == "switch_runtime":
+            if set(payload) != {"runtime_mode"} or payload["runtime_mode"] not in ("capstone", "pi_reference"):
+                return "runtime_mode_invalid"
+        elif command["kind"] == "cancel_live_attempt":
             if set(payload) != {"attempt_id"}:
                 return "cancel_target_required"
             if not isinstance(payload["attempt_id"], str) or not _IDENTIFIER.fullmatch(payload["attempt_id"]):
@@ -1096,6 +1099,20 @@ class InMemoryThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
+            if parsed["kind"] == "switch_runtime":
+                if self._snapshot.current_attempt is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+                else:
+                    mode = parsed["payload"]["runtime_mode"]
+                    event = self._append_control_event(event_type="runtime_mode_changed", payload={
+                        "command_id": parsed["command_id"], "runtime_mode": mode,
+                        "previous_runtime_mode": self._snapshot.runtime_mode,
+                    })
+                    self._snapshot = replace(self._snapshot, runtime_mode=mode, last_event_seq=event.event_seq)
+                    receipt = self._receipt(parsed, status="accepted", accepted_event_seq=event.event_seq, target={"runtime_mode": mode})
+                self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed["command_id"])
+                return receipt
             if parsed["kind"] in MODEL_COMMANDS:
                 self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
                 change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available)
@@ -1265,6 +1282,7 @@ class InMemoryThreadService:
                         attempt = AttemptSnapshot(
                             turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
                             target_model_context_id=self._snapshot.active_model_context.id,
+                            runtime_mode=prior["attempt"].runtime_mode,
                         )
                         retry_payload = {
                             "turn_id": prior["attempt"].turn_id,
@@ -1316,6 +1334,7 @@ class InMemoryThreadService:
             attempt = AttemptSnapshot(
                 turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
                 target_model_context_id=self._snapshot.active_model_context.id,
+                runtime_mode=self._snapshot.runtime_mode,
             )
             event = EventEnvelope(
                 event_id="evt_" + secrets.token_hex(8), event_seq=event_seq,
@@ -1326,7 +1345,7 @@ class InMemoryThreadService:
                 selection_revision=self._snapshot.active_model_context.selection_revision,
                 occurred_at=_now(), visibility="public",
                 payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                         "payload": parsed["payload"]},
+                         "payload": parsed["payload"], "runtime_mode": attempt.runtime_mode},
             )
             self._events.append(event)
             self._snapshot = replace(
@@ -1885,7 +1904,7 @@ class InMemoryThreadService:
             turn_id=attempt.turn_id, attempt_id=attempt.attempt_id,
             model_context_id=active.id,
             selection_revision=active.selection_revision,
-            occurred_at=_now(), visibility=visibility, payload=dict(payload),
+            occurred_at=_now(), visibility=visibility, payload={**payload, **({"runtime_mode": attempt.runtime_mode} if event_type == "command_accepted" else {})},
         )
         self._events.append(event)
         return event
@@ -2075,6 +2094,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
@@ -2125,6 +2145,7 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_thread_attempts DROP CONSTRAINT IF EXISTS capstone_thread_attempts_thread_id_turn_id_key;
 CREATE INDEX IF NOT EXISTS capstone_thread_attempts_pending_idx
     ON capstone_thread_attempts(created_at, attempt_id)
@@ -2202,8 +2223,8 @@ class PostgresThreadService:
                      implementation_family, selection_revision, enabled_profiles,
                      active_grid_page_id, current_attempt, pending_selection,
                      pending_model_switch, result_projections, application_state,
-                     base_event_seq, last_event_seq)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     base_event_seq, last_event_seq, runtime_mode)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
@@ -2215,7 +2236,7 @@ class PostgresThreadService:
                      None if snapshot.pending_model_switch is None else Jsonb(snapshot.pending_model_switch.to_document()),
                      Jsonb([item.to_document() for item in snapshot.result_projections]),
                      None if snapshot.application_state is None else Jsonb(dict(snapshot.application_state)),
-                     snapshot.base_event_seq, snapshot.last_event_seq),
+                     snapshot.base_event_seq, snapshot.last_event_seq, snapshot.runtime_mode),
                 )
             except psycopg.errors.UniqueViolation:
                 raise ValueError("thread identity already exists") from None
@@ -2539,6 +2560,17 @@ class PostgresThreadService:
                 )
             elif snapshot.run.state != "open":
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
+            elif parsed["kind"] == "switch_runtime":
+                if snapshot.current_attempt is not None:
+                    receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
+                else:
+                    mode = parsed["payload"]["runtime_mode"]
+                    event = self._make_control_event(thread, snapshot.active_model_context,
+                        event_seq=snapshot.last_event_seq + 1, event_type="runtime_mode_changed",
+                        payload={"command_id": parsed["command_id"], "runtime_mode": mode, "previous_runtime_mode": snapshot.runtime_mode})
+                    self._insert_event(connection, event)
+                    connection.execute("UPDATE capstone_threads SET runtime_mode = %s, last_event_seq = %s WHERE thread_id = %s", (mode, event.event_seq, snapshot.thread_id))
+                    receipt = self._receipt(parsed, status="accepted", accepted_event_seq=event.event_seq, target={"runtime_mode": mode})
             elif parsed["kind"] in MODEL_COMMANDS:
                 workspace = self._synchronize_model_workspace(connection, thread, snapshot)
                 change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available)
@@ -2740,6 +2772,7 @@ class PostgresThreadService:
                             attempt = AttemptSnapshot(
                                 turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
                                 target_model_context_id=snapshot.active_model_context.id,
+                                runtime_mode=prior["runtime_mode"],
                             )
                             retry_payload = {
                                 "turn_id": prior["turn_id"],
@@ -2756,15 +2789,15 @@ class PostgresThreadService:
                                 """INSERT INTO capstone_thread_attempts
                                    (attempt_id, thread_id, run_id, turn_id, command_id, kind,
                                     instruction, model_context_id, selection_revision,
-                                    model_context_snapshot, conversation_context_snapshot, intent_input_snapshot, phase)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                                    model_context_snapshot, conversation_context_snapshot, intent_input_snapshot, runtime_mode, phase)
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                                 (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                                  parsed["command_id"], prior["kind"], prior["instruction"],
                                  snapshot.active_model_context.id,
                                  snapshot.active_model_context.selection_revision,
                                  Jsonb(snapshot.active_model_context.to_document()),
                                  Jsonb(_attempt_conversation_document(connection, prior)),
-                                 None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"])),
+                                 None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"]), attempt.runtime_mode),
                             )
                             connection.execute(
                                 """UPDATE capstone_threads
@@ -2823,6 +2856,7 @@ class PostgresThreadService:
                 attempt = AttemptSnapshot(
                     turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
                     target_model_context_id=snapshot.active_model_context.id,
+                    runtime_mode=snapshot.runtime_mode,
                 )
                 event = EventEnvelope(
                     event_id="evt_" + secrets.token_hex(8), event_seq=event_seq,
@@ -2833,7 +2867,7 @@ class PostgresThreadService:
                     selection_revision=snapshot.active_model_context.selection_revision,
                     occurred_at=_now(), visibility="public",
                     payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                             "payload": parsed["payload"]},
+                             "payload": parsed["payload"], "runtime_mode": attempt.runtime_mode},
                 )
                 connection.execute(
                     """INSERT INTO capstone_thread_events
@@ -2849,14 +2883,14 @@ class PostgresThreadService:
                 connection.execute(
                     """INSERT INTO capstone_thread_attempts
                        (attempt_id, thread_id, run_id, turn_id, command_id, kind,
-                        instruction, model_context_id, selection_revision, model_context_snapshot, conversation_context_snapshot, phase)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
+                        instruction, model_context_id, selection_revision, model_context_snapshot, conversation_context_snapshot, runtime_mode, phase)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                     (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                      parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
                      snapshot.active_model_context.id,
                      snapshot.active_model_context.selection_revision,
                      Jsonb(snapshot.active_model_context.to_document()),
-                     Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document())),
+                     Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document()), attempt.runtime_mode),
                 )
                 connection.execute(
                     "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
@@ -3679,7 +3713,7 @@ class PostgresThreadService:
             turn_id=attempt.turn_id, attempt_id=attempt.attempt_id,
             model_context_id=model_context_id,
             selection_revision=selection_revision,
-            occurred_at=_now(), visibility=visibility, payload=dict(payload),
+            occurred_at=_now(), visibility=visibility, payload={**payload, **({"runtime_mode": attempt.runtime_mode} if event_type == "command_accepted" else {})},
         )
 
     @staticmethod
@@ -3762,6 +3796,7 @@ class PostgresThreadService:
                 for item in (row.get("result_projections") or [])
             ),
             application_state=row.get("application_state"),
+            runtime_mode=row.get("runtime_mode", "capstone"),
         )
 
     @staticmethod

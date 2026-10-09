@@ -26,6 +26,13 @@ function event(sequence: number): Record<string, unknown> {
 }
 
 describe('browser Thread protocol parser', () => {
+  it('defaults legacy modes and round trips direct runtime identity', () => {
+    expect(parseThreadSnapshot(validSnapshot()).runtimeMode).toBe('capstone')
+    const snapshot = parseThreadSnapshot({ ...validSnapshot(), runtime_mode: 'pi_reference' })
+    expect(snapshot.runtimeMode).toBe('pi_reference')
+    expect(snapshot.toDocument().runtime_mode).toBe('pi_reference')
+    expect(() => parseThreadSnapshot({ ...validSnapshot(), runtime_mode: 'invalid' })).toThrow('runtime_mode')
+  })
   it('preserves uppercase and namespaced registered model IDs in active and pending contexts', () => {
     const document = validSnapshot()
     ;(document.active_model_context as Record<string, unknown>).model_id = 'GBnetwork'
