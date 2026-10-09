@@ -278,3 +278,41 @@ uv run pyright packages/capstone-agent/src/capstone_agent/case_execution.py pack
 0 errors, 0 warnings, 0 informations
 ```
 ```
+
+
+---
+
+## Shared general Pi delivery — 2026-10-09
+
+### Native executor — 1964dc5
+
+Implemented 11 owned files. The first launch/RPC tests failed for the missing
+module; 14 focused process/server tests then passed. The real Docker check
+found missing controller permissions and a detached tool that survived its
+parent. Task UID cleanup fixed those failures. Both entry points passed with
+actual bash/read/write/edit inventory, saved products, zero live task processes,
+denied access to `/proc/1/environ`, and absent business assets.
+
+The native test and Docker build passed. Combined contract/process/server
+checks passed 55 tests; source/process checks passed 14 after source capture
+was added. These checks used only a local loopback Provider.
+
+The root service and each Pi task have separate UIDs in a dedicated image.
+The task environment excludes Provider credentials and the control token.
+Each task uses a relay grant that is revoked during cleanup. The image has
+no business packages or assets. Managed native configuration discovery is active.
+
+Compose declares a separate network, read-only root, task tmpfs, persistent
+receipt volume, and limited controller capabilities. Full Compose and hosted
+integration were still pending at this commit. Source records identify actual
+tool observations; they do not independently verify external documents.
+
+### Review fixes — 153734a
+
+Task UID termination now precedes pipe closure. Native timeout test starts a detached child that retains pipes; bounded client cancellation confirms a terminal receipt and zero live task UID. All launch/cleanup paths revoke relay grants in an independent finally block. Multibyte answer or artifact persistence failure settles failed and releases workspace.
+
+Private storage keeps hash-checked product bytes and provides authenticated bounded retrieval. Default content retention: 24 hours; aggregate storage: 64 MiB; durable receipt/tombstone capacity: 4096. Expired input/result/observations/products are removed; finite tombstones prohibit blind replay. Capacity exhaustion rejects new work. Receipt restoration observes the memory cap.
+
+Actual active tools are obtained through Pi's public extension API and RPC notification during startup, without a Provider call. Readiness publishes this inventory. Both task entry points preserve token/cache counts and reported usage; price is explicitly unknown. Relay supports API-key chat-completions transport; Anthropic/OAuth configuration is rejected.
+
+Verification: 19 process/server tests pass; changed modules Pyright has zero errors. Rebuilt native image and real native test pass in the Compose-equivalent read-only/capability/memory/PID/tmpfs layout, including product retrieval and inherited-pipe timeout. Loopback fake Provider only. Full Compose rebuild and hosted integration remain Task5. Native RPC implementation is local to this isolated service because task-UID/process-tree ownership is outside the professional PiRpcClient contract.

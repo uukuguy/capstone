@@ -21,6 +21,13 @@ The user directs continued completion of these conversation plans. The core capa
 
 ### Current priority and release correction — 2026-10-08
 
+Superseded delivery boundary — 2026-10-09: the user approved one native general
+Pi executor with delegated and direct entry points. Ordinary/mixed Capstone and
+direct Pi implementation now proceed together under the
+[joint plan](2026-10-09-capstone-pi-delegation.md). Actual response acceptance
+remains separate for each entry point; skills/MCP installation management follows.
+The previous empty-tool Pi path does not establish general task delegation.
+
 Ordinary Capstone conversation, including an empty enabled-tool selection, is
 the active package. The user directs cleanup, ordinary-answer support and actual
 Capstone response assessment first, then pure Pi comparison, then installation

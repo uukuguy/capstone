@@ -165,7 +165,11 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             assert recognizer.calls == (1 if mode == 'capstone' else 0)
             assert len(calls) == before + 2
             assert 'Shared history marker' in str(calls[before]['messages'])
-            receipts = [event.payload for event in service.read_events(current.thread_id, 0).events
+            public_events = service.read_events(current.thread_id, 0).events
+            streamed_text = ''.join(event.payload['text'] for event in public_events
+                                    if event.event_type == 'assistant_text_delta')
+            assert streamed_text == 'Native general task complete.'
+            receipts = [event.payload for event in public_events
                         if event.event_type == 'runtime_event']
             assert any(receipt.get('child_status') == 'completed' for receipt in receipts)
     finally:

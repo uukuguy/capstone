@@ -1,15 +1,15 @@
 # Capstone 与通用 Pi 的任务委托
 
-状态：2026-10-09 用户批准联合设计并要求继续实施；委托路径尚未完成或发布。
+状态：2026-10-09 联合设计已批准，本地实现、审查与工程验证已完成；真实模型表现待验收，尚未发布。
 
 用户提出：Pi 同时作为底层引擎和受委托子智能体；Capstone 负责专业能力和
 整体回复。共同执行器及两个入口的方向已批准；本文中的契约细节由实施验证。
 归属：[普通回答主线](../plans/2026-10-07-capstone-conversation-completion.md)。
 延续[共享会话设计](2026-10-08-capstone-conversation-context-design.md)。
 
-## 1. 当前缺口
+## 1. 设计时的实现基线
 
-当前普通执行确实调用 Pi，但使用 Capstone 的受限启动器。
+本方案实施前，普通执行确实调用 Pi，但使用 Capstone 的受限启动器。
 [启动器](../../../packages/capability-agent-kernel/src/capability_agent/runtime/environment.py)
 关闭内置工具、skills、扩展、模板和 context files 的自动发现。
 [普通会话构造器](../../../packages/capstone-agent/src/capstone_agent/pi_intent.py)

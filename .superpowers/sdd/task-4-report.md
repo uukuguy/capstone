@@ -97,3 +97,21 @@ descriptor-owned `grid_` prefix and reject the legacy query alias. Revisit
 when the Pi patch/runtime upgrade workflow is explicitly validated, including
 request-capture and compatibility tests; do not use `npm audit fix --force` as
 an unreviewed upgrade path.
+
+## 2026-10-09: Direct Pi public controls and storage
+
+Commit: `dafcef1`.
+
+- Added strict persisted Thread runtime mode and immutable Attempt mode, with the legacy `capstone` default.
+- Added exact `switch_runtime` admission, command replay, public events, and idle-work gates in memory and PostgreSQL.
+- Retry keeps its original mode after the Thread mode changes. Model selection and shared history stay in the same Thread.
+- Added App runtime selection and direct `send_auto` submission. Direct text bypasses model-open parsing and profile changes.
+- The App keeps draft/model state during switching and rejection. A pending switch disables further input.
+- Case start requires Capstone mode. Its rejection is saved; the App shows a disabled start and the required switch message.
+
+Verification: 118 focused Python tests; 16 tests against a separate PostgreSQL 17 container; 119 App projection/UI tests;
+27 related Case/client/session tests; TypeScript check and owned-path diff check passed. The temporary database was removed.
+The existing FastAPI test client emitted one deprecation warning.
+
+Root owns direct executor routing, native loopback parity, local rebuild, and final integration checks. No Provider call or deployment ran.
+Only owned source/test paths were committed. Journal and this report were appended without staging other work.
