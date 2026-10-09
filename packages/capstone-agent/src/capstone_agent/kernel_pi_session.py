@@ -199,6 +199,9 @@ class PreparedKernelPiRpcSessionBuilder:
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
             )
+        from .professional_resources import prepared_authority_environment
+        extra_environment = {**self._runtime_host.extra_environment,
+            **prepared_authority_environment(endpoint for _, _, endpoint in binding_runtimes)}
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
@@ -211,7 +214,7 @@ class PreparedKernelPiRpcSessionBuilder:
             system_policy_path=system_policy_path,
             runtime_descriptor_path=descriptor_path,
             binding_id=binding_ids[0] if single else None,
-            extra_environment=self._runtime_host.extra_environment,
+            extra_environment=extra_environment,
         )
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,

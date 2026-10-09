@@ -133,7 +133,12 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
     runtime = SimpleNamespace(profile=SimpleNamespace(manifest=SimpleNamespace()),
         tool_catalog_path=resources, guide_index_path=resources, guide_root_path=tmp_path)
     profile = SimpleNamespace(workspace=workspace,
-        prepared_application=SimpleNamespace(bindings={'grid': SimpleNamespace(runtime=runtime)}),
+        prepared_application=SimpleNamespace(bindings={'grid': SimpleNamespace(runtime=runtime,
+            endpoint=SimpleNamespace(metadata={'environment': {
+                'CAPSTONE_POWERMCP_MANAGED_ROOT': '/prepared/root',
+                'CAPSTONE_POWERMCP_INSTALL_ID': 'installs/' + 'a' * 32,
+                'CAPSTONE_POWERMCP_DESCRIPTOR_SHA256': 'b' * 64,
+                'CAPSTONE_POWERMCP_UNTRUSTED': 'excluded', 'OPENAI_API_KEY': 'excluded'}}))}),
         profile=SimpleNamespace(reference_grants=(), manifest=SimpleNamespace(application_id='test')),
         model_binding=SimpleNamespace(binding_id='grid', context_ref='current_authority_context'))
     monkeypatch.setattr(module, 'descriptor_from_endpoint', lambda **kwargs: SimpleNamespace(search_path=()))
@@ -155,6 +160,11 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
         return
     session = builder(claim, None, (profile,))
     session.stop()
+    assert launches[0].environment['CAPSTONE_POWERMCP_MANAGED_ROOT'] == '/prepared/root'
+    assert launches[0].environment['CAPSTONE_POWERMCP_INSTALL_ID'] == 'installs/' + 'a' * 32
+    assert launches[0].environment['CAPSTONE_POWERMCP_DESCRIPTOR_SHA256'] == 'b' * 64
+    assert 'CAPSTONE_POWERMCP_UNTRUSTED' not in launches[0].environment
+    assert 'OPENAI_API_KEY' not in launches[0].environment
     if selected_skill:
         assert loaded == [('accepted-selection', ('grid',), 'attempt')]
     context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']

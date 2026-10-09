@@ -22,7 +22,7 @@ from capability_agent.domain.provisioning import CredentialLease
 from pandapower_domain.execution import (
     DEFAULT_MAX_OUTPUT_BYTES,
     GridctlExecutor,
-    sanitize_environment,
+    prepare_runtime_environment,
 )
 
 
@@ -95,7 +95,7 @@ class PandapowerRuntimeProvisioner:
         target = bin_path / GRIDCTL_NAME
         self._install_binding_executable(executable, target)
 
-        safe_environment = sanitize_environment(self.environ)
+        safe_environment = prepare_runtime_environment(self.environ)
         metadata = {
             "binding_id": binding.binding_id,
             # The descriptor exposes only the validated basename.  The

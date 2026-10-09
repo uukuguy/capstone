@@ -6,7 +6,7 @@ No Domain Pack source or state is sent to the native executor.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import hashlib
 import json
@@ -22,7 +22,31 @@ from .runtime_resources import content_hash, resolve_resource_profile
 GUIDE_ID = "powerskills-pandapower-adapter"
 ADAPTER_ID = "capstone-powerskills-pandapower/1"
 SEMANTIC_TOOLS = ("model.list", "context.open", "context.get", "model.element.get", "analysis.run",
-                  "analysis.operation.describe", "analysis.powerflow.ac.run", "result.dataset.describe", "result.dataset.query")
+                  "model.dataset.list", "model.dataset.describe", "model.dataset.query", "model.constraints.describe",
+                  "analysis.operation.describe", "analysis.powerflow.ac.run", "analysis.result.violations.evaluate",
+                  "analysis.contingency.n_minus_one.run", "result.dataset.describe", "result.dataset.query")
+
+
+def prepared_authority_environment(endpoints: Iterable[object]) -> dict[str, str]:
+    """Compose only the fixed professional backend settings prepared by packs."""
+    names = ("CAPSTONE_POWERMCP_MANAGED_ROOT", "CAPSTONE_POWERMCP_INSTALL_ID",
+             "CAPSTONE_POWERMCP_DESCRIPTOR_SHA256")
+    selected: dict[str, str] = {}
+    for endpoint in endpoints:
+        metadata = getattr(endpoint, "metadata", {})
+        environment = metadata.get("environment", {}) if isinstance(metadata, Mapping) else {}
+        if not isinstance(environment, Mapping):
+            raise ValueError("prepared Authority environment is invalid")
+        for name in names:
+            if name not in environment:
+                continue
+            value = environment[name]
+            if not isinstance(value, str) or not value:
+                raise ValueError("prepared Authority runtime setting is invalid")
+            if name in selected and selected[name] != value:
+                raise ValueError("prepared Authority runtime settings conflict")
+            selected[name] = value
+    return selected
 
 
 @dataclass(frozen=True, slots=True)

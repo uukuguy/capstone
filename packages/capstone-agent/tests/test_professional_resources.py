@@ -16,8 +16,11 @@ def binding(tmp_path, *, available=True, missing=False):
     (root / "references").mkdir(parents=True)
     path = root / "references/powerskills-pandapower-adapter.md"
     path.write_text(guide)
-    capability_ids = ["model.list", "context.open", "context.get", "model.element.get", "analysis.run", "analysis.operation.describe", "analysis.powerflow.ac.run", "result.dataset.describe", "result.dataset.query"]
-    documents = [{"id": c} for c in capability_ids if not missing or c != "analysis.run"]
+    capability_ids = ["model.list", "context.open", "context.get", "model.element.get", "analysis.run", "analysis.operation.describe", "analysis.powerflow.ac.run", "result.dataset.describe", "result.dataset.query",
+                      "model.dataset.list", "model.dataset.describe", "model.dataset.query", "model.constraints.describe",
+                      "analysis.result.violations.evaluate", "analysis.contingency.n_minus_one.run"]
+    missing_id = "analysis.run" if missing is True else missing
+    documents = [{"id": c} for c in capability_ids if c != missing_id]
     class Executor:
         def invoke(self, capability, arguments):
             assert capability == "analysis.operation.describe"
@@ -72,6 +75,18 @@ def test_selected_skill_rejects_version_revision_and_guide_drift(tmp_path, monke
     (bindings["grid"].runtime.guide_root_path / "references/powerskills-pandapower-adapter.md").write_text("changed")
     with pytest.raises(ValueError, match="guide"):
         module.load_harness_skill(selected, bindings)
+
+
+@pytest.mark.parametrize("missing_id", ["model.dataset.list", "model.dataset.describe", "model.dataset.query",
+    "model.constraints.describe", "analysis.result.violations.evaluate", "analysis.contingency.n_minus_one.run"])
+def test_guide_declared_workflow_tools_are_required_for_readiness(tmp_path, monkeypatch, missing_id):
+    from capstone_agent import professional_resources as module
+    monkeypatch.setattr(module, "resolve_resource_profile", lambda *args: installed_profile())
+    bindings = {"grid": binding(tmp_path, missing=missing_id)}
+    profile = module.resolve_harness_resource_profile(tmp_path, bindings)
+    assert not any(item["ready"] for item in profile.to_document()["resources"])
+    with pytest.raises(ValueError, match="unavailable"):
+        module.bind_harness_skill(profile, skill_id="powerskills-pandapower", skill_version="v1", profile_revision=profile.revision)
 
 
 def test_selected_guide_enters_real_launch_policy_and_receipt(tmp_path, monkeypatch):
