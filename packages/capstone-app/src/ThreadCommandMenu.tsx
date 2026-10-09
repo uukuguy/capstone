@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { BookOpen, Layers, X } from 'lucide-react'
 import { parseInputCommand, skillCompatible, inputDraftError, type InputCatalog, type InputDraft, type SkillChoice, type SkillRole } from './threadInput'
@@ -14,6 +14,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [index, setIndex] = useState(0)
+  const [panelHeight, setPanelHeight] = useState<number>()
   const root = useRef<HTMLDivElement>(null)
   const composing = useRef(false)
   const candidates = !disabled && text.startsWith('/') && /^\/[a-z]*$/.test(text) && text !== dismissed && !panel
@@ -22,6 +23,29 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
     .filter(resource => resource.kind === 'skill' && skillCompatible({ role } as SkillChoice, draft.mode))
     .map(resource => ({ ...resource, role: role as SkillRole, revision: profile!.revision })))
   const skills = allSkills.filter(skill => `${skill.id} ${skill.native_name || ''} ${skill.description || ''} ${skill.source}`.toLowerCase().includes(search.toLowerCase()))
+  const panelVisible = Boolean(panel || candidates.length)
+  useLayoutEffect(() => {
+    if (!panelVisible || !root.current) return
+    const controls = root.current
+    const boundaries = [controls.closest('.capstone-assistant-thread'), controls.closest('.thread-chat-pane')]
+      .filter((element): element is Element => element !== null)
+    const measure = () => {
+      // The panel opens above the controls, inside the thread's clipping bounds.
+      const top = Math.max(8, ...boundaries.map(element => element.getBoundingClientRect().top + 8))
+      setPanelHeight(Math.max(0, controls.getBoundingClientRect().top - top - 8))
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(controls)
+    boundaries.forEach(element => observer?.observe(element))
+    window.addEventListener('resize', measure)
+    document.addEventListener('scroll', measure, true)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+      document.removeEventListener('scroll', measure, true)
+    }
+  }, [panelVisible])
   const focus = () => root.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus({ preventScroll: true })
   function close() { setPanel(null); setDismissed(text); focus() }
   function open(value: 'skills' | 'context') { setPanel(value); setSearch(''); onRefresh?.() }
@@ -53,7 +77,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
     return () => document.removeEventListener('pointerdown', outside)
   }, [panel, candidates.length, text])
   const draftError = inputDraftError(draft, catalog)
-  return <div ref={root} className="thread-input-controls" onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
+  return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
     onClickCapture={event => {
       if (event.target instanceof Element && event.target.closest('.capstone-chat-send') && (composing.current || consumeCommand())) { event.preventDefault(); event.stopPropagation() }
     }}
