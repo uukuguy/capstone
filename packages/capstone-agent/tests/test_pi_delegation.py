@@ -132,6 +132,20 @@ def service():
 
         def do_DELETE(self):
             state["cancelled"].append(self.path)
+            if state.get("slow_delete_headers"):
+                body = json.dumps({"task_id": "task-1", "status": "cancellation_requested"}).encode()
+                headers = b"X-Slow: " + b"x" * 40 + b"\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n"
+                try:
+                    self.wfile.write(b"HTTP/1.1 200 OK\r\n")
+                    self.wfile.flush()
+                    for byte in headers:
+                        self.wfile.write(bytes([byte]))
+                        self.wfile.flush()
+                        time.sleep(0.03)
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return
             if state.get("slow_delete"):
                 body = json.dumps({"task_id": "task-1", "status": "cancellation_requested"}).encode()
                 body += b" " * 40
@@ -344,3 +358,12 @@ def test_cancel_accepts_already_completed_bound_task(service):
     state["cancel_response"] = {"status": "completed", "events": [], "result": result_document(request)}
     executor(origin).cancel("task-1")
     assert state["polls"] == 1
+
+
+def test_cancel_total_budget_includes_dripped_response_headers(service):
+    origin, state = service
+    state["slow_delete_headers"] = True
+    start = time.monotonic()
+    with pytest.raises((TimeoutError, RuntimeError)):
+        executor(origin).cancel("task-1")
+    assert time.monotonic() - start < 0.75

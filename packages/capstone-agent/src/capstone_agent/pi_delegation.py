@@ -7,6 +7,7 @@ them to the accepted task before it saves or presents the result.
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import asyncio
 import json
 import math
 import re
@@ -243,22 +244,50 @@ class HttpGeneralPiExecutor:
     def capability(self):
         return self._capability
 
-    def _call(self, method, path, *, document=None, timeout=0.25, checkpoint=lambda: None):
+    def _call(self, method, path, *, document=None, timeout=0.25,
+              total_timeout=0.25, checkpoint=lambda: None):
+        """Bound the entire exchange, including response headers and slow reads.
+
+        Application workers call this synchronous API from their worker threads.
+        The private async loop lets the total timer interrupt network awaits.
+        """
         checkpoint()
-        try:
-            with httpx.Client(trust_env=False, follow_redirects=False, headers=self._headers) as client:
-                with client.stream(method, self._origin + path, json=document, timeout=timeout) as response:
+
+        async def fetch():
+            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, headers=self._headers) as client:
+                async with client.stream(method, self._origin + path, json=document, timeout=timeout) as response:
                     response.raise_for_status()
                     body = bytearray()
-                    for chunk in response.iter_bytes():
+                    async for chunk in response.aiter_bytes():
                         checkpoint()
                         body.extend(chunk)
                         if len(body) > MAX_DOCUMENT_BYTES:
                             raise ValueError("Pi response exceeds byte bounds")
             checkpoint()
-            document = _json_document(json.loads(body))
+            result = _json_document(json.loads(body))
             checkpoint()
-            return document
+            return result
+
+        async def checked_fetch():
+            pending = asyncio.create_task(fetch())
+            try:
+                while not pending.done():
+                    await asyncio.wait({pending}, timeout=0.025)
+                    checkpoint()
+                return pending.result()
+            finally:
+                if not pending.done():
+                    pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+
+        async def bounded_fetch():
+            return await asyncio.wait_for(checked_fetch(), timeout=total_timeout)
+
+        try:
+            return asyncio.run(bounded_fetch())
+        except TimeoutError:
+            checkpoint()
+            raise TimeoutError("Pi transport deadline expired; task state is unknown") from None
         except (httpx.HTTPError, json.JSONDecodeError, UnicodeDecodeError):
             checkpoint()
             raise RuntimeError("Pi executor transport failed; task state may be unknown") from None
@@ -272,6 +301,7 @@ class HttpGeneralPiExecutor:
             control.checkpoint()
             return self._call(method, "/tasks/" + task_id,
                               timeout=max(0.001, min(0.1, control.deadline - time.monotonic())),
+                              total_timeout=max(0.001, control.deadline - time.monotonic()),
                               checkpoint=control.checkpoint)
 
         receipt = call("DELETE")
@@ -311,13 +341,15 @@ class HttpGeneralPiExecutor:
         seen_events = {}
         try:
             accepted = self._call("POST", "/tasks", document=request.to_document(),
-                                  timeout=max(0.001, min(0.25, deadline - time.monotonic())), checkpoint=checkpoint)
+                                  timeout=max(0.001, min(0.25, deadline - time.monotonic())),
+                                  total_timeout=max(0.001, deadline - time.monotonic()), checkpoint=checkpoint)
             if accepted != {"task_id": request.task_id}:
                 raise ValueError("Pi accepted task identity is invalid")
             while True:
                 checkpoint()
                 response = self._call("GET", "/tasks/" + request.task_id,
-                                      timeout=max(0.001, min(0.25, deadline - time.monotonic())), checkpoint=checkpoint)
+                                      timeout=max(0.001, min(0.25, deadline - time.monotonic())),
+                                      total_timeout=max(0.001, deadline - time.monotonic()), checkpoint=checkpoint)
                 checkpoint()
                 if set(response) != {"status", "events", "result"} or not isinstance(response["events"], list):
                     raise ValueError("Pi task status fields are invalid")
