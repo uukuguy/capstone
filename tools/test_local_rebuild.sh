@@ -30,10 +30,10 @@ export CAPSTONE_TEST_CALLS="$scratch/calls"
 export CAPSTONE_LOCAL_ENV_FILE="$scratch/local.env"
 PATH="$scratch/bin:$PATH" "$repo_root/deploy/rebuild_local.sh" > "$scratch/output"
 
-rg -q -- '--env-file .* config --quiet' "$CAPSTONE_TEST_CALLS"
-rg -q -- '--env-file .* build api' "$CAPSTONE_TEST_CALLS"
-rg -q -- '--env-file .* up --no-build --force-recreate --wait -d' "$CAPSTONE_TEST_CALLS"
-rg -q -- 'http://127.0.0.1:8767/health/ready' "$CAPSTONE_TEST_CALLS"
-rg -q 'App:.*http://.*:5173/' "$scratch/output"
+grep -Eq -- '--env-file .* config --quiet' "$CAPSTONE_TEST_CALLS"
+grep -Eq -- '--env-file .* build api' "$CAPSTONE_TEST_CALLS"
+grep -Eq -- '--env-file .* up --no-build --force-recreate --wait -d' "$CAPSTONE_TEST_CALLS"
+grep -Eq -- 'http://127.0.0.1:8767/health/ready' "$CAPSTONE_TEST_CALLS"
+grep -Eq 'App:.*http://.*:5173/' "$scratch/output"
 
 echo 'local-rebuild: ok'
