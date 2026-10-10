@@ -39,7 +39,7 @@ def test_rpc_retains_unstructured_sdk_tool_error_without_inventing_authority_ref
     finally:
         client.stop()
         trace.close()
-    receipt = next(event for event in events if event['type'] == 'tool_result')
+    receipt = next(event for event in events if event['type'] == 'tool_execution_end')
     assert receipt['tool_call_id'] == 'call-1'
     assert receipt['tool_name'] == 'grid_analysis_powerflow_ac'
     assert receipt['ok'] is False
