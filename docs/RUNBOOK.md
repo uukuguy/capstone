@@ -104,7 +104,7 @@ checkout. Set up its managed runtimes with `make setup`, `make install-pi`, and
 CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild
 ```
 
-The default source is `.worktrees/demo-n1-repair`. The wrapper uses the selected
+The default source is `.worktrees/demo-baseline`. The wrapper uses the selected
 checkout's canonical rebuild entrypoint. It creates a separate Compose project
 `capstone-demo-local`, image name, database and object-store volumes, private
 bucket, operator token and storage credentials. It does not copy user data or
@@ -120,6 +120,10 @@ record its full commit and image identity, and refresh the browser before cases.
 This target does not deploy to the cloud or alter release lanes.
 
 ### Capstone 委托与 Pi 直接入口
+
+本节和下节“共享背景与角色资源”属于 `feat/pi-skills-integration` 的实验功能说明。
+基线一的 main 与 demo 未启用这些扩展。先在该分支验证，按
+[多线版本控制流程](status/VERSION-CONTROL.md)合并，再决定发布范围。
 
 对话空闲时可切换 **Capstone** 和 **Pi**。
 Capstone 先由模型识别目标：专业目标交给 Domain Pack，通用目标委托给原生 Pi。

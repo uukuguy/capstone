@@ -2,6 +2,8 @@
 
 本文件是固定、持续更新的分支、公共修复、基线和发布台账。每次建立分支、合并、验证、发布或回滚，都更新对应条目；验证证据链接到原始报告。部署边界以[开发与发布生命周期](../architecture/capstone-development-lifecycle.md)为准。
 
+以 main 工作区中的本文件为当前台账。功能分支内的副本可能较旧，操作前须读取 main 的最新版本；合并时不能用旧台账覆盖当前记录。
+
 ## 已确认的规则
 
 dev 是开发环境，`main` 是集成主线，demo 是经过发布验收的稳定子集。四个环境不对应四条永久代码主线。保留现有 Git 主线名称 `main`。
@@ -49,10 +51,14 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | main `ca062df`；最近框架代码修复 `0287c86` | 待按基线一整理和重建；纯 Pi/skills 未获稳定发布验收 | App `http://127.0.0.1:5173/`，API `8767` |
-| local-demo | `fix/demo-n1-outcome`，`3e3bbfb` | 基础设施检查通过；人工回答验收失败；不能作为稳定基线 | App `http://127.0.0.1:15173/`，API `18767`；[验证报告](../reviews/2026-10-10-framework-answer-local-demo.md) |
+| local-dev | main；运行基线 `2540bdc` | 已合并、重建并验证；后续台账提交与运行代码版本分开记录；未启用 Pi/skills 扩展 | App `http://127.0.0.1:5173/`，API `8767`；[对齐验收](../reviews/2026-10-10-version-baseline-alignment.md) |
+| local-demo | `integration/demo-baseline`，运行基线 `2540bdc` | 已重建并验证；与 local-dev 运行工件身份一致；替代失败的 `3e3bbfb` 本地候选 | App `http://127.0.0.1:15173/`，API `18767`；[对齐验收](../reviews/2026-10-10-version-baseline-alignment.md) |
 | cloud-dev | `ed2524f`，历史标签 `cloud-dev-20261008-1941-ed2524f` | 本次未部署；记录历史验收，未重新探测 | [验收报告](../reviews/2026-10-08-cloud-dev-app-version.md) |
 | cloud-demo | `ed2524f`，回滚标签 `demo-20261010-1231-ed2524f` | 当前已记录的回滚版本；作为基线一起点，已知问题仍开放 | [发布与回滚报告](../reviews/2026-10-10-demo-n1-release.md) |
+
+基线一已完成本地对齐。云端仍为 `ed2524f`，没有部署本地新增的最小契约修正；不能宣称四个环境已更新到同一提交。`release/demo-baseline-1` 固定在 `a076b04`，包含 `2540bdc` 的运行代码和已验证的环境文件忽略规则，是本地验收的冻结候选，不是新的云 demo 验收标签。台账/文档提交可以推进 main 的 HEAD；运行来源、镜像和工件身份以最后重建收据为准。
+
+两个本地环境各完成三个注册案例、九轮执行及报告/证据回放。六个角色的运行契约、源码工件与安装工件 SHA-256 完全一致；两套环境的数据和存储保持隔离。510 个 dev 对话与两个 demo 对话的快照/历史可读取，原有 8,682/362 条事件及所有存储卷保留。详情见对齐验收报告。
 
 撤回的 `demo-20261010-1150-2ea2266` 保留审计用途，不代表当前版本。四个环境未来统一显示 `local-dev/local-demo/cloud-dev/cloud-demo`，同时保留产品版本和来源提交；此次不单独修改云端显示。
 
@@ -60,9 +66,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 项目 | 来源/当前提交 | 状态与下一步 |
 | --- | --- | --- |
-| 现有 dev 的纯 Pi、skills、资源扩展及相关实验 | main `ca062df` | 保存到 `feat/pi-skills-integration`；整组为开发成果快照，不表示组内每项已独立验收；后续拆分依赖和合并范围 |
+| 现有 dev 的纯 Pi、skills、资源扩展及相关实验 | 原始快照 `archive/dev-before-baseline-20261010`：`ca062df`；独立分支 `feat/pi-skills-integration`：`fba1f51` | 从事故前 `e9aca89` 重新应用在共同基线上；测试文件仅清理末尾空行；已同步公共忽略规则修复；未重新部署或获得稳定发布验收；后续拆分依赖和合并范围 |
 | 公共回答链路修复 | main `0287c86`，旧 demo 修复候选 `3e3bbfb` | 基础设施与证据保留检查通过，人工正式回答失败；保存到 `fix/framework-answer-chain`，纳入基线二，不直接进入基线一 |
-| 基线一整理 | 云 demo `ed2524f`；当前 main `ca062df` | `integration/demo-baseline` 准备；保留历史，不重写 main；验证后合并，并记录实际运行来源 |
+| 基线一整理 | 云 demo 起点 `ed2524f`；运行基线 `2540bdc`；`integration/demo-baseline`/`release/demo-baseline-1` 固定候选 `a076b04` | 完整离线、集成、打包及两套本地实际入口验证通过；候选补入已验证的非运行忽略规则修复；已合并 main；云端推广未执行 |
+| 基线必要契约修正 | `fix/baseline-contracts`：`2540bdc` | 五个文件修正空事件/可选拓扑接口/凭据契约；13 个类型错误归零，Thread 46 项、pandapower 5 项、PyPSA 7 项针对性检查通过；不包含新 Pi 或回答策略 |
+| 本地 demo 管理守护 | `fix/local-demo-secret-ignore`：`a076b04` | 独立分支保留受保护环境文件的忽略规则；针对性检查通过；已回归 main、基线整理分支和 Pi/skills 分支；不改变运行代码或工件身份 |
 | 语义任务意图与回答尺度 | [设计草案](../superpowers/specs/2026-10-10-shared-intent-and-goal-answer-design.md) | 未实施；普通/专业问答路由不等于完整任务理解；基线一整理后再推进 |
 | 启动和对话中恢复体验 | [已知问题](KNOWN-ISSUES.md) | 待调查；作为公共加固/体验工作独立管理，不能由未测量的睡眠策略变更代替验收 |
 
