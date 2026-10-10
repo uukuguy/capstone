@@ -531,3 +531,23 @@ make validate-provider PROVIDER=openai MODEL=gpt-5.5 VALIDATION_SUITE=task-requi
 App 私钥保存在本仓库忽略目录 `.capstone-agent/issue-automation/app-private-key.pem`，仅文件所有者可读写（0600）。App ID、installation ID、实际账号及启用开关写入同目录的 `operator.json`（0600）；不把私钥或 token 放进命令参数、源码、截图或 Issue。工具在每次发布前核对 App、安装和目标仓库，再申请短期安装 token。身份接入需要维护者在 GitHub 完成注册、安装及私钥配置；有名字不代表账号已经存在。
 
 工具的开发、测试与审查状态以[实施计划](superpowers/plans/2026-10-10-github-issue-automation.md)为准。未通过审查的特性分支不代表已接入 main，也不代表 dev/demo 运行服务已经更新。
+
+工具已通过审查并合入本地 main，常用入口如下。独立 GitHub App 尚未接入，AI 发布保持关闭。`doctor` 如实列出配置缺项；读取命令不调用模型，也不修复或发布。
+
+```sh
+make issues-doctor
+make issues-scan
+make issues-show ISSUE=1
+make issues-status
+```
+
+AI 在当前会话准备中文正文和事实来源，再用 `create` 建单。正文文件不应包含秘密或未获授权的私有数据。身份未接入时保留草稿，不能改用个人账号绕过工具。
+
+```sh
+python3 -m tools.issue_automation.cli create \
+  --title '开发中发现的问题' \
+  --body-file runs/issue-draft.md \
+  --provenance runs/issue-provenance.json
+```
+
+修复依次执行 `triage`、`begin`、`record-verification`、`complete`，由当前 AI 会话传入判断、有限源码选择和完整文件替换。工具固定记录输入、政策、源码及候选身份，独立检查原始版本的复现与候选通过情况，然后发布 draft PR。缺少受信检查或准备好的隔离镜像时不发布；不把配置缺项当作用户问题根因。两套真实入口及云发布仍按生命周期另行验证。

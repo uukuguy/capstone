@@ -7,7 +7,8 @@
 | `CURRENT-STATE.md` | Structural project snapshot. |
 | [多线版本控制](VERSION-CONTROL.md) | 固定分支、公共修复、基线与标签规范、环境台账及 GitHub Issues 反馈流程；历史浏览待建 Issue，云端未更新；持续维护。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
-| [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动特性分支已完成首轮实现，审查修正中；小石独立 App 待接入，无无人值守或额外模型调用。 |
+| [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已审查并合入本地 main；小石独立 App 与正式运行配置待接入，无无人值守或额外模型调用。 |
+| [Issue 工具验收](../reviews/2026-10-10-issue-workflow.md) | 源码审查、测试及真实 App 沙箱检查范围；区分已集成工具、待配置身份和未修复产品反馈。 |
 | [Issue 处理规程](../architecture/capstone-issue-workflow.md) | 统一规范：当前 AI 会话按命令处理反馈、中文沟通、专用分支、双线验收及发布状态；不启用无人值守。 |
 | [Baseline alignment plan](../superpowers/plans/2026-10-10-version-baseline-alignment.md) | Preserve experimental development, restore minimal demo foundation and verify local-only alignment. |
 | [Baseline alignment verification](../reviews/2026-10-10-version-baseline-alignment.md) | Main and isolated local-demo alignment passes full/local gates; six role identities match; experimental branches and user data retained; cloud unchanged. |

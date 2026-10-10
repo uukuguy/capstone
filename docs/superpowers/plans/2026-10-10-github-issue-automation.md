@@ -10,6 +10,8 @@
 
 **Latest user steering:** Deliver command-driven assisted operation first. The current AI session performs reasoning and passes structured decisions/patches to tools; no independent paid model calls, automatic polling/repair/comments or schedule activation. Timer and autonomous executor are deferred. Manual local CLI and readonly workflow_dispatch must work without a model key. Any optional model adapter remains disabled. Do not implement or activate a permanent daemon to satisfy the earlier draft.
 
+**2026-10-10 acceptance:** Reviewed tooling is integrated into local main `b145cda`. Source tests, real App sandbox probes and readonly intake pass. The checklist below includes live publication and recovery requirements; it is not marked complete while the independent App, formal operator image/configuration and remote CI remain unavailable. See [verified scope and pending operations](../../reviews/2026-10-10-issue-workflow.md). No product feedback is declared repaired.
+
 ## Global Constraints
 
 - AI identity: 小石 · Capstone AI, using a separate verified GitHub App for writes. Never inherit personal publisher credentials. Development-origin Issues are authorized and follow the same workflow; creating an Issue does not start repair.
