@@ -95,6 +95,44 @@ class ContentReferenceVerifier:
         self._verify_revision(revision_ref)
         return VerifiedArtifact(reference=reference, kind="context", document=document, path=path)
 
+    def verify_context_descendant(
+        self, reference: str, *, base_ref: str, model_id: str, revision_ref: str,
+    ) -> bool:
+        """Verify current-run child identity and its exact base lineage."""
+        seen: set[str] = set()
+        expected_revision = revision_ref
+        try:
+            for _ in range(64):
+                if reference in seen:
+                    return False
+                seen.add(reference)
+                document = self.verify_context(reference).document
+                if document.get('model_id') != model_id or document.get('revision_ref') != expected_revision:
+                    return False
+                if reference == base_ref:
+                    return True
+                lineage_ref = document.get('lineage_ref')
+                if not isinstance(lineage_ref, str) or document.get('origin') != 'derived':
+                    return False
+                digest = _reference_digest(lineage_ref, 'lineage', label='lineage_ref')
+                loaded = self._try_json_document(('evidence', 'revisions', digest + '.json'), 'lineage document')
+                if loaded is None:
+                    return False
+                lineage = loaded[1]
+                if _sha256_canonical_json(lineage) != digest or any(
+                    lineage.get(field) != document.get(field)
+                    for field in ('model_id', 'revision_ref', 'origin', 'parent_context_ref', 'engine', 'engine_version')
+                ):
+                    return False
+                parent = lineage.get('parent_context_ref')
+                parent_revision = lineage.get('parent_revision_ref')
+                if not isinstance(parent, str) or not isinstance(parent_revision, str):
+                    return False
+                reference, expected_revision = parent, parent_revision
+        except (SimulatorIntegrityError, ValueError, OSError):
+            return False
+        return False
+
     def verify_result(self, reference: str) -> VerifiedArtifact:
         digest = _reference_digest(reference, "result", label="declared result_ref")
         loaded = self._first_json_document(
@@ -486,6 +524,22 @@ class ContentReferenceVerifier:
 
 
 class PandapowerArtifactAuthority:
+    @staticmethod
+    def describe_execution_failure(code: str) -> dict[str, str] | None:
+        """Map published gridctl error codes to bounded reader diagnostics."""
+        entries = {
+            'powerflow_non_converged': ('calculation', '潮流求解未收敛。该状态不能单独证明数据不足或程序错误。', 'change_scope'),
+            'analysis_non_converged': ('calculation', '分析求解未收敛。请检查计算条件后再运行。', 'change_scope'),
+            'model_scope_mismatch': ('invocation', '调用的模型上下文不在本会话授权范围内。', 'report_issue'),
+            'model_scope_invalid': ('invocation', '本会话的模型范围配置无效。', 'report_issue'),
+        }
+        entry = entries.get(code)
+        if entry is None:
+            return None
+        category, summary, recovery = entry
+        return {'code': code, 'category': category, 'stage': 'execute' if category == 'calculation' else 'validate',
+                'confirmation': 'confirmed', 'summary': summary, 'recovery': recovery}
+
     """Scope simulator artifact admission to the current run workspace."""
 
     authority_id = "gridctl"
@@ -509,6 +563,23 @@ class PandapowerArtifactAuthority:
 
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
+
+    def bind_context_scope(self, reference: str) -> None:
+        """Install the application-selected scope for this private run."""
+        from capability_agent._safe_files import write_bound_text
+        self.verify_context(reference)
+        path = self.workspace_root / 'thread-model-scope.json'
+        if path.exists():
+            raise SimulatorIntegrityError('Thread model scope cannot be rebound')
+        write_bound_text(path, json.dumps({'schema': 'grid-thread-model-scope/1',
+                                         'base_context_ref': reference}))
+
+    def verify_context_descendant(
+        self, reference: str, *, base_ref: str, model_id: str, revision_ref: str,
+    ) -> bool:
+        return self._verifier.verify_context_descendant(
+            reference, base_ref=base_ref, model_id=model_id, revision_ref=revision_ref,
+        )
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)

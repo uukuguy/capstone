@@ -146,7 +146,9 @@ class ContextStore:
             engine_version=model.engine_version,
         )
 
-    def require(self, context_ref: str) -> OpenedContext:
+    def require(self, context_ref: str, *, _ancestors: tuple[str, ...] = ()) -> OpenedContext:
+        if context_ref in _ancestors or len(_ancestors) >= 64:
+            raise ContextIntegrityError('context lineage is cyclic or exceeds its limit')
         expected_digest = _parse_context_ref(context_ref)
         document_path = self._workspace.context_document(context_ref)
         if not document_path.is_file():
@@ -159,7 +161,7 @@ class ContextStore:
             context = OpenedContext(context_ref=context_ref, **document)
         except (json.JSONDecodeError, TypeError, ValidationError) as exc:
             raise ContextIntegrityError("context document is invalid") from exc
-        self._verify_metadata(context)
+        self._verify_metadata(context, _ancestors=(*_ancestors, context_ref))
         self._verify_artifact(context.revision_ref)
         return context
 
@@ -173,11 +175,11 @@ class ContextStore:
         except Exception as exc:
             raise ContextIntegrityError("model artifact is not valid pandapower JSON") from exc
 
-    def _verify_metadata(self, context: OpenedContext) -> None:
+    def _verify_metadata(self, context: OpenedContext, *, _ancestors: tuple[str, ...] = ()) -> None:
         if context.engine != self._engine.name or context.engine_version != self._engine.version:
             raise ContextIntegrityError("context engine metadata does not match runtime")
         if context.origin != "registered":
-            self._verify_revision_lineage(context)
+            self._verify_revision_lineage(context, _ancestors=_ancestors)
             return
         try:
             expected_revision_ref = self._registry.trusted_revision_ref(context.model_id)
@@ -186,7 +188,7 @@ class ContextStore:
         if context.revision_ref != expected_revision_ref:
             raise ContextIntegrityError("context revision does not match registered model")
 
-    def _verify_revision_lineage(self, context: OpenedContext) -> None:
+    def _verify_revision_lineage(self, context: OpenedContext, *, _ancestors: tuple[str, ...] = ()) -> None:
         if context.lineage_ref is None:
             raise ContextIntegrityError("non-registered revision has no lineage reference")
         lineage_digest = _parse_lineage_ref(context.lineage_ref)
@@ -213,9 +215,24 @@ class ContextStore:
         if context.origin == "derived":
             if context.parent_context_ref is None:
                 raise ContextIntegrityError("derived context has no parent")
-            parent = self.require(context.parent_context_ref)
+            parent = self.require(context.parent_context_ref, _ancestors=_ancestors)
             if lineage.get("parent_revision_ref") != parent.revision_ref:
                 raise ContextIntegrityError("derived revision parent does not match")
+
+    def require_descendant(self, context_ref: str, base_ref: str) -> OpenedContext:
+        """Authorize an exact context or verified descendant before calculation."""
+        base = self.require(base_ref)
+        child = self.require(context_ref)
+        current = child
+        for _ in range(64):
+            if current.model_id != base.model_id:
+                break
+            if current.context_ref == base.context_ref:
+                return child
+            if current.origin != 'derived' or current.parent_context_ref is None:
+                break
+            current = self.require(current.parent_context_ref)
+        raise ContextIntegrityError('context does not descend from the selected model')
 
     def _verify_artifact(self, revision_ref: str) -> None:
         expected_digest = _parse_revision_ref(revision_ref)

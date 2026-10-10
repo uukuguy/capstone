@@ -11,6 +11,20 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows confirmed partial work and explicit unknown causes after restore', () => {
+    const task_outcome = { schema: 'capstone-task-outcome/1', status: 'partial', work: [
+      { id: 'saved', status: 'confirmed', summary: '已保留基准潮流。', result_refs: [], evidence_refs: [] },
+      { id: 'blocked', status: 'blocked', summary: '全量排序尚未完成。', result_refs: [], evidence_refs: [] },
+    ], diagnostics: [{ code: 'tool_outcome_unknown', category: 'unknown', stage: 'execute', confirmation: 'unknown', summary: '原因尚未确认。', work_id: 'blocked', recovery: 'report_issue' }] }
+    const messages = projectAssistantMessages([
+      event('assistant_text_delta', 1, { text: 'UNVERIFIED ranking' }, 'partial'),
+      event('attempt_completed', 2, { answer: '可接纳成果。', task_outcome }, 'partial'),
+    ])
+    expect(JSON.stringify(messages[0].content)).toContain('部分完成')
+    expect(JSON.stringify(messages[0].content)).toContain('原因尚未确认')
+    expect(JSON.stringify(messages[0].content)).not.toContain('UNVERIFIED')
+    expect(messages[0].metadata?.custom?.taskOutcomeStatus).toBe('partial')
+  })
   it('uses accepted runtime authors for streaming and completed answers across mode switches', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', text: '专业任务', runtime_mode: 'capstone' }, 'business'),
