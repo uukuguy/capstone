@@ -29,3 +29,21 @@ jobs:
       - run: make install-pi
       - run: make doctor
       - run: make check-release
+      - name: Show failed offline validation checks
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report_path = Path("runs/validation-offline.json")
+          if report_path.is_file():
+              report = json.loads(report_path.read_text())
+              print("Offline validation:", report.get("summary"))
+              for case in report.get("cases", []):
+                  if case.get("passed") is not True:
+                      print(json.dumps({
+                          "case_id": case.get("case_id"),
+                          "checks": case.get("checks"),
+                          "errors": case.get("errors"),
+                      }, ensure_ascii=False))
+          PY

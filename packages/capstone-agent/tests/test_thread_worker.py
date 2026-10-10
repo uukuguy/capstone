@@ -68,6 +68,34 @@ def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None
     ]
 
 
+def test_claim_preparation_does_not_consume_the_worker_lease(monkeypatch) -> None:
+    from capstone_agent import thread_service
+
+    clock = [100.0]
+    monkeypatch.setattr(thread_service.time, "monotonic", lambda: clock[0])
+
+    class SlowCatalog:
+        def resolve(self, _model_id):
+            raise AssertionError("claim must retain its already accepted context")
+
+        def list_entries(self):
+            clock[0] += 40.0
+            return ()
+
+    service = _service()
+    _submit(service)
+    service.set_model_catalog(SlowCatalog())
+    claim = service.claim_attempt("slow-catalog-worker", 30)
+    assert claim is not None
+    assert clock[0] == 140.0
+    assert service.renew_attempt(claim, 30)
+
+    # An actual expired lease must still be rejected; preparation is not renewal.
+    clock[0] += 31.0
+    with pytest.raises(thread_service.ThreadExecutionError, match="lease is unavailable"):
+        service.renew_attempt(claim, 30)
+
+
 def test_thread_worker_stops_when_requested() -> None:
     service = _service()
     stop = Event()

@@ -273,7 +273,9 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
     expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(49)
-  })
+  // This state regression renders fifty long answers and performs repeated
+  // accessibility queries; it does not define a browser response-time limit.
+  }, 10_000)
 
   it('closes the history actions on Escape and outside clicks', () => {
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '历史回答。' }, 'first')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
