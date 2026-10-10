@@ -5,11 +5,13 @@ import hashlib
 import sys
 from collections.abc import Mapping
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from capability_agent.runtime import rpc as kernel_rpc
 from grid_agent.application.workspace import RunWorkspace
 from grid_agent.observability.trace import JsonlTraceWriter
 from grid_agent.runtime.lock import PiCommand, PiRuntimeIdentity
@@ -225,13 +227,22 @@ def test_rpc_starts_full_launch_with_its_restricted_environment(tmp_path: Path) 
     client.stop()
 
 
-def test_rpc_reports_events_and_idle_heartbeats(tmp_path: Path) -> None:
+@pytest.mark.parametrize("ack_queued_before_clock", [False, True])
+def test_rpc_reports_events_and_idle_heartbeats(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ack_queued_before_clock: bool,
+) -> None:
+    heartbeat_seen = tmp_path / "heartbeat-seen"
     fake = tmp_path / "fake_pi.py"
     fake.write_text(
         "import json,time\n"
+        "from pathlib import Path\n"
         "json.loads(input())\n"
         "print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)\n"
-        "time.sleep(0.03)\n"
+        f"heartbeat_seen=Path({str(heartbeat_seen)!r})\n"
+        "deadline=time.monotonic()+5\n"
+        "while not heartbeat_seen.is_file():\n"
+        " if time.monotonic() >= deadline: raise SystemExit(70)\n"
+        " time.sleep(0.001)\n"
         "print(json.dumps({'type':'text_delta','text':'answer'}), flush=True)\n"
         "print(json.dumps({'type':'agent_end'}), flush=True)\n",
         encoding="utf-8",
@@ -245,19 +256,45 @@ def test_rpc_reports_events_and_idle_heartbeats(tmp_path: Path) -> None:
     observed: list[str] = []
     heartbeats: list[None] = []
 
+    def record_heartbeat() -> None:
+        heartbeats.append(None)
+        if observed == ["prompt_ack"]:
+            heartbeat_seen.touch()
+
+    if ack_queued_before_clock:
+        real_clock = kernel_rpc.time.monotonic
+        clock_started = Event()
+
+        def delayed_clock() -> float:
+            if not clock_started.is_set():
+                clock_started.set()
+                deadline = real_clock() + 2
+                assert client._stdout_lines is not None
+                while client._stdout_lines.empty():
+                    assert real_clock() < deadline, "fake Pi did not queue its acknowledgement"
+                    Event().wait(0.001)
+            return real_clock()
+
+        # Delay only this consumer's first clock read until the real stdout
+        # reader has queued the acknowledgement. The child still needs a real
+        # idle heartbeat before it can send its answer and completion events.
+        monkeypatch.setattr(kernel_rpc, "time", SimpleNamespace(monotonic=delayed_clock))
+
     client.start()
     try:
         assert client.prompt_and_wait(
             "question",
             on_event=lambda event: observed.append(event["type"]),
-            on_heartbeat=lambda: heartbeats.append(None),
+            on_heartbeat=record_heartbeat,
             heartbeat_seconds=0.01,
+            timeout_seconds=3,
         ) == "answer"
     finally:
         client.stop()
 
     assert observed == ["prompt_ack", "text_delta", "agent_end"]
     assert heartbeats
+    assert heartbeat_seen.is_file()
 
 
 def test_rpc_uses_current_pi_prompt_message_protocol(tmp_path: Path) -> None:
