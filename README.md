@@ -145,6 +145,8 @@ make capstone-local-rebuild
 
 Open `http://127.0.0.1:5173/`. Local Compose enables direct conversation access without a browser token. The rebuild checks dependencies and readiness, verifies that API and both workers use the same image, and starts the Vite App when needed. It reuses verified local PyPSA model assets. Run it again after API, worker, or App source changes.
 
+The page header shows the selected environment (`local-dev`, `local-demo`, `cloud-dev`, or `cloud-demo`), package version, and source commit. A `*` marks uncommitted local source changes. An unconfigured App shows `环境未配置`; it does not infer its environment from the URL.
+
 The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
 
 ## CLI and compatibility entry points

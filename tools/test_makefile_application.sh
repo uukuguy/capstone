@@ -9,3 +9,5 @@ test "$(grep -Ec '^application:' "$test_root/Makefile")" -eq 1
 grep -Fq 'grid-agent analysis-generic --application "pandapower-static-analysis" --instructions "validation/questions/task.md.txt"' <<<"$default_output"
 grep -Fq 'grid-agent analysis-generic --application "custom-domain" --instructions "custom-questions.txt" --provider "deepseek" --model "deepseek-v4-flash"' <<<"$override_output"
 ! grep -Fq 'grid-agent analysis-generic' < <(make -C "$test_root" --no-print-directory -n analysis)
+grep -Fq 'CAPSTONE_APP_ENVIRONMENT="local-dev" npm run dev' < <(make -C "$test_root" --no-print-directory -n capstone-app-dev)
+grep -Fq 'CAPSTONE_APP_ENVIRONMENT="local-demo" npm run dev' < <(make -C "$test_root" --no-print-directory -n capstone-app-dev CAPSTONE_APP_ENVIRONMENT=local-demo)

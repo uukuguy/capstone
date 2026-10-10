@@ -25,12 +25,23 @@ or public origins. Provider credentials are separate by default; the current
 user-approved function-validation stage permits an existing Provider key.
 `VITE_API_ORIGIN` contains only the selected API origin.
 
-The App header shows its package version and source commit. Before uploading an
-exact Git release archive, write that archive's full commit to
-`packages/capstone-app/build-revision.txt`. This public build receipt contains no
-secrets. Verify the header commit against the deployed source before acceptance.
-The tracked `development` marker lets local Vite read Git directly; do not accept
-a hosted release that shows the development marker.
+The App header shows its selected environment, package version and source commit.
+Prepare App source from the exact backend commit before uploading it:
+
+```sh
+python3 deploy/prepare_app_source.py --source-ref <full-commit-sha> \
+  --environment cloud-dev --api-origin https://<selected-api-host> \
+  --output .capstone-agent/app-builds/<new-build-name>
+```
+
+Use `cloud-demo` for user trial. Upload the new output directory as the App service
+root; it contains the Dockerfile and committed App source. The helper creates
+`build-revision.txt` and `build-environment.json` with public source, environment
+and API origin values. It excludes private state and never overwrites an output
+or deploys it. Set only `VITE_API_ORIGIN` as the hosted App build variable, to the
+same origin. The build rejects missing or mismatched receipts. Verify the header
+environment and commit against the deployed stage before acceptance.
+The tracked `development` marker lets local Vite read Git directly.
 
 Set `CAPSTONE_THREAD_OPEN_ACCESS=true` on the cloud-development API after local
 App verification. The App reads `/api/v1/thread-access` and opens directly,

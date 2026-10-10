@@ -71,7 +71,7 @@ test-capstone-app:
 	npm test --prefix packages/capstone-app
 
 capstone-app-dev:
-	npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
+	CAPSTONE_APP_ENVIRONMENT="$(if $(CAPSTONE_APP_ENVIRONMENT),$(CAPSTONE_APP_ENVIRONMENT),local-dev)" npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
 
 capstone-local-rebuild:
 	@./deploy/rebuild_local.sh

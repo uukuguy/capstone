@@ -142,6 +142,8 @@ make capstone-local-rebuild
 
 打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
 
+页头显示所选环境（`local-dev`、`local-demo`、`cloud-dev` 或 `cloud-demo`）、包版本与源码提交。`*` 表示本地源码含未提交修改。未配置的 App 显示 `环境未配置`，不会根据网址推断环境。
+
 App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
 
 ## CLI 与兼容入口

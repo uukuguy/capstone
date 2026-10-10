@@ -15,6 +15,13 @@ fail() {
   exit 1
 }
 
+app_environment="${CAPSTONE_APP_ENVIRONMENT:-local-dev}"
+case "$app_environment" in
+  local-dev|local-demo) ;;
+  *) fail "App environment must be local-dev or local-demo" ;;
+esac
+export CAPSTONE_APP_ENVIRONMENT="$app_environment"
+
 command -v docker >/dev/null 2>&1 || fail "docker is not installed or not on PATH"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose is not available"
 command -v curl >/dev/null 2>&1 || fail "curl is not installed or not on PATH"
@@ -147,6 +154,14 @@ PY
       sleep 1
     done
     [ "$ready" = "1" ] || fail "App did not become ready; see $app_state_dir/app-dev.log"
+  fi
+  if ! curl -fsS "$app_probe_origin/__capstone-build" | python3 -c '
+import json, sys
+build = json.load(sys.stdin)
+if build.get("environment") != sys.argv[1]:
+    raise SystemExit(1)
+' "$app_environment"; then
+    fail "App environment differs from the selected local environment; restart its Vite process"
   fi
 fi
 

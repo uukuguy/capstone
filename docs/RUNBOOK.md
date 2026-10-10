@@ -238,19 +238,35 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 中的六个固定模型，并将它们放入本地构建上下文，因此本地重构不会重复下载模型。
 重构后刷新浏览器，已有会话需要重置后才会开始新运行。
 
+本地重建和 `make capstone-app-dev` 显式选择 `local-dev`；本地演示重建入口
+`make capstone-demo-local-rebuild` 选择 `local-demo`。直接运行 Vite 时可设置
+非浏览器变量 `CAPSTONE_APP_ENVIRONMENT=local-dev` 或 `local-demo`；未设置时页头
+显示「环境未配置」，不会根据端口或网址猜测。页头同时显示包版本与源码提交，
+`*` 和悬浮说明保留未提交修改状态。开发页每 30 秒及重新获得焦点时刷新源码身份。
+重建脚本会拒绝复用标签不符的 App，须先停止旧 Vite 进程再重建。
+
 公开演示模式必须在 `deploy/local.env` 中显式设置
 `CAPSTONE_PUBLIC_PROVIDER` 和 `CAPSTONE_PUBLIC_MODEL`；Compose 不再为 LLM
 后端注入隐式模型，缺少任一项会在启动前直接失败。为了让网页应用和本地案例
 脚本使用同一模型，本地部署应将 `CAPSTONE_PUBLIC_MODEL` 与根目录 `.env` 中的
 `GRID_AGENT_LLM_MODEL` 保持一致。
 
-在电脑上打开 `http://127.0.0.1:5173/` 直接进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 App 的 `VITE_API_ORIGIN` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
+在电脑上打开 `http://127.0.0.1:5173/` 直接进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 `CAPSTONE_API_PROXY_TARGET` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 本地 Compose 与 cloud-dev 的普通工作台共用 [`host-runtime-v1.json`](../configs/runtime/host-runtime-v1.json) 和同一个启动器。配置契约固定 Provider、模型、应用角色与启动依赖；环境仅提供数据库、存储、域名、凭据与容量。API 等待两个 worker 就绪，运行中的模型目录与指令准入实时更新 worker 健康状态。配置冲突会在启动前失败，日志只显示配置项。部署时比较三角色的 `/app/.capstone-agent/host-runtime.json` 与本地验收记录，契约和制品哈希必须一致，再验收真实 App、Provider 与证据。专项 M11 脚本验证需显式设置 `CAPSTONE_RUNTIME_PROFILE=`，不得作为普通工作台的验收记录。
 
 镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、创建与命令幂等键、事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。worker 对等待下一条指令的旧式会话计时；空闲期限由[共享运行配置](../configs/runtime/host-runtime-v1.json)中的 `CAPSTONE_SESSION_IDLE_SECONDS` 决定，可在 60–86400 秒间调整。本轮指令或报告仍在执行时不计时。到期后会话标记为「会话已超时」、释放 worker 名额，已提交的答案和证据保留，旧会话不可续交。名额已满且有新会话排队至少 1 秒时，worker 会从所有副本持有的会话中原子选取已空闲至少 30 秒的最久会话；正在计算或整理报告的会话不会被淘汰。访客可重置已中断的案例重新开始。刷新页面会重新取得演示凭证、回到该案例最近的运行状态；已超时或让位的会话可回看，但不会重连计算进程。`CAPSTONE_WORKER_MAX_SESSIONS` 默认每实例 8 个，可按内存实测在 1–64 间调整；云端通过增加 worker 副本扩容，每实例仍有独立上限。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 
 云端部署说明分别位于 [Cloud Run + Vercel](../deploy/cloud-run/README.md) 和 [Railway](../deploy/railway/README.md)。Cloud Run 使用服务加 worker pool、Cloud SQL 和 GCS；Railway 使用 API、按需唤醒的 worker、PostgreSQL、私有 S3 bucket，并可托管静态 App。两个后端角色须基于同一已验证源码修订，并共享账本/工件配置；可拉取时优先固定同一镜像 digest。Railway Hobby 无法配置私有镜像仓库凭证，当前演示部署使用同源代码构建。Railway 和本地 Compose 的 API 通过 `CAPSTONE_WORKER_WAKE_URL` 访问 worker 私有 HTTP 端点；Cloud Run 未设置该变量时保持原有轮询模式。App 构建变量 `VITE_API_ORIGIN` 是所选 API 的公开 HTTPS 原点，绝不能设置操作员或 Provider 凭据。API 设置 `CAPSTONE_PUBLIC_DEMO=true` 时，服务端为 `/old` 原案例页发放演示凭证；关闭该开关时原案例页显示连接失败与重试，私有操作员令牌仍可通过 API 使用。首页智能体对话由独立的 `CAPSTONE_THREAD_OPEN_ACCESS` 开关控制。`CAPSTONE_ALLOWED_HOSTS` 与 `CAPSTONE_ALLOWED_ORIGINS` 分别约束 API Host 和 App Origin；`PORT` 在服务角色启动时读取。云端数据库、bucket、密钥和域名须先准备好，实际部署另行授权。
+
+云端 App 源码通过 `python3 deploy/prepare_app_source.py --source-ref <完整提交SHA>
+--environment cloud-dev --api-origin https://<所选API域名>
+--output .capstone-agent/app-builds/<新目录名>` 本地准备；用户试用选择 `cloud-demo`。
+此工具只导出该提交的 App 文件，并生成公开的 `build-revision.txt` 和
+`build-environment.json`，绑定环境、精确提交及 API 原点；不部署、不覆盖已有目录，
+不导出 Git、凭据和运行数据。以新目录作为托管 App 项目根目录，仍只设置
+`VITE_API_ORIGIN`，且须与收据一致。缺失收据、来源或原点不符时构建失败；
+环境标签是部署配置身份，不代表环境已通过验收。详见上述云端部署指南。
 
 Railway 的持续开发配置分为两个隔离阶段：现有 `capstone-demo` 保持用户试用，`capstone-cloud-dev` 承担开发版本的云端验证。两个阶段分别准备 API、worker、PostgreSQL、私有 bucket 和静态 App，并分别使用数据库、工件存储、操作员令牌和域名。Provider 凭据默认隔离；用户已允许当前功能验证阶段使用现有凭据，实际值仍只写入 worker 的受保护环境变量。开发版本通过本地门禁后部署到 cloud-dev；完成健康检查、登记案例、Provider、报告、证据回放及 API/worker 修订一致性检查后，经人工核验，使用同一已验证源码修订或镜像 digest 晋级 demo。晋级失败时回退到上一版已验证修订。变量清单见 [Railway cloud-dev](../deploy/railway/cloud-dev.variables.example) 和 [Railway demo](../deploy/railway/demo.variables.example)；文件只含占位符，不是凭据文件。
 
