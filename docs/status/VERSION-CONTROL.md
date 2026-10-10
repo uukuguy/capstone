@@ -116,7 +116,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 语义任务意图与回答尺度 | [Issue #3](https://github.com/uukuguy/capstone/issues/3)；[设计草案](../superpowers/specs/2026-10-10-shared-intent-and-goal-answer-design.md) | 未实施；普通/专业问答路由不等于完整任务理解；基线一整理后再推进 |
 | 启动和对话中恢复体验 | [Issue #4](https://github.com/uukuguy/capstone/issues/4)；[已知问题](KNOWN-ISSUES.md) | 待调查；作为公共加固/体验工作独立管理，不能由未测量的睡眠策略变更代替验收 |
 | 对话历史浏览 | [Issue #1](https://github.com/uukuguy/capstone/issues/1)；本地基线一 | 用户报告远少于 50 条消息就被截断；内部事件分页与显示窗口均需检查，具体触发原因未确认；公共修复/改进工作包，验证 dev/demo 两入口 |
-| GitHub 反馈与 AI 修复 | `feat/github-issue-automation`，来源 main `21c5096` | 命令驱动实施；独立工作区，维护者合并、无自动部署；不启动无人值守，不修改已冻结基线一；已登记反馈 Issues #1–#4 |
+| GitHub 反馈与 AI 修复 | `feat/github-issue-automation`，来源 main `21c5096`，首轮实现 `6403d53` | 命令驱动实施，23 项专项检查通过；独立审查要求修正 PR 恢复、CI 完整性、测试保护、环境与标签读取，尚未合并；小石独立 App 待接入；已登记反馈 Issues #1–#4 并附授权原图；无自动部署，不修改冻结基线一 |
 
 现有 `feat/business-workspace-resources`、`feat/capstone-optimization`、`feat/lean-test-boundaries`、`feat/m11-cloud-thread`、`feat/multi-binding` 和五个 `feat/pypsa-*` 分支的 tip 都是整理前 main 的祖先。它们是保留的历史分支，不能凭分支仍存在判断功能已从 main 隔离。现有 `fix/demo-n1-outcome` 为历史修复分支，先保留，不重命名或删除。
 
