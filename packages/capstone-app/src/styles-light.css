@@ -761,9 +761,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity summary { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 13px; cursor: pointer; list-style: none; font-size: 11px; }
 .capstone-chat-activity summary::-webkit-details-marker { display: none; }
 .capstone-chat-activity summary svg { width: 14px; height: 14px; color: #299581; }
-.capstone-chat-activity summary small { margin-left: auto; color: #9aafaa; font-size: 10px; }
-.capstone-chat-activity-list { display: grid; gap: 2px; padding: 0 13px 9px 34px; }
-.capstone-chat-activity-item { display: flex; align-items: flex-start; gap: 7px; min-height: 24px; color: #4f716b; font-size: 10px; line-height: 1.3; }
+.capstone-chat-activity summary small { margin-left: auto; flex-shrink: 0; white-space: nowrap; color: #9aafaa; font-size: 9px; }
+.capstone-chat-activity-list { display: grid; gap: .5em; max-height: 160px; overflow-y: auto; font-size: 10px; padding: 0 13px 9px 34px; }
+.capstone-chat-activity-item { display: flex; align-items: flex-start; gap: 7px; color: #4f716b; font-size: 10px; line-height: 1.5; }
 .capstone-chat-activity-icon { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 5px; border-radius: 50%; background: #39a28d; }
 .capstone-chat-activity-item.is-running .capstone-chat-activity-icon { box-shadow: 0 0 0 3px #39a28d28; }
 .capstone-chat-activity-item.is-failed .capstone-chat-activity-icon { background: #c16d55; }
@@ -882,6 +882,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-attached { margin-top: 4px; padding: 0; border: 1px solid #e3eee8; border-radius: 7px; }
 .capstone-chat-activity-attached summary { min-height: 28px; padding: 0 9px; }
 .capstone-chat-activity-attached .capstone-chat-activity-list { padding: 0 9px 6px 28px; }
+.capstone-chat-activity-frame:has(.capstone-chat-activity-preview) > details { border-bottom: 0; border-radius: 7px 7px 0 0; }
+.capstone-chat-activity-preview { border: 1px solid #e3eee8; border-top: 0; border-radius: 0 0 7px 7px; background: #fbfdfc; }
+.capstone-chat-activity-preview .capstone-chat-activity-list { max-height: 48px; padding: 0 9px 6px 28px; }
 .capstone-chat-activity-attached.is-failed, .capstone-chat-activity-attached.is-interrupted { border-color: #e7c9c2; }
 .capstone-chat-activity-attached.is-failed > summary svg, .capstone-chat-activity-attached.is-interrupted > summary svg { color: #c5574f; }
 .capstone-chat-activity-attached.is-cancelled > summary svg { color: #b78342; }

@@ -486,7 +486,11 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
   return <span className={`capstone-chat-duration${running ? ' is-running' : ''}`} aria-live="polite">{running ? '运行中' : '运行'} {formatDuration(elapsed)}</span>
 }
 
-function AttemptActivity({ activities, running, phase, open, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+function ActivityItems({ activities }: { activities: ChatActivity[] }) {
+  return <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
+}
+
+function AttemptActivity({ activities, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -498,10 +502,19 @@ function AttemptActivity({ activities, running, phase, open, startedAt, duration
   if (activities.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
-  return <details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open}>
+  return <div className="capstone-chat-activity-frame"><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
-    <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
-  </details>
+    {(!running || open) && <ActivityItems activities={activities} />}
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览"><ActivityItems activities={activities.slice(-1)} /></div>}</div>
+}
+
+function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
+  const [open, setOpen] = useState(false)
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (!running) setOpen(false)
+  }, [running])
+  return <AttemptActivity activities={activities} running={running} open={open} onOpenChange={setOpen} detailsRef={detailsRef} />
 }
 
 function admissionAccepted(admission: unknown): boolean {
@@ -619,7 +632,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
-  const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
+  const [activityOpen, setActivityOpen] = useState(false)
   const [resultOpen, setResultOpen] = useState(false)
   useEffect(() => {
     if (status?.type !== 'running') setActivityOpen(false)
@@ -664,7 +677,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
@@ -1076,10 +1089,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </ThreadPrimitive.Viewport>}
-        {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
-          <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>
-          <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
-        </details>}
+        {legacyActivity && normalizedActivity.length > 0 && <LegacyActivity activities={normalizedActivity} running={isRunning} />}
         <div className="capstone-chat-composer">
           <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} />
         </div>
