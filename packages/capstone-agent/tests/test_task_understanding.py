@@ -107,3 +107,90 @@ def test_direct_answer_policy_cannot_bypass_validation():
 def test_direct_task_constructor_rejects_empty_goals():
     with pytest.raises(ValueError):
         tasks.TaskUnderstanding(request(), "recognizer", (), tasks.AnswerPolicy("zh", "concise"))
+
+
+def typed_proposal():
+    source = proposal()
+    source["schema"] = "capstone-task-understanding/2"
+    source["goals"][0].update(execution="professional", dependencies=[], domain_request={
+        "binding_id": "grid", "schema": "pandapower-task-requirement/1",
+        "payload": {"operation": "contingency", "objects": [{"kind": "line", "namespace": "name", "identifier": "line7"}]},
+    })
+    return source
+
+
+def test_typed_domain_proposal_is_immutable_and_v2_round_trips():
+    source = typed_proposal()
+    decision = tasks.recognize_decision(request(), source, recognizer="controlled")
+    source["goals"][0]["domain_request"]["payload"]["objects"][0]["identifier"] = "foreign"
+    domain = decision.goals[0].domain_request
+    assert domain.payload["objects"][0]["identifier"] == "line7"
+    read = domain.payload
+    read["objects"][0]["identifier"] = "foreign"
+    assert domain.payload["objects"][0]["identifier"] == "line7"
+    assert tasks.TaskUnderstanding.from_document(decision.to_document()) == decision
+    assert decision.to_document()["schema"] == "capstone-task-understanding/2"
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda p: p["goals"][0].update(execution="general"),
+    lambda p: p["goals"][0].update(domain_request=None),
+    lambda p: p["goals"][0].update(dependencies=["missing"]),
+    lambda p: p["goals"][0].update(dependencies=["impact"]),
+    lambda p: p["goals"][0]["domain_request"].update(completed=True),
+    lambda p: p["goals"][0]["domain_request"]["payload"].update(factor=float("inf")),
+])
+def test_typed_proposal_rejects_invalid_execution_and_dependencies(mutate):
+    source = typed_proposal()
+    mutate(source)
+    with pytest.raises(ValueError):
+        tasks.recognize_decision(request(), source, recognizer="controlled")
+
+
+def test_typed_proposal_rejects_dependency_cycles():
+    source = typed_proposal()
+    second = copy.deepcopy(source["goals"][0])
+    second.update(id="limits", dependencies=["impact"])
+    source["goals"][0]["dependencies"] = ["limits"]
+    source["goals"].append(second)
+    with pytest.raises(ValueError):
+        tasks.recognize_decision(request(), source, recognizer="controlled")
+
+
+def test_v1_keeps_exact_document_shape_and_has_no_executable_certificate():
+    decision = tasks.recognize_decision(request(), proposal(), recognizer="controlled")
+    assert decision.goals[0].execution is None
+    assert decision.goals[0].domain_request is None
+    assert "execution" not in decision.to_document()["goals"][0]
+
+
+def test_typed_payload_depth_is_bounded():
+    source = typed_proposal()
+    payload = source["goals"][0]["domain_request"]["payload"]
+    for _ in range(12):
+        payload["nested"] = {}
+        payload = payload["nested"]
+    with pytest.raises(ValueError):
+        tasks.recognize_decision(request(), source, recognizer="controlled")
+
+
+def test_general_goal_can_follow_a_professional_goal_without_getting_domain_grants():
+    source = typed_proposal()
+    general = copy.deepcopy(source["goals"][0])
+    general.update(id="explain", execution="general", dependencies=["impact"], domain_request=None)
+    source["goals"].append(general)
+    decision = tasks.recognize_decision(request(), source, recognizer="controlled")
+    assert decision.goals[1].dependencies == ("impact",)
+    assert decision.goals[1].domain_request is None
+
+
+def test_direct_domain_constructor_rejects_duplicate_payload_fields():
+    with pytest.raises(ValueError):
+        tasks.DomainTaskProposal("grid", "pack-task/1", '{"operation":"overview","operation":"powerflow"}')
+
+
+def test_direct_domain_constructor_bounds_canonical_bytes_after_number_expansion():
+    payload = "{" + ",".join('"k' + str(i) + '":[' + ",".join(["1e9"] * 64) + "]" for i in range(12)) + "}"
+    assert len(payload.encode()) < 8192
+    with pytest.raises(ValueError):
+        tasks.DomainTaskProposal("grid", "pack-task/1", payload)

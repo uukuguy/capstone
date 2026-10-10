@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import json
+import math
 import re
 
 
 SCHEMA = "capstone-task-understanding/1"
+SCHEMA_V2 = "capstone-task-understanding/2"
 MAX_DECISION_BYTES = 24_576
 MAX_INSTRUCTION_CHARS = 16_384
 MAX_REFERENCE_CHARS = 512
@@ -81,6 +83,82 @@ class TaskRequest:
                    model_revision=_text(value["model_revision"], MAX_REFERENCE_CHARS))
 
 
+def _validate_domain_json(value: object, depth: int = 0) -> None:
+    if depth > 8:
+        raise ValueError("domain task payload is too deep")
+    if isinstance(value, Mapping):
+        if len(value) > 32:
+            raise ValueError("domain task payload has too many fields")
+        for key, item in value.items():
+            _text(key, 64)
+            _validate_domain_json(item, depth + 1)
+    elif isinstance(value, list):
+        if len(value) > 64:
+            raise ValueError("domain task payload has too many items")
+        for item in value:
+            _validate_domain_json(item, depth + 1)
+    elif isinstance(value, str):
+        _text(value, 2048, empty=True)
+    elif value is None or type(value) is bool:
+        pass
+    elif type(value) is int:
+        if abs(value) > MAX_HISTORY_CUTOFF:
+            raise ValueError("domain task number is too large")
+    elif type(value) is float:
+        if not math.isfinite(value):
+            raise ValueError("domain task number is not finite")
+    else:
+        raise ValueError("domain task payload is not JSON")
+
+
+@dataclass(frozen=True, slots=True)
+class DomainTaskProposal:
+    """Opaque Pack-owned proposal; detached reads cannot change accepted bytes."""
+
+    binding_id: str
+    schema: str
+    payload_json: str
+
+    def __post_init__(self) -> None:
+        if not _ID.fullmatch(_text(self.binding_id, 64)):
+            raise ValueError("domain task binding is invalid")
+        _text(self.schema, 128)
+        if not isinstance(self.payload_json, str) or len(self.payload_json.encode("utf-8")) > 8192:
+            raise ValueError("domain task payload is too large")
+        def unique_fields(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("domain task payload has duplicate fields")
+                result[key] = value
+            return result
+        try:
+            payload = json.loads(self.payload_json, object_pairs_hook=unique_fields)
+        except (ValueError, RecursionError):
+            raise ValueError("domain task payload is invalid") from None
+        if not isinstance(payload, dict):
+            raise ValueError("domain task payload must be an object")
+        _validate_domain_json(payload)
+        canonical = json.dumps(payload, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
+        if len(canonical.encode("utf-8")) > 8192:
+            raise ValueError("domain task payload is too large")
+        object.__setattr__(self, "payload_json", canonical)
+
+    @property
+    def payload(self) -> dict[str, object]:
+        return json.loads(self.payload_json)
+
+    @classmethod
+    def from_document(cls, document: object) -> DomainTaskProposal:
+        value = _fields(document, {"binding_id", "schema", "payload"})
+        _validate_domain_json(value["payload"])
+        return cls(_text(value["binding_id"], 64), _text(value["schema"], 128),
+                   json.dumps(value["payload"], ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")))
+
+    def to_document(self) -> dict[str, object]:
+        return {"binding_id": self.binding_id, "schema": self.schema, "payload": self.payload}
+
+
 @dataclass(frozen=True, slots=True)
 class SemanticGoal:
     id: str
@@ -93,6 +171,9 @@ class SemanticGoal:
     measure: str | None
     obligations: tuple[str, ...]
     missing_requirements: tuple[str, ...]
+    execution: str | None = None
+    dependencies: tuple[str, ...] = ()
+    domain_request: DomainTaskProposal | None = None
 
     def __post_init__(self) -> None:
         if not _ID.fullmatch(_text(self.id, 64)):
@@ -113,10 +194,29 @@ class SemanticGoal:
             if not isinstance(values, (tuple, list)):
                 raise ValueError("task list is invalid")
             object.__setattr__(self, name, _texts(list(values), required=name == "obligations"))
+        if not isinstance(self.dependencies, (tuple, list)):
+            raise ValueError("task dependencies are invalid")
+        dependencies = _texts(list(self.dependencies))
+        if len(dependencies) > 7 or any(not _ID.fullmatch(item) for item in dependencies):
+            raise ValueError("task dependencies are invalid")
+        object.__setattr__(self, "dependencies", dependencies)
+        if self.execution is None:
+            if self.dependencies or self.domain_request is not None:
+                raise ValueError("legacy task cannot declare execution")
+        elif self.execution == "general":
+            if self.domain_request is not None:
+                raise ValueError("general task cannot declare a domain request")
+        elif self.execution == "professional":
+            if not isinstance(self.domain_request, DomainTaskProposal):
+                raise ValueError("professional task requires a domain proposal")
+        else:
+            raise ValueError("task execution is invalid")
 
     @classmethod
-    def from_document(cls, document: object) -> SemanticGoal:
-        value = _fields(document, set(cls.__dataclass_fields__))
+    def from_document(cls, document: object, *, schema: str = SCHEMA) -> SemanticGoal:
+        fields = set(cls.__dataclass_fields__)
+        extensions = {"execution", "dependencies", "domain_request"}
+        value = _fields(document, fields - extensions if schema == SCHEMA else fields)
         goal_id = _text(value["id"], 64)
         if not _ID.fullmatch(goal_id):
             raise ValueError("task goal identity is invalid")
@@ -128,11 +228,18 @@ class SemanticGoal:
                    _choice(value["scope"], {"unspecified", "subset", "full"}), scenario, change,
                    _choice(value["conclusion"], {"description", "impact", "limit", "comparison", "ranking"}),
                    None if value["measure"] is None else _text(value["measure"], 256),
-                   _texts(value["obligations"], required=True), _texts(value["missing_requirements"]))
+                   _texts(value["obligations"], required=True), _texts(value["missing_requirements"]),
+                   None if schema == SCHEMA else _choice(value["execution"], {"general", "professional"}),
+                   () if schema == SCHEMA else _texts(value["dependencies"]),
+                   None if schema == SCHEMA or value["domain_request"] is None else DomainTaskProposal.from_document(value["domain_request"]))
 
     def to_document(self) -> dict[str, object]:
-        return {name: list(value) if isinstance(value, tuple) else value
-                for name in self.__dataclass_fields__ for value in (getattr(self, name),)}
+        document: dict[str, object] = {name: list(value) if isinstance(value, tuple) else value
+                    for name in self.__dataclass_fields__ for value in (getattr(self, name),)
+                    if self.execution is not None or name not in {"execution", "dependencies", "domain_request"}}
+        if self.domain_request is not None:
+            document["domain_request"] = self.domain_request.to_document()
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +267,7 @@ class TaskUnderstanding:
     recognizer: str
     goals: tuple[SemanticGoal, ...]
     answer_policy: AnswerPolicy
+    schema: str = SCHEMA
 
     def __post_init__(self) -> None:
         if not isinstance(self.request, TaskRequest) or not isinstance(self.answer_policy, AnswerPolicy):
@@ -172,6 +280,25 @@ class TaskUnderstanding:
         if len({goal.id for goal in self.goals}) != len(self.goals):
             raise ValueError("task goal identities are not unique")
         object.__setattr__(self, "goals", tuple(self.goals))
+        if not isinstance(self.schema, str) or self.schema not in {SCHEMA, SCHEMA_V2} or any(
+            (goal.execution is None) != (self.schema == SCHEMA) for goal in self.goals
+        ):
+            raise ValueError("task schema does not match goals")
+        goal_map = {goal.id: goal for goal in self.goals}
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        def visit(goal_id: str) -> None:
+            if goal_id not in goal_map or goal_id in visiting:
+                raise ValueError("task dependency is missing or cyclic")
+            if goal_id in visited:
+                return
+            visiting.add(goal_id)
+            for dependency in goal_map[goal_id].dependencies:
+                visit(dependency)
+            visiting.remove(goal_id)
+            visited.add(goal_id)
+        for goal_id in goal_map:
+            visit(goal_id)
         try:
             size = len(json.dumps(self.to_document(), ensure_ascii=False, allow_nan=False).encode("utf-8"))
         except (TypeError, ValueError, RecursionError):
@@ -180,7 +307,7 @@ class TaskUnderstanding:
             raise ValueError("task contract is too large")
 
     def to_document(self) -> dict[str, object]:
-        return {"schema": SCHEMA, "request": self.request.to_document(), "recognizer": self.recognizer,
+        return {"schema": self.schema, "request": self.request.to_document(), "recognizer": self.recognizer,
                 "goals": [goal.to_document() for goal in self.goals],
                 "answer_policy": {"language": self.answer_policy.language, "scale": self.answer_policy.scale}}
 
@@ -205,12 +332,13 @@ def recognize_decision(request: TaskRequest, proposal: object, *, recognizer: st
     if len(encoded.encode("utf-8")) > MAX_DECISION_BYTES:
         raise ValueError("task decision is too large")
     value = _fields(proposal, {"schema", "goals", "answer_policy"})
-    if value["schema"] != SCHEMA:
+    if not isinstance(value["schema"], str) or value["schema"] not in {SCHEMA, SCHEMA_V2}:
         raise ValueError("task schema is invalid")
     items = value["goals"]
     if not isinstance(items, list) or not 1 <= len(items) <= 8:
         raise ValueError("task goal count is invalid")
-    goals = tuple(SemanticGoal.from_document(item) for item in items)
+    schema = str(value["schema"])
+    goals = tuple(SemanticGoal.from_document(item, schema=schema) for item in items)
     if len({goal.id for goal in goals}) != len(goals):
         raise ValueError("task goal identities are not unique")
-    return TaskUnderstanding(request, _text(recognizer, 256), goals, AnswerPolicy.from_document(value["answer_policy"]))
+    return TaskUnderstanding(request, _text(recognizer, 256), goals, AnswerPolicy.from_document(value["answer_policy"]), schema)
