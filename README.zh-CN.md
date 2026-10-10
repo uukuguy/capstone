@@ -5,6 +5,10 @@
 `feat/pi-skills-integration` 开发分支。main 后续可合入通过集成检查且能隔离的实验功能；
 demo 只接收经过发布验收的功能范围。
 
+用户可在 [GitHub Issues](https://github.com/uukuguy/capstone/issues) 提交截图和简短说明，
+未说明环境时默认 cloud-demo。AI 按[Issue 处理规程](docs/architecture/capstone-issue-workflow.md)
+由用户命令发起处理；不启用定时或无人值守。
+
 使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`
 运行独立数据的本地 demo。App 端口为 `15173`，API 为 `18767`；原有 local-dev
 端口仍为 `5173` 和 `8767`。

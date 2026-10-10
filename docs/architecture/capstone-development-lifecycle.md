@@ -139,6 +139,15 @@ rollback. Development environments may enable isolated experimental features;
 integration into main is distinct from user-trial acceptance. Native Pi and
 skills work remains experimental until its recorded integration gates pass.
 
+User feedback and AI-assisted repairs follow the normative
+[Issue workflow](capstone-issue-workflow.md). GitHub Issues owns feedback and
+discussion; PRs and verification receipts own implementation evidence; the
+version-control register owns branch, baseline and release relationships.
+The first delivery is command-driven: the current AI session may read,
+communicate and repair when requested, and may remind at relevant work
+boundaries. It does not enable scheduled or unattended execution, independent
+paid model calls, automatic main merges or cloud deployments.
+
 ## Isolation invariants
 
 Cloud development and user trial are separate deployment stages. They must not

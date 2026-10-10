@@ -6,6 +6,12 @@ skills and resource extensions remain on `feat/pi-skills-integration` during dev
 Main may later include isolated experimental features after integration checks;
 demo receives only its verified release scope.
 
+Report problems with a screenshot and a short description in
+[GitHub Issues](https://github.com/uukuguy/capstone/issues).
+Unspecified feedback targets cloud-demo. AI-assisted repair follows the
+[Issue workflow](docs/architecture/capstone-issue-workflow.md), initiated by a
+user command; scheduled and unattended processing are not enabled.
+
 For separate local demo data, run
 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
 The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.

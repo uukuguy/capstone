@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.12 standard library, SQLite, GitHub CLI/API, OpenAI-compatible vision/chat adapter, Docker and GitHub Actions.
 
+**Latest user steering:** Deliver command-driven assisted operation first. The current AI session performs reasoning and passes structured decisions/patches to tools; no independent paid model calls, automatic polling/repair/comments or schedule activation. Timer and autonomous executor are deferred. Manual local CLI and readonly workflow_dispatch must work without a model key. Any optional model adapter remains disabled. Do not implement or activate a permanent daemon to satisfy the earlier draft.
+
 ## Global Constraints
 
 - Default unspecified user environment: cloud-demo; explicit user environment overrides it. Screenshot version is separate evidence.
@@ -26,7 +28,7 @@ Interfaces: policy validates trusted config; GitHub reads issues/comments/permis
 
 - [ ] Add failing tests for cloud-demo defaults, explicit overrides, minimal/screenshot input, command authorization, duplicate jobs, stale lease recovery and budget refusal.
 - [ ] Run `python3 -m pytest tools/tests/test_issue_automation.py -q`; verify missing module/behavior failures before implementation.
-- [ ] Implement bounded JSON transport and private SQLite storage; include `task_id`, `input_hash`, `policy_sha`, `source_sha`, `state`, `lease_until`, `action_key` in receipts.
+- [ ] Implement bounded JSON transport, current-session structured decisions and private SQLite storage; include `task_id`, `input_hash`, `policy_sha`, `source_sha`, `state`, `lease_until`, `action_key` in receipts.
 - [ ] Test unsupported commands, unknown versions, bot-event exclusion, sensitive-output rejection, private URL/redirect refusal and uncertain-write reconciliation.
 - [ ] Commit only tool/config/test paths; review task evidence.
 
@@ -47,7 +49,7 @@ Interfaces: `python3 -m tools.issue_automation.cli` supports doctor, scan, triag
 Files: `.github/ISSUE_TEMPLATE/user-feedback.md`, `.github/workflows/issue-automation.yml`, `Makefile`, `docs/architecture/capstone-development-lifecycle.md`, `docs/RUNBOOK.md`, aligned README pair and status register/index.
 
 - [ ] Reduce user template to title/short description with optional image; no maintainer form shown to users.
-- [ ] Add Issue/comment, off-hour scheduled and workflow_dispatch entrypoints; use trusted default-branch source and verified maintainer permission. Configure no deploy/merge workflow permission.
+- [ ] Add readonly workflow_dispatch status entrypoint using trusted default-branch source; no scheduled jobs or automatic Issue/comment processing in the first release. Configure no deploy/merge workflow permission.
 - [ ] Add `make issues-doctor`, `issues-scan`, `issues-triage`, `issues-fix`, `issues-status`, `issues-daemon`; persist background PID/log/SQLite under ignored project state, no secrets in arguments/logs.
 - [ ] Link one governing procedure from lifecycle; distinguish implemented, configured and active features.
 - [ ] Register existing history/answer/response-scale/wake feedback as Chinese Issues, preserving explicit local-demo scope where the user supplied it.
@@ -58,6 +60,6 @@ Files: `.github/ISSUE_TEMPLATE/user-feedback.md`, `.github/workflows/issue-autom
 - [ ] Review scope, credential isolation, lease recovery, CI trigger identity and dev/demo acceptance boundaries; fix material findings.
 - [ ] Integrate accepted feature branch into main without staging unrelated dirty documents; synchronize management references into affected branches without changing frozen baseline tags.
 - [ ] Push exact implementation branch and accepted main only after gates; publish scoped labels/Issues and verify remote identities.
-- [ ] Start and verify bounded background service in preflight mode if budget/model access is unavailable; activate model operations only within authorized configured budget. Record actual operational limits and next recovery action.
+- [ ] Verify current-session command intake, structured judgment, workspace and publication paths without external model calls. Record actual operational limits; no daemon/schedule/paid model activation in this release.
 
 Do not mark complete merely because workflows and files exist: verify the command flow, remote intake, task recovery and background liveness, and report any unavailable model/runner capability explicitly.
