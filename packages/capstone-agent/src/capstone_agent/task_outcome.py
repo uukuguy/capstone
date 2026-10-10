@@ -80,6 +80,9 @@ def unavailable_outcome(code: str, tool_events: tuple[Mapping, ...]) -> dict:
         work.append({'id': identity, 'status': 'blocked', 'summary': '此调用未取得可接纳的完成结果。', 'result_refs': [], 'evidence_refs': []})
         diagnostics.append({'code': 'tool_outcome_unknown', 'category': 'unknown', 'stage': 'execute', 'confirmation': 'unknown',
             'summary': '工具未返回完整诊断，原因尚未确认；不能据此判断数据不足或程序错误。', 'work_id': identity, 'recovery': 'report_issue'})
+        if event.get('error_code') == 'capability_transport_timeout':
+            diagnostics[-1].update(code='capability_transport_timeout', category='service', confirmation='confirmed',
+                summary='工具调用超过时限。计算是否完成尚未确认，请查看运行过程后再决定是否重试。', recovery='retry')
     work.append({'id': 'answer', 'status': 'blocked', 'summary': '本次指令尚未形成可接纳的完整回答。', 'result_refs': [], 'evidence_refs': []})
     admission = code.startswith('answer_admission') or code == 'capability_required'
     safe_code = code if re.fullmatch(r'[a-z][a-z0-9_]{0,63}', code) else 'tool_outcome_unknown'

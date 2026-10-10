@@ -11,6 +11,13 @@ def test_unknown_cause_is_explicit_and_does_not_claim_missing_data():
     assert outcome['status'] == 'unavailable'
 
 
+def test_typed_transport_deadline_is_distinct_from_unknown_and_missing_input():
+    outcome = unavailable_outcome('answer_admission_failed', ({'ok': False, 'error_code': 'capability_transport_timeout'},))
+    assert outcome['diagnostics'][0]['category'] == 'service'
+    assert outcome['diagnostics'][0]['confirmation'] == 'confirmed'
+    assert '是否完成尚未确认' in outcome['diagnostics'][0]['summary']
+
+
 def test_outcome_rejects_extra_fields_and_excess_work():
     outcome = unavailable_outcome('answer_admission_failed', ())
     with pytest.raises(ValueError):
