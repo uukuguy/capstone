@@ -506,8 +506,12 @@ def _canonical_tool_result_event(
     if not isinstance(capability, str):
         pair = _consume_tool_pair(event, pending_tool_calls)
         failed = event.get('isError') is True or details.get('ok') is False
+        succeeded = not failed and (event.get('isError') is False or details.get('ok') is True)
+        if succeeded:
+            return {'type': 'tool_execution_end', 'event': 'tool_execution_end', **pair,
+                    'ok': True, 'result': {}, 'evidence_refs': []}
         return {
-            'type': 'tool_result', 'event': 'tool_result', **pair,
+            'type': 'tool_execution_end', 'event': 'tool_execution_end', **pair,
             'ok': False, 'result': {}, 'evidence_refs': [],
             'error': {'code': 'native_tool_failed' if failed else 'tool_outcome_unknown',
                       'phase': 'execute'},
