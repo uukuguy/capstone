@@ -1,6 +1,8 @@
 # Shared intent analysis and goal-based answer design
 
-Status: reopened design for the next user-facing repair package. The user
+Status: user approved this shared implementation direction on 2026-10-11.
+Task contracts, Pack coverage and formal answers are being implemented on
+`feat/task-answer-closure`; product acceptance remains open. The user
 prioritizes complete task and formal-answer repair over a maintenance-only
 baseline. Semantic task understanding is required; the concrete contracts still
 need implementation review. The approved development workflow uses local-dev
