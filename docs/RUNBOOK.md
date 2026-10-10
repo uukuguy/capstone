@@ -519,3 +519,15 @@ make validate-provider PROVIDER=openai MODEL=gpt-5.5 VALIDATION_SUITE=task-requi
 ```
 
 报告写入 `runs/validation-provider.json`，分别记录编排完成度、语义正确性、证据和工具调用效率；效率预算是诊断分，不会覆盖正确的主结果或阻断分析入口。报告记录 provider/model、trace、延迟以及可用的 token/cost 元数据，不写入密钥。
+
+## GitHub Issues 与小石身份
+
+统一规则见 [Issue 处理规程](architecture/capstone-issue-workflow.md)。用户可以在当前会话说“检查 Issues”或“处理 Issue #编号”。检查不启动修复；AI 在开发过程中主动建单也不启动后台任务。第一阶段没有定时执行，不另行调用付费模型。
+
+小石使用独立 GitHub App，显示名称为“小石 · Capstone AI”。注册建议名称 `Capstone Xiaoshi`，实际技术账号以 GitHub 分配的 App slug 为准。未注册并核对身份前，AI 发布功能保持关闭。只读读取可以使用维护者已有 GitHub CLI 登录；AI 写入不能沿用该个人身份。
+
+注册与安装范围仅选 `uukuguy/capstone`，不要求整个账户。仓库权限为 Issues、Contents、Pull requests 写入，Actions、Checks、Metadata 读取。不授予 Administration、Workflows 写入或发布权限。手动阶段不启用 webhook、用户 OAuth 或定时触发。具体权限可在 [GitHub App 注册文档](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)核对。
+
+App 私钥保存在本仓库忽略目录 `.capstone-agent/issue-automation/app-private-key.pem`，仅文件所有者可读写（0600）。App ID、installation ID、实际账号及启用开关写入同目录的 `operator.json`（0600）；不把私钥或 token 放进命令参数、源码、截图或 Issue。工具在每次发布前核对 App、安装和目标仓库，再申请短期安装 token。身份接入需要维护者在 GitHub 完成注册、安装及私钥配置；有名字不代表账号已经存在。
+
+工具的开发、测试与审查状态以[实施计划](superpowers/plans/2026-10-10-github-issue-automation.md)为准。未通过审查的特性分支不代表已接入 main，也不代表 dev/demo 运行服务已经更新。

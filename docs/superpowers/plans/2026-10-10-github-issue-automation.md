@@ -51,7 +51,7 @@ Files: `.github/ISSUE_TEMPLATE/user-feedback.md`, `.github/workflows/issue-autom
 
 - [ ] Reduce user template to title/short description with optional image; no maintainer form shown to users.
 - [ ] Add readonly workflow_dispatch status entrypoint using trusted default-branch source; no scheduled jobs or automatic Issue/comment processing in the first release. Configure no deploy/merge workflow permission.
-- [ ] Add `make issues-doctor`, `issues-scan`, `issues-triage`, `issues-fix`, `issues-status`, `issues-daemon`; persist background PID/log/SQLite under ignored project state, no secrets in arguments/logs.
+- [ ] Add `make issues-doctor`, `issues-scan`, `issues-create`, `issues-triage`, `issues-begin`, `issues-complete` and `issues-status`; persist private SQLite/task receipts under ignored project state, no secrets in arguments/logs. No daemon entrypoint activates work.
 - [ ] Link one governing procedure from lifecycle; distinguish implemented, configured and active features.
 - [ ] Register existing history/answer/response-scale/wake feedback as Chinese Issues, preserving explicit local-demo scope where the user supplied it.
 
@@ -63,4 +63,4 @@ Files: `.github/ISSUE_TEMPLATE/user-feedback.md`, `.github/workflows/issue-autom
 - [ ] Push exact implementation branch and accepted main only after gates; publish scoped labels/Issues and verify remote identities.
 - [ ] Verify current-session command intake, structured judgment, workspace and publication paths without external model calls. Record actual operational limits; no daemon/schedule/paid model activation in this release.
 
-Do not mark complete merely because workflows and files exist: verify the command flow, remote intake, task recovery and background liveness, and report any unavailable model/runner capability explicitly.
+Do not mark complete merely because workflows and files exist: verify the command flow, remote intake, task recovery and absence of automatic execution, and report any unavailable App identity or candidate validation capability explicitly.
