@@ -3,6 +3,7 @@ export type TaskOutcome = {
   status: 'complete' | 'partial' | 'unavailable'
   work: { id: string; status: 'confirmed' | 'blocked'; summary: string; result_refs: string[]; evidence_refs: string[] }[]
   diagnostics: { code: string; category: string; stage: string; confirmation: 'confirmed' | 'unknown'; summary: string; work_id: string; recovery: string }[]
+  coverage?: { requested_scope: 'unconfirmed'; completed_scenario_count: number; scenario_context_refs: string[]; full_ranking_allowed: false }
 }
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -11,7 +12,7 @@ const text = (value: unknown, max = 512): value is string => typeof value === 's
 const refs = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 128 && value.every(item => text(item)) && new Set(value).size === value.length
 
 export function parseTaskOutcome(value: unknown): TaskOutcome | undefined {
-  if (!record(value) || !keys(value, ['schema', 'status', 'work', 'diagnostics']) || value.schema !== 'capstone-task-outcome/1'
+  if (!record(value) || !keys(value, ['schema', 'status', 'work', 'diagnostics', ...('coverage' in value ? ['coverage'] : [])]) || value.schema !== 'capstone-task-outcome/1'
     || !['complete', 'partial', 'unavailable'].includes(String(value.status)) || !Array.isArray(value.work) || value.work.length > 32
     || !Array.isArray(value.diagnostics) || value.diagnostics.length > 32) return undefined
   const identities = new Set<string>()
@@ -33,5 +34,13 @@ export function parseTaskOutcome(value: unknown): TaskOutcome | undefined {
   const confirmed = value.work.some(item => item.status === 'confirmed')
   const blocked = value.work.some(item => item.status === 'blocked')
   if ((value.status === 'partial' && !(confirmed && blocked)) || (value.status === 'unavailable' && confirmed) || (value.status === 'complete' && blocked)) return undefined
+  if ('coverage' in value) {
+    const coverage = value.coverage
+    if (!record(coverage) || !keys(coverage, ['requested_scope', 'completed_scenario_count', 'scenario_context_refs', 'full_ranking_allowed'])
+      || value.status !== 'partial' || coverage.requested_scope !== 'unconfirmed' || coverage.full_ranking_allowed !== false
+      || typeof coverage.completed_scenario_count !== 'number' || !Number.isInteger(coverage.completed_scenario_count)
+      || coverage.completed_scenario_count < 1 || coverage.completed_scenario_count > 128 || !refs(coverage.scenario_context_refs)
+      || coverage.scenario_context_refs.length !== coverage.completed_scenario_count || coverage.scenario_context_refs.some(ref => !/^context:sha256:[0-9a-f]{64}$/.test(ref))) return undefined
+  }
   return value as TaskOutcome
 }

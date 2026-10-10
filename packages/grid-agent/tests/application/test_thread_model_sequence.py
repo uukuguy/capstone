@@ -322,6 +322,11 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         )
         assert derived_outcome is not None and derived_outcome.status == 'completed', derived_outcome
         assert derived_outcome.result_refs and derived_outcome.evidence_refs
+        derived_terminal = service.read_events('thr_sequence', 0).events[-1]
+        assert derived_terminal.payload['task_outcome']['status'] == 'partial'
+        assert derived_terminal.payload['task_outcome']['coverage']['full_ranking_allowed'] is False
+        assert derived_terminal.payload['task_outcome']['coverage']['completed_scenario_count'] == 1
+        assert '完整研究范围' in derived_terminal.payload['answer']
         source = sessions[-1].calls[-1]['result']
         assert source['revision_ref'] != ieee_context.model_revision
         assert service.snapshot('thr_sequence').active_model_context == ieee_context

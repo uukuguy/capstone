@@ -428,6 +428,8 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
 
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
         failures = tuple(event for event in tool_events if event.get('ok') is not True)
+        if any(event.get('error_stage') == 'persist' for event in failures):
+            raise AttemptOutcomeUnavailable(failure_outcome(failures))
         if failures and (result_refs or evidence_refs):
             # Re-admit only completed authority work with host-owned text. Never
             # carry a rejected or incomplete model conclusion into this receipt.
@@ -443,6 +445,8 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                 outcome['status'] = 'partial'
                 outcome['work'] = [{'id': 'retained', 'status': 'confirmed', 'summary': '已接纳独立完成的结果与证据；不代表全部请求已完成。',
                     'result_refs': list(safe_results), 'evidence_refs': list(safe_evidence)}, *outcome['work']]
+                if retained.task_outcome is not None and 'coverage' in retained.task_outcome:
+                    outcome['coverage'] = retained.task_outcome['coverage']
                 return replace(retained, task_outcome=normalize_task_outcome(outcome))
         if failures:
             observed = []
@@ -562,11 +566,27 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         result_projections = _build_result_projections(
             claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
         )
-        return AdmittedAttemptAnswer(
+        admitted = AdmittedAttemptAnswer(
             decision.answer_output, decision.mode, decision.assurance,
             tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
             result_projections=result_projections,
         )
+        for binding_id, binding in binding_map.items():
+            describe_scope = getattr(getattr(getattr(binding, 'runtime', None), 'authority', None), 'describe_task_scope', None)
+            if not callable(describe_scope):
+                continue
+            coverage = describe_scope(tuple(ref for ref in result_refs if owners.get(ref) == binding_id))
+            if coverage is None:
+                continue
+            safe_answer = '已保留已计算场景的结果与证据。尚未取得可验证的完整研究范围，不能据此给出全量严重程度排序。派生场景证据保留其原始模型修订，未叠加到基准模型图。'
+            outcome = normalize_task_outcome({'schema': 'capstone-task-outcome/1', 'status': 'partial', 'coverage': coverage,
+                'work': [
+                    {'id': 'scenarios', 'status': 'confirmed', 'summary': '已保留独立通过接纳的场景结果。', 'result_refs': list(result_refs), 'evidence_refs': list(evidence_refs)},
+                    {'id': 'scope', 'status': 'blocked', 'summary': '完整研究范围与全量排序尚未确认。', 'result_refs': [], 'evidence_refs': []}],
+                'diagnostics': [{'code': 'study_scope_unconfirmed', 'category': 'capability', 'stage': 'admit', 'confirmation': 'confirmed',
+                    'summary': '现有证据仅确认已计算的场景，未确认完整请求范围。', 'work_id': 'scope', 'recovery': 'change_scope'}]})
+            return replace(admitted, answer=safe_answer, task_outcome=outcome)
+        return admitted
     def recover_admission(claim, answer, result_refs, evidence_refs, tool_events):
         try:
             return admit(claim, answer, result_refs, evidence_refs, tool_events)

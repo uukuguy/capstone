@@ -17,3 +17,11 @@ def test_outcome_rejects_extra_fields_and_excess_work():
         normalize_task_outcome({**outcome, 'raw_error': 'SECRET'})
     with pytest.raises(ValueError):
         normalize_task_outcome({**outcome, 'work': [{'id': 'a'}] * 33})
+
+
+def test_unconfirmed_scope_cannot_claim_full_ranking_or_complete_task():
+    outcome = unavailable_outcome('answer_admission_failed', ())
+    coverage = {'requested_scope': 'unconfirmed', 'completed_scenario_count': 1,
+        'scenario_context_refs': ['context:sha256:' + 'a' * 64], 'full_ranking_allowed': True}
+    with pytest.raises(ValueError, match='coverage'):
+        normalize_task_outcome({**outcome, 'coverage': coverage})

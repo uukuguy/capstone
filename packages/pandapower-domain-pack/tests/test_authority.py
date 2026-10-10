@@ -116,6 +116,9 @@ def test_solver_failure_is_confirmed_without_blame_or_raw_text():
     assert diagnostic['confirmation'] == 'confirmed'
     assert '不能单独证明' in diagnostic['summary']
     assert PandapowerArtifactAuthority.describe_execution_failure('SECRET') is None
+    assert PandapowerArtifactAuthority.describe_execution_failure('analysis_prerequisite_missing')['category'] == 'input'
+    assert PandapowerArtifactAuthority.describe_execution_failure('analysis_options_invalid')['category'] == 'invocation'
+    assert PandapowerArtifactAuthority.describe_execution_failure('persist_failed')['category'] == 'storage'
 
 
 def _write_context_chain(root, *, parent=None, model='ieee39', marker='base'):

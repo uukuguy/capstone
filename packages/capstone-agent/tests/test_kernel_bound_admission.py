@@ -140,6 +140,16 @@ def test_bad_later_identity_retains_separately_admitted_earlier_evidence():
     assert 'UNVERIFIED' not in answer.answer
 
 
+def test_required_evidence_persistence_failure_cannot_become_partial_success():
+    from capstone_agent.harness import AttemptOutcomeUnavailable
+    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION})
+    events = ({'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]},
+        {'binding_id': 'grid', 'ok': False, 'error_code': 'persist_failed', 'error_stage': 'persist'})
+    with pytest.raises(AttemptOutcomeUnavailable) as error:
+        admit(claim, 'answer', (), (EVIDENCE,), events)
+    assert error.value.outcome['status'] == 'unavailable'
+
+
 @pytest.mark.parametrize("document", [
     {"model_id": "ieee39"}, {"revision_ref": REVISION},
     {"context_ref": CONTEXT}, {"model_ref": CONTEXT},
