@@ -5,7 +5,7 @@
 | File | Purpose |
 | --- | --- |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | 固定分支、公共修复、基线与标签规范、环境台账；本地对齐及历史浏览反馈已登记，云端未更新；持续维护。 |
+| [多线版本控制](VERSION-CONTROL.md) | 固定分支、公共修复、基线与标签规范、环境台账及 GitHub Issues 反馈流程；历史浏览待建 Issue，云端未更新；持续维护。 |
 | [Baseline alignment plan](../superpowers/plans/2026-10-10-version-baseline-alignment.md) | Preserve experimental development, restore minimal demo foundation and verify local-only alignment. |
 | [Baseline alignment verification](../reviews/2026-10-10-version-baseline-alignment.md) | Main and isolated local-demo alignment passes full/local gates; six role identities match; experimental branches and user data retained; cloud unchanged. |
 | `KNOWN-ISSUES.md` | Open answer-quality and startup/recovery issues; accepted branch policy and local baseline alignment, with cloud rollback retained. |
