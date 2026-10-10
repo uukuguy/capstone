@@ -44,8 +44,8 @@ When a worker is full and another session has waited one second, the shared
 ledger reserves the globally longest idle session for eviction after a
 30-second grace period. Active turns are preserved.
 
-On Vercel, set the project root to `packages/capstone-app`, use the checked-in
-`vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
+On Vercel, use the new prepared App output directory described below as the
+project root, use its `vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
 public in the static build. Provider keys, operator tokens, database URLs, and
 bucket credentials must stay out of Vercel build variables.
 

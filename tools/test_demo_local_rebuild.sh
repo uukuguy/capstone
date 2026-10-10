@@ -16,6 +16,7 @@ cat > "$scratch/bin/make" <<'SH'
 [ "$COMPOSE_PROJECT_NAME" = capstone-demo-local ]
 [ "$CAPSTONE_API_PORT" = 18767 ]
 [ "$CAPSTONE_APP_PORT" = 15173 ]
+[ "$CAPSTONE_APP_ENVIRONMENT" = local-demo ]
 [ "$CAPSTONE_API_PROXY_TARGET" = http://127.0.0.1:18767 ]
 [ "$CAPSTONE_LOCAL_ENV_FILE" = "$CAPSTONE_TEST_ROOT/deploy/demo-local.env" ]
 [ "$CAPSTONE_BACKEND_IMAGE" = "capstone-demo-backend:$(git rev-parse HEAD)" ]
@@ -23,7 +24,7 @@ SH
 chmod +x "$scratch/bin/make"
 cat > "$scratch/bin/curl" <<'SH'
 #!/usr/bin/env bash
-printf '{"revision":"%s","dirty":false}\n' "${CAPSTONE_TEST_APP_REVISION:-$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)}"
+printf '{"revision":"%s","dirty":false,"environment":"%s"}\n' "${CAPSTONE_TEST_APP_REVISION:-$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)}" "${CAPSTONE_TEST_APP_ENVIRONMENT:-local-demo}"
 SH
 chmod +x "$scratch/bin/curl"
 export CAPSTONE_TEST_ROOT="$scratch"
@@ -45,6 +46,10 @@ PY
 before="$(shasum -a 256 "$scratch/deploy/demo-local.env")"
 PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output"
 [ "$before" = "$(shasum -a 256 "$scratch/deploy/demo-local.env")" ]
+if CAPSTONE_TEST_APP_ENVIRONMENT=local-dev PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local demo accepted an App from another environment' >&2
+  exit 1
+fi
 if CAPSTONE_TEST_APP_REVISION=wrong PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
   echo 'local demo accepted an App from another source' >&2
   exit 1

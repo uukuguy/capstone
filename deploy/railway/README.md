@@ -265,8 +265,8 @@ eviction after a 30-second grace period. Active turns and reports remain
 protected. Add worker replicas for aggregate capacity;
 adjust the per-replica setting only after measuring memory.
 
-For an all-Railway deployment, create the App service from
-`packages/capstone-app` as its root directory. Its Dockerfile builds Vite and
+For an all-Railway deployment, prepare exact App source with the helper above
+and upload that new output directory as the App service root. Its Dockerfile builds Vite and
 serves the static files with Caddy. Set `VITE_API_ORIGIN` to the API's HTTPS
 origin, for example `https://${{capstone-api.RAILWAY_PUBLIC_DOMAIN}}`, and set
 the App health check path to `/health`. Generate public HTTPS domains for the
@@ -275,8 +275,8 @@ backend services. Only the API and App need public domains. The App build
 contains the public API origin; it must never contain the operator token or
 storage credentials.
 
-Vercel remains an alternative static host: set its project root to
-`packages/capstone-app` and use the checked-in `vercel.json` with the same
+Vercel remains an alternative static host: use that same prepared output as its
+project root, including its `vercel.json` and public identity receipts, with the same
 `VITE_API_ORIGIN`.
 The original registered-case page at `/old` obtains a demonstration credential
 from the API on each load and opens

@@ -26,6 +26,7 @@ def source(tmp_path):
     (app / 'package.json').write_text('{"version":"0.1.0"}')
     (app / 'src/App.tsx').write_text('export const value = "committed"\n')
     (app / '.env.secret').write_text('PRIVATE_KEY=never-export-this\n')
+    (app / '.dockerignore').write_text('node_modules\ndist\n.env*\n')
     subprocess.run(['git', '-C', str(tmp_path), 'add', '.'], check=True)
     subprocess.run(['git', '-C', str(tmp_path), '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'source'], check=True, capture_output=True)
     sha = subprocess.check_output(['git', '-C', str(tmp_path), 'rev-parse', 'HEAD'], text=True).strip()
@@ -47,6 +48,7 @@ def test_helper_exports_exact_source_and_public_receipt_without_secrets(source, 
     }
     assert not (output / '.env.secret').exists()
     assert not (output / '.git').exists()
+    assert (output / '.dockerignore').read_text() == 'node_modules\ndist\n.env*\n'
     assert (root / 'packages/capstone-app/src/App.tsx').read_text().endswith('"dirty"\n')
 
 

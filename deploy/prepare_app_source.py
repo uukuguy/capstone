@@ -58,7 +58,7 @@ def prepare_app_source(root: Path, revision: str, environment: str, api_origin: 
         metadata, name = entry.split(b'\t', 1)
         mode, kind, blob = metadata.decode().split()
         relative = Path(name.decode()).relative_to('packages/capstone-app')
-        if any(part.startswith('.') or part in {'node_modules', 'var', 'runs', 'auth'} for part in relative.parts) or relative.suffix.lower() in {'.key', '.pem', '.sqlite', '.db'} or relative.name in {'auth.json', 'credentials.json', 'operator.json', 'build-revision.txt', 'build-environment.json'}:
+        if relative != Path('.dockerignore') and (any(part.startswith('.') or part in {'node_modules', 'var', 'runs', 'auth'} for part in relative.parts) or relative.suffix.lower() in {'.key', '.pem', '.sqlite', '.db'} or relative.name in {'auth.json', 'credentials.json', 'operator.json', 'build-revision.txt', 'build-environment.json'}):
             continue
         if kind != 'blob' or mode not in {'100644', '100755'}:
             raise ValueError('Selected App source contains a non-regular file')
