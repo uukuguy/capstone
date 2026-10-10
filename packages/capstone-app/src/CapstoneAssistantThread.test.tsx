@@ -357,6 +357,39 @@ describe('CapstoneAssistantThread', () => {
     }
   })
 
+  it('honors explicit upward navigation before the final latest-restoration frame', () => {
+    let nextFrame = 0
+    const frames = new Map<number, FrameRequestCallback>()
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frames.set(++nextFrame, callback); return nextFrame })
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => { frames.delete(id) })
+    const runFrame = () => {
+      const callbacks = [...frames.values()]
+      frames.clear()
+      act(() => callbacks.forEach((callback) => callback(0)))
+    }
+    try {
+      const props = { disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onReturnLatest: vi.fn() }
+      const older = [event('attempt_completed', 1, { answer: '旧回答。' }, 'older')]
+      const latest = [event('attempt_completed', 2, { answer: '最新回答。' }, 'latest')]
+      const { rerender } = render(<CapstoneAssistantThread {...props} events={older} historyAtLatest={false} />)
+      const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+      Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 9792 })
+      Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 369 })
+
+      fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
+      rerender(<CapstoneAssistantThread {...props} events={latest} historyAtLatest />)
+      runFrame()
+      fireEvent.wheel(viewport, { deltaY: -120 })
+      viewport.scrollTop = 9303
+      runFrame()
+
+      expect(viewport.scrollTop).toBe(9303)
+    } finally {
+      requestFrame.mockRestore()
+      cancelFrame.mockRestore()
+    }
+  })
+
   it('keeps the reading anchor when an older history load resolves after animation frames', async () => {
     let finishLoad: (() => void) | undefined
     const onLoadOlder = vi.fn(() => new Promise<void>((resolve) => { finishLoad = resolve }))

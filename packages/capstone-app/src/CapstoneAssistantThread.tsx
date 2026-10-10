@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
@@ -771,15 +771,25 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const [historyAnchorRevision, setHistoryAnchorRevision] = useState(0)
   const pendingHistoryAnchor = useRef<{ token: number; baselineFirstEventSeq: number; settled: boolean } | null>(null)
   const returnLatestScrollPending = useRef(false)
+  const returnLatestScrollToken = useRef(0)
   function scrollViewportToLatest() {
     const viewport = viewportRef.current
     if (viewport) viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
   }
   function requestLatestScroll() {
     returnLatestScrollPending.current = true
+    returnLatestScrollToken.current += 1
     scrollAnchor.current = null
     historyAnchor.current = null
     pendingHistoryAnchor.current = null
+  }
+  function cancelLatestScrollIntent() {
+    if (!returnLatestScrollPending.current) return
+    returnLatestScrollPending.current = false
+    returnLatestScrollToken.current += 1
+  }
+  function cancelLatestScrollIntentForKey(event: ReactKeyboardEvent) {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) cancelLatestScrollIntent()
   }
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
@@ -1003,13 +1013,18 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   }
   useLayoutEffect(() => {
     if (!historyAtLatest || !returnLatestScrollPending.current) return
+    const token = returnLatestScrollToken.current
     let second: number | undefined
-    scrollViewportToLatest()
-    const first = window.requestAnimationFrame(() => {
+    const restore = () => {
+      if (!returnLatestScrollPending.current || returnLatestScrollToken.current !== token) return false
       scrollViewportToLatest()
+      return true
+    }
+    restore()
+    const first = window.requestAnimationFrame(() => {
+      if (!restore()) return
       second = window.requestAnimationFrame(() => {
-        scrollViewportToLatest()
-        returnLatestScrollPending.current = false
+        if (restore()) returnLatestScrollPending.current = false
       })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
@@ -1052,11 +1067,11 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
-        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
+        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport" onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
