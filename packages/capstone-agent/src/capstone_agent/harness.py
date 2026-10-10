@@ -735,7 +735,7 @@ class HarnessAttemptRunner:
 
     def _close_pending_tools(self, claim: AttemptClaim) -> None:
         for payload in tuple(self._pending_tools.values()):
-            self._persist_event(claim, {'event_type': 'tool_completed', 'runtime_mode': claim.attempt.runtime_mode,
+            self._persist_event(claim, {'event_type': 'tool_completed', 'runtime_mode': getattr(self._runtime, 'runtime_mode', 'capstone'),
                 'visibility': 'public', 'payload': {**payload, 'ok': False, 'error_code': 'tool_outcome_unknown', 'error_stage': 'execute'}})
 
     def _finish_cancelled(self, claim: AttemptClaim) -> None:

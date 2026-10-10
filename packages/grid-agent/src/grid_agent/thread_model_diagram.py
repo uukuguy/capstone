@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
+from capstone_agent.application import EmptyCredentialBroker
 
 from capstone_agent.model_identity import validate_model_id
 from .application.profile import build_pandapower_application_profile
@@ -11,9 +11,12 @@ from .application.profile import build_pandapower_application_profile
 def model_diagram(model_id: str, revision: str) -> dict[str, object]:
     validate_model_id(model_id)
     binding = build_pandapower_application_profile().domains[0]
+    provisioner = binding.profile.provisioner
+    if provisioner is None:
+        raise RuntimeError('model diagram provisioner is unavailable')
     with TemporaryDirectory(prefix="capstone-grid-view-") as directory:
-        endpoint = binding.profile.provisioner.prepare(binding=binding, workspace=Path(directory).resolve() / "grid",
-            credentials=SimpleNamespace(scope_id=binding.credential_scope.scope_id, credentials={}))
+        endpoint = provisioner.prepare(binding=binding, workspace=Path(directory).resolve() / "grid",
+            credentials=EmptyCredentialBroker().issue(binding_id=binding.binding_id, scope=binding.credential_scope))
         try:
             opened = endpoint.executor.invoke("context.open", {"model_id": model_id})
             if opened.get("revision_ref") != revision:
