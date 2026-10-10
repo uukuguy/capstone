@@ -1,6 +1,6 @@
 # Demo task outcomes and failure diagnostics
 
-> Status: High-level design approved on 2026-10-10. Written specification awaits review. No implementation or deployment accepted.
+> Status: High-level and written design approved on 2026-10-10. Implementation and local verification pass on main and demo baseline; remote acceptance pending.
 
 ## Purpose and immediate priority
 
