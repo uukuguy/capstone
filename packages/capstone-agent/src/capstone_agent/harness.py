@@ -608,6 +608,8 @@ class HarnessAttemptRunner:
             }
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
+            if candidate is not None:
+                terminal_payload = terminal_payload_for_admission(candidate)
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
