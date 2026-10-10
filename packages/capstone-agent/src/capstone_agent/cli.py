@@ -255,11 +255,6 @@ def main(
                 thread_application.thread_creator(thread_service)
             if args.command == "serve-hosted":
                 import uvicorn
-                if thread_application is not None and thread_application.resource_profiles is None:
-                    from .thread_input_catalog import RemoteResourceCatalog, catalog_provider
-                    thread_service.set_input_catalog_provider(catalog_provider(thread_service,
-                        RemoteResourceCatalog(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
-                        family_available=thread_service.is_family_available))
 
                 wake_worker = configured_worker_wake(settings.worker_wake_url,
                     os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token)
@@ -336,8 +331,6 @@ def main(
                                 additional_wake_events=(thread_wake,) if thread_wake is not None else (),
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
-                                input_catalog=thread_service.input_catalog,
-                                thread_family=lambda thread_id: thread_service.snapshot(thread_id).active_model_context.implementation_family,
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),
                                 health_check=lambda: scheduler.is_alive()

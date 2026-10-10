@@ -5,63 +5,7 @@ from capstone_agent.kernel_pi_session import _render_attempt_model_context
 from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.thread_protocol import ModelContextSnapshot
-from capstone_agent.request_intent import IntentDecision, IntentRequest
 from types import SimpleNamespace
-
-import pytest
-
-
-def test_empty_selection_builds_application_only_rpc_session(tmp_path, monkeypatch):
-    from capability_agent.runtime.environment import RuntimeHost
-    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
-    from capability_agent.runtime.models import ResolvedLLM, ResolvedLLMConfig
-    from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
-    import capstone_agent.kernel_pi_session as module
-
-    launches = []
-    class Client:
-        def __init__(self, launch, *args, **kwargs):
-            launches.append(launch)
-        def stop(self):
-            pass
-    monkeypatch.setattr(module, "PiRpcClient", Client)
-    domain_policy = tmp_path / "domain.md"
-    domain_policy.write_text("DOMAIN POLICY MUST NOT LEAK")
-    host = RuntimeHost(
-        command=PiCommand(("node", "/opt/pi/cli.js"), PiRuntimeIdentity(
-            path=tmp_path / "cli.js", source="fixture", package_version="1", lock_sha256="lock")),
-        project_pi_dir=tmp_path / "pi", extension_path=tmp_path / "domain-extension.js",
-        system_policy_path=domain_policy,
-    )
-    resolved = ResolvedLLM(ResolvedLLMConfig(
-        provider="alpha", model="alpha-model", base_url="https://provider.example/v1",
-        auth_kind="none", credential_reference="ALPHA_KEY", timeout_seconds=10,
-        max_retries=0, pi_provider="alpha", compatibility_profile="generic",
-        descriptor_version="fixture", public_headers={}, field_sources={}, supports_tools=True,
-    ), None)
-    claim = _catalog_claim("你好")
-    claim.attempt = SimpleNamespace(attempt_id="attempt_empty")
-    claim.model_context = ModelContextSnapshot("ctx_empty", "ieee39", "7", "pandapower", "sel_empty")
-    claim.previous_instruction = None
-    claim.prior_results = ()
-    session = PreparedKernelPiRpcSessionBuilder(
-        runtime_host=host, resolved_llm=resolved, base_environment={"PATH": "/usr/bin"},
-        workspace_root=tmp_path / "workspaces",
-    )(claim, SimpleNamespace(contributions=()), ())
-    launch = launches[0]
-    assert "--extension" not in launch.argv
-    assert "--no-builtin-tools" in launch.argv
-    assert "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR" not in launch.environment
-    policy = __import__("pathlib").Path(launch.argv[launch.argv.index("--system-prompt") + 1]).read_text()
-    assert "general-purpose agent" in policy and "ieee39" in policy
-    assert "DOMAIN POLICY MUST NOT LEAK" not in policy
-    assert "No calculation tools are enabled" in policy
-    decision = session.admit_attempt(claim, "你好！", (), (), ())
-    assert decision.assurance == "general_knowledge"
-    assert decision.result_refs == decision.evidence_refs == ()
-    with pytest.raises(ValueError):
-        session.admit_attempt(claim, "unowned calculation", ("result:foreign",), (), ())
-    session.stop()
 
 
 def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
@@ -76,115 +20,15 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     )
 
 
-@pytest.mark.parametrize('dependency,identity_drift,selected_skill', [(False, False, False), (True, False, False), (False, True, False), (False, False, True)])
-def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_path, monkeypatch, dependency, identity_drift, selected_skill):
-    import json
-    from pathlib import Path
-    from capability_agent.application.workspace import ApplicationWorkspace
-    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
-    from capstone_agent.execution_context import execution_plan_for
-    from test_pi_intent import runtime_inputs
-    import capstone_agent.kernel_pi_session as module
-
-    host, llm = runtime_inputs(tmp_path)
-    host.system_policy_path.write_text('BUSINESS POLICY')
-    native = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
-                                               workspace_root=tmp_path / 'runs')
-    source = IntentRequest.from_document({'schema': 'capstone-intent-request/1',
-        'thread_id': 'thread', 'turn_id': 'turn', 'attempt_id': 'attempt',
-        'instruction': '读取模型结果', 'history_cutoff': 0, 'messages': [],
-        'objects': [{'object_id': 'ctx'}], 'capabilities': [
-            {'capability_id': 'grid@1', 'available': True, 'enabled': True}], 'mode_hint': None})
-    decision = IntentDecision.from_document({'schema': 'capstone-intent-decision/1',
-        'attempt_id': 'attempt', 'history_cutoff': 0, 'relationship': 'independent',
-        'goals': [{'goal_id': 'g1', 'operation': 'business_read',
-            'instruction_excerpt': '读取模型结果', 'description': 'PRIVATE_DIAGNOSTIC inventory',
-            'message_refs': [], 'object_refs': ['ctx'], 'capability_refs': ['grid@1'],
-            'missing_requirements': [], 'depends_on': []}], 'clarification': None}, source)
-    claim = SimpleNamespace(instruction='读取模型结果', attempt=SimpleNamespace(attempt_id='attempt'),
-        model_context_id='ctx',
-        model_context=ModelContextSnapshot('ctx', 'model', 'revision', 'pandapower', 'selection'),
-        run_id='run', application_catalog={'unrelated': 'PRIVATE_DIAGNOSTIC catalog'}, prior_results=(),
-        turn_plan=SimpleNamespace(route='professional', intent_request=source,
-            intent_decision=decision, intent_engine=native.identity.to_document()))
-    dependency_document = None
-    if dependency:
-        from capstone_agent.business_goal_dependency import AdmittedBusinessGoalDependency
-        from capstone_agent.harness import AdmittedAttemptAnswer
-        receipt = AdmittedBusinessGoalDependency('attempt', 'baseline', 'ctx', ('grid@1',),
-            AdmittedAttemptAnswer('Admitted baseline facts', 'authority_backed', 'lineage_verified',
-                                 ('result-baseline',), ('evidence-baseline',)), ())
-        dependency_document = receipt.to_document()
-        claim.turn_plan.intent_resources = {'business_goal_dependencies': (receipt,),
-                                          'resolved_goal_dependencies': ('baseline',)}
-    if identity_drift:
-        claim.turn_plan.intent_engine = {**native.identity.to_document(), 'config_revision': 'changed'}
-    loaded = []
-    if selected_skill:
-        import capstone_agent.professional_resources as resources_module
-        claim.turn_plan.intent_resources = {'harness_skill_selection': 'accepted-selection'}
-        def apply(launch, selection, bindings, attempt_path):
-            loaded.append((selection, tuple(bindings), attempt_path.name))
-            return launch
-        monkeypatch.setattr(resources_module, 'apply_harness_skill', apply, raising=False)
-    workspace = ApplicationWorkspace.create(tmp_path / 'runs', binding_ids=('grid',))
-    resources = tmp_path / 'resource.json'
-    resources.write_text('{}')
-    runtime = SimpleNamespace(profile=SimpleNamespace(manifest=SimpleNamespace()),
-        tool_catalog_path=resources, guide_index_path=resources, guide_root_path=tmp_path)
-    profile = SimpleNamespace(workspace=workspace,
-        prepared_application=SimpleNamespace(bindings={'grid': SimpleNamespace(runtime=runtime,
-            endpoint=SimpleNamespace(metadata={'environment': {
-                'CAPSTONE_POWERMCP_MANAGED_ROOT': '/prepared/root',
-                'CAPSTONE_POWERMCP_INSTALL_ID': 'installs/' + 'a' * 32,
-                'CAPSTONE_POWERMCP_DESCRIPTOR_SHA256': 'b' * 64,
-                'CAPSTONE_POWERMCP_UNTRUSTED': 'excluded', 'OPENAI_API_KEY': 'excluded'}}))}),
-        profile=SimpleNamespace(reference_grants=(), manifest=SimpleNamespace(application_id='test')),
-        model_binding=SimpleNamespace(binding_id='grid', context_ref='current_authority_context'))
-    monkeypatch.setattr(module, 'descriptor_from_endpoint', lambda **kwargs: SimpleNamespace(search_path=()))
-    monkeypatch.setattr(module, 'write_runtime_descriptor', lambda *args: None)
-    launches = []
-    class Client:
-        def __init__(self, launch, *args, **kwargs):
-            launches.append(launch)
-        def stop(self):
-            pass
-    monkeypatch.setattr(module, 'PiRpcClient', Client)
-    builder = module.PreparedKernelPiRpcSessionBuilder(runtime_host=host, resolved_llm=llm,
-        workspace_root=tmp_path / 'runs', base_environment={'PATH': '/usr/bin'})
-    if identity_drift:
-        from capstone_agent.harness import HarnessRuntimeConfigurationError
-        with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
-            builder(claim, None, (profile,))
-        assert not launches
-        return
-    session = builder(claim, None, (profile,))
-    session.stop()
-    assert launches[0].environment['CAPSTONE_POWERMCP_MANAGED_ROOT'] == '/prepared/root'
-    assert launches[0].environment['CAPSTONE_POWERMCP_INSTALL_ID'] == 'installs/' + 'a' * 32
-    assert launches[0].environment['CAPSTONE_POWERMCP_DESCRIPTOR_SHA256'] == 'b' * 64
-    assert 'CAPSTONE_POWERMCP_UNTRUSTED' not in launches[0].environment
-    assert 'OPENAI_API_KEY' not in launches[0].environment
-    if selected_skill:
-        assert loaded == [('accepted-selection', ('grid',), 'attempt')]
-    context = json.loads(Path(launches[0].environment['CAPSTONE_PI_CONTEXT_PATH']).read_text())['supplemental_context']
-    assert context['execution_plan'] == execution_plan_for(source, decision)
-    assert 'decision' not in context
-    assert 'PRIVATE_DIAGNOSTIC' not in json.dumps(context)
-    assert context['bindings'] == [{'binding_id': 'grid', 'context_ref': 'current_authority_context'}]
-    if dependency:
-        assert context['business_goal_dependencies'] == [dependency_document]
-        assert context['prior_results'] == []
-        assert 'from this Attempt' in context['business_dependency_policy']
-
-
-def test_catalog_admission_keeps_incomplete_answer_without_explicit_full_scope():
+def test_catalog_admission_replaces_incomplete_answer_from_attempt_snapshot():
     claim = _catalog_claim()
     decision = _build_kernel_admission(())(
         claim, "有两个模型：Alpha（example-alpha）。", (), (), (),
     )
-    assert decision.answer == "有两个模型：Alpha（example-alpha）。"
-    assert decision.assurance == "general_knowledge"
+    assert "example-alpha" in decision.answer and "example-beta" in decision.answer
+    assert "unrelated-model" not in decision.answer
+    assert "2" in decision.answer and "暂不可用" in decision.answer
+    assert decision.assurance == "deterministic_information"
     assert decision.result_refs == decision.evidence_refs == ()
 
 
@@ -194,11 +38,11 @@ def test_catalog_admission_preserves_complete_llm_answer():
     assert decision.answer == answer
 
 
-def test_catalog_admission_does_not_infer_scope_from_identifiers():
+def test_catalog_admission_checks_identifiers_instead_of_substrings():
     claim = _catalog_claim()
     claim.application_catalog["models"][1]["model_id"] = "alpha"
     decision = _build_kernel_admission(())(claim, "目录有 example-alpha。", (), (), ())
-    assert decision.answer == "目录有 example-alpha。"
+    assert "`alpha`" in decision.answer
 
 
 def test_catalog_admission_does_not_replace_other_informational_answers():
@@ -213,17 +57,17 @@ def test_catalog_admission_does_not_replace_mixed_calculation_requests():
     assert decision.answer == answer
 
 
-def test_catalog_admission_does_not_infer_full_scope_from_unscoped_query():
+def test_catalog_admission_lists_all_families_for_unscoped_query():
     decision = _build_kernel_admission(())(_catalog_claim("列出模型目录"), "example-alpha", (), (), ())
-    assert decision.answer == "example-alpha"
+    assert "example-beta" in decision.answer and "unrelated-model" in decision.answer
 
 
-def test_catalog_admission_does_not_infer_family_scope_from_prose():
+def test_catalog_admission_handles_other_registered_families():
     claim = _catalog_claim("Which atlas models are available?")
     for item in claim.application_catalog["models"][:2]:
         item["implementation_family"] = "atlas"
     decision = _build_kernel_admission(())(claim, "example-alpha", (), (), ())
-    assert decision.answer == "example-alpha"
+    assert "example-beta" in decision.answer and "unrelated-model" not in decision.answer
 
 
 def test_catalog_admission_preserves_requested_examples_and_shortlists():
@@ -231,27 +75,6 @@ def test_catalog_admission_preserves_requested_examples_and_shortlists():
     for question in ["列出一个 PyPSA 模型", "列出 PyPSA 模型的几个示例", "List some PyPSA models", "List the first two PyPSA models"]:
         decision = _build_kernel_admission(())(_catalog_claim(question), answer, (), (), ())
         assert decision.answer == answer
-
-
-def test_semantic_catalog_goal_does_not_claim_an_unspecified_full_scope():
-    claim = _catalog_claim()
-    request = IntentRequest.from_document({
-        "schema": "capstone-intent-request/1", "thread_id": "thread_catalog",
-        "turn_id": "turn_catalog", "attempt_id": "attempt_catalog", "instruction": claim.instruction,
-        "history_cutoff": 0, "messages": [], "objects": [], "capabilities": [], "mode_hint": None,
-    })
-    claim.turn_plan.intent_decision = IntentDecision.from_document({
-        "schema": "capstone-intent-decision/1", "attempt_id": "attempt_catalog", "history_cutoff": 0,
-        "relationship": "independent", "clarification": None,
-        "goals": [{"goal_id": "catalog_goal", "description": "List requested catalog metadata",
-                   "operation": "catalog_lookup", "message_refs": [], "object_refs": [],
-                   "capability_refs": [], "missing_requirements": []}],
-    }, request)
-    answer = "example-alpha"
-    admitted = _build_kernel_admission(())(claim, answer, (), (), ())
-    assert admitted.answer == answer
-    assert admitted.assurance == "general_knowledge"
-    assert admitted.result_refs == admitted.evidence_refs == ()
 
 
 def test_application_catalog_context_keeps_cross_family_models_visible() -> None:
@@ -280,15 +103,6 @@ def test_application_catalog_context_keeps_cross_family_models_visible() -> None
     assert "Current tool scope does not determine application-wide availability" in rendered
     assert "Only an explicit worker-unavailable catalog entry" in rendered
     assert "Do not apply the active binding's unsupported-operation or policy limits to another family" in rendered
-
-
-def test_application_catalog_exposes_registered_tool_groups_without_enabling_them():
-    rendered = _render_application_catalog_context({"models": [], "profiles": [{
-        "profile_id": "registered-analysis", "profile_version": "1.0.0",
-        "display_name": "Registered analysis tools", "implementation_families": ["pandapower"],
-    }]})
-    assert "Registered analysis tools" in rendered and "pandapower" in rendered
-    assert "not enabled tools or calculation evidence" in rendered
 
 
 def test_each_fresh_prompt_names_the_bound_model_and_authority_context():

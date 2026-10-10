@@ -22,7 +22,7 @@ from capability_agent.domain.provisioning import CredentialLease
 from pandapower_domain.execution import (
     DEFAULT_MAX_OUTPUT_BYTES,
     GridctlExecutor,
-    prepare_runtime_environment,
+    sanitize_environment,
 )
 
 
@@ -80,16 +80,6 @@ class PandapowerRuntimeProvisioner:
         self.timeout_seconds = float(timeout_seconds)
         self.max_output_bytes = int(max_output_bytes)
 
-    def with_prepared_backend(self, environment: Mapping[str, str]) -> PandapowerRuntimeProvisioner:
-        """Clone trusted backend selection; never modify a prepared endpoint."""
-        names = {'CAPSTONE_POWERMCP_MANAGED_ROOT', 'CAPSTONE_POWERMCP_INSTALL_ID',
-                 'CAPSTONE_POWERMCP_DESCRIPTOR_SHA256'}
-        if set(environment) != names or any(not isinstance(value, str) or not value for value in environment.values()):
-            raise ValueError('prepared backend environment is invalid')
-        return type(self)(executable=self.executable, repository_root=self.repository_root,
-            environ={**self.environ, **environment}, timeout_seconds=self.timeout_seconds,
-            max_output_bytes=self.max_output_bytes)
-
     def prepare(
         self,
         *,
@@ -105,7 +95,7 @@ class PandapowerRuntimeProvisioner:
         target = bin_path / GRIDCTL_NAME
         self._install_binding_executable(executable, target)
 
-        safe_environment = prepare_runtime_environment(self.environ)
+        safe_environment = sanitize_environment(self.environ)
         metadata = {
             "binding_id": binding.binding_id,
             # The descriptor exposes only the validated basename.  The

@@ -17,10 +17,5 @@ def bind_thread_tool_catalog(path: Path, binding: AuthorityModelBinding) -> None
         if tool["capability"] == "context.open":
             properties["model_id"]["enum"] = [binding.model_id]
         if "context_ref" in properties:
-            # gridctl enforces the exact root and verified descendants. A static
-            # enum would prevent the SDK from calling a legitimate scenario.
-            if binding.context_identity_verifier is None:
-                properties["context_ref"]["enum"] = [binding.context_ref]
-            else:
-                properties["context_ref"].pop('enum', None)
+            properties["context_ref"]["enum"] = [binding.context_ref]
     write_bound_text(path, json.dumps(document, ensure_ascii=False, indent=2) + "\n")

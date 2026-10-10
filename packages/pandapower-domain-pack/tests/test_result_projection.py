@@ -41,39 +41,6 @@ def diagram() -> dict[str, object]:
     return {"model": {"id": "ieee39", "revision": REVISION_REF}, "branches": [{"id": "line_11", "kind": "line"}], "buses": []}
 
 
-def test_admitted_contingency_has_reader_metrics_and_sourced_violations():
-    document = calculation()
-    document.update(producer_capability='analysis.contingency.n_minus_one.run',
-        result_type='analysis.contingency.n_minus_one.aggregate', status='succeeded', scenario_count=1,
-        constraint_evaluation={'status': 'evaluated', 'source': 'model'}, scenarios=[{
-            'branch_ref': 'asset:line:sha256:' + 'e' * 64, 'element_kind': 'line', 'pandapower_index': 4,
-            'converged': True, 'status': 'succeeded', 'max_loading_percent': 112.5,
-            'min_vm_pu': 0.97, 'max_vm_pu': 1.05, 'evidence_ref': EVIDENCE_REF,
-            'violations': [{'kind': 'line_overload', 'element_kind': 'line', 'pandapower_index': 11,
-                'value': 112.5, 'limit': 100.0, 'unit': 'percent', 'constraint_source': 'model'}],
-        }])
-    payload = PandapowerResultProjector().project(context(), document,
-        thread_id='thread_1', run_id='run_1', turn_id='turn_1', attempt_id='attempt_1',
-        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
-    assert payload['status'] == 'completed'
-    assert next(metric['value'] for metric in payload['summary'] if metric['metric_id'] == 'scenario_count') == 1
-    violations = next(table for table in payload['tables'] if table['table_id'] == 'violations')
-    assert violations['rows'][0]['cells']['element'] == 'line11'
-    assert violations['rows'][0]['cells']['value'] == 112.5
-    assert payload['overlay'] is None
-
-
-def test_contingency_summary_rejects_unadmitted_scenario_evidence():
-    document = calculation()
-    document.update(producer_capability='analysis.contingency.n_minus_one.run',
-        result_type='analysis.contingency.n_minus_one.aggregate', scenario_count=1,
-        scenarios=[{'evidence_ref': 'evidence:sha256:' + 'f' * 64}])
-    with pytest.raises(ValueError, match='scenario evidence'):
-        PandapowerResultProjector().project(context(), document,
-            thread_id='thread_1', run_id='run_1', turn_id='turn_1', attempt_id='attempt_1',
-            admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
-
-
 def test_projector_returns_public_shaped_pandapower_result_payload() -> None:
     payload = PandapowerResultProjector().project(
         context(), calculation(), thread_id="thread_1", run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",

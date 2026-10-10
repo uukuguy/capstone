@@ -6,26 +6,8 @@ import pytest
 
 from capstone_agent.result_projection import (
     ResultProjection,
-    compact_projection_validation_hint,
     normalize_result_projection,
 )
-
-
-def test_large_model_validation_hints_keep_only_already_verified_projection_targets():
-    document = valid_projection()
-    document['_diagram_element_ids'] = ['line_11', *[f'bus_{index}' for index in range(10000)]]
-    compact = compact_projection_validation_hint(document)
-    assert compact['_diagram_element_ids'] == ['line_11']
-    assert compact['summary'] == document['summary']
-    assert compact['tables'] == document['tables']
-    assert len(document['_diagram_element_ids']) == 10001
-
-
-def test_validation_hint_compaction_cannot_admit_an_unknown_target():
-    document = valid_projection()
-    document['_diagram_element_ids'] = ['bus_0']
-    with pytest.raises(ValueError, match='target'):
-        compact_projection_validation_hint(document)
 from capstone_agent.thread_protocol import ThreadProtocolError, ThreadSnapshot
 
 

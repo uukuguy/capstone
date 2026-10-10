@@ -483,7 +483,7 @@ describe('ThreadProjectionStore', () => {
     await store.load('thr_demo_39')
     const pageId = await store.restoreHistoricalNetwork(historical.id, 'attempt_closed')
     expect(pageId).toBe(`page_${historical.id}`)
-    expect(store.state.snapshot?.toDocument()).toEqual({ ...snapshotBefore, runtime_mode: 'capstone' })
+    expect(store.state.snapshot?.toDocument()).toEqual(snapshotBefore)
     expect(store.networkTasks.find((task) => task.attemptId === 'attempt_closed')?.view.diagram.model.revision).toBe(historical.model_revision)
     expect(store.state.pendingCommands).toEqual([])
   })

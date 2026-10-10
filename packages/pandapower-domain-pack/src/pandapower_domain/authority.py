@@ -95,48 +95,6 @@ class ContentReferenceVerifier:
         self._verify_revision(revision_ref)
         return VerifiedArtifact(reference=reference, kind="context", document=document, path=path)
 
-    def verify_context_descendant(
-        self, reference: str, *, base_ref: str, model_id: str, revision_ref: str,
-    ) -> bool:
-        """Verify current-run child identity and its exact base lineage."""
-        seen: set[str] = set()
-        expected_revision = revision_ref
-        try:
-            base_document = self.verify_context(base_ref).document
-            engine_identity = (base_document.get('engine'), base_document.get('engine_version'))
-            for _ in range(64):
-                if reference in seen:
-                    return False
-                seen.add(reference)
-                document = self.verify_context(reference).document
-                if document.get('model_id') != model_id or document.get('revision_ref') != expected_revision:
-                    return False
-                if (document.get('engine'), document.get('engine_version')) != engine_identity:
-                    return False
-                if reference == base_ref:
-                    return True
-                lineage_ref = document.get('lineage_ref')
-                if not isinstance(lineage_ref, str) or document.get('origin') != 'derived':
-                    return False
-                digest = _reference_digest(lineage_ref, 'lineage', label='lineage_ref')
-                loaded = self._try_json_document(('evidence', 'revisions', digest + '.json'), 'lineage document')
-                if loaded is None:
-                    return False
-                lineage = loaded[1]
-                if _sha256_canonical_json(lineage) != digest or any(
-                    lineage.get(field) != document.get(field)
-                    for field in ('model_id', 'revision_ref', 'origin', 'parent_context_ref', 'engine', 'engine_version')
-                ):
-                    return False
-                parent = lineage.get('parent_context_ref')
-                parent_revision = lineage.get('parent_revision_ref')
-                if not isinstance(parent, str) or not isinstance(parent_revision, str):
-                    return False
-                reference, expected_revision = parent, parent_revision
-        except (SimulatorIntegrityError, ValueError, OSError):
-            return False
-        return False
-
     def verify_result(self, reference: str) -> VerifiedArtifact:
         digest = _reference_digest(reference, "result", label="declared result_ref")
         loaded = self._first_json_document(
@@ -528,45 +486,6 @@ class ContentReferenceVerifier:
 
 
 class PandapowerArtifactAuthority:
-    def describe_task_scope(self, result_refs: tuple[str, ...]) -> dict | None:
-        """Individual derived results do not establish an exhaustive study scope."""
-        contexts = set()
-        for reference in result_refs:
-            document = self.verify_result(reference).document
-            context_ref = document.get('context_ref')
-            if isinstance(context_ref, str) and self.verify_context(context_ref).document.get('origin') == 'derived':
-                contexts.add(context_ref)
-        if not contexts:
-            return None
-        return {'requested_scope': 'unconfirmed', 'completed_scenario_count': len(contexts),
-                'scenario_context_refs': sorted(contexts), 'full_ranking_allowed': False}
-
-    @staticmethod
-    def describe_execution_failure(code: str) -> dict[str, str] | None:
-        """Map published gridctl error codes to bounded reader diagnostics."""
-        entries = {
-            'powerflow_non_converged': ('calculation', '潮流求解未收敛。该状态不能单独证明数据不足或程序错误。', 'change_scope'),
-            'analysis_non_converged': ('calculation', '分析求解未收敛。请检查计算条件后再运行。', 'change_scope'),
-            'model_scope_mismatch': ('invocation', '调用的模型上下文不在本会话授权范围内。', 'report_issue'),
-            'model_scope_invalid': ('invocation', '本会话的模型范围配置无效。', 'report_issue'),
-            'persist_failed': ('storage', '必需的结果或证据未能持久化；本次任务未安全完成。', 'report_issue'),
-            'invalid_arguments': ('invocation', '工具参数未通过已发布合同校验。请检查调用参数。', 'report_issue'),
-            'unsupported_capability': ('capability', '所请求的操作不在当前已发布能力范围内。', 'change_scope'),
-            'analysis_prerequisite_missing': ('input', '当前模型缺少该操作要求的前提条件或数据。请按操作说明检查必需输入。', 'provide_input'),
-            'analysis_options_invalid': ('invocation', '分析选项未通过操作合同校验。请检查已发布的参数说明。', 'report_issue'),
-            'unknown_analysis_operation': ('capability', '所请求的分析操作尚未发布。', 'change_scope'),
-            'result_field_unavailable': ('invocation', '结果查询使用了该数据集未提供的字段；已完成的计算结果仍然保留。', 'report_issue'),
-            'unknown_result': ('invocation', '后续分析引用的结果无法找到；这不表示已完成的潮流或 N−1 计算失败。', 'report_issue'),
-            'unknown_evidence': ('invocation', '检索的证据引用无法找到；请检查当前运行的结果与证据引用。', 'report_issue'),
-            'result_integrity_failed': ('admission', '所引用结果未通过该工具的结果类型或完整性检查；尚不能据此区分类型不兼容与内容损坏。', 'report_issue'),
-        }
-        entry = entries.get(code)
-        if entry is None:
-            return None
-        category, summary, recovery = entry
-        return {'code': code, 'category': category, 'stage': 'persist' if category == 'storage' else 'execute' if category == 'calculation' else 'validate',
-                'confirmation': 'confirmed', 'summary': summary, 'recovery': recovery}
-
     """Scope simulator artifact admission to the current run workspace."""
 
     authority_id = "gridctl"
@@ -590,23 +509,6 @@ class PandapowerArtifactAuthority:
 
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
-
-    def bind_context_scope(self, reference: str) -> None:
-        """Install the application-selected scope for this private run."""
-        from capability_agent._safe_files import write_bound_text
-        self.verify_context(reference)
-        path = self.workspace_root / 'thread-model-scope.json'
-        if path.exists():
-            raise SimulatorIntegrityError('Thread model scope cannot be rebound')
-        write_bound_text(path, json.dumps({'schema': 'grid-thread-model-scope/1',
-                                         'base_context_ref': reference}))
-
-    def verify_context_descendant(
-        self, reference: str, *, base_ref: str, model_id: str, revision_ref: str,
-    ) -> bool:
-        return self._verifier.verify_context_descendant(
-            reference, base_ref=base_ref, model_id=model_id, revision_ref=revision_ref,
-        )
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)

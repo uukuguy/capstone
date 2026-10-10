@@ -181,24 +181,6 @@ class CaseExecutionService:
         document["cases"] = cases
         return document
 
-    def input_availability(self, thread_id: str) -> dict[str, object]:
-        """Project the registered application Case executor's admission state."""
-        snapshot = self.thread_service.snapshot(thread_id)
-        execution = _execution_from_snapshot(snapshot)
-        reason = None
-        if snapshot.runtime_mode != 'capstone':
-            reason = 'case_requires_capstone_runtime'
-        elif snapshot.run.state != 'open' or snapshot.current_attempt is not None:
-            reason = 'thread_busy'
-        elif execution is not None and execution.status in _ACTIVE_STATUSES:
-            reason = 'case_execution_active'
-        elif not any(snapshot.active_model_context.model_id in definition.model_ids
-                     for definition in self._case_catalog._definitions.values()):
-            reason = 'case_model_mismatch'
-        elif not self.thread_service.is_family_available(snapshot.active_model_context.implementation_family):
-            reason = 'family_unavailable'
-        return {'available': reason is None, 'reason': reason}
-
     def reconcile(self, thread_id: str) -> CaseExecution | None:
         """Consume committed Attempt terminal events and advance one Case step.
 
@@ -706,8 +688,6 @@ class CaseExecutionService:
         snapshot, rejection = self._snapshot_or_rejection(command)
         if rejection is not None:
             return rejection
-        if snapshot.runtime_mode != "capstone":
-            return self._reject(command, "case_requires_capstone_runtime")
         try:
             definition = self._case_catalog.get(case_id, case_version)
         except LookupError:

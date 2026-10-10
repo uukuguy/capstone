@@ -16,8 +16,6 @@ from capstone_agent.hosted import run_hosted_api
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
-from capstone_agent.intent_runtime import with_intent_runtime
-from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
 from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
@@ -84,11 +82,7 @@ def build_registered_pandapower_thread_application():
         model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
-            context_identity_verifier=lambda reference, revision: binding.runtime.authority.verify_context_descendant(
-                reference, base_ref=opened['context_ref'], model_id=context.model_id, revision_ref=revision,
-            ),
         )
-        binding.runtime.authority.bind_context_scope(opened['context_ref'])
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
         return model_binding
 
@@ -103,7 +97,6 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
-            workspace_root=workspace_root,
         )(claim, context, profiles)
 
     workspace_root = Path(
@@ -124,24 +117,7 @@ def build_registered_pandapower_thread_application():
         ),
     )
     from .thread_model_diagram import model_diagram
-    set_diagram_provider = getattr(assembly.catalog, "set_diagram_provider", None)
-    if not callable(set_diagram_provider):
-        raise TypeError("Thread catalog has no diagram provider registration")
-    set_diagram_provider(model_diagram)
-    if validation_builder is None:
-        def conversation_builder():
-            environment = load_runtime_environment(root)
-            resolved = resolve_harness_llm(root, environment)
-            return NativeConversationPiSessionBuilder(
-                runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
-                resolved_llm=resolved, workspace_root=workspace_root,
-                base_environment=environment,
-            )
-        from capstone_agent.general_executor_composition import configured_general_executor
-        environment = load_runtime_environment(root)
-        assembly = with_intent_runtime(assembly, conversation_builder,
-            general_executor=configured_general_executor(environment),
-            general_timeout_seconds=float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600')))
+    assembly.catalog.set_diagram_provider(model_diagram)
     return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
             if validation_builder is not None else assembly)
 

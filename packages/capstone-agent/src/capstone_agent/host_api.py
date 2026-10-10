@@ -363,18 +363,6 @@ def create_host_app(
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
-        @app.get('/api/v1/threads/{thread_id}/input-catalog')
-        def get_input_catalog(thread_id: str, request: Request):
-            require_private_thread(request)
-            try:
-                from .thread_input_catalog import with_case_availability, public_input_catalog
-                document = public_input_catalog(thread_service.input_catalog(thread_id))
-                return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
-            except ThreadNotFound:
-                raise HTTPException(404, 'thread not found') from None
-            except RuntimeError:
-                raise HTTPException(503, 'input catalog unavailable') from None
-
         @app.get("/api/v1/threads/{thread_id}/events")
         def get_thread_events(thread_id: str, request: Request,
                               after: Annotated[int, Query(ge=0)] = 0):

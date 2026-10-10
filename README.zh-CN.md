@@ -1,5 +1,14 @@
 # Capstone Agent Framework
 
+开发与发布版本遵循固定的[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
+初始共同运行基线以当前已验收 demo 为起点。原生 Pi、skills 和资源扩展目前保留在
+`feat/pi-skills-integration` 开发分支。main 后续可合入通过集成检查且能隔离的实验功能；
+demo 只接收经过发布验收的功能范围。
+
+使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`
+运行独立数据的本地 demo。App 端口为 `15173`，API 为 `18767`；原有 local-dev
+端口仍为 `5173` 和 `8767`。
+
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
@@ -76,20 +85,7 @@ Domain Pack 通过公开 Kernel SPI，封装一个领域的工具目录、schema
 
 在同一段对话中继续追问结果或细化分析。每条指令都绑定到一个模型上下文和运行。**新建对话**会创建独立的 Thread；保存其链接后，刷新页面仍能回到同一段对话。
 
-**Capstone** 模式先由模型识别专业目标和通用目标：专业目标使用启用的 Domain Pack，
-通用目标委托给隔离运行的原生 Pi 智能体。**Pi**（纯 Pi）模式先选择相关公共业务背景，再把任务交给同一个执行器。
-Thread 空闲时可切换模式；会话历史、草稿和模型选择保留。
-通用输出不创建权威系统结果或证据，实时新闻或天气仍需要实际可访问的信息源。
-详见[共享执行器设计](docs/superpowers/specs/2026-10-09-capstone-pi-delegation-design.md)。
-真实模型的回答质量需单独验收，离线检查不能代替这一验收。
-
-使用 `/skills` 查看可用技能及执行角色，使用 `/skill:<name> <任务>` 选择本轮技能，
-使用 `/context` 包含或排除公共背景。当前模型背景提供身份、版本与历史，不提供完整模型表。
-托管的 PowerSkills/PowerMCP 资源分别使用原生 Pi 与专业适配器。
-安装方法见[资源配置说明](docs/RUNBOOK.md#共享背景与角色资源)。
-
-智能体对话是主要入口。Case 是独立模块；默认联合对话尚未装配 Case 执行服务。
-已登记引导流程与验证样例保留在早期的 `/old` 入口。
+智能体对话是主要入口。已登记案例保留为引导流程与验证样例；早期的案例库页面位于 `/old`。
 
 ## 可以分析什么
 
@@ -143,8 +139,6 @@ make capstone-local-rebuild
 打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
 
 App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
-
-需要用独立数据测试干净的 demo 源码时，使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild`。该 App 使用 15173 端口，API 使用 18767 端口。Provider 访问在独立受保护的 `deploy/demo-local.env` 中配置。详见[运行手册](docs/RUNBOOK.md#isolated-local-demo)。
 
 ## CLI 与兼容入口
 

@@ -42,9 +42,7 @@ class ModelSequenceSession:
         catalog = json.loads(self.runtime.tool_catalog_path.read_text())
         self.tools = {tool["capability"]: tool for tool in catalog["tools"]}
         assert self.tools["context.open"]["input_schema"]["properties"]["model_id"]["enum"] == [self.binding.model_id]
-        assert 'enum' not in self.tools["analysis.powerflow.ac.run"]["input_schema"]["properties"]["context_ref"]
-        scope = json.loads((self.runtime.authority.workspace_root / 'thread-model-scope.json').read_text())
-        assert scope['base_context_ref'] == self.binding.context_ref
+        assert self.tools["analysis.powerflow.ac.run"]["input_schema"]["properties"]["context_ref"]["enum"] == [self.binding.context_ref]
         self.calls = []
         self.native_events = []
         self._admission = _build_kernel_admission(profiles)
@@ -94,14 +92,6 @@ class ModelSequenceSession:
         assert correlation_id == self.claim.attempt.attempt_id
         on_heartbeat()
         invoke = lambda capability, arguments: self._invoke(capability, arguments, on_semantic_event)
-        if question == 'scenario-flow':
-            derived = invoke('model.revision.derive', {
-                'context_ref': self.binding.context_ref,
-                'patches': [{'operation': 'scale', 'kind': 'load',
-                             'selector': {'indices': [0]}, 'fields': ['p_mw'], 'factor': 0.99}],
-            })
-            result = invoke('analysis.powerflow.ac.run', {'context_ref': derived['context_ref']})
-            return f"Scenario flow converged: {result['converged']}."
         if question == RANK_RTS:
             assert self.claim.prior_results
             prior = self.claim.prior_results[0]
@@ -315,22 +305,5 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         assert projected_contingency.result_ref == contingency.result_refs[0]
         assert set(projected_contingency.evidence_refs) == set(root["evidence_refs"])
         assert endpoint.evidence_refs[0] not in projected_contingency.evidence_refs
-        submit(commands.send_professional, 'scenario-flow')
-        derived_outcome = run_pending_attempt(
-            service, assembly.runtime_factory, worker_id='worker_sequence', lease_seconds=120,
-            turn_router=assembly.turn_router_for_worker(), implementation_family='pandapower',
-        )
-        assert derived_outcome is not None and derived_outcome.status == 'completed', derived_outcome
-        assert derived_outcome.result_refs and derived_outcome.evidence_refs
-        derived_terminal = service.read_events('thr_sequence', 0).events[-1]
-        assert derived_terminal.payload['task_outcome']['status'] == 'partial'
-        assert derived_terminal.payload['task_outcome']['coverage']['full_ranking_allowed'] is False
-        assert derived_terminal.payload['task_outcome']['coverage']['completed_scenario_count'] == 1
-        assert '完整研究范围' in derived_terminal.payload['answer']
-        source = sessions[-1].calls[-1]['result']
-        assert source['revision_ref'] != ieee_context.model_revision
-        assert service.snapshot('thr_sequence').active_model_context == ieee_context
-        # Child values must never acquire a base-model overlay implicitly.
-        assert service.snapshot('thr_sequence').result_projections == contingency_snapshot.result_projections
     finally:
         assembly.capability_context_owner.close()

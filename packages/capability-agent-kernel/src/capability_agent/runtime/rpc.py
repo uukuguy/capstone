@@ -178,7 +178,6 @@ class PiRpcClient:
             capture.drain_model_requests()
         lines = self._stdout_lines
         text: list[str] = []
-        final_message_text: str | None = None
         acknowledged = False
         pending_tool_calls: dict[str, dict[str, str]] = {}
         next_heartbeat_at = time.monotonic() + heartbeat_seconds
@@ -233,42 +232,13 @@ class PiRpcClient:
                 capture.on_raw_event(event)
             if on_event is not None:
                 on_event(event)
-            if event.get("type") == "tool_execution_start":
-                # Text before a tool call is progress, not the final answer.
-                # Preserve it in the raw trajectory, but reset answer assembly.
-                text.clear()
-                final_message_text = None
-            if event.get("type") == "message_end":
-                message = event.get("message")
-                if isinstance(message, dict) and message.get("role") == "assistant":
-                    content = message.get("content")
-                    if message.get("stopReason") == "toolUse":
-                        text.clear()
-                        final_message_text = None
-                    elif isinstance(content, list):
-                        message_text = "".join(
-                            item["text"] for item in content
-                            if isinstance(item, dict) and item.get("type") == "text"
-                            and isinstance(item.get("text"), str)
-                        )
-                        final_message_text = message_text
-            if event.get("type") == "agent_end" and isinstance(event.get("messages"), list):
-                assistants = [message for message in event["messages"]
-                    if isinstance(message, dict) and message.get("role") == "assistant"]
-                if assistants and assistants[-1].get("stopReason") != "toolUse":
-                    content = assistants[-1].get("content")
-                    if isinstance(content, list):
-                        final_message_text = "".join(item["text"] for item in content
-                            if isinstance(item, dict) and item.get("type") == "text"
-                            and isinstance(item.get("text"), str))
-            assembled_text = final_message_text if final_message_text is not None else "".join(text)
             if event.get("type") == "text_delta":
                 text.append(str(event.get("text", "")))
             if event.get("type") == "message_update":
                 assistant_event = event.get("assistantMessageEvent")
                 if isinstance(assistant_event, dict) and assistant_event.get("type") == "text_delta":
                     text.append(str(assistant_event.get("delta", "")))
-            for payload in _semantic_trace_payloads(event, assembled_text, pending_tool_calls):
+            for payload in _semantic_trace_payloads(event, "".join(text), pending_tool_calls):
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
@@ -298,7 +268,6 @@ class PiRpcClient:
                 if provider_error:
                     if event.get("willRetry") is True:
                         text.clear()
-                        final_message_text = None
                         continue
                     if capture is not None:
                         capture.drain_model_requests()
@@ -306,7 +275,7 @@ class PiRpcClient:
                         "Pi provider failure: "
                         + _sanitize_diagnostic(provider_error, self.secret_values)
                     )
-                answer = final_message_text if final_message_text is not None else "".join(text)
+                answer = "".join(text)
                 if not answer.strip():
                     if not require_answer_text:
                         if capture is not None:
@@ -532,21 +501,10 @@ def _canonical_tool_result_event(
         return None
     details = _tool_result_details(event)
     if not isinstance(details, dict):
-        details = {}
+        return None
     capability = details.get("capability")
     if not isinstance(capability, str):
-        pair = _consume_tool_pair(event, pending_tool_calls)
-        failed = event.get('isError') is True or details.get('ok') is False
-        succeeded = not failed and (event.get('isError') is False or details.get('ok') is True)
-        if succeeded:
-            return {'type': 'tool_execution_end', 'event': 'tool_execution_end', **pair,
-                    'ok': True, 'result': {}, 'evidence_refs': []}
-        return {
-            'type': 'tool_execution_end', 'event': 'tool_execution_end', **pair,
-            'ok': False, 'result': {}, 'evidence_refs': [],
-            'error': {'code': 'native_tool_failed' if failed else 'tool_outcome_unknown',
-                      'phase': 'execute'},
-        }
+        return None
     ok = details.get("ok")
     if ok is not True and ok is not False:
         ok = event.get("isError") is not True

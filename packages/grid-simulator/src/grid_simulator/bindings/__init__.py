@@ -5,7 +5,6 @@ from grid_simulator.bindings.estimation import OPERATIONS as ESTIMATION_OPERATIO
 from grid_simulator.bindings.opf import OPERATIONS as OPF_OPERATIONS
 from grid_simulator.bindings.powerflow import OPERATIONS as POWERFLOW_OPERATIONS
 from grid_simulator.bindings.protection import OPERATIONS as PROTECTION_OPERATIONS
-from grid_simulator.bindings.powermcp_audit import OPERATIONS as STRUCTURAL_OPERATIONS
 from grid_simulator.bindings.short_circuit import OPERATIONS as SHORT_CIRCUIT_OPERATIONS
 from grid_simulator.bindings.topology import OPERATIONS as TOPOLOGY_OPERATIONS
 
@@ -16,7 +15,6 @@ OPERATIONS = (
     *SHORT_CIRCUIT_OPERATIONS,
     *ESTIMATION_OPERATIONS,
     *DIAGNOSTIC_OPERATIONS,
-    *STRUCTURAL_OPERATIONS,
     *TOPOLOGY_OPERATIONS,
     *PROTECTION_OPERATIONS,
 )

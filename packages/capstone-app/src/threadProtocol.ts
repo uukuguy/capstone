@@ -1,13 +1,6 @@
 import { parseNetworkDiagram } from './networkValidation'
 
 export type RunState = 'created' | 'open' | 'closing' | 'closed' | 'failed'
-export type RuntimeMode = 'capstone' | 'pi_reference'
-
-function runtimeMode(value: unknown): RuntimeMode {
-  if (value === undefined) return 'capstone'
-  if (value !== 'capstone' && value !== 'pi_reference') throw new ThreadProtocolError('runtime_mode is invalid')
-  return value
-}
 export type AttemptPhase = 'created' | 'accepted' | 'running' | 'waiting' | 'committing' |
   'cancelled' | 'interrupted' | 'completed' | 'failed'
 
@@ -25,7 +18,6 @@ export type PendingModelSwitchSnapshot = {
 }
 export type AttemptSnapshot = {
   turnId: string; attemptId: string; phase: AttemptPhase; targetModelContextId: string
-  runtimeMode?: RuntimeMode
 }
 export type CaseStepSnapshot = {
   ordinal: number; title: string; status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
@@ -56,7 +48,6 @@ export type ResultProjection = {
 }
 export type ThreadSnapshot = {
   threadId: string
-  runtimeMode: RuntimeMode
   run: RunSnapshot
   activeModelContext: ModelContextSnapshot
   activeGridPageId: string
@@ -464,9 +455,9 @@ function parsePendingModelSwitch(value: unknown): PendingModelSwitchSnapshot {
 
 function parseAttempt(value: unknown): AttemptSnapshot {
   const document = object(value, 'current_attempt')
-  const keys = ['turn_id', 'attempt_id', 'phase', 'target_model_context_id', 'runtime_mode']
+  const keys = ['turn_id', 'attempt_id', 'phase', 'target_model_context_id']
   fields(document, new Set(keys), 'current_attempt')
-  required(document, keys.filter(key => key !== 'runtime_mode'), 'current_attempt')
+  required(document, keys, 'current_attempt')
   const phase = text(document.phase, 'current_attempt.phase') as AttemptPhase
   if (!attemptPhases.has(phase)) throw new ThreadProtocolError('current_attempt.phase is invalid')
   return {
@@ -474,14 +465,12 @@ function parseAttempt(value: unknown): AttemptSnapshot {
     attemptId: identifier(document.attempt_id, 'current_attempt.attempt_id'),
     phase,
     targetModelContextId: identifier(document.target_model_context_id, 'current_attempt.target_model_context_id'),
-    runtimeMode: runtimeMode(document.runtime_mode),
   }
 }
 
 function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<string, unknown> {
   return {
     schema: 'capstone-thread-snapshot/1',
-    runtime_mode: snapshot.runtimeMode,
     thread_id: snapshot.threadId,
     run: { run_id: snapshot.run.runId, state: snapshot.run.state },
     active_model_context: {
@@ -501,7 +490,6 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     },
     active_grid_page_id: snapshot.activeGridPageId,
     current_attempt: snapshot.currentAttempt ? {
-      runtime_mode: snapshot.currentAttempt.runtimeMode || 'capstone',
       turn_id: snapshot.currentAttempt.turnId,
       attempt_id: snapshot.currentAttempt.attemptId,
       phase: snapshot.currentAttempt.phase,
@@ -540,9 +528,9 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode'].includes(key)), 'snapshot')
+  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state'].includes(key)), 'snapshot')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
@@ -572,7 +560,6 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   })()
   const snapshot = {
     threadId,
-    runtimeMode: runtimeMode(document.runtime_mode),
     run,
     activeModelContext,
     activeGridPageId: identifier(document.active_grid_page_id, 'snapshot.active_grid_page_id'),

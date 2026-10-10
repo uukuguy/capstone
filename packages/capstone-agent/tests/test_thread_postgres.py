@@ -55,30 +55,6 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
-def test_postgres_runtime_switch_persists_and_retry_keeps_mode(postgres_thread_service):
-    service, thread_id = postgres_thread_service
-    service.create_thread(_snapshot(thread_id))
-    def submit(kind, payload, name):
-        command = {**_command(thread_id), "kind": kind, "payload": payload,
-                   "command_id": name, "idempotency_key": "idem_" + name,
-                   "expected_event_seq": service.snapshot(thread_id).last_event_seq}
-        receipt = service.submit_command(command)
-        assert service.submit_command(command) == receipt
-        return receipt
-    assert submit("switch_runtime", {"runtime_mode": "pi_reference"}, "cmd_direct").status == "accepted"
-    assert service.snapshot(thread_id).runtime_mode == "pi_reference"
-    assert submit("send_auto", {"text": "hello"}, "cmd_send").status == "accepted"
-    assert submit("switch_runtime", {"runtime_mode": "capstone"}, "cmd_blocked").rejection == "attempt_in_progress"
-    claim = service.claim_attempt("runtime-test", lease_seconds=30)
-    assert claim.attempt.runtime_mode == "pi_reference"
-    service.finish_attempt(claim, phase="failed", payload={"error_code": "test_failure"})
-    assert submit("switch_runtime", {"runtime_mode": "capstone"}, "cmd_back").status == "accepted"
-    assert submit("retry_new_attempt", {"attempt_id": claim.attempt.attempt_id}, "cmd_retry").status == "accepted"
-    retried = service.claim_attempt("runtime-test", lease_seconds=30)
-    assert retried.attempt.runtime_mode == "pi_reference"
-    assert retried.instruction == "hello"
-
-
 class _ToolsCatalog:
     def resolve(self, model, selection=None):
         if selection is None:

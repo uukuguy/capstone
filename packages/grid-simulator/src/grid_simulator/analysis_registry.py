@@ -37,16 +37,12 @@ class AnalysisRegistry:
 
     def describe(self, operation: str) -> dict[str, Any]:
         found = self.require(operation)
-        description = {
+        return {
             "operation": found.identifier,
             "title": found.title,
             "pandapower_operation": found.pandapower_operation,
             "options_schema": found.options_schema,
         }
-        if operation == "diagnostic.structural":
-            from grid_simulator.powermcp_runner import availability
-            description["availability"] = availability()
-        return description
 
     def execute(self, operation: str, engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOutcome:
         found = self.require(operation)

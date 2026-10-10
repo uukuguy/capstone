@@ -148,7 +148,7 @@ class PreparedApplicationPiRuntimeFactory:
             session = self._session_factory(claim, context)
             admission = getattr(session, "admit_attempt", None)
             network_projection_provider = None
-            if self._network_projection_factory is not None and context.contributions:
+            if self._network_projection_factory is not None:
                 network_projection_provider = self._network_projection_factory(claim, context)
             return HarnessPiClient(
                 session,
@@ -194,7 +194,6 @@ class ThreadApplicationAssembly:
     ordinary_conversation_enabled: bool = True
     available_families: FamilyAvailability = None
     catalog_context: Mapping[str, object] | None = None
-    resource_profiles: Callable | None = None
     network_projection_factory: Callable[
         [AttemptClaim, PreparedModelCapabilityContext],
         ThreadNetworkProjectionProvider | None,
@@ -394,10 +393,6 @@ class ThreadApplicationAssembly:
         configure_catalog_context = getattr(service, "set_catalog_context", None)
         if callable(configure_catalog_context) and self.catalog_context is not None:
             configure_catalog_context(self.catalog_context)
-        if self.resource_profiles is not None:
-            from .thread_input_catalog import catalog_provider
-            service.set_input_catalog_provider(catalog_provider(service, self.resource_profiles,
-                family_available=service.is_family_available))
         return ThreadCreator(service, self.catalog, self.capability_catalog)
 
 

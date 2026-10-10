@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { execFileSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
-import { localBuildIdentity } from './src/dev/localBuildIdentity'
 
 // Release archives carry a non-secret source receipt. Local development reads Git.
 function buildRevision() {
@@ -13,17 +13,17 @@ function buildRevision() {
       return revision
     }
   }
-  try { return localBuildIdentity('../..').revision }
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() }
   catch { return '' }
 }
 
 function buildIdentity(development = false) {
-  let local: { dirty: boolean; repositoryRevision?: string } = { dirty: false }
+  let dirty = false
   if (development) {
-    try { local = localBuildIdentity('../..') }
+    try { dirty = Boolean(execFileSync('git', ['status', '--porcelain', '--untracked-files=normal', '--', 'packages', 'configs', 'deploy', 'Dockerfile'], { cwd: '../..', encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()) }
     catch { /* A source-only checkout has no Git worktree. */ }
   }
-  return { version: JSON.parse(readFileSync('package.json', 'utf8')).version, revision: buildRevision(), ...local }
+  return { version: JSON.parse(readFileSync('package.json', 'utf8')).version, revision: buildRevision(), dirty }
 }
 
 export default defineConfig(({ mode }) => {
@@ -45,22 +45,6 @@ export default defineConfig(({ mode }) => {
     define: { __CAPSTONE_BUILD__: JSON.stringify(buildIdentity(mode === 'development')) },
     plugins: [react(), {
       name: 'capstone-local-build-identity',
-      transformIndexHtml() {
-        if (mode !== 'development') return
-        return [{ tag: 'script', attrs: { type: 'module' }, injectTo: 'body', children: `
-          document.addEventListener('mouseover', async event => {
-            const label = event.target.closest?.('.app-version');
-            if (!label) return;
-            try {
-              const response = await fetch('/__capstone-build');
-              if (!response.ok) return;
-              const build = await response.json();
-              label.title = '产品版本：' + build.revision + (build.dirty ? '（含未提交修改）' : '')
-                + '\\n仓库提交：' + build.repositoryRevision;
-            } catch {}
-          });
-        ` }]
-      },
       configureServer(server) {
         server.middlewares.use('/__capstone-build', (_request, response) => {
           response.setHeader('Content-Type', 'application/json')

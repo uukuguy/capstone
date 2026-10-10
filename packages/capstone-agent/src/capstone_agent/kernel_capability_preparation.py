@@ -38,7 +38,6 @@ class AuthorityModelBinding:
     implementation_family: str
     context_ref: str
     model_reference_verifier: Callable[[str], bool] | None = field(default=None, repr=False, compare=False)
-    context_identity_verifier: Callable[[str, str], bool] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -56,22 +55,6 @@ class AuthorityModelBinding:
             raise ValueError("Authority model reference is invalid")
         if self.model_reference_verifier is not None and not callable(self.model_reference_verifier):
             raise TypeError("Authority model reference verifier must be callable")
-        if self.context_identity_verifier is not None and not callable(self.context_identity_verifier):
-            raise TypeError('Authority context identity verifier must be callable')
-
-    def accepts_context_identity(self, reference: str, revision: str) -> bool:
-        if not isinstance(reference, str) or not _REFERENCE.fullmatch(reference):
-            return False
-        if not isinstance(revision, str) or not _REVISION.fullmatch(revision):
-            return False
-        if (reference, revision) == (self.context_ref, self.model_revision):
-            return True
-        if self.context_identity_verifier is None:
-            return False
-        try:
-            return self.context_identity_verifier(reference, revision) is True
-        except Exception:
-            return False
 
     def accepts_model_reference(self, reference: str) -> bool:
         """Admit the bound reference or an application-verified related model."""
@@ -143,10 +126,6 @@ class KernelApplicationProfilePreparer:
         self.credentials: CredentialBroker = (
             credentials if credentials is not None else EmptyCredentialBroker()
         )
-
-    def prepare_for_claim(self, profile: ApplicationProfile, claim) -> PreparedKernelApplicationProfile:
-        from .professional_resources import selected_application_profile
-        return self(selected_application_profile(profile, claim), claim.model_context)
 
     def __call__(
         self,

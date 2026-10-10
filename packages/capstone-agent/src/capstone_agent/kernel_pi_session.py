@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import replace
 from pathlib import Path
 import json
 import os
@@ -23,38 +22,15 @@ from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, buil
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
-from capability_agent.application.workspace import ApplicationWorkspace
-from capability_agent.application.composition import PreparedApplication
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError, AttemptOutcomeUnavailable
+from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
-from .result_projection import normalize_result_projection, compact_projection_validation_hint
-from .admitted_result_answer import finalize_admitted_answer
+from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
-from .pi_delegation import PiTaskResult
-from .task_outcome import normalize_task_outcome, unavailable_outcome
-from .business_goal_dependency import business_dependencies_for_claim
-
-
-class _ReferenceAdmissionRejected(ValueError):
-    """Only reference checks may trigger independent evidence recovery."""
-
-
-def external_observations_for_claim(claim: AttemptClaim) -> list[dict]:
-    """Validate trusted supplemental input without creating Authority claims."""
-    resources = {} if claim.turn_plan is None else getattr(claim.turn_plan, 'intent_resources', None) or {}
-    values = resources.get('external_observations', ())
-    if not isinstance(values, tuple) or len(values) > 16:
-        raise ValueError('typed external observations are invalid')
-    parent = resources.get('delegation_parent_attempt_id', claim.attempt.attempt_id)
-    if any(not isinstance(value, PiTaskResult) or value.status != 'completed'
-           or value.parent_attempt_id != parent for value in values):
-        raise ValueError('typed external observation is invalid')
-    return [value.to_document() for value in values]
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -87,25 +63,6 @@ class PreparedKernelPiSessionFactory:
             _require_prepared_kernel_profile(contribution, claim.model_context)
             for contribution in context.contributions
         )
-        plan = claim.turn_plan
-        selected = (plan.intent_request.to_document().get('selected_skill')
-                    if plan is not None and plan.intent_request is not None else None)
-        if selected is None and claim.submission is not None and claim.submission.get('professional_resource') is not None:
-            selected = {**claim.submission['resource_profile'],
-                        'skill_id': claim.submission['input']['skill_id'],
-                        'skill_version': claim.submission['input']['skill_version']}
-        if selected is not None and plan is not None:
-            if selected['profile_id'] != 'harness_engine':
-                raise ValueError('native skill cannot enter a professional session')
-            from .professional_resources import restore_harness_selection
-            from .pi_intent import default_config_root
-            skill = restore_harness_selection(default_config_root().parent,
-                (claim.submission or {}).get('professional_resource'))
-            if (skill.profile_revision != selected['revision'] or skill.skill_id != selected['skill_id']
-                    or skill.skill_version != selected['skill_version']):
-                raise ValueError('accepted Harness selection does not match the task')
-            claim = replace(claim, turn_plan=replace(plan,
-                intent_resources={**(plan.intent_resources or {}), 'harness_skill_selection': skill}))
         session = self._builder(claim, context, prepared)
         if not callable(getattr(session, "start", None)) or not callable(
             getattr(session, "prompt_and_wait", None)
@@ -123,7 +80,6 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
-        workspace_root: Path | None = None,
     ) -> None:
         if not isinstance(runtime_host, RuntimeHost):
             raise TypeError("runtime_host must be a RuntimeHost")
@@ -137,7 +93,6 @@ class PreparedKernelPiRpcSessionBuilder:
         self._runtime_host = runtime_host
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
-        self._workspace_root = workspace_root
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
@@ -151,7 +106,7 @@ class PreparedKernelPiRpcSessionBuilder:
     ) -> PiPromptSession:
         del context
         if not profiles:
-            return self._build_empty_session(claim)
+            raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
         workspace = profiles[0].workspace
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
@@ -213,9 +168,8 @@ class PreparedKernelPiRpcSessionBuilder:
         single = len(binding_runtimes) == 1
         single_runtime = binding_runtimes[0][1] if single else None
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
-        intent_request = getattr(claim.turn_plan, 'intent_request', None)
         system_policy_path = self._runtime_host.system_policy_path
-        if profiles and intent_request is None:
+        if profiles:
             system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
@@ -226,9 +180,6 @@ class PreparedKernelPiRpcSessionBuilder:
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
             )
-        from .professional_resources import prepared_authority_environment
-        extra_environment = {**self._runtime_host.extra_environment,
-            **prepared_authority_environment(endpoint for _, _, endpoint in binding_runtimes)}
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
@@ -241,65 +192,11 @@ class PreparedKernelPiRpcSessionBuilder:
             system_policy_path=system_policy_path,
             runtime_descriptor_path=descriptor_path,
             binding_id=binding_ids[0] if single else None,
-            extra_environment=extra_environment,
+            extra_environment=self._runtime_host.extra_environment,
         )
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
-        if intent_request is not None:
-            if claim.turn_plan is None or claim.turn_plan.intent_decision is None:
-                raise ValueError('semantic execution requires a validated intent decision')
-            from .pi_intent import NativeConversationPiSessionBuilder, prepare_context_launch
-            from .execution_context import execution_plan_for
-            native = NativeConversationPiSessionBuilder(
-                runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
-                workspace_root=workspace.root.parent, base_environment=self._base_environment,
-            )
-            if native.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
-                raise HarnessRuntimeConfigurationError('intent configuration changed before business execution')
-            launch = native.apply_configuration(launch, workspace, claim.attempt.attempt_id,
-                                                 domain_policy=self._runtime_host.system_policy_path)
-            request_document = intent_request.to_document()
-            decision_document = claim.turn_plan.intent_decision.to_document()
-            supplemental = {
-                'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
-                'history_truncated': request_document.get('history_truncated', False),
-                'execution_plan': execution_plan_for(intent_request, claim.turn_plan.intent_decision),
-                'model_context': claim.model_context.to_document(),
-                'bindings': [{'binding_id': profile.model_binding.binding_id,
-                              'context_ref': profile.model_binding.context_ref} for profile in profiles],
-                'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
-                                   'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
-                                  for ref in claim.prior_results],
-            }
-            external = external_observations_for_claim(claim)
-            if external:
-                supplemental['external_observations'] = external
-                supplemental['external_observation_policy'] = (
-                    'These are external observations, not Authority facts or model changes. '
-                    'Do not change a business model from this input. A model input needs explicit '
-                    'application authorization and Domain Pack validation for its units, time, '
-                    'location, target object, and mapping assumptions.')
-            dependencies = business_dependencies_for_claim(claim)
-            if dependencies:
-                supplemental['business_goal_dependencies'] = dependencies
-                supplemental['business_dependency_policy'] = (
-                    'These are application-admitted business goal outputs from this Attempt. '
-                    'They are resolved dependencies, not historical conversation or external observations. '
-                    'Their references remain subject to the selected Domain Packs and current-run '
-                    'Authority validation; they do not grant access to another profile or model.')
-            if any(goal['operation'] == 'catalog_lookup' for goal in decision_document['goals']):
-                supplemental['application_catalog'] = claim.application_catalog
-            launch = prepare_context_launch(launch, workspace, claim.attempt.attempt_id,
-                                             request_document['messages'], supplemental)
-        resources = {} if claim.turn_plan is None else getattr(claim.turn_plan, 'intent_resources', None) or {}
-        selected_skill = resources.get('harness_skill_selection')
-        if selected_skill is not None:
-            from .professional_resources import apply_harness_skill
-            prepared_bindings = {key: value for profile in profiles
-                                 for key, value in cast(Mapping, getattr(profile.prepared_application, "bindings")).items()}
-            launch = apply_harness_skill(launch, selected_skill, prepared_bindings,
-                workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id)
         trace = JsonlTraceWriter(
             workspace.core_path / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}
@@ -317,35 +214,6 @@ class PreparedKernelPiRpcSessionBuilder:
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles),
             reference_observer=handoffs.observe,
-        )
-
-    def _build_empty_session(self, claim: AttemptClaim) -> PiPromptSession:
-        if self._workspace_root is None:
-            raise RuntimeError("Empty selection requires an application workspace root")
-        workspace = ApplicationWorkspace.create(self._workspace_root)
-        attempt_path = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
-        policy = _compose_attempt_policy(
-            attempt_path, None, include_generic=True,
-            application_catalog=claim.application_catalog,
-            model_context=claim.model_context,
-            previous_instruction=claim.previous_instruction,
-        )
-        paths = RuntimePaths(
-            command=self._runtime_host.command,
-            project_pi_dir=self._runtime_host.project_pi_dir,
-            session_dir=attempt_path / "session", workspace=workspace.root,
-            system_policy_path=policy,
-        )
-        launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
-        secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
-        trace = JsonlTraceWriter(workspace.core_path / "pi-events.jsonl", secret_values=secrets)
-        client = PiRpcClient(
-            launch, _RpcWorkspace(workspace.root), trace, secret_values=secrets,
-            correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds,
-        )
-        return _KernelPiPromptSession(
-            client, trace, admission=_build_kernel_admission(()),
-            reference_observer=lambda event: None,
         )
 
 
@@ -428,8 +296,6 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
-    if not context.enabled_profiles:
-        lines.append("No calculation tools are enabled. Explain the capability boundary for model-specific facts or calculations; do not invent results or evidence.")
     if previous_instruction is not None:
         lines.extend([
             "## Latest previous instruction for this saved model Context",
@@ -484,18 +350,6 @@ def _render_application_catalog_context(
         if item.get("available") is False:
             availability = "worker unavailable"
         lines.append(f"- {display_name} ({model_id}) · family={family} · {availability}")
-    profiles = catalog.get("profiles")
-    if isinstance(profiles, list):
-        lines.extend([
-            "Registered calculation tool groups (catalog metadata, not enabled tools or calculation evidence):",
-            "Use Settings to enable compatible groups. The immutable Attempt selection determines which tools are actually enabled.",
-        ])
-        for profile in profiles[:128]:
-            if not isinstance(profile, Mapping):
-                continue
-            name, families = profile.get("display_name"), profile.get("implementation_families")
-            if isinstance(name, str) and isinstance(families, list) and all(isinstance(item, str) for item in families):
-                lines.append(f"- {name}: compatible families {', '.join(families)}")
     return "\n".join(lines)
 
 
@@ -550,63 +404,7 @@ class _KernelPiPromptSession:
 
 
 def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
-    def failure_outcome(failures):
-        outcome = unavailable_outcome('answer_admission_incomplete', failures[:30])
-        bindings = {}
-        for profile in profiles:
-            selected = getattr(profile.prepared_application, 'bindings', None)
-            if not isinstance(selected, Mapping):
-                raise ValueError('prepared bindings are unavailable')
-            bindings.update(selected)
-        for event, diagnostic in zip(failures[:30], outcome['diagnostics']):
-            owner = event.get('binding_id')
-            if owner is None and len(bindings) == 1:
-                owner = next(iter(bindings))
-            binding = bindings.get(owner) if isinstance(owner, str) else None
-            describe = getattr(getattr(getattr(binding, 'runtime', None), 'authority', None), 'describe_execution_failure', None)
-            if callable(describe):
-                description = describe(event.get('error_code'))
-                if isinstance(description, Mapping):
-                    diagnostic.update(description)
-        return normalize_task_outcome(outcome)
-
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
-        failures = tuple(event for event in tool_events if event.get('ok') is not True)
-        if any(event.get('error_stage') == 'persist' for event in failures):
-            raise AttemptOutcomeUnavailable(failure_outcome(failures))
-        if failures and (result_refs or evidence_refs):
-            # Re-admit only completed authority work with host-owned text. Never
-            # carry a rejected or incomplete model conclusion into this receipt.
-            successful = tuple(event for event in tool_events if event.get('ok') is True)
-            safe_results = tuple(ref for ref in result_refs if any(ref in event.get('result_refs', ()) for event in successful))
-            safe_evidence = tuple(ref for ref in evidence_refs if any(ref in event.get('evidence_refs', ()) for event in successful))
-            if safe_evidence:
-                safe_answer = '已保留本次通过接纳的结果与证据。其余调用尚未完成；这些成果不能支持完整范围的比较或排序。请查看结果卡和运行过程。'
-                retained = admit(claim, safe_answer, safe_results, safe_evidence, successful)
-                if retained.mode != 'authority_backed':
-                    raise ValueError('partial work lacks authority assurance')
-                outcome = failure_outcome(failures)
-                outcome['status'] = 'partial'
-                outcome['work'] = [{'id': 'retained', 'status': 'confirmed', 'summary': '已接纳独立完成的结果与证据；不代表全部请求已完成。',
-                    'result_refs': list(safe_results), 'evidence_refs': list(safe_evidence)}, *outcome['work']]
-                if retained.task_outcome is not None and 'coverage' in retained.task_outcome:
-                    outcome['coverage'] = retained.task_outcome['coverage']
-                return replace(retained, task_outcome=normalize_task_outcome(outcome), answer_source='verified_results')
-        if failures:
-            observed = []
-            for event in tool_events:
-                if (event.get('ok') is not True or not isinstance(event.get('context_ref'), str)
-                    or not isinstance(event.get('model_revision', event.get('revision_ref')), str) or event.get('result_refs') or event.get('evidence_refs')):
-                    continue
-                receipt = admit(claim, '已核对当前模型的只读信息。完整计算与排序尚未取得可接纳结果。', (), (), (event,))
-                if receipt.assurance == 'deterministic_information' and 'current_model_observation_verified' in receipt.diagnostic_codes:
-                    observed.append(receipt)
-            if observed:
-                outcome = failure_outcome(failures)
-                outcome['status'] = 'partial'
-                outcome['work'].insert(0, {'id': 'observed', 'status': 'confirmed', 'summary': '已核对模型只读信息；未据此推断潮流或全量排序。', 'result_refs': [], 'evidence_refs': []})
-                return replace(observed[0], task_outcome=normalize_task_outcome(outcome))
-            raise AttemptOutcomeUnavailable(failure_outcome(failures))
         if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
             and not result_refs and not evidence_refs and not tool_events):
             catalog_answer = complete_catalog_answer(claim.instruction, answer, claim.application_catalog)
@@ -657,10 +455,7 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
         tool_events = tuple(authority_events)
-        try:
-            _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
-        except ValueError as error:
-            raise _ReferenceAdmissionRejected(str(error)) from error
+        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
         participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
@@ -710,80 +505,15 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if not decisions:
             raise ValueError("no prepared Domain Pack admission policy")
         decision = aggregate_answer_admission(tuple(decisions), answer)
-        diagnostic_codes = tuple(decision.diagnostic_codes)
-        try:
-            result_projections = _build_result_projections(
-                claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
-            )
-            encoded = json.dumps(result_projections, ensure_ascii=False, allow_nan=False).encode('utf-8')
-            if len(result_projections) > 12 or len(encoded) > 64 * 1024:
-                raise ValueError('result display exceeds its bounded contract')
-        except (ValueError, TypeError):
-            # Presentation is optional. Its failure cannot erase admitted
-            # Authority facts or manufacture failed tool executions.
-            result_projections = ()
-            diagnostic_codes = tuple(dict.fromkeys((*diagnostic_codes, 'result_display_unavailable')))
-        admitted = AdmittedAttemptAnswer(
+        result_projections = _build_result_projections(
+            claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
+        )
+        return AdmittedAttemptAnswer(
             decision.answer_output, decision.mode, decision.assurance,
-            tuple(result_refs), tuple(evidence_refs), diagnostic_codes,
+            tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
             result_projections=result_projections,
         )
-        for binding_id, binding in binding_map.items():
-            describe_scope = getattr(getattr(getattr(binding, 'runtime', None), 'authority', None), 'describe_task_scope', None)
-            if not callable(describe_scope):
-                continue
-            coverage = describe_scope(tuple(ref for ref in result_refs if owners.get(ref) == binding_id))
-            if coverage is None:
-                continue
-            safe_answer = '已保留已计算场景的结果与证据。尚未取得可验证的完整研究范围，不能据此给出全量严重程度排序。派生场景证据保留其原始模型修订，未叠加到基准模型图。'
-            outcome = normalize_task_outcome({'schema': 'capstone-task-outcome/1', 'status': 'partial', 'coverage': coverage,
-                'work': [
-                    {'id': 'scenarios', 'status': 'confirmed', 'summary': '已保留独立通过接纳的场景结果。', 'result_refs': list(result_refs), 'evidence_refs': list(evidence_refs)},
-                    {'id': 'scope', 'status': 'blocked', 'summary': '完整研究范围与全量排序尚未确认。', 'result_refs': [], 'evidence_refs': []}],
-                'diagnostics': [{'code': 'study_scope_unconfirmed', 'category': 'capability', 'stage': 'admit', 'confirmation': 'confirmed',
-                    'summary': '现有证据仅确认已计算的场景，未确认完整请求范围。', 'work_id': 'scope', 'recovery': 'change_scope'}]})
-            return replace(admitted, answer=safe_answer, task_outcome=outcome, answer_source='verified_results')
-        return admitted
-    def recover_admission(claim, answer, result_refs, evidence_refs, tool_events):
-        try:
-            receipt = admit(claim, answer, result_refs, evidence_refs, tool_events)
-        except AttemptOutcomeUnavailable:
-            raise
-        except _ReferenceAdmissionRejected:
-            safe_events = []
-            rejected = []
-            for event in tool_events:
-                if event.get('ok') is not True:
-                    rejected.append(event)
-                    continue
-                selected_results = tuple(ref for ref in result_refs if ref in event.get('result_refs', ()))
-                selected_evidence = tuple(ref for ref in evidence_refs if ref in event.get('evidence_refs', ()))
-                if not selected_evidence:
-                    try:
-                        admit(claim, '已核对只读信息。', selected_results, (), (event,))
-                    except _ReferenceAdmissionRejected:
-                        rejected.append({**event, 'ok': False, 'error_code': 'reference_admission_rejected', 'error_stage': 'admit'})
-                    # Valid reference-free observations and guides are not
-                    # failed calculations. They do not need recovery receipts.
-                    continue
-                try:
-                    receipt = admit(claim, '已保留独立通过接纳的成果。完整结论尚未接纳。', selected_results, selected_evidence, (event,))
-                except _ReferenceAdmissionRejected:
-                    rejected.append({**event, 'ok': False, 'error_code': 'reference_admission_rejected', 'error_stage': 'admit'})
-                    continue
-                if receipt.mode == 'authority_backed':
-                    safe_events.append(event)
-            if not safe_events:
-                raise
-            retained_results = tuple(ref for ref in result_refs if any(ref in event.get('result_refs', ()) for event in safe_events))
-            retained_evidence = tuple(ref for ref in evidence_refs if any(ref in event.get('evidence_refs', ()) for event in safe_events))
-            blocker = {'ok': False, 'error_code': 'answer_admission_failed'}
-            receipt = admit(claim, '', retained_results, retained_evidence, (*safe_events, *rejected, blocker))
-        if receipt.answer_source != 'verified_results':
-            return receipt
-        return finalize_admitted_answer(receipt, expected_identity=(
-            claim.thread_id, claim.run_id, claim.attempt.turn_id, claim.attempt.attempt_id))
-    return recover_admission
+    return admit
 
 
 def _verify_bound_attempt_references(
@@ -810,13 +540,8 @@ def _verify_bound_attempt_references(
             for event in events:
                 if event.get("ok") is not True:
                     continue
-                event_context = event.get('context_ref', bound.context_ref)
-                event_revision = event.get('model_revision', event.get('revision_ref', bound.model_revision))
-                if 'revision_ref' in event and event['revision_ref'] != event_revision:
-                    raise ValueError('tool revision identities conflict')
-                if not isinstance(event_context, str) or not isinstance(event_revision, str) or not bound.accepts_context_identity(event_context, event_revision):
-                    raise ValueError('tool identity does not match the bound model context')
-                for field, expected in (("model_id", bound.model_id),):
+                for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
+                                        ("context_ref", bound.context_ref)):
                     if field in event and event[field] != expected:
                         raise ValueError("tool identity does not match the bound model context")
                 if "model_ref" in event:
@@ -837,11 +562,9 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                artifact_context = document.get('context_ref', bound.context_ref)
-                artifact_revision = document.get('revision_ref', document.get('model_revision', bound.model_revision))
-                if not isinstance(artifact_context, str) or not isinstance(artifact_revision, str) or not bound.accepts_context_identity(artifact_context, artifact_revision):
-                    raise ValueError('authority artifact does not match the bound model context')
-                for field, expected in (("model_revision", artifact_revision), ("model_id", bound.model_id)):
+                for field, expected in (("context_ref", bound.context_ref),
+                                        ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
+                                        ("model_id", bound.model_id)):
                     if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
@@ -850,9 +573,8 @@ def _verify_bound_attempt_references(
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
-                    isinstance(document.get('context_ref'), str)
-                    and isinstance(document.get('revision_ref'), str)
-                    and bound.accepts_context_identity(document['context_ref'], document['revision_ref'])
+                    document.get("context_ref") == bound.context_ref
+                    and document.get("revision_ref") == bound.model_revision
                 ) if bound.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
                 if not bound_identity and not linked_evidence:
@@ -1007,13 +729,6 @@ def _build_result_projections(
             invoke = getattr(getattr(runtime, "executor", None), "invoke", None)
             context_ref = profile.model_binding.context_ref
             owned_results = tuple(result_ref for result_ref in result_refs if owners.get(result_ref) == binding_id)
-            # The current card/diagram contract binds to the Thread revision.
-            # Derived scenario references remain admitted and inspectable as
-            # evidence, but must never be labelled as results of that base.
-            if callable(verify_result := getattr(authority, 'verify_result', None)):
-                owned_results = tuple(reference for reference in owned_results if (
-                    getattr(verify_result(reference), 'document', {}).get('context_ref', context_ref) == context_ref
-                ))
             if not owned_results:
                 continue
             owned_evidence = {result_ref: result_evidence.get(result_ref, ()) for result_ref in owned_results}
@@ -1118,7 +833,7 @@ def _build_result_projections(
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
-                projections.append(compact_projection_validation_hint(normalized))
+                projections.append(normalized)
             if projection_error or seen_results != set(owned_results):
                 projections = [item for item in projections if item.get("result_ref") not in owned_results]
                 for result_ref in owned_results:

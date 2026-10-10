@@ -74,26 +74,6 @@ def validate_artifact_reference(value: object, *, kind: str) -> str:
     return _ref(value, f"{kind} reference", kind=kind)
 
 
-def compact_projection_validation_hint(document: Mapping[str, object]) -> dict[str, object]:
-    """Retain only validated presentation targets, not the whole model graph."""
-    raw = dict(document)
-    hint = raw.pop('_diagram_element_ids', None)
-    if hint is None:
-        return raw
-    if not isinstance(hint, (list, tuple)) or any(not isinstance(item, str) for item in hint):
-        raise ValueError('projection target validation hint is invalid')
-    projection = ResultProjection.from_document(raw)
-    targets = {element.element_id for element in projection.element_refs}
-    targets.update(row.element_ref.element_id for table in projection.tables for row in table.rows
-                   if row.element_ref is not None)
-    if projection.overlay is not None:
-        targets.update(value.element_id for value in projection.overlay.values)
-    if not targets.issubset(hint):
-        raise ValueError('projection target is outside the validated diagram')
-    raw['_diagram_element_ids'] = sorted(targets)
-    return raw
-
-
 def _finite(value: Any, name: str) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(f"{name} must be finite")

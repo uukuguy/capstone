@@ -17,36 +17,6 @@ class _Workspace:
     root_path: Path
 
 
-def test_rpc_retains_unstructured_sdk_tool_error_without_inventing_authority_refs(tmp_path):
-    script = tmp_path / 'tool-error.py'
-    script.write_text("import json\njson.loads(input())\n" + '\n'.join(
-        'print(' + repr(json.dumps(event)) + ', flush=True)' for event in [
-            {'type': 'prompt_ack', 'ok': True},
-            {'type': 'tool_execution_start', 'toolCallId': 'call-1', 'toolName': 'grid_analysis_powerflow_ac'},
-            {'type': 'tool_execution_end', 'toolCallId': 'call-1', 'isError': True,
-             'result': {'content': [{'type': 'text', 'text': 'SECRET raw SDK exception'}]}},
-            {'type': 'text_delta', 'text': 'No result available.'},
-            {'type': 'agent_end', 'messages': []},
-        ]))
-    workspace = tmp_path / 'run'
-    workspace.mkdir()
-    trace = JsonlTraceWriter(workspace / 'events.jsonl')
-    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(workspace), trace)
-    events = []
-    client.start()
-    try:
-        client.prompt_and_wait('question', on_semantic_event=lambda event, sequence: events.append(event))
-    finally:
-        client.stop()
-        trace.close()
-    receipt = next(event for event in events if event['type'] == 'tool_execution_end')
-    assert receipt['tool_call_id'] == 'call-1'
-    assert receipt['tool_name'] == 'grid_analysis_powerflow_ac'
-    assert receipt['ok'] is False
-    assert not receipt.get('capability') and not receipt.get('evidence_refs')
-    assert 'SECRET' not in json.dumps(receipt)
-
-
 def test_rpc_framing_returns_only_assembled_answer(tmp_path: Path) -> None:
     script = tmp_path / "provider.py"
     script.write_text(

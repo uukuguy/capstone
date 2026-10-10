@@ -2237,10 +2237,6 @@ def _trace_payload(event: object) -> object:
 def _event_capability(value: object) -> str | None:
     if not isinstance(value, Mapping):
         return None
-    if value.get('type') == 'tool_execution_end' and not isinstance(value.get('capability'), str):
-        # A neutral completion receipt closes a call; it is not a second
-        # published domain capability invocation.
-        return None
     for key in ("capability", "operation", "tool_name"):
         item = value.get(key)
         if isinstance(item, str):

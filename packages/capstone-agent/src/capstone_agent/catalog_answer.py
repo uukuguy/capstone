@@ -5,6 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 import re
 
+from .turn_router import is_model_catalog_listing
+
+
+_SUBSET_REQUEST = re.compile(
+    r"示例|举例|几个|部分|推荐|[零一二三四五六七八九十百两\d]+\s*(?:个|种|款|项)"
+    r"|\b(?:examples?|some|few|first|top|recommend|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b",
+    re.IGNORECASE,
+)
+
+
 def _contains_identifier(text: str, identifier: str) -> bool:
     return re.search(r"(?<![A-Za-z0-9_/-])" + re.escape(identifier) + r"(?![A-Za-z0-9_/-])", text) is not None
 
@@ -15,16 +25,13 @@ def _cell(value: str) -> str:
 
 def complete_catalog_answer(
     instruction: str, answer: str, catalog: Mapping[str, object] | None,
-    *, full_catalog_requested: bool = False,
 ) -> str | None:
-    """Complete an explicitly selected full catalog from bounded metadata.
+    """Replace a missing-entry list using only this Attempt's bounded catalog.
 
-    ``instruction`` is retained for call compatibility and is not interpreted.
-    The caller must select the full catalog scope. This helper does not infer
-    families, shortlists, mixed requests, or intent from reader-facing prose.
-    Complete answers retain the model's wording.
+    Complete answers retain the model's wording. General explanations and mixed
+    calculation requests are outside this presentation projection.
     """
-    if full_catalog_requested is not True or catalog is None:
+    if not is_model_catalog_listing(instruction) or catalog is None or _SUBSET_REQUEST.search(instruction):
         return None
     models = catalog.get("models")
     if not isinstance(models, list) or not models or len(models) > 128:
@@ -37,11 +44,15 @@ def complete_catalog_answer(
                for key in ("model_id", "display_name", "implementation_family")):
             return None
         entries.append(item)
-    if all(_contains_identifier(answer, str(item["model_id"])) for item in entries):
+    families = {str(item["implementation_family"]) for item in entries}
+    requested = {family for family in families if _contains_identifier(instruction.lower(), family.lower())}
+    selected = [item for item in entries if not requested or item["implementation_family"] in requested]
+    if all(_contains_identifier(answer, str(item["model_id"])) for item in selected):
         return None
-    lines = [f"已注册模型共 {len(entries)} 个（应用）：", "",
+    scope = " / ".join(sorted(requested)) if requested else "应用"
+    lines = [f"已注册模型共 {len(selected)} 个（{_cell(scope)}）：", "",
              "| 模型名称 | 模型标识 | 实现系列 | 状态 |", "| --- | --- | --- | --- |"]
-    for item in entries:
+    for item in selected:
         status = "暂不可用" if item.get("available") is False else "可用" if item.get("available") is True else "已注册"
         lines.append(f"| {_cell(str(item['display_name']))} | `{_cell(str(item['model_id']))}` | {_cell(str(item['implementation_family']))} | {status} |")
     lines.extend(["", "如需分析其中的模型，请通过模型选择控件切换到该模型。"])

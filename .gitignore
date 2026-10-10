@@ -67,7 +67,6 @@ packages/trajectory-workbench/coverage/
 /.playwright-cli/
 /.codex/
 /deploy/local.env
-/deploy/demo-local.env
 /deploy/local-model-assets/*.nc
 **/__pycache__/
 **/.pytest_cache/

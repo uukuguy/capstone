@@ -23,37 +23,6 @@ from capstone_model_capability_spi import (
 from .model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, ThreadModelDescriptor
-from .request_intent import IntentDecision
-
-
-_ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...], str]
-
-
-def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
-    """Limit prepared resources to validated needs within the frozen selection."""
-    enabled = tuple(claim.model_context.enabled_profiles)
-    decision = getattr(claim.turn_plan, "intent_decision", None)
-    if decision is None:
-        return enabled  # Registered scripted plans retain their exact selection.
-    if not isinstance(decision, IntentDecision):
-        raise ValueError("model capability preparation needs a validated intent decision")
-    document = decision.to_document()
-    if document["attempt_id"] != claim.attempt.attempt_id:
-        raise ValueError("intent decision belongs to another Attempt")
-    allowed = {f"{profile_id}@{version}": (profile_id, version) for profile_id, version in enabled}
-    required = set()
-    for goal in decision.execution_goals:
-        if goal["operation"] not in {"business_read", "business_execute"}:
-            continue  # Catalog and history references describe metadata only.
-        refs = goal["capability_refs"]
-        if not refs:
-            raise ValueError("business intent needs an enabled capability reference")
-        for identity in refs:
-            if identity not in allowed:
-                raise ValueError("intent capability is not in the enabled selection")
-            required.add(allowed[identity])
-    # Preserve the application's selection order, independent of model output.
-    return tuple(reference for reference in enabled if reference in required)
 
 
 @runtime_checkable
@@ -162,15 +131,6 @@ class ApplicationProfileCapabilityAdapter:
             self.descriptor, model_context, handle.profile, prepared,
         )
 
-    def prepare_for_claim(self, handle: ModelCapabilityProfileHandle, claim: AttemptClaim):
-        prepare = getattr(self._prepare_profile, 'prepare_for_claim', None)
-        if not callable(prepare):
-            return self.prepare(handle, model_context=claim.model_context)
-        if not isinstance(handle, ApplicationProfileCapabilityHandle) or handle.closed:
-            raise ValueError('application profile handle is unavailable')
-        prepared = prepare(handle.profile, claim)
-        return ApplicationProfileCapabilityContribution(self.descriptor, claim.model_context, handle.profile, prepared)
-
 
 def register_application_profile(
     owner: "ModelCapabilityContextOwner",
@@ -212,8 +172,6 @@ class PreparedModelCapabilityContext:
     handles: tuple[ModelCapabilityProfileHandle, ...]
     contributions: tuple[PreparedModelCapabilityContribution, ...]
     _closed: bool = False
-    selected_profiles: tuple[tuple[str, str], ...] = ()
-    resource_revision: str = ''
 
     @property
     def closed(self) -> bool:
@@ -253,8 +211,8 @@ class ModelCapabilityContextOwner:
             raise ValueError('model capability resource limits are invalid')
         self._clock = clock
         self._adapters: dict[tuple[str, str], ModelCapabilityAdapter] = {}
-        self._contexts: dict[_ContextKey, PreparedModelCapabilityContext] = {}
-        self._usage: dict[_ContextKey, tuple[int, float]] = {}
+        self._contexts: dict[tuple[str, str, str, str], PreparedModelCapabilityContext] = {}
+        self._usage: dict[tuple[str, str, str, str], tuple[int, float]] = {}
         self._resource_counts = (0, 0)
         self._sealed = False
         self._closed = False
@@ -297,24 +255,17 @@ class ModelCapabilityContextOwner:
         if not isinstance(claim, AttemptClaim):
             raise TypeError("claim must be an AttemptClaim")
         model_context = claim.model_context
-        references = _selected_references(claim)
-        from .runtime_resources import content_hash
-        selection = (claim.submission or {}).get('professional_resource')
-        backend = (claim.submission or {}).get('_professional_backend')
-        resource_revision = content_hash(selection or backend) if selection or backend else ''
         key = (
             claim.thread_id, claim.run_id, model_context.id,
-            model_context.selection_revision, references, resource_revision,
+            model_context.selection_revision,
         )
+        references = tuple(model_context.enabled_profiles)
         with self._lock:
             if self._closed:
                 raise RuntimeError("model capability context owner is closed")
             if not self._sealed:
                 raise RuntimeError("model capability context owner is not sealed")
             self._sweep_idle_locked()
-            if any(cached_key[:4] == key[:4] and context.model_context != model_context
-                   for cached_key, context in self._contexts.items()):
-                raise ValueError("model capability context snapshot drift")
             existing = self._contexts.get(key)
             if existing is not None:
                 if existing.model_context != model_context:
@@ -344,18 +295,12 @@ class ModelCapabilityContextOwner:
             try:
                 for reference, handle in zip(references, handles, strict=True):
                     adapter = self._adapters[reference]
-                    prepare = getattr(adapter, 'prepare_for_claim', None)
-                    contribution = (prepare(handle, claim) if callable(prepare)
-                                    else adapter.prepare(handle, model_context=model_context))
+                    contribution = adapter.prepare(handle, model_context=model_context)
                     self._validate_contribution(contribution, reference, model_context)
-                    if not isinstance(contribution, PreparedModelCapabilityContribution):
-                        raise TypeError('prepared contribution is invalid')
                     contributions.append(contribution)
                 context = PreparedModelCapabilityContext(
                     claim.thread_id, claim.run_id, model_context,
                     tuple(handles), tuple(contributions),
-                    selected_profiles=references,
-                    resource_revision=resource_revision,
                 )
                 self._contexts[key] = context
                 self._usage[key] = 0, self._clock()
@@ -374,7 +319,7 @@ class ModelCapabilityContextOwner:
         """Pin resources until the Attempt releases them, including blocked work."""
         with self._lock:
             context = self.prepare(claim)
-            key = self._context_key(context)
+            key = (context.thread_id, context.run_id, context.model_context.id, context.model_context.selection_revision)
             pins, last_used = self._usage[key]
             self._usage[key] = pins + 1, last_used
             self._publish_resource_counts_locked()
@@ -382,7 +327,7 @@ class ModelCapabilityContextOwner:
 
     def release(self, context: PreparedModelCapabilityContext) -> None:
         with self._lock:
-            key = self._context_key(context)
+            key = (context.thread_id, context.run_id, context.model_context.id, context.model_context.selection_revision)
             if self._contexts.get(key) is not context:
                 return
             pins, last_used = self._usage[key]
@@ -419,12 +364,7 @@ class ModelCapabilityContextOwner:
             raise BaseExceptionGroup('idle model capability cleanup failed', errors)
         return len(expired)
 
-    @staticmethod
-    def _context_key(context: PreparedModelCapabilityContext) -> _ContextKey:
-        return (context.thread_id, context.run_id, context.model_context.id,
-                context.model_context.selection_revision, context.selected_profiles, context.resource_revision)
-
-    def _evict_locked(self, key: _ContextKey) -> None:
+    def _evict_locked(self, key: tuple[str, str, str, str]) -> None:
         context = self._contexts.pop(key)
         del self._usage[key]
         self._publish_resource_counts_locked()

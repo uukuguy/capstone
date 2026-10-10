@@ -26,8 +26,7 @@ def test_every_published_matrix_row_has_executable_materialization() -> None:
 
 
 def test_materialization_references_only_live_contracts_operations_and_creators() -> None:
-    document = json.loads(MATERIALIZATION.read_text(encoding="utf-8"))
-    rows = document["rows"]
+    rows = json.loads(MATERIALIZATION.read_text(encoding="utf-8"))["rows"]
     contracts = {contract.id for contract in CapabilityRegistry.load_packaged().list()}
     operations = {operation.identifier for operation in AnalysisRegistry().list()}
     creators = set(CreatorRegistry().list())
@@ -37,9 +36,7 @@ def test_materialization_references_only_live_contracts_operations_and_creators(
     referenced_creators = {item for row in rows for item in row["creators"]}
 
     assert referenced_capabilities <= contracts == EXECUTABLE_CAPABILITIES - {"operator.diagram.get"}
-    optional = document["optional_operations"]
-    assert optional == [{"id": "diagnostic.structural", "backend": "PowerMCP", "availability": "analysis.operation.describe", "capabilities": ["analysis.operation.describe", "analysis.run"]}]
-    assert referenced_operations | {item["id"] for item in optional} == operations
+    assert referenced_operations == operations
     assert referenced_creators <= creators
 
 

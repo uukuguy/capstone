@@ -14,7 +14,6 @@ EVIDENCE = "evidence:sha256:" + "c" * 64
 
 
 def _admission(document, *, family="pandapower", context_ref=CONTEXT, linked_document=None, model_reference_verifier=None,
-               context_identity_verifier=None,
                evidence_documents=None, result_documents=None, extra_bindings=None):
     policy = SimpleNamespace(admit=lambda request: AnswerAdmissionDecision(
         mode="authority_backed" if request.evidence_refs else "offline_information",
@@ -41,9 +40,9 @@ def _admission(document, *, family="pandapower", context_ref=CONTEXT, linked_doc
         answer_admission_capabilities=frozenset({"authority_backed", "offline_information"}),
     ))
     profile = SimpleNamespace(
-        model_binding=AuthorityModelBinding("grid", "ieee39", REVISION, family, context_ref,
-            model_reference_verifier=model_reference_verifier,
-            context_identity_verifier=context_identity_verifier),
+        model_binding=AuthorityModelBinding("grid", "ieee39", REVISION, family, context_ref, **(
+            {"model_reference_verifier": model_reference_verifier} if model_reference_verifier is not None else {}
+        )),
         prepared_application=SimpleNamespace(bindings={"grid": SimpleNamespace(
             runtime=runtime, binding=SimpleNamespace(tool_namespace="grid_")), **(extra_bindings or {})}),
     )
@@ -95,44 +94,7 @@ def test_participating_failed_pack_still_limits_admission():
         extra_bindings={"unused": _unused_binding()})
     events = ({"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]},
         {"binding_id": "unused", "ok": False, "capability": "operation"})
-    answer = admit(claim, "UNVERIFIED ranking", (), (EVIDENCE,), events)
-    assert answer.mode == 'authority_backed'
-    assert answer.task_outcome['status'] == 'partial'
-    assert 'UNVERIFIED ranking' not in answer.answer
-    assert answer.evidence_refs == (EVIDENCE,)
-
-
-def test_partial_finalization_keeps_verified_result_facts_and_drops_rejected_prose(monkeypatch):
-    from test_result_projection import valid_projection
-    projection = valid_projection()
-    projection.update(thread_id='thr_bound', run_id='run_bound', turn_id='turn_1', attempt_id='attempt_1')
-    result = projection['result_ref']
-    projection['evidence_refs'] = [EVIDENCE]
-    monkeypatch.setattr('capstone_agent.kernel_pi_session._build_result_projections', lambda *_: (projection,))
-    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION},
-        result_documents={result: {'context_ref': CONTEXT, 'revision_ref': REVISION}})
-    events = ({'binding_id': 'grid', 'ok': True, 'result_refs': [result], 'evidence_refs': [EVIDENCE]},
-              {'binding_id': 'grid', 'ok': False, 'error_code': 'result_field_unavailable'})
-    receipt = admit(claim, 'UNVERIFIED complete ranking', (result,), (EVIDENCE,), events)
-    assert '有功损耗：43.64 MW' in receipt.answer
-    assert 'UNVERIFIED' not in receipt.answer
-    assert not any(item['id'] == 'answer' for item in receipt.task_outcome['work'])
-
-
-def test_presentation_error_cannot_reclassify_successful_tools_as_failed(monkeypatch):
-    result = 'result:sha256:' + 'd' * 64
-    def broken_projection(*_):
-        raise ValueError('presentation payload exceeds its contract')
-    monkeypatch.setattr('capstone_agent.kernel_pi_session._build_result_projections', broken_projection)
-    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION},
-        result_documents={result: {'context_ref': CONTEXT, 'revision_ref': REVISION}})
-    events = ({'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]},
-              {'binding_id': 'grid', 'ok': True, 'result_refs': [result], 'evidence_refs': [EVIDENCE]})
-    receipt = admit(claim, '已核对当前电网。', (result,), (EVIDENCE,), events)
-    assert receipt.answer == '已核对当前电网。'
-    assert receipt.task_outcome is None
-    assert receipt.result_refs == (result,)
-    assert 'result_display_unavailable' in receipt.diagnostic_codes
+    assert admit(claim, "limited answer", (), (EVIDENCE,), events).mode == "limited"
 
 
 @pytest.mark.parametrize("document", [
@@ -161,26 +123,6 @@ def test_matching_evidence_only_artifact_is_verified_before_admission():
     answer = admit(claim, "answer", (), (EVIDENCE,), (event,))
     assert answer.evidence_refs == (EVIDENCE,)
     assert calls == [EVIDENCE]
-
-
-def test_bad_later_identity_retains_separately_admitted_earlier_evidence():
-    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION})
-    events = ({'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]},
-        {'binding_id': 'grid', 'ok': True, 'context_ref': 'context:sha256:' + 'd' * 64, 'revision_ref': REVISION})
-    answer = admit(claim, 'UNVERIFIED ranking', (), (EVIDENCE,), events)
-    assert answer.task_outcome['status'] == 'partial'
-    assert answer.evidence_refs == (EVIDENCE,)
-    assert 'UNVERIFIED' not in answer.answer
-
-
-def test_required_evidence_persistence_failure_cannot_become_partial_success():
-    from capstone_agent.harness import AttemptOutcomeUnavailable
-    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION})
-    events = ({'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]},
-        {'binding_id': 'grid', 'ok': False, 'error_code': 'persist_failed', 'error_stage': 'persist'})
-    with pytest.raises(AttemptOutcomeUnavailable) as error:
-        admit(claim, 'answer', (), (EVIDENCE,), events)
-    assert error.value.outcome['status'] == 'unavailable'
 
 
 @pytest.mark.parametrize("document", [
@@ -315,32 +257,6 @@ def test_model_reference_grant_does_not_relax_pandapower_context_or_revision():
     event = {"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]}
     with pytest.raises(ValueError, match="bound"):
         admit(claim, "answer", (), (EVIDENCE,), (event,))
-
-
-def test_verified_child_context_and_revision_are_admitted_together():
-    child = 'context:sha256:' + 'd' * 64
-    revision = 'revision:sha256:' + 'e' * 64
-    admit, claim, _ = _admission({'context_ref': child, 'revision_ref': revision},
-        context_identity_verifier=lambda context, version: (context, version) == (child, revision))
-    event = {'binding_id': 'grid', 'ok': True, 'capability': 'model.revision.derive',
-             'context_ref': child, 'model_revision': revision, 'evidence_refs': [EVIDENCE]}
-    assert admit(claim, 'verified scenario', (), (EVIDENCE,), (event,)).evidence_refs == (EVIDENCE,)
-
-
-@pytest.mark.parametrize('source', ['event', 'artifact'])
-def test_child_context_grant_cannot_accept_a_mismatched_revision(source):
-    child = 'context:sha256:' + 'd' * 64
-    revision = 'revision:sha256:' + 'e' * 64
-    document = {'context_ref': CONTEXT, 'revision_ref': REVISION}
-    event = {'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]}
-    if source == 'event':
-        event.update(context_ref=child, model_revision=REVISION)
-    else:
-        document.update(context_ref=child)
-    admit, claim, _ = _admission(document,
-        context_identity_verifier=lambda context, version: (context, version) == (child, revision))
-    with pytest.raises(ValueError, match='bound'):
-        admit(claim, 'invalid scenario', (), (EVIDENCE,), (event,))
 
 
 @pytest.mark.parametrize("repeated_evidence", [[], [EVIDENCE], ["evidence:sha256:" + "d" * 64]])

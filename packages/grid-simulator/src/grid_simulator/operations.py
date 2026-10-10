@@ -141,8 +141,7 @@ class OperationServices:
 
 
 def dispatch(
-    request: GridCapabilityRequest, workspace_path: Path, services: OperationServices | None = None,
-    *, bound_context_ref: str | None = None,
+    request: GridCapabilityRequest, workspace_path: Path, services: OperationServices | None = None
 ) -> GridCapabilityResponse:
     active_services = services or OperationServices(Pandapower340Engine(), CapabilityRegistry.load_packaged())
     try:
@@ -154,20 +153,6 @@ def dispatch(
             else _require_contract(active_services.capability_registry, request.capability)
         )
         _validate_arguments(contract, request.arguments)
-        if bound_context_ref is not None:
-            store = ContextStore(SimulatorWorkspace(workspace_path), ModelRegistry(active_services.engine))
-            try:
-                base = store.require(bound_context_ref)
-                if 'context_ref' in request.arguments:
-                    store.require_descendant(str(request.arguments['context_ref']), bound_context_ref)
-                if request.capability == 'context.open' and request.arguments.get('model_id') != base.model_id:
-                    raise ContextIntegrityError('model is outside the selected scope')
-            except (ContextIntegrityError, ContextNotFoundError, InvalidContextRef):
-                raise _OperationFailure(CapabilityError(
-                    code='model_scope_mismatch', phase='validate',
-                    message='The context is not a verified descendant of the selected model',
-                    retryable=False, allowed_recovery_actions=('correct_arguments',),
-                )) from None
         result = _dispatch(request, SimulatorWorkspace(workspace_path), active_services)
         _validate_result(contract, result)
     except _OperationFailure as exc:
@@ -355,7 +340,7 @@ def _analysis_run(
     except Exception as exc:
         raise _failure(
             "analysis_failed",
-            f"Analysis operation {operation!r} failed in the registered backend: {exc}",
+            f"Analysis operation {operation!r} failed inside pandapower: {exc}",
             phase="execute",
             allowed_recovery_actions=("inspect_network_diagnostics", "report_failure"),
             details={

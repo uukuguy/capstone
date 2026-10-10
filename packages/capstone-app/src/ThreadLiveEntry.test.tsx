@@ -72,7 +72,6 @@ describe('ThreadLiveEntry', () => {
       if (String(url).endsWith('/workbench-preparation')) return new Response('', { status: 404 })
       if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'operator' }))
       if (String(url).endsWith('/catalog')) return new Response(JSON.stringify(threadUiFixture('idle-ieee39').catalog))
-      if (String(url).endsWith('/models')) return new Response('', { status: 404 })
       const id = init?.method === 'POST' ? 'thr_second' : 'thr_demo_39'
       if (String(url).includes('/history?')) return new Response(JSON.stringify({ schema: 'capstone-thread-history/1',
         thread_id: String(url).includes('thr_second') ? 'thr_second' : 'thr_demo_39', before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }))
@@ -87,7 +86,6 @@ describe('ThreadLiveEntry', () => {
     render(<ThreadLiveEntry threadId="thr_demo_39" />)
     await screen.findByRole('region', { name: '电网模型区' })
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
-    await waitFor(() => expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }))
     fireEvent.click(screen.getByRole('button', { name: '保存工具选择' }))
     fireEvent.click(screen.getByRole('button', { name: '新建对话' }))
@@ -97,11 +95,6 @@ describe('ThreadLiveEntry', () => {
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(false)
     expect((screen.getByRole('checkbox', { name: 'pandapower 静态分析' }) as HTMLInputElement).checked).toBe(true)
-    window.history.pushState({}, '', '/?thread=thr_demo_39')
-    act(() => window.dispatchEvent(new PopStateEvent('popstate')))
-    await screen.findByRole('region', { name: '电网模型区' })
-    fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
-    expect((screen.getByRole('checkbox', { name: 'PyPSA 电网分析' }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('loads a real Thread workspace through HTTP snapshot, page, and SSE adapters', async () => {

@@ -8,7 +8,6 @@ from capstone_agent.harness import HarnessAttemptResult, HarnessAttemptRunner
 from capstone_agent.thread_service import InMemoryThreadService, ThreadModelDescriptor
 from capstone_agent.thread_protocol import ThreadSnapshot
 from capstone_agent.thread_worker import run_pending_attempt, serve_thread_attempts
-from capstone_agent.turn_router import DefaultTurnRouter, FakeDecisionRouter
 
 
 def _service() -> InMemoryThreadService:
@@ -76,28 +75,6 @@ def test_thread_worker_stops_when_requested() -> None:
 
     serve_thread_attempts(service, lambda _claim: _Runtime(), stop_event=stop)
     assert service.read_events("thr_worker", 0).events == ()
-
-
-@pytest.mark.parametrize("kind", ["send_professional", "send_auto"])
-def test_empty_selection_calculation_requires_capability_before_runtime_creation(kind):
-    service = _service()
-    service.submit_command({
-        "schema": "capstone-command/1", "command_id": "cmd_empty_calculation",
-        "idempotency_key": "idem_empty_calculation", "thread_id": "thr_worker",
-        "run_id": "run_worker", "kind": kind, "expected_event_seq": 0,
-        "payload": {"text": "计算当前模型的潮流"},
-    })
-    def factory(claim):
-        pytest.fail("A zero-tool calculation must not create a Provider runtime")
-    result = run_pending_attempt(service, factory, worker_id="thread-worker",
-        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("professional")))
-    assert result.error_code == "capability_required"
-    terminal = service.read_events("thr_worker", 0).events[-1]
-    assert terminal.event_type == "attempt_failed"
-    assert terminal.payload["error_code"] == "capability_required"
-    assert "请在设置中启用" in terminal.payload["message"]
-    assert "普通对话" in terminal.payload["message"]
-    assert not terminal.payload.get("result_refs") and not terminal.payload.get("evidence_refs")
 
 
 def test_idle_worker_avoids_ledger_queries_and_drains_work_after_wake(monkeypatch):

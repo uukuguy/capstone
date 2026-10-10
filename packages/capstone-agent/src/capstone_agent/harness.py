@@ -11,12 +11,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import json
-import re
 from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
-from .task_outcome import normalize_task_outcome, unavailable_outcome
-from .admitted_result_answer import finalize_admitted_answer
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
@@ -45,17 +42,8 @@ class AdmittedAttemptAnswer:
     evidence_refs: tuple[str, ...] = ()
     diagnostic_codes: tuple[str, ...] = ()
     result_projections: tuple[Mapping[str, object], ...] = ()
-    task_outcome: Mapping[str, object] | None = None
-    answer_source: str = 'model'
 
     def __post_init__(self) -> None:
-        if self.answer_source not in {'model', 'verified_results'}:
-            raise ValueError('admitted answer source is invalid')
-        if self.task_outcome is not None:
-            outcome = normalize_task_outcome(self.task_outcome)
-            for work in outcome['work']:
-                if not set(work['result_refs']).issubset(self.result_refs) or not set(work['evidence_refs']).issubset(self.evidence_refs):
-                    raise ValueError('task outcome references are not admitted')
         if not isinstance(self.answer, str) or not self.answer.strip() or len(self.answer) > 64_000:
             raise ValueError("admitted answer is invalid")
         if (self.mode, self.assurance) not in {
@@ -98,61 +86,12 @@ class AdmittedAttemptAnswer:
             raise ValueError("offline admission must not create run evidence")
 
 
-@dataclass(frozen=True, slots=True)
-class AdmittedPartialGoalAnswer(AdmittedAttemptAnswer):
-    """Trusted scheduler receipt: general work finished; business never started."""
-
-    completed_general_goal_ids: tuple[str, ...] = ()
-    unexecuted_business_goal_ids: tuple[str, ...] = ()
-
-    def __post_init__(self):
-        super(AdmittedPartialGoalAnswer, self).__post_init__()
-        if (self.mode != 'limited' or self.result_refs or self.evidence_refs
-            or not self.completed_general_goal_ids or not self.unexecuted_business_goal_ids
-            or any(not isinstance(identity, str) or not identity for identity in
-                   (*self.completed_general_goal_ids, *self.unexecuted_business_goal_ids))):
-            raise ValueError('partial goal admission is invalid')
-
-
 class HarnessRuntimeUnavailable(RuntimeError):
     """The requested replaceable runtime is not installed or enabled."""
 
 
 class HarnessRuntimeConfigurationError(RuntimeError):
     """Application runtime settings are invalid; prepared model resources remain valid."""
-
-
-class AttemptOutcomeUnavailable(ValueError):
-    """Trusted application diagnostic; no independently admitted work remains."""
-
-    def __init__(self, outcome: Mapping[str, object]) -> None:
-        super().__init__('task outcome unavailable')
-        self.outcome = normalize_task_outcome(outcome)
-
-
-def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None,
-                                   bounded_display: bool = False) -> dict[str, object]:
-    """One payload projection shared by answer rendering and Thread persistence."""
-    assurance: dict[str, object] = {'mode': admission.mode, 'assurance': admission.assurance}
-    if admission.diagnostic_codes:
-        assurance['diagnostic_codes'] = list(admission.diagnostic_codes)
-    payload: dict[str, object] = {'answer': admission.answer if answer is None else answer,
-        'result_refs': list(admission.result_refs), 'evidence_refs': list(admission.evidence_refs),
-        'admission': assurance}
-    if admission.result_projections:
-        payload['result_projections'] = [dict(item) for item in admission.result_projections]
-    if admission.task_outcome is not None:
-        payload['task_outcome'] = normalize_task_outcome(admission.task_outcome)
-    if bounded_display and admission.result_projections and len(json.dumps(
-        payload, ensure_ascii=False, allow_nan=False, sort_keys=True,
-    ).encode('utf-8')) > 64 * 1024:
-        # The ledger limit applies to the whole event, not just result cards.
-        # Preserve the required answer and evidence; omit optional display data.
-        del payload['result_projections']
-        assurance['diagnostic_codes'] = list(dict.fromkeys((
-            *admission.diagnostic_codes, 'result_display_unavailable',
-        )))
-    return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,15 +221,6 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     ok = event.get("ok", details.get("ok"))
     if isinstance(ok, bool):
         payload["ok"] = ok
-    error = event.get('error', details.get('error'))
-    if isinstance(error, Mapping):
-        code = error.get('code')
-        if isinstance(code, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,63}', code):
-            payload['error_code'] = code
-        else:
-            payload['error_code'] = 'tool_outcome_unknown'
-        if error.get('phase') in {'parse', 'validate', 'execute', 'admit', 'persist'}:
-            payload['error_stage'] = error['phase']
     for source, target in (
         ("capability", "capability"),
         ("projector_id", "projector_id"),
@@ -532,7 +462,6 @@ class HarnessAttemptRunner:
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
         self._tool_events: list[Mapping[str, object]] = []
-        self._pending_tools: dict[str, dict[str, object]] = {}
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
         if self._lease is not None:
@@ -545,7 +474,6 @@ class HarnessAttemptRunner:
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
-        self._pending_tools.clear()
         plan: TurnPlan | None = claim.turn_plan
 
         def persist(event: Mapping[str, object]) -> None:
@@ -578,7 +506,6 @@ class HarnessAttemptRunner:
             )
             if self._service.cancel_requested(claim):
                 raise _AttemptCancelled
-            self._close_pending_tools(claim)
             lease.check()
             if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
                 raise TypeError("runtime answer is invalid")
@@ -590,9 +517,6 @@ class HarnessAttemptRunner:
                         claim, answer, tuple(self._result_refs),
                         tuple(self._evidence_refs), tuple(self._tool_events),
                     )
-                except AttemptOutcomeUnavailable as error:
-                    self._finish_failed(claim, 'answer_admission_incomplete', outcome=error.outcome)
-                    return HarnessAttemptResult('failed', None, 'answer_admission_incomplete')
                 except Exception:
                     raise _AttemptAdmissionError("answer_admission_failed") from None
             if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
@@ -602,9 +526,6 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
-            if candidate is not None:
-                candidate = finalize_admitted_answer(candidate, expected_identity=(
-                    claim.thread_id, claim.run_id, claim.attempt.turn_id, claim.attempt.attempt_id))
             observation_admitted = candidate is not None and (
                 candidate.mode == "offline_information"
                 and candidate.assurance == "deterministic_information"
@@ -612,8 +533,7 @@ class HarnessAttemptRunner:
             )
             if plan is not None and plan.route == "professional" and (
                 candidate is None
-                or (candidate.mode != "authority_backed" and not observation_admitted
-                    and not isinstance(candidate, AdmittedPartialGoalAnswer))
+                or (candidate.mode != "authority_backed" and not observation_admitted)
                 or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
             ):
                 raise _AttemptAdmissionError("capability_required")
@@ -642,9 +562,6 @@ class HarnessAttemptRunner:
             }
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
-            if candidate is not None:
-                terminal_payload = terminal_payload_for_admission(candidate, bounded_display=True)
-                admission = cast(dict[str, object], terminal_payload['admission'])
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
@@ -704,9 +621,6 @@ class HarnessAttemptRunner:
         except _AttemptAdmissionError as error:
             self._finish_failed(claim, error.code)
             return HarnessAttemptResult("failed", None, error.code)
-        except HarnessRuntimeConfigurationError:
-            self._finish_failed(claim, 'runtime_configuration_invalid')
-            return HarnessAttemptResult('failed', None, 'runtime_configuration_invalid')
         except _AttemptCancelled:
             self._finish_cancelled(claim)
             return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
@@ -753,11 +667,6 @@ class HarnessAttemptRunner:
         _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
         if event_type == "tool_completed":
             self._tool_events.append(dict(payload))
-            self._pending_tools.pop(str(payload.get('tool_call_id', '')), None)
-        elif event_type == 'tool_started':
-            identity = payload.get('tool_call_id')
-            if isinstance(identity, str):
-                self._pending_tools[identity] = {'tool_call_id': identity, 'tool_name': payload.get('tool_name', 'unknown')}
         self._service.append_runtime_event(
             claim,
             event_type=event_type,
@@ -771,26 +680,18 @@ class HarnessAttemptRunner:
         if self._service.cancel_requested(claim):
             raise _AttemptCancelled
 
-    def _close_pending_tools(self, claim: AttemptClaim) -> None:
-        for payload in tuple(self._pending_tools.values()):
-            self._persist_event(claim, {'event_type': 'tool_completed', 'runtime_mode': claim.attempt.runtime_mode,
-                'visibility': 'public', 'payload': {**payload, 'ok': False, 'error_code': 'tool_outcome_unknown', 'error_stage': 'execute'}})
-
     def _finish_cancelled(self, claim: AttemptClaim) -> None:
         try:
-            self._close_pending_tools(claim)
             self._service.finish_attempt(
                 claim, phase="cancelled", payload={"error_code": "attempt_cancelled"},
             )
         except Exception as exc:
             raise RuntimeError("attempt terminal persistence failed") from exc
 
-    def _finish_failed(self, claim: AttemptClaim, error_code: str, *, outcome: Mapping[str, object] | None = None) -> None:
+    def _finish_failed(self, claim: AttemptClaim, error_code: str) -> None:
         try:
-            self._close_pending_tools(claim)
             self._service.finish_attempt(
-                claim, phase="failed", payload={"error_code": error_code,
-                    'task_outcome': unavailable_outcome(error_code, tuple(self._tool_events)) if outcome is None else normalize_task_outcome(outcome)},
+                claim, phase="failed", payload={"error_code": error_code},
             )
         except Exception as exc:
             # The durable service remains the source of truth. If its terminal

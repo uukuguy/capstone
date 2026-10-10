@@ -95,17 +95,6 @@ uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
 uv venv "$pypsa_venv_dir" >/dev/null
 uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
 "$venv_dir/bin/python" -c 'import capstone_agent.application, grid_agent.application.composition'
-"$venv_dir/bin/python" - <<'PY'
-from pathlib import Path
-from capstone_agent.pi_intent import default_config_root
-import capstone_agent
-
-root = default_config_root()
-assert root.is_relative_to(Path(capstone_agent.__file__).parent), root
-for name in ('SYSTEM.md', 'APPEND_SYSTEM.md', 'INTENT.md', 'settings.json'):
-    assert (root / name).read_text(encoding='utf-8').strip(), name
-print('installed-pi-configuration: ok')
-PY
 "$pypsa_venv_dir/bin/python" -c 'from pypsa_agent.registry import build_trusted_application_registry; assert build_trusted_application_registry().resolve("pypsa-business-cases")'
 
 smoke_file="$run_dir/installed_smoke.py"

@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Run the selected clean demo checkout with separate local data and ports.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_dir="${CAPSTONE_DEMO_SOURCE_DIR:-$repo_root/.worktrees/demo-n1-repair}"
+source_dir="${CAPSTONE_DEMO_SOURCE_DIR:-$repo_root/.worktrees/demo-baseline}"
 env_file="$repo_root/deploy/demo-local.env"
 [ -f "$source_dir/deploy/rebuild_local.sh" ] || { echo 'local demo: selected source is missing' >&2; exit 1; }
 source_revision="$(git -C "$source_dir" rev-parse HEAD)"

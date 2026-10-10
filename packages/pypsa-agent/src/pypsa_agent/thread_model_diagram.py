@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from capstone_agent.application import EmptyCredentialBroker
+from types import SimpleNamespace
 
 from capstone_agent.model_identity import validate_model_id
 from .profile import build_profile
@@ -14,12 +14,9 @@ def model_diagram(model_id: str, revision: str) -> dict[str, object]:
     if RegisteredPyPSAThreadCatalog().resolve(model_id).model_revision != revision:
         raise ValueError("exact registered model revision is unavailable")
     binding = next(binding for binding in build_profile().domains if binding.binding_id == "source")
-    provisioner = binding.profile.provisioner
-    if provisioner is None:
-        raise RuntimeError("model diagram provisioner is unavailable")
     with TemporaryDirectory(prefix="capstone-pypsa-view-") as directory:
-        endpoint = provisioner.prepare(binding=binding, workspace=Path(directory).resolve() / "model-view" / "domains" / "source",
-            credentials=EmptyCredentialBroker().issue(binding_id=binding.binding_id, scope=binding.credential_scope))
+        endpoint = binding.profile.provisioner.prepare(binding=binding, workspace=Path(directory).resolve() / "model-view" / "domains" / "source",
+            credentials=SimpleNamespace(scope_id=binding.credential_scope.scope_id, credentials={}))
         try:
             opened = endpoint.executor.invoke("model.open", {"catalog_id": model_id})
             model_ref = opened["model_ref"]

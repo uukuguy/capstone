@@ -83,10 +83,6 @@ class ThreadCommandFactory:
             "switch_model", {"model_id": validate_model_id(model_id)}, **kwargs,
         )
 
-    def switch_runtime(self, runtime_mode: str, **kwargs: Any) -> dict[str, Any]:
-        from .thread_protocol import runtime_mode as validate_runtime_mode
-        return self._command("switch_runtime", {"runtime_mode": validate_runtime_mode(runtime_mode)}, **kwargs)
-
     def reopen_model_context(
         self, model_id: str, *, reason: str = "user_requested_fresh_context", **kwargs: Any,
     ) -> dict[str, Any]:

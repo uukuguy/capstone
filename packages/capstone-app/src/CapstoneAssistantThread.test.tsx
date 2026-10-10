@@ -11,51 +11,6 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
-  it('leads with the admitted formal answer and groups repeated blocker text', () => {
-    const task_outcome = { schema: 'capstone-task-outcome/1', status: 'partial', work: [
-      { id: 'saved', status: 'confirmed', summary: '已保留结果。', result_refs: [], evidence_refs: [] },
-      ...[1, 2].map(id => ({ id: `blocked-${id}`, status: 'blocked', summary: '查询未完成。', result_refs: [], evidence_refs: [] })),
-    ], diagnostics: [1, 2].map(id => ({ code: 'result_field_unavailable', category: 'invocation', stage: 'validate', confirmation: 'confirmed', summary: '查询字段不存在。', work_id: `blocked-${id}`, recovery: 'report_issue' })) }
-    const messages = projectAssistantMessages([
-      event('attempt_completed', 1, { answer: 'line7 停运场景已计算。', task_outcome }, 'partial'),
-    ])
-    const text = JSON.stringify(messages[0].content)
-    expect(text.indexOf('line7 停运场景已计算。')).toBeLessThan(text.indexOf('部分完成'))
-    expect(text.match(/查询字段不存在。/g)).toHaveLength(1)
-    expect(text.match(/查询未完成。/g)).toHaveLength(1)
-  })
-  it('shows confirmed partial work and explicit unknown causes after restore', () => {
-    const task_outcome = { schema: 'capstone-task-outcome/1', status: 'partial', work: [
-      { id: 'saved', status: 'confirmed', summary: '已保留基准潮流。', result_refs: [], evidence_refs: [] },
-      { id: 'blocked', status: 'blocked', summary: '全量排序尚未完成。', result_refs: [], evidence_refs: [] },
-    ], diagnostics: [{ code: 'tool_outcome_unknown', category: 'unknown', stage: 'execute', confirmation: 'unknown', summary: '原因尚未确认。', work_id: 'blocked', recovery: 'report_issue' }] }
-    const messages = projectAssistantMessages([
-      event('assistant_text_delta', 1, { text: 'UNVERIFIED ranking' }, 'partial'),
-      event('attempt_completed', 2, { answer: '可接纳成果。', task_outcome }, 'partial'),
-    ])
-    expect(JSON.stringify(messages[0].content)).toContain('部分完成')
-    expect(JSON.stringify(messages[0].content)).toContain('原因尚未确认')
-    expect(JSON.stringify(messages[0].content)).not.toContain('UNVERIFIED')
-    expect(messages[0].metadata?.custom?.taskOutcomeStatus).toBe('partial')
-  })
-  it('uses accepted runtime authors for streaming and completed answers across mode switches', () => {
-    const events = [
-      event('command_accepted', 1, { kind: 'send_auto', text: '专业任务', runtime_mode: 'capstone' }, 'business'),
-      event('attempt_completed', 2, { answer: '专业结果' }, 'business'),
-      event('command_accepted', 3, { kind: 'send_auto', text: '日常任务', runtime_mode: 'pi_reference' }, 'general'),
-      event('assistant_text_delta', 4, { text: '通用结果' }, 'general'),
-    ]
-    const props = { events, disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
-    const view = render(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
-    const authors = () => screen.getAllByLabelText('智能体回答').map(node => node.querySelector('.capstone-chat-role')?.textContent)
-    expect(authors()).toEqual(['CAPSTONE', 'Pi'])
-    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi实时响应')
-    view.rerender(<CapstoneAssistantThread {...props} runtimeMode="capstone" isRunning={false}
-      events={[...events, event('attempt_completed', 5, { answer: '通用结果' }, 'general')]} />)
-    expect(authors()).toEqual(['CAPSTONE', 'Pi'])
-    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toContain('CAPSTONE')
-  })
-
   it('places offscreen instructions at the reading start and preserves visible instructions, draft and input focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '定位这条指令' }, 'first'), event('attempt_completed', 2, { answer: '回答。'.repeat(160) }, 'first')]
     const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }

@@ -8,7 +8,6 @@ from capstone_agent.turn_router import (
     DefaultTurnRouter,
     FakeDecisionRouter,
     JevDecisionRouter,
-    RouterConfig,
     routing_input_for_claim,
 )
 
@@ -71,13 +70,14 @@ def test_jev_is_disabled_by_default_and_enabled_classifier_is_input_bounded() ->
     del service
 
 
-def test_router_reports_invalid_decision_without_a_fallback() -> None:
+def test_router_falls_back_to_ordinary_when_decision_is_unavailable() -> None:
     service, claim = _claim()
-    router = DefaultTurnRouter(
+    plan = DefaultTurnRouter(
         decision_router=JevDecisionRouter(lambda _text: "unknown", enabled=True),
-    )
-    with pytest.raises(DecisionUnavailable, match="intent_recognition_failed"):
-        router.plan(claim)
+    ).plan(claim)
+    assert plan.route == "ordinary"
+    assert plan.fallback is True
+    assert plan.source == "decision_unavailable"
     del service
 
 
@@ -88,36 +88,51 @@ def test_disabled_ordinary_policy_fails_closed() -> None:
     del service
 
 
+def test_auto_without_external_classifier_uses_bounded_domain_hint() -> None:
+    service, claim = _claim(text="请检查 IEEE-39 线路越限")
+    assert DefaultTurnRouter().plan(claim).route == "professional"
+    del service
+
+
 @pytest.mark.parametrize("text", [
-    "hello", "明天北京天气", "把刚才的结论翻译成英文", "请检查 IEEE-39 线路越限",
-    "What is power flow?", "Which PyPSA models are available?",
-    "List pandapower networks and calculate voltages.",
+    "有哪些 PyPSA 的电网模型？",
+    "列出可用的 pandapower 模型",
+    "支持哪些电网模型？",
+    "Which PyPSA models are available?",
+    "List the registered pandapower networks.",
 ])
-def test_auto_without_recognizer_fails_for_every_request(text):
+@pytest.mark.parametrize("unavailable_classifier", [False, True])
+def test_model_catalog_query_does_not_require_a_calculation(
+    text: str, unavailable_classifier: bool,
+) -> None:
     service, claim = _claim(text=text)
-    with pytest.raises(DecisionUnavailable, match="intent_recognizer_unavailable"):
-        DefaultTurnRouter().plan(claim)
-    del service
-
-
-@pytest.mark.parametrize("kind,route", [("send_ordinary", "ordinary"), ("send_professional", "professional")])
-@pytest.mark.parametrize("text", ["Hello", "Which models are available?", "Calculate model voltages"])
-def test_explicit_compatibility_modes_keep_the_requested_route(kind, route, text):
-    service, claim = _claim(kind, text)
-    plan = DefaultTurnRouter().plan(claim)
-    assert plan.route == route and plan.source == "explicit" and plan.fallback is False
-    del service
-
-
-@pytest.mark.parametrize("mode", ["off", "heuristic", "jev_shadow"])
-def test_inactive_or_old_heuristic_modes_cannot_supply_an_auto_route(mode):
-    service, claim = _claim()
-    calls = []
     router = DefaultTurnRouter(
-        decision_router=FakeDecisionRouter(lambda text: calls.append(text) or "ordinary"),
-        config=RouterConfig(mode=mode),
+        decision_router=(
+            JevDecisionRouter(lambda _text: "invalid", enabled=True)
+            if unavailable_classifier else None
+        ),
     )
-    with pytest.raises(DecisionUnavailable, match="intent_recognizer_unavailable"):
-        router.plan(claim)
-    assert calls == []
+    plan = router.plan(claim)
+    assert plan.route == "ordinary"
+    assert plan.fallback is unavailable_classifier
+    del service
+
+
+@pytest.mark.parametrize("text", [
+    "列出 PyPSA 模型并运行潮流",
+    "有哪些 PyPSA 模型的损耗最低？",
+    "List pandapower networks and calculate voltages.",
+    "Which PyPSA models have overloaded lines?",
+    "支持哪些电网模型？请执行经济调度。",
+    "列出可用模型并计算最低电压。",
+])
+def test_catalog_wording_does_not_bypass_calculation_routing(text: str) -> None:
+    service, claim = _claim(text=text)
+    assert DefaultTurnRouter().plan(claim).route == "professional"
+    del service
+
+
+def test_explicit_professional_catalog_request_keeps_its_route() -> None:
+    service, claim = _claim("send_professional", "有哪些 PyPSA 的电网模型？")
+    assert DefaultTurnRouter().plan(claim).route == "professional"
     del service

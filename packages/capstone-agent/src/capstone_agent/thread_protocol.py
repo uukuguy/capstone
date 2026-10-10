@@ -47,12 +47,6 @@ class ThreadProtocolError(ValueError):
     """A public Thread document is malformed or cannot be safely applied."""
 
 
-def runtime_mode(value: Any) -> str:
-    if not isinstance(value, str) or value not in {"capstone", "pi_reference"}:
-        raise ThreadProtocolError("runtime_mode is invalid")
-    return value
-
-
 @dataclass(frozen=True, slots=True)
 class CaseStepSnapshot:
     """Bounded user-facing Case step with identities available only in details."""
@@ -472,17 +466,13 @@ class AttemptSnapshot:
     attempt_id: str
     phase: str
     target_model_context_id: str
-    runtime_mode: str = "capstone"
-
-    def __post_init__(self) -> None:
-        runtime_mode(self.runtime_mode)
 
     @classmethod
     def from_document(cls, value: Any) -> AttemptSnapshot:
         document = _document(value, name="current_attempt")
-        allowed = frozenset({"turn_id", "attempt_id", "phase", "target_model_context_id", "runtime_mode"})
+        allowed = frozenset({"turn_id", "attempt_id", "phase", "target_model_context_id"})
         _fields(document, allowed, name="current_attempt")
-        _required(document, allowed - {"runtime_mode"}, name="current_attempt")
+        _required(document, allowed, name="current_attempt")
         phase = _text(document["phase"], name="current_attempt.phase")
         if phase not in {"created", "accepted", "running", "waiting", "committing", "cancelled", "interrupted", "completed", "failed"}:
             raise ThreadProtocolError("current_attempt.phase is invalid")
@@ -490,7 +480,6 @@ class AttemptSnapshot:
             turn_id=_identifier(document["turn_id"], name="current_attempt.turn_id"),
             attempt_id=_identifier(document["attempt_id"], name="current_attempt.attempt_id"),
             phase=phase,
-            runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
             target_model_context_id=_identifier(
                 document["target_model_context_id"], name="current_attempt.target_model_context_id"
             ),
@@ -502,7 +491,6 @@ class AttemptSnapshot:
             "attempt_id": self.attempt_id,
             "phase": self.phase,
             "target_model_context_id": self.target_model_context_id,
-            "runtime_mode": self.runtime_mode,
         }
 
 
@@ -519,10 +507,8 @@ class ThreadSnapshot:
     pending_model_switch: PendingModelSwitchSnapshot | None = None
     result_projections: tuple[ResultProjection, ...] = ()
     application_state: Mapping[str, Any] | None = None
-    runtime_mode: str = "capstone"
 
     def __post_init__(self) -> None:
-        runtime_mode(self.runtime_mode)
         if self.application_state is None:
             return
         if not isinstance(self.application_state, Mapping):
@@ -543,12 +529,12 @@ class ThreadSnapshot:
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
-            "pending_model_switch", "result_projections", "application_state", "runtime_mode",
+            "pending_model_switch", "result_projections", "application_state",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -613,13 +599,11 @@ class ThreadSnapshot:
             pending_model_switch=pending_model_switch,
             result_projections=result_projections,
             application_state=application_state,
-            runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
         )
 
     def to_document(self) -> dict[str, Any]:
         document: dict[str, Any] = {
             "schema": _SNAPSHOT_SCHEMA,
-            "runtime_mode": self.runtime_mode,
             "thread_id": self.thread_id,
             "run": self.run.to_document(),
             "active_model_context": self.active_model_context.to_document(),

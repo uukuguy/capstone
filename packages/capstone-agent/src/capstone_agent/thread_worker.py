@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -17,8 +16,7 @@ from typing import TYPE_CHECKING
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
-from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
-from .request_intent import NodeControl
+from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
 
 if TYPE_CHECKING:
     from .case_service import CaseExecutionService
@@ -57,40 +55,11 @@ def _run_claimed_attempt(
 ) -> HarnessAttemptResult:
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
-        def check_intent() -> None:
-            lease.check()
-            if service.cancel_requested(claim):
-                raise InterruptedError('intent cancelled')
         try:
-            semantic = getattr(runtime_factory, 'plan_intent', None)
-            if callable(semantic):
-                if not router.ordinary_conversation_enabled:
-                    raise DecisionUnavailable('ordinary_conversation_disabled')
-                service.append_runtime_event(claim, event_type='intent_started',
-                                             payload={'stage': 'understanding'})
-                control = NodeControl(check_intent, time.monotonic() + 120)
-                if getattr(runtime_factory, 'supports_frozen_intent_decision', False):
-                    plan = semantic(claim, control, service.freeze_attempt_input,
-                                    freeze_decision=service.freeze_attempt_decision)
-                else:
-                    # Existing custom planners retain their three-argument seam.
-                    plan = semantic(claim, control, service.freeze_attempt_input)
-            else:
-                plan = router.plan(routing_input_for_claim(claim))
-            if not isinstance(plan, TurnPlan):
-                raise ValueError('intent node returned an invalid plan')
-        except InterruptedError:
-            service.finish_attempt(claim, phase='cancelled', payload={})
-            return HarnessAttemptResult('cancelled', None, None)
-        except Exception as error:
-            error_code = ('runtime_configuration_invalid' if isinstance(error, HarnessRuntimeConfigurationError)
-                          else 'ordinary_conversation_disabled'
-                          if isinstance(error, DecisionUnavailable) and str(error) == 'ordinary_conversation_disabled'
-                          else 'intent_recognition_failed')
-            payload = {'error_code': error_code}
-            if error_code == 'intent_recognition_failed':
-                payload['message'] = '本次请求暂时未能处理，请重试。会话和模型选择已保留。'
-            service.finish_attempt(claim, phase="failed", payload=payload)
+            plan = router.plan(routing_input_for_claim(claim))
+        except DecisionUnavailable:
+            error_code = "ordinary_conversation_disabled"
+            service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
             return HarnessAttemptResult("failed", None, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
         service.append_runtime_event(
@@ -99,13 +68,6 @@ def _run_claimed_attempt(
                      "fallback": plan.fallback},
         )
         claim = replace(claim, turn_plan=plan)
-        if plan.route == "professional" and not claim.model_context.enabled_profiles:
-            error_code = "capability_required"
-            service.finish_attempt(claim, phase="failed", payload={
-                "error_code": error_code,
-                "message": "未启用适用于当前模型的计算分析工具。请在设置中启用后重新发送计算指令；仍可继续普通对话。",
-            })
-            return HarnessAttemptResult("failed", None, error_code)
     try:
         lease.check()
         runtime = runtime_factory(claim)

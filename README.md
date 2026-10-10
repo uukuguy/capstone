@@ -1,5 +1,15 @@
 # Capstone Agent Framework
 
+Development and release versions follow the fixed [version-control register](docs/status/VERSION-CONTROL.md).
+The initial common runtime baseline follows the current verified demo. Native Pi,
+skills and resource extensions remain on `feat/pi-skills-integration` during development.
+Main may later include isolated experimental features after integration checks;
+demo receives only its verified release scope.
+
+For separate local demo data, run
+`CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
+The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.
+
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
@@ -76,26 +86,7 @@ Show their endpoint buses and the results and evidence supporting the answer.
 
 Continue in the same conversation to inspect results or refine the analysis. Each instruction is bound to a model context and run. The **New conversation** action creates a separate Thread; its URL lets you return to it after a page refresh.
 
-In **Capstone** mode, model-based intent recognition separates professional and
-general goals. Professional goals use enabled Domain Packs; general goals delegate
-to an isolated native Pi agent. **Pi** (direct Pi) mode selects relevant public
-business context, then sends the task to that same executor. Switch modes while
-the Thread is idle; history, draft and model
-selection remain available. General outputs create no Authority results or evidence.
-Live news or weather still needs an accessible source. See the
-[shared executor design](docs/superpowers/specs/2026-10-09-capstone-pi-delegation-design.md).
-Actual model response quality requires separate acceptance; offline checks alone do
-not establish it.
-
-Use `/skills` to inspect available skills and their execution role,
-`/skill:<name> <task>` to select one, and `/context` to include or exclude public background.
-The current model background includes identity, version and history; it does not
-include full model tables. Managed PowerSkills/PowerMCP resources have separate
-native Pi and professional adapters. See the [resource setup instructions](docs/RUNBOOK.md#共享背景与角色资源).
-
-The conversation is the primary interface. Cases are an independent module; the
-default federated conversation does not yet assemble Case execution. Registered
-guided workflows and validation fixtures remain at the earlier `/old` entry.
+The conversation is the primary interface. Registered cases remain available as guided workflows and validation fixtures; the earlier case-library page is at `/old`.
 
 ## What you can analyze
 
@@ -149,8 +140,6 @@ make capstone-local-rebuild
 Open `http://127.0.0.1:5173/`. Local Compose enables direct conversation access without a browser token. The rebuild checks dependencies and readiness, verifies that API and both workers use the same image, and starts the Vite App when needed. It reuses verified local PyPSA model assets. Run it again after API, worker, or App source changes.
 
 The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
-
-To test a clean demo checkout with separate data, use `CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild`. Its App uses port 15173 and API uses port 18767. Configure its separate protected `deploy/demo-local.env` for Provider access. See the [runbook](docs/RUNBOOK.md#isolated-local-demo).
 
 ## CLI and compatibility entry points
 

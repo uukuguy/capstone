@@ -110,23 +110,6 @@ def _auth() -> dict[str, str]:
     return {"Authorization": "Bearer hosted-secret", "Origin": "http://localhost:5173"}
 
 
-def test_http_runtime_switch_replay_and_active_work_conflict():
-    service = _service()
-    factory = ThreadCommandFactory("thr_demo_39")
-    switch = factory.switch_runtime("pi_reference", expected_event_seq=0, command_id="cmd_mode", idempotency_key="idem_mode")
-    with TestClient(_app(service), base_url="http://localhost") as client:
-        path = "/api/v1/threads/thr_demo_39/commands"
-        accepted = client.post(path, headers=_auth(), json=switch)
-        assert accepted.status_code == 202
-        assert accepted.json()["status"] == "accepted"
-        assert client.post(path, headers=_auth(), json=switch).json() == accepted.json()
-        snapshot = service.snapshot("thr_demo_39").to_document()
-        assert snapshot["runtime_mode"] == "pi_reference"
-        service.submit_command(factory.send_auto("hello", expected_event_seq=snapshot["last_event_seq"], command_id="cmd_send", idempotency_key="idem_send"))
-        blocked = factory.switch_runtime("capstone", expected_event_seq=service.snapshot("thr_demo_39").last_event_seq, command_id="cmd_blocked", idempotency_key="idem_blocked")
-        assert client.post(path, headers=_auth(), json=blocked).json()["rejection"] == "attempt_in_progress"
-
-
 def test_opened_model_projection_uses_the_private_thread_boundary():
     service = _service()
     with TestClient(_app(service), base_url="http://localhost") as client:

@@ -39,7 +39,7 @@ def _dataset_names(grid, result_ref: str) -> set[str]:
 
 def test_registry_publishes_every_native_static_analysis_with_closed_options(grid) -> None:
     listed = grid.call("analysis.operation.list", {})
-    assert {item["id"] for item in listed["operations"]} == EXPECTED_OPERATIONS | {"diagnostic.structural"}
+    assert {item["id"] for item in listed["operations"]} == EXPECTED_OPERATIONS
 
     expected_options = {
         "powerflow.ac": {"algorithm", "max_iteration", "distributed_slack", "tdpf"},

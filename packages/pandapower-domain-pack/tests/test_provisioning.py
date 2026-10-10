@@ -96,23 +96,6 @@ def test_provisioner_resolves_gridctl_with_fixed_arguments_and_sanitized_environ
     assert executor.executable.is_file()
 
 
-def test_prepared_metadata_freezes_the_same_mcp_identity_as_executor(tmp_path):
-    managed = tmp_path / "managed"
-    managed.mkdir()
-    expected = {"install_id": "installs/" + "a" * 32, "descriptor_sha256": "b" * 64}
-    (managed / "current.json").write_text(json.dumps(expected))
-    executable = tmp_path / "source-gridctl"
-    executable.write_text("#!/bin/sh\nexit 0\n")
-    executable.chmod(0o755)
-    endpoint = PandapowerRuntimeProvisioner(executable=executable,
-        environ={"CAPSTONE_POWERMCP_MANAGED_ROOT": str(managed)}).prepare(
-            binding=_binding(), workspace=tmp_path / "run", credentials=_Lease())
-    (managed / "current.json").write_text(json.dumps({"install_id": "installs/" + "c" * 32, "descriptor_sha256": "d" * 64}))
-    environment = endpoint.metadata["environment"]
-    assert environment["CAPSTONE_POWERMCP_INSTALL_ID"] == expected["install_id"]
-    assert environment["CAPSTONE_POWERMCP_DESCRIPTOR_SHA256"] == expected["descriptor_sha256"]
-
-
 def test_provisioner_hides_credential_shaped_environment_from_metadata_and_child(
     tmp_path: Path,
 ) -> None:
