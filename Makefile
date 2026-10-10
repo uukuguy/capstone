@@ -302,7 +302,7 @@ check-integration: test-pi-capture-runtime test-e2e validate validate-applicatio
 check-release: check-fast check-integration test-packages test-source-setup
 
 # Manual Issue work. These commands never start a timer or unattended worker.
-.PHONY: issues-doctor issues-scan issues-show issues-context issues-create issues-triage issues-begin issues-record-verification issues-complete issues-fix issues-retry issues-pause issues-status issues-release-status test-issue-automation
+.PHONY: issues-doctor issues-scan issues-show issues-context issues-create issues-prepare-image issues-triage issues-begin issues-record-verification issues-complete issues-fix issues-retry issues-pause issues-status issues-release-status test-issue-automation
 export ISSUE TASK_ID JUDGMENT PATHS_FILE RESULT_FILE ISSUE_TITLE BODY_FILE
 
 issues-doctor:
@@ -319,6 +319,9 @@ issues-context:
 
 issues-create:
 	@python3 -m tools.issue_automation.cli create
+
+issues-prepare-image:
+	@python3 -m tools.issue_automation.cli prepare-image
 
 issues-triage:
 	@python3 -m tools.issue_automation.cli triage

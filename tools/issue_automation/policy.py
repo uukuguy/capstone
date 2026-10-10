@@ -6,6 +6,12 @@ from pathlib import PurePosixPath
 import re
 from urllib.parse import urlsplit
 
+CHECK_PROFILES = {
+    "app": (("/usr/local/bin/python", "/opt/capstone-check.py", "app"),),
+    "backend": (("/usr/local/bin/python", "/opt/capstone-check.py", "backend"),),
+    "app-and-backend": (("/usr/local/bin/python", "/opt/capstone-check.py", "app"), ("/usr/local/bin/python", "/opt/capstone-check.py", "backend")),
+}
+
 
 @dataclass(frozen=True)
 class Policy:
@@ -38,7 +44,9 @@ class Policy:
     max_file_bytes: int = 100000
     max_context_bytes: int = 240000
     attachment_hosts: tuple = ("github.com", "user-images.githubusercontent.com")
-    required_ci: tuple = ("verify",)
+    attachment_urls: tuple = ()
+    required_ci: tuple = ("verify (ubuntu-latest, 3.12)", "verify (ubuntu-latest, 3.14)", "verify (macos-latest, 3.12)", "verify (macos-latest, 3.14)")
+    check_profile: str = "app-and-backend"
     publisher_login: str = "capstone-xiaoshi[bot]"
     publisher_app_id: int = 0
     publisher_installation_id: int = 0
@@ -64,6 +72,8 @@ class Policy:
             raise ValueError("Invalid content limits")
         if any(not isinstance(x, (list, tuple)) or not x or any(not isinstance(a, str) or not a for a in x) for x in self.checks):
             raise ValueError("Checks must be trusted argument arrays")
+        if self.check_profile not in {"app", "backend", "app-and-backend"}:
+            raise ValueError("Invalid trusted check profile")
         if self.model_enabled and (not self.model or not 0 < self.request_reserve_usd <= self.task_budget_usd <= self.daily_budget_usd):
             raise ValueError("Explicit model and cost limits are required")
         if self.model_enabled and (not 0 < self.task_token_budget <= self.daily_token_budget or self.input_usd_per_million_tokens <= 0 or self.output_usd_per_million_tokens <= 0):
@@ -85,7 +95,7 @@ class Policy:
         values = json.loads(data)
         if not isinstance(values, dict) or set(values) - {f.name for f in fields(cls)}:
             raise ValueError("Unknown policy fields")
-        for name in ("checks", "source_prefixes", "edit_prefixes", "attachment_hosts", "required_ci"):
+        for name in ("checks", "source_prefixes", "edit_prefixes", "attachment_hosts", "attachment_urls", "required_ci"):
             if name in values:
                 values[name] = tuple(values[name])
         return cls(**values).validate()
@@ -106,10 +116,11 @@ def feedback(issue, publisher_login=""):
     data = {"title": issue.get("title", ""), "body": issue.get("body") or "", "comments": comments}
     text = "\n".join([data["title"], data["body"], *(c["body"] for c in comments)])
     environments = re.findall(r"(?<![\w-])(local-demo|local-dev|cloud-demo|cloud-dev)(?![\w-])", text)
-    explicit = re.findall(r"(?:环境\s*[:：]|发生在|这是)\s*(local-demo|local-dev|cloud-demo|cloud-dev)", text)
+    explicit = re.findall(r"(?:(?:目标)?环境\s*[:：]|发生在|用户在|反馈明确指|明确指|这是)\s*(local-demo|local-dev|cloud-demo|cloud-dev)", text)
     unique = set(environments)
-    environment = explicit[-1] if explicit else next(iter(unique)) if len(unique) == 1 else "cloud-demo"
-    data.update(environment=environment, environment_source="user" if explicit or len(unique) == 1 else "ambiguous" if unique else "default-rule", version=None, images=re.findall(r"!\[[^\]]*\]\((https://[^\s)]+)\)|<img[^>]+src=[\"'](https://[^\"']+)", text))
+    explicit_unique = set(explicit)
+    environment = next(iter(explicit_unique)) if len(explicit_unique) == 1 else None if explicit_unique else next(iter(unique)) if len(unique) == 1 else None if unique else "cloud-demo"
+    data.update(environment=environment, environment_source="ambiguous" if environment is None else "user" if explicit or len(unique) == 1 else "default-rule", environment_candidates=sorted(unique), version=None, images=re.findall(r"!\[[^\]]*\]\((https://[^\s)]+)\)|<img[^>]+src=[\"'](https://[^\"']+)", text))
     data["images"] = [a or b for a, b in data["images"]][:4]
     data["input_hash"] = hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     return data
@@ -124,7 +135,7 @@ def safe_path(path, prefixes):
     return path
 
 
-def public_text(text):
-    if not isinstance(text, str) or len(text) > 24000 or re.search(r"sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]+|(?:API_KEY|TOKEN|PASSWORD|SECRET)\s*[:=]\s*\S+|postgres(?:ql)?://|AKIA[A-Z0-9]{16}", text, re.I):
+def public_text(text, max_chars=24000):
+    if not isinstance(text, str) or len(text) > max_chars or re.search(r"sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]+|(?:API_KEY|TOKEN|PASSWORD|SECRET)\s*[:=]\s*\S+|postgres(?:ql)?://|AKIA[A-Z0-9]{16}", text, re.I):
         raise ValueError("Public output contains sensitive or excessive content")
     return text

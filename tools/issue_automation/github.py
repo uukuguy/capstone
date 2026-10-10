@@ -189,16 +189,25 @@ class GitHub:
     def publish_candidate(self, store, task, branch, source_sha, files, title, body):
         self.require_write()
         key = task + ":pr"
-        existing = self.find_pr(branch)
-        if existing:
-            store.record_action(key, task, "done", existing)
-            return existing
         tree_entries = []
         for path, content in sorted(files.items()):
             blob = self.publisher_api("POST", self.base + "/git/blobs", {"content": content, "encoding": "utf-8"})
             tree_entries.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
         base = self.api("GET", self.base + "/git/commits/" + source_sha)
         tree = self.publisher_api("POST", self.base + "/git/trees", {"base_tree": base["tree"]["sha"], "tree": tree_entries})
+        existing = self.find_pr(branch)
+        if existing:
+            valid = (existing.get("state") == "open" and not existing.get("merged_at") and existing.get("user", {}).get("login") == self.actor and existing.get("base", {}).get("ref") == "main" and existing.get("base", {}).get("repo", {}).get("full_name") == self.policy.repository and existing.get("head", {}).get("ref") == branch and existing.get("head", {}).get("repo", {}).get("full_name") == self.policy.repository)
+            if not valid:
+                raise ValueError("Existing pull request does not identify an open bot candidate")
+            head = existing["head"]["sha"]
+            candidate_commit = self.api("GET", self.base + "/git/commits/" + head)
+            refs = self.api("GET", self.base + "/git/matching-refs/heads/" + branch)
+            exact = next((r for r in refs if r["ref"] == "refs/heads/" + branch), None)
+            if candidate_commit["tree"]["sha"] != tree["sha"] or [p["sha"] for p in candidate_commit["parents"]] != [source_sha] or not exact or exact["object"]["sha"] != head:
+                raise ValueError("Existing pull request head does not match the verified candidate")
+            store.record_action(key, task, "done", {**existing, "candidate_tree": tree["sha"], "source_sha": source_sha})
+            return existing
         commit = self.publisher_api("POST", self.base + "/git/commits", {"message": public_text(title), "tree": tree["sha"], "parents": [source_sha]})
         from urllib.parse import quote
         ref_path = self.base + "/git/matching-refs/heads/" + quote(branch, safe="/")
@@ -213,7 +222,7 @@ class GitHub:
             self.publisher_api("POST", self.base + "/git/refs", {"ref": "refs/heads/" + branch, "sha": commit["sha"]})
         store.record_action(key, task, "uncertain", {"branch": branch})
         result = self.publisher_api("POST", self.base + "/pulls", {"title": public_text(title), "body": public_text(body), "head": branch, "base": "main", "draft": True})
-        store.record_action(key, task, "done", result)
+        store.record_action(key, task, "done", {**result, "candidate_tree": tree["sha"], "source_sha": source_sha})
         return result
 
     def acceptance_tag(self, name):
@@ -230,7 +239,8 @@ class GitHub:
             annotation = json.loads(tag["message"])
         except json.JSONDecodeError:
             annotation = None
-        return {"name": name, "type": "tag", "tag_sha": ref["object"]["sha"], "source_sha": tag["object"]["sha"], "annotation": annotation, "message": tag["message"]}
+        format_name = "receipt-json" if isinstance(annotation, dict) and "source_sha" in annotation else "legacy-json" if isinstance(annotation, dict) and "source_commit" in annotation else "legacy-text" if annotation is None else "unknown-json"
+        return {"name": name, "type": "tag", "tag_sha": ref["object"]["sha"], "source_sha": tag["object"]["sha"], "annotation": annotation, "message": tag["message"], "format": format_name, "verification_report": annotation.get("verification_report") if isinstance(annotation, dict) else None}
 
     def contains_commit(self, release_sha, merge_sha):
         if release_sha == merge_sha:
@@ -251,7 +261,9 @@ class GitHub:
         else:
             raise ValueError("CI check collection exceeds limit")
         output = {}
+        trusted = [r for r in rows if r.get("head_sha") == sha and r.get("app", {}).get("slug") == "github-actions" and r.get("app", {}).get("owner", {}).get("login") == "github"]
+        latest_suite = max((r.get("check_suite", {}).get("id", -1) for r in trusted), default=-1)
         for name in self.policy.required_ci:
-            matching = [r for r in rows if r["name"] == name or r["name"].startswith(name + " (")]
+            matching = [r for r in trusted if r["name"] == name and r.get("check_suite", {}).get("id") == latest_suite]
             output[name] = bool(matching) and all(r.get("head_sha") == sha and r["status"] == "completed" and r["conclusion"] == "success" for r in matching)
         return output

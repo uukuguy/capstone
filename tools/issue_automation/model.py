@@ -17,7 +17,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def attachment_url(url, policy):
     parsed = urlsplit(url)
-    if parsed.scheme != "https" or parsed.hostname not in policy.attachment_hosts or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
+    if parsed.scheme != "https" or (parsed.hostname not in policy.attachment_hosts and url not in policy.attachment_urls) or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.query or parsed.fragment:
         raise ValueError("Attachment URL is outside the public image allowlist")
     if parsed.hostname == "github.com" and not parsed.path.startswith("/user-attachments/assets/"):
         raise ValueError("Only public GitHub attachment paths are allowed")

@@ -46,3 +46,20 @@ def test_real_docker_candidate_is_secret_free_and_offline(tmp_path, monkeypatch)
     policy = dataclasses.replace(Policy(), sandbox_image=os.environ["ISSUE_AUTOMATION_TEST_IMAGE"])
     result = DockerSandbox(policy).run(tmp_path, (("/usr/local/bin/python", "check.py"),), 30)
     assert result["passed"] is True
+
+
+@pytest.mark.skipif(not os.environ.get("ISSUE_AUTOMATION_TEST_IMAGE"), reason="Prepared Docker image not selected")
+def test_real_docker_baseline_regression_and_repair_receipt(tmp_path):
+    from tools.issue_automation.repair import Source, Repair
+    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+    file = tmp_path / "packages/capstone-app/app.py"
+    file.parent.mkdir(parents=True)
+    file.write_text("value = 'broken'\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base"], check=True, capture_output=True)
+    policy = dataclasses.replace(Policy(), sandbox_image=os.environ["ISSUE_AUTOMATION_TEST_IMAGE"], checks=(("/usr/local/bin/python", "packages/capstone-app/tests/test_value.py"),))
+    repair = Repair(policy, Source(tmp_path), None, DockerSandbox(policy), tmp_path / "state")
+    repair.prepare("task", ["packages/capstone-app/app.py", "packages/capstone-app/tests/test_value.py"])
+    result = repair.validate_manual("task", {"summary": "修复基础行为并添加回归检查", "reproduction_check": 0, "files": [{"path": "packages/capstone-app/app.py", "content": "value = 'fixed'\n"}, {"path": "packages/capstone-app/tests/test_value.py", "content": "from pathlib import Path\nnamespace = {}\nexec(Path('packages/capstone-app/app.py').read_text(), namespace)\nassert namespace['value'] == 'fixed'\n"}]})
+    assert result["baseline"]["passed"] is False
+    assert result["validation"]["passed"] is True

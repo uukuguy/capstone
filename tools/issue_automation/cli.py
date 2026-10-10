@@ -10,8 +10,8 @@ import subprocess
 import sys
 
 from .github import GitHub
-from .model import Model
-from .policy import Policy, feedback
+from .model import Model, load_image
+from .policy import Policy, feedback, CHECK_PROFILES
 from .repair import DockerSandbox, Repair, Source
 from .service import Service, release_status
 from .store import Store
@@ -28,9 +28,13 @@ def operator_override(root, policy):
     if result.returncode:
         raise ValueError("Operator settings must be ignored")
     values = json.loads(path.read_text())
-    allowed = {"write_enabled", "publisher_login", "publisher_app_id", "publisher_installation_id", "publisher_private_key_path", "display_name", "model_enabled", "endpoint", "model", "api_key_env", "task_budget_usd", "daily_budget_usd", "request_reserve_usd", "task_token_budget", "daily_token_budget", "max_request_input_tokens", "input_usd_per_million_tokens", "output_usd_per_million_tokens", "max_output_tokens", "sandbox_image"}
+    allowed = {"write_enabled", "publisher_login", "publisher_app_id", "publisher_installation_id", "publisher_private_key_path", "display_name", "model_enabled", "endpoint", "model", "api_key_env", "task_budget_usd", "daily_budget_usd", "request_reserve_usd", "task_token_budget", "daily_token_budget", "max_request_input_tokens", "input_usd_per_million_tokens", "output_usd_per_million_tokens", "max_output_tokens", "sandbox_image", "check_profile"}
     if not isinstance(values, dict) or set(values) - allowed:
         raise ValueError("Operator settings cannot change source scope or checks")
+    if "check_profile" in values:
+        if values["check_profile"] not in CHECK_PROFILES:
+            raise ValueError("Only registered trusted check profiles can be selected")
+        values["checks"] = CHECK_PROFILES[values["check_profile"]]
     return replace(policy, **values).validate()
 
 
@@ -71,7 +75,7 @@ def doctor(policy, source):
 def parser():
     result = argparse.ArgumentParser(description="Manual GitHub feedback and isolated repair")
     subcommands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "scan", "show", "context", "create", "triage", "begin", "record-verification", "complete", "fix", "retry", "pause", "status", "release-status", "daemon", "start", "stop"):
+    for name in ("doctor", "scan", "show", "context", "create", "prepare-image", "triage", "begin", "record-verification", "complete", "fix", "retry", "pause", "status", "release-status", "daemon", "start", "stop"):
         command_parser = subcommands.add_parser(name)
         command_parser.add_argument("--root", type=Path, default=Path.cwd())
         command_parser.add_argument("--policy-ref", default="main")
@@ -88,6 +92,7 @@ def parser():
         command_parser.add_argument("--title", default=os.environ.get("ISSUE_TITLE"))
         command_parser.add_argument("--body-file", default=os.environ.get("BODY_FILE"))
         command_parser.add_argument("--provenance")
+        command_parser.add_argument("--download-images", action="store_true")
         command_parser.add_argument("--environment", choices=("local-dev", "local-demo", "cloud-dev", "cloud-demo"), default="cloud-demo")
     return result
 
@@ -101,6 +106,8 @@ def execute(args):
         policy = replace(policy, model_enabled=False, write_enabled=False)
     if args.command == "doctor":
         return doctor(policy, source)
+    if args.command not in {"scan", "status", "show", "context", "release-status"} and args.policy_ref != "main":
+        raise ValueError("Development actions must use the trusted current main policy")
     if os.environ.get("GITHUB_ACTIONS") == "true" and (not args.read_only or args.command not in {"doctor", "scan", "status", "show", "context"}):
         raise ValueError("GitHub Actions is a read-only intake lane")
     if args.command in {"triage", "begin", "fix", "retry", "pause", "show", "context"} and not args.issue:
@@ -116,6 +123,20 @@ def execute(args):
     state = root / ".capstone-agent/issue-automation"
     store = Store(state / "queue.sqlite")
     try:
+        if args.command == "prepare-image":
+            import tempfile
+            with tempfile.TemporaryDirectory(prefix="trusted-build-", dir=state) as directory:
+                context = source.export(directory)
+                dockerfile = context / "tools/issue_automation/sandbox.Dockerfile"
+                if not dockerfile.is_file():
+                    raise ValueError("The trusted main sandbox recipe is not available")
+                image_id = state / "prepared-image.id"
+                environment = {name: os.environ[name] for name in ("PATH", "HOME", "DOCKER_HOST", "LANG") if name in os.environ}
+                with open(os.devnull, "wb") as sink:
+                    result = subprocess.run(["docker", "build", "--file", str(dockerfile), "--iidfile", str(image_id), str(context)], stdout=sink, stderr=sink, env=environment, timeout=3600)
+                if result.returncode:
+                    raise ValueError("Trusted sandbox dependency preparation failed")
+                return {"source_sha": source.sha, "image_id": image_id.read_text().strip(), "mode": "trusted-dependency-preparation", "candidate_executed": False}
         github = GitHub(policy, root=root)
         if args.command == "create":
             if not args.title or not args.body_file:
@@ -131,7 +152,21 @@ def execute(args):
             return {"mode": "manual", "automatic_tasks": False, "issues": service.scan()}
         if args.command in {"show", "context"}:
             task, issue, data = service.intake(args.issue)
-            return {"task_id": task, "issue": args.issue, "feedback": data, "policy_sha": source.sha, "source_sha": source.sha, "source_index": source.index(policy), "edit_prefixes": policy.edit_prefixes, "checks": policy.checks}
+            images = []
+            if args.download_images:
+                import base64
+                import hashlib
+                directory = state / "images"
+                directory.mkdir(mode=0o700, exist_ok=True)
+                for url in data["images"]:
+                    image = load_image(url, policy)
+                    mime, content = image.split(";base64,", 1)
+                    suffix = {"data:image/png": ".png", "data:image/jpeg": ".jpg", "data:image/webp": ".webp"}[mime]
+                    path = directory / (hashlib.sha256(url.encode()).hexdigest() + suffix)
+                    path.write_bytes(base64.b64decode(content))
+                    path.chmod(0o600)
+                    images.append(str(path))
+            return {"task_id": task, "issue": args.issue, "feedback": data, "image_files": images, "policy_sha": source.sha, "source_sha": source.sha, "source_index": source.index(policy), "edit_prefixes": policy.edit_prefixes, "checks": policy.checks}
         if args.command == "triage":
             return {"task_id": service.triage(args.issue, read_json(args.judgment) if args.judgment else None)}
         if args.command == "begin":

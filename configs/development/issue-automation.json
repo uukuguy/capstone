@@ -27,12 +27,19 @@
   "poll_seconds": 120,
   "lease_seconds": 3900,
   "sandbox_image": "",
-  "checks": [],
+  "check_profile": "app-and-backend",
+  "checks": [["/usr/local/bin/python", "/opt/capstone-check.py", "app"], ["/usr/local/bin/python", "/opt/capstone-check.py", "backend"]],
   "source_prefixes": ["packages/", "tools/", "validation/", "tests/", "docs/"],
   "edit_prefixes": ["packages/capstone-app/", "packages/capstone-agent/src/", "packages/capstone-agent/tests/"],
   "max_files": 12,
   "max_file_bytes": 100000,
   "max_context_bytes": 240000,
   "attachment_hosts": ["github.com", "user-images.githubusercontent.com"],
-  "required_ci": ["verify"]
+  "attachment_urls": [
+    "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/answer-admission-failure.png",
+    "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/partial-answer-without-conclusion.png",
+    "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/overview-answer-too-long.png",
+    "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/slow-mid-conversation-recovery.png"
+  ],
+  "required_ci": ["verify (ubuntu-latest, 3.12)", "verify (ubuntu-latest, 3.14)", "verify (macos-latest, 3.12)", "verify (macos-latest, 3.14)"]
 }

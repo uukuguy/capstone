@@ -14,9 +14,16 @@ def release_status(pr, tag, receipt, environment, contains_merge=False):
         return result
     result.update(state="release-pending", message="修复已进入主线，demo 尚未更新。")
     stage = {"cloud-demo": "demo", "cloud-dev": "cloud-dev"}.get(environment)
+    if isinstance(tag, dict) and tag.get("format") in {"legacy-text", "legacy-json"}:
+        result.update(tag=tag.get("name"), tag_status="legacy-report-required", tagged_source=tag.get("source_sha"), verification_report=tag.get("verification_report"), message="已识别现有验收标签；需按原标签关联的可信报告核对该修复，尚不声明本环境已生效。")
+        return result
     if not stage or not isinstance(tag, dict) or not isinstance(receipt, dict):
         return result
-    required = {"ready", "app", "case", "identity"} if stage == "demo" else {"ready", "app", "case", "provider", "reports", "replay", "identity"}
+    required = {"ready", "app", "case", "identity"} if stage == "demo" else {"ready", "app", "case", "reports", "replay", "identity"}
+    if stage == "cloud-dev" and receipt.get("provider_authorized") is not False:
+        required.add("provider")
+    if stage == "cloud-dev" and receipt.get("provider_authorized") is False and receipt.get("provider_status") != "skipped-not-authorized":
+        return result
     sha = tag.get("source_sha")
     valid = (tag.get("type") == "tag" and (sha == pr.get("merge_commit_sha") or contains_merge) and receipt.get("source_sha") == sha and receipt.get("stage") == stage and receipt.get("passed") is True and receipt.get("tag") == tag.get("name") and re.fullmatch(re.escape(stage) + r"-\d{8}-\d{4}-[a-f0-9]{7,12}", tag.get("name", "")) and receipt.get("deployment_ids") and required <= set(receipt.get("checks", {})) and all(receipt["checks"][k] is True for k in required) and tag.get("annotation") == receipt)
     if valid:
@@ -66,7 +73,7 @@ class Service:
         else:
             result = validate_triage(judgment) if judgment is not None else self.model.request(task, "triage", {"feedback": data, "source_sha": self.source.sha}, data["images"])
             # Explicit textual environment has precedence over a model guess.
-            if judgment is None and data["environment_source"] == "user":
+            if data["environment_source"] == "user":
                 result["environment"] = data["environment"]
             payload = {**row["payload"], "feedback": data, "triage": result}
             self.store.update(task, payload=payload, state=result["state"])
@@ -85,17 +92,21 @@ class Service:
         if "triage" not in row["payload"]:
             raise ValueError("Triage is required before repair")
         if row["state"] == "review":
-            return row["payload"].get("pr")
+            if "candidate" not in row["payload"]:
+                raise ValueError("A verified candidate receipt is required for PR recovery")
+            return self.publish(task, row["payload"]["candidate"])
         if not self.store.claim(task, uuid.uuid4().hex, seconds=self.policy.lease_seconds):
             raise ValueError("Repair is paused, ineligible or already leased")
         try:
             prefix = "improve" if row["payload"]["triage"]["type"] == "enhancement" else "fix"
-            branch = row["payload"].get("branch") or f"{prefix}/issue-{number}-{data['input_hash'][:10]}"
+            branch = row["payload"].get("branch") or f"{prefix}/issue-{number}-{data['input_hash'][:10]}-{row['source_sha'][:8]}"
             payload = {**row["payload"], "branch": branch}
             self.store.update(task, payload=payload)
             existing = self.github.find_pr(branch)
             if existing:
-                result = existing
+                if "candidate" not in payload:
+                    raise ValueError("Existing PR has no verified candidate receipt; maintainer review required")
+                result = self.publish(task, payload["candidate"])
             else:
                 candidate = self.repair.run(task, data, payload["triage"], cancelled=lambda: self.store.get(task)["state"] == "paused")
                 result = self.publish(task, candidate)
@@ -116,7 +127,7 @@ class Service:
         try:
             prepared = self.repair.prepare(task, paths)
             prefix = "improve" if row["payload"]["triage"]["type"] == "enhancement" else "fix"
-            self.store.update(task, payload={**row["payload"], "prepared": {k: v for k, v in prepared.items() if k != "files"}, "branch": f"{prefix}/issue-{number}-{row['input_hash'][:10]}"})
+            self.store.update(task, payload={**row["payload"], "prepared": {k: v for k, v in prepared.items() if k != "files"}, "branch": f"{prefix}/issue-{number}-{row['input_hash'][:10]}-{row['source_sha'][:8]}"})
             return prepared
         except Exception:
             self.store.update(task, state="blocked", lease_until=0)
@@ -141,7 +152,9 @@ class Service:
     def complete(self, task, patch=None):
         row = self.store.get(task)
         if row["state"] == "review":
-            return row["payload"]["pr"]
+            if "candidate" not in row["payload"]:
+                raise ValueError("Verified candidate receipt is required for PR recovery")
+            return self.publish(task, row["payload"]["candidate"])
         if patch is not None:
             self.record_verification(task, patch)
             row = self.store.get(task)
@@ -159,7 +172,7 @@ class Service:
         if self.source.git("rev-parse", self.source.ref).decode().strip() != row["policy_sha"]:
             raise ValueError("Trusted policy/source changed; reassessment is required")
         number = row["issue"]
-        branch = row["payload"].get("branch") or f"fix/issue-{number}-{row['input_hash'][:10]}"
+        branch = row["payload"].get("branch") or f"fix/issue-{number}-{row['input_hash'][:10]}-{row['source_sha'][:8]}"
         self.store.update(task, payload={**row["payload"], "branch": branch, "candidate": candidate})
         body = (f"{self.policy.display_name} 辅助修复，关联 #{number}（保持 Issue 打开）。\n\n{candidate['summary']}\n\n"
                 f"来源 main：`{row['source_sha']}`；政策提交：`{row['policy_sha']}`。\n"

@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
+import uuid
 
 from .policy import public_text, safe_path
 
@@ -12,6 +13,14 @@ from .policy import public_text, safe_path
 def is_test_file(path):
     name = Path(path).name
     return name.startswith("test_") and name.endswith(".py") or name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
+
+
+def validate_edit(path, original, content):
+    name = Path(path).name
+    if name in {"package.json", "package-lock.json", "pyproject.toml", "uv.lock", "Makefile", "conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "Dockerfile", "Caddyfile"} or ".config." in name or name.startswith("tsconfig") or path.endswith(".snap"):
+        raise ValueError("Gate and dependency configuration is protected")
+    if original and (is_test_file(path) or "/tests/" in path) and content != original:
+        raise ValueError("Existing tests and test helpers must remain unchanged; add a new regression file")
 
 
 class Source:
@@ -62,7 +71,7 @@ class Source:
         if len(raw) > policy.max_file_bytes or b"\0" in raw:
             raise ValueError("Selected source is too large or binary")
         text = raw.decode("utf-8")
-        public_text(text)
+        public_text(text, max_chars=policy.max_file_bytes)
         return text
 
     def read_or_new_test(self, path, policy):
@@ -124,13 +133,22 @@ class DockerSandbox:
         receipts = []
         deadline = time.monotonic() + seconds
         for check in checks:
-            args = ["docker", "run", "--rm", "--pull=never", "--network=none", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=2g", "--cpus=2", "--user=65534:65534", "--tmpfs=/tmp:rw,nosuid,nodev,size=512m", "--mount", "type=bind,src=" + str(Path(root).resolve()) + ",dst=/source,readonly", "--workdir=/source", "--env=HOME=/tmp", "--env=PYTHONDONTWRITEBYTECODE=1", "--entrypoint", check[0], self.policy.sandbox_image, *check[1:]]
+            name = "capstone-issue-check-" + uuid.uuid4().hex
+            args = ["docker", "run", "--name", name, "--rm", "--pull=never", "--network=none", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=2g", "--cpus=2", "--user=65534:65534", "--tmpfs=/tmp:rw,nosuid,nodev,size=512m", "--mount", "type=bind,src=" + str(Path(root).resolve()) + ",dst=/source,readonly", "--workdir=/source", "--env=HOME=/tmp", "--env=PYTHONDONTWRITEBYTECODE=1", "--entrypoint", check[0], self.policy.sandbox_image, *check[1:]]
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("Sandbox deadline exceeded")
             # Output is private, bounded by the check process. Never publish raw logs.
             with open(os.devnull, "wb") as sink:
-                result = self.runner(args, stdout=sink, stderr=sink, env=environment, timeout=remaining)
+                try:
+                    result = self.runner(args, stdout=sink, stderr=sink, env=environment, timeout=remaining)
+                finally:
+                    self.runner(["docker", "rm", "--force", name], stdout=sink, stderr=sink, env=environment, timeout=20)
+                    # --rm may already have removed a completed container. Docker
+                    # inspection must confirm no surviving container after timeout.
+                    inspect = self.runner(["docker", "inspect", name], stdout=sink, stderr=sink, env=environment, timeout=20)
+                    if inspect.returncode == 0:
+                        raise RuntimeError("Sandbox cleanup did not remove the container")
             receipts.append({"argv": list(check), "exit_code": result.returncode})
         return {"passed": all(r["exit_code"] == 0 for r in receipts), "checks": receipts, "image": self.policy.sandbox_image}
 
@@ -175,10 +193,8 @@ class Repair:
             content = item["content"]
             if path not in prepared["files"] or path in files or not isinstance(content, str) or not content.strip() or "\0" in content or len(content.encode()) > self.policy.max_file_bytes:
                 raise ValueError("Replacement is outside selected source or exceeds bounds")
-            public_text(content)
-            old_tests = set(re.findall(r"(?:def|function)\s+(test\w+)", prepared["files"][path]))
-            if not old_tests <= set(re.findall(r"(?:def|function)\s+(test\w+)", content)):
-                raise ValueError("Existing tests cannot be removed")
+            public_text(content, max_chars=self.policy.max_file_bytes)
+            validate_edit(path, prepared["files"][path], content)
             files[path] = content
         # Rebuild a validation-only copy from trusted source. Ignore all workspace
         # edits outside the explicitly reviewed replacements; no executable host work.
@@ -244,10 +260,8 @@ class Repair:
                 content = item["content"]
                 if not isinstance(content, str) or len(content.encode()) > policy.max_file_bytes or "\0" in content or not content.strip():
                     raise ValueError("Invalid text replacement")
-                public_text(content)
-                old_tests = set(re.findall(r"(?:def|function)\s+(test\w+)", context[path]))
-                if not old_tests <= set(re.findall(r"(?:def|function)\s+(test\w+)", content)):
-                    raise ValueError("Existing tests cannot be removed")
+                public_text(content, max_chars=policy.max_file_bytes)
+                validate_edit(path, context[path], content)
                 replacements[path] = content
                 (candidate / path).write_text(content, encoding="utf-8")
             baseline = self.sandbox.run(source_root, (policy.checks[reproduction],), max(1, deadline - time.monotonic()))

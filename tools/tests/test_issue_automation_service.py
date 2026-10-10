@@ -30,7 +30,10 @@ class FakeGitHub:
     def find_pr(self, branch):
         return next((p for p in self.prs if p["head"]["ref"] == branch), None)
     def publish_candidate(self, store, task, branch, source_sha, files, title, body):
-        self.prs.append({"number": 10, "html_url": "https://github.com/uukuguy/capstone/pull/10", "head": {"ref": branch, "sha": "candidate"}, "body": body})
+        existing = self.find_pr(branch)
+        if existing:
+            return existing
+        self.prs.append({"number": 10, "state": "open", "base": {"ref": "main"}, "html_url": "https://github.com/uukuguy/capstone/pull/10", "head": {"ref": branch, "sha": "candidate"}, "body": body})
         return self.prs[-1]
 
 
@@ -91,7 +94,7 @@ def test_candidate_paths_and_docker_environment_are_bounded(tmp_path):
     with pytest.raises(ValueError):
         source.read("../../.env", Policy())
     calls = []
-    sandbox = DockerSandbox(dataclasses.replace(Policy(), sandbox_image="trusted@sha256:" + "1" * 64), runner=lambda args, **kw: calls.append((args, kw)) or subprocess.CompletedProcess(args, 0, b"", b""))
+    sandbox = DockerSandbox(dataclasses.replace(Policy(), sandbox_image="trusted@sha256:" + "1" * 64), runner=lambda args, **kw: calls.append((args, kw)) or subprocess.CompletedProcess(args, 1 if args[1] == "inspect" else 0, b"", b""))
     sandbox.run(tmp_path, (("python", "test.py"),), 20)
     args, options = calls[0]
     assert "--network=none" in args and "--read-only" in args
@@ -110,6 +113,10 @@ def test_release_never_claims_demo_for_main_merge_or_missing_tag():
     later = {**receipt, "source_sha": "b" * 40}
     later_tag = {**tag, "source_sha": "b" * 40, "annotation": later}
     assert release_status({"merged": True, "merge_commit_sha": "a" * 40}, later_tag, later, "cloud-demo", contains_merge=True)["deployed"]
+    legacy = {"name": "demo-20261010-1231-aaaaaaa", "type": "tag", "source_sha": "a" * 40, "format": "legacy-text", "annotation": None}
+    result = release_status({"merged": True, "merge_commit_sha": "a" * 40}, legacy, None, "cloud-demo")
+    assert result["deployed"] is False
+    assert result["tag_status"] == "legacy-report-required"
 
 
 def test_manual_current_session_flow_needs_no_model_key(tmp_path):
@@ -153,3 +160,31 @@ def test_manual_repair_can_add_selected_regression_test(tmp_path):
     assert prepared["files"]["packages/capstone-app/tests/test_history.py"] == ""
     result = repair.validate_manual("task", {"summary": "修复按钮行为", "reproduction_check": 0, "files": [{"path": "packages/capstone-app/app.py", "content": "print('fixed')\n"}, {"path": "packages/capstone-app/tests/test_history.py", "content": "def test_history():\n    assert True\n"}]})
     assert "packages/capstone-app/tests/test_history.py" in result["files"]
+
+
+def test_manual_judgment_cannot_override_explicit_feedback_environment(tmp_path):
+    source = repository(tmp_path)
+    github = FakeGitHub()
+    github.value["body"] = "环境：local-demo，历史异常"
+    service = Service(Policy(), Store(tmp_path / "q.sqlite"), github, None, source, None)
+    judgment = FakeModel().request("", "triage", {"feedback": {"comments": []}})
+    task = service.triage(7, judgment)
+    assert service.store.get(task)["payload"]["triage"]["environment"] == "local-demo"
+
+
+@pytest.mark.parametrize("path,old,new", [
+    ("packages/capstone-app/src/history.test.ts", "test('history', () => { expect(true).toBe(true) });\n", "// disabled\n"),
+    ("packages/capstone-app/tests/test_history.py", "def test_history():\n    assert False\n", "def test_history():\n    pass\n"),
+    ("packages/capstone-app/package.json", '{"scripts":{"test":"vitest"}}', '{"scripts":{"test":"true"}}'),
+])
+def test_candidate_cannot_weaken_tests_or_gate_configuration(tmp_path, path, old, new):
+    source = repository(tmp_path)
+    target = source.root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(old)
+    subprocess.run(["git", "-C", str(source.root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(source.root), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "test"], check=True, capture_output=True)
+    repair = Repair(dataclasses.replace(Policy(), checks=(("python", "test.py"),)), Source(source.root), None, FakeSandbox(), tmp_path / "candidate")
+    repair.prepare("task", [path])
+    with pytest.raises(ValueError, match="protected|unchanged"):
+        repair.validate_manual("task", {"summary": "修复行为", "reproduction_check": 0, "files": [{"path": path, "content": new}]})

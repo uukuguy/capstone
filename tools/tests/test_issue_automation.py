@@ -23,6 +23,15 @@ def test_minimal_feedback_and_bot_dedupe():
     assert feedback(issue)["input_hash"] != result["input_hash"]
 
 
+def test_explicit_user_scope_is_not_changed_by_comparison_or_negation():
+    issue = {"title": "历史反馈", "body": "用户在 local-demo 基线一人工验证中反馈。\n反馈明确指 local-demo，不使用 cloud-demo 默认值。\n验证 local-dev/local-demo 两入口。", "comments": []}
+    assert feedback(issue)["environment"] == "local-demo"
+    assert feedback(issue)["environment_source"] == "user"
+    issue["body"] = "比较 local-demo 与 cloud-demo 的行为，具体发生环境尚不明确。"
+    assert feedback(issue)["environment"] is None
+    assert feedback(issue)["environment_source"] == "ambiguous"
+
+
 def test_fixed_commands_and_public_output():
     assert command("/ai fix", "write") == "fix"
     assert command("/ai fix", "read") is None
