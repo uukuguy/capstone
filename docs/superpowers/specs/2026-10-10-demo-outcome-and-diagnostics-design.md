@@ -1,6 +1,30 @@
 # Demo task outcomes and failure diagnostics
 
-> Status: High-level and written design approved on 2026-10-10. Implementation and local verification pass on main and demo baseline; remote acceptance pending.
+> Status: design approved. First demo repair was withdrawn after user trials exposed a broader regression. Framework correction and isolated local demo validation are in progress. The user now requires local-demo-only deployment, followed by discussion of parallel development lanes.
+
+## User-trial correction and local-only acceptance
+
+The GBnetwork introduction completed all 28 tools. A whole-network internal
+validation hint exceeded the optional result-card budget; broad ValueError
+recovery then fabricated failed tool receipts. Validate the full graph once,
+retain only referenced display IDs, and handle optional projection failures
+without losing the admitted answer or evidence. Recovery is limited to typed
+reference rejection. Required answer and evidence persistence remains fatal.
+
+RPC finalization selects the final assistant message rather than accumulated
+pre-tool narration. Partial recovery renders facts through typed Domain Pack
+projections; the application supplies generic formatting and cannot invent
+domain values, full scope or risk rankings. Show that formal answer first and
+deduplicate reader diagnostics. Store complete diagnostic receipts for audit.
+
+Local has two deployments: existing development corresponds to cloud-dev;
+new `capstone-demo-local` corresponds to demo. The latter uses the clean portable
+demo candidate, separate database/object volumes, private bucket, credentials,
+image and ports (App 15173, API 18767). Reuse its canonical rebuild entrypoint.
+Do not copy existing data or authentication state. A local demo is a test
+surface, not acceptance of a cloud promotion. The user explicitly limits this
+iteration to local demo deployment and verification; stop afterward to discuss
+the two development lanes. Cloud demo stays at the verified rollback ed2524f.
 
 ## Purpose and immediate priority
 

@@ -94,6 +94,31 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
+### Isolated local demo
+
+Use a clean checkout of the exact demo candidate, rather than the current main
+checkout. Set up its managed runtimes with `make setup`, `make install-pi`, and
+`make doctor`, and install its verified PyPSA assets. Then run from main:
+
+```sh
+CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild
+```
+
+The default source is `.worktrees/demo-n1-repair`. The wrapper uses the selected
+checkout's canonical rebuild entrypoint. It creates a separate Compose project
+`capstone-demo-local`, image name, database and object-store volumes, private
+bucket, operator token and storage credentials. It does not copy user data or
+authentication state. Its App is `http://127.0.0.1:15173/`; its API uses port
+18767. The App proxy points to that API. A phone may use the computer's LAN IP
+with port 15173.
+
+First use creates ignored `deploy/demo-local.env` with mode 0600. Configure its
+backend Provider key for interactive questions; registered scripted cases need
+no Provider key. The file is retained on subsequent rebuilds. Existing local
+development and cloud stages remain separate. Keep the selected source clean,
+record its full commit and image identity, and refresh the browser before cases.
+This target does not deploy to the cloud or alter release lanes.
+
 ### Capstone 委托与 Pi 直接入口
 
 对话空闲时可切换 **Capstone** 和 **Pi**。

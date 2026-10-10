@@ -150,6 +150,8 @@ Open `http://127.0.0.1:5173/`. Local Compose enables direct conversation access 
 
 The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
 
+To test a clean demo checkout with separate data, use `CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild`. Its App uses port 15173 and API uses port 18767. Configure its separate protected `deploy/demo-local.env` for Provider access. See the [runbook](docs/RUNBOOK.md#isolated-local-demo).
+
 ## CLI and compatibility entry points
 
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:

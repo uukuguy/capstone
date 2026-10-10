@@ -25,6 +25,7 @@ help:
 	@echo "  make capstone-agent-serve [CAPSTONE_PORT=8766]  Start local HTTP/SSE sessions"
 	@echo "  make capstone-app-dev [CAPSTONE_APP_HOST=0.0.0.0] [CAPSTONE_APP_PORT=5173]  Start the App dev server"
 	@echo "  make capstone-local-rebuild  Rebuild and redeploy local API/worker from current source"
+	@echo "  make capstone-demo-local-rebuild  Rebuild a separate local demo from its clean checkout"
 	@echo "  make build-capstone-app    Build the Vercel-ready static App"
 	@echo "  make test-capstone-app     Run focused App tests"
 	@echo "  make report [INSTRUCTIONS=...]  Compatibility alias for make analysis"
@@ -74,6 +75,10 @@ capstone-app-dev:
 
 capstone-local-rebuild:
 	@./deploy/rebuild_local.sh
+
+.PHONY: capstone-demo-local-rebuild
+capstone-demo-local-rebuild:
+	@bash ./deploy/rebuild_demo_local.sh
 
 setup-simulator:
 	uv sync --project packages/grid-simulator
@@ -230,6 +235,7 @@ test-makefile-application:
 
 test-local-rebuild:
 	bash tools/test_local_rebuild.sh
+	bash tools/test_demo_local_rebuild.sh
 	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py -q
 
 test-verification-targets:

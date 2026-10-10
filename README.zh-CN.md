@@ -144,6 +144,8 @@ make capstone-local-rebuild
 
 App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
 
+需要用独立数据测试干净的 demo 源码时，使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/demo-checkout make capstone-demo-local-rebuild`。该 App 使用 15173 端口，API 使用 18767 端口。Provider 访问在独立受保护的 `deploy/demo-local.env` 中配置。详见[运行手册](docs/RUNBOOK.md#isolated-local-demo)。
+
 ## CLI 与兼容入口
 
 CLI 可用于自动化和定向检查。完成安装后，可执行不调用 Provider 的 pandapower 查询：
