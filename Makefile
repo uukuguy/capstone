@@ -279,7 +279,7 @@ test-generic-tools:
 test-simulator:
 	uv run --project packages/grid-simulator pytest packages/grid-simulator/tests -q
 
-test-tools: check-runtime-risk
+test-tools: check-runtime-risk test-issue-automation
 	npm run check --prefix packages/pi-grid-tools
 	npm test --prefix packages/pi-grid-tools
 
@@ -300,6 +300,55 @@ test-pi-capture-runtime:
 check-integration: test-pi-capture-runtime test-e2e validate validate-application
 
 check-release: check-fast check-integration test-packages test-source-setup
+
+# Manual Issue work. These commands never start a timer or unattended worker.
+.PHONY: issues-doctor issues-scan issues-show issues-context issues-create issues-triage issues-begin issues-record-verification issues-complete issues-fix issues-retry issues-pause issues-status issues-release-status test-issue-automation
+export ISSUE TASK_ID JUDGMENT PATHS_FILE RESULT_FILE ISSUE_TITLE BODY_FILE
+
+issues-doctor:
+	@python3 -m tools.issue_automation.cli doctor
+
+issues-scan:
+	@python3 -m tools.issue_automation.cli scan
+
+issues-show:
+	@python3 -m tools.issue_automation.cli show
+
+issues-context:
+	@python3 -m tools.issue_automation.cli context
+
+issues-create:
+	@python3 -m tools.issue_automation.cli create
+
+issues-triage:
+	@python3 -m tools.issue_automation.cli triage
+
+issues-begin:
+	@python3 -m tools.issue_automation.cli begin
+
+issues-record-verification:
+	@python3 -m tools.issue_automation.cli record-verification
+
+issues-complete:
+	@python3 -m tools.issue_automation.cli complete
+
+issues-fix:
+	@python3 -m tools.issue_automation.cli fix
+
+issues-retry:
+	@python3 -m tools.issue_automation.cli retry
+
+issues-pause:
+	@python3 -m tools.issue_automation.cli pause
+
+issues-status:
+	@python3 -m tools.issue_automation.cli status
+
+issues-release-status:
+	@python3 -m tools.issue_automation.cli release-status
+
+test-issue-automation:
+	@uv run --project packages/grid-agent python -m pytest tools/tests/test_issue_automation*.py -q
 
 check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py
