@@ -10,6 +10,9 @@ import re
 
 SCHEMA = "capstone-task-understanding/1"
 MAX_DECISION_BYTES = 24_576
+MAX_INSTRUCTION_CHARS = 16_384
+MAX_REFERENCE_CHARS = 512
+MAX_HISTORY_CUTOFF = 2**63 - 1
 _ID = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 
 
@@ -54,9 +57,9 @@ class TaskRequest:
 
     def __post_init__(self) -> None:
         for name in ("thread_id", "turn_id", "attempt_id", "model_context_id", "model_id", "model_revision"):
-            _text(getattr(self, name), 512)
-        _text(self.instruction, 16_384)
-        if type(self.history_cutoff) is not int or not 0 <= self.history_cutoff < 2**63:
+            _text(getattr(self, name), MAX_REFERENCE_CHARS)
+        _text(self.instruction, MAX_INSTRUCTION_CHARS)
+        if type(self.history_cutoff) is not int or not 0 <= self.history_cutoff <= MAX_HISTORY_CUTOFF:
             raise ValueError("task history cutoff is invalid")
 
     def to_document(self) -> dict[str, object]:
@@ -68,10 +71,14 @@ class TaskRequest:
         cutoff = value["history_cutoff"]
         if type(cutoff) is not int:
             raise ValueError("task history cutoff is invalid")
-        return cls(*(_text(value[name], 16_384 if name == "instruction" else 512)
-                     for name in ("thread_id", "turn_id", "attempt_id", "instruction")),
-                   cutoff, *(_text(value[name], 512) for name in
-                             ("model_context_id", "model_id", "model_revision")))
+        return cls(thread_id=_text(value["thread_id"], MAX_REFERENCE_CHARS),
+                   turn_id=_text(value["turn_id"], MAX_REFERENCE_CHARS),
+                   attempt_id=_text(value["attempt_id"], MAX_REFERENCE_CHARS),
+                   instruction=_text(value["instruction"], MAX_INSTRUCTION_CHARS),
+                   history_cutoff=cutoff,
+                   model_context_id=_text(value["model_context_id"], MAX_REFERENCE_CHARS),
+                   model_id=_text(value["model_id"], MAX_REFERENCE_CHARS),
+                   model_revision=_text(value["model_revision"], MAX_REFERENCE_CHARS))
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,6 +31,7 @@ from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
+from .task_recognition import recognize_with_pi, render_task_policy
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -47,6 +48,12 @@ class PreparedKernelPiSessionFactory:
         if not callable(builder):
             raise TypeError("builder must be callable")
         self._builder = builder
+
+    def recognize_task(self, claim, *, on_heartbeat):
+        recognizer = getattr(self._builder, "recognize_task", None)
+        if not callable(recognizer):
+            raise RuntimeError("task recognizer is unavailable")
+        return recognizer(claim, on_heartbeat=on_heartbeat)
 
     def __call__(
         self,
@@ -97,6 +104,11 @@ class PreparedKernelPiRpcSessionBuilder:
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
             raise ValueError('Thread attempt timeout is invalid')
+
+    def recognize_task(self, claim, *, on_heartbeat):
+        return recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
+                                 base_environment=self._base_environment, timeout_seconds=self._timeout_seconds,
+                                 on_heartbeat=on_heartbeat)
 
     def __call__(
         self,
@@ -179,6 +191,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 profiles=profiles,
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
+                task_understanding=claim.task_understanding,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -258,6 +271,7 @@ def _compose_attempt_policy(
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
     previous_instruction: PreviousInstruction | None = None,
+    task_understanding=None,
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -268,12 +282,13 @@ def _compose_attempt_policy(
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) > 128_000:
+    task_text = render_task_policy(task_understanding)
+    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) + len(task_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, task_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)

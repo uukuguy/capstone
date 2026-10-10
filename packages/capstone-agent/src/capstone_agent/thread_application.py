@@ -59,6 +59,13 @@ class FamilyRuntimeFactory:
             raise RuntimeError(f"implementation family is not registered: {family}")
         return factory(claim)
 
+    def recognize_task(self, claim, *, on_heartbeat):
+        factory = self._factories.get(claim.model_context.implementation_family)
+        recognizer = getattr(factory, "recognize_task", None)
+        if not callable(recognizer):
+            raise RuntimeError("family task recognizer is unavailable")
+        return recognizer(claim, on_heartbeat=on_heartbeat)
+
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
@@ -100,6 +107,12 @@ class ApplicationPiRuntimeFactory:
             self._session_factory(claim), runtime_mode=self._runtime_mode,
         )
 
+    def recognize_task(self, claim, *, on_heartbeat):
+        recognizer = getattr(self._session_factory, "recognize_task", None)
+        if not callable(recognizer):
+            raise RuntimeError("application task recognizer is unavailable")
+        return recognizer(claim, on_heartbeat=on_heartbeat)
+
 
 class PreparedApplicationPiRuntimeFactory:
     """Borrow a Run-owned prepared context for one Pi Attempt.
@@ -140,6 +153,12 @@ class PreparedApplicationPiRuntimeFactory:
             raise TypeError("network_projection_factory must be callable")
         self._network_projection_factory = network_projection_factory
         self.rollback_selection_on_failure = True
+
+    def recognize_task(self, claim, *, on_heartbeat):
+        recognizer = getattr(self._session_factory, "recognize_task", None)
+        if not callable(recognizer):
+            raise RuntimeError("prepared application task recognizer is unavailable")
+        return recognizer(claim, on_heartbeat=on_heartbeat)
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.acquire(claim)

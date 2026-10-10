@@ -8,6 +8,7 @@ from capstone_agent.kernel_capability_preparation import PreparedKernelApplicati
 from capstone_agent.kernel_pi_session import PreparedKernelSessionBuilder
 from capstone_agent.model_capability_context import PreparedModelCapabilityContext
 from capstone_agent.thread_service import AttemptClaim
+from capstone_agent.task_understanding import SCHEMA, recognize_decision
 
 from .scripted_session import _ScriptedPiSession
 
@@ -64,4 +65,18 @@ def build_m11_session_builder(family: str) -> PreparedKernelSessionBuilder:
                 raise ValueError("M11 retained context identity changed")
             return M11Session(claim, profiles, family=family, state=state)
 
+    def recognize_task(claim, *, on_heartbeat):
+        if (claim.instruction not in INSTRUCTIONS[family] or claim.model_context.implementation_family != family
+                or claim.model_context.model_id != MODELS[family] or claim.task_request is None
+                or claim.task_request.instruction != claim.instruction):
+            raise ValueError("M11 instruction is not registered")
+        on_heartbeat()
+        proposal = {"schema": SCHEMA, "goals": [{"id": "validate", "purpose": "Validate the selected model",
+                    "subject": "selected model", "scope": "full", "scenario": "baseline", "change": None,
+                    "conclusion": "description", "measure": None,
+                    "obligations": ["Report the registered calculation outcome"], "missing_requirements": []}],
+                    "answer_policy": {"language": "zh", "scale": "concise"}}
+        return recognize_decision(claim.task_request, proposal, recognizer="scripted-m11:" + family)
+
+    setattr(build, "recognize_task", recognize_task)
     return build

@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from .turn_router import TurnPlan
 
 from capstone_model_capability_spi import ModelCapabilitySelection
+from .task_understanding import MAX_INSTRUCTION_CHARS, MAX_REFERENCE_CHARS, MAX_HISTORY_CUTOFF, TaskRequest, TaskUnderstanding
+from .task_recognition import task_state_from_events, task_acceptance_marker
+from copy import deepcopy
 
 import psycopg
 from capstone_agent.database_connect import connect_database
@@ -457,8 +460,19 @@ class AttemptClaim:
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
+    task_request: TaskRequest | None = None
+    task_understanding: TaskUnderstanding | None = None
+    task_certification: str = "pending"
+    task_history: tuple[str, str] | None = None
 
     def __post_init__(self) -> None:
+        if self.task_history is not None and (not isinstance(self.task_history, tuple) or len(self.task_history) != 2
+                or any(not isinstance(text, str) or len(text) > 4096 for text in self.task_history)):
+            raise ThreadExecutionError("task history is invalid")
+        if self.task_certification not in {"pending", "recognized", "legacy_uncertified"}:
+            raise ThreadExecutionError("task certification is invalid")
+        if self.task_understanding is not None and self.task_understanding.request != self.task_request:
+            raise ThreadExecutionError("task understanding request is inconsistent")
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
             raise ThreadExecutionError("attempt previous instruction is invalid")
         if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
@@ -614,6 +628,22 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
+    if event_type in {"task_request_created", "task_understanding_created"}:
+        key = "request" if event_type == "task_request_created" else "understanding"
+        expected_fields = {"request", "history"} if key == "request" else {key}
+        if set(payload) != expected_fields or claim.task_request is None:
+            raise ThreadExecutionError("task decision binding is invalid")
+        try:
+            if key == "request":
+                request = TaskRequest.from_document(payload[key])
+                if payload["history"] != (None if claim.task_history is None else list(claim.task_history)):
+                    raise ValueError("task history does not match")
+            else:
+                request = TaskUnderstanding.from_document(payload[key], expected_request=claim.task_request).request
+            if request != claim.task_request:
+                raise ValueError("task request does not match")
+        except ValueError:
+            raise ThreadExecutionError("task decision binding is invalid") from None
     if event_type != "network_diagram":
         _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
         return
@@ -627,6 +657,12 @@ def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim
     if (diagram["model"]["id"] != claim.model_context.model_id or
             diagram["model"]["revision"] != claim.model_context.model_revision):
         raise ThreadProtocolError("network diagram does not match the claimed model")
+
+
+def _detached_task_event(event: EventEnvelope) -> EventEnvelope:
+    if event.event_type.startswith("task_") or (event.event_type == "command_accepted" and "task_recognition" in event.payload):
+        return replace(event, payload=deepcopy(event.payload))
+    return event
 
 
 def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[EventEnvelope, ...]) -> EventPage:
@@ -644,7 +680,7 @@ def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[Eve
     return EventPage(thread_id, after, cursor, bool(selected and cursor < last), tuple(selected))
 
 
-def _admission_rejection(command: Mapping[str, Any]) -> str | None:
+def _admission_rejection(command: Mapping[str, Any], snapshot: ThreadSnapshot) -> str | None:
     """Return a bounded semantic rejection before a command enters the ledger."""
 
     if command["kind"] in _CONTROL_COMMAND_KINDS:
@@ -719,6 +755,19 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     text = command["payload"].get("text")
     if not isinstance(text, str) or not text.strip():
         return "message_text_required"
+    if command["kind"] in {"send_auto", "send_ordinary", "send_professional"}:
+        if len(text) > MAX_INSTRUCTION_CHARS:
+            return "message_text_too_large"
+        target = snapshot.pending_model_switch or snapshot.active_model_context
+        # Public identifiers and generated Turn/Attempt/context identifiers
+        # are bounded already. Model revisions can enter through old snapshots.
+        if any(not isinstance(value, str) or not value.strip() or len(value) > MAX_REFERENCE_CHARS
+               for value in (snapshot.thread_id, snapshot.active_model_context.id, target.model_id, target.model_revision)):
+            return "task_context_invalid"
+        # Reserve the two possible pending-context activation events before
+        # the accepted instruction freezes its signed-64-bit history cutoff.
+        if not 0 <= snapshot.last_event_seq <= MAX_HISTORY_CUTOFF - 2:
+            return "task_context_invalid"
     if "enabled_profiles" in command["payload"]:
         try:
             _message_payload_selection(command)
@@ -928,8 +977,8 @@ class InMemoryThreadService:
         with self._lock:
             self._check_thread(thread_id)
             cursor = history_cursor(self._snapshot, before)
-            events = list(islice((event for event in reversed(self._events)
-                if event.event_seq < cursor and event.visibility == "public"), limit + 1))
+            events = [_detached_task_event(event) for event in islice((event for event in reversed(self._events)
+                if event.event_seq < cursor and event.visibility == "public"), limit + 1)]
             return history_page(thread_id, cursor, events, limit)
 
     def read_network_events(self, thread_id: str, *, context_id: str | None = None, attempt_id: str | None = None) -> dict[str, Any]:
@@ -960,7 +1009,7 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             if after_event_seq < self._snapshot.base_event_seq:
                 raise ThreadResyncRequired(self._snapshot)
-            events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
+            events = tuple(_detached_task_event(event) for event in islice((event for event in self._events if event.event_seq > after_event_seq), 256))
             return _bounded_event_page(thread_id, after_event_seq, self._snapshot.last_event_seq, events)
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
@@ -990,7 +1039,7 @@ class InMemoryThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
-            semantic_rejection = _admission_rejection(parsed)
+            semantic_rejection = _admission_rejection(parsed, self._snapshot)
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1248,8 +1297,13 @@ class InMemoryThreadService:
                 selection_revision=self._snapshot.active_model_context.selection_revision,
                 occurred_at=_now(), visibility="public",
                 payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                         "payload": parsed["payload"]},
+                         "payload": parsed["payload"],
+                         **task_acceptance_marker(kind=parsed["kind"], thread_id=self._snapshot.thread_id,
+                             attempt=attempt, instruction=parsed["payload"]["text"],
+                             context=self._snapshot.active_model_context, cutoff=event_seq - 1,
+                             previous_instruction=_previous_instruction_from_events(self._events, self._attempts, self._snapshot.active_model_context))},
             )
+            event = _detached_task_event(event)
             self._events.append(event)
             self._snapshot = replace(
                 self._snapshot, current_attempt=attempt, last_event_seq=event_seq,
@@ -1418,6 +1472,9 @@ class InMemoryThreadService:
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     application_catalog=application_catalog,
+                    **task_state_from_events(self._events, thread_id=self._snapshot.thread_id,
+                                             attempt=running, instruction=record["instruction"], context=context,
+                                             previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context)),
                 )
             return None
 
@@ -1550,13 +1607,20 @@ class InMemoryThreadService:
                 raise ThreadExecutionError("attempt is not running")
             if visibility not in {"public", "diagnostic"}:
                 raise ThreadProtocolError("event visibility is invalid")
+            if event_type in {"task_request_created", "task_understanding_created"}:
+                previous = next((event for event in self._events if event.turn_id == claim.attempt.turn_id
+                                 and event.event_type == event_type), None)
+                if previous is not None:
+                    if previous.payload != payload:
+                        raise ThreadExecutionError("task decision is immutable")
+                    return _detached_task_event(previous)
             event = self._append_event(
                 event_type=event_type, attempt=record["attempt"],
                 payload=dict(payload), visibility=visibility,
                 context=record["model_context"],
             )
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
-            return event
+            return _detached_task_event(event)
 
     def finish_attempt(
         self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
@@ -1796,8 +1860,9 @@ class InMemoryThreadService:
             selection_revision=active.selection_revision,
             occurred_at=_now(), visibility=visibility, payload=dict(payload),
         )
+        event = _detached_task_event(event)
         self._events.append(event)
-        return event
+        return _detached_task_event(event)
 
     def compact_before(self, base_event_seq: int) -> None:
         with self._lock:
@@ -2423,7 +2488,7 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
-            elif (semantic_rejection := _admission_rejection(parsed)) is not None:
+            elif (semantic_rejection := _admission_rejection(parsed, snapshot)) is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
             elif (
                 (context_lock := _application_context_lock(snapshot)) is not None
@@ -2738,7 +2803,11 @@ class PostgresThreadService:
                     selection_revision=snapshot.active_model_context.selection_revision,
                     occurred_at=_now(), visibility="public",
                     payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                             "payload": parsed["payload"]},
+                             "payload": parsed["payload"],
+                             **task_acceptance_marker(kind=parsed["kind"], thread_id=snapshot.thread_id,
+                                 attempt=attempt, instruction=parsed["payload"]["text"],
+                                 context=snapshot.active_model_context, cutoff=event_seq - 1,
+                                 previous_instruction=_previous_instruction_from_postgres(connection, snapshot.thread_id, snapshot.active_model_context))},
                 )
                 connection.execute(
                     """INSERT INTO capstone_thread_events
@@ -3055,6 +3124,12 @@ class PostgresThreadService:
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 application_catalog=application_catalog,
+                **task_state_from_events(
+                    tuple(self._event_from_row(item) for item in connection.execute(
+                        "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s ORDER BY event_seq",
+                        (thread["thread_id"], running.turn_id)).fetchall()),
+                    thread_id=thread["thread_id"], attempt=running, instruction=updated["instruction"], context=context,
+                    previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context)),
             )
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
@@ -3268,6 +3343,14 @@ class PostgresThreadService:
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             running = AttemptSnapshot.from_document(current)
+            if event_type in {"task_request_created", "task_understanding_created"}:
+                previous = connection.execute(
+                    "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s AND event_type = %s ORDER BY event_seq LIMIT 1",
+                    (claim.thread_id, claim.attempt.turn_id, event_type)).fetchone()
+                if previous is not None:
+                    if previous["payload"] != payload:
+                        raise ThreadExecutionError("task decision is immutable")
+                    return self._event_from_row(previous)
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type=event_type, payload=dict(payload), visibility=visibility,

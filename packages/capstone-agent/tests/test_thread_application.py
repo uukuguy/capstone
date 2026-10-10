@@ -273,6 +273,12 @@ def test_host_app_can_accept_the_complete_application_assembly() -> None:
 
 def test_assembly_runtime_worker_and_sse_share_one_thread_contract() -> None:
     service = _runtime_service()
+    from capstone_agent.task_understanding import recognize_decision
+    from test_task_recognition import proposal
+    def session_factory(_claim):
+        return _Session()
+    setattr(session_factory, "recognize_task", lambda claim, **kwargs:
+            recognize_decision(claim.task_request, proposal(), recognizer="controlled"))
     assembly = ThreadApplicationAssembly.from_authority(
         default_model_id="ieee39",
         model_resolver=lambda model_id: {
@@ -280,7 +286,7 @@ def test_assembly_runtime_worker_and_sse_share_one_thread_contract() -> None:
             "revision_ref": "revision:sha256:" + "d" * 64,
             "implementation_family": "pandapower",
         },
-        session_factory=lambda _claim: _Session(),
+        session_factory=session_factory,
     )
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_runtime_001",

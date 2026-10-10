@@ -22,6 +22,7 @@ from .thread_network import (
     normalize_thread_network_projection,
 )
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
+from .task_recognition import accept_task, TaskRecognitionFailed, TaskRecognitionCancelled
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -450,6 +451,7 @@ class HarnessAttemptRunner:
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
         lease: AttemptLeaseRenewal | None = None,
+        task_recognizer: Callable | None = None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -457,6 +459,7 @@ class HarnessAttemptRunner:
         self._runtime = runtime
         self._lease_seconds = lease_seconds
         self._lease = lease
+        self._task_recognizer = task_recognizer
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -468,6 +471,16 @@ class HarnessAttemptRunner:
             return self._run(claim, self._lease)
         with AttemptLeaseRenewal(self._service, claim, self._lease_seconds) as lease:
             return self._run(claim, lease)
+
+    def _recognize_task(self, claim: AttemptClaim, heartbeat: Callable[[], None]) -> AttemptClaim:
+        if self._task_recognizer is None or claim.kind not in {"send_auto", "send_ordinary", "send_professional"}:
+            return claim
+        def recognition_heartbeat():
+            try:
+                heartbeat()
+            except _AttemptCancelled:
+                raise TaskRecognitionCancelled from None
+        return accept_task(self._service, claim, self._task_recognizer, on_heartbeat=recognition_heartbeat)
 
     def _run(self, claim: AttemptClaim, lease: AttemptLeaseRenewal) -> HarnessAttemptResult:
         self._tools_observed = False
@@ -486,6 +499,7 @@ class HarnessAttemptRunner:
 
         try:
             lease.check()
+            claim = self._recognize_task(claim, heartbeat)
             if plan is None and claim.kind in {
                 "send_auto", "send_ordinary", "send_professional",
             }:
@@ -618,6 +632,12 @@ class HarnessAttemptRunner:
             return HarnessAttemptResult(
                 "completed", admitted_answer, None, result_refs, evidence_refs, admission,
             )
+        except TaskRecognitionFailed:
+            self._finish_failed(claim, "task_recognition_failed")
+            return HarnessAttemptResult("failed", None, "task_recognition_failed")
+        except TaskRecognitionCancelled:
+            self._finish_cancelled(claim)
+            return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
         except _AttemptAdmissionError as error:
             self._finish_failed(claim, error.code)
             return HarnessAttemptResult("failed", None, error.code)

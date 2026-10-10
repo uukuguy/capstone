@@ -86,9 +86,7 @@ def build_registered_pandapower_thread_application():
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
         return model_binding
 
-    def build_session(claim, context, profiles):
-        if validation_builder is not None:
-            return validation_builder(claim, context, profiles)
+    def rpc_builder():
         environment = load_runtime_environment(root)
         resolved = resolve_harness_llm(root, environment)
         runtime_host = build_runtime_host(
@@ -97,7 +95,22 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
-        )(claim, context, profiles)
+        )
+
+    def build_session(claim, context, profiles):
+        if validation_builder is not None:
+            return validation_builder(claim, context, profiles)
+        return rpc_builder()(claim, context, profiles)
+
+    def recognize_task(claim, *, on_heartbeat):
+        if validation_builder is not None:
+            recognizer = getattr(validation_builder, "recognize_task", None)
+            if not callable(recognizer):
+                raise RuntimeError("scripted task recognizer is unavailable")
+            return recognizer(claim, on_heartbeat=on_heartbeat)
+        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat)
+
+    setattr(build_session, "recognize_task", recognize_task)
 
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(root / "runs" / "capstone-agent")),
