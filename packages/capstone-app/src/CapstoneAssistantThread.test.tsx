@@ -271,7 +271,9 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '展开完整回答' }).at(-1)!)
     expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(59)
-  })
+    // This state regression renders sixty long answers and performs repeated
+    // accessibility queries; it does not define a browser response-time limit.
+  }, 10_000)
 
   it('loads older history into the same conversation without hiding newer messages', async () => {
     const older = [event('attempt_completed', 1, { answer: '更早回答。' }, 'older')]
