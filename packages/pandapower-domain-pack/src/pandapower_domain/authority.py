@@ -555,6 +555,10 @@ class PandapowerArtifactAuthority:
             'analysis_prerequisite_missing': ('input', '当前模型缺少该操作要求的前提条件或数据。请按操作说明检查必需输入。', 'provide_input'),
             'analysis_options_invalid': ('invocation', '分析选项未通过操作合同校验。请检查已发布的参数说明。', 'report_issue'),
             'unknown_analysis_operation': ('capability', '所请求的分析操作尚未发布。', 'change_scope'),
+            'result_field_unavailable': ('invocation', '结果查询使用了该数据集未提供的字段；已完成的计算结果仍然保留。', 'report_issue'),
+            'unknown_result': ('invocation', '后续分析引用的结果无法找到；这不表示已完成的潮流或 N−1 计算失败。', 'report_issue'),
+            'unknown_evidence': ('invocation', '检索的证据引用无法找到；请检查当前运行的结果与证据引用。', 'report_issue'),
+            'result_integrity_failed': ('admission', '所引用结果未通过该工具的结果类型或完整性检查；尚不能据此区分类型不兼容与内容损坏。', 'report_issue'),
         }
         entry = entries.get(code)
         if entry is None:

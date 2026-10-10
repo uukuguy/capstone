@@ -11,6 +11,19 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('leads with the admitted formal answer and groups repeated blocker text', () => {
+    const task_outcome = { schema: 'capstone-task-outcome/1', status: 'partial', work: [
+      { id: 'saved', status: 'confirmed', summary: '已保留结果。', result_refs: [], evidence_refs: [] },
+      ...[1, 2].map(id => ({ id: `blocked-${id}`, status: 'blocked', summary: '查询未完成。', result_refs: [], evidence_refs: [] })),
+    ], diagnostics: [1, 2].map(id => ({ code: 'result_field_unavailable', category: 'invocation', stage: 'validate', confirmation: 'confirmed', summary: '查询字段不存在。', work_id: `blocked-${id}`, recovery: 'report_issue' })) }
+    const messages = projectAssistantMessages([
+      event('attempt_completed', 1, { answer: 'line7 停运场景已计算。', task_outcome }, 'partial'),
+    ])
+    const text = JSON.stringify(messages[0].content)
+    expect(text.indexOf('line7 停运场景已计算。')).toBeLessThan(text.indexOf('部分完成'))
+    expect(text.match(/查询字段不存在。/g)).toHaveLength(1)
+    expect(text.match(/查询未完成。/g)).toHaveLength(1)
+  })
   it('shows confirmed partial work and explicit unknown causes after restore', () => {
     const task_outcome = { schema: 'capstone-task-outcome/1', status: 'partial', work: [
       { id: 'saved', status: 'confirmed', summary: '已保留基准潮流。', result_refs: [], evidence_refs: [] },

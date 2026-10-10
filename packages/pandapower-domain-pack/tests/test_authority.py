@@ -121,6 +121,14 @@ def test_solver_failure_is_confirmed_without_blame_or_raw_text():
     assert PandapowerArtifactAuthority.describe_execution_failure('persist_failed')['category'] == 'storage'
 
 
+@pytest.mark.parametrize('code', ['result_field_unavailable', 'unknown_result'])
+def test_result_query_errors_are_confirmed_invocation_errors(code):
+    diagnostic = PandapowerArtifactAuthority.describe_execution_failure(code)
+    assert diagnostic['category'] == 'invocation'
+    assert diagnostic['confirmation'] == 'confirmed'
+    assert '工具未返回完整诊断' not in diagnostic['summary']
+
+
 def _write_context_chain(root, *, parent=None, model='ieee39', marker='base'):
     def write(kind, directory, document):
         data = _canonical_json(document)

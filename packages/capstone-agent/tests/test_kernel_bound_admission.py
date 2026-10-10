@@ -102,6 +102,39 @@ def test_participating_failed_pack_still_limits_admission():
     assert answer.evidence_refs == (EVIDENCE,)
 
 
+def test_partial_finalization_keeps_verified_result_facts_and_drops_rejected_prose(monkeypatch):
+    from test_result_projection import valid_projection
+    projection = valid_projection()
+    projection.update(thread_id='thr_bound', run_id='run_bound', turn_id='turn_1', attempt_id='attempt_1')
+    result = projection['result_ref']
+    projection['evidence_refs'] = [EVIDENCE]
+    monkeypatch.setattr('capstone_agent.kernel_pi_session._build_result_projections', lambda *_: (projection,))
+    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION},
+        result_documents={result: {'context_ref': CONTEXT, 'revision_ref': REVISION}})
+    events = ({'binding_id': 'grid', 'ok': True, 'result_refs': [result], 'evidence_refs': [EVIDENCE]},
+              {'binding_id': 'grid', 'ok': False, 'error_code': 'result_field_unavailable'})
+    receipt = admit(claim, 'UNVERIFIED complete ranking', (result,), (EVIDENCE,), events)
+    assert '有功损耗：43.64 MW' in receipt.answer
+    assert 'UNVERIFIED' not in receipt.answer
+    assert not any(item['id'] == 'answer' for item in receipt.task_outcome['work'])
+
+
+def test_presentation_error_cannot_reclassify_successful_tools_as_failed(monkeypatch):
+    result = 'result:sha256:' + 'd' * 64
+    def broken_projection(*_):
+        raise ValueError('presentation payload exceeds its contract')
+    monkeypatch.setattr('capstone_agent.kernel_pi_session._build_result_projections', broken_projection)
+    admit, claim, _ = _admission({'context_ref': CONTEXT, 'revision_ref': REVISION},
+        result_documents={result: {'context_ref': CONTEXT, 'revision_ref': REVISION}})
+    events = ({'binding_id': 'grid', 'ok': True, 'evidence_refs': [EVIDENCE]},
+              {'binding_id': 'grid', 'ok': True, 'result_refs': [result], 'evidence_refs': [EVIDENCE]})
+    receipt = admit(claim, '已核对当前电网。', (result,), (EVIDENCE,), events)
+    assert receipt.answer == '已核对当前电网。'
+    assert receipt.task_outcome is None
+    assert receipt.result_refs == (result,)
+    assert 'result_display_unavailable' in receipt.diagnostic_codes
+
+
 @pytest.mark.parametrize("document", [
     {"context_ref": "context:sha256:" + "d" * 64, "revision_ref": REVISION},
     {"context_ref": CONTEXT, "revision_ref": "revision:sha256:" + "d" * 64},

@@ -65,6 +65,26 @@ def successful_tool_end(tool_call_id: str, tool_name: str, capability: str, resu
     }
 
 
+def test_final_answer_excludes_pre_tool_planning_text(tmp_path: Path) -> None:
+    client, _ = scripted_rpc_client(tmp_path, events=[
+        {"type": "prompt_ack", "ok": True},
+        {"type": "text_delta", "text": "I'll first verify the capabilities."},
+        {"type": "message_end", "message": {"role": "assistant", "stopReason": "toolUse",
+            "content": [{"type": "text", "text": "I'll first verify the capabilities."}]}},
+        {"type": "tool_execution_start", "toolCallId": "call_1", "toolName": "grid_context_open"},
+        successful_tool_end("call_1", "grid_context_open", "context.open", OPEN_RESULT),
+        {"type": "text_delta", "text": "已核对能力，当前不支持机组停运校核。"},
+        {"type": "message_end", "message": {"role": "assistant", "stopReason": "stop",
+            "content": [{"type": "text", "text": "已核对能力，当前不支持机组停运校核。"}]}},
+        {"type": "agent_end"},
+    ])
+    client.start()
+    try:
+        assert client.prompt_and_wait("校核") == "已核对能力，当前不支持机组停运校核。"
+    finally:
+        client.stop()
+
+
 def semantic_request_fixture(model_id: str = "scripted-model") -> dict[str, Any]:
     return {
         "model": {

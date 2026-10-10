@@ -32,11 +32,16 @@ from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
-from .result_projection import normalize_result_projection
+from .result_projection import normalize_result_projection, compact_projection_validation_hint
+from .admitted_result_answer import finalize_admitted_answer
 from .catalog_answer import complete_catalog_answer
 from .pi_delegation import PiTaskResult
 from .task_outcome import normalize_task_outcome, unavailable_outcome
 from .business_goal_dependency import business_dependencies_for_claim
+
+
+class _ReferenceAdmissionRejected(ValueError):
+    """Only reference checks may trigger independent evidence recovery."""
 
 
 def external_observations_for_claim(claim: AttemptClaim) -> list[dict]:
@@ -586,7 +591,7 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                     'result_refs': list(safe_results), 'evidence_refs': list(safe_evidence)}, *outcome['work']]
                 if retained.task_outcome is not None and 'coverage' in retained.task_outcome:
                     outcome['coverage'] = retained.task_outcome['coverage']
-                return replace(retained, task_outcome=normalize_task_outcome(outcome))
+                return replace(retained, task_outcome=normalize_task_outcome(outcome), answer_source='verified_results')
         if failures:
             observed = []
             for event in tool_events:
@@ -652,7 +657,10 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
         tool_events = tuple(authority_events)
-        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
+        try:
+            _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
+        except ValueError as error:
+            raise _ReferenceAdmissionRejected(str(error)) from error
         participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
@@ -702,12 +710,22 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if not decisions:
             raise ValueError("no prepared Domain Pack admission policy")
         decision = aggregate_answer_admission(tuple(decisions), answer)
-        result_projections = _build_result_projections(
-            claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
-        )
+        diagnostic_codes = tuple(decision.diagnostic_codes)
+        try:
+            result_projections = _build_result_projections(
+                claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
+            )
+            encoded = json.dumps(result_projections, ensure_ascii=False, allow_nan=False).encode('utf-8')
+            if len(result_projections) > 12 or len(encoded) > 64 * 1024:
+                raise ValueError('result display exceeds its bounded contract')
+        except (ValueError, TypeError):
+            # Presentation is optional. Its failure cannot erase admitted
+            # Authority facts or manufacture failed tool executions.
+            result_projections = ()
+            diagnostic_codes = tuple(dict.fromkeys((*diagnostic_codes, 'result_display_unavailable')))
         admitted = AdmittedAttemptAnswer(
             decision.answer_output, decision.mode, decision.assurance,
-            tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
+            tuple(result_refs), tuple(evidence_refs), diagnostic_codes,
             result_projections=result_projections,
         )
         for binding_id, binding in binding_map.items():
@@ -724,14 +742,14 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                     {'id': 'scope', 'status': 'blocked', 'summary': '完整研究范围与全量排序尚未确认。', 'result_refs': [], 'evidence_refs': []}],
                 'diagnostics': [{'code': 'study_scope_unconfirmed', 'category': 'capability', 'stage': 'admit', 'confirmation': 'confirmed',
                     'summary': '现有证据仅确认已计算的场景，未确认完整请求范围。', 'work_id': 'scope', 'recovery': 'change_scope'}]})
-            return replace(admitted, answer=safe_answer, task_outcome=outcome)
+            return replace(admitted, answer=safe_answer, task_outcome=outcome, answer_source='verified_results')
         return admitted
     def recover_admission(claim, answer, result_refs, evidence_refs, tool_events):
         try:
-            return admit(claim, answer, result_refs, evidence_refs, tool_events)
+            receipt = admit(claim, answer, result_refs, evidence_refs, tool_events)
         except AttemptOutcomeUnavailable:
             raise
-        except ValueError:
+        except _ReferenceAdmissionRejected:
             safe_events = []
             rejected = []
             for event in tool_events:
@@ -741,12 +759,17 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                 selected_results = tuple(ref for ref in result_refs if ref in event.get('result_refs', ()))
                 selected_evidence = tuple(ref for ref in evidence_refs if ref in event.get('evidence_refs', ()))
                 if not selected_evidence:
-                    rejected.append({**event, 'ok': False})
+                    try:
+                        admit(claim, '已核对只读信息。', selected_results, (), (event,))
+                    except _ReferenceAdmissionRejected:
+                        rejected.append({**event, 'ok': False, 'error_code': 'reference_admission_rejected', 'error_stage': 'admit'})
+                    # Valid reference-free observations and guides are not
+                    # failed calculations. They do not need recovery receipts.
                     continue
                 try:
                     receipt = admit(claim, '已保留独立通过接纳的成果。完整结论尚未接纳。', selected_results, selected_evidence, (event,))
-                except ValueError:
-                    rejected.append({**event, 'ok': False})
+                except _ReferenceAdmissionRejected:
+                    rejected.append({**event, 'ok': False, 'error_code': 'reference_admission_rejected', 'error_stage': 'admit'})
                     continue
                 if receipt.mode == 'authority_backed':
                     safe_events.append(event)
@@ -755,7 +778,11 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             retained_results = tuple(ref for ref in result_refs if any(ref in event.get('result_refs', ()) for event in safe_events))
             retained_evidence = tuple(ref for ref in evidence_refs if any(ref in event.get('evidence_refs', ()) for event in safe_events))
             blocker = {'ok': False, 'error_code': 'answer_admission_failed'}
-            return admit(claim, '', retained_results, retained_evidence, (*safe_events, *rejected, blocker))
+            receipt = admit(claim, '', retained_results, retained_evidence, (*safe_events, *rejected, blocker))
+        if receipt.answer_source != 'verified_results':
+            return receipt
+        return finalize_admitted_answer(receipt, expected_identity=(
+            claim.thread_id, claim.run_id, claim.attempt.turn_id, claim.attempt.attempt_id))
     return recover_admission
 
 
@@ -1091,7 +1118,7 @@ def _build_result_projections(
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
-                projections.append(normalized)
+                projections.append(compact_projection_validation_hint(normalized))
             if projection_error or seen_results != set(owned_results):
                 projections = [item for item in projections if item.get("result_ref") not in owned_results]
                 for result_ref in owned_results:

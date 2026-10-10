@@ -11,6 +11,16 @@ def test_unknown_cause_is_explicit_and_does_not_claim_missing_data():
     assert outcome['status'] == 'unavailable'
 
 
+def test_reference_rejection_is_admission_diagnostic_not_unknown_tool_execution():
+    outcome = unavailable_outcome('answer_admission_failed', ({'ok': False,
+        'error_code': 'reference_admission_rejected', 'error_stage': 'admit'},))
+    diagnostic = outcome['diagnostics'][0]
+    assert diagnostic['code'] == 'reference_admission_rejected'
+    assert diagnostic['category'] == 'admission'
+    assert diagnostic['stage'] == 'admit'
+    assert diagnostic['confirmation'] == 'confirmed'
+
+
 def test_typed_transport_deadline_is_distinct_from_unknown_and_missing_input():
     outcome = unavailable_outcome('answer_admission_failed', ({'ok': False, 'error_code': 'capability_transport_timeout'},))
     assert outcome['diagnostics'][0]['category'] == 'service'

@@ -248,7 +248,9 @@ function terminalContent(event: EventEnvelope): string {
 
 function outcomeContent(outcome: TaskOutcome): string {
   const title = outcome.status === 'partial' ? '部分完成' : outcome.status === 'unavailable' ? '尚未取得可接纳成果' : '已完成'
-  return `**${title}**\n\n${outcome.work.map(item => item.summary).join('\n\n')}\n\n${outcome.diagnostics.map(item => item.summary).join('\n\n')}`
+  const work = [...new Set(outcome.work.map(item => item.summary))]
+  const diagnostics = [...new Set(outcome.diagnostics.map(item => item.summary))]
+  return `**${title}**\n\n${work.join('\n\n')}\n\n${diagnostics.join('\n\n')}`
 }
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
@@ -326,7 +328,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         : ''
       const outcome = parseTaskOutcome(event.payload.task_outcome)
       const terminalAnswer = event.eventType === 'attempt_completed'
-        ? outcome && outcome.status !== 'complete' ? `${outcomeContent(outcome)}\n\n${answer}` : answer
+        ? outcome && outcome.status !== 'complete' ? `${answer}\n\n${outcomeContent(outcome)}` : answer
         : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
       const partialText = event.eventType !== 'attempt_completed' && !outcome ? message?.content : undefined

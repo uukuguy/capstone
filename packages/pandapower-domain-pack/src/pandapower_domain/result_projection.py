@@ -196,6 +196,18 @@ class PandapowerResultProjector:
         admitted = set(admitted_refs)
         if result_ref not in admitted or any(item not in admitted for item in evidence_refs):
             raise ValueError("calculation result or evidence is not admitted")
+        if calculation_document.get('result_type') == 'analysis.contingency.n_minus_one.aggregate':
+            return _project_contingency({
+                'schema': 'capstone-result-projection/1.0',
+                'result_id': f'result_projection_{attempt_id}_{result_ref[-16:]}',
+                'result_ref': result_ref, 'evidence_refs': evidence_refs,
+                'thread_id': thread_id, 'run_id': run_id, 'turn_id': turn_id, 'attempt_id': attempt_id,
+                'model_context_id': _string(context_document.get('model_context_id'), 'model_context_id'),
+                'model_id': model_id, 'model_revision': revision_ref,
+                'source': {'capability_id': capability_hint, 'domain_pack_id': self.domain_pack_id,
+                           'implementation_family': self.implementation_family},
+                'status': 'completed', 'summary': [], 'tables': [], 'element_refs': [], 'overlay': None,
+            }, calculation_document, admitted)
         if not supported:
             return {
                 "schema": "capstone-result-projection/1.0",
@@ -316,3 +328,68 @@ class PandapowerResultProjector:
             if overlay_values:
                 base["overlay"] = {"metric": "loading_percent", "unit": "%", "source_ref": result_ref, "values": overlay_values}
         return base
+
+
+def _project_contingency(base: dict[str, object], document: Mapping[str, Any], admitted: set[str]) -> dict[str, object]:
+    """Project this operation's verified scenarios, never an inferred study scope."""
+    scenarios = document.get('scenarios')
+    if not isinstance(scenarios, list) or not scenarios or document.get('scenario_count') != len(scenarios):
+        raise ValueError('contingency scenario count is invalid')
+    for scenario in scenarios:
+        if not isinstance(scenario, Mapping) or scenario.get('evidence_ref') not in admitted:
+            raise ValueError('contingency scenario evidence is not admitted')
+    converged = sum(scenario.get('converged') is True for scenario in scenarios)
+    base['summary'] = [
+        {'metric_id': 'analysis_type', 'label': '分析类型', 'value': '支路 N−1 静态校核'},
+        {'metric_id': 'scenario_count', 'label': '已计算支路停运场景', 'value': len(scenarios), 'unit': '个'},
+        {'metric_id': 'converged_count', 'label': '潮流收敛场景', 'value': converged, 'unit': '个'},
+        {'metric_id': 'non_converged_count', 'label': '潮流未收敛场景', 'value': len(scenarios) - converged, 'unit': '个'},
+        {'metric_id': 'scope', 'label': '结论范围', 'value': '本批已计算场景；不代表请求范围或综合风险排序已确认'},
+    ]
+    rows, violations = [], []
+    kinds = {'line_overload': '线路过载', 'trafo_overload': '变压器过载', 'bus_voltage_high': '电压偏高',
+             'bus_voltage_low': '电压偏低', 'non_convergence': '潮流未收敛'}
+    for position, scenario in enumerate(scenarios):
+        kind = _string(scenario.get('element_kind'), 'scenario.element_kind')
+        index = scenario.get('pandapower_index')
+        if type(index) is not int or index < 0:
+            raise ValueError('scenario component index is invalid')
+        outage = f'{kind}{index}'
+        loading = scenario.get('max_loading_percent')
+        rows.append({'row_id': f'scenario_{position}', 'cells': {
+            'outage': outage, 'status': '收敛' if scenario.get('converged') is True else '未收敛',
+            'loading': None if loading is None else _finite(loading, 'scenario.loading'),
+            'violation_count': len(scenario.get('violations', [])),
+        }})
+        for violation in scenario.get('violations', []):
+            # Label a limit only when the authority records its source and values.
+            if not isinstance(violation, Mapping) or violation.get('constraint_source') != 'model':
+                continue
+            if violation.get('value') is None or violation.get('limit') is None:
+                continue
+            subject_kind = violation.get('element_kind', 'bus' if str(violation.get('kind', '')).startswith('bus_') else '')
+            subject_index = violation.get('pandapower_index')
+            if subject_kind not in {'line', 'trafo', 'trafo3w', 'bus'} or type(subject_index) is not int:
+                continue
+            violations.append({'row_id': f'violation_{len(violations)}', 'cells': {
+                'outage': outage, 'kind': kinds.get(str(violation.get('kind')), '模型约束越限'),
+                'element': f'{subject_kind}{subject_index}', 'value': _finite(violation['value'], 'violation.value'),
+                'limit': _finite(violation['limit'], 'violation.limit'),
+                'unit': '%' if violation.get('unit') == 'percent' else violation.get('unit', ''),
+            }})
+    rows.sort(key=lambda row: row['cells']['loading'] if row['cells']['loading'] is not None else -1, reverse=True)
+    base['tables'] = [{
+        'table_id': 'contingency_scenarios', 'title': '停运后最高线路负载率（降序，非综合风险排序）',
+        'columns': [{'column_id': 'outage', 'label': '停运支路'}, {'column_id': 'status', 'label': '潮流'},
+                    {'column_id': 'loading', 'label': '最高线路负载率', 'unit': '%'},
+                    {'column_id': 'violation_count', 'label': '越限项数量'}], 'rows': rows[:128],
+    }, {
+        'table_id': 'violations', 'title': '模型自带约束的越限记录',
+        'columns': [{'column_id': key, 'label': label} for key, label in (
+            ('outage', '停运支路'), ('kind', '越限类型'), ('element', '越限元件'),
+            ('value', '计算值'), ('limit', '模型限值'), ('unit', '单位'))], 'rows': violations[:128],
+    }]
+    if converged != len(scenarios) or len(rows) > 128 or len(violations) > 128:
+        base['status'] = 'partial'
+        base['unavailable_reason'] = '部分场景未收敛或结果表超过 128 行展示上限；未据此推断未展示结果。'
+    return base

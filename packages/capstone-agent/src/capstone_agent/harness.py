@@ -16,6 +16,7 @@ from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
 from .task_outcome import normalize_task_outcome, unavailable_outcome
+from .admitted_result_answer import finalize_admitted_answer
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
@@ -45,8 +46,11 @@ class AdmittedAttemptAnswer:
     diagnostic_codes: tuple[str, ...] = ()
     result_projections: tuple[Mapping[str, object], ...] = ()
     task_outcome: Mapping[str, object] | None = None
+    answer_source: str = 'model'
 
     def __post_init__(self) -> None:
+        if self.answer_source not in {'model', 'verified_results'}:
+            raise ValueError('admitted answer source is invalid')
         if self.task_outcome is not None:
             outcome = normalize_task_outcome(self.task_outcome)
             for work in outcome['work']:
@@ -126,7 +130,8 @@ class AttemptOutcomeUnavailable(ValueError):
         self.outcome = normalize_task_outcome(outcome)
 
 
-def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None) -> dict[str, object]:
+def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None,
+                                   bounded_display: bool = False) -> dict[str, object]:
     """One payload projection shared by answer rendering and Thread persistence."""
     assurance: dict[str, object] = {'mode': admission.mode, 'assurance': admission.assurance}
     if admission.diagnostic_codes:
@@ -138,6 +143,15 @@ def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: 
         payload['result_projections'] = [dict(item) for item in admission.result_projections]
     if admission.task_outcome is not None:
         payload['task_outcome'] = normalize_task_outcome(admission.task_outcome)
+    if bounded_display and admission.result_projections and len(json.dumps(
+        payload, ensure_ascii=False, allow_nan=False, sort_keys=True,
+    ).encode('utf-8')) > 64 * 1024:
+        # The ledger limit applies to the whole event, not just result cards.
+        # Preserve the required answer and evidence; omit optional display data.
+        del payload['result_projections']
+        assurance['diagnostic_codes'] = list(dict.fromkeys((
+            *admission.diagnostic_codes, 'result_display_unavailable',
+        )))
     return payload
 
 
@@ -588,6 +602,9 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
+            if candidate is not None:
+                candidate = finalize_admitted_answer(candidate, expected_identity=(
+                    claim.thread_id, claim.run_id, claim.attempt.turn_id, claim.attempt.attempt_id))
             observation_admitted = candidate is not None and (
                 candidate.mode == "offline_information"
                 and candidate.assurance == "deterministic_information"
@@ -626,7 +643,8 @@ class HarnessAttemptRunner:
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
             if candidate is not None:
-                terminal_payload = terminal_payload_for_admission(candidate)
+                terminal_payload = terminal_payload_for_admission(candidate, bounded_display=True)
+                admission = cast(dict[str, object], terminal_payload['admission'])
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
