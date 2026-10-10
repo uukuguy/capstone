@@ -70,6 +70,26 @@ class _ToolsModelCatalog:
         return ThreadModelDescriptor(model_id, "revision:sha256:" + "a" * 64, "pypsa")
 
 
+def test_postgres_claim_preparation_preserves_a_full_lease(postgres_thread_service) -> None:
+    import time
+
+    class SlowCatalog:
+        def resolve(self, _model_id):
+            raise AssertionError("claim must retain its already accepted context")
+
+        def list_entries(self):
+            time.sleep(1.2)
+            return ()
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    service.set_model_catalog(SlowCatalog())
+    claim = service.claim_attempt("slow-catalog-worker", lease_seconds=1)
+    assert claim is not None
+    assert service.renew_attempt(claim, lease_seconds=1)
+
+
 @pytest.mark.parametrize("switch", [False, True])
 def test_postgres_message_tools_activate_atomically_for_current_or_pending_model(postgres_thread_service, switch) -> None:
     service, thread_id = postgres_thread_service
