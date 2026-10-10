@@ -177,6 +177,74 @@ it('keeps current history when an older page diagram conflicts during merge', as
   expect(store.state.historyLoading).toBe(false)
 })
 
+it('does not poison diagram cache when an older page fails before a corrected retry', async () => {
+  let retry = false
+  const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
+  const bad = conversationalEvent(1, 'network_diagram', 1, {
+    diagram: { ...diagram, buses: [{ ...diagram.buses[0], label: 'Wrong bus label' }, ...diagram.buses.slice(1)] },
+  })
+  const corrected = conversationalEvent(1, 'network_diagram', 1, { diagram })
+  const conflict = conversationalEvent(2, 'network_diagram', 1, { diagram })
+  const history = vi.fn(async (_threadId: string, before?: number) => {
+    if (before === 1) return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 1, next_before_event_seq: 1, has_more: false, events: [] }
+    if (before === 3 && !retry) return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 3, next_before_event_seq: 1, has_more: false, events: [bad, conflict] }
+    return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 3, next_before_event_seq: 1, has_more: false, events: [corrected] }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 0 }),
+    readHistory: history,
+  }))
+  await store.load('thr_demo_39')
+  history.mockClear()
+  ;(store as unknown as { olderHistoryCursor: number | null }).olderHistoryCursor = 3
+  ;(store.state as unknown as { hasOlderHistory: boolean }).hasOlderHistory = true
+
+  await expect(store.loadOlderHistory()).rejects.toThrow('diagram identity does not match')
+  retry = true
+  await expect(store.loadOlderHistory()).resolves.toBeUndefined()
+
+  expect(store.publicEvents.map((event) => event.eventId)).toEqual(['evt_1'])
+  expect(history).toHaveBeenCalledTimes(2)
+})
+
+it('does not poison diagram cache when an optional startup older page fails before retry', async () => {
+  let retry = false
+  const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
+  const latest = conversationalEvent(3, 'attempt_completed', 2, { answer: 'latest answer' })
+  const bad = conversationalEvent(1, 'network_diagram', 1, {
+    diagram: { ...diagram, buses: [{ ...diagram.buses[0], label: 'Wrong startup label' }, ...diagram.buses.slice(1)] },
+  })
+  const corrected = conversationalEvent(1, 'network_diagram', 1, { diagram })
+  const conflict = conversationalEvent(2, 'network_diagram', 1, { diagram })
+  const history = vi.fn(async (_threadId: string, before?: number) => {
+    if (before === 4) return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 4, next_before_event_seq: 3, has_more: true, events: [latest] }
+    if (before === 3 && !retry) return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 3, next_before_event_seq: 1, has_more: false, events: [bad, conflict] }
+    return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39',
+      before_event_seq: 3, next_before_event_seq: 1, has_more: false, events: [corrected] }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 3 }),
+    readHistory: history,
+  }))
+
+  await store.load('thr_demo_39')
+  expect(store.publicEvents.map((event) => event.eventId)).toEqual(['evt_3'])
+  history.mockClear()
+  retry = true
+
+  await expect(store.loadOlderHistory()).resolves.toBeUndefined()
+
+  expect(store.publicEvents.map((event) => event.eventId)).toEqual(['evt_1', 'evt_3'])
+  expect(history).toHaveBeenCalledTimes(1)
+})
+
 it('keeps the latest restored page when an optional older startup page fails', async () => {
   const events: Record<string, unknown>[] = []
   for (let turn = 1; turn <= 4; turn++) {

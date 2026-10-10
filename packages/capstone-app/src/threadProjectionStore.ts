@@ -409,7 +409,7 @@ export class ThreadProjectionStore {
       // A snapshot with an un-compacted history must restore that history
       // before the UI becomes live. Otherwise the model state would look
       // current while the conversation is silently truncated.
-      const restoredDiagrams = new Map<string, NetworkDiagram>()
+      let restoredDiagrams = new Map<string, NetworkDiagram>()
       let history: Awaited<ReturnType<CapstoneThreadClient['history']>> | null = null
       let restoredEvents: EventEnvelope[] | null = null
       if (this.client.supportsHistory) {
@@ -422,7 +422,10 @@ export class ThreadProjectionStore {
             try {
               const page = await this.client.history(threadId, history.nextBeforeEventSeq)
               if (generation !== this.loadGeneration) return
-              restoredEvents = mergeHistoryEvents(restoredEvents, page.events.map((event) => this.internDiagramEvent(event, restoredDiagrams)))
+              const pageDiagrams = new Map(restoredDiagrams)
+              const incoming = page.events.map((event) => this.internDiagramEvent(event, pageDiagrams))
+              restoredEvents = mergeHistoryEvents(restoredEvents, incoming)
+              restoredDiagrams = pageDiagrams
               history = page
               pages += 1
             } catch {
@@ -620,7 +623,11 @@ export class ThreadProjectionStore {
       const page = await this.client.history(snapshot.threadId, cursor)
       if (generation !== this.loadGeneration) return
       const existing = [...this.eventLog]
-      const merged = mergeHistoryEvents(existing, page.events.map((event) => this.internDiagramEvent(event)))
+      const diagrams = new Map(this.sharedDiagrams)
+      const incoming = page.events.map((event) => this.internDiagramEvent(event, diagrams))
+      const merged = mergeHistoryEvents(existing, incoming)
+      this.sharedDiagrams.clear()
+      for (const [key, diagram] of diagrams) this.sharedDiagrams.set(key, diagram)
       this.eventLog.length = 0
       this.eventLog.push(...merged)
       this.olderHistoryCursor = page.hasMore ? page.nextBeforeEventSeq : null

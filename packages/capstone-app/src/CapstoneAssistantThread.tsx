@@ -758,6 +758,7 @@ const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystem
 
 export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
+  const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -766,7 +767,9 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
   const scrollAnchor = useRef<ReadingAnchor | null>(null)
   const historyAnchor = useRef<ReadingAnchor | null>(null)
-  const pendingHistoryAnchor = useRef<{ messageCount: number } | null>(null)
+  const historyLoadToken = useRef(0)
+  const [historyAnchorRevision, setHistoryAnchorRevision] = useState(0)
+  const pendingHistoryAnchor = useRef<{ token: number; baselineFirstEventSeq: number; settled: boolean } | null>(null)
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
@@ -777,13 +780,16 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     scrollAnchor.current = { id, top: control.getBoundingClientRect().top, control,
       instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
   }
-  function captureHistoryAnchor() {
+  function captureHistoryAnchor(options: { revealInstructionForAnswer?: boolean; preferAnswerToggle?: boolean; reusePrevious?: boolean } = {}) {
     const viewport = viewportRef.current
     if (!viewport) return
     const view = viewport.getBoundingClientRect()
     const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
+    const { revealInstructionForAnswer = true, preferAnswerToggle = true, reusePrevious = true } = options
     const previous = historyAnchor.current
-    const previousNode = previous?.element?.isConnected ? previous.element : nodes.find((node) => node.dataset.messageId === previous?.id)
+    const previousNode = reusePrevious
+      ? previous?.element?.isConnected ? previous.element : nodes.find((node) => node.dataset.messageId === previous?.id)
+      : undefined
     // Reuse the reading subject through consecutive actions. Re-select only
     // after the user moves it, or its message leaves the rendered window.
     if (previous && previousNode && Math.abs(previousNode.getBoundingClientRect().top - previous.top) < 2) {
@@ -796,10 +802,10 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
       const instructionId = allMessages.find((item) => item.id === message.dataset.messageId)?.metadata?.custom?.instructionMessageId
       const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((item) => item.id === instructionId) : -1
       const instruction = nodes.find((node) => node.dataset.messageId === instructionId)
-      // If only the middle of a long reply is visible, its text will disappear
-      // on folding. Restore its own instruction once, then hold that position.
-      const revealInstruction = !question && instructionIndex >= 0
-      const element = !question && !revealInstruction ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
+      // During fold actions, a reply may collapse away from the current view.
+      // Restore its instruction once; paging keeps the visible message itself.
+      const revealInstruction = revealInstructionForAnswer && !question && instructionIndex >= 0
+      const element = !question && !revealInstruction && preferAnswerToggle ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
       const anchor = { id: revealInstruction ? instructionId as string : message.dataset.messageId,
         top: revealInstruction ? view.top + 8 : (element || message).getBoundingClientRect().top, element }
       scrollAnchor.current = anchor
@@ -837,10 +843,11 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   }
   useLayoutEffect(() => restoreReadingAnchor(), [foldState, readingTailSpace])
   useLayoutEffect(() => {
-    if (pendingHistoryAnchor.current && pendingHistoryAnchor.current.messageCount !== allMessages.length) {
+    const pending = pendingHistoryAnchor.current
+    if (pending?.settled && firstPublicEventSeq < pending.baselineFirstEventSeq) {
       setReadingLayoutChanging(true)
     }
-  }, [allMessages.length])
+  }, [firstPublicEventSeq, historyAnchorRevision])
   useEffect(() => {
     if (!readingLayoutChanging) return
     // Assistant-ui follows height changes while at the latest reply. Pause that
@@ -858,14 +865,15 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           // Hold its actual landing point during the next history action.
           if (node) historyAnchor.current = { ...anchor, top: node.getBoundingClientRect().top }
         }
-        const waitingForHistory = pendingHistoryAnchor.current && pendingHistoryAnchor.current.messageCount === allMessages.length
-        if (pendingHistoryAnchor.current && !waitingForHistory) pendingHistoryAnchor.current = null
+        const pending = pendingHistoryAnchor.current
+        const waitingForHistory = pending && (!pending.settled || firstPublicEventSeq >= pending.baselineFirstEventSeq)
+        if (pending && !waitingForHistory) pendingHistoryAnchor.current = null
         if (!waitingForHistory) scrollAnchor.current = null
         setReadingLayoutChanging(false)
       })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
-  }, [readingLayoutChanging, foldState, readingTailSpace, allMessages.length])
+  }, [readingLayoutChanging, foldState, readingTailSpace, firstPublicEventSeq])
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
     setReadingTailSpace(0)
@@ -955,11 +963,22 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   async function olderMessages() {
     setHistoryError(null)
     if (!onLoadOlder || historyLoading) return
-    captureHistoryAnchor()
-    if (scrollAnchor.current) pendingHistoryAnchor.current = { messageCount: allMessages.length }
+    captureHistoryAnchor({ revealInstructionForAnswer: false, preferAnswerToggle: false, reusePrevious: false })
+    const token = scrollAnchor.current ? historyLoadToken.current + 1 : undefined
+    if (token !== undefined) {
+      historyLoadToken.current = token
+      pendingHistoryAnchor.current = { token, baselineFirstEventSeq: firstPublicEventSeq, settled: false }
+    }
     try {
       await onLoadOlder()
-    } catch (cause) { setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用') }
+      if (token !== undefined && pendingHistoryAnchor.current?.token === token) {
+        pendingHistoryAnchor.current = { ...pendingHistoryAnchor.current, settled: true }
+        setHistoryAnchorRevision((value) => value + 1)
+      }
+    } catch (cause) {
+      if (token !== undefined && pendingHistoryAnchor.current?.token === token) pendingHistoryAnchor.current = null
+      setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用')
+    }
   }
   function returnToLatest() {
     setHistoryError(null)
