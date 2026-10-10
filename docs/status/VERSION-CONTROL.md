@@ -44,7 +44,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 历史浏览反馈拟作为首个 Issue：用户在远少于 50 条消息时就需要点击“查看之前的对话”。已确认有内部事件分页和前端显示窗口两层边界；该用户会话的具体触发原因尚未复现。先定位完整问答的恢复边界，再评估连续滚动、按需加载与阅读位置保持。归入公共历史浏览工作包，当前不走紧急发布；远端 Issue 尚未建立。
 
-用户要求进一步设计简单填写、AI 中文沟通、定时/命令后台修复及统一开发规范。完整方案见[后台 Issue 自动处理草案](../superpowers/specs/2026-10-10-github-issue-automation-design.md)，尚待审阅；不由该草案推断后台任务、远端评论、自动合并或云端发布已启用。
+用户已授权按[后台 Issue 自动处理设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md)完整实施，采用 AI 修复到 PR、维护者确认合并；[实施计划](../superpowers/plans/2026-10-10-github-issue-automation.md)记录验证与接入。模型费用上限待配置，未授权额度时只读预演。实现、后台启用和远端发布分别记录，不由设计获批推断已运行。
 
 ## 分支合并流程
 
@@ -116,6 +116,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 语义任务意图与回答尺度 | [设计草案](../superpowers/specs/2026-10-10-shared-intent-and-goal-answer-design.md) | 未实施；普通/专业问答路由不等于完整任务理解；基线一整理后再推进 |
 | 启动和对话中恢复体验 | [已知问题](KNOWN-ISSUES.md) | 待调查；作为公共加固/体验工作独立管理，不能由未测量的睡眠策略变更代替验收 |
 | 对话历史浏览 | 首个 GitHub Issue 待建立；本地基线一 | 用户报告远少于 50 条消息就被截断；内部事件分页与显示窗口均需检查，具体触发原因未确认；按反馈流程分流为公共修复/改进工作包，验证 dev/demo 两入口 |
+| GitHub 反馈与后台 AI 修复 | `feat/github-issue-automation`，来源 main `21c5096` | 用户授权完整实施；独立工作区，维护者合并、无自动部署；先离线与受控接入验证，再启用后台任务；不修改已冻结基线一 |
 
 现有 `feat/business-workspace-resources`、`feat/capstone-optimization`、`feat/lean-test-boundaries`、`feat/m11-cloud-thread`、`feat/multi-binding` 和五个 `feat/pypsa-*` 分支的 tip 都是整理前 main 的祖先。它们是保留的历史分支，不能凭分支仍存在判断功能已从 main 隔离。现有 `fix/demo-n1-outcome` 为历史修复分支，先保留，不重命名或删除。
 
