@@ -289,6 +289,47 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('button', { name: '返回最新对话' })).toBeNull()
   })
 
+  it('reloads the latest tail only after retention trimmed newer messages', () => {
+    const onReturnLatest = vi.fn()
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '保留的旧回答。' }, 'older')]}
+      historyAtLatest={false} onReturnLatest={onReturnLatest}
+      disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
+
+    expect(onReturnLatest).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the reading anchor when an older history load resolves after animation frames', async () => {
+    let finishLoad: (() => void) | undefined
+    const onLoadOlder = vi.fn(() => new Promise<void>((resolve) => { finishLoad = resolve }))
+    const newer = [event('attempt_completed', 2, { answer: '最新回答。'.repeat(20) }, 'newer')]
+    const older = [event('attempt_completed', 1, { answer: '更早回答。' }, 'older')]
+    const props = { disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onLoadOlder }
+    const { rerender } = render(<CapstoneAssistantThread {...props} events={newer} hasOlderHistory />)
+    const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 500, width: 500, x: 0, y: top, toJSON: () => ({}) })
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1200 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 400 })
+    vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(rect(0, 400))
+    const current = screen.getByText(/最新回答。/).closest('[data-message-id]') as HTMLElement
+    let currentBaseTop = 420
+    vi.spyOn(current, 'getBoundingClientRect').mockImplementation(() => rect(currentBaseTop - viewport.scrollTop, 240))
+    viewport.scrollTop = 300
+
+    fireEvent.click(screen.getByRole('button', { name: '查看之前的对话' }))
+    await waitFor(() => expect(onLoadOlder).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    currentBaseTop = 620
+    finishLoad?.()
+    await onLoadOlder.mock.results[0].value
+    rerender(<CapstoneAssistantThread {...props} events={[...older, ...newer]} hasOlderHistory={false} />)
+    await waitFor(() => expect(screen.getByText('更早回答。')).toBeTruthy())
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+    expect(viewport.scrollTop).toBe(500)
+  })
+
   it('closes the history actions on Escape and outside clicks', () => {
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '历史回答。' }, 'first')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     const button = screen.getByRole('button', { name: '对话设置' })

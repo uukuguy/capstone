@@ -419,11 +419,15 @@ export class ThreadProjectionStore {
           restoredEvents = history.events.map((event) => this.internDiagramEvent(event, restoredDiagrams))
           let pages = 1
           while (history.hasMore && pages < INITIAL_HISTORY_PAGE_LIMIT && shouldLoadInitialHistory(restoredEvents)) {
-            const page = await this.client.history(threadId, history.nextBeforeEventSeq)
-            if (generation !== this.loadGeneration) return
-            restoredEvents = mergeHistoryEvents(restoredEvents, page.events.map((event) => this.internDiagramEvent(event, restoredDiagrams)))
-            history = page
-            pages += 1
+            try {
+              const page = await this.client.history(threadId, history.nextBeforeEventSeq)
+              if (generation !== this.loadGeneration) return
+              restoredEvents = mergeHistoryEvents(restoredEvents, page.events.map((event) => this.internDiagramEvent(event, restoredDiagrams)))
+              history = page
+              pages += 1
+            } catch {
+              break
+            }
           }
         }
         catch (cause) {
@@ -616,8 +620,9 @@ export class ThreadProjectionStore {
       const page = await this.client.history(snapshot.threadId, cursor)
       if (generation !== this.loadGeneration) return
       const existing = [...this.eventLog]
+      const merged = mergeHistoryEvents(existing, page.events.map((event) => this.internDiagramEvent(event)))
       this.eventLog.length = 0
-      this.eventLog.push(...mergeHistoryEvents(existing, page.events.map((event) => this.internDiagramEvent(event))))
+      this.eventLog.push(...merged)
       this.olderHistoryCursor = page.hasMore ? page.nextBeforeEventSeq : null
       this.current = { ...this.current, hasOlderHistory: page.hasMore }
       this.trimHistory(false)

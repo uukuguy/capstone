@@ -756,7 +756,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -766,6 +766,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
   const scrollAnchor = useRef<ReadingAnchor | null>(null)
   const historyAnchor = useRef<ReadingAnchor | null>(null)
+  const pendingHistoryAnchor = useRef<{ messageCount: number } | null>(null)
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
@@ -835,6 +836,11 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     }
   }
   useLayoutEffect(() => restoreReadingAnchor(), [foldState, readingTailSpace])
+  useLayoutEffect(() => {
+    if (pendingHistoryAnchor.current && pendingHistoryAnchor.current.messageCount !== allMessages.length) {
+      setReadingLayoutChanging(true)
+    }
+  }, [allMessages.length])
   useEffect(() => {
     if (!readingLayoutChanging) return
     // Assistant-ui follows height changes while at the latest reply. Pause that
@@ -852,12 +858,14 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           // Hold its actual landing point during the next history action.
           if (node) historyAnchor.current = { ...anchor, top: node.getBoundingClientRect().top }
         }
-        scrollAnchor.current = null
+        const waitingForHistory = pendingHistoryAnchor.current && pendingHistoryAnchor.current.messageCount === allMessages.length
+        if (pendingHistoryAnchor.current && !waitingForHistory) pendingHistoryAnchor.current = null
+        if (!waitingForHistory) scrollAnchor.current = null
         setReadingLayoutChanging(false)
       })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
-  }, [readingLayoutChanging, foldState, readingTailSpace])
+  }, [readingLayoutChanging, foldState, readingTailSpace, allMessages.length])
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
     setReadingTailSpace(0)
@@ -948,12 +956,17 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     setHistoryError(null)
     if (!onLoadOlder || historyLoading) return
     captureHistoryAnchor()
+    if (scrollAnchor.current) pendingHistoryAnchor.current = { messageCount: allMessages.length }
     try {
       await onLoadOlder()
     } catch (cause) { setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用') }
   }
   function returnToLatest() {
     setHistoryError(null)
+    if (!historyAtLatest) {
+      onReturnLatest?.()
+      return
+    }
     const viewport = viewportRef.current
     if (viewport) viewport.scrollTop = viewport.scrollHeight
   }

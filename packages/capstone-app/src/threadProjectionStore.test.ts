@@ -148,6 +148,69 @@ it('restores a short conversation that spans several bounded history pages', asy
   expect(store.state.hasOlderHistory).toBe(false)
 })
 
+it('keeps current history when an older page diagram conflicts during merge', async () => {
+  let calls = 0
+  const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
+  const retained = conversationalEvent(2, 'network_diagram', 1, { diagram })
+  const conflicting = conversationalEvent(1, 'network_diagram', 1, {
+    diagram: { ...diagram, buses: [{ ...diagram.buses[0], label: 'Changed bus label' }, ...diagram.buses.slice(1)] },
+  })
+  const history = vi.fn(async (_threadId: string, before?: number) => {
+    calls += 1
+    if (calls === 1) return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39', before_event_seq: before,
+      next_before_event_seq: 2, has_more: false, events: [retained] }
+    return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39', before_event_seq: 2,
+      next_before_event_seq: 1, has_more: false, events: [conflicting] }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 2 }),
+    readHistory: history,
+  }))
+  await store.load('thr_demo_39')
+  ;(store as unknown as { olderHistoryCursor: number | null }).olderHistoryCursor = 2
+  ;(store.state as unknown as { hasOlderHistory: boolean }).hasOlderHistory = true
+
+  await expect(store.loadOlderHistory()).rejects.toThrow('diagram identity does not match')
+
+  expect(store.publicEvents.map((event) => event.eventId)).toEqual(['evt_2'])
+  expect(store.state.historyLoading).toBe(false)
+})
+
+it('keeps the latest restored page when an optional older startup page fails', async () => {
+  const events: Record<string, unknown>[] = []
+  for (let turn = 1; turn <= 4; turn++) {
+    events.push(conversationalEvent(events.length + 1, 'command_accepted', turn, {
+      command_id: `cmd_${turn}`, kind: 'send_auto', payload: { text: `question ${turn}` },
+    }))
+    for (let step = 0; step < 42; step++) events.push(conversationalEvent(events.length + 1, 'tool_completed', turn, {
+      tool_call_id: `tool_${turn}_${step}`, tool_name: 'grid_context_get',
+    }))
+    events.push(conversationalEvent(events.length + 1, 'attempt_completed', turn, { answer: `answer ${turn}` }))
+  }
+  const history = vi.fn(async (_threadId: string, before?: number) => {
+    const cursor = before ?? events.length + 1
+    if (cursor !== events.length + 1) throw new Error('older page unavailable')
+    const selected = events.filter((event) => typeof event.event_seq === 'number' && event.event_seq < cursor).slice(-128)
+    return { schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39', before_event_seq: cursor,
+      next_before_event_seq: selected[0]?.event_seq ?? cursor, has_more: true, events: selected }
+  })
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: events.length }),
+    readHistory: history,
+  }))
+
+  await store.load('thr_demo_39')
+
+  expect(history).toHaveBeenCalledTimes(2)
+  expect(store.publicEvents).toHaveLength(128)
+  expect(store.publicEvents[0].eventSeq).toBe(events.length - 127)
+  expect(store.state.eventSeq).toBe(events.length)
+  expect(store.state.connection).toBe('live')
+  expect(store.state.hasOlderHistory).toBe(true)
+})
+
 it('catches up a workspace projection ahead of the loaded snapshot before exposing model controls', async () => {
   const nextContext = { ...context, id: 'ctx_case57', model_id: 'case57' }
   const event = { event_id: 'evt_switch', event_seq: 1, event_type: 'model_context_activated', event_version: 1,
