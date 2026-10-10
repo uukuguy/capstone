@@ -102,12 +102,16 @@ class ContentReferenceVerifier:
         seen: set[str] = set()
         expected_revision = revision_ref
         try:
+            base_document = self.verify_context(base_ref).document
+            engine_identity = (base_document.get('engine'), base_document.get('engine_version'))
             for _ in range(64):
                 if reference in seen:
                     return False
                 seen.add(reference)
                 document = self.verify_context(reference).document
                 if document.get('model_id') != model_id or document.get('revision_ref') != expected_revision:
+                    return False
+                if (document.get('engine'), document.get('engine_version')) != engine_identity:
                     return False
                 if reference == base_ref:
                     return True
@@ -524,6 +528,19 @@ class ContentReferenceVerifier:
 
 
 class PandapowerArtifactAuthority:
+    def describe_task_scope(self, result_refs: tuple[str, ...]) -> dict | None:
+        """Individual derived results do not establish an exhaustive study scope."""
+        contexts = set()
+        for reference in result_refs:
+            document = self.verify_result(reference).document
+            context_ref = document.get('context_ref')
+            if isinstance(context_ref, str) and self.verify_context(context_ref).document.get('origin') == 'derived':
+                contexts.add(context_ref)
+        if not contexts:
+            return None
+        return {'requested_scope': 'unconfirmed', 'completed_scenario_count': len(contexts),
+                'scenario_context_refs': sorted(contexts), 'full_ranking_allowed': False}
+
     @staticmethod
     def describe_execution_failure(code: str) -> dict[str, str] | None:
         """Map published gridctl error codes to bounded reader diagnostics."""
@@ -532,12 +549,18 @@ class PandapowerArtifactAuthority:
             'analysis_non_converged': ('calculation', '分析求解未收敛。请检查计算条件后再运行。', 'change_scope'),
             'model_scope_mismatch': ('invocation', '调用的模型上下文不在本会话授权范围内。', 'report_issue'),
             'model_scope_invalid': ('invocation', '本会话的模型范围配置无效。', 'report_issue'),
+            'persist_failed': ('storage', '必需的结果或证据未能持久化；本次任务未安全完成。', 'report_issue'),
+            'invalid_arguments': ('invocation', '工具参数未通过已发布合同校验。请检查调用参数。', 'report_issue'),
+            'unsupported_capability': ('capability', '所请求的操作不在当前已发布能力范围内。', 'change_scope'),
+            'analysis_prerequisite_missing': ('input', '当前模型缺少该操作要求的前提条件或数据。请按操作说明检查必需输入。', 'provide_input'),
+            'analysis_options_invalid': ('invocation', '分析选项未通过操作合同校验。请检查已发布的参数说明。', 'report_issue'),
+            'unknown_analysis_operation': ('capability', '所请求的分析操作尚未发布。', 'change_scope'),
         }
         entry = entries.get(code)
         if entry is None:
             return None
         category, summary, recovery = entry
-        return {'code': code, 'category': category, 'stage': 'execute' if category == 'calculation' else 'validate',
+        return {'code': code, 'category': category, 'stage': 'persist' if category == 'storage' else 'execute' if category == 'calculation' else 'validate',
                 'confirmation': 'confirmed', 'summary': summary, 'recovery': recovery}
 
     """Scope simulator artifact admission to the current run workspace."""

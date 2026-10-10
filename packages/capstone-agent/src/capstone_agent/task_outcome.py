@@ -11,7 +11,7 @@ def _text(value: object, maximum: int = 512) -> str:
 
 
 def normalize_task_outcome(value: object) -> dict:
-    if not isinstance(value, Mapping) or set(value) != {'schema', 'status', 'work', 'diagnostics'}:
+    if not isinstance(value, Mapping) or set(value) - {'schema', 'status', 'work', 'diagnostics', 'coverage'} or not {'schema', 'status', 'work', 'diagnostics'}.issubset(value):
         raise ValueError('task outcome fields are invalid')
     if value['schema'] != 'capstone-task-outcome/1' or value['status'] not in {'complete', 'partial', 'unavailable'}:
         raise ValueError('task outcome status is invalid')
@@ -54,7 +54,20 @@ def normalize_task_outcome(value: object) -> dict:
     blocked = any(item['status'] == 'blocked' for item in normalized_work)
     if (value['status'] == 'partial' and not (confirmed and blocked)) or (value['status'] == 'unavailable' and confirmed) or (value['status'] == 'complete' and blocked):
         raise ValueError('task outcome work contradicts status')
-    return {'schema': value['schema'], 'status': value['status'], 'work': normalized_work, 'diagnostics': normalized_diagnostics}
+    result = {'schema': value['schema'], 'status': value['status'], 'work': normalized_work, 'diagnostics': normalized_diagnostics}
+    if 'coverage' in value:
+        coverage = value['coverage']
+        if (not isinstance(coverage, Mapping) or set(coverage) != {'requested_scope', 'completed_scenario_count', 'scenario_context_refs', 'full_ranking_allowed'}
+            or coverage['requested_scope'] != 'unconfirmed' or coverage['full_ranking_allowed'] is not False
+            or type(coverage['completed_scenario_count']) is not int or not 0 < coverage['completed_scenario_count'] <= 128
+            or not isinstance(coverage['scenario_context_refs'], (list, tuple))
+            or len(coverage['scenario_context_refs']) != coverage['completed_scenario_count']
+            or any(not isinstance(ref, str) or not re.fullmatch(r'context:sha256:[0-9a-f]{64}', ref) for ref in coverage['scenario_context_refs'])
+            or len(set(coverage['scenario_context_refs'])) != coverage['completed_scenario_count']
+            or value['status'] != 'partial'):
+            raise ValueError('task coverage is invalid')
+        result['coverage'] = dict(coverage)
+    return result
 
 
 def unavailable_outcome(code: str, tool_events: tuple[Mapping, ...]) -> dict:
