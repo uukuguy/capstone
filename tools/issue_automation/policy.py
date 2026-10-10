@@ -12,6 +12,24 @@ CHECK_PROFILES = {
     "app-and-backend": (("/usr/local/bin/python", "/opt/capstone-check.py", "app"), ("/usr/local/bin/python", "/opt/capstone-check.py", "backend")),
 }
 
+CHECK_PROFILE_SCOPES = {
+    "app": ("packages/capstone-app/",),
+    "backend": ("packages/capstone-agent/src/", "packages/capstone-agent/tests/"),
+    "app-and-backend": ("packages/capstone-app/", "packages/capstone-agent/src/", "packages/capstone-agent/tests/"),
+}
+
+
+def checked_edit_prefixes(prefixes, profile):
+    """Intersect trusted edit scope with the selected registered checks."""
+    result = []
+    for prefix in prefixes:
+        prefix = prefix.rstrip("/") + "/"
+        for checked in CHECK_PROFILE_SCOPES[profile]:
+            candidate = prefix if prefix.startswith(checked) else checked if checked.startswith(prefix) else None
+            if candidate and candidate not in result:
+                result.append(candidate)
+    return tuple(result)
+
 
 @dataclass(frozen=True)
 class Policy:

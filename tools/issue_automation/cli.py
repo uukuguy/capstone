@@ -11,7 +11,7 @@ import sys
 
 from .github import GitHub
 from .model import Model, load_image
-from .policy import Policy, feedback, CHECK_PROFILES
+from .policy import Policy, feedback, CHECK_PROFILES, checked_edit_prefixes
 from .repair import DockerSandbox, Repair, Source
 from .service import Service, release_status
 from .store import Store
@@ -20,7 +20,7 @@ from .store import Store
 def operator_override(root, policy):
     path = Path(root) / ".capstone-agent/issue-automation/operator.json"
     if not path.exists():
-        return policy
+        return replace(policy, edit_prefixes=checked_edit_prefixes(policy.edit_prefixes, policy.check_profile)).validate()
     metadata = path.lstat()
     if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid() or metadata.st_size > 24000:
         raise ValueError("Operator settings must be an owner-only regular file")
@@ -35,6 +35,7 @@ def operator_override(root, policy):
         if values["check_profile"] not in CHECK_PROFILES:
             raise ValueError("Only registered trusted check profiles can be selected")
         values["checks"] = CHECK_PROFILES[values["check_profile"]]
+    values["edit_prefixes"] = checked_edit_prefixes(policy.edit_prefixes, values.get("check_profile", policy.check_profile))
     return replace(policy, **values).validate()
 
 

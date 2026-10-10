@@ -37,6 +37,46 @@ def test_private_override_requires_ignored_owner_only_file(tmp_path):
         operator_override(tmp_path, Policy())
 
 
+@pytest.mark.parametrize("profile,accepted,rejected", [
+    ("app", "packages/capstone-app/src/app.ts", "packages/capstone-agent/src/app.py"),
+    ("backend", "packages/capstone-agent/src/app.py", "packages/capstone-app/src/app.ts"),
+    ("app-and-backend", "packages/capstone-agent/tests/test_app.py", "packages/other/app.py"),
+])
+def test_profile_selection_rejects_candidate_edits_outside_checked_scope(tmp_path, profile, accepted, rejected):
+    from tools.issue_automation.cli import operator_override
+    from tools.issue_automation.repair import Repair, Source
+    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+    (tmp_path / ".gitignore").write_text(".capstone-agent/\n")
+    for path in (accepted, rejected):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("// trusted source\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "base"], check=True, capture_output=True)
+    settings = tmp_path / ".capstone-agent/issue-automation/operator.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({"check_profile": profile}))
+    settings.chmod(0o600)
+    trusted = dataclasses.replace(Policy(), edit_prefixes=("packages/capstone-app/src/", "packages/capstone-agent/", "packages/other/"))
+    policy = operator_override(tmp_path, trusted)
+    assert any(accepted.startswith(prefix) for prefix in policy.edit_prefixes)
+    assert "packages/other/" not in policy.edit_prefixes
+    if profile != "backend":
+        assert "packages/capstone-app/src/" in policy.edit_prefixes
+        assert "packages/capstone-app/" not in policy.edit_prefixes
+    repair = Repair(policy, Source(tmp_path), None, None, tmp_path / "state")
+    repair.prepare("task", [rejected])
+    with pytest.raises(ValueError, match="permitted source scope"):
+        repair.validate_manual("task", {"summary": "拒绝未检查范围的候选", "reproduction_check": 0, "files": [{"path": rejected, "content": "// candidate\n"}]})
+
+
+def test_main_profile_scope_is_applied_without_operator_override(tmp_path):
+    from tools.issue_automation.cli import operator_override
+    trusted = dataclasses.replace(Policy(), check_profile="backend", edit_prefixes=("packages/",))
+    policy = operator_override(tmp_path, trusted)
+    assert policy.edit_prefixes == ("packages/capstone-agent/src/", "packages/capstone-agent/tests/")
+
+
 @pytest.mark.skipif(not os.environ.get("ISSUE_AUTOMATION_TEST_IMAGE"), reason="Prepared Docker image not selected")
 def test_real_docker_candidate_is_secret_free_and_offline(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "host-only-secret")
