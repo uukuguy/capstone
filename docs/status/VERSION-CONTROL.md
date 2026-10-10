@@ -1,5 +1,7 @@
 # 多线版本控制
 
+更新日期：2026-10-10。当前登记范围包含基线一本地验收和实验分支的公共修复/规范回归；云端未更新。
+
 本文件是固定、持续更新的分支、公共修复、基线和发布台账。每次建立分支、合并、验证、发布或回滚，都更新对应条目；验证证据链接到原始报告。部署边界以[开发与发布生命周期](../architecture/capstone-development-lifecycle.md)为准。
 
 以 main 工作区中的本文件为当前台账。功能分支内的副本可能较旧，操作前须读取 main 的最新版本；合并时不能用旧台账覆盖当前记录。
@@ -66,9 +68,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 项目 | 来源/当前提交 | 状态与下一步 |
 | --- | --- | --- |
-| 现有 dev 的纯 Pi、skills、资源扩展及相关实验 | 原始快照 `archive/dev-before-baseline-20261010`：`ca062df`；独立分支 `feat/pi-skills-integration`：`fba1f51` | 从事故前 `e9aca89` 重新应用在共同基线上；测试文件仅清理末尾空行；已同步公共忽略规则修复；未重新部署或获得稳定发布验收；后续拆分依赖和合并范围 |
+| 现有 dev 的纯 Pi、skills、资源扩展及相关实验 | 原始快照 `archive/dev-before-baseline-20261010`：`ca062df`；`feat/pi-skills-integration` 实验代码 `fba1f51`；规范同步提交 `331f71c` | 从事故前 `e9aca89` 重新应用在共同基线上；测试文件仅清理末尾空行；已同步公共忽略规则与 main 管理规范；未重新部署或获得稳定发布验收；后续拆分依赖和合并范围 |
 | 公共回答链路修复 | main `0287c86`，旧 demo 修复候选 `3e3bbfb` | 基础设施与证据保留检查通过，人工正式回答失败；保存到 `fix/framework-answer-chain`，纳入基线二，不直接进入基线一 |
-| 基线一整理 | 云 demo 起点 `ed2524f`；运行基线 `2540bdc`；`integration/demo-baseline`/`release/demo-baseline-1` 固定候选 `a076b04` | 完整离线、集成、打包及两套本地实际入口验证通过；候选补入已验证的非运行忽略规则修复；已合并 main；云端推广未执行 |
+| 基线一整理 | 云 demo 起点 `ed2524f`；运行基线 `2540bdc`；`release/demo-baseline-1` 固定候选 `a076b04`；整理分支 `integration/demo-baseline` 可同步 main 的管理文档 | 完整离线、集成、打包及两套本地实际入口验证通过；候选补入已验证的非运行忽略规则修复；已合并 main；云端推广未执行 |
 | 基线必要契约修正 | `fix/baseline-contracts`：`2540bdc` | 五个文件修正空事件/可选拓扑接口/凭据契约；13 个类型错误归零，Thread 46 项、pandapower 5 项、PyPSA 7 项针对性检查通过；不包含新 Pi 或回答策略 |
 | 本地 demo 管理守护 | `fix/local-demo-secret-ignore`：`a076b04` | 独立分支保留受保护环境文件的忽略规则；针对性检查通过；已回归 main、基线整理分支和 Pi/skills 分支；不改变运行代码或工件身份 |
 | 语义任务意图与回答尺度 | [设计草案](../superpowers/specs/2026-10-10-shared-intent-and-goal-answer-design.md) | 未实施；普通/专业问答路由不等于完整任务理解；基线一整理后再推进 |
