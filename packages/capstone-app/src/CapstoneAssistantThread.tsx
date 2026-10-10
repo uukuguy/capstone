@@ -756,7 +756,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -775,9 +775,6 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((message) => message.id === instructionId) : -1
     scrollAnchor.current = { id, top: control.getBoundingClientRect().top, control,
       instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
-    if (instructionIndex >= 0 && !nodes.some((item) => item.dataset.messageId === instructionId)) {
-      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
-    }
   }
   function captureHistoryAnchor() {
     const viewport = viewportRef.current
@@ -804,9 +801,6 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
       const element = !question && !revealInstruction ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
       const anchor = { id: revealInstruction ? instructionId as string : message.dataset.messageId,
         top: revealInstruction ? view.top + 8 : (element || message).getBoundingClientRect().top, element }
-      if (revealInstruction && !instruction) {
-        setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
-      }
       scrollAnchor.current = anchor
       historyAnchor.current = anchor
     }
@@ -892,11 +886,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
       return { thread: storageKey, ids }
     })
   }
-  const [windowAnchor, setWindowAnchor] = useState<string | null>(null)
-  const anchoredIndex = windowAnchor === null ? -1 : allMessages.findIndex((message) => message.id === windowAnchor)
-  const windowEnd = anchoredIndex < 0 ? allMessages.length : anchoredIndex + 1
-  const windowStart = Math.max(0, windowEnd - 50)
-  const messages = allMessages.slice(windowStart, windowEnd)
+  const messages = allMessages
   const [locatingInstruction, setLocatingInstruction] = useState(false)
   const currentLocation = useRef(instructionLocation)
   currentLocation.current = instructionLocation
@@ -915,7 +905,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     const instruction = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
       .find(node => node.dataset.messageId === allMessages[index].id)
     if (!instruction) {
-      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, index + 24)]?.id || null)
+      setLocatingInstruction(false)
       return
     }
     if (!viewport) return
@@ -952,20 +942,20 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     instruction.classList.add('is-located-instruction')
     const timer = window.setTimeout(() => instruction.classList.remove('is-located-instruction'), 1200)
     locationHighlight.current = { node: instruction, timer }
-  }, [instructionLocation, allMessages, windowAnchor])
+  }, [instructionLocation, allMessages])
   const [historyError, setHistoryError] = useState<string | null>(null)
   async function olderMessages() {
     setHistoryError(null)
-    if (windowStart > 0) {
-      setWindowAnchor(allMessages[Math.max(0, windowStart + 24)]?.id || null)
-      return
-    }
     if (!onLoadOlder || historyLoading) return
-    const anchor = allMessages[Math.min(24, windowEnd - 1)]?.id
+    captureHistoryAnchor()
     try {
       await onLoadOlder()
-      if (anchor) setWindowAnchor(anchor)
     } catch (cause) { setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用') }
+  }
+  function returnToLatest() {
+    setHistoryError(null)
+    const viewport = viewportRef.current
+    if (viewport) viewport.scrollTop = viewport.scrollHeight
   }
   const [initialDraft] = useState(() => readDraft(storageKey))
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
@@ -978,8 +968,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     onNew: async (message) => {
       const text = messageText(message)
       if (text.trim()) {
-        await onSend('automatic', text.trim()); setWindowAnchor(null)
-        if (!historyAtLatest) onReturnLatest?.()
+        await onSend('automatic', text.trim()); returnToLatest()
       }
     },
     onEdit: async (message) => {
@@ -999,9 +988,9 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
-        {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
-          {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
-          {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>返回最新对话</button>}
+        {(hasOlderHistory || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
+          {hasOlderHistory && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
+          {!historyAtLatest && <button type="button" onClick={returnToLatest}>返回最新对话</button>}
           {historyError && <span role="alert">{historyError}</span>}
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}

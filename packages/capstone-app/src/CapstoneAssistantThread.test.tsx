@@ -41,11 +41,11 @@ describe('CapstoneAssistantThread', () => {
     rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'unrelated', nonce: 4 }} />)
     expect(viewport.scrollTop).toBe(568)
   })
-  it('reveals a requested instruction outside the fifty-message rendering window', () => {
+  it('keeps a requested older instruction mounted in the continuous history view', () => {
     const events = Array.from({ length: 55 }, (_, index) => [event('command_accepted', index * 2 + 1, { kind: 'send_auto', text: `定位窗口指令 ${index}` }, `attempt_${index}`), event('attempt_completed', index * 2 + 2, { answer: `回答 ${index}` }, `attempt_${index}`)]).flat()
     const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }
     const { rerender } = render(<CapstoneAssistantThread {...props} />)
-    expect(screen.queryByText('定位窗口指令 0')).toBeNull()
+    expect(screen.getByText('定位窗口指令 0')).toBeTruthy()
     rerender(<CapstoneAssistantThread {...props} instructionLocation={{ attemptId: 'attempt_0', nonce: 1 }} />)
     expect(screen.getByText('定位窗口指令 0')).toBeTruthy()
   })
@@ -260,19 +260,33 @@ describe('CapstoneAssistantThread', () => {
     expect(sessionStorage.getItem('fold_thread_b.readingMode')).toBeNull()
   })
 
-  it('folds loaded answers outside the visible message window and retains individual overrides', () => {
+  it('keeps loaded history continuous while folding answers and retaining individual overrides', () => {
     const events = Array.from({ length: 60 }, (_, index) => event('attempt_completed', index + 1, { answer: `历史 ${index}。` + '完整条件。'.repeat(100) }, `history_${index}`))
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText(/历史 0。/)).toBeTruthy()
+    expect(screen.getByText(/历史 59。/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     fireEvent.click(screen.getByRole('button', { name: '折叠历史回答' }))
-    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(50)
+    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(60)
     fireEvent.click(screen.getAllByRole('button', { name: '展开完整回答' }).at(-1)!)
-    fireEvent.click(screen.getByRole('button', { name: '查看之前的对话' }))
-    expect(screen.getAllByRole('button', { name: '展开完整回答' }).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: '折叠回答' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
     expect(screen.getAllByRole('button', { name: '折叠回答' })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(49)
+    expect(screen.getAllByRole('button', { name: '展开完整回答' })).toHaveLength(59)
+  })
+
+  it('loads older history into the same conversation without hiding newer messages', async () => {
+    const older = [event('attempt_completed', 1, { answer: '更早回答。' }, 'older')]
+    const newer = [event('attempt_completed', 2, { answer: '最新回答。' }, 'newer')]
+    const onLoadOlder = vi.fn().mockResolvedValue(undefined)
+    const props = { disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onLoadOlder }
+    const { rerender } = render(<CapstoneAssistantThread {...props} events={newer} hasOlderHistory />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看之前的对话' }))
+    await waitFor(() => expect(onLoadOlder).toHaveBeenCalledTimes(1))
+    rerender(<CapstoneAssistantThread {...props} events={[...older, ...newer]} hasOlderHistory={false} />)
+
+    expect(screen.getByText('更早回答。')).toBeTruthy()
+    expect(screen.getByText('最新回答。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '返回最新对话' })).toBeNull()
   })
 
   it('closes the history actions on Escape and outside clicks', () => {
@@ -315,10 +329,10 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('button', { name: '折叠回答并返回指令' })).toBeNull()
   })
 
-  it('reveals the corresponding loaded instruction while retaining toggle focus', () => {
+  it('keeps the corresponding instruction visible while retaining toggle focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '窗口边界的用户指令' }, 'first'), event('attempt_completed', 2, { answer: '边界回答。'.repeat(160) }, 'first'), ...Array.from({length:49}, (_, i) => event('attempt_completed', i + 3, { answer: `其他回答 ${i}` }, `other_${i}`))]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.queryByText('窗口边界的用户指令')).toBeNull()
+    expect(screen.getByText('窗口边界的用户指令')).toBeTruthy()
     const toggle = screen.getByRole('button', { name: '折叠回答' })
     toggle.focus()
     fireEvent.click(toggle)

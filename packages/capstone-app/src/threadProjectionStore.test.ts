@@ -27,6 +27,29 @@ const idleFixture = {
   },
 }
 
+function conversationalEvent(eventSeq: number, eventType: string, attemptIndex: number, payload: Record<string, unknown> = {}) {
+  return {
+    event_id: `evt_${eventSeq}`, event_seq: eventSeq, event_type: eventType, event_version: 1,
+    thread_id: 'thr_demo_39', run_id: 'run_001', turn_id: `turn_${attemptIndex}`, attempt_id: `attempt_${attemptIndex}`,
+    model_context_id: context.id, selection_revision: context.selection_revision,
+    occurred_at: `2026-10-06T00:${String(attemptIndex).padStart(2, '0')}:00Z`, visibility: 'public',
+    payload,
+  }
+}
+
+function pagedHistory(events: Record<string, unknown>[], pageSize: number) {
+  return vi.fn(async (_threadId: string, before?: number) => {
+    const cursor = before ?? events.length + 1
+    const selected = events.filter((event) => typeof event.event_seq === 'number' && event.event_seq < cursor).slice(-pageSize)
+    return {
+      schema: 'capstone-thread-history/1', thread_id: 'thr_demo_39', before_event_seq: cursor,
+      next_before_event_seq: selected[0]?.event_seq ?? cursor,
+      has_more: Boolean(selected[0] && selected[0].event_seq !== 1),
+      events: selected,
+    }
+  })
+}
+
 it('loads durable model membership independently of the legacy snapshot', async () => {
   const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
     implementation_family: context.implementation_family, authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'gridctl', last_active_seq: 0 }
@@ -65,7 +88,7 @@ it('does not label a fresh baseline with an older analysis instruction', async (
   expect(store.latestNetworkEvent).toBeUndefined()
 })
 
-it('loads only the latest history page and prepends older events without moving the live cursor', async () => {
+it('loads bounded recent history without moving the live cursor', async () => {
   const events = Array.from({ length: 10 }, (_, index) => ({
     event_id: `evt_${index + 1}`, event_seq: index + 1, event_type: 'command_accepted', event_version: 1,
     thread_id: 'thr_demo_39', run_id: 'run_001', occurred_at: '2026-10-06T00:00:00Z', visibility: 'public',
@@ -86,11 +109,43 @@ it('loads only the latest history page and prepends older events without moving 
   }))
   await store.load('thr_demo_39')
   expect(forward).not.toHaveBeenCalled()
-  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([9, 10])
-  expect(store.state.hasOlderHistory).toBe(true)
+  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  expect(store.state.hasOlderHistory).toBe(false)
   await store.loadOlderHistory()
-  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([7, 8, 9, 10])
+  expect(store.publicEvents.map((e) => e.eventSeq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   expect(store.state.eventSeq).toBe(10)
+})
+
+it('restores a short conversation that spans several bounded history pages', async () => {
+  const events: Record<string, unknown>[] = []
+  const append = (eventType: string, attemptIndex: number, payload: Record<string, unknown> = {}) => {
+    events.push(conversationalEvent(events.length + 1, eventType, attemptIndex, payload))
+  }
+  for (let turn = 1; turn <= 4; turn++) {
+    append('command_accepted', turn, { command_id: `cmd_${turn}`, kind: 'send_auto', payload: { text: `question ${turn}` } })
+    append('attempt_started', turn)
+    for (let step = 0; step < 42; step++) {
+      append(step % 2 === 0 ? 'tool_started' : 'tool_completed', turn, { tool_call_id: `tool_${turn}_${Math.floor(step / 2)}`, tool_name: 'grid_context_get' })
+    }
+    append('assistant_text_delta', turn, { text: `partial answer ${turn}` })
+    append('attempt_completed', turn, { answer: `answer ${turn}` })
+  }
+  const history = pagedHistory(events, 128)
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: events.length }),
+    readHistory: history,
+  }))
+
+  await store.load('thr_demo_39')
+
+  expect(history).toHaveBeenCalledTimes(2)
+  expect(store.publicEvents.filter((event) => event.eventType === 'command_accepted').map((event) => event.payload.payload))
+    .toEqual([{ text: 'question 1' }, { text: 'question 2' }, { text: 'question 3' }, { text: 'question 4' }])
+  expect(store.publicEvents.filter((event) => event.eventType === 'attempt_completed').map((event) => event.payload.answer))
+    .toEqual(['answer 1', 'answer 2', 'answer 3', 'answer 4'])
+  expect(store.state.eventSeq).toBe(events.length)
+  expect(store.state.hasOlderHistory).toBe(false)
 })
 
 it('catches up a workspace projection ahead of the loaded snapshot before exposing model controls', async () => {
