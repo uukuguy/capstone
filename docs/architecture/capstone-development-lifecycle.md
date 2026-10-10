@@ -98,6 +98,10 @@ to these private volumes as well as the ledger and artifact storage.
 
 ## Common foundation fixes across the two development lanes
 
+The supported CI acceptance runtime is Python 3.12. Run the release checks on
+Linux and macOS with that runtime. Do not add another Python version to the
+matrix without an explicit support requirement and acceptance scope.
+
 The local development and cloud-development path is one lane; the local demo
 and cloud user-trial path is the other. Before deliberate parallel development,
 record an accepted common foundation baseline. The present development/demo
@@ -116,10 +120,14 @@ needed to activate a fix. If compatibility requires different semantics, resolve
 the shared foundation before accepting the common repair. Independent feature
 work must not duplicate these contracts or bypass Authority admission.
 
-After a common local source change, rebuild and validate both real local
-entrypoints. Keep their databases, storage, runtime state and credentials
-separate. Passing source tests or updating one running deployment is insufficient
-for a claim that a common fix is effective in both lanes.
+Local-dev is the daily development and integration entrypoint. After a local
+source change, rebuild and validate the affected local-dev path. Local-demo
+retains its last accepted source; do not update it for each development change.
+When a user release is planned, freeze a tested main revision as the release
+candidate and deploy it to local-demo for product acceptance. Keep the two
+stages' databases, storage, runtime state and credentials separate. A shared fix
+uses one canonical implementation, but its development acceptance does not
+claim that demo has received it. Demo delivery requires its own release receipt.
 
 Source propagation and cloud release are separate actions. Each hosted stage
 retains its own required verification, exact role identity, promotion/rollback

@@ -186,7 +186,8 @@ class Service:
                 f"任务：`{task}`；输入：`{row['input_hash']}`。\n\n"
                 "隔离检查：基础版本复现失败，候选版本的全部受控检查通过。\n"
                 "CI：待精确候选提交检查，未运行或失败均不算通过。\n"
-                "local-dev 与 local-demo 真实入口：待验证；涉及公共服务行为时须维护者重建并验证。\n"
+                "local-dev 开发验收：待验证；涉及公共服务行为时须按规范入口重建并在 PR 前验证。\n"
+                "local-demo 发布验收：仅在用户计划发布时，将已验证的 main 候选部署并验证。\n"
                 "main 集成、cloud-dev 与 cloud-demo 发布：待独立维护者操作。未自动合并、部署或关闭 Issue。\n")
         result = self.github.publish_candidate(self.store, task, branch, row["source_sha"], candidate["files"], f"修复：#{number} {candidate['summary']}", body)
         self.store.update(task, state="review", lease_until=0, payload={**self.store.get(task)["payload"], "pr": result})

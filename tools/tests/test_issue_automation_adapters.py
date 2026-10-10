@@ -84,11 +84,14 @@ def test_comment_dedupe_survives_new_policy_commit(tmp_path):
 
 def test_required_ci_rejects_one_failed_or_missing_matrix_job():
     sha = "a" * 40
-    rows = [{"name": "verify (ubuntu, 3.12)", "status": "completed", "conclusion": "success", "head_sha": sha}, {"name": "verify (macos, 3.14)", "status": "completed", "conclusion": "failure", "head_sha": sha}]
+    expected_jobs = ("verify (ubuntu-latest)", "verify (macos-latest)")
+    rows = [{"name": name, "status": "completed", "conclusion": "success", "head_sha": sha, "app": {"slug": "github-actions", "owner": {"login": "github"}}, "check_suite": {"id": 1}} for name in expected_jobs]
     github = GitHub(Policy(), api=lambda *args: {"check_runs": rows})
-    assert not all(github.checks(sha).values())
+    assert github.checks(sha) == dict.fromkeys(expected_jobs, True)
+    rows[-1]["conclusion"] = "failure"
+    assert github.checks(sha) == {expected_jobs[0]: True, expected_jobs[1]: False}
     rows[:] = rows[:1]
-    assert not all(github.checks(sha).values())
+    assert github.checks(sha) == {expected_jobs[0]: True, expected_jobs[1]: False}
     rows[:] = [{"name": name, "status": "completed", "conclusion": "success", "head_sha": sha, "app": {"slug": "github-actions", "owner": {"login": "github"}}, "check_suite": {"id": 1}} for name in Policy().required_ci]
     assert all(github.checks(sha).values())
     rows[-1]["app"]["slug"] = "other-app"

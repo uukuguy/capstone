@@ -83,7 +83,10 @@ def test_triage_reply_maintainer_fix_and_restart_pr_recovery(tmp_path):
     task = store.list(7)[0]
     assert task["state"] == "review"
     assert len(github.prs) == 1
-    assert "local-dev" in github.prs[0]["body"] and "待验证" in github.prs[0]["body"]
+    body = github.prs[0]["body"]
+    assert "local-dev 开发验收：待验证" in body
+    assert "local-demo 发布验收：仅在用户计划发布时" in body
+    assert "已验证的 main 候选" in body
     store.update(task["task_id"], state="working", lease_until=0)
     service.fix(7)
     assert len(github.prs) == 1

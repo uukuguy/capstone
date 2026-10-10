@@ -105,8 +105,16 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
 
     assert 'os: [ubuntu-latest, macos-latest]' in workflow
-    assert 'python: ["3.12", "3.14"]' in workflow
-    assert "UV_PYTHON: ${{ matrix.python }}" in workflow
+    assert 'UV_PYTHON: "3.12"' in workflow
+    assert 'python-version: "3.12"' in workflow
+    assert 'matrix.python' not in workflow
+    policy = json.loads((ROOT / "configs/development/issue-automation.json").read_text())
+    expected_jobs = ("verify (ubuntu-latest)", "verify (macos-latest)")
+    defaults = json.loads(subprocess.check_output([
+        "python3", "-c", "import json; from tools.issue_automation.policy import Policy; print(json.dumps(Policy().required_ci))",
+    ], cwd=ROOT, text=True))
+    assert tuple(defaults) == expected_jobs
+    assert tuple(policy["required_ci"]) == expected_jobs
     assert "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d" in workflow
     assert 'node-version: "22.19.0"' in workflow
     for command in ("make setup", "make install-pi", "make doctor", "make check-release"):
