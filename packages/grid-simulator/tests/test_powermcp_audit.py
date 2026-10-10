@@ -166,4 +166,3 @@ def test_real_audit_error_on_an_authority_created_model_is_successful(grid, monk
     assert query["rows"][0]["code"] == "DISCONNECTED_BUS"
     assert query["rows"][0]["element_index"] == 0
     assert query["rows"][0]["subject_asset_ref"]
-

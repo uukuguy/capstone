@@ -717,4 +717,3 @@ def test_hosted_http_retry_replays_child_without_repeating_action(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-
