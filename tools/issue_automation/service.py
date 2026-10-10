@@ -8,6 +8,13 @@ from .policy import command, feedback, is_bot, public_text
 from .model import validate_triage
 
 
+def triage_reply(result):
+    result = validate_triage(result)
+    if result["state"] != "needs-info":
+        raise ValueError("Triage alone does not justify a public progress reply")
+    return "\n\n".join(result["questions"])
+
+
 def release_status(pr, tag, receipt, environment, contains_merge=False):
     result = {"state": "review", "deployed": False, "user_confirmed": False, "message": "修复仍待评审。"}
     if not pr or not pr.get("merged"):
@@ -68,7 +75,9 @@ class Service:
         row = self.store.get(task)
         if row["state"] == "paused":
             raise ValueError("Issue is paused; retry must be explicit")
-        if "triage" in row["payload"]:
+        if judgment is not None and row["state"] not in {"triage", "ready", "needs-info", "blocked"}:
+            raise ValueError("Explicit triage cannot reclassify active or reviewed work")
+        if "triage" in row["payload"] and judgment is None:
             result = row["payload"]["triage"]
         else:
             result = validate_triage(judgment) if judgment is not None else self.model.request(task, "triage", {"feedback": data, "source_sha": self.source.sha}, data["images"])
@@ -77,10 +86,8 @@ class Service:
                 result["environment"] = data["environment"]
             payload = {**row["payload"], "feedback": data, "triage": result}
             self.store.update(task, payload=payload, state=result["state"])
-        if self.policy.write_enabled:
-            lines = [self.policy.display_name + " 整理：" + result["summary"], f"目标环境：{result['environment']}；发生时版本：{result['visible_version'] or '未知'}。", "已知事实：" + "；".join(result["facts"]), "待确认推断：" + ("；".join(result["hypotheses"]) or "暂无。"), "验收条件：" + result["acceptance"]]
-            lines.extend(result["questions"])
-            self.github.publish_comment(self.store, task, number, "triage", "\n\n".join(lines))
+        if self.policy.write_enabled and self.store.get(task)["state"] == "needs-info":
+            self.github.publish_comment(self.store, task, number, "triage", triage_reply(result))
         return task
 
     def fix(self, number):
