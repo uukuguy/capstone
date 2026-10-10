@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
+import { parseTaskOutcome, type TaskOutcome } from './taskOutcome'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
@@ -232,6 +233,8 @@ function terminalDetail(event: EventEnvelope): string | undefined {
 }
 
 function terminalContent(event: EventEnvelope): string {
+  const outcome = parseTaskOutcome(event.payload.task_outcome)
+  if (outcome) return outcomeContent(outcome)
   if (event.eventType === 'attempt_failed') {
     const detail = terminalDetail(event)
     const code = typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined
@@ -239,6 +242,11 @@ function terminalContent(event: EventEnvelope): string {
   }
   if (event.eventType === 'attempt_cancelled') return '**本次 Attempt 已取消**\n\n可以修改指令后重新发送。'
   return '**本次 Attempt 已中断**\n\n可以查看运行过程，并在确认模型上下文后重新运行。'
+}
+
+function outcomeContent(outcome: TaskOutcome): string {
+  const title = outcome.status === 'partial' ? '部分完成' : outcome.status === 'unavailable' ? '尚未取得可接纳成果' : '已完成'
+  return `**${title}**\n\n${outcome.work.map(item => item.summary).join('\n\n')}\n\n${outcome.diagnostics.map(item => item.summary).join('\n\n')}`
 }
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
@@ -309,9 +317,13 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       const answer = event.eventType === 'attempt_completed' && typeof event.payload.answer === 'string'
         ? event.payload.answer
         : ''
-      const terminalAnswer = event.eventType === 'attempt_completed' ? answer : terminalContent(event)
+      const outcome = parseTaskOutcome(event.payload.task_outcome)
+      const terminalAnswer = event.eventType === 'attempt_completed'
+        ? outcome && outcome.status !== 'complete' ? `${outcomeContent(outcome)}\n\n${answer}` : answer
+        : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
-      const partialText = event.eventType !== 'attempt_completed' ? message?.content : undefined
+      const partialText = event.eventType !== 'attempt_completed' && !outcome ? message?.content : undefined
+      if (message && outcome && event.eventType !== 'attempt_completed') message.content = ''
       if (message && terminalAnswer && (event.eventType === 'attempt_completed' || !message.content)) {
         message.content = terminalAnswer
       } else if (message && event.eventType !== 'attempt_completed') {
@@ -331,6 +343,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             resultRefs: stringRefs(event.payload.result_refs),
             evidenceRefs: stringRefs(event.payload.evidence_refs),
             admission: event.payload.admission,
+            taskOutcomeStatus: outcome?.status,
             toolCount: relatedTools,
             modelContextId: event.modelContextId || (key ? contextByAttempt.get(key)?.modelContextId : undefined),
             selectionRevision: event.selectionRevision || (key ? contextByAttempt.get(key)?.selectionRevision : undefined),
@@ -496,7 +509,7 @@ function AttemptActivity({ activities, running, phase, open, startedAt, duration
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
   if (activities.length === 0) return null
-  const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
+  const terminalLabel = phase === 'partial' ? '部分完成 ·' : phase === 'unavailable' ? '尚未完成 ·' : phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   return <details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
@@ -664,7 +677,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.taskOutcomeStatus === 'string' ? custom.taskOutcomeStatus : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 

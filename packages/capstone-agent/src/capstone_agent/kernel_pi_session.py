@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 import json
 import os
@@ -23,7 +24,7 @@ from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession
+from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError, AttemptOutcomeUnavailable
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
@@ -31,6 +32,7 @@ from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
+from .task_outcome import normalize_task_outcome, unavailable_outcome
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -404,7 +406,59 @@ class _KernelPiPromptSession:
 
 
 def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
+    def failure_outcome(failures):
+        outcome = unavailable_outcome('answer_admission_incomplete', failures[:30])
+        bindings = {}
+        for profile in profiles:
+            selected = getattr(profile.prepared_application, 'bindings', None)
+            if not isinstance(selected, Mapping):
+                raise ValueError('prepared bindings are unavailable')
+            bindings.update(selected)
+        for event, diagnostic in zip(failures[:30], outcome['diagnostics']):
+            owner = event.get('binding_id')
+            if owner is None and len(bindings) == 1:
+                owner = next(iter(bindings))
+            binding = bindings.get(owner) if isinstance(owner, str) else None
+            describe = getattr(getattr(getattr(binding, 'runtime', None), 'authority', None), 'describe_execution_failure', None)
+            if callable(describe):
+                description = describe(event.get('error_code'))
+                if isinstance(description, Mapping):
+                    diagnostic.update(description)
+        return normalize_task_outcome(outcome)
+
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
+        failures = tuple(event for event in tool_events if event.get('ok') is not True)
+        if failures and (result_refs or evidence_refs):
+            # Re-admit only completed authority work with host-owned text. Never
+            # carry a rejected or incomplete model conclusion into this receipt.
+            successful = tuple(event for event in tool_events if event.get('ok') is True)
+            safe_results = tuple(ref for ref in result_refs if any(ref in event.get('result_refs', ()) for event in successful))
+            safe_evidence = tuple(ref for ref in evidence_refs if any(ref in event.get('evidence_refs', ()) for event in successful))
+            if safe_evidence:
+                safe_answer = '已保留本次通过接纳的结果与证据。其余调用尚未完成；这些成果不能支持完整范围的比较或排序。请查看结果卡和运行过程。'
+                retained = admit(claim, safe_answer, safe_results, safe_evidence, successful)
+                if retained.mode != 'authority_backed':
+                    raise ValueError('partial work lacks authority assurance')
+                outcome = failure_outcome(failures)
+                outcome['status'] = 'partial'
+                outcome['work'] = [{'id': 'retained', 'status': 'confirmed', 'summary': '已接纳独立完成的结果与证据；不代表全部请求已完成。',
+                    'result_refs': list(safe_results), 'evidence_refs': list(safe_evidence)}, *outcome['work']]
+                return replace(retained, task_outcome=normalize_task_outcome(outcome))
+        if failures:
+            observed = []
+            for event in tool_events:
+                if (event.get('ok') is not True or not isinstance(event.get('context_ref'), str)
+                    or not isinstance(event.get('model_revision', event.get('revision_ref')), str) or event.get('result_refs') or event.get('evidence_refs')):
+                    continue
+                receipt = admit(claim, '已核对当前模型的只读信息。完整计算与排序尚未取得可接纳结果。', (), (), (event,))
+                if receipt.assurance == 'deterministic_information' and 'current_model_observation_verified' in receipt.diagnostic_codes:
+                    observed.append(receipt)
+            if observed:
+                outcome = failure_outcome(failures)
+                outcome['status'] = 'partial'
+                outcome['work'].insert(0, {'id': 'observed', 'status': 'confirmed', 'summary': '已核对模型只读信息；未据此推断潮流或全量排序。', 'result_refs': [], 'evidence_refs': []})
+                return replace(observed[0], task_outcome=normalize_task_outcome(outcome))
+            raise AttemptOutcomeUnavailable(failure_outcome(failures))
         if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
             and not result_refs and not evidence_refs and not tool_events):
             catalog_answer = complete_catalog_answer(claim.instruction, answer, claim.application_catalog)
@@ -513,7 +567,37 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
             result_projections=result_projections,
         )
-    return admit
+    def recover_admission(claim, answer, result_refs, evidence_refs, tool_events):
+        try:
+            return admit(claim, answer, result_refs, evidence_refs, tool_events)
+        except AttemptOutcomeUnavailable:
+            raise
+        except ValueError:
+            safe_events = []
+            rejected = []
+            for event in tool_events:
+                if event.get('ok') is not True:
+                    rejected.append(event)
+                    continue
+                selected_results = tuple(ref for ref in result_refs if ref in event.get('result_refs', ()))
+                selected_evidence = tuple(ref for ref in evidence_refs if ref in event.get('evidence_refs', ()))
+                if not selected_evidence:
+                    rejected.append({**event, 'ok': False})
+                    continue
+                try:
+                    receipt = admit(claim, '已保留独立通过接纳的成果。完整结论尚未接纳。', selected_results, selected_evidence, (event,))
+                except ValueError:
+                    rejected.append({**event, 'ok': False})
+                    continue
+                if receipt.mode == 'authority_backed':
+                    safe_events.append(event)
+            if not safe_events:
+                raise
+            retained_results = tuple(ref for ref in result_refs if any(ref in event.get('result_refs', ()) for event in safe_events))
+            retained_evidence = tuple(ref for ref in evidence_refs if any(ref in event.get('evidence_refs', ()) for event in safe_events))
+            blocker = {'ok': False, 'error_code': 'answer_admission_failed'}
+            return admit(claim, '', retained_results, retained_evidence, (*safe_events, *rejected, blocker))
+    return recover_admission
 
 
 def _verify_bound_attempt_references(
@@ -540,8 +624,13 @@ def _verify_bound_attempt_references(
             for event in events:
                 if event.get("ok") is not True:
                     continue
-                for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
-                                        ("context_ref", bound.context_ref)):
+                event_context = event.get('context_ref', bound.context_ref)
+                event_revision = event.get('model_revision', event.get('revision_ref', bound.model_revision))
+                if 'revision_ref' in event and event['revision_ref'] != event_revision:
+                    raise ValueError('tool revision identities conflict')
+                if not isinstance(event_context, str) or not isinstance(event_revision, str) or not bound.accepts_context_identity(event_context, event_revision):
+                    raise ValueError('tool identity does not match the bound model context')
+                for field, expected in (("model_id", bound.model_id),):
                     if field in event and event[field] != expected:
                         raise ValueError("tool identity does not match the bound model context")
                 if "model_ref" in event:
@@ -562,9 +651,11 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                for field, expected in (("context_ref", bound.context_ref),
-                                        ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
-                                        ("model_id", bound.model_id)):
+                artifact_context = document.get('context_ref', bound.context_ref)
+                artifact_revision = document.get('revision_ref', document.get('model_revision', bound.model_revision))
+                if not isinstance(artifact_context, str) or not isinstance(artifact_revision, str) or not bound.accepts_context_identity(artifact_context, artifact_revision):
+                    raise ValueError('authority artifact does not match the bound model context')
+                for field, expected in (("model_revision", artifact_revision), ("model_id", bound.model_id)):
                     if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
@@ -573,8 +664,9 @@ def _verify_bound_attempt_references(
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
-                    document.get("context_ref") == bound.context_ref
-                    and document.get("revision_ref") == bound.model_revision
+                    isinstance(document.get('context_ref'), str)
+                    and isinstance(document.get('revision_ref'), str)
+                    and bound.accepts_context_identity(document['context_ref'], document['revision_ref'])
                 ) if bound.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
                 if not bound_identity and not linked_evidence:
@@ -729,6 +821,13 @@ def _build_result_projections(
             invoke = getattr(getattr(runtime, "executor", None), "invoke", None)
             context_ref = profile.model_binding.context_ref
             owned_results = tuple(result_ref for result_ref in result_refs if owners.get(result_ref) == binding_id)
+            # The current card/diagram contract binds to the Thread revision.
+            # Derived scenario references remain admitted and inspectable as
+            # evidence, but must never be labelled as results of that base.
+            if callable(verify_result := getattr(authority, 'verify_result', None)):
+                owned_results = tuple(reference for reference in owned_results if (
+                    getattr(verify_result(reference), 'document', {}).get('context_ref', context_ref) == context_ref
+                ))
             if not owned_results:
                 continue
             owned_evidence = {result_ref: result_evidence.get(result_ref, ()) for result_ref in owned_results}

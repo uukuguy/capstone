@@ -155,6 +155,16 @@ def test_pi_client_normalizes_native_events_and_preserves_answer() -> None:
     assert events[1]["payload"] == {"tool_call_id": "call-1", "tool_name": "grid_model_list"}
 
 
+def test_tool_failure_keeps_typed_cause_but_drops_raw_secret_message():
+    event = normalize_runtime_event({'type': 'tool_result', 'tool_name': 'grid_analysis_powerflow_ac',
+        'tool_call_id': 'call-1', 'capability': 'analysis.powerflow.ac.run', 'ok': False,
+        'error': {'code': 'powerflow_not_converged', 'phase': 'execute', 'message': 'SECRET'},
+    }, runtime_mode='capstone')
+    assert event['payload']['error_code'] == 'powerflow_not_converged'
+    assert event['payload']['error_stage'] == 'execute'
+    assert 'SECRET' not in str(event)
+
+
 def test_normalizer_drops_unbounded_native_payloads() -> None:
     event = normalize_runtime_event(
         {"type": "provider_internal", "messages": [{"secret": "do-not-persist"}], "text": "x" * 10000},
@@ -412,6 +422,33 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
     assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+
+
+def test_missing_tool_end_is_persisted_as_unknown_before_failed_outcome():
+    service = _thread_service()
+    service.submit_command({'schema': 'capstone-command/1', 'command_id': 'cmd_unknown',
+        'idempotency_key': 'idem_unknown', 'thread_id': 'thr_harness', 'run_id': 'run_harness',
+        'kind': 'send_ordinary', 'expected_event_seq': 0, 'payload': {'text': 'hello'}})
+    claim = service.claim_attempt('worker', lease_seconds=30)
+    result = HarnessAttemptRunner(service, HarnessPiClient(_PiSession(), admission=lambda *_: (_ for _ in ()).throw(ValueError('SECRET')))).run(claim)
+    assert result.status == 'failed'
+    events = service.read_events('thr_harness', 0).events
+    tools = [event for event in events if event.event_type == 'tool_completed']
+    assert len(tools) == 1
+    assert tools[0].payload['error_code'] == 'tool_outcome_unknown'
+    assert events[-1].payload['task_outcome']['diagnostics'][0]['confirmation'] == 'unknown'
+    assert 'SECRET' not in str(events[-1].payload)
+
+
+def test_terminal_persistence_failure_remains_fatal(monkeypatch):
+    service = _thread_service()
+    service.submit_command({'schema': 'capstone-command/1', 'command_id': 'cmd_store',
+        'idempotency_key': 'idem_store', 'thread_id': 'thr_harness', 'run_id': 'run_harness',
+        'kind': 'send_ordinary', 'expected_event_seq': 0, 'payload': {'text': 'hello'}})
+    claim = service.claim_attempt('worker', lease_seconds=30)
+    monkeypatch.setattr(service, 'finish_attempt', lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError('storage unavailable')))
+    with pytest.raises(RuntimeError, match='terminal persistence failed'):
+        HarnessAttemptRunner(service, _ProtocolRuntime()).run(claim)
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:

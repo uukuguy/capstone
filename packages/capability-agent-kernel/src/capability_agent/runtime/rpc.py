@@ -501,10 +501,17 @@ def _canonical_tool_result_event(
         return None
     details = _tool_result_details(event)
     if not isinstance(details, dict):
-        return None
+        details = {}
     capability = details.get("capability")
     if not isinstance(capability, str):
-        return None
+        pair = _consume_tool_pair(event, pending_tool_calls)
+        failed = event.get('isError') is True or details.get('ok') is False
+        return {
+            'type': 'tool_result', 'event': 'tool_result', **pair,
+            'ok': False, 'result': {}, 'evidence_refs': [],
+            'error': {'code': 'native_tool_failed' if failed else 'tool_outcome_unknown',
+                      'phase': 'execute'},
+        }
     ok = details.get("ok")
     if ok is not True and ok is not False:
         ok = event.get("isError") is not True

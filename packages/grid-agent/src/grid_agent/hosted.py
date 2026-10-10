@@ -82,7 +82,11 @@ def build_registered_pandapower_thread_application():
         model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
+            context_identity_verifier=lambda reference, revision: binding.runtime.authority.verify_context_descendant(
+                reference, base_ref=opened['context_ref'], model_id=context.model_id, revision_ref=revision,
+            ),
         )
+        binding.runtime.authority.bind_context_scope(opened['context_ref'])
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
         return model_binding
 

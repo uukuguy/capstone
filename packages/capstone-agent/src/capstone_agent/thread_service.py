@@ -7,6 +7,7 @@ Pi, DSH, Domain Packs, or authority internals.
 
 from __future__ import annotations
 
+from .task_outcome import normalize_task_outcome
 from collections.abc import Callable
 import hashlib
 import json
@@ -139,6 +140,15 @@ def _terminal_result_projections(
     payload: Mapping[str, Any], *, claim: AttemptClaim, phase: str,
 ) -> tuple[ResultProjection, ...]:
     """Admit typed result projections against this exact terminal Attempt."""
+
+    if 'task_outcome' in payload:
+        outcome = normalize_task_outcome(payload['task_outcome'])
+        for work in outcome['work']:
+            for name in ('result_refs', 'evidence_refs'):
+                if not set(work[name]).issubset(payload.get(name, [])):
+                    raise ThreadProtocolError('task outcome references are not admitted')
+        if phase != 'completed' and outcome['status'] != 'unavailable':
+            raise ThreadProtocolError('retained task work requires a completed receipt')
 
     raw_projections = payload.get("result_projections", [])
     if not isinstance(raw_projections, list) or len(raw_projections) > MAX_RESULT_PROJECTIONS:
