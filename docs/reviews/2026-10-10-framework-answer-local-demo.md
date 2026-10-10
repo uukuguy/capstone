@@ -1,8 +1,28 @@
 # Framework answer correction and local demo verification
 
-Status: local deployment and integration checks pass. No new cloud
+Status: local deployment and integration checks pass; user-facing answer
+acceptance FAILS in the subsequent manual trial. No new cloud
 promotion. The user requires stopping after local demo verification to discuss
 parallel development lanes.
+
+## Manual trial, 13:04
+
+The user reports four important remaining defects. Generator N−1 ranking shows
+baseline powerflow tables rather than an answer to the requested goal. Single
+line7 outage shows useful verified violations but also unrelated baseline tables
+and generic partial diagnostics. Bus31 load scaling similarly shows baseline
+facts without confirming the requested changed scenario. A basic introduction
+is detailed and takes 1m14s, although a concise overview may suffice.
+
+These screenshots prove that preserving and rendering results is insufficient
+for formal answer acceptance. They do not by themselves establish which tools
+failed or whether a requested scenario actually ran. Goal, scenario and coverage
+must be established from the corresponding Attempt before any completion claim.
+The next design must lead with a goal-specific supported conclusion, separate
+unanswered scope and actionable blockers, place supporting data in result cards,
+and use concise default answers with explicit expansion. Overview latency also
+needs tool/model/calculation timing; prose length alone is not its confirmed
+cause. No new deployment or paid replay is performed for this feedback.
 
 ## Verified causes and correction
 

@@ -96,6 +96,49 @@ these resources. Backend Authority resources are installed independently in that
 backend image; task startup never installs dependencies. Stage isolation applies
 to these private volumes as well as the ledger and artifact storage.
 
+## Common foundation fixes across the two development lanes
+
+The local development and cloud-development path is one lane; the local demo
+and cloud user-trial path is the other. Before deliberate parallel development,
+record an accepted common foundation baseline. The present development/demo
+feature differences do not themselves establish that alignment.
+
+Public foundational fixes must reach both lanes. Intent contracts, goal
+completion, answer admission, evidence linkage, failure diagnostics and common
+response policy are shared behavior, not demo-specific patches. Maintain one
+canonical implementation and common regression cases; application-owned adapters
+may accommodate different feature sets without changing their shared semantics.
+
+Record the common patch identity, its dependencies, each lane's target source
+commit and verification receipts. A port must include its dependency closure.
+Do not claim completion when one lane lacks the node, contract or runtime wiring
+needed to activate a fix. If compatibility requires different semantics, resolve
+the shared foundation before accepting the common repair. Independent feature
+work must not duplicate these contracts or bypass Authority admission.
+
+After a common local source change, rebuild and validate both real local
+entrypoints. Keep their databases, storage, runtime state and credentials
+separate. Passing source tests or updating one running deployment is insufficient
+for a claim that a common fix is effective in both lanes.
+
+Source propagation and cloud release are separate actions. Each hosted stage
+retains its own required verification, exact role identity, promotion/rollback
+rules and acceptance tag. A common fix does not authorize simultaneous cloud
+deployment. An explicit local-only task must remain local-only.
+
+Reader-facing environment identifiers are `local-dev`, `local-demo`, `cloud-dev`
+and `cloud-demo`; keep product version and source revision alongside them. These
+labels do not rename internal stages or change release permissions. Implement
+the labels in a future authorized release, as requested by the user.
+
+The accepted branch and merge workflow, common-fix return paths, two-step
+baseline alignment and current environment identities belong to the fixed
+[version-control register](../status/VERSION-CONTROL.md). Read and update that
+register before branch integration, baseline changes, verification, release or
+rollback. Development environments may enable isolated experimental features;
+integration into main is distinct from user-trial acceptance. Native Pi and
+skills work remains experimental until its recorded integration gates pass.
+
 ## Isolation invariants
 
 Cloud development and user trial are separate deployment stages. They must not
