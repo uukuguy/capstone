@@ -1013,7 +1013,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
       })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
-  }, [events, historyAtLatest])
+  }, [historyAtLatest])
   const [initialDraft] = useState(() => readDraft(storageKey))
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
   const legacyActivity = activity.some((item) => typeof item === 'string')
