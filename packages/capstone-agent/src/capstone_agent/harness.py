@@ -760,6 +760,7 @@ class HarnessAttemptRunner:
 
     def _finish_cancelled(self, claim: AttemptClaim) -> None:
         try:
+            self._close_pending_tools(claim)
             self._service.finish_attempt(
                 claim, phase="cancelled", payload={"error_code": "attempt_cancelled"},
             )

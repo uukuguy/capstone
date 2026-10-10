@@ -441,6 +441,29 @@ def test_missing_tool_end_is_persisted_as_unknown_before_failed_outcome():
     assert 'SECRET' not in str(events[-1].payload)
 
 
+def test_cancelled_attempt_closes_started_tool_as_unknown(monkeypatch):
+    service = _thread_service()
+    service.submit_command({'schema': 'capstone-command/1', 'command_id': 'cmd_cancel_receipt',
+        'idempotency_key': 'idem_cancel_receipt', 'thread_id': 'thr_harness', 'run_id': 'run_harness',
+        'kind': 'send_ordinary', 'expected_event_seq': 0, 'payload': {'text': 'hello'}})
+    claim = service.claim_attempt('worker', lease_seconds=30)
+
+    class CancelSession(_PiSession):
+        def prompt_and_wait(self, question, **kwargs):
+            answer = super().prompt_and_wait(question, **kwargs)
+            monkeypatch.setattr(service, 'cancel_requested', lambda *_: True)
+            return answer
+
+    result = HarnessAttemptRunner(service, HarnessPiClient(CancelSession())).run(claim)
+    events = service.read_events('thr_harness', 0).events
+    assert result.status == 'cancelled'
+    tools = [event for event in events if event.event_type == 'tool_completed']
+    assert len(tools) == 1
+    assert tools[0].payload['error_code'] == 'tool_outcome_unknown'
+    assert events[-1].event_type == 'attempt_cancelled'
+    assert 'answer' not in events[-1].payload
+
+
 def test_terminal_persistence_failure_remains_fatal(monkeypatch):
     service = _thread_service()
     service.submit_command({'schema': 'capstone-command/1', 'command_id': 'cmd_store',
