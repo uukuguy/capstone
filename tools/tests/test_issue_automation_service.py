@@ -102,6 +102,14 @@ def test_candidate_paths_and_docker_environment_are_bounded(tmp_path):
     assert set(options["env"]) <= {"PATH", "DOCKER_HOST", "HOME", "LANG"}
 
 
+def test_sandbox_daemon_failure_cannot_confirm_cleanup(tmp_path):
+    def runner(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0 if args[1] == "run" else 1, b"", b"")
+    sandbox = DockerSandbox(dataclasses.replace(Policy(), sandbox_image="sha256:" + "1" * 64), runner=runner)
+    with pytest.raises(RuntimeError, match="cleanup"):
+        sandbox.run(tmp_path, (("python", "test.py"),), 20)
+
+
 def test_release_never_claims_demo_for_main_merge_or_missing_tag():
     result = release_status({"merged": True, "merge_commit_sha": "a" * 40}, None, None, "cloud-demo")
     assert result["state"] == "release-pending"
@@ -176,6 +184,7 @@ def test_manual_judgment_cannot_override_explicit_feedback_environment(tmp_path)
     ("packages/capstone-app/src/history.test.ts", "test('history', () => { expect(true).toBe(true) });\n", "// disabled\n"),
     ("packages/capstone-app/tests/test_history.py", "def test_history():\n    assert False\n", "def test_history():\n    pass\n"),
     ("packages/capstone-app/package.json", '{"scripts":{"test":"vitest"}}', '{"scripts":{"test":"true"}}'),
+    ("packages/capstone-app/src/testSetup.ts", "globalThis.ResizeObserver = class {};\n", "// remove setup\n"),
 ])
 def test_candidate_cannot_weaken_tests_or_gate_configuration(tmp_path, path, old, new):
     source = repository(tmp_path)

@@ -154,7 +154,7 @@ def test_bot_can_create_issue_without_starting_repair(tmp_path):
     assert store.list() == []
 
 
-@pytest.mark.parametrize("state,author,tree,parent", [("closed", "trusted-bot[bot]", "tree", "source"), ("open", "other", "tree", "source"), ("open", "trusted-bot[bot]", "old-tree", "source"), ("open", "trusted-bot[bot]", "tree", "old-source")])
+@pytest.mark.parametrize("state,author,tree,parent", [("closed", "trusted-bot[bot]", "tree", "source"), ("open", "other", "tree", "source"), ("open", "trusted-bot[bot]", "old-tree", "source"), ("open", "trusted-bot[bot]", "tree", "old-source"), ("open", "trusted-bot[bot]", "tree", "source")])
 def test_recovered_pr_must_match_open_bot_candidate(tmp_path, state, author, tree, parent):
     store = Store(tmp_path / "q.sqlite")
     task = store.enqueue(1, "input", "policy", "source")
@@ -173,8 +173,12 @@ def test_recovered_pr_must_match_open_bot_candidate(tmp_path, state, author, tre
         if "/git/matching-refs/" in path: return [{"ref": "refs/heads/" + branch, "object": {"sha": "head"}}]
         raise AssertionError((method, path))
     github = GitHub(Policy(write_enabled=True, publisher_login="trusted-bot[bot]", publisher_app_id=123, publisher_installation_id=123), api=api, publisher_api=api)
-    with pytest.raises(ValueError, match="candidate|pull request"):
-        github.publish_candidate(store, task, branch, "source", {"packages/capstone-app/app.py": "fixed\n"}, "修复行为", "中文说明")
+    if state == "open" and author == "trusted-bot[bot]" and tree == "tree" and parent == "source":
+        assert github.publish_candidate(store, task, branch, "source", {"packages/capstone-app/app.py": "fixed\n"}, "修复行为", "中文说明") == pr
+        assert store.action(task + ":pr")["state"] == "done"
+    else:
+        with pytest.raises(ValueError, match="candidate|pull request"):
+            github.publish_candidate(store, task, branch, "source", {"packages/capstone-app/app.py": "fixed\n"}, "修复行为", "中文说明")
 
 
 def test_existing_acceptance_tag_formats_are_recognized_without_inventing_verification():

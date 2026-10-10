@@ -9,7 +9,9 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir uv==0.10.7
 WORKDIR /opt/trusted-source
 COPY . .
-RUN make setup && make install-pi && make doctor
+ARG CHECK_PROFILE=app-and-backend
+RUN if [ "$CHECK_PROFILE" = app ]; then npm ci --prefix packages/capstone-app; \
+    else make setup && make install-pi && make doctor; fi
 COPY tools/issue_automation/sandbox_check.py /opt/capstone-check.py
 ENV UV_NO_SYNC=1 UV_CACHE_DIR=/tmp/uv-cache PYTHONDONTWRITEBYTECODE=1
 USER 65534:65534

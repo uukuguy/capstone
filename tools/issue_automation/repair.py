@@ -17,7 +17,7 @@ def is_test_file(path):
 
 def validate_edit(path, original, content):
     name = Path(path).name
-    if name in {"package.json", "package-lock.json", "pyproject.toml", "uv.lock", "Makefile", "conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "Dockerfile", "Caddyfile"} or ".config." in name or name.startswith("tsconfig") or path.endswith(".snap"):
+    if name in {"package.json", "package-lock.json", "pyproject.toml", "uv.lock", "Makefile", "conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "Dockerfile", "Caddyfile"} or ".config." in name or name.startswith(("tsconfig", "testSetup", "testHelpers", "testUtils")) or path.endswith(".snap"):
         raise ValueError("Gate and dependency configuration is protected")
     if original and (is_test_file(path) or "/tests/" in path) and content != original:
         raise ValueError("Existing tests and test helpers must remain unchanged; add a new regression file")
@@ -144,11 +144,11 @@ class DockerSandbox:
                     result = self.runner(args, stdout=sink, stderr=sink, env=environment, timeout=remaining)
                 finally:
                     self.runner(["docker", "rm", "--force", name], stdout=sink, stderr=sink, env=environment, timeout=20)
-                    # --rm may already have removed a completed container. Docker
-                    # inspection must confirm no surviving container after timeout.
-                    inspect = self.runner(["docker", "inspect", name], stdout=sink, stderr=sink, env=environment, timeout=20)
-                    if inspect.returncode == 0:
-                        raise RuntimeError("Sandbox cleanup did not remove the container")
+                    # A successful listing with no matching container confirms
+                    # removal. Daemon errors must leave cleanup unconfirmed.
+                    remaining = self.runner(["docker", "container", "ls", "--all", "--quiet", "--filter", "name=^/" + name + "$"], stdout=subprocess.PIPE, stderr=sink, env=environment, timeout=20)
+                    if remaining.returncode or remaining.stdout.strip():
+                        raise RuntimeError("Sandbox cleanup could not confirm container removal")
             receipts.append({"argv": list(check), "exit_code": result.returncode})
         return {"passed": all(r["exit_code"] == 0 for r in receipts), "checks": receipts, "image": self.policy.sandbox_image}
 

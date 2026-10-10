@@ -133,7 +133,7 @@ def execute(args):
                 image_id = state / "prepared-image.id"
                 environment = {name: os.environ[name] for name in ("PATH", "HOME", "DOCKER_HOST", "LANG") if name in os.environ}
                 with open(os.devnull, "wb") as sink:
-                    result = subprocess.run(["docker", "build", "--file", str(dockerfile), "--iidfile", str(image_id), str(context)], stdout=sink, stderr=sink, env=environment, timeout=3600)
+                    result = subprocess.run(["docker", "build", "--build-arg", "CHECK_PROFILE=" + policy.check_profile, "--file", str(dockerfile), "--iidfile", str(image_id), str(context)], stdout=sink, stderr=sink, env=environment, timeout=3600)
                 if result.returncode:
                     raise ValueError("Trusted sandbox dependency preparation failed")
                 return {"source_sha": source.sha, "image_id": image_id.read_text().strip(), "mode": "trusted-dependency-preparation", "candidate_executed": False}
