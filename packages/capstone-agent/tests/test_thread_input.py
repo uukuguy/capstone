@@ -257,6 +257,7 @@ def test_receipt_and_retry_keep_accepted_skill_when_catalog_changes(backend, pro
             with psycopg.connect(dsn) as connection:
                 connection.execute('DELETE FROM capstone_threads WHERE thread_id = %s', (thread_id,))
 
+
 def test_accepted_context_projection_reports_actual_selection_and_material_gap():
     import time
     from capstone_agent.request_intent import NodeControl
@@ -324,4 +325,3 @@ def test_input_freezes_activated_context_and_refuses_old_harness_binding(backend
         if backend == 'postgres':
             with psycopg.connect(dsn) as connection:
                 connection.execute('DELETE FROM capstone_threads WHERE thread_id = %s', (thread_id,))
-
