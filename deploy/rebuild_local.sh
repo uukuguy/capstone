@@ -52,10 +52,11 @@ if [ "${CAPSTONE_LOCAL_PULL:-0}" = "1" ]; then
 fi
 printf '%s\n' "==> Building API and worker from the current checkout"
 "${compose[@]}" "${build_args[@]}"
+"${compose[@]}" build general-pi
 
 printf '%s\n' "==> Starting dependencies and replacing API/worker containers"
 "${compose[@]}" up --no-build --force-recreate --wait -d \
-  postgres objects objects-init api worker worker-pypsa
+  postgres objects objects-init general-pi api worker worker-pypsa
 
 api_binding="$("${compose[@]}" port api 8766 | head -n 1)"
 [ -n "$api_binding" ] || fail "Compose did not publish the API port"

@@ -143,7 +143,7 @@ async function readSnapshotEvents(
 /** A checked-fixture transport for the first Web/TUI projection prototype. */
 export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTransport {
   const receipts = new Map<string, Record<string, unknown>>()
-  const snapshot = record(fixture.snapshot)
+  const snapshot = structuredClone(record(fixture.snapshot))
   const run = record(snapshot.run)
   const eventDocument = record(fixture.events)
   const eventLog = Array.isArray(eventDocument.events) ? [...eventDocument.events] : []
@@ -165,6 +165,17 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
   }
 
   function appendMessageProjection(command: ThreadCommand): number | undefined {
+    if (command.kind === 'switch_runtime') {
+      const previous = snapshot.runtime_mode || 'capstone'
+      snapshot.runtime_mode = command.payload.runtime_mode
+      nextEventSeq += 1
+      snapshot.last_event_seq = nextEventSeq
+      eventLog.push({ event_id: `evt_fixture_${nextEventSeq}`, event_seq: nextEventSeq,
+        event_type: 'runtime_mode_changed', event_version: 1, thread_id: command.thread_id,
+        run_id: run.run_id, occurred_at: new Date().toISOString(), visibility: 'public',
+        payload: { command_id: command.command_id, runtime_mode: snapshot.runtime_mode, previous_runtime_mode: previous } })
+      return nextEventSeq
+    }
     if (!['send_auto', 'send_ordinary', 'send_professional'].includes(command.kind)) return undefined
     const text = typeof command.payload.text === 'string' ? command.payload.text : ''
     if (!text) return undefined
@@ -192,6 +203,7 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
     }
     append('command_accepted', {
       command_id: command.command_id, kind: command.kind, payload: command.payload,
+      runtime_mode: snapshot.runtime_mode || 'capstone',
     })
     append('attempt_started', { attempt_id: attemptId })
     append('assistant_text_delta', { text: `Fixture 已接收${command.kind === 'send_professional' ? '专业请求' : '自动指令'}：${text}` })
@@ -201,7 +213,7 @@ export function createFixtureTransport(fixture: ThreadFixtureDocument): ThreadTr
 
   return {
     connectionState: fixtureConnection(fixture),
-    getSnapshot: async () => fixture.snapshot,
+    getSnapshot: async () => snapshot,
     getCatalog: async () => fixture.catalog ?? { schema: 'capstone-thread-catalog/1', models: [], profiles: [] },
     readEvents: async (_threadId, afterEventSeq) => readEventDocument(afterEventSeq),
     sendCommand: async (command) => {
@@ -674,7 +686,9 @@ export class ThreadProjectionStore {
     let viewedGridPageId = this.current.viewedGridPageId
     const document = snapshot.toDocument()
     const payload = record(event.payload)
-    if (event.eventType === 'model_context_change_pending') {
+    if (event.eventType === 'runtime_mode_changed') {
+      document.runtime_mode = payload.runtime_mode
+    } else if (event.eventType === 'model_context_change_pending') {
       document.pending_model_switch = {
         command_id: payload.command_id,
         model_id: payload.model_id,
@@ -717,9 +731,9 @@ export class ThreadProjectionStore {
       ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }
       : null
     if (event.eventType === 'command_accepted' && identity) {
-      currentAttempt = { ...identity, phase: 'accepted' }
+      currentAttempt = { ...identity, phase: 'accepted', runtimeMode: payload.runtime_mode === 'pi_reference' ? 'pi_reference' : payload.runtime_mode === 'capstone' ? 'capstone' : snapshot.runtimeMode }
     } else if (event.eventType === 'attempt_started' && identity) {
-      currentAttempt = { ...identity, phase: 'running' }
+      currentAttempt = { ...identity, phase: 'running', runtimeMode: currentAttempt?.runtimeMode || snapshot.runtimeMode }
     } else if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' ||
       event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
       if (!currentAttempt || !event.attemptId || currentAttempt.attemptId === event.attemptId) currentAttempt = null
@@ -729,6 +743,7 @@ export class ThreadProjectionStore {
       current_attempt: currentAttempt ? {
         turn_id: currentAttempt.turnId, attempt_id: currentAttempt.attemptId,
         phase: currentAttempt.phase, target_model_context_id: currentAttempt.targetModelContextId,
+        runtime_mode: currentAttempt.runtimeMode,
       } : null,
       last_event_seq: event.eventSeq,
     })

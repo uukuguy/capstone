@@ -1,6 +1,9 @@
 {
   "schema_version": "1.0",
   "matrix": "pandapower-3.4.0-static-analysis.json",
+  "optional_operations": [
+    {"id":"diagnostic.structural","backend":"PowerMCP","availability":"analysis.operation.describe","capabilities":["analysis.operation.describe","analysis.run"]}
+  ],
   "rows": [
     {"id":"model.catalog","capabilities":["model.list","context.open"],"operations":[],"creators":[]},
     {"id":"model.create","capabilities":["model.creator.list","model.creator.describe","model.create"],"operations":[],"creators":["bus","ext_grid","line_from_parameters","load"]},

@@ -28,6 +28,7 @@ COPY deploy/local-model-assets/ /opt/capstone-models/
 ENV UV_NO_SYNC=1 \
     UV_NO_DEV=1 \
     CAPSTONE_PYPSA_MODEL_LIBRARY_DIR=/opt/capstone-models \
+    CAPSTONE_POWERMCP_MANAGED_ROOT=/app/.grid-agent/runtime/agent-resources \
     PYTHONUNBUFFERED=1 \
     PORT=8766
 
@@ -35,6 +36,9 @@ RUN UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-agent \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-simulator \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/pypsa-agent \
     && UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/capstone-agent \
+    && UV_PYTHON_INSTALL_DIR=/app/.grid-agent/runtime/python \
+       uv run --no-sync --project packages/capstone-agent \
+       python -m capstone_agent.resource_installation --config-root configs/runtime \
     && npm ci --prefix packages/pi-capability-tools \
     && npm ci --prefix packages/pi-grid-tools \
     && UV_NO_SYNC=0 uv run --no-sync --project packages/grid-agent grid-agent install-pi \

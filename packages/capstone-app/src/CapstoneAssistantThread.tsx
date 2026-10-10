@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
+import ThreadCommandMenu from './ThreadCommandMenu'
+import { buildInputSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
@@ -18,7 +20,7 @@ import {
 import { Activity, ArrowUp, Check, ChevronDown, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { EventEnvelope, ResultProjection } from './threadProtocol'
+import type { EventEnvelope, ResultProjection, RuntimeMode } from './threadProtocol'
 import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
 import type { ThreadTransportState } from './threadClient'
 import type { ThreadCatalogCase } from './threadCatalog'
@@ -243,7 +245,12 @@ function terminalContent(event: EventEnvelope): string {
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
+  const runtimeModes = new Map<string, RuntimeMode>()
   for (const event of events) {
+    const attempt = event.attemptId || event.turnId
+    if (event.eventType === 'command_accepted' && attempt) {
+      runtimeModes.set(attempt, event.payload.runtime_mode === 'pi_reference' ? 'pi_reference' : 'capstone')
+    }
     for (const key of ['model_context', 'previous_context', 'restored_context']) {
       const context = event.payload[key]
       if (context && typeof context === 'object' && !Array.isArray(context)) {
@@ -366,8 +373,10 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     if (message.role !== 'assistant') return message
     const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
     const attemptId = typeof custom.attemptId === 'string' ? custom.attemptId : undefined
+    const runtimeMode = attemptId ? runtimeModes.get(attemptId) || 'capstone' : 'capstone'
     const activities = attemptId ? projectAssistantActivity(events.filter((candidate) => candidate.attemptId === attemptId)) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities } } }
+    const acceptedContext = events.find(event => event.attemptId === attemptId && event.eventType === 'turn_plan_created')?.payload.accepted_context
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, runtimeMode, acceptedContext } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -546,7 +555,7 @@ function ResultProjectionCard({ projection, onFocusElement }: { projection: Resu
   </section>
 }
 
-function FoldableAnswer({ id, text }: { id: string; text: string }) {
+function FoldableAnswer({ id, text, author }: { id: string; text: string; author: string }) {
   const body = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useContext(AnswerReadingContext)
   // The zero-layout fallback is used by server/test rendering. Browsers use the
@@ -571,7 +580,7 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   }, [text])
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
-    <div className="capstone-answer-header"><span className="capstone-chat-role">CAPSTONE</span>
+    <div className="capstone-answer-header"><span className="capstone-chat-role">{author}</span>
       {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
     </div>
     <div className="capstone-answer-body">
@@ -600,6 +609,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
+  const author = custom?.runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'
   const hasText = messageText({ content }).trim().length > 0
   const text = messageText({ content })
   const attemptId = id.replace(/^assistant-/, '')
@@ -645,11 +655,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
-      {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>}
+      {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? <FoldableAnswer id={id} text={text} /> : hasText
+      </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
@@ -659,6 +669,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>}
     {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
+    {role === 'assistant' && Boolean(custom?.acceptedContext) && <AcceptedContextDetails value={custom?.acceptedContext} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
@@ -673,6 +684,15 @@ function instructionModelName(modelId: string): string {
   return known[modelId] || modelId.split('/').at(-1) || modelId
 }
 
+function AcceptedContextDetails({ value }: { value: unknown }) {
+  const context = value as { objects?: { object_id: string; display_name: string; version: string }[]; materials?: unknown[] }
+  if (!Array.isArray(context?.objects)) return null
+  return <details className="capstone-chat-activity"><summary>本轮采用的上下文 · {context.objects.length} 个对象</summary>
+    {context.objects.length ? <ul>{context.objects.map(object => <li key={object.object_id}>{object.display_name} · {object.version}</li>)}</ul> : <p>本轮未采用业务对象。</p>}
+    <p>未提供完整网络表或文件资料。</p>
+  </details>
+}
+
 function InstructionTime({ value }: { value: string }) {
   const date = new Date(value)
   const now = new Date()
@@ -684,7 +704,9 @@ function InstructionTime({ value }: { value: string }) {
   </time>
 }
 
-function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storageKey }: { disabled: boolean; isRunning: boolean; acceptedDraft?: { text: string; commandId: string }; controls?: ReactNode; storageKey?: string }) {
+type AcceptedDraft = { text: string; commandId: string; submission?: InputSubmission }
+
+function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storageKey, inputDraft, onInputChange, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: { disabled: boolean; isRunning: boolean; acceptedDraft?: AcceptedDraft; controls?: ReactNode; storageKey?: string; inputDraft: InputDraft; onInputChange: (value: InputDraft) => void; inputCatalog?: InputCatalog; inputCatalogLoading?: boolean; onRefreshInputCatalog?: () => void; inputControlsDisabled?: boolean; onBeforeInputChange?: () => boolean; onBeforeSend?: () => boolean }) {
   const aui = useAui()
   const isEmpty = useAuiState((state) => state.composer.isEmpty)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -696,19 +718,30 @@ function ComposerSurface({ disabled, isRunning, acceptedDraft, controls, storage
   useEffect(() => {
     if (acceptedDraft && resolvedCommand.current !== acceptedDraft.commandId) {
       resolvedCommand.current = acceptedDraft.commandId
-      if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) aui.composer.setText('')
+      if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) {
+        try {
+          const current = buildInputSubmission(acceptedDraft.text.trim(), inputDraft)
+          if (!acceptedDraft.submission || JSON.stringify(current) === JSON.stringify(acceptedDraft.submission)) {
+            aui.composer.setText('')
+            onInputChange(emptyInputDraft(inputDraft.mode))
+          }
+        } catch { /* Keep an edited or incompatible next draft. */ }
+      }
     }
-  }, [aui, acceptedDraft])
+  }, [aui, acceptedDraft, inputDraft, onInputChange])
   useEffect(() => {
     const input = inputRef.current
     if (input && !input.disabled) input.focus()
   }, [disabled, isRunning])
-  return <ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}>
-    <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条指令，完成后发送…' : disabled ? '当前状态暂不可提交新指令' : '围绕当前电网模型输入指令…'} disabled={disabled && !isRunning} submitMode="enter" />
+  const reserveSend = () => !disabled && !isEmpty && !inputDraftError(inputDraft, inputCatalog) && onBeforeSend?.() !== false
+  return <ThreadCommandMenu catalog={inputCatalog} loading={inputCatalogLoading} onRefresh={onRefreshInputCatalog} draft={inputDraft} onChange={onInputChange} disabled={inputControlsDisabled} onBeforeChange={onBeforeInputChange}><ComposerPrimitive.Root className="capstone-composer-root" data-running={isRunning ? 'true' : 'false'} data-empty={isEmpty ? 'true' : 'false'}
+    onClickCapture={event => { if (event.target instanceof Element && event.target.closest('.capstone-chat-send') && !reserveSend()) { event.preventDefault(); event.stopPropagation() } }}
+    onKeyDownCapture={event => { if (event.target instanceof HTMLTextAreaElement && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229 && !reserveSend()) { event.preventDefault(); event.stopPropagation() } }}>
+    <ComposerPrimitive.Input ref={inputRef} autoFocus aria-label="Thread 指令" placeholder={isRunning ? '可先写下一条任务，完成后发送…' : disabled ? '可继续编辑草稿，当前操作完成后发送…' : '描述你的任务，或输入 / 查看操作…'} disabled={false} submitMode="enter" />
     <div className="capstone-composer-footer"><div className="capstone-composer-toolbar" aria-label="输入工具栏">{controls}</div><div className="capstone-composer-actions">
-      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
+      {isRunning ? <ComposerPrimitive.Cancel className="capstone-chat-stop" aria-label="停止生成" title="停止生成" onMouseDown={(event) => event.preventDefault()}><Square aria-hidden="true" /></ComposerPrimitive.Cancel> : <ComposerPrimitive.Send className="capstone-chat-send" aria-label="发送指令" title="发送指令" disabled={disabled || isEmpty || Boolean(inputDraftError(inputDraft, inputCatalog))} onMouseDown={(event) => event.preventDefault()}><ArrowUp aria-hidden="true" /></ComposerPrimitive.Send>}
     </div></div>
-  </ComposerPrimitive.Root>
+  </ComposerPrimitive.Root></ThreadCommandMenu>
 }
 
 function EmptyThreadState({ disabled }: { disabled: boolean }) {
@@ -719,6 +752,7 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  runtimeMode?: RuntimeMode
   systemNotices?: readonly SystemNotice[]
   onSystemAction?: (action: 'reconnect' | 'resync') => void
   storageKey?: string
@@ -731,9 +765,15 @@ export type CapstoneAssistantThreadProps = {
   events: readonly EventEnvelope[]
   disabled: boolean
   isRunning: boolean
-  acceptedDraft?: { text: string; commandId: string }
+  acceptedDraft?: AcceptedDraft
   activity: readonly (ChatActivity | string)[]
-  onSend: (mode: SendMode, text: string) => Promise<void>
+  onSend: (mode: SendMode, text: string, input?: InputSubmission) => Promise<void>
+  inputCatalog?: InputCatalog
+  inputCatalogLoading?: boolean
+  onRefreshInputCatalog?: () => void
+  inputControlsDisabled?: boolean
+  onBeforeInputChange?: () => boolean
+  onBeforeSend?: () => boolean
   onCancel: () => Promise<void>
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
   canRerunCompleted?: boolean
@@ -743,6 +783,7 @@ export type CapstoneAssistantThreadProps = {
   showActivity?: boolean
   caseExecution?: CaseExecutionSnapshot | null
   caseCatalog?: readonly ThreadCatalogCase[]
+  caseStartDisabledReason?: string
   caseConnection?: ThreadTransportState | 'connecting'
   onCaseAction?: (actionId: CaseActionSnapshot['actionId']) => void
   onCaseStart?: (caseId: string, caseVersion: string) => void
@@ -756,7 +797,10 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+  const [inputDraft, setInputDraft] = useState<InputDraft>(() => readInputDraft(storageKey) || emptyInputDraft(runtimeMode))
+  const activeInput = { ...inputDraft, mode: runtimeMode }
+  useEffect(() => { writeInputDraft(storageKey, activeInput) }, [storageKey, inputDraft, runtimeMode])
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
@@ -973,12 +1017,17 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
     convertMessage: (message) => message,
-    isSendDisabled: disabled,
+    isSendDisabled: disabled || Boolean(inputDraftError(activeInput, inputCatalog)),
     isRunning,
     onNew: async (message) => {
       const text = messageText(message)
       if (text.trim()) {
-        await onSend('automatic', text.trim()); setWindowAnchor(null)
+        const sent = inputDraft
+        const metadata = buildInputSubmission(text.trim(), activeInput)
+        if (inputDraft.skill || inputDraft.literal || inputDraft.context.include_refs.length || inputDraft.context.exclude_refs.length) await onSend('automatic', text.trim(), metadata)
+        else await onSend('automatic', text.trim())
+        setInputDraft(current => current === sent ? emptyInputDraft(runtimeMode) : current)
+        setWindowAnchor(null)
         if (!historyAtLatest) onReturnLatest?.()
       }
     },
@@ -997,14 +1046,14 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
-      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
+      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
           {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
           {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>返回最新对话</button>}
           {historyError && <span role="alert">{historyError}</span>}
         </div>}
-        {!caseExecution && caseCatalog.length > 0 && <ThreadCasePicker cases={caseCatalog} disabled={disabled || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />}
+        {!caseExecution && caseCatalog.length > 0 && <><ThreadCasePicker cases={caseCatalog} disabled={disabled || Boolean(caseStartDisabledReason) || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />{caseStartDisabledReason && <small>{caseStartDisabledReason}</small>}</>}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
         {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
@@ -1020,7 +1069,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
           <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
         </details>}
         <div className="capstone-chat-composer">
-          <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} />
+          <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} inputDraft={activeInput} onInputChange={setInputDraft} inputCatalog={inputCatalog} inputCatalogLoading={inputCatalogLoading} onRefreshInputCatalog={onRefreshInputCatalog} inputControlsDisabled={inputControlsDisabled} onBeforeInputChange={onBeforeInputChange} onBeforeSend={onBeforeSend} />
         </div>
       </ThreadPrimitive.Root>
     </div>

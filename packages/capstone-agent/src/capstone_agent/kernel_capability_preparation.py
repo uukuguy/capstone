@@ -127,6 +127,10 @@ class KernelApplicationProfilePreparer:
             credentials if credentials is not None else EmptyCredentialBroker()
         )
 
+    def prepare_for_claim(self, profile: ApplicationProfile, claim) -> PreparedKernelApplicationProfile:
+        from .professional_resources import selected_application_profile
+        return self(selected_application_profile(profile, claim), claim.model_context)
+
     def __call__(
         self,
         profile: ApplicationProfile,

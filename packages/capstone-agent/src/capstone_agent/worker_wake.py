@@ -81,6 +81,8 @@ def create_wake_app(
     runtime_mode: str = "normal", implementation_family: str | None = None,
     resource_status: Callable[[], dict[str, int]] | None = None,
     additional_wake_events: tuple[threading.Event, ...] = (),
+    input_catalog: Callable[[str], dict] | None = None,
+    thread_family: Callable[[str], str] | None = None,
 ) -> FastAPI:
     if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa"}:
         raise ValueError("worker runtime identity is invalid")
@@ -108,6 +110,23 @@ def create_wake_app(
         wake_event.set()
         for event in additional_wake_events:
             event.set()
+
+    @app.get('/threads/{thread_id}/input-resources')
+    def resources(thread_id: str, authorization: str = Header(default='')):
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        if input_catalog is None:
+            raise HTTPException(503, 'resource catalog unavailable')
+        from .thread_service import ThreadNotFound
+        try:
+            if thread_family is not None and thread_family(thread_id) != implementation_family:
+                raise HTTPException(409, 'thread family does not match worker')
+            document = input_catalog(thread_id)
+            if document.get('implementation_family') != implementation_family:
+                raise HTTPException(409, 'thread family does not match worker')
+            return document
+        except ThreadNotFound:
+            raise HTTPException(404, 'thread not found') from None
 
     return app
 

@@ -11,6 +11,24 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('uses accepted runtime authors for streaming and completed answers across mode switches', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', text: '专业任务', runtime_mode: 'capstone' }, 'business'),
+      event('attempt_completed', 2, { answer: '专业结果' }, 'business'),
+      event('command_accepted', 3, { kind: 'send_auto', text: '日常任务', runtime_mode: 'pi_reference' }, 'general'),
+      event('assistant_text_delta', 4, { text: '通用结果' }, 'general'),
+    ]
+    const props = { events, disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const view = render(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
+    const authors = () => screen.getAllByLabelText('智能体回答').map(node => node.querySelector('.capstone-chat-role')?.textContent)
+    expect(authors()).toEqual(['CAPSTONE', 'Pi'])
+    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi实时响应')
+    view.rerender(<CapstoneAssistantThread {...props} runtimeMode="capstone" isRunning={false}
+      events={[...events, event('attempt_completed', 5, { answer: '通用结果' }, 'general')]} />)
+    expect(authors()).toEqual(['CAPSTONE', 'Pi'])
+    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toContain('CAPSTONE')
+  })
+
   it('places offscreen instructions at the reading start and preserves visible instructions, draft and input focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '定位这条指令' }, 'first'), event('attempt_completed', 2, { answer: '回答。'.repeat(160) }, 'first')]
     const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }

@@ -72,6 +72,10 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`, { signal })
   }
 
+  getInputCatalog(threadId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/input-catalog`, { signal })
+  }
+
   readHistory(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown> {
     const query = new URLSearchParams({ limit: '128' })
     if (beforeEventSeq !== undefined) query.set('before', String(beforeEventSeq))

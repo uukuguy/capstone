@@ -1,0 +1,57 @@
+{
+  "schema": "capstone-agent-resources/1",
+  "profile_id": "capstone-project-resources",
+  "roles": {
+    "harness_engine": {
+      "settings": "capstone-pi/settings.json",
+      "adapters": {}
+    },
+    "delegated_pi": {
+      "settings": "general-pi/settings.json",
+      "adapters": {}
+    },
+    "direct_pi": {
+      "settings": "general-pi/settings.json",
+      "adapters": {}
+    }
+  },
+  "resources": [
+    {
+      "id": "powerskills-pandapower",
+      "kind": "skill",
+      "version": "05bda3a51d5f1ecad888d4d4663c28478c643a7e",
+      "source": "https://github.com/Power-Agent/PowerSkills",
+      "roles": [
+        "harness_engine",
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": true,
+      "native_name": "pandapower",
+      "required_tools": [
+        "load_network",
+        "get_network_info",
+        "run_power_flow"
+      ],
+      "adapter": "powerskills-pandapower/1"
+    },
+    {
+      "id": "powermcp-pandapower",
+      "kind": "mcp",
+      "version": "63341e67ce6ae5650396ab92b2be7f86e3409da1",
+      "source": "https://github.com/Power-Agent/PowerMCP",
+      "roles": [
+        "harness_engine",
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": true,
+      "required_tools": [
+        "audit_network"
+      ],
+      "adapter": "powermcp-pandapower/1"
+    }
+  ]
+}

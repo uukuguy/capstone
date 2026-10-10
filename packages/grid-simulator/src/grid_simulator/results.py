@@ -350,14 +350,16 @@ def _field_descriptions(
     descriptions = []
     for name in names:
         values = [row.get(name) for row in rows]
+        structural = source_table == "res_structural_audit"
+        structural_type = "integer" if name in {"index", "element_index"} else "string"
         descriptions.append(
             {
                 "name": name,
-                "type": _field_type(values, name),
+                "type": structural_type if structural else _field_type(values, name),
                 "unit": _unit(name),
-                "meaning": "stable source element reference" if name == "asset_ref" else f"pandapower {source_table}.{name}",
-                "nullable": any(value is None for value in values),
-                "provenance": f"pandapower.{source_table}.{name}",
+                "meaning": (f"structural audit {name}" if structural else "stable source element reference" if name == "asset_ref" else f"pandapower {source_table}.{name}"),
+                "nullable": name in {"element_kind", "element_index", "subject_asset_ref"} if structural else any(value is None for value in values),
+                "provenance": (f"gridctl.{source_table}.{name}" if name in {"index", "subject_asset_ref"} else f"PowerMCP.audit_network.{name}") if structural else f"pandapower.{source_table}.{name}",
             }
         )
     return descriptions
