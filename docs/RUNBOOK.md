@@ -530,6 +530,22 @@ make validate-provider PROVIDER=openai MODEL=gpt-5.5 VALIDATION_SUITE=task-requi
 
 App 私钥保存在本仓库忽略目录 `.capstone-agent/issue-automation/app-private-key.pem`，仅文件所有者可读写（0600）。App ID、installation ID、实际账号及启用开关写入同目录的 `operator.json`（0600）；不把私钥或 token 放进命令参数、源码、截图或 Issue。工具在每次发布前核对 App、安装和目标仓库，再申请短期安装 token。身份接入需要维护者在 GitHub 完成注册、安装及私钥配置；有名字不代表账号已经存在。
 
+一次性接入助手可以预填注册资料，在后台交换 GitHub 返回的单次代码、保存受保护私钥并核对安装范围。以下命令只监听本机 `127.0.0.1:18790`，最长一小时；它不是后台修复服务。
+
+```sh
+python3 -m tools.issue_automation.bootstrap --root /absolute/path/to/capstone
+```
+
+在这台电脑打开命令输出的接入地址，确认创建 App，然后选择 `Only select repositories → capstone`。GitHub 的账号确认需要登录页面；其余配置和后续 Issue 处理使用后台 CLI/API。不要复制私钥或临时代码到会话中。助手只在核对 App、完整安装范围和实际发布账号后开启命令发布，模型调用保持关闭。已有 App 或私钥时拒绝覆盖，先核对原身份。
+
+创建后如发生本地保存失败，保留原配置并恢复接入，避免重复创建 App。`--resume` 从仅所有者可读的暂存记录恢复同一个 App；必须使用原端口。
+
+```sh
+python3 -m tools.issue_automation.bootstrap --root /absolute/path/to/capstone --resume
+```
+
+接入完成后运行 `make issues-doctor`，确认仓库、身份、检查镜像及开关。接入成功不启动定时任务，不自动合并、部署或关闭 Issue。
+
 工具的开发、测试与审查状态以[实施计划](superpowers/plans/2026-10-10-github-issue-automation.md)为准。未通过审查的特性分支不代表已接入 main，也不代表 dev/demo 运行服务已经更新。
 
 工具已通过审查并合入本地 main，常用入口如下。独立 GitHub App 尚未接入，AI 发布保持关闭。`doctor` 如实列出配置缺项；读取命令不调用模型，也不修复或发布。
