@@ -69,7 +69,38 @@ class GitHub:
             return json.loads(result.stdout or "null")
 
     def _publisher_api(self, method, path, data=None):
-        return self._api(method, path, data, publisher=True)
+        from urllib import request, error
+        import re
+
+        # gh sends its GH_TOKEN with the token scheme. GitHub App JWTs
+        # require Bearer; keep credentials inside this protected process.
+        token = getattr(self, "installation_token", None) or self._jwt()
+        if not isinstance(token, str) or re.fullmatch(r"[A-Za-z0-9_.-]{1,8192}", token) is None:
+            raise ValueError("GitHub publisher credential format is invalid")
+        body = None if data is None else json.dumps(data, ensure_ascii=False).encode()
+        call = request.Request(
+            "https://api.github.com/" + path, data=body, method=method,
+            headers={"Authorization": "Bearer " + token,
+                     "Accept": "application/vnd.github+json",
+                     "Content-Type": "application/json",
+                     "User-Agent": "Capstone-Xiaoshi",
+                     "X-GitHub-Api-Version": "2022-11-28"},
+        )
+
+        class NoRedirect(request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+
+        try:
+            with request.build_opener(NoRedirect()).open(call, timeout=60) as response:
+                raw = response.read(4000001)
+        except error.HTTPError as failure:
+            raise RuntimeError(f"GitHub publisher request failed (HTTP {failure.code}); reconcile before retry") from None
+        except error.URLError:
+            raise RuntimeError("GitHub publisher transport failed; reconcile before retry") from None
+        if len(raw) > 4000000:
+            raise ValueError("GitHub response exceeds limit")
+        return json.loads(raw or b"null")
 
     def pages(self, path):
         result = []

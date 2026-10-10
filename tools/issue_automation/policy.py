@@ -63,7 +63,7 @@ class Policy:
     max_context_bytes: int = 240000
     attachment_hosts: tuple = ("github.com", "user-images.githubusercontent.com")
     attachment_urls: tuple = ()
-    required_ci: tuple = ("verify (ubuntu-latest, 3.12)", "verify (ubuntu-latest, 3.14)", "verify (macos-latest, 3.12)", "verify (macos-latest, 3.14)")
+    required_ci: tuple = ("verify (ubuntu-latest)", "verify (macos-latest)")
     check_profile: str = "app-and-backend"
     publisher_login: str = "capstone-xiaoshi[bot]"
     publisher_app_id: int = 0

@@ -44,10 +44,26 @@ When a worker is full and another session has waited one second, the shared
 ledger reserves the globally longest idle session for eviction after a
 30-second grace period. Active turns are preserved.
 
-On Vercel, set the project root to `packages/capstone-app`, use the checked-in
-`vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
+On Vercel, use the new prepared App output directory described below as the
+project root, use its `vercel.json`, and set `VITE_API_ORIGIN` to the API's HTTPS origin. This value is
 public in the static build. Provider keys, operator tokens, database URLs, and
 bucket credentials must stay out of Vercel build variables.
+
+Prepare the static App source from the exact backend commit before deployment:
+
+```sh
+python3 deploy/prepare_app_source.py --source-ref <full-commit-sha> \
+  --environment cloud-dev --api-origin https://<selected-api-host> \
+  --output .capstone-agent/app-builds/<new-build-name>
+```
+
+Use `cloud-demo` for user trial. Deploy the output directory as the Vercel project
+root, using its `vercel.json`. The helper exports committed App files and adds
+public `build-revision.txt` and `build-environment.json` receipts; it never
+deploys or overwrites an existing directory. `VITE_API_ORIGIN` must match the
+receipt's origin. Source or origin mismatch fails the build. The header shows
+the selected environment, version and commit. Check those values against the
+backend stage before acceptance. No additional hosted build variable is needed.
 
 The deployment template enables `CAPSTONE_PUBLIC_DEMO=true` on the API and pins
 the public demo to `CAPSTONE_PUBLIC_PROVIDER=deepseek` and

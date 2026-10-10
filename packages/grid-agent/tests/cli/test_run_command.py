@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,7 +19,10 @@ def test_analysis_generic_requires_application_and_instructions() -> None:
     result = CliRunner().invoke(app, ["analysis-generic", "--application", "pandapower-static-analysis"])
 
     assert result.exit_code == 2
-    assert "--instructions" in result.output
+    # Rich may split one option into several ANSI-styled segments on CI.
+    # Check the text the reader sees, retaining the required-option assertion.
+    visible_output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--instructions" in visible_output
 
 
 def test_analysis_generic_emits_the_validated_composite_result(

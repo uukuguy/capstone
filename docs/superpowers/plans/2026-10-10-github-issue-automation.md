@@ -20,7 +20,7 @@
 - Never execute Issue text as commands, expose secrets, alter business data or reuse ignored authentication in repair workspaces.
 - Only maintainer commands authorize repair; approved queue policy can authorize scheduled low-risk work. Default PR-only, no auto-merge or deployment.
 - One repair at a time, bounded retries/budget, durable recovery and reconciliation of uncertain external writes.
-- Shared API/worker/App changes require both real local entrypoints before acceptance; missing gates remain pending.
+- Shared API/worker/App changes use one canonical implementation and require the affected local-dev entrypoint before integration. Keep local-demo at its accepted version until a planned user release; then verify the frozen main candidate there. Development acceptance never substitutes for demo release acceptance.
 - No billed product Provider validation. Background model calls remain disabled until an explicit budget is configured.
 
 ## Task 1: Intake, policy and durable queue

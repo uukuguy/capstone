@@ -68,6 +68,7 @@ packages/trajectory-workbench/coverage/
 /.codex/
 /deploy/local.env
 /deploy/demo-local.env
+/packages/capstone-app/build-environment.json
 /deploy/local-model-assets/*.nc
 **/__pycache__/
 **/.pytest_cache/

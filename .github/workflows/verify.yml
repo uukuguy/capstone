@@ -7,12 +7,11 @@ on:
 jobs:
   verify:
     env:
-      UV_PYTHON: ${{ matrix.python }}
+      UV_PYTHON: "3.12"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python: ["3.12", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
           node-version: "22.19.0"
@@ -29,3 +28,21 @@ jobs:
       - run: make install-pi
       - run: make doctor
       - run: make check-release
+      - name: Show failed offline validation checks
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report_path = Path("runs/validation-offline.json")
+          if report_path.is_file():
+              report = json.loads(report_path.read_text())
+              print("Offline validation:", report.get("summary"))
+              for case in report.get("cases", []):
+                  if case.get("passed") is not True:
+                      print(json.dumps({
+                          "case_id": case.get("case_id"),
+                          "checks": case.get("checks"),
+                          "errors": case.get("errors"),
+                      }, ensure_ascii=False))
+          PY

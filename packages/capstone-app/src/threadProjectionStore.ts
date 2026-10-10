@@ -8,6 +8,11 @@ import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
 
+const HISTORY_EVENT_LIMIT = 1024
+const HISTORY_BYTE_LIMIT = 8 * 1024 * 1024
+const INITIAL_HISTORY_MESSAGE_TARGET = 50
+const INITIAL_HISTORY_PAGE_LIMIT = 8
+
 export type ThreadConnection = ThreadTransportState | 'connecting'
 
 export type PendingThreadCommand = {
@@ -69,6 +74,52 @@ function fixtureConnection(fixture: ThreadFixtureDocument): ThreadTransportState
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as Record<string, unknown>
+}
+
+function acceptedInstruction(event: EventEnvelope): boolean {
+  return event.eventType === 'command_accepted'
+    && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind))
+}
+
+function countConversationMessages(events: readonly EventEnvelope[]): number {
+  const assistant = new Set<string>()
+  let messages = 0
+  for (const event of events) {
+    if (acceptedInstruction(event)) {
+      const command = record(event.payload.payload)
+      if (typeof command.text === 'string' && command.text.trim()) messages += 1
+      continue
+    }
+    if (!['attempt_started', 'assistant_text_delta', 'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) continue
+    const key = event.attemptId || event.turnId || event.eventId
+    if (!assistant.has(key)) { assistant.add(key); messages += 1 }
+  }
+  return messages
+}
+
+function startsAtConversationBoundary(events: readonly EventEnvelope[]): boolean {
+  const first = events.find((event) => event.visibility === 'public')
+  if (!first || acceptedInstruction(first)) return true
+  return !first.attemptId && !first.turnId
+}
+
+function historyBytes(events: readonly EventEnvelope[]): number {
+  return events.reduce((total, event) => total + new TextEncoder().encode(JSON.stringify(event)).byteLength, 0)
+}
+
+function mergeHistoryEvents(existing: readonly EventEnvelope[], incoming: readonly EventEnvelope[]): EventEnvelope[] {
+  const merged = new Map(existing.map((event) => [event.eventSeq, event]))
+  for (const event of incoming) {
+    const previous = merged.get(event.eventSeq)
+    if (previous && previous.eventId !== event.eventId) throw new Error('历史消息身份冲突')
+    merged.set(event.eventSeq, event)
+  }
+  return [...merged.values()].sort((a, b) => a.eventSeq - b.eventSeq)
+}
+
+function shouldLoadInitialHistory(events: readonly EventEnvelope[]): boolean {
+  return (countConversationMessages(events) < INITIAL_HISTORY_MESSAGE_TARGET || !startsAtConversationBoundary(events))
+    && events.length < HISTORY_EVENT_LIMIT && historyBytes(events) < HISTORY_BYTE_LIMIT
 }
 
 export function instructionOrdinal(events: readonly EventEnvelope[], attemptId: string | undefined): number | undefined {
@@ -358,16 +409,35 @@ export class ThreadProjectionStore {
       // A snapshot with an un-compacted history must restore that history
       // before the UI becomes live. Otherwise the model state would look
       // current while the conversation is silently truncated.
-      const restoredDiagrams = new Map<string, NetworkDiagram>()
-      let history = null
+      let restoredDiagrams = new Map<string, NetworkDiagram>()
+      let history: Awaited<ReturnType<CapstoneThreadClient['history']>> | null = null
+      let restoredEvents: EventEnvelope[] | null = null
       if (this.client.supportsHistory) {
-        try { history = await this.client.history(threadId, snapshot.lastEventSeq + 1) }
+        try {
+          history = await this.client.history(threadId, snapshot.lastEventSeq + 1)
+          if (generation !== this.loadGeneration) return
+          restoredEvents = history.events.map((event) => this.internDiagramEvent(event, restoredDiagrams))
+          let pages = 1
+          while (history.hasMore && pages < INITIAL_HISTORY_PAGE_LIMIT && shouldLoadInitialHistory(restoredEvents)) {
+            try {
+              const page = await this.client.history(threadId, history.nextBeforeEventSeq)
+              if (generation !== this.loadGeneration) return
+              const pageDiagrams = new Map(restoredDiagrams)
+              const incoming = page.events.map((event) => this.internDiagramEvent(event, pageDiagrams))
+              restoredEvents = mergeHistoryEvents(restoredEvents, incoming)
+              restoredDiagrams = pageDiagrams
+              history = page
+              pages += 1
+            } catch {
+              break
+            }
+          }
+        }
         catch (cause) {
           if (!(cause && typeof cause === 'object' && 'status' in cause && cause.status === 404)) throw cause
         }
       }
-      const restoredEvents = history ? history.events.map((event) => this.internDiagramEvent(event, restoredDiagrams))
-        : await readSnapshotEvents(this.client, snapshot, (event) => this.internDiagramEvent(event, restoredDiagrams))
+      restoredEvents = restoredEvents ?? await readSnapshotEvents(this.client, snapshot, (event) => this.internDiagramEvent(event, restoredDiagrams))
       let networkSeeds: EventEnvelope[] = []
       if (history) {
         try { networkSeeds = await this.client.networkContextEvents(threadId, snapshot.activeModelContext.id) }
@@ -552,14 +622,14 @@ export class ThreadProjectionStore {
     try {
       const page = await this.client.history(snapshot.threadId, cursor)
       if (generation !== this.loadGeneration) return
-      const existing = new Map(this.eventLog.map((event) => [event.eventSeq, event]))
-      for (const event of page.events) {
-        const previous = existing.get(event.eventSeq)
-        if (previous && previous.eventId !== event.eventId) throw new Error('历史消息身份冲突')
-        existing.set(event.eventSeq, this.internDiagramEvent(event))
-      }
+      const existing = [...this.eventLog]
+      const diagrams = new Map(this.sharedDiagrams)
+      const incoming = page.events.map((event) => this.internDiagramEvent(event, diagrams))
+      const merged = mergeHistoryEvents(existing, incoming)
+      this.sharedDiagrams.clear()
+      for (const [key, diagram] of diagrams) this.sharedDiagrams.set(key, diagram)
       this.eventLog.length = 0
-      this.eventLog.push(...[...existing.values()].sort((a, b) => a.eventSeq - b.eventSeq))
+      this.eventLog.push(...merged)
       this.olderHistoryCursor = page.hasMore ? page.nextBeforeEventSeq : null
       this.current = { ...this.current, hasOlderHistory: page.hasMore }
       this.trimHistory(false)

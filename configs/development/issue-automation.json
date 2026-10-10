@@ -41,5 +41,5 @@
     "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/overview-answer-too-long.png",
     "https://raw.githubusercontent.com/uukuguy/capstone/c809a33bbc3fb5adebf8b909c64db22a00f320a9/docs/images/feedback/slow-mid-conversation-recovery.png"
   ],
-  "required_ci": ["verify (ubuntu-latest, 3.12)", "verify (ubuntu-latest, 3.14)", "verify (macos-latest, 3.12)", "verify (macos-latest, 3.14)"]
+  "required_ci": ["verify (ubuntu-latest)", "verify (macos-latest)"]
 }

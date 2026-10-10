@@ -43,6 +43,7 @@ export CAPSTONE_BACKEND_IMAGE="capstone-demo-backend:${source_revision}"
 export CAPSTONE_LOCAL_ENV_FILE="$env_file"
 export CAPSTONE_API_PORT=18767
 export CAPSTONE_APP_PORT=15173
+export CAPSTONE_APP_ENVIRONMENT=local-demo
 export CAPSTONE_API_PROXY_TARGET=http://127.0.0.1:18767
 export CAPSTONE_API_PROXY_ORIGIN=http://127.0.0.1:5173
 echo "local demo source: $source_revision"
@@ -50,7 +51,7 @@ echo "local demo source: $source_revision"
 curl -fsS http://127.0.0.1:15173/__capstone-build | python3 -c '
 import json, sys
 build = json.load(sys.stdin)
-if build.get("revision") != sys.argv[1] or build.get("dirty"):
+if build.get("revision") != sys.argv[1] or build.get("dirty") or build.get("environment") != "local-demo":
     raise SystemExit("local demo: App source differs from the selected clean checkout")
 ' "$source_revision"
 echo 'local demo: App and selected source identity match'

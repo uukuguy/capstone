@@ -25,12 +25,23 @@ or public origins. Provider credentials are separate by default; the current
 user-approved function-validation stage permits an existing Provider key.
 `VITE_API_ORIGIN` contains only the selected API origin.
 
-The App header shows its package version and source commit. Before uploading an
-exact Git release archive, write that archive's full commit to
-`packages/capstone-app/build-revision.txt`. This public build receipt contains no
-secrets. Verify the header commit against the deployed source before acceptance.
-The tracked `development` marker lets local Vite read Git directly; do not accept
-a hosted release that shows the development marker.
+The App header shows its selected environment, package version and source commit.
+Prepare App source from the exact backend commit before uploading it:
+
+```sh
+python3 deploy/prepare_app_source.py --source-ref <full-commit-sha> \
+  --environment cloud-dev --api-origin https://<selected-api-host> \
+  --output .capstone-agent/app-builds/<new-build-name>
+```
+
+Use `cloud-demo` for user trial. Upload the new output directory as the App service
+root; it contains the Dockerfile and committed App source. The helper creates
+`build-revision.txt` and `build-environment.json` with public source, environment
+and API origin values. It excludes private state and never overwrites an output
+or deploys it. Set only `VITE_API_ORIGIN` as the hosted App build variable, to the
+same origin. The build rejects missing or mismatched receipts. Verify the header
+environment and commit against the deployed stage before acceptance.
+The tracked `development` marker lets local Vite read Git directly.
 
 Set `CAPSTONE_THREAD_OPEN_ACCESS=true` on the cloud-development API after local
 App verification. The App reads `/api/v1/thread-access` and opens directly,
@@ -254,8 +265,8 @@ eviction after a 30-second grace period. Active turns and reports remain
 protected. Add worker replicas for aggregate capacity;
 adjust the per-replica setting only after measuring memory.
 
-For an all-Railway deployment, create the App service from
-`packages/capstone-app` as its root directory. Its Dockerfile builds Vite and
+For an all-Railway deployment, prepare exact App source with the helper above
+and upload that new output directory as the App service root. Its Dockerfile builds Vite and
 serves the static files with Caddy. Set `VITE_API_ORIGIN` to the API's HTTPS
 origin, for example `https://${{capstone-api.RAILWAY_PUBLIC_DOMAIN}}`, and set
 the App health check path to `/health`. Generate public HTTPS domains for the
@@ -264,8 +275,8 @@ backend services. Only the API and App need public domains. The App build
 contains the public API origin; it must never contain the operator token or
 storage credentials.
 
-Vercel remains an alternative static host: set its project root to
-`packages/capstone-app` and use the checked-in `vercel.json` with the same
+Vercel remains an alternative static host: use that same prepared output as its
+project root, including its `vercel.json` and public identity receipts, with the same
 `VITE_API_ORIGIN`.
 The original registered-case page at `/old` obtains a demonstration credential
 from the API on each load and opens

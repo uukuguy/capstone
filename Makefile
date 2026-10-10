@@ -71,7 +71,7 @@ test-capstone-app:
 	npm test --prefix packages/capstone-app
 
 capstone-app-dev:
-	npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
+	CAPSTONE_APP_ENVIRONMENT="$(if $(CAPSTONE_APP_ENVIRONMENT),$(CAPSTONE_APP_ENVIRONMENT),local-dev)" npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
 
 capstone-local-rebuild:
 	@./deploy/rebuild_local.sh
@@ -232,7 +232,7 @@ test-makefile-application:
 test-local-rebuild:
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
-	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py -q
+	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py -q
 
 test-verification-targets:
 	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
