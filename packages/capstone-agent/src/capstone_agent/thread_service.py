@@ -408,7 +408,9 @@ def _previous_instruction_from_events(events: list[EventEnvelope], attempts: Map
                                       context: ModelContextSnapshot) -> PreviousInstruction | None:
     terminal = next((event for event in reversed(events) if event.model_context_id == context.id
         and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}), None)
-    record = attempts.get(terminal.attempt_id) if terminal is not None else None
+    if terminal is None or terminal.attempt_id is None:
+        return None
+    record = attempts.get(terminal.attempt_id)
     if record is None:
         return None
     answer = terminal.payload.get("answer")
@@ -2096,8 +2098,9 @@ class PostgresThreadService:
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
         initial_diagram = None
-        if callable(getattr(self._model_catalog, "diagram", None)):
-            initial_diagram = normalize_network_diagram(self._model_catalog.diagram(context.model_id, context.model_revision))
+        diagram = getattr(self._model_catalog, "diagram", None)
+        if callable(diagram):
+            initial_diagram = normalize_network_diagram(diagram(context.model_id, context.model_revision))
             if initial_diagram["model"]["id"] != context.model_id or initial_diagram["model"]["revision"] != context.model_revision:
                 raise ThreadProtocolError("initial model diagram identity mismatch")
         with self._connect() as connection:
