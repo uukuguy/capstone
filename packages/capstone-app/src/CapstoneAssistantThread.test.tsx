@@ -302,6 +302,26 @@ describe('CapstoneAssistantThread', () => {
     expect(onReturnLatest).toHaveBeenCalledTimes(1)
   })
 
+  it('scrolls to the restored latest tail after returning from trimmed history', async () => {
+    const onReturnLatest = vi.fn()
+    const older = [event('attempt_completed', 1, { answer: '保留的旧回答。' }, 'older')]
+    const latest = [event('attempt_completed', 2, { answer: '最新恢复回答。' }, 'latest')]
+    const props = { disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onReturnLatest }
+    const { rerender } = render(<CapstoneAssistantThread {...props} events={older} historyAtLatest={false} />)
+    const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 9792 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 369 })
+    viewport.scrollTop = 593
+
+    fireEvent.click(screen.getByRole('button', { name: '返回最新对话' }))
+    expect(onReturnLatest).toHaveBeenCalledTimes(1)
+    rerender(<CapstoneAssistantThread {...props} events={latest} historyAtLatest />)
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+    expect(screen.queryByRole('button', { name: '返回最新对话' })).toBeNull()
+    expect(viewport.scrollTop).toBe(9423)
+  })
+
   it('keeps the reading anchor when an older history load resolves after animation frames', async () => {
     let finishLoad: (() => void) | undefined
     const onLoadOlder = vi.fn(() => new Promise<void>((resolve) => { finishLoad = resolve }))

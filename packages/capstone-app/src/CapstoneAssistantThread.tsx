@@ -770,6 +770,17 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   const historyLoadToken = useRef(0)
   const [historyAnchorRevision, setHistoryAnchorRevision] = useState(0)
   const pendingHistoryAnchor = useRef<{ token: number; baselineFirstEventSeq: number; settled: boolean } | null>(null)
+  const returnLatestScrollPending = useRef(false)
+  function scrollViewportToLatest() {
+    const viewport = viewportRef.current
+    if (viewport) viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+  }
+  function requestLatestScroll() {
+    returnLatestScrollPending.current = true
+    scrollAnchor.current = null
+    historyAnchor.current = null
+    pendingHistoryAnchor.current = null
+  }
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
@@ -982,13 +993,27 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
   }
   function returnToLatest() {
     setHistoryError(null)
+    requestLatestScroll()
     if (!historyAtLatest) {
       onReturnLatest?.()
       return
     }
-    const viewport = viewportRef.current
-    if (viewport) viewport.scrollTop = viewport.scrollHeight
+    scrollViewportToLatest()
+    returnLatestScrollPending.current = false
   }
+  useLayoutEffect(() => {
+    if (!historyAtLatest || !returnLatestScrollPending.current) return
+    let second: number | undefined
+    scrollViewportToLatest()
+    const first = window.requestAnimationFrame(() => {
+      scrollViewportToLatest()
+      second = window.requestAnimationFrame(() => {
+        scrollViewportToLatest()
+        returnLatestScrollPending.current = false
+      })
+    })
+    return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
+  }, [events, historyAtLatest])
   const [initialDraft] = useState(() => readDraft(storageKey))
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
   const legacyActivity = activity.some((item) => typeof item === 'string')
