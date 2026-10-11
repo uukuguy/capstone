@@ -14,7 +14,11 @@ def check_answer(expectation, payload):
     results, evidence = payload.get("result_refs", []), payload.get("evidence_refs", [])
     if results and not evidence:
         failures.append("evidence_missing")
-    if expectation == "calculation-required":
+    if expectation == "model-and-capabilities":
+        admission = payload.get("admission", {})
+        if "task_information_verified" not in admission.get("diagnostic_codes", []):
+            failures.append("requested_information_missing")
+    elif expectation == "calculation-required":
         admission = payload.get("admission", {})
         if (not results or not evidence or admission.get("mode") != "authority_backed"
             or "task_goal_coverage_verified" not in admission.get("diagnostic_codes", [])):

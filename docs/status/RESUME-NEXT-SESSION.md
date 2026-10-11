@@ -12,14 +12,14 @@ acceptance. CI governs protected merge, not local verification or handoff.
 
 ## Source and deployment
 
-- Root: fix/deployment-answer-acceptance, HEAD dbcd7fd, pushed draft PR13 to dev.
+- Root: fix/deployment-answer-acceptance, HEAD0e4deb3, pushed draft PR13 to dev.
 - devc857837 and main723b8e8 unchanged; no merge or cloud promotion.
-- local-dev: detached .worktrees/issue-1-local-dev atdbcd7fd, App5173/API8767.
-  Same-image receipt verifies511 backend files per role; image38ee0c50.
+- local-dev: detached .worktrees/issue-1-local-dev at0e4deb3, App5173/API8767.
+  Same-image receipt verifies511 backend files per role; imagefd04ef3b.
 - local-demo and recorded clouds remain ed2524f. Preserve data and credentials.
 - Research branch feat/research-model at50d8ebc; R1 not implemented.
 
-## Committed framework repair and uncommitted prompt cleanup
+## Committed repairs and remaining scope repair
 
 Whole-network scope no longer requires an element measure; overview removes the
 unrelated generator N-1 gap; endpoint guide no longer maps an unqualified example
@@ -33,7 +33,18 @@ and AC solver identity, rejecting filtered/DC results as full AC proof.
 The user requires generic system instructions, never incident-specific guidance.
 Remove the generator registration reminder from proposal rules; generalize goal
 dependencies; remove both endpoint-guide defaults from a bare numeric label to
-an index.83 recognition/Pack checks pass. This cleanup is not yet deployed.
+an index.83 recognition/Pack checks pass. This cleanup is deployed at0e4deb3.
+
+The standalone overview/AC专项 passed actual Provider and Authority review.
+Receipt provider-context-scope/provider-0872dbeff1324585.json; frozen records,
+Authority facts and professional deepseek/deepseek-flash identity are retained.
+The overall8/10 run bd2d0661 mechanically passed but semantic review FAILED:
+continuous overview Attempt1ce5a711 incorrectly rejected network/all/*.
+Uncommitted repair shares exact whole-network predicate with overview, preserves
+frozen selector, and requires verified information diagnostic in screening.
+49 Pack and16 sample checks pass, types zero errors, source review approves.
+context-scope专项 now selects three cases/four turns; unrelated endpoint answer
+quality is not a repair gate. Rebuild and repeat acceptance before any handoff.
 
 98 focused Pack/closure/sample checks and3 simulator contingency checks pass.
 Non-convergence red/green passed; real filtered/DC counterexamples failed before

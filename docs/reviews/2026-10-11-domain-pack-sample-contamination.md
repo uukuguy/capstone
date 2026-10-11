@@ -30,6 +30,24 @@ stay reusable; concrete incident instructions belong only in validation samples.
 The network-elements reference had a second bare-label-to-index default and
 matching example. Both are removed in favor of established namespaces, Authority
 identity lookup and genuine ambiguity clarification.
+The topology reference's duplicate mapping is also removed.
+
+## Deployed overall recheck
+
+On0e4deb3, the two standalone context/scope repair cases passed evidence review.
+The complete8-case/10-turn run found another whole-network scope rejection in
+the overview after endpoint query: the model correctly requested overview but
+used the exact `network/all/*` selector. The Pack rejected that representation.
+The overview now shares the exact whole-network predicate with powerflow, retains
+the frozen selector, and still rejects individual objects, changes and measures.
+Real Authority red tests reproduced the failure;49 Pack tests pass after repair.
+
+The old overview mechanical screen also accepted a clarification. It now requires
+the admitted information-completion diagnostic; semantic content review remains
+separate. The context/scope update includes the continuous overview case, but its
+repair verdict does not require a perfect unrelated endpoint answer. No prompt
+change is used for this scope repair. The0e4deb3 overall receipt is failed at
+semantic review and cannot establish a baseline.
 
 ## Retained general contract repairs
 

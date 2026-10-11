@@ -117,7 +117,8 @@ def test_rejects_unknown_requirement_fields():
 
 
 @pytest.mark.parametrize("direction", ["descending", None])
-def test_overview_describes_selected_authority_model_without_calculation(authority, direction):
+@pytest.mark.parametrize("objects", [[], [{"kind": "network", "namespace": "all", "identifier": "*"}]])
+def test_overview_describes_selected_authority_model_without_calculation(authority, direction, objects):
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     invoke, context, verifier = authority
     calls = []
@@ -125,7 +126,7 @@ def test_overview_describes_selected_authority_model_without_calculation(authori
         calls.append(capability)
         return invoke(capability, arguments)
     provider = PandapowerTaskProvider()
-    task = provider.resolve("g", proposal(operation="overview", direction=direction), context_ref=context["context_ref"],
+    task = provider.resolve("g", proposal(operation="overview", direction=direction, objects=objects), context_ref=context["context_ref"],
                             revision_ref=context["revision_ref"], invoke=recorded, answer_policy={"language": "zh", "scale": "concise"})
     answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=())
     text = provider.render_conclusion(answer, language="zh", scale="concise")

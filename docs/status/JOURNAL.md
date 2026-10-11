@@ -2511,3 +2511,4 @@ The following original entries were retained during document synchronization.
 
 - 2026-10-11：选定上下文完整，失败来自全网范围解析；修复并保留逐元件校验，指南仅作配套，12项专项通过。
 - 2026-10-11：dbcd7fd 修复范围与证据覆盖回归；撤回旧整体验收，扩充8案例10轮，98项检查通过。
+- 2026-10-11：0e4deb3 清除案例定制提示与裸标识索引默认；保持通用规则，83项识别及Pack检查通过。

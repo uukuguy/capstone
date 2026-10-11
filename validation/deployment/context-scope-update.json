@@ -3,8 +3,8 @@
   "suite_id": "selected-context-scope-repair-20261011",
   "suite_kind": "update",
   "corpus": "ieee39.json",
-  "case_ids": ["model-overview", "selected-model-ac"],
+  "case_ids": ["model-overview", "selected-model-ac", "clarification-to-overview"],
   "change_scope": ["普通概况无关固定文案", "全网络计算范围与逐元件查询的解析区分", "端点指南移除样例执行默认"],
-  "repair_criteria": ["普通概况不附带无关发电N−1缺口", "使用已选模型完成无逐元件指标的全网交流潮流，接纳当前场景证据"],
+  "repair_criteria": ["普通概况不附带无关发电N−1缺口", "使用已选模型完成无逐元件指标的全网交流潮流，接纳当前场景证据", "连续对话的新概况目标允许完整全网选择器，不因上一轮对象查询而错误澄清"],
   "acceptance": {"scope": "repair-specific", "complete_overall_answer_required": false, "unrelated_answer_defects": "record_separately", "skipped_is_pending": true}
 }

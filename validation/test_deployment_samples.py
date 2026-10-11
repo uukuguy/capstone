@@ -3,6 +3,13 @@ from pathlib import Path
 from types import SimpleNamespace
 import pytest
 
+
+def test_overview_clarification_cannot_pass_as_requested_information():
+    from validation.deployment.checks import check_answer
+    payload = {"answer": "请选择所需分析操作。", "result_refs": [], "evidence_refs": [],
+               "admission": {"mode": "offline_information", "diagnostic_codes": ["task_clarification_verified"]}}
+    assert "requested_information_missing" in check_answer("model-and-capabilities", payload)
+
 from validation.deployment.checks import check_answer
 
 
@@ -14,7 +21,8 @@ def test_mechanical_overview_checks_do_not_infer_meaning_from_words(answer):
     # These texts require semantic review. Neither word presence nor absence
     # establishes whether the requested model description is correct.
     assert check_answer("model-and-capabilities", {
-        "answer": answer, "result_refs": [], "evidence_refs": []}) == []
+        "answer": answer, "result_refs": [], "evidence_refs": [],
+        "admission": {"diagnostic_codes": ["task_information_verified"]}}) == []
 
 
 def test_public_process_prefix_blocks_chinese_handoff():

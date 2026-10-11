@@ -44,6 +44,11 @@ def _display_limit(requirement):
     return {"concise": 1, "standard": 5, "detailed": 20}[requirement.get("answer_policy", {}).get("scale", "standard")]
 
 
+def _whole_network(requirement):
+    return requirement["scope"] == "full" and requirement["objects"] == [
+        {"kind": "network", "namespace": "all", "identifier": "*"}]
+
+
 def _display_note(requirement, count):
     limit = _display_limit(requirement)
     return f" Shown: {min(limit, count)} of {count} verified entries; full values are in the result view." if count > limit else ""
@@ -167,7 +172,8 @@ class PandapowerTaskProvider:
                           "limit": {"limits", "contingency"}, "comparison": {"compare"}, "ranking": {"ranking"}}
             scenario = semantic_goal.get("scenario")
             valid_scenario = scenario == requirement["scenario"] or (scenario == "none" and requirement["operation"] == "overview")
-            informational = requirement["operation"] == "overview" and not requirement["objects"] and not requirement["changes"]
+            informational = (requirement["operation"] == "overview" and not requirement["changes"]
+                             and (not requirement["objects"] or _whole_network(requirement)))
             valid_scope = semantic_goal.get("scope") == requirement["scope"] or (informational and semantic_goal.get("scope") == "unspecified")
             if (semantic_goal.get("id") != goal_id or not valid_scenario
                 or not valid_scope
@@ -180,15 +186,14 @@ class PandapowerTaskProvider:
         if requirement["operation"] == "ranking" and requirement["direction"] is None:
             return resolved("clarification", "Specify the requested ranking direction: ascending or descending.")
         if requirement["operation"] == "overview":
-            if requirement["scenario"] != "baseline" or requirement["changes"] or requirement["objects"] or requirement["measure"] is not None:
+            if (requirement["scenario"] != "baseline" or requirement["changes"]
+                or requirement["objects"] and not _whole_network(requirement) or requirement["measure"] is not None):
                 return resolved("clarification", "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.")
             requirement["model_metadata"] = _overview_metadata(invoke("context.get", {"context_ref": context_ref}),
                                                               context_ref, revision_ref)
             return resolved("ready")
         if requirement["operation"] in {"powerflow", "compare"}:
-            whole_network = requirement["scope"] == "full" and requirement["objects"] == [
-                {"kind": "network", "namespace": "all", "identifier": "*"}]
-            element_query = bool(requirement["objects"]) and not whole_network
+            element_query = bool(requirement["objects"]) and not _whole_network(requirement)
             if element_query != (requirement["measure"] is not None):
                 return resolved("clarification", "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.")
             if requirement["measure"] is not None and (requirement["measure"] not in {"loading_percent", "p_from_mw", "p_to_mw", "pl_mw"}

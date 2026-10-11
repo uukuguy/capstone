@@ -8,6 +8,33 @@ cover generation N-1, line outage, load growth, model overview and a continuous
 clarification-to-overview conversation. Add newly confirmed failures to this
 corpus; keep resolved cases for regression rather than removing them.
 
+## Business coverage
+
+The JSON corpus is the executable source. This table explains its cases without
+adding product prompts or changing capability behavior.
+
+| Case | Purpose | Business acceptance |
+| --- | --- | --- |
+| `generation-n1` | Original generation-outage request | Explain the actual capability boundary; never substitute branch outages or invent generator severity. |
+| `line-outage` | Original ambiguous line label | Resolve the intended identity or explain a real ambiguity; any numerical answer uses that outage scenario. |
+| `load-scaling` | Changed-load limit assessment | Resolve actual loads, apply the exact factor, calculate and evaluate the changed scenario, with identified violations. |
+| `model-overview` | Basic model and available analysis | Answer both parts from selected-model facts and registered capabilities; no unrelated task text or unsolicited simulation. |
+| `clarification-to-overview` | Two-turn target transition | Resolve or clarify the endpoint request, then answer the new overview goal and retain history. |
+| `selected-model-ac` | Simplest AC execution | Use the selected model and current-run calculation evidence; no unnecessary element/measure clarification. |
+| `explicit-index-outage` | Unambiguous outage execution | Execute the exact outage; identify overloads from verified results or report actual non-convergence without invented values. |
+| `flow-to-overview` | Two-turn calculation-to-information transition | Calculate with current-run evidence, then answer the new informational goal without old-task contamination. |
+
+The first six cases retain observed conversation failures. The last two are
+explicitly labeled audit-derived coverage gaps. A legitimate capability boundary
+can satisfy a boundary case; it cannot satisfy a required calculation case.
+These are business acceptance cases, not exact wording or perfect-answer targets.
+
+Upgrade manifests reuse case IDs rather than copying instructions. The
+task-answer update checks prefix/contract/metadata repairs; the derived-context
+update checks executable derived contexts and exact scenario admission; the
+context-scope update checks unrelated overview text and whole-network AC scope.
+An unrelated defect is recorded separately from the update's repair verdict.
+
 An upgrade-specific manifest selects relevant cases from that corpus and adds
 its focused checks. [task-answer-update.json](task-answer-update.json) selects
 three cases/four turns for this repair: generation clarification, model overview
