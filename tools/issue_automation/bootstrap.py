@@ -65,7 +65,7 @@ def exchange(code):
 
 def store_app(root, value):
     value = validate_app(value)
-    policy, _ = load_policy(root, "main")
+    policy, _ = load_policy(root, "dev")
     if policy.publisher_app_id not in {0, value["id"]}:
         raise ValueError("Registered App differs from protected operator identity")
     directory = root / ".capstone-agent/issue-automation"
@@ -104,7 +104,7 @@ def resume_app(root):
 def accept_installation(root, installation_id):
     if not re.fullmatch(r"[1-9][0-9]{0,15}", installation_id):
         raise ValueError("Invalid installation identity")
-    policy, _ = load_policy(root, "main")
+    policy, _ = load_policy(root, "dev")
     policy = replace(policy, publisher_installation_id=int(installation_id))
     github = GitHub(policy, root=root)
     installation = github._publisher_api("GET", "app/installations/" + installation_id)
@@ -131,7 +131,7 @@ def accept_installation(root, installation_id):
 def serve(root, port=18790, resume=False):
     if not 1024 <= port <= 65535:
         raise ValueError("Use an unprivileged loopback port")
-    policy, _ = load_policy(root, "main")
+    policy, _ = load_policy(root, "dev")
     if policy.repository != "uukuguy/capstone" or policy.write_enabled or (policy.publisher_app_id and not resume):
         raise ValueError("Existing identity requires explicit reconciliation")
     directory = root / ".capstone-agent/issue-automation"

@@ -3,7 +3,7 @@ name: verify
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
     inputs:
       release:
@@ -26,6 +26,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select verification scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+          RELEASE_CHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        run: |
+          if [ "$TARGET_BRANCH" = "main" ] || [ "$RELEASE_CHECK" = "true" ]; then
+            gate=release
+          elif [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            gate=product
+          else
+            gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
+          fi
+          case "$gate" in docs|governance|product|release) ;; *) exit 1 ;; esac
+          echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
@@ -38,11 +57,24 @@ jobs:
       - run: make setup
       - run: make install-pi
       - run: make doctor
+      - name: Verify documentation and control tooling
+        if: steps.scope.outputs.gate == 'docs' || steps.scope.outputs.gate == 'governance'
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          test "$(readlink CLAUDE.md)" = AGENTS.md
+          python3 -m py_compile tools/render_project_overview.py tools/ci_scope.py
+          python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --check-docs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify governance contracts
+        if: steps.scope.outputs.gate != 'docs'
+        run: PYTHONPATH=. uv run --project packages/grid-agent python -m pytest tools/tests/test_ci_scope.py tools/tests/test_verification_targets.py tools/tests/test_issue_automation*.py -q
       - name: Verify formal applications
-        if: github.event_name != 'workflow_dispatch' || !inputs.release
+        if: steps.scope.outputs.gate == 'product'
         run: make check-pr
       - name: Verify baseline or release
-        if: github.event_name == 'workflow_dispatch' && inputs.release
+        if: steps.scope.outputs.gate == 'release'
         run: make check-release
       - name: Show failed offline validation checks
         if: failure()

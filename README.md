@@ -3,8 +3,10 @@
 Development and release versions follow the fixed [version-control register](docs/status/VERSION-CONTROL.md).
 The initial common runtime baseline follows the current verified demo. Native Pi,
 skills and resource extensions remain on `feat/pi-skills-integration` during development.
-Main may later include isolated experimental features after integration checks;
-demo receives only its verified release scope.
+`dev` is the default development integration branch and holds current project
+control. Feature and documentation PRs target dev. `main` holds accepted release
+baselines and release snapshots; demo receives only its verified release scope.
+See the [branch lifecycle](docs/architecture/capstone-development-lifecycle.md).
 
 Report problems with a screenshot and a short description in
 [GitHub Issues](https://github.com/uukuguy/capstone/issues).

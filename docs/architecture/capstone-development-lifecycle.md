@@ -8,6 +8,28 @@ that those details must preserve.
 
 ## Three execution lanes
 
+### Development integration and release branches
+
+`dev` is the default integration branch and owns current project control,
+canonical worklists and generated PROJECT-OVERVIEW.html. Main copies are release
+snapshots. Feature, fix, docs and chore branches start from dev and target dev.
+Experiments preserve their evidence; accepted work enters dev through scoped PRs.
+Existing unmerged branches are assessed individually, without bulk rebases.
+
+`main` owns accepted release baselines. A release branch is optional: freeze a
+selected dev candidate when a stabilization period is needed. Main PRs run full
+release verification. Hotfixes start from the actual accepted deployment tag;
+accepted fixes flow to main and back to dev. A successful merge is not a
+deployment receipt. Branch pushes do not automatically promote user trial.
+
+Both dev and main require the existing Linux/macOS Actions checks, PRs and zero
+mandatory approvals; force push and deletion are blocked. Administrator emergency
+bypass remains available and must be recorded if used. Local-dev normally follows
+a recorded dev source, with explicit temporary feature candidates allowed.
+Cloud-dev validates selected development sources. Local-demo and cloud-demo
+remain on accepted demo tags unless a recorded release or repair candidate is
+being verified. Stage data isolation and exact source/image promotion still apply.
+
 Capstone has three lanes with different risk and data responsibilities:
 
 | Lane | Purpose | Allowed change rate | User exposure |
@@ -50,7 +72,9 @@ the relevant Python tests and its application entry smoke check. Do not repeat
 all offline, E2E, packaging and release checks after each edit. Local API, worker
 or App changes still use the canonical local rebuild before deployment claims.
 
-Pull requests and main pushes run `make check-pr` on Linux and macOS. Feature
+Dev PRs and pushes select documentation, bounded governance contracts or
+`make check-pr` on Linux and macOS. Unknown paths require product regression;
+main PRs and pushes run `make check-release`. Feature
 branch pushes do not run a second copy of the PR workflow. New revisions cancel
 obsolete automatic runs for the same event and ref. The PR gate checks formal
 applications, Authorities, Domain Packs, Kernel, App and registered workers.

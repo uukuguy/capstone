@@ -2,11 +2,11 @@
 
 ## Active
 
-main分支已启用轻量保护：PR与两平台Actions检查、0审批；完整配置和回读收据见[版本台账](VERSION-CONTROL.md)及开发生命周期。
+dev默认开发集成主线和main发布主线均启用轻量保护：PR与两平台Actions检查、0审批，禁止强推和删除；main副本为发布快照。详见[组织设计](../superpowers/specs/2026-10-11-dev-integration-design.md)、[实施计划](../superpowers/plans/2026-10-11-dev-integration.md)和[版本台账](VERSION-CONTROL.md)。
 
-[迭代门禁与旧 CLI 退出计划](../superpowers/plans/2026-10-11-retire-grid-cli.md)：513a35e已实现并审查门禁拆分；PR #10两平台CI通过，约32/26分钟，依赖PR #9。用户已撤销grid-agent CLI兼容要求；共用运行模块迁移尚未完成。
+[迭代门禁与旧 CLI 退出计划](../superpowers/plans/2026-10-11-retire-grid-cli.md)：513a35e已实现并审查门禁拆分；PR #10两平台CI通过，约32/26分钟并已合入main。用户已撤销grid-agent CLI兼容要求；共用运行模块迁移尚未完成。
 
-[正式回答与运行窗口本地验收](../reviews/2026-10-11-task-answer-local-dev.md)：2473e48已在local-dev规范重建，三角色同源、注册案例和浏览器检查通过；PR #9等待精确CI与集成，人工回答验收及云发布单列。
+[正式回答与运行窗口本地验收](../reviews/2026-10-11-task-answer-local-dev.md)：2473e48已在local-dev规范重建，三角色同源、注册案例和浏览器检查通过；PR #9已通过精确双平台CI并合并，人工回答验收及云发布单列。
 
 [任务理解与正式回答实施清单](../superpowers/plans/2026-10-11-task-answer-closure.md)：契约、识别、领域覆盖与实际应用验收分别留存；当前源码2473e48，本地技术验收通过，主线集成及人工产品验收另列。
 

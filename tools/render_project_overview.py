@@ -177,7 +177,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 branches=branches,
                 prs=prs,
                 register="docs/status/VERSION-CONTROL.md",
-                workflow="local-dev → main → 发布候选 → local-demo → 云端发布",
+                workflow="功能/实验整理 → dev → 发布候选验证 → main → 精确标签部署",
                 hotfix_branches=git("branch", "--list", "hotfix/*", "--format=%(refname:short)").splitlines())
 
 

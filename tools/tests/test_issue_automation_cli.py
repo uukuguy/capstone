@@ -11,8 +11,8 @@ from tools.issue_automation.policy import Policy
 from tools.issue_automation.repair import DockerSandbox
 
 
-def test_doctor_uses_trusted_main_config_and_disabled_model(tmp_path, capsys):
-    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+def test_doctor_uses_trusted_dev_config_and_disabled_model(tmp_path, capsys):
+    subprocess.run(["git", "init", "-b", "dev", str(tmp_path)], check=True, capture_output=True)
     config = tmp_path / "configs/development/issue-automation.json"
     config.parent.mkdir(parents=True)
     config.write_text(json.dumps(dataclasses.asdict(Policy())))
@@ -45,7 +45,7 @@ def test_private_override_requires_ignored_owner_only_file(tmp_path):
 def test_profile_selection_rejects_candidate_edits_outside_checked_scope(tmp_path, profile, accepted, rejected):
     from tools.issue_automation.cli import operator_override
     from tools.issue_automation.repair import Repair, Source
-    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", "dev", str(tmp_path)], check=True, capture_output=True)
     (tmp_path / ".gitignore").write_text(".capstone-agent/\n")
     for path in (accepted, rejected):
         target = tmp_path / path
@@ -91,7 +91,7 @@ def test_real_docker_candidate_is_secret_free_and_offline(tmp_path, monkeypatch)
 @pytest.mark.skipif(not os.environ.get("ISSUE_AUTOMATION_TEST_IMAGE"), reason="Prepared Docker image not selected")
 def test_real_docker_baseline_regression_and_repair_receipt(tmp_path):
     from tools.issue_automation.repair import Source, Repair
-    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", "dev", str(tmp_path)], check=True, capture_output=True)
     file = tmp_path / "packages/capstone-app/app.py"
     file.parent.mkdir(parents=True)
     file.write_text("value = 'broken'\n")

@@ -1,41 +1,61 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-11 15:53 CST. Active baseline-closure and iteration-gate checkpoint, not a final handoff.
+Updated: 2026-10-11. Session remains active.
 
-## Current task
+## Current task and accepted order
 
-Latest user priority: synchronize all pending root documentation and control tools before resuming the product baseline. Root is now docs/project-state-sync based513a35e;37-file input snapshot stored under runs/task-answer-closure/document-sync-backup and original stashae9d81b archived at refs/archive/20261011/document-sync-wip. Stash conflicts resolved without dropping source-owned journal entries. Documentation reviewed and factual corrections applied; commit/push as a dependent PR against chore/iteration-gates, then retarget main after PR10. Main ref remains c3b78bc; local-dev actual source2473e48. Root checkout is not a deployed stage.
+User approved dev development integration / main release baseline organization.
+Create and protect dev from accepted main, integrate pending global documents and
+governance PR #11, register the exact local technical answer baseline, then create
+feat/research-model from accepted dev. Preserve R0/Pi experiments and user data.
 
-User authorized main branch protection; applied through existing repository admin credentials as a settings change. Readback verified PR required, two GitHub Actions app15368 checks, strict=false, approvals=0, force/deletion disabled, admin emergency bypass retained. Public AI comments/PRs still use capstone-xiaoshi. Receipt runs/task-answer-closure/main-protection-readback.json. PR9 is correctly BLOCKED until CI passes; do not bypass it.
+## Current identities
 
-User prioritized closing formal-answer/run-window work and establishing baseline2 before opening Research Model implementation. Preserve the accepted research design and experimental reference. Current PR #9 source2473e48, local-dev accepted automatically; exact Linux/macOS CI38121175618 and38121170714 running. Do not expand R1 until the baseline exists.
+- Root: docs/project-state-sync, prior committed source69f7825 plus reviewed dev
+  migration pending commit. Original37-file document input is backed up under
+  runs/task-answer-closure/document-sync-backup; stashae9d81b is retained at
+  refs/archive/20261011/document-sync-wip. No runtime/auth/root var data removed.
+- PR9 source2473e48 passed full local and exact Linux/macOS CI and mergedf7baef3.
+  Merge tree matches exact tested source. PR10 source513a35e passed both gates
+  (Linux32min/macOS26min) and merged723b8e8. Local main was safely fast-forwarded.
+- dev starts723b8e8 and is GitHub default. Both dev/main require PRs and existing
+  Linux/macOS Actions checks,0 approvals, no force push/delete; admin emergency
+  bypass retained but unused. Readback receipts under runs/task-answer-closure.
+- PR11 is OPEN targeting dev. New governance changes must pass exact two-platform
+  CI before App merge. Independent review APPROVE;68 focused tests passed,
+  two optional Docker tests skipped;doctor and desktop/mobile source-edge checks pass.
+- local-dev source2473e48, App5173/API8767, imagee614ce0d, API/two workers match512
+  files. Three cases/nine turns/report/evidence readback and controlled RPC/UI pass.
+  Human Provider answer acceptance remains pending. No paid calls or cloud deploy.
+- local-demo App15173/API18767 and recorded clouds remained2524f.
+- experiment/autonomous-research bf678f2 and its dirty accepted design copies are
+  preserved. No R1 implementation started; feat/research-model not yet created.
+- CLI compatibility requirement withdrawn; actual runtime dependency retirement
+  remains a separate accepted migration task.
 
-## Iteration gates and legacy CLI decision
+## Execution and verification
 
-- User requested lighter local iteration gates and withdrew all grid-agent CLI compatibility requirements. The old package still owns worker/preview/catalog/projection code; it is not yet removed. Migration plan: docs/superpowers/plans/2026-10-11-retire-grid-cli.md. Do not erase shared runtime tests as if they were all CLI tests.
-- Branch chore/iteration-gates, worktree .worktrees/iteration-gates, clean committed513a35e. Eight gate contract tests,380 App tests7.63s,892 shared tests collected, doctor, diff checks and independent review passed. New check-iteration requires CHECK_TARGETS; check-pr omits explicit legacy CLI/compat tests and release aggregates; workflow avoids duplicatefeaturepush and explicitly dispatches complete dualplatform release checks. Remote duration not yet measured.
-- User updated App registration/installation169899977 Workflows permission. Verified grant and pushed513a35e with separate workflow-scoped installation token, preserving least privilege for ordinary issue writes. PR #10 created by capstone-xiaoshi[bot] against feat/task-answer-closure; Linux/macOS checks running. Retarget main after PR9 merges. Temporary network failures were reconciled; no duplicate PR. Receipt runs/task-answer-closure/iteration-pr-publication.json. Never switch to maintainer push.
-- Existing PR9 full CI remains in progress. Keep its exact2473e48 source unchanged. Graph includes remote513a35e branch and PR10; browser edges and mobile layout checked. Root architecture/agent contract record withdrawn compatibility promise, not completed package removal.
+CI scope fails closed: docs plus relative-link/symlink/compile checks; bounded
+governance plus complete Issue and gate test suites; unknown edits product;
+main and explicit release always full aggregate. Classifier failure cannot
+produce green. All non-doc gates test the classifier. Common setup/doctor retained.
+Issue tools now read committed dev source/policy and publish normal repair PRs
+to dev. Existing receipts are retained; changed source/old PR needs reassessment.
+AI public writes use independent capstone-xiaoshi App; workflow changes require
+separate approved Workflows-scoped token. Never use maintainer identity to push.
 
-## Research branch
+## Next actions
 
-- experiment/autonomous-research, worktree .worktrees/autonomous-research, base main c3b78bc. Code bf678f21bf14fe236e15b0d854892edee7279b25; design69706fc and scopee83de7e precede it.
-- 33 focused/boundary tests and independent review passed. Real IEEE39 corpus:15 nodes,10 generation cases accounted for; fresh-process receipt replay identical, forged observation rejected even after rehash. Ordinary overview creates no calculation evidence.
-- Receipts: experimental worktree runs/autonomous-research/ieee39-accepted-code/receipt.json, ieee39-verification.json and ieee39-tamper-check.json. Digest8a2a161b2a24bc8958523be7480cf83cb3cc3d4bb81bd919664db63378f801fc.
-- Outcome incomplete: gen8 nonconvergence, sole slack outage unresolved, bus identity alternatives retained. Static voltage/loading screen omits generatorP/Q limits. Do not call this full N-1 compliance or LLM autonomy.
-- Accepted direction: task-scoped Research Model, cross-turn continuation, revision, branching and invalidation. Ordinary Q&A remains lightweight. Authority retains system truth. No required IPython/WorldMap dependency or arbitrary professional-session Python.
-- Research implementation deferred by user until baseline2. Existing bf678f2 remains branch-only reference. After baseline acceptance, open a new Research Model branch from it; paid Provider research needs separate authorization.
+1. Commit and push reviewed dev organization changes to PR11 through the App.
+   Wait exact required checks; reconcile network failures before any retry.
+2. Merge PR11 into dev, fast-forward root dev without dropping post-commit journal.
+   Close merged feature/CI names only after archiving refs and preserving worktrees.
+3. Annotate/push exact2473e48 local technical baseline with full verification and
+   pending human/cloud limits. Create research implementation branch from accepted
+   dev; sync canonical control graph and affected research plan copies.
+4. Keep Issue2/3 human product/cloud acceptance open. No new paid Provider tests
+   or cloud promotion authorized.
 
-## Independent answer work
-
-- feat/task-answer-closure source2473e4860dcaf11d575e8d009caeb088756a4cd2; all reviewed product changes committed. Only its journal is dirty. Whole-source review approved;336 actual PostgreSQL checks passed; fresh38 precommit checks passed.
-- Full make test, test-e2e, validate, check-types and check-types-validation passed; logs runs/task-answer-closure/gate-test-complete.log and gate-{e2e,validate,types}-final.log in that worktree.
-- local-dev canonical rebuild passed; API/two workers match512 files and share imagee614ce0d; App clean2473e48. Three registered cases/nine turns/report/evidence replay passed. Browser9px/4.5px gap/32px preview/160px scroll/completion toggle passed. PR #9 published by independent App; wait exact CI, merge, protect root WIP during main alignment, then annotated technical baseline with human acceptance limits.
-- Prior22acf1b candidate superseded by full2473e48. Human live-model answer acceptance remains pending; no paid Provider calls or cloud release.
-
-## Preserved environments and workflow
-
-- main c3b78bc; local-dev App5173/API8767 at2473e48; local-demo App15173/API18767 ated2524f; clouds recordeded2524f. User/runtime data retained.
-- GitHub public writes require capstone-xiaoshi App protected publisher. Issues1/5 await release;2/3 belong to answer work;4 awaits recovery-trigger evidence. Keep issues open pending their acceptance.
-- Pi/skills work remains independent. No copying auth, deleting var data or changing unrelated worktrees.
-- Control graph checks passed7nodes/4bindings, no overlaps/crossings/card obstruction and390px no overflow after removing superseded UI card. Own HTTP18780 session41795; browser closure-control and closure-acceptance remain open for verification; do not stop local-dev Vite. CI watch81994 writes runs/task-answer-closure/pr9-ci-watch.log.
+Control owner URL http://127.0.0.1:18780/docs/status/PROJECT-OVERVIEW.html;
+owned browser session closure-control. Use canonical rebuild only for changed
+local API/worker/App sources; governance/document changes do not redeploy them.

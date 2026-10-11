@@ -386,4 +386,10 @@ to the existing approved UI contract; do not implement cross-family conversion.
 
 research独立实验进入R0已验证、R1待实施阶段。采用[研究模型演进计划](2026-10-11-research-model-evolution.md)作为R1–R5执行清单；当前正式回答包继续独立收口，不将实验混入local-dev候选。Research Model按任务跨轮次延续，知识包、可组合工作流和结论验证共同支撑自主推演。
 
+2026-10-11开发组织调整：用户批准dev默认开发集成主线、main发布基线主线。
+PR #9/#10已合入main723b8e8；dev从该点建立，PR #11文档与治理改为面向dev。
+先按[dev组织实施计划](2026-10-11-dev-integration.md)完成保护、CI、工具与全局记录集成，
+再登记精确2473e48本地技术基线并从已接受dev建立Research Model实施分支。
+实验R0和Pi保持独立；人工回答验收、CLI退出迁移、Issue验收与云发布仍分别记录。
+
 最新顺序：先同步项目文档和控制记录，再完成正式回答PR #9及新技术基线；CI调整PR #10保持独立。随后从新基线开启Research Model实施分支。旧CLI兼容要求已撤销，运行入口迁移按[退出计划](2026-10-11-retire-grid-cli.md)单独核验，不能以删除兼容测试冒充迁移完成。

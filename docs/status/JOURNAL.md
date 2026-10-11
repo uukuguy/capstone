@@ -2462,3 +2462,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-11 Neutral slice passes 58 tests, scoped Pyright and independent review; Pack/finalization bridge remains active.
 - 2026-10-11 Verified PR10 exact513a35e CI: Linux32 minutes, macOS26 minutes; local focused App checks remain7.63seconds.
 - 2026-10-11 Reviewed pending project documents, preserved historical records and resolved conflicts; links, doctor and browser control checks passed.
+- 2026-10-11 Synchronized pending documents and control tools to preserve reviewed project state; 69f7825.
+- 2026-10-11 Merged exact reviewed PR9 and PR10 through protected App publishing; main723b8e8, deployed local source2473e48 unchanged.
+- 2026-10-11 Created default dev from accepted main; verified both protections and retargeted document PR11 without administrator bypass.
+- 2026-10-11 Approved dev governance review;68 focused checks, doctor and browser edges passed; optional Docker tests not selected.

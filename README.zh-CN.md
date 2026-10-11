@@ -2,8 +2,9 @@
 
 开发与发布版本遵循固定的[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
 初始共同运行基线以当前已验收 demo 为起点。原生 Pi、skills 和资源扩展目前保留在
-`feat/pi-skills-integration` 开发分支。main 后续可合入通过集成检查且能隔离的实验功能；
-demo 只接收经过发布验收的功能范围。
+`feat/pi-skills-integration` 开发分支。`dev` 是默认开发集成主线，保存当前项目控制记录；
+功能与文档 PR 面向 dev。`main` 保存已接受的发布基线与发布快照，
+demo 只接收经过发布验收的功能范围。详见[分支生命周期](docs/architecture/capstone-development-lifecycle.md)。
 
 用户可在 [GitHub Issues](https://github.com/uukuguy/capstone/issues) 提交截图和简短说明，
 未说明环境时默认 cloud-demo。AI 按[Issue 处理规程](docs/architecture/capstone-issue-workflow.md)

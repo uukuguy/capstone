@@ -65,12 +65,10 @@ def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
         "check-release": ("test-packages", "test-source-setup"),
     }
     for aggregate, dependencies in leaves.items():
-        phony = next(
-            line
+        all_targets = [target
             for line in (ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
             if line.startswith(".PHONY:")
-        )
-        all_targets = phony.removeprefix(".PHONY:").split()
+            for target in line.removeprefix(".PHONY:").split()]
         successful_stub = tmp_path / f"{aggregate}-success.mk"
         successful_stub.write_text(
             ".PHONY: " + " ".join(all_targets) + "\n"
@@ -122,7 +120,7 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
         assert f"- run: {command}" in workflow
     assert 'run: make check-pr' in workflow
     assert 'run: make check-release' in workflow
-    assert 'branches: [main]' in workflow
+    assert 'branches: [dev, main]' in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
 
 

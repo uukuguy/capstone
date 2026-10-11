@@ -158,6 +158,16 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+- `dev` is the default development integration branch. Feature, fix, docs and
+  chore PRs target dev. Experiments enter dev only as scoped reviewed work.
+  `main` holds accepted release baselines; release PRs target main and run full
+  verification. Hotfixes start from the actual accepted deployment tag and flow
+  back to dev. Do not rewrite shared history.
+- Current project control and canonical worklists live on dev. Main copies are
+  release snapshots. Both permanent branches require PRs and Linux/macOS
+  checks, with zero mandatory approvals and no force push or deletion. Record
+  any administrator emergency bypass. Branch heads do not imply deployment.
+
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
   PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its
   generated `PROJECT-OVERVIEW.html`. Decisions made through the control graph
