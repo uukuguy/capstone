@@ -507,6 +507,44 @@ class PandapowerArtifactAuthority:
     def verify_result(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_result(reference)
 
+    def verify_context_changes(self, reference: str, base_reference: str) -> tuple[dict[str, Any], ...]:
+        """Verify each lineage link and return ordered patches inside the Pack."""
+        base = self.verify_context(base_reference).document
+        current = reference
+        seen: set[str] = set()
+        operations: list[list[dict[str, Any]]] = []
+        while current != base_reference:
+            if current in seen or len(seen) >= 64:
+                raise SimulatorIntegrityError("context lineage is cyclic or too deep")
+            seen.add(current)
+            document = self.verify_context(current).document
+            if any(document.get(key) != base.get(key) for key in ("model_id", "engine")):
+                raise SimulatorIntegrityError("derived context is outside selected model")
+            parent_ref = document.get("parent_context_ref")
+            lineage_ref = document.get("lineage_ref")
+            if not isinstance(parent_ref, str) or not isinstance(lineage_ref, str):
+                raise SimulatorIntegrityError("context is not a verified descendant")
+            digest = _reference_digest(lineage_ref, "lineage", label="lineage_ref")
+            loaded = self._verifier._try_json_document(("evidence", "revisions", f"{digest}.json"), "revision lineage")
+            if loaded is None or _sha256_canonical_json(loaded[1]) != digest:
+                raise SimulatorIntegrityError("revision lineage digest is invalid")
+            lineage = loaded[1]
+            parent = self.verify_context(parent_ref).document
+            base_version = base.get("engine_version", base.get("pandapower_version"))
+            if document.get("engine_version", document.get("pandapower_version")) != base_version:
+                raise SimulatorIntegrityError("derived context engine version changed")
+            if (any(lineage.get(key) != document.get(key) for key in
+                    ("model_id", "revision_ref", "origin", "parent_context_ref", "engine", "engine_version"))
+                or lineage.get("parent_revision_ref") != parent.get("revision_ref")):
+                raise SimulatorIntegrityError("revision lineage identity is invalid")
+            operation = lineage.get("operation")
+            if (not isinstance(operation, dict) or set(operation) != {"patches"}
+                or not isinstance(operation["patches"], list) or any(not isinstance(patch, dict) for patch in operation["patches"])):
+                raise SimulatorIntegrityError("revision lineage operation is not a bounded patch sequence")
+            operations.append(operation["patches"])
+            current = parent_ref
+        return tuple(patch for sequence in reversed(operations) for patch in sequence)
+
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
 

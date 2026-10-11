@@ -1,0 +1,70 @@
+"""Localize only trusted Pack conclusion templates; never interpret user input."""
+import re
+
+_FIXED = {
+    "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.": "能力介绍不能代替对象、数值或修改要求，请选择所需分析操作。",
+    "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.": "请同时明确对象及所需指标；也可单独请求整个场景的收敛与损耗结果。",
+    "This measurement contract covers branch loading and active power values. Other registered analyses can use the explicitly unverified compatibility path.": "此指标契约覆盖支路负载率和有功功率。其他已注册分析可使用明确标记目标覆盖未验证的兼容执行路径。",
+    "This constraint contract evaluates the whole scenario. Object-specific limit or measurement requirements need their own explicit coverage contract.": "此约束契约评估整个场景。特定对象的限值或指标要求需要相应的明确覆盖契约。",
+    "Contingency coverage reports evaluated violations and convergence. Request explicit scenario ranking for max_loading_percent values.": "故障覆盖结论报告已评估越限和收敛状态。若需 max_loading_percent 数值，请明确请求场景排序。",
+    "Outage scenario ranking requires max_loading_percent; branch operating and violation-risk measures require a baseline or changed-load scenario.": "故障场景排序需要 max_loading_percent；支路运行或越限风险指标需要基准或负荷修改场景。",
+    "The proposed operation, scenario, scope or measure contradicts the accepted goal. Clarify the requirements before execution.": "所提议的操作、场景、范围或指标与已接受目标不一致。请先澄清要求，再执行分析。",
+    "The requested object set exceeds the bounded task resolution limit. Select a smaller explicit scope.": "请求对象集合超出当前任务解析范围上限，请明确选择较小范围。",
+    "Changed-load contingency composition requires a separate explicit scenario contract. Confirm the intended sequence before execution.": "负荷修改后的故障分析需要独立、明确的组合场景契约。请先确认所需执行顺序。",
+    "Full scope requires an explicit complete element kind, not individual selectors.": "完整范围需要明确指定某类元件的全集，不能仅提供个别对象。",
+    "The paired comparison lacks a valid requested measure for every resolved object.": "成对比较缺少部分已解析对象的有效请求指标。",
+    "Generator and other non-branch N−1 outages are not supported by the registered contingency capability. Select line or transformer outages to request an alternative.": "当前注册的故障分析能力不支持发电机及其他非支路 N−1。可另行选择线路或变压器故障分析；本次不会擅自替换分析对象。",
+    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. Generator N−1 is not registered. No calculation was requested or needed.": "当前 pandapower 模型支持已注册的模型查询、交流潮流、负荷修改、越限评估及线路或变压器 N−1 分析。专门注册的发电机 N−1 流程尚未提供。本次仅介绍能力，无需运行计算。",
+    "The requested operation and scenario do not match. Specify the intended calculation and scenario.": "分析操作与场景不一致，请明确所需计算和场景。",
+    "Specify the ranking measure and the exact requested objects.": "请明确排序指标和对象范围。",
+    "Risk ranking orders all sourced violations, not every grid element. Select the full network violation scope.": "风险排序针对有来源依据的越限记录；请确认全网越限记录范围。它不为每个电网元件生成评分。",
+    "This ranking contract covers branch operating measures. Select a branch set and measure; generator, bus, and violation-risk rankings need a distinct contract.": "此排序契约适用于支路运行指标。请指定支路及指标；其他对象需要相应的独立排序契约。",
+    "Specify the load targets and requested change factors.": "请明确负荷修改对象和倍数。",
+    "Confirm whether the requested result is for the baseline or the changed load scenario.": "请确认需要基准场景还是修改负荷后的结果。",
+    "Specify the requested objects or an explicit full element kind.": "请明确对象列表，或指定某类元件的完整集合。",
+    "No load rows match the requested target. Select a bus with load or explicit load objects.": "目标未匹配到负荷，请选择带负荷的母线或明确的负荷元件。",
+    "The requested object is missing or ambiguous. Supply its exact name, alias, or explicit index.": "对象不存在或有歧义，请提供准确名称、别名或明确索引。",
+    "Requested object selectors overlap. Supply a unique object set.": "对象选择范围重复，请提供不重复的对象集合。",
+    "The requested object set is empty.": "请求的对象集合为空。",
+    "No admitted result proves the requested operation on the exact scenario. Run that operation with the resolved objects and changes.": "当前准入结果未证明目标场景的所需分析。请使用已解析的对象和修改执行对应操作。",
+    "No admitted outage result covers the requested branch set. Run the resolved N−1 cases.": "当前准入故障结果未覆盖请求的支路集合。请执行已解析的 N−1 场景。",
+    "A complete ranking is not supported: requested objects or valid values for the selected measure are missing. Retrieve the full requested result scope.": "目前无法给出完整排序：缺少请求对象或所选指标的有效值。请补齐完整范围的结果。",
+    "No complete admitted risk ranking is bound to the requested scenario's evaluated violations and source calculation.": "尚无完整准入的风险排序关联到目标场景的越限评估和源计算。",
+    "The requested ranking needs a matching complete ranking dataset and its source scenario. Branch loading is not outage or violation-risk ranking.": "排序需要匹配的完整数据和来源场景。支路负载率排序不能替代故障场景或越限风险排序。",
+    " Limit compliance requires a separate evaluated constraint result.": "是否满足限值仍需独立的约束评估结果。",
+    " Limit compliance requires evaluated constraints for both scenarios.": "两种场景均需约束评估才能判断限值符合性。",
+    " No violations were found for the defined, evaluated constraints; this does not certify undefined limits.": "已定义并评估的约束未发现越限；未定义的限值不在此结论范围内。",
+    " Non-converged cases have no valid numerical operating result.": "未收敛场景没有有效的数值运行结果。",
+    " Some model limits are undefined or were not evaluated.": "部分模型限值未定义或未评估。",
+    " Execute the remaining requested outages before claiming full coverage.": "需补齐其余请求故障，才能确认完整覆盖。",
+    " This is an ordering of verified scenario scalars, not a separate Authority ranking result.": "这是领域包对已验证场景标量的排序，不是独立的 Authority 排序结果。",
+    " Scores prioritize normalized exceedance with the recorded severity weights; they are not probabilities or scores for every grid element.": "评分使用已记录的严重度权重和归一化越限量，仅用于越限记录优先级，不代表概率或所有元件的评分。",
+    " First scores: ": "首项评分：", " Missing evaluated quantities: ": "缺少评估的量：",
+    " Limits were not evaluated for: ": "未评估以下量的限值：",
+    " The requested measure is not an available outage scalar ordering.": "所需指标暂不支持故障场景标量排序。",
+}
+
+
+def localize(text, language):
+    if not language.startswith("zh"):
+        return text
+    for original, translated in _FIXED.items():
+        text = text.replace(original, translated)
+    patterns = [
+        (r"The requested (\w+) values cover all (\d+) resolved branches\. ", r"请求的 \1 数值覆盖全部 \2 个已解析支路。"),
+        (r" Shown: (\d+) of (\d+) verified entries; full values are in the result view\.", r"显示 \2 项已验证记录中的 \1 项；完整数值见结果视图。"),
+        (r" Verification basis: (\d+) admitted results and (\d+) evidence records for this goal\.", r"验证依据：此目标的 \1 项准入结果和 \2 条证据记录。"),
+        (r"Baseline → changed (\w+) values cover all (\d+) requested branches\.", r"基准 → 修改后 \1 数值覆盖全部 \2 个请求支路。"),
+        (r"Baseline AC power flow converged with total active loss ([-+\d.e]+) MW; the exact changed-load scenario converged with total active loss ([-+\d.e]+) MW\.", r"基准交流潮流已收敛，总有功损耗为 \1 MW；准确匹配负荷修改的场景已收敛，总有功损耗为 \2 MW。"),
+        (r"The requested (baseline|changed-load) AC power flow converged\.", lambda m: ("基准" if m[1] == "baseline" else "负荷修改后") + "交流潮流已收敛。"),
+        (r" Total active loss is ([-+\d.e]+) MW\.", r"总有功损耗为 \1 MW。"),
+        (r"The requested scenario has (\d+) evaluated limit violations\.", r"目标场景检出 \1 项已评估限值越限。"),
+        (r"Executed (\d+) of (\d+) requested branch outages\. (\d+) evaluated limit violations were found; (\d+) cases did not converge\.", r"已执行请求的 \2 个支路故障中的 \1 个，检出 \3 项已评估限值越限；\4 个场景未收敛。"),
+        (r"The (ascending|descending) (\w+) ordering covers all (\d+) requested branches\. First entries: ", lambda m: f"按 {m[2]} {'升序' if m[1] == 'ascending' else '降序'}排列，覆盖全部 {m[3]} 个请求支路。首项："),
+        (r"The (ascending|descending) risk_score ordering covers all (\d+) sourced violations\.", lambda m: f"risk_score {'升序' if m[1] == 'ascending' else '降序'}排序覆盖全部 {m[2]} 项有来源依据的越限记录。"),
+        (r" Complete Pack ordering by max_loading_percent \((ascending|descending)\): ", lambda m: f"领域包按 max_loading_percent {'升序' if m[1] == 'ascending' else '降序'}给出完整排序："),
+        (r" Partial Pack ordering: (\d+) of (\d+) cases have valid max_loading_percent values\. ", r"领域包提供部分排序：\2 个场景中仅 \1 个有有效 max_loading_percent。"),
+    ]
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text)
+    return text

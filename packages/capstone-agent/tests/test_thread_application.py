@@ -143,6 +143,25 @@ def test_family_runtime_factory_dispatches_from_immutable_model_context() -> Non
         FamilyRuntimeFactory({"pandapower": lambda claim: pandapower})(pypsa_claim)
 
 
+def test_family_resolution_reaches_same_selected_child_and_missing_resolver_fails():
+    calls = []
+    class Child:
+        def __call__(self, claim): return _Runtime()
+        def recognize_task(self, claim, **kwargs):
+            calls.append(("recognize", claim))
+            return "recognized"
+        def resolve_task(self, claim):
+            calls.append(("resolve", claim))
+            return ("resolved",)
+    claim = _claim()
+    factory = FamilyRuntimeFactory({"pandapower": Child(), "pypsa": lambda claim: pytest.fail("wrong family")})
+    assert factory.recognize_task(claim, on_heartbeat=lambda: None) == "recognized"
+    assert factory.resolve_task(claim) == ("resolved",)
+    assert calls == [("recognize", claim), ("resolve", claim)]
+    with pytest.raises(RuntimeError, match="resolver"):
+        FamilyRuntimeFactory({"pandapower": lambda claim: _Runtime()}).resolve_task(claim)
+
+
 def test_composite_application_assembly_uses_family_dispatcher() -> None:
     class Catalog:
         default_model_id = "ieee39"

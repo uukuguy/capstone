@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from .turn_router import TurnPlan
 
 from capstone_model_capability_spi import ModelCapabilitySelection
+from capability_agent.domain.task import ResolvedTaskGoal, TaskConclusion
 from .task_understanding import MAX_INSTRUCTION_CHARS, MAX_REFERENCE_CHARS, MAX_HISTORY_CUTOFF, TaskRequest, TaskUnderstanding
 from .task_recognition import task_state_from_events, task_acceptance_marker
 from copy import deepcopy
@@ -464,8 +465,14 @@ class AttemptClaim:
     task_understanding: TaskUnderstanding | None = None
     task_certification: str = "pending"
     task_history: tuple[str, str] | None = None
+    task_resolutions: tuple[ResolvedTaskGoal, ...] = ()
+    task_resolution_route: str | None = None
 
     def __post_init__(self) -> None:
+        if (not isinstance(self.task_resolutions, tuple) or len(self.task_resolutions) > 8
+            or any(not isinstance(goal, ResolvedTaskGoal) for goal in self.task_resolutions)
+            or self.task_resolution_route not in {None, "ordinary", "professional"}):
+            raise ThreadExecutionError("task resolutions are invalid")
         if self.task_history is not None and (not isinstance(self.task_history, tuple) or len(self.task_history) != 2
                 or any(not isinstance(text, str) or len(text) > 4096 for text in self.task_history)):
             raise ThreadExecutionError("task history is invalid")
@@ -628,6 +635,22 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
+    if event_type == "task_goal_conclusions":
+        try:
+            if set(payload) != {"request", "conclusions"} or TaskRequest.from_document(payload["request"]) != claim.task_request:
+                raise ValueError("conclusion task binding differs")
+            conclusions = tuple(TaskConclusion.from_document(item) for item in payload["conclusions"])
+            if len(conclusions) > 8 or {item.goal_id for item in conclusions} != {item.goal_id for item in claim.task_resolutions}:
+                raise ValueError("conclusion goals differ")
+        except (ValueError, TypeError):
+            raise ThreadExecutionError("task conclusion binding is invalid") from None
+    if event_type == "task_requirements_resolved":
+        from .task_resolution import resolution_state_from_events
+        from types import SimpleNamespace
+        try:
+            resolution_state_from_events([SimpleNamespace(event_type=event_type, payload=payload)], request=claim.task_request)
+        except (ValueError, TypeError):
+            raise ThreadExecutionError("task requirements binding is invalid") from None
     if event_type in {"task_request_created", "task_understanding_created"}:
         key = "request" if event_type == "task_request_created" else "understanding"
         expected_fields = {"request", "history"} if key == "request" else {key}
@@ -1607,7 +1630,7 @@ class InMemoryThreadService:
                 raise ThreadExecutionError("attempt is not running")
             if visibility not in {"public", "diagnostic"}:
                 raise ThreadProtocolError("event visibility is invalid")
-            if event_type in {"task_request_created", "task_understanding_created"}:
+            if event_type in {"task_request_created", "task_understanding_created", "task_requirements_resolved"}:
                 previous = next((event for event in self._events if event.turn_id == claim.attempt.turn_id
                                  and event.event_type == event_type), None)
                 if previous is not None:
@@ -3343,7 +3366,7 @@ class PostgresThreadService:
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             running = AttemptSnapshot.from_document(current)
-            if event_type in {"task_request_created", "task_understanding_created"}:
+            if event_type in {"task_request_created", "task_understanding_created", "task_requirements_resolved"}:
                 previous = connection.execute(
                     "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s AND event_type = %s ORDER BY event_seq LIMIT 1",
                     (claim.thread_id, claim.attempt.turn_id, event_type)).fetchone()

@@ -177,7 +177,7 @@ class PiRpcClient:
         if capture is not None:
             capture.drain_model_requests()
         lines = self._stdout_lines
-        text: list[str] = []
+        answer_state = _AssistantAnswerState()
         acknowledged = False
         pending_tool_calls: dict[str, dict[str, str]] = {}
         next_heartbeat_at = time.monotonic() + heartbeat_seconds
@@ -232,13 +232,8 @@ class PiRpcClient:
                 capture.on_raw_event(event)
             if on_event is not None:
                 on_event(event)
-            if event.get("type") == "text_delta":
-                text.append(str(event.get("text", "")))
-            if event.get("type") == "message_update":
-                assistant_event = event.get("assistantMessageEvent")
-                if isinstance(assistant_event, dict) and assistant_event.get("type") == "text_delta":
-                    text.append(str(assistant_event.get("delta", "")))
-            for payload in _semantic_trace_payloads(event, "".join(text), pending_tool_calls):
+            answer_state.observe(event)
+            for payload in _semantic_trace_payloads(event, answer_state.answer(), pending_tool_calls):
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
@@ -267,7 +262,7 @@ class PiRpcClient:
                 provider_error = _provider_error(event)
                 if provider_error:
                     if event.get("willRetry") is True:
-                        text.clear()
+                        answer_state = _AssistantAnswerState()
                         continue
                     if capture is not None:
                         capture.drain_model_requests()
@@ -275,7 +270,7 @@ class PiRpcClient:
                         "Pi provider failure: "
                         + _sanitize_diagnostic(provider_error, self.secret_values)
                     )
-                answer = "".join(text)
+                answer = answer_state.answer()
                 if not answer.strip():
                     if not require_answer_text:
                         if capture is not None:
@@ -388,6 +383,68 @@ def _drain_stderr(stream: Any, capture: _BoundedStderrCapture) -> None:
         capture.finish()
 
 
+class _AssistantAnswerState:
+    """Keep one assistant message, never prose from previous tool cycles.
+
+    A terminal message snapshot is authoritative. Unframed legacy deltas are
+    supported only since the latest message/tool boundary. Text is not selected
+    by language, keywords or domain meaning.
+    """
+
+    def __init__(self) -> None:
+        self._parts: list[str] = []
+        self._completed: str | None = None
+
+    def _reset(self) -> None:
+        self._parts.clear()
+        self._completed = None
+
+    def observe(self, event: Mapping[str, Any]) -> None:
+        kind = event.get("type")
+        if kind in {"message_start", "tool_execution_start", "tool_execution_end", "tool_result", "auto_retry_start"}:
+            self._reset()
+        elif kind == "text_delta":
+            self._append(event.get("text"))
+        elif kind == "message_update":
+            update = event.get("assistantMessageEvent")
+            if isinstance(update, dict) and update.get("type") == "text_delta":
+                self._append(update.get("delta"))
+        elif kind == "message_end":
+            message = event.get("message")
+            if isinstance(message, dict):
+                self._completed = _final_assistant_text(message)
+                self._parts.clear()
+        elif kind == "agent_end":
+            messages = event.get("messages")
+            if isinstance(messages, list) and messages:
+                self._completed = _final_assistant_text(messages[-1])
+                self._parts.clear()
+            if _provider_error(dict(event)):
+                self._reset()
+
+    def _append(self, value: object) -> None:
+        if isinstance(value, str):
+            self._completed = None
+            self._parts.append(value)
+
+    def answer(self) -> str:
+        return self._completed if self._completed is not None else "".join(self._parts)
+
+
+def _final_assistant_text(message: object) -> str:
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return ""
+    if message.get("stopReason") in {"toolUse", "tool_use", "error", "aborted"}:
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list) or any(isinstance(block, dict) and block.get("type") in {"toolCall", "tool_use"} for block in content):
+        return ""
+    return "".join(block["text"] for block in content if isinstance(block, dict)
+                   and block.get("type") == "text" and isinstance(block.get("text"), str))
+
+
 def _provider_error(event: dict[str, Any]) -> str | None:
     messages = event.get("messages")
     if not isinstance(messages, list):
@@ -422,6 +479,14 @@ def _semantic_trace_payloads(
     assembled_public_text: str,
     pending_tool_calls: dict[str, dict[str, str]],
 ) -> tuple[dict[str, Any], ...]:
+    # Deltas are provisional process output until the final message and answer
+    # admission complete. They must never be treated as the formal answer stream.
+    delta = event.get("text") if event.get("type") == "text_delta" else None
+    update = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
+    if isinstance(update, dict) and update.get("type") == "text_delta":
+        delta = update.get("delta")
+    if isinstance(delta, str):
+        return ({"type": "assistant_process_delta", "text": delta[:16384]},)
     canonical_tool_result = _canonical_tool_result_event(event, pending_tool_calls)
     if canonical_tool_result is not None:
         return (canonical_tool_result,)

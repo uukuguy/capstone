@@ -17,7 +17,7 @@ from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
-from .task_recognition import accept_task, TaskRecognitionFailed, TaskRecognitionCancelled
+from .task_recognition import accept_task, TaskRecognitionFailed, TaskRecognitionCancelled, TaskRecognitionConfigurationFailed
 
 if TYPE_CHECKING:
     from .case_service import CaseExecutionService
@@ -61,15 +61,26 @@ def _run_claimed_attempt(
         except TaskRecognitionCancelled:
             service.finish_attempt(claim, phase="cancelled", payload={"error_code": "attempt_cancelled"})
             return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
+        except TaskRecognitionConfigurationFailed:
+            service.finish_attempt(claim, phase="failed", payload={"error_code": "runtime_configuration_invalid"})
+            return HarnessAttemptResult("failed", None, "runtime_configuration_invalid")
         except TaskRecognitionFailed:
             service.finish_attempt(claim, phase="failed", payload={"error_code": "task_recognition_failed", "retryable": True})
             return HarnessAttemptResult("failed", None, "task_recognition_failed")
+    if claim.task_understanding is not None:
+        from .task_resolution import accept_resolution, resolve_profiles
+        try:
+            resolver = getattr(runtime_factory, "resolve_task", lambda task: resolve_profiles(task, ()))
+            claim = accept_resolution(service, claim, resolver)
+        except Exception:
+            service.finish_attempt(claim, phase="failed", payload={"error_code": "task_resolution_failed", "retryable": True})
+            return HarnessAttemptResult("failed", None, "task_resolution_failed")
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         try:
             plan = router.plan(routing_input_for_claim(claim))
-        except DecisionUnavailable:
-            error_code = "ordinary_conversation_disabled"
+        except DecisionUnavailable as error:
+            error_code = "task_resolution_failed" if str(error) == "task_resolution_unavailable" else "ordinary_conversation_disabled"
             service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
             return HarnessAttemptResult("failed", None, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())

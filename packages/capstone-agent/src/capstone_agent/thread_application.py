@@ -66,6 +66,13 @@ class FamilyRuntimeFactory:
             raise RuntimeError("family task recognizer is unavailable")
         return recognizer(claim, on_heartbeat=on_heartbeat)
 
+    def resolve_task(self, claim):
+        factory = self._factories.get(claim.model_context.implementation_family)
+        resolver = getattr(factory, "resolve_task", None)
+        if not callable(resolver):
+            raise RuntimeError("family task resolver is unavailable")
+        return resolver(claim)
+
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
@@ -158,7 +165,26 @@ class PreparedApplicationPiRuntimeFactory:
         recognizer = getattr(self._session_factory, "recognize_task", None)
         if not callable(recognizer):
             raise RuntimeError("prepared application task recognizer is unavailable")
+        from .kernel_pi_session import PreparedKernelPiSessionFactory
+        from .task_resolution import requirement_schemas
+        if isinstance(self._session_factory, PreparedKernelPiSessionFactory) and claim.kind != "send_ordinary" and claim.model_context.enabled_profiles:
+            context = self._context_owner.acquire(claim)
+            try:
+                schemas = requirement_schemas(tuple(getattr(contribution, "prepared") for contribution in context.contributions))
+            finally:
+                self._context_owner.release(context)
+            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=schemas)
         return recognizer(claim, on_heartbeat=on_heartbeat)
+
+    def resolve_task(self, claim):
+        from .task_resolution import resolve_profiles
+        if claim.kind == "send_ordinary" or not claim.model_context.enabled_profiles or all(goal.execution == "general" for goal in claim.task_understanding.goals):
+            return resolve_profiles(claim, ())
+        context = self._context_owner.acquire(claim)
+        try:
+            return resolve_profiles(claim, tuple(getattr(contribution, "prepared") for contribution in context.contributions))
+        finally:
+            self._context_owner.release(context)
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.acquire(claim)

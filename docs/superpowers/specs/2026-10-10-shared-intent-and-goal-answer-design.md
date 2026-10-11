@@ -145,6 +145,15 @@ baseline calculation does not satisfy an uncomputed changed scenario. Mark a
 failed obligation recovered only when its required evidence/coverage is actually
 satisfied. Model declarations are insufficient.
 
+Coverage adapters must not remove existing published execution. A selected
+binding may expose the neutral purpose-only compatibility contract for published
+operations outside its typed coverage adapter. This preserves the existing tool
+allowlist and current-run admission, but explicitly withholds goal-coverage
+certification. It does not automatically retry a rejected typed requirement or
+replace its scope. In mixed tasks, each typed conclusion remains visible;
+compatibility for one goal cannot remove another goal's verified or unresolved
+conclusion.
+
 The outcome says which user question is answered, which is not, the confirmed
 reason and a useful next action. Unknown causes stay unknown. Raw tool messages,
 private paths and credentials remain outside public answers. Detailed tool-call

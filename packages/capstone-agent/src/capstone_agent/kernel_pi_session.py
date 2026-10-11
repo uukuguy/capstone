@@ -49,11 +49,11 @@ class PreparedKernelPiSessionFactory:
             raise TypeError("builder must be callable")
         self._builder = builder
 
-    def recognize_task(self, claim, *, on_heartbeat):
+    def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
         recognizer = getattr(self._builder, "recognize_task", None)
         if not callable(recognizer):
             raise RuntimeError("task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat)
+        return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     def __call__(
         self,
@@ -105,10 +105,10 @@ class PreparedKernelPiRpcSessionBuilder:
         if not 1 <= self._timeout_seconds <= 3600:
             raise ValueError('Thread attempt timeout is invalid')
 
-    def recognize_task(self, claim, *, on_heartbeat):
+    def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
         return recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
                                  base_environment=self._base_environment, timeout_seconds=self._timeout_seconds,
-                                 on_heartbeat=on_heartbeat)
+                                 on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     def __call__(
         self,
@@ -119,6 +119,8 @@ class PreparedKernelPiRpcSessionBuilder:
         del context
         if not profiles:
             raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
+        if claim.task_resolutions and all(not goal.execution_required for goal in claim.task_resolutions) and not all(goal.status == "general" for goal in claim.task_resolutions):
+            return _ResolvedTaskSession(claim, profiles)
         workspace = profiles[0].workspace
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
@@ -193,6 +195,13 @@ class PreparedKernelPiRpcSessionBuilder:
                 previous_instruction=claim.previous_instruction,
                 task_understanding=claim.task_understanding,
             )
+            if claim.task_resolutions:
+                with system_policy_path.open("a", encoding="utf-8") as policy:
+                    policy.write("\nHost-resolved task requirements (fixed scope; no added permissions):\n")
+                    policy.write(json.dumps([goal.to_document() for goal in claim.task_resolutions], ensure_ascii=False))
+                    policy.write("\nExecute only goals marked execution_required=true. Ready goals have fixed objects and ordered patches. Uncertified compatibility goals use only existing published capabilities, with no claim of verified task coverage. Do not substitute baseline results for changed or outage scenarios.\n")
+                    if any(goal.status == "general" for goal in claim.task_resolutions):
+                        policy.write("\nFor this mixed task, your final prose must answer only the independent general goals. The host renders professional conclusions separately from verified results. Never cite Authority references in the general response or answer blocked dependency goals.\n")
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
@@ -373,6 +382,86 @@ class _RpcWorkspace:
         self.root_path = root_path
 
 
+class _ResolvedTaskSession:
+    """Complete trusted capability boundaries without starting an execution model."""
+    def __init__(self, claim, profiles):
+        self._claim = claim
+        self._profiles = profiles
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def prompt_and_wait(self, question, *, on_semantic_event, correlation_id, on_heartbeat):
+        on_heartbeat()
+        return _task_conclusion_answer(self._claim, self._profiles, (), ()).answer
+
+    def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
+        if result_refs or evidence_refs or tool_events:
+            raise ValueError("offline task response cannot admit execution references")
+        return _task_conclusion_answer(claim, self._profiles, (), ())
+
+
+def _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners=None, general_answer="", compatibility_answer=""):
+    from capability_agent.domain.task import TaskConclusion
+    from .task_resolution import render_conclusions
+    bindings = {binding_id: binding for profile in profiles
+                for binding_id, binding in profile.prepared_application.bindings.items()}
+    conclusions = []
+    for goal in claim.task_resolutions:
+        if goal.status == "uncertified" and goal.execution_required:
+            from .task_resolution import compatibility_prefix
+            text = compatibility_answer if isinstance(compatibility_answer, str) and compatibility_answer.strip() else goal.reason
+            if len(text) > 6000:
+                text = text[:6000] + "…"
+            conclusions.append(TaskConclusion(goal.goal_id, "uncertified",
+                compatibility_prefix(claim.task_understanding.answer_policy.language) + "\n" + text))
+            continue
+        if goal.status == "general":
+            if not isinstance(general_answer, str) or not general_answer.strip() or len(general_answer) > 6000:
+                conclusions.append(TaskConclusion(goal.goal_id, "unresolved", "The general response is missing or exceeds the bounded answer limit."))
+            else:
+                label = ("一般回答（未经 Authority 验证）：" if claim.task_understanding.answer_policy.language.startswith("zh")
+                         else "General response (not Authority-verified):")
+                conclusions.append(TaskConclusion(goal.goal_id, "general", label + "\n" + general_answer))
+            continue
+        binding = bindings.get(goal.binding_id)
+        provider = None if binding is None else getattr(binding.runtime.profile, "task_provider", None)
+        if provider is None or binding is None:
+            conclusions.append(TaskConclusion(goal.goal_id, "clarification", goal.reason or "This goal has no verified Domain Pack conclusion."))
+            continue
+        accepted = next((item.to_document() for item in claim.task_understanding.goals if item.id == goal.goal_id), None)
+        accepted_policy = {"language": claim.task_understanding.answer_policy.language, "scale": claim.task_understanding.answer_policy.scale}
+        if goal.status == "ready":
+            provider.validate_semantic_binding(goal, semantic_goal=accepted, answer_policy=accepted_policy)
+        conclusion = provider.conclude(goal, authority=binding.runtime.authority,
+            result_refs=tuple(ref for ref in result_refs if owners is None or owners.get(ref) == goal.binding_id),
+            evidence_refs=tuple(ref for ref in evidence_refs if owners is None or owners.get(ref) == goal.binding_id))
+        if not set(conclusion.result_refs) <= set(result_refs) or not set(conclusion.evidence_refs) <= set(evidence_refs):
+            raise ValueError("Pack conclusion cites a reference not admitted by this Attempt")
+        render = getattr(provider, "render_conclusion", None)
+        if callable(render):
+            from dataclasses import replace
+            policy = claim.task_understanding.answer_policy
+            conclusion = replace(conclusion, text=render(conclusion, language=policy.language, scale=policy.scale))
+        conclusions.append(conclusion)
+    policy = claim.task_understanding.answer_policy
+    answer = render_conclusions(tuple(conclusions), language=policy.language, scale=policy.scale)
+    results = tuple(dict.fromkeys(ref for item in conclusions for ref in item.result_refs))
+    evidence = tuple(dict.fromkeys(ref for item in conclusions for ref in item.evidence_refs))
+    code = ("task_goal_coverage_verified" if evidence else
+            "task_clarification_verified" if any(item.status in {"unresolved", "clarification"} for item in conclusions) else
+            "task_capability_boundary_verified" if any(item.status == "unsupported" for item in conclusions) else
+            "task_goal_coverage_unverified" if any(item.status == "uncertified" for item in conclusions) else "task_information_verified")
+    has_general = any(item.status == "general" for item in conclusions)
+    return AdmittedAttemptAnswer(answer, "authority_backed" if evidence else "offline_information",
+        "lineage_verified" if evidence else "general_knowledge" if has_general else "deterministic_information", results, evidence,
+        (code,) + (("general_response_unverified",) if has_general else ()),
+        goal_conclusions=tuple(conclusions))
+
+
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
                  reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
@@ -470,7 +559,17 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
         tool_events = tuple(authority_events)
-        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
+        if any(event.get("ok") is not True and event.get("error_code") in {
+            "persist_failed", "evidence_persist_failed", "answer_persist_failed", "artifact_integrity_failed",
+            "result_integrity_failed", "reference_integrity_failed"} for event in tool_events):
+            raise ValueError("required persistence or reference integrity failed")
+        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events, claim.task_resolutions)
+        compatibility = bool(claim.task_resolutions) and any(goal.status == "uncertified" and goal.execution_required for goal in claim.task_resolutions)
+        if claim.task_resolutions and not compatibility and any(goal.status != "general" for goal in claim.task_resolutions):
+            from dataclasses import replace
+            formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners, general_answer=answer)
+            projections = _build_result_projections(claim, profiles, binding_map, formal.result_refs, formal.evidence_refs, tool_events)
+            return replace(formal, result_projections=projections)
         participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
@@ -523,9 +622,18 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         result_projections = _build_result_projections(
             claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
         )
+        output, codes = decision.answer_output, tuple(decision.diagnostic_codes)
+        if compatibility:
+            formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners,
+                general_answer=answer, compatibility_answer=output)
+            certified = bool(formal.evidence_refs)
+            return AdmittedAttemptAnswer(formal.answer, "authority_backed" if certified else decision.mode,
+                "lineage_verified" if certified else "general_knowledge" if formal.assurance == "general_knowledge" and decision.mode == "offline_information" else decision.assurance,
+                tuple(result_refs), tuple(evidence_refs), tuple(dict.fromkeys((*codes, *formal.diagnostic_codes, "task_goal_coverage_unverified"))),
+                result_projections=result_projections, goal_conclusions=formal.goal_conclusions)
         return AdmittedAttemptAnswer(
-            decision.answer_output, decision.mode, decision.assurance,
-            tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
+            output, decision.mode, decision.assurance,
+            tuple(result_refs), tuple(evidence_refs), codes,
             result_projections=result_projections,
         )
     return admit
@@ -538,6 +646,7 @@ def _verify_bound_attempt_references(
     result_refs: tuple[str, ...],
     evidence_refs: tuple[str, ...],
     tool_events: tuple[Mapping[str, object], ...],
+    task_resolutions: tuple = (),
 ) -> None:
     """Verify authority artifacts against the immutable application binding."""
     for profile in profiles:
@@ -548,6 +657,14 @@ def _verify_bound_attempt_references(
         for binding_id in prepared_bindings:
             runtime = getattr(bindings[binding_id], "runtime", None)
             authority = getattr(runtime, "authority", None)
+            provider = getattr(getattr(runtime, "profile", None), "task_provider", None)
+            def authorized(document):
+                method = getattr(provider, "authorizes_context", None)
+                context_ref = document.get("context_ref")
+                revision_ref = document.get("revision_ref", document.get("model_revision"))
+                return callable(method) and isinstance(context_ref, str) and isinstance(revision_ref, str) and any(
+                    goal.binding_id == binding_id and method(goal, authority, context_ref, revision_ref)
+                    for goal in task_resolutions if goal.status == "ready")
             events = [event for event in tool_events if (
                 event.get("binding_id") == binding_id
                 or event.get("binding_id") is None and len(bindings) == 1
@@ -557,7 +674,7 @@ def _verify_bound_attempt_references(
                     continue
                 for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
                                         ("context_ref", bound.context_ref)):
-                    if field in event and event[field] != expected:
+                    if field in event and event[field] != expected and not authorized(event):
                         raise ValueError("tool identity does not match the bound model context")
                 if "model_ref" in event:
                     model_ref = event["model_ref"]
@@ -580,7 +697,7 @@ def _verify_bound_attempt_references(
                 for field, expected in (("context_ref", bound.context_ref),
                                         ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
                                         ("model_id", bound.model_id)):
-                    if field in document and document[field] != expected:
+                    if field in document and document[field] != expected and not authorized(document):
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
                 accepted_model_ref = isinstance(model_ref, str) and bound.accepts_model_reference(model_ref)
@@ -592,7 +709,7 @@ def _verify_bound_attempt_references(
                     and document.get("revision_ref") == bound.model_revision
                 ) if bound.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
-                if not bound_identity and not linked_evidence:
+                if not bound_identity and not linked_evidence and not authorized(document):
                     raise ValueError("authority artifact has incomplete bound model identity")
                 verified.add(key)
                 if kind == "evidence" and isinstance(linked_result, str):

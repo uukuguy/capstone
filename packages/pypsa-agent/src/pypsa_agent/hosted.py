@@ -116,13 +116,13 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             return validation_builder(claim, context, profiles)
         return rpc_builder()(claim, context, profiles)
 
-    def recognize_task(claim, *, on_heartbeat):
+    def recognize_task(claim, *, on_heartbeat, requirement_schemas=()):
         if validation_builder is not None:
             recognizer = getattr(validation_builder, "recognize_task", None)
             if not callable(recognizer):
                 raise RuntimeError("scripted task recognizer is unavailable")
-            return recognizer(claim, on_heartbeat=on_heartbeat)
-        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat)
+            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
+        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     setattr(build_session, "recognize_task", recognize_task)
 
