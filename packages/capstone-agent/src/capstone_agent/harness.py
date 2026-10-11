@@ -166,9 +166,10 @@ class HarnessRuntimeRegistry:
 
 
 _EVENT_TYPES = {
-    "text_delta": ("assistant_text_delta", "public"),
-    "message_update": ("assistant_message_update", "public"),
-    "message_end": ("assistant_message_end", "public"),
+    "text_delta": ("assistant_process_delta", "diagnostic"),
+    "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
+    "message_update": ("assistant_process_update", "diagnostic"),
+    "message_end": ("assistant_process_end", "diagnostic"),
     "tool_execution_start": ("tool_started", "public"),
     "tool_execution_end": ("tool_completed", "public"),
     "tool_result": ("tool_completed", "public"),
@@ -191,7 +192,7 @@ def normalize_runtime_event(
         native_type = "unknown"
     event_type, visibility = _EVENT_TYPES.get(native_type, ("runtime_event", "diagnostic"))
     payload: dict[str, object]
-    if event_type == "assistant_text_delta":
+    if event_type == "assistant_process_delta":
         text = event.get("text")
         payload = {"text": text[:16_384]} if isinstance(text, str) else {}
     elif event_type in {"tool_started", "tool_completed"}:

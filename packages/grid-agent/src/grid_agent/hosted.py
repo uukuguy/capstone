@@ -91,6 +91,8 @@ def build_registered_pandapower_thread_application():
             return validation_builder(claim, context, profiles)
         environment = load_runtime_environment(root)
         resolved = resolve_harness_llm(root, environment)
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            resolved = resolve_recognition_llm(root, environment, resolved)
         runtime_host = build_runtime_host(
             root, build_pandapower_application_profile(), environment,
         )
