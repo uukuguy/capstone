@@ -124,6 +124,22 @@ def test_complete_ranking_proposal_cannot_omit_its_object_set():
     assert validator.is_valid(goal)
 
 
+@pytest.mark.parametrize("kind", ["network", "bus", "gen"])
+def test_complete_branch_measure_ranking_rejects_nonbranch_objects(kind):
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["recognition_constraints"])
+    payload = proposal(operation="ranking", measure="loading_percent",
+        objects=[{"kind": kind, "namespace": "all", "identifier": "*"}])
+    goal = {"conclusion": "ranking", "missing_requirements": [], "domain_request": {"payload": payload}}
+    assert not validator.is_valid(goal)
+    payload["objects"][0]["kind"] = "line"
+    assert validator.is_valid(goal)
+    payload["objects"][0]["kind"] = "network"
+    payload["measure"] = "risk_score"
+    assert validator.is_valid(goal)
+
+
 @pytest.mark.parametrize("count", [0, -1, 65, True, 2.5, "3"])
 def test_output_count_is_a_bounded_integer_not_an_input_scope(count):
     from pandapower_domain.task_coverage import PandapowerTaskProvider

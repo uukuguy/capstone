@@ -43,6 +43,11 @@ framework, question-specific prompts or relaxed evidence admission.
   Numeric labels never fall back to indexes. Explicit namespaces keep their
   semantics. Verify compiler delivery with the original load-change request;
   do not bypass missing requirements or alter system prompts for a sample.
+- Publish the existing branch-only operating-measure ranking restriction to
+  pre-acceptance validation. Reject complete network/bus/generator proposals for
+  these measures so bounded compiler correction runs before a mistaken capability
+  boundary is frozen. Preserve network violation-risk ranking and incomplete
+  user-input proposals; no branch inference or semantic keyword rules.
 
 - Run focused admission/recognition/Pack/runtime tests, types and boundaries.
   Review the code before a canonical local-dev rebuild.

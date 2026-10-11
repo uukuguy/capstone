@@ -207,6 +207,14 @@ class PandapowerTaskProvider:
                     "properties": {"operation": {"const": "ranking"}}, "required": ["operation"]}}}}},
              "then": {"properties": {"domain_request": {"properties": {"payload": {
                  "properties": {"objects": {"minItems": 1}}, "required": ["objects"]}}}}}},
+            {"if": {"required": ["missing_requirements"], "properties": {
+                "missing_requirements": {"maxItems": 0}, "domain_request": {"properties": {"payload": {
+                    "properties": {"operation": {"const": "ranking"}, "measure": {
+                        "enum": ["loading_percent", "p_from_mw", "p_to_mw", "pl_mw", "max_loading_percent"]}},
+                    "required": ["operation", "measure"]}}}}},
+             "then": {"properties": {"domain_request": {"properties": {"payload": {
+                 "properties": {"objects": {"items": {"properties": {
+                     "kind": {"enum": sorted(_BRANCHES)}}}}}}}}}}},
             {"if": {"properties": {"domain_request": {"properties": {"payload": {
                 "properties": {"operation": {"const": "limits"}}, "required": ["operation"]}}}}},
              "then": {"properties": {"domain_request": {"properties": {"payload": {
