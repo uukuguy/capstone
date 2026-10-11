@@ -59,6 +59,17 @@ Related feedback: GitHub Issues #2 and #3, both `ai:working` since 2026-10-11. T
 
 Contract unit tests alone do not complete this package. Semantic recognition, Pack coverage, formal response and actual local-dev acceptance are all required.
 
+## Missing-input repair checkpoint
+
+The760ac0a overall8-case/10-turn receipt passes independent business review,
+but a real Provider review of the previously failed proposal retains the extra
+power-component question. Input-gap专项 is not accepted from the overall pass.
+The Pack now defines proportional whole-load scaling, normalizes empty component
+selection to explicit p/q fields, and freezes the resolved patches. Explicit
+component requests and true unresolved choices remain distinct.52 Pack tests and
+source review pass. Verify the captured proposal, true unresolved component choice,
+and the deployed load-change Thread before any baseline or human handoff claim.
+
 ## Source acceptance checkpoint
 
 Whole-source independent review approved; full test, E2E, validate and source/validation type gates passed. Fresh precommit checks:38 passed, including actual Authority coverage and formal-message separation. local-dev rebuild, actual App/API acceptance, exact remote CI and integration remain required. The next baseline must precede Research Model implementation; preserve the existing research experiment as a reference.

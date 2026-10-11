@@ -4,7 +4,7 @@
   "suite_kind": "update",
   "corpus": "ieee39.json",
   "case_ids": ["load-scaling", "line-outage"],
-  "change_scope": ["接纳前有界语义缺项一致性复核"],
+  "change_scope": ["接纳前有界语义缺项一致性复核", "领域包整体负荷比例缩放契约"],
   "repair_criteria": [
     "已有足够用户要求与选定上下文的负荷修改不因多余缺项停止执行",
     "真实对象歧义仍由识别及领域包澄清，不猜造用户选择"
@@ -12,7 +12,14 @@
   "required_non_provider_checks": [
     "review-and-schema-repair-share-two-call-deadline",
     "unresolved-gap-preserved",
-    "invalid-review-rejected-before-execution"
+    "invalid-review-rejected-before-execution",
+    "whole-load-fields-normalized-and-frozen",
+    "explicit-components-preserved"
+  ],
+  "required_provider_probes": [
+    "captured-redundant-gap-removed",
+    "explicit-unresolved-multiplier-preserved",
+    "explicit-unresolved-component-choice-preserved"
   ],
   "acceptance": {
     "scope": "repair-specific",

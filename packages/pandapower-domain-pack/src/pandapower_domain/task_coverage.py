@@ -28,7 +28,8 @@ _PAYLOAD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "t
         "changes": {"type": "array", "maxItems": 16, "items": {"type": "object", "additionalProperties": False,
             "required": ["target", "fields", "factor"], "properties": {
                 "target": {**_SELECTOR_SCHEMA, "properties": {**_SELECTOR_SCHEMA["properties"], "kind": {"enum": ["bus", "load"]}}},
-                "fields": {"type": "array", "minItems": 1, "uniqueItems": True, "items": {"enum": ["p_mw", "q_mvar"]}},
+                "fields": {"type": "array", "uniqueItems": True, "items": {"enum": ["p_mw", "q_mvar"]},
+                           "description": "Empty means proportional scaling of the whole load, preserving its power factor. Explicit components restrict scaling to those components."},
                 "factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 100}}}},
         "measure": {"enum": sorted(item for item in _MEASURES if item is not None) + [None]},
         "direction": {"enum": [None, "ascending", "descending"]},
@@ -70,6 +71,9 @@ def _selector(value):
 
 
 def _decode(payload):
+    # Resolve business semantics in the Pack, before freezing Authority patches.
+    # Never mutate the recognizer's original proposal.
+    payload = json.loads(json.dumps(payload, allow_nan=False))
     _fields(payload, {"operation", "objects", "changes", "measure", "direction", "scenario", "scope"})
     if (payload["operation"] not in _OPERATIONS or payload["measure"] not in _MEASURES
         or payload["direction"] not in {None, "ascending", "descending"}
@@ -88,9 +92,11 @@ def _decode(payload):
         if change["target"]["kind"] not in {"bus", "load"}:
             raise ValueError("grid load change target is invalid")
         fields = change["fields"]
-        if (not isinstance(fields, list) or not fields or len(set(fields)) != len(fields)
+        if (not isinstance(fields, list) or len(set(fields)) != len(fields)
             or not set(fields) <= {"p_mw", "q_mvar"}):
             raise ValueError("grid load change fields are invalid")
+        if not fields:
+            change["fields"] = ["p_mw", "q_mvar"]
         factor = change["factor"]
         if type(factor) not in {int, float} or not math.isfinite(factor) or not 0 < factor <= 100:
             raise ValueError("grid load change factor is invalid")
@@ -139,6 +145,12 @@ class PandapowerTaskProvider:
         return tuple(result)
     schema_document: Mapping[str, object] = {
         "schema": SCHEMA,
+        "load_scaling_contract": {
+            "whole_load": "Proportional change of a load scales both active and reactive power by the same factor, preserving power factor. An unqualified load multiplier requests this whole-load operation.",
+            "whole_load_fields": [],
+            "resolved_whole_load_fields": ["p_mw", "q_mvar"],
+            "explicit_components": "Respect explicitly requested active-only or reactive-only changes. An explicit unresolved alternative requires clarification. Never supply a missing target or multiplier.",
+        },
         "payload_schema": _PAYLOAD_SCHEMA,
         "payload_fields": {"operation": sorted(_OPERATIONS), "objects": [{"kind": sorted(_KINDS),
             "namespace": ["name", "alias", "pandapower_index", "asset_ref", "all"], "identifier": "exact user identifier; * only for all"}],

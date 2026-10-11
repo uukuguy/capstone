@@ -3,9 +3,9 @@
 Maintain two separate sets. The long-lived overall corpus
 [ieee39.json](ieee39.json) uses real failures observed during agent conversation
 development. Each case preserves its instruction, incident source, failed
-behavior and semantic acceptance requirements. The initial five cases/six turns
-cover generation N-1, line outage, load growth, model overview and a continuous
-clarification-to-overview conversation. Add newly confirmed failures to this
+behavior and semantic acceptance requirements. The current corpus has eight
+cases/ten turns. It covers generation N-1, line outage, load growth, model overview,
+selected-model AC and continuous target transitions. Add newly confirmed failures to this
 corpus; keep resolved cases for regression rather than removing them.
 
 ## Business coverage
@@ -75,6 +75,14 @@ real object ambiguity remains a clarification. The review shares the original
 two-call/deadline budget with schema correction. Neither a populated payload nor
 a passing review alone proves numerical results; normal Pack and evidence
 admission still apply.
+
+For this repair, also replay the previously failed proposed gap through the real
+recognizer review, and preserve an explicitly unresolved component choice. A
+seeded replay probe checks that specific path; it is recorded separately from
+the deployed Thread run. A passing Thread which never proposes the old gap does
+not prove that the review removed it. Whole-load component normalization and
+explicit component preservation are Pack contract checks, independent of answer
+wording. Any rejected malformed review remains a failed probe, not a pass.
 
 ## Required records
 

@@ -138,3 +138,23 @@ populated payload cannot prove a real user choice is resolved. The next repair
 adds one bounded semantic review before acceptance, sharing the two-call/deadline
 budget with structural correction. It preserves unresolved gaps and the original
 resolution barrier.80 focused checks pass; actual Provider validation is pending.
+
+The760ac0a deployed overall receipt provider-959f4103093540c9 passes all8 cases/
+10 turns and independent business review. However, replaying the original missing
+p/q-choice proposal through one real Provider review retains that extra question
+(captured-gap-review-760ac0a.json). The overall pass does not prove this intermittent
+defect is repaired, so input-gap专项 and baseline acceptance remain pending.
+
+The published task contract required concrete power fields but did not define
+proportional whole-load semantics. The next Pack repair explicitly accepts
+`fields=[]` for whole-load scaling and freezes both power components at the same
+factor; explicit component selections remain unchanged. This adds an owned,
+reusable business meaning rather than a question-specific prompt or Authority
+default.52 Pack checks pass, including the prior failing empty-fields case and
+active-only/reactive-only preservation. Source review approves; Provider replay
+and exact deployed Thread verification remain separate required receipts.
+The schema-override diagnostic replay passes all three real Provider reviews:
+the captured redundant gap is removed, the unknown multiplier stays unresolved,
+and the explicit undecided component choice stays unresolved. An earlier probe
+returned a malformed review and was rejected before execution; that failed probe
+is retained. These isolated replay results are not deployed Thread receipts.

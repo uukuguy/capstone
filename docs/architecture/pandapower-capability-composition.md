@@ -12,6 +12,23 @@ Domain Pack and application-composition seams for future authoritative
 business domains; this does not change the existing grid compatibility
 contract or select a second production domain.
 
+### Typed load-scaling semantics
+
+The pandapower Domain Pack owns the meaning of a proportional whole-load change.
+In its task requirement, `changes.fields=[]` means scale active and reactive power
+by the same multiplier, preserving power factor. An explicitly selected component
+such as `p_mw` restricts the change to that component. Explicit unresolved choices
+still require clarification; the Pack supplies neither a missing target nor a
+missing multiplier. This is a reusable business contract, independent of model,
+bus identifier, multiplier, language and validation case.
+
+The Pack normalizes whole-load semantics to explicit `p_mw` and `q_mvar` fields
+before freezing the requirement and Authority patches. It keeps the original
+recognition proposal intact. The Authority's existing typed scaling interface,
+numerical defaults and published capability coverage do not change. Published
+task-schema metadata exposes this meaning to recognition and its bounded review;
+system prompts contain no incident-specific instructions.
+
 ## 1. 文档目的
 
 本文回答以下三个问题：

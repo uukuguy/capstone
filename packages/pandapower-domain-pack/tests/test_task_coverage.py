@@ -25,6 +25,27 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
+@pytest.mark.parametrize("fields, expected", [([], ["p_mw", "q_mvar"]), (["p_mw"], ["p_mw"]), (["q_mvar"], ["q_mvar"])])
+def test_load_scaling_components_are_resolved_and_frozen_by_pack(authority, fields, expected):
+    import copy
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, _ = authority
+    payload = proposal(scenario="changed", changes=[{
+        "target": {"kind": "bus", "namespace": "pandapower_index", "identifier": "3"},
+        "fields": fields, "factor": 1.17}])
+    original = copy.deepcopy(payload)
+    provider = PandapowerTaskProvider()
+    assert Draft202012Validator(provider.schema_document["payload_schema"]).is_valid(payload)
+    task = provider.resolve("g", payload, context_ref=context["context_ref"],
+                            revision_ref=context["revision_ref"], invoke=invoke)
+    assert task.status == "ready"
+    assert task.requirement["changes"][0]["fields"] == expected
+    assert task.requirement["patches"][0]["fields"] == expected
+    assert task.requirement["patches"][0]["factor"] == 1.17
+    assert payload == original
+
+
 @pytest.mark.parametrize("invalid", ["identifier-length", "object-count", "change-count", "factor-limit", "all-identifier"])
 def test_published_schema_enforces_decoder_bounds(invalid):
     from jsonschema import Draft202012Validator
