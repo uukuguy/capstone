@@ -502,7 +502,7 @@ function AttemptActivity({ activities, running, phase, open, onOpenChange, start
   if (activities.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
-  return <div className="capstone-chat-activity-frame"><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
+  return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
     {(!running || open) && <ActivityItems activities={activities} />}
   </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览"><ActivityItems activities={activities.slice(-1)} /></div>}</div>
