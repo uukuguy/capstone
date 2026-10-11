@@ -1,6 +1,6 @@
 # Pi experiment — recovered dev baseline adaptation
 
-Status: branch-local source adaptation. The exact accepted dev merge commit is pending. This record does not certify full Pi business answers or a deployment.
+Status: branch-local source adaptation synchronized to accepted dev `6ff7094e79f654abb24e626b2cdd1e593337efcb`. This record does not certify full Pi business answers or a deployment.
 
 ## Source and recovery
 
@@ -8,6 +8,8 @@ The work stays on `feat/pi-skills-integration` in its own worktree. Original hea
 
 - `fb2bcf0` merges recovery candidate `17debfbc38b46ae4eb3b7acf47fe3820593dbea8` with the scoped adaptations below. Its restored common product is `82b243c`.
 - `e9825df` merges root lazy-credential fix `bc081695bebb18b0e2f330c474cea1e50d343f7d`. The shared lightweight route accepts a lazy resolver; the experiment keeps its own lazy intent runtime.
+- Accepted dev `6ff7094e79f654abb24e626b2cdd1e593337efcb` comes from PR #14, merged by the bot after exact-source `bc08169` Linux/macOS CI success in run `38181053709`. Its tree matches `bc08169`. The final ancestry merge has no runtime-source change from Pi `41fabee`; only this report and branch recovery records change.
+- The independent source adaptation review approved `e9825df`. No additional source review is required for the source-equal ancestry merge.
 
 The primary agent owns dev integration, canonical control records and the graph. No other worktree was edited. No push, deployment, live Provider call or authentication copy occurred. Existing local-dev and local-demo data were not changed.
 
@@ -50,4 +52,6 @@ An initial pandapower combined run had 9 passes and one `environment.describe` t
 
 ## Remaining scope
 
-Merge the exact accepted dev commit when the primary agent supplies it, then verify Git ancestry and record its identity here. The opt-in Docker-native execution test, paid Provider acceptance and a deployment from this experimental branch remain outside this source adaptation. A local rebuild or cloud release was not performed from the Pi branch. The accepted demo feature scope remains separate.
+The Pi branch now includes the exact accepted dev commit above. Git ancestry is checked against that fixed baseline, not a moving branch name. The final merge does not repeat the heavy 305/417 suites because runtime source is unchanged; local documentation links, the relative agent-contract symlink, `git diff --check` and `make doctor` are checked again.
+
+The opt-in Docker-native execution test, paid Provider acceptance and a deployment from this experimental branch remain outside this source adaptation. A local rebuild or cloud release was not performed from the Pi branch. The accepted demo feature scope remains separate.

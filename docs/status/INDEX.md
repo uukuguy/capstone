@@ -2,7 +2,7 @@
 
 ## Active
 
-[Pi dev基线适配记录](../reviews/2026-10-12-pi-dev-baseline-adaptation.md)：仅Pi实验分支；保留native/delegated、skills/MCP和冻结输入，记录恢复基线、过程事件适配及专项检查。正式dev合并来源由主控登记；不计Pi整体业务或部署验收。
+[Pi dev基线适配记录](../reviews/2026-10-12-pi-dev-baseline-adaptation.md)：Pi实验分支同步已接受dev `6ff7094`；保留native/delegated、skills/MCP和冻结输入。`e9825df`适配源码审查APPROVE，最终祖先同步与`41fabee`运行源码一致；不计Pi整体业务或部署验收。
 
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
 [活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。

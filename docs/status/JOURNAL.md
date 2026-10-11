@@ -2577,3 +2577,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-12：82b243c同源506项、588框架/380App及真实两轮专项通过；3动作9px/160px滚动浏览器通过，整体缺陷保留。
 - 2026-10-12: Pi merged recovery baseline to preserve experiments and adapt final-only streaming [fb2bcf0].
 - 2026-10-12: Pi merged lazy credential routing while retaining experimental intent ownership [e9825df].
+- 2026-10-12: Pi adaptation checks recorded to preserve recovery and distinguish candidate integration from acceptance [41fabee].
+- 2026-10-12: Pi accepted dev6ff7094 ancestry without runtime changes; approved e9825df source and deferred Provider/Docker acceptance remain distinct.
