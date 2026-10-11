@@ -79,6 +79,18 @@ def test_topology_case_forbids_unnecessary_powerflow() -> None:
     assert case.requirements.requires_evidence is True
 
 
+def test_ac_loss_case_loads_explicit_mw_tolerance_without_relaxing_other_fields() -> None:
+    from grid_agent.validation.oracles import ORACLES, ToolResultEvent
+    case = next(item for item in load_cases(ROOT / "validation") if item.id == "analysis-ac-loss-001")
+    assert case.oracle.evaluator == "result_matches_with_tolerance"
+    assert case.oracle.arguments["numeric_tolerances"] == {
+        "total_active_loss.value": {"expected": 43.6411257608517, "abs_tol": 1e-9, "rel_tol": 0},
+    }
+    assert case.oracle.arguments["matches"] == {"converged": True, "total_active_loss": {"unit": "MW"}}
+    event = ToolResultEvent("analysis.powerflow.ac.run", {"converged": True, "total_active_loss": {"value": 43.64112576085046, "unit": "MW"}}, ())
+    assert ORACLES[case.oracle.evaluator](event, case.oracle.arguments) is True
+
+
 def test_wp_a_plan_assigns_entities_to_the_model_and_facts_to_structured_results() -> None:
     plan = (
         ROOT / "docs/superpowers/plans/2026-08-12-wp-a-semantic-foundation-validation.md"

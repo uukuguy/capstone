@@ -1516,6 +1516,13 @@ class InMemoryThreadService:
                     )
                     return None
                 assert context is not None
+                # Catalog preparation can open Authority metadata. Complete it
+                # before the claim starts its finite execution lease.
+                application_catalog = self._catalog_context
+                if application_catalog is None and self._model_catalog is not None:
+                    application_catalog = _thread_catalog_document(
+                        self._model_catalog, self._capability_catalog,
+                    )
                 token = secrets.token_hex(16)
                 accepted = record["attempt"]
                 running = replace(accepted, phase="running")
@@ -1538,16 +1545,7 @@ class InMemoryThreadService:
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     conversation_context=record["conversation_context"],
                     submission=record.get("submission"),
-                    application_catalog=(
-                        self._catalog_context
-                        if self._catalog_context is not None
-                        else (
-                            _thread_catalog_document(
-                                self._model_catalog, self._capability_catalog,
-                            )
-                            if self._model_catalog is not None else None
-                        )
-                    ),
+                    application_catalog=application_catalog,
                 )
             return None
 
@@ -3210,6 +3208,11 @@ class PostgresThreadService:
                     (event.event_seq, thread["thread_id"]),
                 )
                 return None
+            application_catalog = self._catalog_context
+            if application_catalog is None and self._model_catalog is not None:
+                application_catalog = _thread_catalog_document(
+                    self._model_catalog, self._capability_catalog,
+                )
             running = AttemptSnapshot.from_document({**current, "phase": "running"})
             conversation = _attempt_conversation_document(connection, attempt_row)
             if attempt_row["conversation_context_snapshot"] is None:
@@ -3217,7 +3220,7 @@ class PostgresThreadService:
             updated = connection.execute(
                 """UPDATE capstone_thread_attempts
                    SET phase = 'running', lease_token = %s,
-                       lease_deadline = now() + (%s * interval '1 second')
+                       lease_deadline = clock_timestamp() + (%s * interval '1 second')
                    WHERE attempt_id = %s AND phase = 'accepted' AND lease_token IS NULL
                    RETURNING *""",
                 (token, lease_seconds, attempt_row["attempt_id"]),
@@ -3243,16 +3246,7 @@ class PostgresThreadService:
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 conversation_context=ConversationContext.from_document(conversation),
                 submission=updated.get('submission_snapshot'),
-                application_catalog=(
-                    self._catalog_context
-                    if self._catalog_context is not None
-                    else (
-                        _thread_catalog_document(
-                            self._model_catalog, self._capability_catalog,
-                        )
-                        if self._model_catalog is not None else None
-                    )
-                ),
+                application_catalog=application_catalog,
             )
 
     def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:

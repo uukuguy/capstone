@@ -71,7 +71,7 @@ test-capstone-app:
 	npm test --prefix packages/capstone-app
 
 capstone-app-dev:
-	npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
+	CAPSTONE_APP_ENVIRONMENT="$(if $(CAPSTONE_APP_ENVIRONMENT),$(CAPSTONE_APP_ENVIRONMENT),local-dev)" npm run dev --prefix packages/capstone-app -- --host "$(if $(CAPSTONE_APP_HOST),$(CAPSTONE_APP_HOST),0.0.0.0)" --port "$(if $(CAPSTONE_APP_PORT),$(CAPSTONE_APP_PORT),5173)"
 
 capstone-local-rebuild:
 	@./deploy/rebuild_local.sh
@@ -236,7 +236,7 @@ test-makefile-application:
 test-local-rebuild:
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
-	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py -q
+	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py -q
 
 test-verification-targets:
 	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q
@@ -283,7 +283,7 @@ test-generic-tools:
 test-simulator:
 	uv run --project packages/grid-simulator pytest packages/grid-simulator/tests -q
 
-test-tools: check-runtime-risk
+test-tools: check-runtime-risk test-issue-automation
 	npm run check --prefix packages/pi-grid-tools
 	npm test --prefix packages/pi-grid-tools
 
@@ -295,6 +295,22 @@ check-types-validation:
 
 check-fast: check-package-boundaries check-types test
 
+# Local edits require explicit affected checks, not a release aggregate.
+.PHONY: check-iteration check-pr test-registered-workers test-pandapower-application
+check-iteration:
+	@test -n "$(CHECK_TARGETS)" || (echo "Use CHECK_TARGETS='test-capstone-app' or affected checks" >&2; exit 2)
+	@$(MAKE) $(CHECK_TARGETS)
+
+# Verify the formal applications. The retired compatibility CLI suite remains
+# in check-release while its shared runtime code is moved to its owning layer.
+check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
+
+test-pandapower-application:
+	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e --ignore=packages/grid-agent/tests/cli --ignore=packages/grid-agent/tests/compat --ignore=packages/grid-agent/tests/test_console_target.py --ignore=packages/grid-agent/tests/contract/test_application_instantiation_baseline.py -q
+
+test-registered-workers:
+	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
+
 test-pi-capture-runtime:
 	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode success
 	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode failure
@@ -304,6 +320,58 @@ test-pi-capture-runtime:
 check-integration: test-pi-capture-runtime test-e2e validate validate-application
 
 check-release: check-fast check-integration test-packages test-source-setup
+
+# Manual Issue work. These commands never start a timer or unattended worker.
+.PHONY: issues-doctor issues-scan issues-show issues-context issues-create issues-prepare-image issues-triage issues-begin issues-record-verification issues-complete issues-fix issues-retry issues-pause issues-status issues-release-status test-issue-automation
+export ISSUE TASK_ID JUDGMENT PATHS_FILE RESULT_FILE ISSUE_TITLE BODY_FILE
+
+issues-doctor:
+	@python3 -m tools.issue_automation.cli doctor
+
+issues-scan:
+	@python3 -m tools.issue_automation.cli scan
+
+issues-show:
+	@python3 -m tools.issue_automation.cli show
+
+issues-context:
+	@python3 -m tools.issue_automation.cli context
+
+issues-create:
+	@python3 -m tools.issue_automation.cli create
+
+issues-prepare-image:
+	@python3 -m tools.issue_automation.cli prepare-image
+
+issues-triage:
+	@python3 -m tools.issue_automation.cli triage
+
+issues-begin:
+	@python3 -m tools.issue_automation.cli begin
+
+issues-record-verification:
+	@python3 -m tools.issue_automation.cli record-verification
+
+issues-complete:
+	@python3 -m tools.issue_automation.cli complete
+
+issues-fix:
+	@python3 -m tools.issue_automation.cli fix
+
+issues-retry:
+	@python3 -m tools.issue_automation.cli retry
+
+issues-pause:
+	@python3 -m tools.issue_automation.cli pause
+
+issues-status:
+	@python3 -m tools.issue_automation.cli status
+
+issues-release-status:
+	@python3 -m tools.issue_automation.cli release-status
+
+test-issue-automation:
+	@uv run --project packages/grid-agent python -m pytest tools/tests/test_issue_automation*.py -q
 
 check-runtime-risk:
 	python3 tools/check_runtime_risk_exception.py

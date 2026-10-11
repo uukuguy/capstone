@@ -6,6 +6,12 @@ integration, canonical rebuild and independent final review are complete under
 the bounded scope recorded below. No cloud deployment, acceptance tag, paid Provider request or
 personal authentication configuration was used.
 
+Current placement correction, 2026-10-11: the accepted historical scope below is
+retained on feat/pi-skills-integration after baseline restoration. Current main
+and deployments do not contain this experimental package. Complete task-relevant
+business data sharing and real answer-quality acceptance remain open under
+Tasks8–9 of the owning plan; this receipt does not certify those new deliverables.
+
 ## Runtime proof
 
 Two fresh Linux aarch64 images were built from the Task 6 source at `4002817`

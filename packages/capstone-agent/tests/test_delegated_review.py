@@ -81,11 +81,11 @@ def test_business_projection_runs_before_child_stops_and_reaches_thread(availabl
 
 
 @pytest.mark.parametrize('direct', [False, True])
-def test_real_host_delta_stream_reaches_worker_in_both_entries(tmp_path, direct):
+def test_real_host_process_stream_is_diagnostic_in_both_entries(tmp_path, direct):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.general_executor_composition import configured_general_executor
     def execute(request, cancelled, emit):
-        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': 'Streamed text'}})
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': 'PROCESS_PREFACE'}})
         return 'Streamed text', {}
     host = GeneralPiHost(root=tmp_path, identity=Executor.identity, run_task=execute)
     server = make_server(host, control_token='fixture-control', address=('127.0.0.1', 0))
@@ -101,7 +101,12 @@ def test_real_host_delta_stream_reaches_worker_in_both_entries(tmp_path, direct)
         assert result.status == 'completed'
         text = [event.payload['text'] for event in service.read_events(current.thread_id, 0).events
                 if event.event_type == 'assistant_text_delta']
-        assert text == ['Streamed text']
+        assert text == []
+        process = [event for event in service.read_events(current.thread_id, 0).events
+                   if event.event_type == 'assistant_process_delta']
+        assert [event.payload['text'] for event in process] == ['PROCESS_PREFACE']
+        assert all(event.visibility == 'diagnostic' for event in process)
+        assert result.answer == 'Streamed text'
     finally:
         server.shutdown()
         server.server_close()

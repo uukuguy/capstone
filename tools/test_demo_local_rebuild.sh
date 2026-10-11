@@ -5,25 +5,37 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/deploy" "$scratch/source/deploy" "$scratch/bin"
+mkdir -p "$scratch/source/packages/capstone-app/src"
+printf '// Environment-aware build identity contract\n' > "$scratch/source/packages/capstone-app/src/appBuild.ts"
 cp "$repo_root/deploy/rebuild_demo_local.sh" "$scratch/deploy/rebuild_demo_local.sh"
 printf '# selected source\n' > "$scratch/source/deploy/rebuild_local.sh"
 git -C "$scratch/source" init -q
-git -C "$scratch/source" add deploy/rebuild_local.sh
+git -C "$scratch/source" add deploy/rebuild_local.sh packages/capstone-app/src/appBuild.ts
 git -C "$scratch/source" -c user.name=Test -c user.email=test@example.invalid commit -qm source
 cat > "$scratch/bin/make" <<'SH'
 #!/usr/bin/env bash
+set -Eeuo pipefail
 [ "$1" = capstone-local-rebuild ]
 [ "$COMPOSE_PROJECT_NAME" = capstone-demo-local ]
 [ "$CAPSTONE_API_PORT" = 18767 ]
 [ "$CAPSTONE_APP_PORT" = 15173 ]
+[ "$CAPSTONE_APP_ENVIRONMENT" = local-demo ]
 [ "$CAPSTONE_API_PROXY_TARGET" = http://127.0.0.1:18767 ]
-[ "$CAPSTONE_LOCAL_ENV_FILE" = "$CAPSTONE_TEST_ROOT/deploy/demo-local.env" ]
+[ "$CAPSTONE_LOCAL_ENV_FILE" = "${CAPSTONE_TEST_EXPECT_ENV:-$CAPSTONE_TEST_ROOT/deploy/demo-local.env}" ]
 [ "$CAPSTONE_BACKEND_IMAGE" = "capstone-demo-backend:$(git rev-parse HEAD)" ]
 SH
 chmod +x "$scratch/bin/make"
 cat > "$scratch/bin/curl" <<'SH'
 #!/usr/bin/env bash
-printf '{"revision":"%s","dirty":false}\n' "${CAPSTONE_TEST_APP_REVISION:-$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)}"
+if [ "${CAPSTONE_TEST_LEGACY_BUILD:-0}" = 1 ]; then
+  printf '{"revision":"%s","dirty":false}\n' "${CAPSTONE_TEST_APP_REVISION:-$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)}"
+  exit 0
+fi
+if [ "${CAPSTONE_TEST_NULL_ENVIRONMENT:-0}" = 1 ]; then
+  printf '{"revision":"%s","dirty":false,"environment":null}\n' "$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)"
+  exit 0
+fi
+printf '{"revision":"%s","dirty":false,"environment":"%s"}\n' "${CAPSTONE_TEST_APP_REVISION:-$(git -C "$CAPSTONE_DEMO_SOURCE_DIR" rev-parse HEAD)}" "${CAPSTONE_TEST_APP_ENVIRONMENT:-local-demo}"
 SH
 chmod +x "$scratch/bin/curl"
 export CAPSTONE_TEST_ROOT="$scratch"
@@ -45,8 +57,32 @@ PY
 before="$(shasum -a 256 "$scratch/deploy/demo-local.env")"
 PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output"
 [ "$before" = "$(shasum -a 256 "$scratch/deploy/demo-local.env")" ]
+cp "$scratch/deploy/demo-local.env" "$scratch/protected.env"
+override_before="$(shasum -a 256 "$scratch/protected.env")"
+CAPSTONE_DEMO_LOCAL_ENV_FILE="$scratch/protected.env" CAPSTONE_TEST_EXPECT_ENV="$scratch/protected.env" PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output"
+[ "$override_before" = "$(shasum -a 256 "$scratch/protected.env")" ]
+[ "$before" = "$(shasum -a 256 "$scratch/deploy/demo-local.env")" ]
+if CAPSTONE_TEST_APP_ENVIRONMENT=local-dev PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local demo accepted an App from another environment' >&2
+  exit 1
+fi
 if CAPSTONE_TEST_APP_REVISION=wrong PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
   echo 'local demo accepted an App from another source' >&2
+  exit 1
+fi
+if CAPSTONE_TEST_LEGACY_BUILD=1 PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local demo accepted missing environment from modern source' >&2
+  exit 1
+fi
+git -C "$scratch/source" rm -q packages/capstone-app/src/appBuild.ts
+git -C "$scratch/source" -c user.name=Test -c user.email=test@example.invalid commit -qm legacy
+CAPSTONE_TEST_LEGACY_BUILD=1 PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output"
+if CAPSTONE_TEST_NULL_ENVIRONMENT=1 PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local demo accepted explicit null environment from legacy source' >&2
+  exit 1
+fi
+if CAPSTONE_TEST_LEGACY_BUILD=1 CAPSTONE_TEST_APP_REVISION=wrong PATH="$scratch/bin:$PATH" bash "$scratch/deploy/rebuild_demo_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local demo accepted legacy App from another source' >&2
   exit 1
 fi
 printf '# uncommitted change\n' >> "$scratch/source/deploy/rebuild_local.sh"

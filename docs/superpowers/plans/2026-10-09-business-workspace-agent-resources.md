@@ -17,7 +17,8 @@ Current execution correction, 2026-10-11: this package belongs to
 this planning update). The original Tasks 1–7 are historical implementation
 instructions, with their bounded verification receipt; they do not certify the
 remaining data-sharing or product-quality work. Use Tasks 8–9 below for that work.
-Main/local-dev currently run c3b78bc; demo stages run ed2524f. Do not promote the
+Main is c3b78bc; local-dev runs the reviewed answer candidate2473e48;
+demo stages retain ed2524f. Do not promote the
 experimental package or rebuild local-demo during daily development.
 
 - Domain Packs are visible only inside Capstone Agent; delegated Pi and direct Pi receive public business context only.

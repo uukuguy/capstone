@@ -1,1 +1,1 @@
-declare const __CAPSTONE_BUILD__: { version: string; revision: string; dirty: boolean }
+declare const __CAPSTONE_BUILD__: import('./appBuild').AppBuildIdentity

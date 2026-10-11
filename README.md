@@ -1,11 +1,36 @@
 # Capstone Agent Framework
 
+Development and release versions follow the fixed [version-control register](docs/status/VERSION-CONTROL.md).
+The initial common runtime baseline follows the current verified demo. Native Pi,
+skills and resource extensions remain on `feat/pi-skills-integration` during development.
+`dev` is the default development integration branch and holds current project
+control. Feature and documentation PRs target dev. `main` holds accepted release
+baselines and release snapshots; demo receives only its verified release scope.
+See the [branch lifecycle](docs/architecture/capstone-development-lifecycle.md).
+
+Report problems with a screenshot and a short description in
+[GitHub Issues](https://github.com/uukuguy/capstone/issues).
+Unspecified feedback targets cloud-demo. AI-assisted repair follows the
+[Issue workflow](docs/architecture/capstone-issue-workflow.md), initiated by a
+user command; scheduled and unattended processing are not enabled.
+
+For separate local demo data, run
+`CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
+The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.
+Local-dev serves cloud-dev development tests and release verification. Local-demo
+tracks cloud-demo for reproduction, emergency repairs and release verification;
+only a recorded repair or release candidate may temporarily differ.
+
 This branch contains experimental native Pi, skills and resource integration.
 Its source was preserved from `e9aca89` and reapplied over the common baseline;
 it is not an accepted demo release. Follow the [version-control register](docs/status/VERSION-CONTROL.md)
 before integration or deployment. Source preservation does not establish new runtime acceptance.
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
+
+The supported application entry is `capstone-agent`. The `grid-agent` CLI has
+no continuing compatibility commitment. Its package still contains formal
+pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 
@@ -152,6 +177,8 @@ make capstone-local-rebuild
 ```
 
 Open `http://127.0.0.1:5173/`. Local Compose enables direct conversation access without a browser token. The rebuild checks dependencies and readiness, verifies that API and both workers use the same image, and starts the Vite App when needed. It reuses verified local PyPSA model assets. Run it again after API, worker, or App source changes.
+
+The page header shows the selected environment (`local-dev`, `local-demo`, `cloud-dev`, or `cloud-demo`), package version, and source commit. A `*` marks uncommitted local source changes. An unconfigured App shows `环境未配置`; it does not infer its environment from the URL.
 
 The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadCommandMenu from './ThreadCommandMenu'
 import { buildInputSubmission, emptyInputDraft, readInputDraft, writeInputDraft, inputDraftError, type InputCatalog, type InputDraft, type InputSubmission } from './threadInput'
@@ -495,7 +495,11 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
   return <span className={`capstone-chat-duration${running ? ' is-running' : ''}`} aria-live="polite">{running ? '运行中' : '运行'} {formatDuration(elapsed)}</span>
 }
 
-function AttemptActivity({ activities, running, phase, open, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+function ActivityItems({ activities }: { activities: ChatActivity[] }) {
+  return <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
+}
+
+function AttemptActivity({ activities, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -507,10 +511,19 @@ function AttemptActivity({ activities, running, phase, open, startedAt, duration
   if (activities.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
-  return <details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open}>
+  return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
-    <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
-  </details>
+    {(!running || open) && <ActivityItems activities={activities} />}
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览"><ActivityItems activities={activities.slice(-3)} /></div>}</div>
+}
+
+function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
+  const [open, setOpen] = useState(false)
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (!running) setOpen(false)
+  }, [running])
+  return <AttemptActivity activities={activities} running={running} open={open} onOpenChange={setOpen} detailsRef={detailsRef} />
 }
 
 function admissionAccepted(admission: unknown): boolean {
@@ -629,7 +642,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
-  const [activityOpen, setActivityOpen] = useState(status?.type === 'running')
+  const [activityOpen, setActivityOpen] = useState(false)
   const [resultOpen, setResultOpen] = useState(false)
   useEffect(() => {
     if (status?.type !== 'running') setActivityOpen(false)
@@ -675,7 +688,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={status?.type === 'running' || activityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
@@ -802,6 +815,7 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
   const activeInput = { ...inputDraft, mode: runtimeMode }
   useEffect(() => { writeInputDraft(storageKey, activeInput) }, [storageKey, inputDraft, runtimeMode])
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
+  const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -810,6 +824,30 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
   type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
   const scrollAnchor = useRef<ReadingAnchor | null>(null)
   const historyAnchor = useRef<ReadingAnchor | null>(null)
+  const historyLoadToken = useRef(0)
+  const [historyAnchorRevision, setHistoryAnchorRevision] = useState(0)
+  const pendingHistoryAnchor = useRef<{ token: number; baselineFirstEventSeq: number; settled: boolean } | null>(null)
+  const returnLatestScrollPending = useRef(false)
+  const returnLatestScrollToken = useRef(0)
+  function scrollViewportToLatest() {
+    const viewport = viewportRef.current
+    if (viewport) viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+  }
+  function requestLatestScroll() {
+    returnLatestScrollPending.current = true
+    returnLatestScrollToken.current += 1
+    scrollAnchor.current = null
+    historyAnchor.current = null
+    pendingHistoryAnchor.current = null
+  }
+  function cancelLatestScrollIntent() {
+    if (!returnLatestScrollPending.current) return
+    returnLatestScrollPending.current = false
+    returnLatestScrollToken.current += 1
+  }
+  function cancelLatestScrollIntentForKey(event: ReactKeyboardEvent) {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) cancelLatestScrollIntent()
+  }
   function captureScrollAnchor(id: string, control: HTMLButtonElement) {
     const viewport = viewportRef.current
     if (!viewport) return
@@ -819,17 +857,17 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
     const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((message) => message.id === instructionId) : -1
     scrollAnchor.current = { id, top: control.getBoundingClientRect().top, control,
       instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
-    if (instructionIndex >= 0 && !nodes.some((item) => item.dataset.messageId === instructionId)) {
-      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
-    }
   }
-  function captureHistoryAnchor() {
+  function captureHistoryAnchor(options: { revealInstructionForAnswer?: boolean; preferAnswerToggle?: boolean; reusePrevious?: boolean } = {}) {
     const viewport = viewportRef.current
     if (!viewport) return
     const view = viewport.getBoundingClientRect()
     const nodes = Array.from(viewport.querySelectorAll<HTMLElement>('[data-message-id]'))
+    const { revealInstructionForAnswer = true, preferAnswerToggle = true, reusePrevious = true } = options
     const previous = historyAnchor.current
-    const previousNode = previous?.element?.isConnected ? previous.element : nodes.find((node) => node.dataset.messageId === previous?.id)
+    const previousNode = reusePrevious
+      ? previous?.element?.isConnected ? previous.element : nodes.find((node) => node.dataset.messageId === previous?.id)
+      : undefined
     // Reuse the reading subject through consecutive actions. Re-select only
     // after the user moves it, or its message leaves the rendered window.
     if (previous && previousNode && Math.abs(previousNode.getBoundingClientRect().top - previous.top) < 2) {
@@ -842,15 +880,12 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
       const instructionId = allMessages.find((item) => item.id === message.dataset.messageId)?.metadata?.custom?.instructionMessageId
       const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((item) => item.id === instructionId) : -1
       const instruction = nodes.find((node) => node.dataset.messageId === instructionId)
-      // If only the middle of a long reply is visible, its text will disappear
-      // on folding. Restore its own instruction once, then hold that position.
-      const revealInstruction = !question && instructionIndex >= 0
-      const element = !question && !revealInstruction ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
+      // During fold actions, a reply may collapse away from the current view.
+      // Restore its instruction once; paging keeps the visible message itself.
+      const revealInstruction = revealInstructionForAnswer && !question && instructionIndex >= 0
+      const element = !question && !revealInstruction && preferAnswerToggle ? message.querySelector<HTMLElement>('.capstone-answer-toggle') ?? undefined : undefined
       const anchor = { id: revealInstruction ? instructionId as string : message.dataset.messageId,
         top: revealInstruction ? view.top + 8 : (element || message).getBoundingClientRect().top, element }
-      if (revealInstruction && !instruction) {
-        setWindowAnchor(allMessages[Math.min(allMessages.length - 1, instructionIndex + 49)]?.id || null)
-      }
       scrollAnchor.current = anchor
       historyAnchor.current = anchor
     }
@@ -885,6 +920,12 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
     }
   }
   useLayoutEffect(() => restoreReadingAnchor(), [foldState, readingTailSpace])
+  useLayoutEffect(() => {
+    const pending = pendingHistoryAnchor.current
+    if (pending?.settled && firstPublicEventSeq < pending.baselineFirstEventSeq) {
+      setReadingLayoutChanging(true)
+    }
+  }, [firstPublicEventSeq, historyAnchorRevision])
   useEffect(() => {
     if (!readingLayoutChanging) return
     // Assistant-ui follows height changes while at the latest reply. Pause that
@@ -902,12 +943,15 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
           // Hold its actual landing point during the next history action.
           if (node) historyAnchor.current = { ...anchor, top: node.getBoundingClientRect().top }
         }
-        scrollAnchor.current = null
+        const pending = pendingHistoryAnchor.current
+        const waitingForHistory = pending && (!pending.settled || firstPublicEventSeq >= pending.baselineFirstEventSeq)
+        if (pending && !waitingForHistory) pendingHistoryAnchor.current = null
+        if (!waitingForHistory) scrollAnchor.current = null
         setReadingLayoutChanging(false)
       })
     })
     return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
-  }, [readingLayoutChanging, foldState, readingTailSpace])
+  }, [readingLayoutChanging, foldState, readingTailSpace, firstPublicEventSeq])
   useEffect(() => {
     setFoldState((state) => state.thread === storageKey ? state : { thread: storageKey, ids: new Set() })
     setReadingTailSpace(0)
@@ -936,11 +980,7 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
       return { thread: storageKey, ids }
     })
   }
-  const [windowAnchor, setWindowAnchor] = useState<string | null>(null)
-  const anchoredIndex = windowAnchor === null ? -1 : allMessages.findIndex((message) => message.id === windowAnchor)
-  const windowEnd = anchoredIndex < 0 ? allMessages.length : anchoredIndex + 1
-  const windowStart = Math.max(0, windowEnd - 50)
-  const messages = allMessages.slice(windowStart, windowEnd)
+  const messages = allMessages
   const [locatingInstruction, setLocatingInstruction] = useState(false)
   const currentLocation = useRef(instructionLocation)
   currentLocation.current = instructionLocation
@@ -959,7 +999,7 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
     const instruction = Array.from(viewport?.querySelectorAll<HTMLElement>('[data-message-id]') || [])
       .find(node => node.dataset.messageId === allMessages[index].id)
     if (!instruction) {
-      setWindowAnchor(allMessages[Math.min(allMessages.length - 1, index + 24)]?.id || null)
+      setLocatingInstruction(false)
       return
     }
     if (!viewport) return
@@ -996,21 +1036,56 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
     instruction.classList.add('is-located-instruction')
     const timer = window.setTimeout(() => instruction.classList.remove('is-located-instruction'), 1200)
     locationHighlight.current = { node: instruction, timer }
-  }, [instructionLocation, allMessages, windowAnchor])
+  }, [instructionLocation, allMessages])
   const [historyError, setHistoryError] = useState<string | null>(null)
   async function olderMessages() {
     setHistoryError(null)
-    if (windowStart > 0) {
-      setWindowAnchor(allMessages[Math.max(0, windowStart + 24)]?.id || null)
-      return
-    }
     if (!onLoadOlder || historyLoading) return
-    const anchor = allMessages[Math.min(24, windowEnd - 1)]?.id
+    captureHistoryAnchor({ revealInstructionForAnswer: false, preferAnswerToggle: false, reusePrevious: false })
+    const token = scrollAnchor.current ? historyLoadToken.current + 1 : undefined
+    if (token !== undefined) {
+      historyLoadToken.current = token
+      pendingHistoryAnchor.current = { token, baselineFirstEventSeq: firstPublicEventSeq, settled: false }
+    }
     try {
       await onLoadOlder()
-      if (anchor) setWindowAnchor(anchor)
-    } catch (cause) { setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用') }
+      if (token !== undefined && pendingHistoryAnchor.current?.token === token) {
+        pendingHistoryAnchor.current = { ...pendingHistoryAnchor.current, settled: true }
+        setHistoryAnchorRevision((value) => value + 1)
+      }
+    } catch (cause) {
+      if (token !== undefined && pendingHistoryAnchor.current?.token === token) pendingHistoryAnchor.current = null
+      setHistoryError(cause instanceof Error ? cause.message : '更早消息暂不可用')
+    }
   }
+  function returnToLatest() {
+    setHistoryError(null)
+    requestLatestScroll()
+    if (!historyAtLatest) {
+      onReturnLatest?.()
+      return
+    }
+    scrollViewportToLatest()
+    returnLatestScrollPending.current = false
+  }
+  useLayoutEffect(() => {
+    if (!historyAtLatest || !returnLatestScrollPending.current) return
+    const token = returnLatestScrollToken.current
+    let second: number | undefined
+    const restore = () => {
+      if (!returnLatestScrollPending.current || returnLatestScrollToken.current !== token) return false
+      scrollViewportToLatest()
+      return true
+    }
+    restore()
+    const first = window.requestAnimationFrame(() => {
+      if (!restore()) return
+      second = window.requestAnimationFrame(() => {
+        if (restore()) returnLatestScrollPending.current = false
+      })
+    })
+    return () => { window.cancelAnimationFrame(first); if (second !== undefined) window.cancelAnimationFrame(second) }
+  }, [historyAtLatest])
   const [initialDraft] = useState(() => readDraft(storageKey))
   const normalizedActivity = activity.map((item) => typeof item === 'string' ? { id: item, label: item, source: 'capstone-harness', status: 'completed' as const } : item)
   const legacyActivity = activity.some((item) => typeof item === 'string')
@@ -1027,8 +1102,7 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
         if (inputDraft.skill || inputDraft.literal || inputDraft.context.include_refs.length || inputDraft.context.exclude_refs.length) await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic', text.trim())
         setInputDraft(current => current === sent ? emptyInputDraft(runtimeMode) : current)
-        setWindowAnchor(null)
-        if (!historyAtLatest) onReturnLatest?.()
+        returnToLatest()
       }
     },
     onEdit: async (message) => {
@@ -1048,26 +1122,23 @@ export default function CapstoneAssistantThread({ events, runtimeMode = 'capston
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
-        {(hasOlderHistory || windowStart > 0 || windowAnchor !== null || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
-          {(hasOlderHistory || windowStart > 0) && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
-          {(windowAnchor !== null || !historyAtLatest) && <button type="button" onClick={() => { setWindowAnchor(null); if (!historyAtLatest) onReturnLatest?.() }}>返回最新对话</button>}
+        {(hasOlderHistory || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
+          {hasOlderHistory && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
+          {!historyAtLatest && <button type="button" onClick={returnToLatest}>返回最新对话</button>}
           {historyError && <span role="alert">{historyError}</span>}
         </div>}
         {!caseExecution && caseCatalog.length > 0 && <><ThreadCasePicker cases={caseCatalog} disabled={disabled || Boolean(caseStartDisabledReason) || caseConnection === 'resync_required'} onStart={(caseId, caseVersion) => onCaseStart?.(caseId, caseVersion)} />{caseStartDisabledReason && <small>{caseStartDisabledReason}</small>}</>}
         {caseExecution && <ThreadCaseProgress execution={caseExecution} connection={caseConnection} onAction={(actionId) => onCaseAction?.(actionId)} />}
-        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport">
+        {typeof ResizeObserver === 'undefined' ? <div ref={viewportRef} className="capstone-chat-viewport" onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && <EmptyThreadState disabled={disabled} />}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </ThreadPrimitive.Viewport>}
-        {legacyActivity && normalizedActivity.length > 0 && <details className="capstone-chat-activity" open={isRunning}>
-          <summary><Activity aria-hidden="true" /><span>{isRunning ? '正在执行' : '已完成'} {normalizedActivity.length} 个步骤</span><small>查看运行过程</small></summary>
-          <div className="capstone-chat-activity-list">{normalizedActivity.slice(-5).map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}</small></span></div>)}</div>
-        </details>}
+        {legacyActivity && normalizedActivity.length > 0 && <LegacyActivity activities={normalizedActivity} running={isRunning} />}
         <div className="capstone-chat-composer">
           <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} inputDraft={activeInput} onInputChange={setInputDraft} inputCatalog={inputCatalog} inputCatalogLoading={inputCatalogLoading} onRefreshInputCatalog={onRefreshInputCatalog} inputControlsDisabled={inputControlsDisabled} onBeforeInputChange={onBeforeInputChange} onBeforeSend={onBeforeSend} />
         </div>

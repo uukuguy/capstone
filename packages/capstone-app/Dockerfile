@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html tsconfig.json vite.config.ts ./
 COPY build-revision.txt ./
+COPY build-environment.json ./
 COPY public/ public/
 COPY src/ src/
 ARG VITE_API_ORIGIN

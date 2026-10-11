@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -45,6 +46,54 @@ def declared_fields_match(actual: object, expected: object) -> bool:
 
 def result_matches(event: ToolResultEvent, arguments: Mapping[str, JsonValue]) -> bool:
     return event.ok is True and declared_fields_match(event.result, dict(arguments))
+
+
+def _typed_fields_match(actual: object, expected: object) -> bool:
+    if isinstance(expected, Mapping):
+        return isinstance(actual, Mapping) and all(
+            key in actual and _typed_fields_match(actual[key], value) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return isinstance(actual, list) and len(actual) == len(expected) and all(
+            _typed_fields_match(left, right) for left, right in zip(actual, expected)
+        )
+    return type(actual) is type(expected) and actual == expected
+
+
+def _finite_number(value: object) -> int | float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ValueError("Tolerance values must be finite JSON numbers")
+    return value
+
+
+def result_matches_with_tolerance(event: ToolResultEvent, arguments: Mapping[str, JsonValue]) -> bool:
+    """Match typed fields exactly and finite numbers at explicitly configured paths."""
+    if event.ok is not True or set(arguments) != {"matches", "numeric_tolerances"}:
+        return False
+    matches = arguments["matches"]
+    tolerances = arguments["numeric_tolerances"]
+    if not isinstance(matches, Mapping) or not _typed_fields_match(event.result, matches):
+        return False
+    if not isinstance(tolerances, Mapping) or not tolerances:
+        return False
+    try:
+        for path, limits in tolerances.items():
+            if (
+                not isinstance(path, str)
+                or not path
+                or not isinstance(limits, Mapping)
+                or set(limits) != {"expected", "abs_tol", "rel_tol"}
+            ):
+                return False
+            actual = _finite_number(_path_value(event.result, path))
+            expected = _finite_number(limits["expected"])
+            absolute = _finite_number(limits["abs_tol"])
+            relative = _finite_number(limits["rel_tol"])
+            if absolute < 0 or relative < 0 or not math.isclose(actual, expected, abs_tol=absolute, rel_tol=relative):
+                return False
+    except (KeyError, IndexError, TypeError, ValueError, OverflowError):
+        return False
+    return True
 
 
 def error_matches(event: ToolResultEvent, arguments: Mapping[str, JsonValue]) -> bool:
@@ -98,6 +147,7 @@ ORACLES = {
     "contains_all": contains_all,
     "error_matches": error_matches,
     "result_matches": result_matches,
+    "result_matches_with_tolerance": result_matches_with_tolerance,
     "result_satisfies": result_satisfies,
     "truthful_limitation": truthful_limitation,
     "topology_branch_endpoints": topology_branch_endpoints,

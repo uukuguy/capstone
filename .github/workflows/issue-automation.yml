@@ -1,0 +1,37 @@
+name: Issue intake (manual, read only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: issue-intake-readonly
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read trusted default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inspect configuration
+        env:
+          TRUSTED_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python -m tools.issue_automation.cli doctor --policy-ref "$TRUSTED_BRANCH" --read-only
+      - name: Read feedback and command requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python -m tools.issue_automation.cli scan --policy-ref "$TRUSTED_BRANCH" --read-only
+      - name: Report manual mode
+        run: echo 'Issue requests are recorded. A user command is required for triage, repair, publishing, or release.'

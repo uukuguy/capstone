@@ -8,6 +8,28 @@ that those details must preserve.
 
 ## Three execution lanes
 
+### Development integration and release branches
+
+`dev` is the default integration branch and owns current project control,
+canonical worklists and generated PROJECT-OVERVIEW.html. Main copies are release
+snapshots. Feature, fix, docs and chore branches start from dev and target dev.
+Experiments preserve their evidence; accepted work enters dev through scoped PRs.
+Existing unmerged branches are assessed individually, without bulk rebases.
+
+`main` owns accepted release baselines. A release branch is optional: freeze a
+selected dev candidate when a stabilization period is needed. Main PRs run full
+release verification. Hotfixes start from the actual accepted deployment tag;
+accepted fixes flow to main and back to dev. A successful merge is not a
+deployment receipt. Branch pushes do not automatically promote user trial.
+
+Both dev and main require the existing Linux/macOS Actions checks, PRs and zero
+mandatory approvals; force push and deletion are blocked. Administrator emergency
+bypass remains available and must be recorded if used. Local-dev normally follows
+a recorded dev source, with explicit temporary feature candidates allowed.
+Cloud-dev validates selected development sources. Local-demo and cloud-demo
+remain on accepted demo tags unless a recorded release or repair candidate is
+being verified. Stage data isolation and exact source/image promotion still apply.
+
 Capstone has three lanes with different risk and data responsibilities:
 
 | Lane | Purpose | Allowed change rate | User exposure |
@@ -41,6 +63,34 @@ flowchart LR
     D -->|health, cases, provider, reports, replay pass| T
     T -->|rollback to previous verified revision| T
 ```
+
+## Verification scope during development
+
+Local iteration runs the checks affected by the edit. Use, for example,
+`make check-iteration CHECK_TARGETS='test-capstone-app'`. A backend change selects
+the relevant Python tests and its application entry smoke check. Do not repeat
+all offline, E2E, packaging and release checks after each edit. Local API, worker
+or App changes still use the canonical local rebuild before deployment claims.
+
+Dev PRs and pushes select documentation, bounded governance contracts or
+`make check-pr` on Linux and macOS. Unknown paths require product regression;
+main PRs and pushes run `make check-release`. Feature
+branch pushes do not run a second copy of the PR workflow. New revisions cancel
+obsolete automatic runs for the same event and ref. The PR gate checks formal
+applications, Authorities, Domain Packs, Kernel, App and registered workers.
+It excludes the old grid CLI suite, full validation suites and distribution
+installation checks. The required CI job names remain unchanged.
+
+Baseline and release acceptance explicitly run `make check-release` on both
+platforms through the `verify` workflow with `release=true`. A successful PR gate
+does not prove baseline or release acceptance. Existing deployment verification
+and exact source/image promotion requirements still apply.
+
+The application no longer requires compatibility with the `grid-agent` CLI.
+Its package still holds runtime modules used by the formal pandapower worker.
+Move those modules to their owning application before deleting the old package.
+The old suite remains in the explicit release aggregate during that migration;
+this is a temporary verification reference, not a public compatibility promise.
 
 ## Server resource lifecycle
 
@@ -98,6 +148,32 @@ to these private volumes as well as the ledger and artifact storage.
 
 ## Common foundation fixes across the two development lanes
 
+The supported CI acceptance runtime is Python 3.12. Run the release checks on
+Linux and macOS with that runtime. Do not add another Python version to the
+matrix without an explicit support requirement and acceptance scope.
+
+### Paired local and cloud environments
+
+The local lane has two isolated targets. `local-dev` serves `cloud-dev`:
+implementation, local integration tests and development deployment validation.
+It may run a recorded development candidate ahead of cloud-dev. `local-demo`
+serves `cloud-demo`: reproduce the released behavior, test emergency repairs
+and validate planned release candidates. It is not a second daily dev target.
+
+At rest, local-demo uses the exact accepted cloud-demo source and enabled
+feature scope. A repair starts from that source; a planned release uses a
+frozen, verified main candidate. Record the baseline, candidate, purpose and
+differences while local-demo temporarily runs ahead of cloud-demo. After release,
+keep it on the accepted release source; after a rejected or deferred candidate,
+restore the current cloud-demo baseline after checking data compatibility.
+Never delete existing local data to restore source alignment.
+
+The pairs define responsibilities, not automatic deployment or shared data.
+Do not make the local versions equal solely for convenience. The same revision
+is valid when a documented release candidate needs validation in both targets.
+The control view shows each actual revision, its paired target and any pending
+alignment; a planned source must not replace the observed deployment record.
+
 The local development and cloud-development path is one lane; the local demo
 and cloud user-trial path is the other. Before deliberate parallel development,
 record an accepted common foundation baseline. The present development/demo
@@ -116,10 +192,16 @@ needed to activate a fix. If compatibility requires different semantics, resolve
 the shared foundation before accepting the common repair. Independent feature
 work must not duplicate these contracts or bypass Authority admission.
 
-After a common local source change, rebuild and validate both real local
-entrypoints. Keep their databases, storage, runtime state and credentials
-separate. Passing source tests or updating one running deployment is insufficient
-for a claim that a common fix is effective in both lanes.
+Local-dev is the daily development and integration entrypoint. After a local
+source change, rebuild and validate the affected local-dev path. Local-demo
+retains its last accepted source; do not update it for each development change.
+When a user release is planned, freeze a tested main revision as the release
+candidate and deploy it to local-demo for product acceptance. Keep the two
+stages' databases, storage, runtime state and credentials separate. A shared fix
+uses one canonical implementation, but its development acceptance does not
+claim that demo has received it. Demo delivery requires its own release receipt.
+Emergency repairs use the demo-compatible candidate in local-demo as part of
+their repair task, with separate receipts for propagation and release.
 
 Source propagation and cloud release are separate actions. Each hosted stage
 retains its own required verification, exact role identity, promotion/rollback
@@ -138,6 +220,22 @@ register before branch integration, baseline changes, verification, release or
 rollback. Development environments may enable isolated experimental features;
 integration into main is distinct from user-trial acceptance. Native Pi and
 skills work remains experimental until its recorded integration gates pass.
+
+The control graph and execution documents are maintained in both directions.
+Source, branch, PR, verification and deployment changes update the register and
+graph. Scope, ownership and sequence decisions made through that graph update
+the owning design, implementation plan, canonical worklist and working-branch
+copies. Keep implemented, verified, merged and released states distinct. A graph
+edit alone does not complete the corresponding project adjustment.
+
+User feedback and AI-assisted repairs follow the normative
+[Issue workflow](capstone-issue-workflow.md). GitHub Issues owns feedback and
+discussion; PRs and verification receipts own implementation evidence; the
+version-control register owns branch, baseline and release relationships.
+The first delivery is command-driven: the current AI session may read,
+communicate and repair when requested, and may remind at relevant work
+boundaries. It does not enable scheduled or unattended execution, independent
+paid model calls, automatic main merges or cloud deployments.
 
 ## Isolation invariants
 
@@ -211,6 +309,19 @@ acceptable when it is limited to the development stage and still uses the
 verification protocol before promotion.
 
 ## Change and credential rules
+
+### Main branch integration protection
+
+`main` requires pull requests and the `verify (ubuntu-latest)` and
+`verify (macos-latest)` checks from GitHub Actions. Force pushes and branch
+deletion are disabled. Required approving reviews are zero; Code Owner reviews,
+last-push approvals, strict branch updates and linear history are not required.
+Administrators retain emergency bypass; ordinary integration follows the checks.
+The independent publishing App has no routine bypass. This protects integration
+without adding full release gates to local iteration. Baseline and deployment
+acceptance remain separate requirements.
+
+### Credentials and local work
 
 - Keep local runtime state, caches, model assets, and authentication state in
   ignored paths. Do not copy them into another lane or commit them.

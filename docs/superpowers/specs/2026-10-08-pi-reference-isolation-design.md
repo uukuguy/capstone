@@ -1,6 +1,14 @@
 # CONV-04: Pi reference mode and context isolation
 
-Status: proposed implementation contract; awaiting user review.
+2026-10-09 correction: the user directs considering the pure Pi module together
+with general delegation. See the [joint executor proposal](2026-10-09-capstone-pi-delegation-design.md).
+This older mode-switch draft remains historical input. Its disabled native tools
+and isolated histories must be reviewed; they are not approved requirements for
+the shared general executor or either new entry point.
+
+Status: deferred draft. The user requires actual Capstone ordinary-answer
+assessment first. Do not use this draft as the active work package or approval
+request. Revisit it only after that assessment is accepted.
 
 ## Purpose and accepted constraints
 

@@ -1,10 +1,29 @@
 # Capstone Agent Framework
 
+开发与发布版本遵循固定的[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
+初始共同运行基线以当前已验收 demo 为起点。原生 Pi、skills 和资源扩展目前保留在
+`feat/pi-skills-integration` 开发分支。`dev` 是默认开发集成主线，保存当前项目控制记录；
+功能与文档 PR 面向 dev。`main` 保存已接受的发布基线与发布快照，
+demo 只接收经过发布验收的功能范围。详见[分支生命周期](docs/architecture/capstone-development-lifecycle.md)。
+
+用户可在 [GitHub Issues](https://github.com/uukuguy/capstone/issues) 提交截图和简短说明，
+未说明环境时默认 cloud-demo。AI 按[Issue 处理规程](docs/architecture/capstone-issue-workflow.md)
+由用户命令发起处理；不启用定时或无人值守。
+
+使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`
+运行独立数据的本地 demo。App 端口为 `15173`，API 为 `18767`；原有 local-dev
+端口仍为 `5173` 和 `8767`。
+local-dev 对应 cloud-dev 的开发测试和发布验证；local-demo 跟随 cloud-demo，
+用于线上复现、紧急修复和发布验证，仅在已登记的修复或发布候选验证时临时偏离。
+
 本分支包含开发中的原生 Pi、skills 和资源集成。源码从 `e9aca89` 保存并重新应用在共同基线上；
 它不是已验收的 demo 发布版本。合并或部署前遵循[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
 源码保存不代表本轮已经取得新的运行验收。
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
+
+正式应用入口为 `capstone-agent`，不再要求保留 `grid-agent` CLI 兼容性。
+旧包仍包含正式 pandapower 运行模块，尚未删除；迁移与退出步骤见[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)。
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
 
@@ -145,6 +164,8 @@ make capstone-local-rebuild
 ```
 
 打开 `http://127.0.0.1:5173/`。本地 Compose 直接开放对话访问，无需浏览器令牌。重建入口检查依赖与服务就绪状态，确认 API 和两个 worker 使用同一镜像，并在需要时启动 Vite App。它复用本地已校验的 PyPSA 模型资产。修改 API、worker 或 App 源码后，再运行这一入口。
+
+页头显示所选环境（`local-dev`、`local-demo`、`cloud-dev` 或 `cloud-demo`）、包版本与源码提交。`*` 表示本地源码含未提交修改。未配置的 App 显示 `环境未配置`，不会根据网址推断环境。
 
 App 默认也监听局域网接口，同一网络中的手机可打开 `http://<电脑局域网 IP>:5173/`。设置 `CAPSTONE_APP_HOST=127.0.0.1` 可限制为本机访问。需要在前台查看 Vite 日志时，使用 `make capstone-app-dev`。
 

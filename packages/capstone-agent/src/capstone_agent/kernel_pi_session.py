@@ -19,7 +19,7 @@ from capability_agent.runtime.descriptor import (
     descriptor_from_endpoint,
     write_runtime_descriptor,
 )
-from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, build_pi_launch
+from capability_agent.runtime.environment import PiLaunch, RuntimeHost, RuntimePaths, build_pi_launch
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
@@ -147,6 +147,20 @@ class PreparedKernelPiRpcSessionBuilder:
         if not profiles:
             return self._build_empty_session(claim)
         workspace = profiles[0].workspace
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
+            policy = _compose_attempt_policy(directory, None, include_generic=True,
+                application_catalog=claim.application_catalog)
+            paths = RuntimePaths(command=self._runtime_host.command,
+                project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
+                workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
+            launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+            launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
+            secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
+            trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
+            client = PiRpcClient(launch, _RpcWorkspace(directory), trace, secret_values=secrets,
+                correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds)
+            return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []

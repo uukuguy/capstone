@@ -86,6 +86,8 @@ def _run_claimed_attempt(
             error_code = ('runtime_configuration_invalid' if isinstance(error, HarnessRuntimeConfigurationError)
                           else 'ordinary_conversation_disabled'
                           if isinstance(error, DecisionUnavailable) and str(error) == 'ordinary_conversation_disabled'
+                          else 'llm_route_unavailable'
+                          if isinstance(error, DecisionUnavailable) and str(error) == 'llm_route_unavailable'
                           else 'intent_recognition_failed')
             payload = {'error_code': error_code}
             if error_code == 'intent_recognition_failed':

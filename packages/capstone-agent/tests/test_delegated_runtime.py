@@ -667,13 +667,32 @@ def test_receipt_write_failure_is_fatal_even_after_general_success():
         runtime.prompt(current.instruction, on_event=broken_sink)
 
 
-def test_worker_streams_only_general_assistant_text_not_native_protocol():
+@pytest.mark.parametrize('mode', ['direct', 'delegated'])
+@pytest.mark.parametrize('event_type', ['assistant_delta', 'message_update'])
+@pytest.mark.parametrize('child_status', ['completed', 'failed'])
+def test_worker_keeps_general_process_text_diagnostic(mode, event_type, child_status):
     service, current = claim()
-    result = run(service, current, factory(Executor(), Recognizer([goal('one')])))
-    assert result.status == 'completed'
+    if mode == 'direct':
+        current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    class ProcessExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            payload = ({'type': 'assistant_delta', 'text': 'PROCESS_PREFACE'}
+                       if event_type == 'assistant_delta' else
+                       {'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': 'PROCESS_PREFACE'}})
+            on_event(payload)
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                child_status, 'General answer', (), (), {})
+    result = run(service, current, factory(ProcessExecutor(), Recognizer([goal('one')])))
     events = service.read_events(current.thread_id, 0).events
-    public_text = [event.payload['text'] for event in events if event.event_type == 'assistant_text_delta']
-    assert public_text == ['General answer']
+    assert not any(event.event_type == 'assistant_text_delta' and event.visibility == 'public'
+                   for event in events)
+    process = [event for event in events if event.event_type == 'assistant_process_delta']
+    assert len(process) == 1 and process[0].visibility == 'diagnostic'
+    assert process[0].payload['text'] == 'PROCESS_PREFACE'
+    assert 'PROCESS_PREFACE' not in (result.answer or '')
+    if child_status == 'completed':
+        assert result.status == 'completed' and result.answer == 'General answer'
     assert all(event.visibility == 'diagnostic' for event in events if event.event_type == 'runtime_event')
 
 

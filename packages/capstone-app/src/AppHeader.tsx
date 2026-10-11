@@ -1,8 +1,18 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+import { isAppBuildIdentity } from './appBuild'
+import type { AppBuildIdentity } from './appBuild'
 
 function Mark() {
   return <span className="mark" aria-hidden="true"><i /><i /><i /><i /></span>
+}
+
+export function AppVersion({ build }: { build: AppBuildIdentity }) {
+  const environment = build.environment ?? '环境未配置'
+  return <span className="app-version" aria-label="App 版本"
+    title={`环境：${environment}；源代码版本：${build.revision || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
+    {environment} · v{build.version} · {build.revision.slice(0, 7) || '开发版'}{build.dirty ? ' *' : ''}
+  </span>
 }
 
 export function PageHeader({ className = '', showThreadEntry = true, actions }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode }) {
@@ -13,7 +23,7 @@ export function PageHeader({ className = '', showThreadEntry = true, actions }: 
     const refresh = () => {
       if (document.visibilityState === 'hidden') return
       void fetch('/__capstone-build').then(response => response.ok ? response.json() : null).then(value => {
-        if (active && value && typeof value.version === 'string' && typeof value.revision === 'string' && typeof value.dirty === 'boolean') setBuild(value)
+        if (active && isAppBuildIdentity(value)) setBuild(value)
       }).catch(() => {})
     }
     refresh()
@@ -29,9 +39,7 @@ export function PageHeader({ className = '', showThreadEntry = true, actions }: 
     </a>
   return <header className={`topbar ${className}`.trim()}>
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span>
-      <span className="app-version" aria-label="App 版本" title={`源代码版本：${build.revision || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
-        v{build.version} · {build.revision.slice(0, 7) || '开发版'}{build.dirty ? ' · 开发中' : ''}
-      </span><span className="brand-divider" />
+      <AppVersion build={build} /><span className="brand-divider" />
       <span className="brand-subtitle">电网分析工作台</span></div>
     {actions ? <div className="topbar-right">{actions}{projectLink}</div> : <>
       {showThreadEntry && <a className="thread-entry-link" href="/?thread=new">打开 Thread</a>}

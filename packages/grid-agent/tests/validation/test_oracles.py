@@ -1,4 +1,7 @@
+import pytest
+
 from grid_agent.validation.oracles import (
+    ORACLES,
     ToolResultEvent,
     contains_all,
     error_matches,
@@ -54,6 +57,60 @@ def test_generic_structured_result_oracle_matches_declared_subset() -> None:
     )
 
     assert result_matches(event, {"converged": True, "total_active_loss": {"unit": "MW"}}) is True
+
+
+def loss_oracle_arguments() -> dict:
+    return {
+        "matches": {"converged": True, "total_active_loss": {"unit": "MW"}, "count": 1},
+        "numeric_tolerances": {
+            "total_active_loss.value": {"expected": 43.6411257608517, "abs_tol": 1e-9, "rel_tol": 0},
+        },
+    }
+
+
+def test_explicit_numeric_tolerance_accepts_linux_roundoff_without_relaxing_exact_oracle() -> None:
+    event = ToolResultEvent(
+        capability="analysis.powerflow.ac.run",
+        result={"converged": True, "count": 1, "total_active_loss": {"value": 43.64112576085046, "unit": "MW"}},
+        evidence_refs=("evidence:sha256:" + "e" * 64,),
+    )
+    oracle = ORACLES.get("result_matches_with_tolerance")
+    assert callable(oracle)
+    assert oracle(event, loss_oracle_arguments()) is True
+    assert result_matches(event, {"total_active_loss": {"value": 43.6411257608517}}) is False
+
+
+@pytest.mark.parametrize("result", [
+    {"converged": True, "count": 1, "total_active_loss": {"value": 43.6411257628517, "unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"value": 43.6411257608517, "unit": "kW"}},
+    {"converged": False, "count": 1, "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}},
+    {"converged": 1, "count": 1, "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}},
+    {"converged": True, "count": True, "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}},
+    {"converged": True, "count": 2, "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"value": True, "unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"value": float("nan"), "unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"value": float("inf"), "unit": "MW"}},
+    {"converged": True, "count": 1, "total_active_loss": {"value": "43.6411257608517", "unit": "MW"}},
+])
+def test_explicit_numeric_tolerance_preserves_required_fields_and_rejects_invalid_numbers(result: dict) -> None:
+    oracle = ORACLES.get("result_matches_with_tolerance")
+    assert callable(oracle)
+    assert oracle(ToolResultEvent("analysis.powerflow.ac.run", result, ()), loss_oracle_arguments()) is False
+
+
+@pytest.mark.parametrize("field,value", [
+    ("expected", True), ("expected", float("nan")), ("expected", float("inf")),
+    ("abs_tol", -1), ("abs_tol", float("inf")), ("abs_tol", True),
+    ("rel_tol", -1), ("rel_tol", float("nan")), ("rel_tol", False),
+])
+def test_explicit_numeric_tolerance_rejects_invalid_limits(field: str, value: object) -> None:
+    arguments = loss_oracle_arguments()
+    arguments["numeric_tolerances"]["total_active_loss.value"][field] = value
+    oracle = ORACLES.get("result_matches_with_tolerance")
+    assert callable(oracle)
+    event = ToolResultEvent("analysis.powerflow.ac.run", {"converged": True, "count": 1, "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}}, ())
+    assert oracle(event, arguments) is False
 
 
 def test_generic_error_oracle_matches_typed_error_subset() -> None:

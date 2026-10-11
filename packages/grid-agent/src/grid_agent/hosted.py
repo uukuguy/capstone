@@ -18,7 +18,7 @@ from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
 from capstone_agent.intent_runtime import with_intent_runtime
 from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
-from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm
+from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm, resolve_recognition_llm
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
@@ -93,6 +93,8 @@ def build_registered_pandapower_thread_application():
             return validation_builder(claim, context, profiles)
         environment = load_runtime_environment(root)
         resolved = resolve_harness_llm(root, environment)
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            resolved = resolve_recognition_llm(root, environment, resolved)
         runtime_host = build_runtime_host(
             root, build_pandapower_application_profile(), environment,
         )

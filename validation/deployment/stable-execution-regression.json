@@ -1,0 +1,23 @@
+{
+  "schema": "capstone-deployment-samples/2",
+  "suite_kind": "overall",
+  "suite_id": "stable-execution-rollback",
+  "profile_id": "pandapower-static-analysis",
+  "profile_version": "1.0.1",
+  "model_id": "ieee39",
+  "cases": [
+    {"id": "ordinary-information", "turns": [{"text": "用两三句话解释一下什么是彩虹。", "expect": "model-overview"}]},
+    {"id": "overview", "turns": [{"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-overview"}]},
+    {"id": "line-outage", "turns": [{"text": "如果line7跳闸，帮我分析一下哪些线路会重载", "expect": "authority-calculation"}]},
+    {"id": "load-scaling", "turns": [{"text": "如果母线31下面的负荷变成当前负荷的1.3倍，会不会发生越界等问题?", "expect": "authority-calculation"}]},
+    {"id": "flow-to-reused-ranking", "turns": [
+      {"text": "执行一次交流潮流。", "expect": "authority-calculation"},
+      {"text": "沿用当前潮流结果列出负载率最高的三条线路。", "expect": "authority-calculation"}
+    ]},
+    {"id": "endpoint-to-overview", "turns": [
+      {"text": "解析线路11的端点。", "expect": "source-backed-answer"},
+      {"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-overview"}
+    ]}
+  ],
+  "acceptance": "Mechanical checks are preliminary. Review original instructions, raw tool calls and Authority artifacts independently. Object clarification cannot pass these registered object cases. Reuse must read the preceding flow result with zero new calculation. Verify the load target against model names, not an assumed index. No claim of newly implemented generator research or universal completeness."
+}

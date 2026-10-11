@@ -11,10 +11,15 @@
   },
   "oracle": {
     "kind": "structured",
-    "evaluator": "result_matches",
+    "evaluator": "result_matches_with_tolerance",
     "arguments": {
-      "converged": true,
-      "total_active_loss": {"value": 43.6411257608517, "unit": "MW"}
+      "matches": {
+        "converged": true,
+        "total_active_loss": {"unit": "MW"}
+      },
+      "numeric_tolerances": {
+        "total_active_loss.value": {"expected": 43.6411257608517, "abs_tol": 1e-9, "rel_tol": 0}
+      }
     }
   }
 }

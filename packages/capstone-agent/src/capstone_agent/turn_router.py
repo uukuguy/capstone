@@ -250,6 +250,8 @@ class DefaultTurnRouter:
                     nested = self._decision_router.plan(routing_input)
                     intent = TurnIntent(nested.route, nested.source, nested.confidence)
                 except Exception:
+                    if getattr(self._decision_router, "requires_decision", False):
+                        raise DecisionUnavailable("llm_route_unavailable") from None
                     raise DecisionUnavailable('intent_recognition_failed') from None
         else:
             raise DecisionUnavailable("unsupported_turn_kind")

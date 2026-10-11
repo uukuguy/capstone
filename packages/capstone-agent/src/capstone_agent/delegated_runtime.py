@@ -180,8 +180,8 @@ class DelegatedRuntime:
                 if isinstance(update, Mapping) and update.get('type') == 'text_delta':
                     delta = update.get('delta')
                 if isinstance(delta, str):
-                    on_event({'event_type': 'assistant_text_delta', 'runtime_mode': self.runtime_mode,
-                              'visibility': 'public', 'payload': {'text': delta[:16384]}})
+                    on_event({'event_type': 'assistant_process_delta', 'runtime_mode': self.runtime_mode,
+                              'visibility': 'diagnostic', 'payload': {'text': delta[:16384]}})
         self._active_task = task_id
         try:
             result = self._executor.execute(request, control, native)

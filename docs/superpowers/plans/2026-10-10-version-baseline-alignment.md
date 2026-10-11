@@ -17,3 +17,17 @@
 - [x] Verify both actual local entrypoints: each passes three registered cases/nine turns, reports and evidence replay. Six roles have matching contract/source/installed artifact identities. Retained dev510/demo2 Thread snapshots/history and all prior event digests/volumes pass. Record source, images and scope in the [verification report](../../reviews/2026-10-10-version-baseline-alignment.md). No cloud release, acceptance tag or paid question replay occurs.
 
 Feature work resumes from preserved branches only after baseline source and local alignment are recorded. Baseline two must pass formal user-answer acceptance before demo promotion.
+
+## Current boundary — 2026-10-11
+
+The checklist above records the first alignment operation, not today's deployment
+target. Foundation PR #6 is integrated on main/local-dev c3b78bc. local-demo has
+been restored to exact cloud-demo ed2524f after read compatibility and retained
+event checks; registered cases, reports and evidence replay pass. No cloud release.
+
+The next stronger baseline is not a maintenance-only tag. Unified task-answer
+work proceeds on feat/task-answer-closure; experimental Pi and full business
+context/data sharing remain on feat/pi-skills-integration. local-dev is the daily
+verification entry. Only a tested, merged and frozen planned release candidate
+temporarily enters local-demo for product acceptance. Failed or deferred candidates
+restore the accepted cloud-demo source after compatibility checks.
