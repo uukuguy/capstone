@@ -3,7 +3,7 @@
 ## Active
 
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
-[活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。
+[活跃检查点](RESUME-NEXT-SESSION.md)记录新dev基线收口与两分支适配；实际七轮业务整体未通过。
 历史整体筛查通过不能替代人工回归；[版本控制图](VERSION-CONTROL.md)登记回退范围。
 
 [回退与真实回归报告](../reviews/2026-10-12-pre-closure-rollback.md)：30a3ecb已部署同源；
@@ -11,6 +11,12 @@
 
 [选择性补回验证](../reviews/2026-10-12-selective-ui-and-answer-restoration.md)：82b243c
 补回三动作小窗、普通轻量问答与最终消息分离；两轮真实专项通过，整体验收未重做。
+
+[dev恢复基线收口](../reviews/2026-10-12-dev-recovery-baseline.md)：用户批准合入dev及两分支适配；
+PR #14双平台通过并合入6ff7094，local-dev同源；两分支适配已推送。首次普通误路由失败保留，已知业务问题继续开放。
+
+[Pi分支适配](../reviews/2026-10-12-pi-dev-baseline-adaptation.md)与
+[Research Model适配](../reviews/2026-10-12-research-baseline-adaptation.md)分别登记代码修正和计划修正。
 
 dev默认开发集成主线和main发布主线均启用轻量保护：PR与两平台Actions检查、0审批，禁止强推和删除；main副本为发布快照。详见[组织设计](../superpowers/specs/2026-10-11-dev-integration-design.md)、[实施计划](../superpowers/plans/2026-10-11-dev-integration.md)和[版本台账](VERSION-CONTROL.md)。
 
@@ -20,7 +26,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 [任务理解与正式回答实施清单](../superpowers/plans/2026-10-11-task-answer-closure.md)：契约、识别、领域覆盖与实际应用验收分别留存；当前源码2473e48，本地技术验收通过，主线集成及人工产品验收另列。
 
-[研究模型演进计划](../superpowers/plans/2026-10-11-research-model-evolution.md)：本地技术基线B2已登记；feat/research-model从接受的dev50d8ebc建立，R1尚无代码；R0受控实验保留参考。R1研究模型、R2多轮连续性、R3自主推演、R4能力补齐、R5应用验收。未部署。
+[研究模型演进计划](../superpowers/plans/2026-10-11-research-model-evolution.md)：B2为撤回增强的历史记录；feat/research-model现接入dev6ff7094并完成依赖适配，R1尚无代码；R0受控实验保留参考。R1研究模型、R2多轮连续性、R3自主推演、R4能力补齐、R5应用验收。未部署。
 
 | File | Purpose |
 | --- | --- |
@@ -28,7 +34,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | local-dev1013dd2实际整体11业务＋1路由/专项3轮独立PASS及浏览器通过，待人工；阶段耗时和历史失败保留；PR #13草稿，demo/云端未变，未建立新基线。 |
+| [多线版本控制](VERSION-CONTROL.md) | 用户批准PR14合入dev为新开发基线并对齐两实验分支；local-dev6ff7094同源，首次新专项失败与单项重试通过分别保留；精确CI通过，PR13已撤回，demo及云端未变。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |

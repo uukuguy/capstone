@@ -1,5 +1,17 @@
 # Known issues and deferred work
 
+## Recovered dev baseline — 2026-10-12
+
+PR #14 merged exact dual-CI candidate bc08169 into dev6ff7094.
+Local-dev uses that source. Pi38e19db and Research Model2b0b0a5 are adapted;
+Research R1 has no code. These states do not certify overall business acceptance.
+Fresh ordinary validation selected professional through the LLM and failed
+capability_required after9.043s. Three direct probes and a separate6.440s API
+retry selected ordinary without a code or prompt change. Keep the first failure;
+the retry does not establish routing reliability. Line-outage final-message
+isolation passed. Load admission, AC entity identity and model-overview latency
+remain open. See [baseline receipt](../reviews/2026-10-12-dev-recovery-baseline.md).
+
 ## Selective restoration — 2026-10-12
 
 The user requested existing compact activity, lightweight ordinary and final-message
