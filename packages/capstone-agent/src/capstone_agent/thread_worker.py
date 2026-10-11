@@ -57,8 +57,8 @@ def _run_claimed_attempt(
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         try:
             plan = router.plan(routing_input_for_claim(claim))
-        except DecisionUnavailable:
-            error_code = "ordinary_conversation_disabled"
+        except DecisionUnavailable as error:
+            error_code = "llm_route_unavailable" if str(error) == "llm_route_unavailable" else "ordinary_conversation_disabled"
             service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
             return HarnessAttemptResult("failed", None, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())

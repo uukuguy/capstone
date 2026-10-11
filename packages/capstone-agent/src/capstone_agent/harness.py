@@ -491,9 +491,10 @@ class HarnessAttemptRunner:
             }:
                 try:
                     plan = self._turn_router.plan(routing_input_for_claim(claim))
-                except DecisionUnavailable:
-                    self._finish_failed(claim, "ordinary_conversation_disabled")
-                    return HarnessAttemptResult("failed", None, "ordinary_conversation_disabled")
+                except DecisionUnavailable as error:
+                    error_code = "llm_route_unavailable" if str(error) == "llm_route_unavailable" else "ordinary_conversation_disabled"
+                    self._finish_failed(claim, error_code)
+                    return HarnessAttemptResult("failed", None, error_code)
                 self._persist_plan(claim, plan)
             self._runtime.start()
             lease.check()

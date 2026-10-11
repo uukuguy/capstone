@@ -47,3 +47,18 @@ def test_pi_classifier_has_no_tools_and_receives_only_route_input(monkeypatch, t
     assert set(observed["input"]) == {"instruction", "selected_model"}
     assert "--thinking" in observed["launch"].argv
     assert observed["stopped"]
+
+
+def test_worker_reports_route_failure_without_running_execution():
+    from test_thread_worker import _service
+    from capstone_agent.thread_worker import run_pending_attempt
+    from capstone_agent.lightweight_turn_router import LightweightTurnRouter
+    service = _service()
+    service.submit_command({"schema": "capstone-command/1", "command_id": "cmd_route_failure",
+        "idempotency_key": "idem_route_failure", "thread_id": "thr_worker", "run_id": "run_worker",
+        "kind": "send_auto", "expected_event_seq": 0, "payload": {"text": "inspect"}})
+    def execute(_claim):
+        pytest.fail("execution must not run after a failed route")
+    result = run_pending_attempt(service, execute, worker_id="worker",
+        turn_router=LightweightTurnRouter(lambda _: "invalid"))
+    assert result.error_code == "llm_route_unavailable"
