@@ -72,6 +72,17 @@ def _decode(payload):
     return json.loads(json.dumps(payload, allow_nan=False))
 
 
+def _overview_metadata(value, context_ref, revision_ref):
+    _fields(value, {"context_ref", "revision_ref", "model", "counts"})
+    if (value["context_ref"] != context_ref or value["revision_ref"] != revision_ref
+        or not isinstance(value["model"], str) or not 1 <= len(value["model"]) <= 128):
+        raise ValueError("overview metadata is not bound to the selected model revision")
+    _fields(value["counts"], {"buses", "lines", "transformers"})
+    if any(type(count) is not int or count < 0 for count in value["counts"].values()):
+        raise ValueError("overview metadata counts are invalid")
+    return json.loads(json.dumps(value, allow_nan=False))
+
+
 class PandapowerTaskProvider:
     schema = SCHEMA
 
@@ -92,7 +103,7 @@ class PandapowerTaskProvider:
     def required_capabilities(self, payload):
         req = _decode(payload)
         if req["operation"] == "overview":
-            return ()
+            return ("context.get",)
         result = ["analysis.contingency.n_minus_one.run"] if req["scenario"] == "contingency" else ["analysis.powerflow.ac.run"]
         if req["operation"] == "limits" or req["measure"] == "risk_score":
             result.append("analysis.result.violations.evaluate")
@@ -148,6 +159,8 @@ class PandapowerTaskProvider:
         if requirement["operation"] == "overview":
             if requirement["scenario"] != "baseline" or requirement["changes"] or requirement["objects"] or requirement["measure"] is not None:
                 return resolved("clarification", "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.")
+            requirement["model_metadata"] = _overview_metadata(invoke("context.get", {"context_ref": context_ref}),
+                                                              context_ref, revision_ref)
             return resolved("ready")
         if requirement["operation"] in {"powerflow", "compare"}:
             if bool(requirement["objects"]) != (requirement["measure"] is not None):
@@ -220,7 +233,14 @@ class PandapowerTaskProvider:
         if task.status != "ready":
             return conclusion(task.status if task.status in {"unsupported", "clarification"} else "unresolved", task.reason)
         if req["operation"] == "overview":
-            return conclusion("supported", "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. Generator N−1 is not registered. No calculation was requested or needed.")
+            if "model_metadata" not in req:
+                return conclusion("unresolved", "The saved overview has no selected-model metadata. Submit a new request to describe the current model.")
+            metadata = _overview_metadata(req["model_metadata"], req["context_ref"], req["revision_ref"])
+            counts = metadata["counts"]
+            text = (f"Selected model {metadata['model']}: {counts['buses']} buses, {counts['lines']} lines, "
+                    f"{counts['transformers']} transformers. "
+                    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. Generator N−1 is not registered. No calculation was requested or needed.")
+            return conclusion("supported", text)
         # Every passed reference is checked, including references irrelevant to this goal.
         documents = {ref: authority.verify_result(ref).document for ref in result_refs}
         evidence = {ref: authority.verify_evidence(ref).document for ref in evidence_refs}

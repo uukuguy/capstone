@@ -1,5 +1,11 @@
 # Current State
 
+Active priority (2026-10-11): local-dev2473e48 real-user clarification and overview
+samples failed. Repair and add overall plus update deployment samples on
+fix/deployment-answer-acceptance from devc857837 before Research Model R1.
+Infrastructure readiness and prior scripted gates do not establish business
+acceptance. See [the repair plan](../superpowers/plans/2026-10-11-deployment-answer-acceptance.md).
+
 ## Project Snapshot
 
 - Project: Capstone Agent Framework

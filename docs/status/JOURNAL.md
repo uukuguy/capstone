@@ -2472,3 +2472,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-11 Created feat/research-model from accepted dev; preserved R0; archived and closed merged document branch without deleting worktrees.
 - 2026-10-11 Recorded accepted dev organization and Research Model start to align control documents with verified baseline; 8ae795e.
 - 2026-10-11 User requests dev/main environment prefixes, centered dev evolution and distinct main release-point background; sources remain unchanged.
+
+- 2026-10-11：9eb4689 区分 dev 演进与 main 发布背景，明确四环境工作线。
+
+- 2026-10-11：c857837 合并控制图；真实问答失败转为部署样本回归优先项。

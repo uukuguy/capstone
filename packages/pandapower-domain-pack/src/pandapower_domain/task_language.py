@@ -2,6 +2,7 @@
 import re
 
 _FIXED = {
+    "The saved overview has no selected-model metadata. Submit a new request to describe the current model.": "历史概况未保存选中模型的元数据，请重新提交请求以介绍当前模型。",
     "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.": "能力介绍不能代替对象、数值或修改要求，请选择所需分析操作。",
     "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.": "请同时明确对象及所需指标；也可单独请求整个场景的收敛与损耗结果。",
     "This measurement contract covers branch loading and active power values. Other registered analyses can use the explicitly unverified compatibility path.": "此指标契约覆盖支路负载率和有功功率。其他已注册分析可使用明确标记目标覆盖未验证的兼容执行路径。",
@@ -51,6 +52,7 @@ def localize(text, language):
     for original, translated in _FIXED.items():
         text = text.replace(original, translated)
     patterns = [
+        (r"Selected model ([^:]+): (\d+) buses, (\d+) lines, (\d+) transformers\. ", r"当前模型 \1：\2 个母线、\3 条线路、\4 台变压器。"),
         (r"The requested (\w+) values cover all (\d+) resolved branches\. ", r"请求的 \1 数值覆盖全部 \2 个已解析支路。"),
         (r" Shown: (\d+) of (\d+) verified entries; full values are in the result view\.", r"显示 \2 项已验证记录中的 \1 项；完整数值见结果视图。"),
         (r" Verification basis: (\d+) admitted results and (\d+) evidence records for this goal\.", r"验证依据：此目标的 \1 项准入结果和 \2 条证据记录。"),

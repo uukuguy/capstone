@@ -317,6 +317,51 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     assert captured[0].runtime_descriptor_path is None
 
 
+@pytest.mark.parametrize("repair", [True, False])
+@pytest.mark.parametrize("malformed", ["missing-field", "enum-array"])
+def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypatch, tmp_path, repair, malformed):
+    import json
+    from capstone_agent import task_recognition
+    from capstone_agent.task_understanding import SCHEMA_V2
+    service = _service()
+    _submit(service)
+    claim = service.claim_attempt("worker", 30)
+    decision = proposal()
+    decision["schema"] = SCHEMA_V2
+    decision["goals"][0].update(execution="professional", dependencies=[], domain_request={
+        "binding_id": "grid", "schema": "test-requirement/1", "payload": {"operation": "overview"}})
+    if malformed == "enum-array":
+        decision["goals"][0]["domain_request"]["payload"]["direction"] = ["descending"]
+    prompts = []
+    timeouts = []
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def start(self): pass
+        def stop(self): pass
+        def prompt_and_wait(self, prompt, **kwargs):
+            prompts.append(json.loads(prompt))
+            timeouts.append(kwargs["timeout_seconds"])
+            if repair and len(prompts) == 2:
+                decision["goals"][0]["domain_request"]["payload"]["direction"] = "descending"
+            return json.dumps(decision)
+    monkeypatch.setattr(task_recognition, "build_pi_launch", lambda *args, **kwargs: SimpleNamespace(argv=("pi",), environment={}))
+    monkeypatch.setattr(task_recognition, "PiRpcClient", Client)
+    arguments = dict(runtime_host=SimpleNamespace(command=SimpleNamespace(argv=("pi",)), project_pi_dir=tmp_path),
+                     resolved_llm=SimpleNamespace(secret=None, config=SimpleNamespace(model="controlled")),
+                     base_environment={}, timeout_seconds=60, on_heartbeat=lambda: None,
+                     requirement_schemas=({"binding_id": "grid", "schema": "test-requirement/1",
+                                           "payload_fields": {"operation": ["overview"], "direction": ["ascending", "descending"]}},))
+    if repair:
+        task = task_recognition.recognize_with_pi(claim, **arguments)
+        assert task.goals[0].domain_request.payload["direction"] == "descending"
+    else:
+        with pytest.raises(ValueError, match="payload fields"):
+            task_recognition.recognize_with_pi(claim, **arguments)
+    assert len(prompts) == 2
+    assert prompts[1]["request"] == prompts[0]["request"]
+    assert 0 < timeouts[1] <= timeouts[0] <= 60
+
+
 def test_harness_recognizes_before_start_and_exposes_task_to_admission():
     from capstone_agent.harness import HarnessAttemptRunner
     service = _service()

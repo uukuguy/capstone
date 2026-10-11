@@ -37,9 +37,25 @@ feat/research-model exists, but no R1 code has been implemented.
 
 ## Current work and next steps
 
-Root task branch docs/dev-baseline-control from dev50d8ebc contains final control
-records for B2, closed branches and Research Model start. Perform scoped document
-checks/browser, commit/publish/accept its exact PR before returning root to dev.
+PR12 source9eb4689 merged into devc857837 after exact two-platform CI: Linux66s,
+macOS113s. Root returned to dev; merge tree equals checked source. PR12 branch
+closed locally/remotely with archive reference. Root now works on
+fix/deployment-answer-acceptance. Four environments
+show dev/main workline prefixes; the middle lane is dev evolution, main uses blue.
+The user then reported real local-dev failures and requested overall plus update
+deployment sample sets. This is the active priority before Research Model R1.
+Captured attempts597f4144 and28ed976b show an application-added Clarify prefix and
+a typed overview payload missing direction. Investigate and replay these inputs;
+registered-case and controlled-transport success alone does not establish live
+Provider answer acceptance. First fixes pass48focused tests and674 backend tests
+(58 optional skips). New IEEE39 overall/update corpus and API screening8tests
+pass; Pack coverage28 and actual Authority conclusion E2E28 pass. Overview now
+freezes registered context.get metadata and includes current network sizes.
+The runner deliberately leaves Provider identity and semantic acceptance
+pending, even when text screening passes. No new Provider calls or deployment.
+Independent review approves source fix and screening-tool boundary. Real overview
+still requires full selected-model description and capabilities; generic prose
+alone fails. Do not claim product acceptance until all required samples pass.
 The graph pins accepted organization50d8ebc and tested product2473e48, not every
 later documentation commit.
 

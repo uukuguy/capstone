@@ -55,6 +55,32 @@ def test_rejects_unknown_requirement_fields():
         PandapowerTaskProvider().resolve("g", proposal(shell="python"), context_ref="c", revision_ref="r", invoke=None)
 
 
+def test_overview_describes_selected_authority_model_without_calculation(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    calls = []
+    def recorded(capability, arguments):
+        calls.append(capability)
+        return invoke(capability, arguments)
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="overview"), context_ref=context["context_ref"],
+                            revision_ref=context["revision_ref"], invoke=recorded, answer_policy={"language": "zh", "scale": "concise"})
+    answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=())
+    text = provider.render_conclusion(answer, language="zh", scale="concise")
+    assert calls == ["context.get"]
+    assert "ieee39" in text and "39" in text and "35" in text and "11" in text
+    assert "母线" in text and "线路" in text and "变压器" in text and "潮流" in text
+    assert answer.status == "supported" and not answer.result_refs and not answer.evidence_refs
+
+
+def test_overview_rejects_foreign_authority_metadata_revision():
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    with pytest.raises(ValueError, match="metadata"):
+        PandapowerTaskProvider().resolve("g", proposal(operation="overview"), context_ref="c", revision_ref="r",
+            invoke=lambda *args: {"context_ref": "c", "revision_ref": "foreign", "model": "ieee39",
+                                 "counts": {"buses": 39, "lines": 35, "transformers": 11}})
+
+
 @pytest.mark.parametrize("values", [
     {"operation": "overview", "measure": "loading_percent"},
     {"objects": [{"kind": "line", "namespace": "pandapower_index", "identifier": "0"}]},

@@ -59,6 +59,9 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 ## External execution anchors
 
+- [Deployment answer acceptance repair](../superpowers/plans/2026-10-11-deployment-answer-acceptance.md): active priority; overall and update sample sets, captured real Provider failures, preacceptance repair and strict handoff states.
+- [Deployment samples](../../validation/deployment/README.md): executable IEEE-39 corpus and API screening; semantic, execution identity, source/image and browser acceptance remain distinct.
+
 - [Autonomous research experiment](../superpowers/plans/2026-10-11-autonomous-research-experiment.md): user-approved experimental branch; two-layer knowledge/workflow/verification plus research nodes, IEEE39 four-case corpus, not deployed.
 - [Asterion P7 reference](../reviews/2026-10-11-asterion-p7-reference.md): local source and recorded public results; reusable research mechanisms, Capstone boundary adaptations and evidence limits.
 

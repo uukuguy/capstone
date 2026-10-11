@@ -246,7 +246,14 @@ def test_informational_overview_needs_no_object_scope(environment):
     assert claim.task_resolutions[0].status == "ready" and not claim.task_resolutions[0].execution_required
     answer = _ResolvedTaskSession(claim, profiles).admit_attempt(claim, "unused", (), (), ())
     assert answer.goal_conclusions[0].status == "supported" and not answer.result_refs and not answer.evidence_refs
-    assert calls == []
+    assert calls == ["context.get"]
+    assert "39" in answer.answer and "35" in answer.answer and "11" in answer.answer
+    from capstone_agent.task_resolution import resolution_payload, resolution_state_from_events
+    frozen = resolution_payload(claim.task_request, claim.task_resolutions)
+    restored = resolution_state_from_events([SimpleNamespace(event_type="task_requirements_resolved", payload=frozen)], request=claim.task_request)
+    claim.task_resolutions = restored["task_resolutions"]
+    replay = _ResolvedTaskSession(claim, profiles).admit_attempt(claim, "unused", (), (), ())
+    assert replay.answer == answer.answer and calls == ["context.get"]
 
 
 def test_external_grid_outage_preserves_subject_and_registered_boundary(environment):

@@ -68,7 +68,7 @@ def resolve_profiles(claim, profiles):
             goals.append(ResolvedTaskGoal(goal.id, "general", "{}"))
             continue
         if goal.missing_requirements:
-            goals.append(ResolvedTaskGoal(goal.id, "clarification", "{}", "Clarify: " + "; ".join(goal.missing_requirements),
+            goals.append(ResolvedTaskGoal(goal.id, "clarification", "{}", "; ".join(goal.missing_requirements),
                                           "" if proposal is None else proposal.binding_id, False))
             continue
         if proposal is None:

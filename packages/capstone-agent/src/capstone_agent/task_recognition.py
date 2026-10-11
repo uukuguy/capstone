@@ -184,8 +184,33 @@ has domain_request={"binding_id":"registered binding","schema":"published requir
 "payload":{}}. Use only the supplied requirement_schemas to form that payload. They are
 published Pack contracts, not tools or execution grants. Preserve unsupported subjects and
 missing requirements rather than substituting available work. Do not infer object indices
-from display names. Subject descriptions remain proposals for Pack resolution.
+from display names. Questions about the selected business model and its registered analysis
+capabilities are professional goals using the supplied Pack contracts, not independent general
+knowledge. Missing requirements concern the user's intended objects or business rules;
+do not ask the user to confirm tool registration. Subject descriptions remain proposals for Pack resolution.
 '''
+
+
+def _validate_published_payload_fields(task, schemas):
+    """Check public contract shape; the selected Pack still owns semantic validation."""
+    for goal in task.goals:
+        proposal = goal.domain_request
+        if proposal is None:
+            continue
+        selected = [schema for schema in schemas if schema.get("binding_id") == proposal.binding_id
+                    and schema.get("schema") == proposal.schema]
+        if len(selected) != 1:
+            raise ValueError("task payload fields have no unique published schema")
+        fields = selected[0].get("payload_fields")
+        if not isinstance(fields, Mapping) or set(proposal.payload) != set(fields):
+            raise ValueError("task payload fields do not match the published schema")
+        for name, choices in fields.items():
+            # Top-level scalar enum descriptors are public, domain-neutral data.
+            # Array/object descriptors and business rules remain Pack-owned.
+            if isinstance(choices, list) and choices and all(not isinstance(item, (list, Mapping)) for item in choices):
+                value = proposal.payload[name]
+                if isinstance(value, (list, Mapping)) or value not in choices:
+                    raise ValueError("task payload fields contain an invalid enum choice")
 
 
 def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, timeout_seconds,
@@ -217,15 +242,33 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
             raise ValueError("published task schemas are too large")
         prompt = json.dumps({"request": request.to_document(), "selected_context": claim.model_context.to_document(),
                              "history": history, "requirement_schemas": schemas}, ensure_ascii=False)
+        deadline = time.monotonic() + timeout_seconds
         try:
             on_heartbeat()
             client.start()
             def observe(event):
                 if isinstance(event, Mapping) and str(event.get("type", "")).startswith("tool_"):
                     raise ValueError("recognition attempted a tool")
-            response = client.prompt_and_wait(prompt, on_event=observe, on_heartbeat=on_heartbeat)
-            proposal = decode_recognition_output(response)
-            return recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
+            for attempt in range(2):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("task recognition deadline exceeded")
+                response = client.prompt_and_wait(prompt, on_event=observe, on_heartbeat=on_heartbeat,
+                                                 timeout_seconds=remaining)
+                try:
+                    proposal = decode_recognition_output(response)
+                    task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
+                    _validate_published_payload_fields(task, schemas)
+                    return task
+                except ValueError:
+                    if attempt:
+                        raise
+                    # No task has been accepted and no business operation has run.
+                    # Ask for a complete proposal; never fill business choices here.
+                    prompt = json.dumps({"request": request.to_document(),
+                        "selected_context": claim.model_context.to_document(), "history": history,
+                        "requirement_schemas": schemas,
+                        "validation_error": "The proposal is invalid. Return the complete task JSON with every exact published payload field. Preserve the user intent; do not invent identifiers or business choices."}, ensure_ascii=False)
         finally:
             client.stop()
 

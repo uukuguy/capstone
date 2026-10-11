@@ -1,5 +1,11 @@
 # Task Understanding and Formal Answer Closure Implementation Plan
 
+Acceptance correction, 2026-10-11: real local-dev2473e48 user samples failed.
+The English clarification prefix and malformed overview request are reproduced.
+Follow [deployment answer acceptance repair](2026-10-11-deployment-answer-acceptance.md)
+before human handoff or Research Model R1. Prior technical checks remain valid
+within their recorded scope; they did not prove real Provider business acceptance.
+
 **Goal:** Bind each requested conclusion to its actual model, scenario and verified coverage, then write a direct formal answer.
 
 **Architecture:** Application owns bounded semantic recognition and immutable task identity. Domain Packs resolve objects, operations, coverage and supported conclusions. Authorities remain the only source of model facts. Kernel remains domain neutral.

@@ -66,3 +66,14 @@ def test_explicit_ordinary_mode_never_resolves_professional_objects():
     claim = SimpleNamespace(kind="send_ordinary", task_understanding=SimpleNamespace(goals=(goal,)))
     resolved = resolve_profiles(claim, ())
     assert resolved[0].status == "clarification" and not resolved[0].execution_required
+
+
+def test_chinese_missing_requirements_do_not_gain_english_process_prefix():
+    from capstone_agent.task_resolution import resolve_profiles, render_conclusions
+    from capability_agent.domain.task import TaskConclusion
+    goal = SimpleNamespace(id="g", execution="professional", missing_requirements=("请确认线路标识。",),
+                           domain_request=None, dependencies=())
+    claim = SimpleNamespace(task_understanding=SimpleNamespace(goals=(goal,)))
+    resolved = resolve_profiles(claim, ())
+    answer = render_conclusions((TaskConclusion("g", "clarification", resolved[0].reason),), language="zh", scale="concise")
+    assert answer == "请确认线路标识。"

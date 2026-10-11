@@ -1,0 +1,23 @@
+{
+  "schema": "capstone-deployment-samples/1",
+  "model_id": "ieee39",
+  "profile_id": "pandapower-static-analysis",
+  "profile_version": "1.0.1",
+  "overall": [
+    {"id": "generation-n1", "turns": [{"text": "能否帮我做全部发电设备的N-1校核?按照严重程度列出影响最大的几个机组", "expect": "unsupported-generation"}]},
+    {"id": "line-outage", "turns": [{"text": "如果line7跳闸，帮我分析一下哪些线路会重载", "expect": "calculation-or-object-clarification"}]},
+    {"id": "load-scaling", "turns": [{"text": "如果母线31下面的负荷变成当前负荷的1.3倍，会不会发生越界等问题?", "expect": "calculation-or-object-clarification"}]},
+    {"id": "model-overview", "turns": [{"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-and-capabilities"}]},
+    {"id": "clarification-to-overview", "turns": [{"text": "解析线路 11 的端点。", "expect": "result-or-object-clarification"}, {"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-and-capabilities"}]}
+  ],
+  "update": {
+    "formal-answer": ["chinese-final", "no-process-prefix", "all-goals-accounted", "current-run-evidence", "malformed-payload-repair"],
+    "runtime-window": ["one-latest-action", "running-preview-full-toggle", "completed-collapsed-full-toggle", "full-window-scroll", "compact-auxiliary-text"]
+  },
+  "acceptance": {
+    "required_modes": ["focused-regression", "deployed-provider", "browser"],
+    "skipped_is_pending": true,
+    "failed_sample_blocks_human_handoff": true,
+    "provider_calls_require_explicit_authorization": true
+  }
+}

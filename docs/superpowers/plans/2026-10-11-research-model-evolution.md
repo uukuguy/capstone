@@ -1,5 +1,9 @@
 # Research Model 自主推演推进计划
 
+2026-10-11推进修正：真实local-dev业务样本失败。先按部署回答验收修复计划
+收口整体与更新专项样本，再开始R1。B2是技术基线，不等于业务样本已通过；
+feat/research-model保留，未开始R1代码实现。
+
 日期：2026-10-11。方向已获用户认可；后续契约与产品实现尚未完成。
 所属开发包：research；分支：experiment/autonomous-research；来源：main c3b78bc。
 
