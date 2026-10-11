@@ -25,6 +25,20 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
+def test_published_intent_constraints_enforce_operation_conclusion_relationships():
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    schema = PandapowerTaskProvider.schema_document["recognition_constraints"]
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    def goal(operation, conclusion):
+        return {"conclusion": conclusion, "domain_request": {"payload": {"operation": operation}}}
+    assert validator.is_valid(goal("contingency", "limit"))
+    assert validator.is_valid(goal("ranking", "ranking"))
+    assert not validator.is_valid(goal("contingency", "ranking"))
+    assert not validator.is_valid(goal("overview", "limit"))
+
+
 @pytest.mark.parametrize("fields, expected", [([], ["p_mw", "q_mvar"]), (["p_mw"], ["p_mw"]), (["q_mvar"], ["q_mvar"])])
 def test_load_scaling_components_are_resolved_and_frozen_by_pack(authority, fields, expected):
     import copy

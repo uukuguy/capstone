@@ -135,7 +135,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 base_environment=self._base_environment, timeout_seconds=min(timeout, self._timeout_seconds),
                 on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas,
                 prepared_process=self._recognition_process,
-                thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "low"),
+                thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "off"),
                 on_metrics=metrics.update)
         finally:
             self._recognition_metrics = metrics

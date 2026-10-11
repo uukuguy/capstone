@@ -374,7 +374,7 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     assert captured[0].extension_path is None
     assert captured[0].domain_search_paths == ()
     assert captured[0].runtime_descriptor_path is None
-    assert clients[0].argv[-2:] == ("--thinking", "low")
+    assert clients[0].argv[-2:] == ("--thinking", "off")
 
 
 @pytest.mark.parametrize("repair", [True, False])

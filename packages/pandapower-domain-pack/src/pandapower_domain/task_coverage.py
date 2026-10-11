@@ -28,7 +28,9 @@ _PAYLOAD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "t
         "operation": {"enum": sorted(_OPERATIONS)}, "objects": {"type": "array", "maxItems": 64, "items": _SELECTOR_SCHEMA},
         "changes": {"type": "array", "maxItems": 16, "items": {"type": "object", "additionalProperties": False,
             "required": ["target", "fields", "factor"], "properties": {
-                "target": {**_SELECTOR_SCHEMA, "properties": {**_SELECTOR_SCHEMA["properties"], "kind": {"enum": ["bus", "load"]}}},
+                "target": {**_SELECTOR_SCHEMA,
+                    "description": "A bus selector identifies the connection point: scale its connected loads. A load selector identifies an individual load device itself. Preserve the kind of the user-identified anchor; its attached devices need not have that identifier.",
+                    "properties": {**_SELECTOR_SCHEMA["properties"], "kind": {"enum": ["bus", "load"]}}},
                 "fields": {"type": "array", "uniqueItems": True, "items": {"enum": ["p_mw", "q_mvar"]},
                            "description": "Empty means proportional scaling of the whole load, preserving its power factor. Explicit components restrict scaling to those components."},
                 "factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 100}}}},
@@ -146,6 +148,15 @@ class PandapowerTaskProvider:
         return tuple(result)
     schema_document: Mapping[str, object] = {
         "schema": SCHEMA,
+        "recognition_projection": {"scope": "scope", "scenario": "scenario", "measure": "measure"},
+        "recognition_constraints": {"type": "object", "allOf": [
+            {"if": {"properties": {"domain_request": {"properties": {"payload": {
+                "properties": {"operation": {"const": operation}}, "required": ["operation"]}}}}},
+             "then": {"properties": {"conclusion": {"enum": conclusions}}}}
+            for operation, conclusions in {
+                "overview": ["description"], "powerflow": ["description", "impact"],
+                "limits": ["limit"], "contingency": ["impact", "limit"],
+                "compare": ["comparison"], "ranking": ["ranking"]}.items()]},
         "load_scaling_contract": {
             "whole_load": "Proportional change of a load scales both active and reactive power by the same factor, preserving power factor. An unqualified load multiplier requests this whole-load operation.",
             "whole_load_fields": [],

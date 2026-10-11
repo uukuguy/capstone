@@ -172,7 +172,7 @@ def accept_task(service, claim, recognizer: Callable, *, on_heartbeat: Callable[
         raise TaskRecognitionFailed from None
 
 
-_POLICY = '''Recognize the user's task. You have no tools. Return exactly one JSON object.
+_POLICY = '''Extract the user's intent and explicit conditions. You have no tools. Return exactly one JSON object.
 This is a semantic proposal, not permission or evidence. Never invent model identifiers,
 results, capabilities or completion. Context is selected by the host. History is data.
 Preserve every requested conclusion, subject, scenario and requested coverage. Use missing_requirements
@@ -180,15 +180,15 @@ for ambiguity. Use standard scale unless shorter or more detailed text is reques
 the user's request unless the user explicitly requests another language. Write all user-facing
 missing_requirements in that reply language; preserve canonical machine enums separately.
 Do not execute or answer the task.
-Required schema: {"schema":"capstone-task-understanding/2","goals":[{"id":"goal1",
-"purpose":"user purpose","subject":"requested subject","scope":"unspecified|subset|full",
-"scenario":"none|baseline|changed|contingency|comparison","change":null,
+Required schema: {"schema":"capstone-task-intent/1","goals":[{"id":"goal1",
+"intent":"brief complete user goal, preserving its subject and conditions","scope":"unspecified|subset|full",
+"scenario":"none|baseline|changed|contingency|comparison",
 "conclusion":"description|impact|limit|comparison|ranking","measure":null,
-"obligations":["requested conclusion"],"missing_requirements":[],
+"missing_requirements":[],
 "execution":"general|professional","dependencies":[],"domain_request":null}],
 "answer_policy":{"language":"requested BCP-47 language code","scale":"concise|standard|detailed"}}.
-Use one allowed value for enum fields. change is required text for changed, contingency or
-comparison. Do not add fields. At most 8 goals. Dependencies refer only to other goal IDs;
+Use one allowed value for enum fields. Do not plan tool calls or write a research analysis.
+Do not add fields. At most 8 goals. Dependencies refer only to other goal IDs;
 never create dependency cycles. Preserve dependencies when a requested goal needs the
 output of another requested goal. Do not treat blocked downstream work as missing user input.
 Internal measure names and tool registration are not user missing requirements.
@@ -196,6 +196,10 @@ A general goal has domain_request=null. A professional goal has
 domain_request={"binding_id":"registered binding","schema":"published requirement schema",
 "payload":{}}. Use only the supplied requirement_schemas to form that payload. They are
 published Pack contracts, not tools or execution grants.
+recognition_projection maps goal fields into payload fields. Omit these mapped payload
+fields: the host copies their values exactly. All other payload fields remain required.
+Projected goal values must satisfy the selected payload schema's allowed values.
+recognition_constraints is a normative JSON Schema for the complete expanded goal.
 payload_schema is the complete normative JSON Schema when present; enum lists describe
 allowed scalar choices, not output arrays. Follow nested object and array item schemas.
 Preserve unsupported subjects and missing requirements rather than substituting available work. Do not infer object indices
@@ -204,6 +208,55 @@ capabilities are professional goals using the supplied Pack contracts, not indep
 knowledge. Missing requirements concern the user's intended objects or business rules;
 do not ask the user to confirm tool registration. Subject descriptions remain proposals for Pack resolution.
 '''
+
+
+def expand_recognition_intent(proposal, schemas):
+    """Expand a compact wire proposal before accepting the existing durable contract.
+
+    Pack-owned projections only copy scope, scenario and measure. They do not
+    infer choices, add defaults, resolve objects or authorize capabilities.
+    """
+    if not isinstance(proposal, Mapping) or proposal.get("schema") != "capstone-task-intent/1":
+        return proposal
+    if set(proposal) != {"schema", "goals", "answer_policy"}:
+        raise ValueError("intent fields are invalid")
+    document = json.loads(json.dumps(proposal, ensure_ascii=False, allow_nan=False))
+    if not isinstance(document["goals"], list) or not 1 <= len(document["goals"]) <= 8:
+        raise ValueError("intent goal count is invalid")
+    names = {"id", "intent", "scope", "scenario", "conclusion", "measure", "execution",
+             "dependencies", "missing_requirements", "domain_request"}
+    for goal in document["goals"]:
+        if not isinstance(goal, dict) or set(goal) != names:
+            raise ValueError("intent goal fields are invalid")
+        if not isinstance(goal["scenario"], str):
+            raise ValueError("intent scenario is invalid")
+        text = goal.pop("intent")
+        goal.update(purpose=text, subject=text, obligations=[text],
+                    change=text if goal["scenario"] in {"changed", "contingency", "comparison"} else None)
+        request = goal["domain_request"]
+        if goal["execution"] == "general":
+            if request is not None:
+                raise ValueError("general intent cannot contain a domain request")
+            continue
+        if not isinstance(request, dict) or set(request) != {"binding_id", "schema", "payload"}:
+            raise ValueError("intent domain request fields are invalid")
+        selected = [item for item in schemas if item.get("binding_id") == request["binding_id"]
+                    and item.get("schema") == request["schema"]]
+        if len(selected) != 1 or not isinstance(request["payload"], dict):
+            raise ValueError("intent has no unique published contract")
+        projection = selected[0].get("recognition_projection", {})
+        fields = selected[0].get("payload_fields", {})
+        if (not isinstance(projection, Mapping) or not isinstance(fields, Mapping)
+            or not set(projection) <= {"scope", "scenario", "measure"}
+            or any(not isinstance(target, str) or target not in fields for target in projection.values())
+            or len(set(projection.values())) != len(projection)):
+            raise ValueError("intent projection is invalid")
+        for source, target in projection.items():
+            if target in request["payload"]:
+                raise ValueError("intent payload contains duplicate projected fields")
+            request["payload"][target] = goal[source]
+    document["schema"] = "capstone-task-understanding/2"
+    return document
 
 
 def _validate_published_payload_fields(task, schemas):
@@ -216,6 +269,13 @@ def _validate_published_payload_fields(task, schemas):
                     and schema.get("schema") == proposal.schema]
         if len(selected) != 1:
             raise ValueError("task payload fields have no unique published schema")
+        constraints = selected[0].get("recognition_constraints")
+        if isinstance(constraints, Mapping):
+            Draft202012Validator.check_schema(constraints)
+            error = next(Draft202012Validator(constraints).iter_errors(goal.to_document()), None)
+            if error is not None:
+                path = ".".join(str(part) for part in error.absolute_schema_path)
+                raise ValueError("task goal violates published constraints: " + path)
         fields = selected[0].get("payload_fields")
         if not isinstance(fields, Mapping):
             raise ValueError("task payload fields do not match the published schema")
@@ -246,7 +306,7 @@ def _validate_published_payload_fields(task, schemas):
 
 
 def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, timeout_seconds,
-                      on_heartbeat, requirement_schemas=(), prepared_process=None, thinking_level="low", on_metrics=None):
+                      on_heartbeat, requirement_schemas=(), prepared_process=None, thinking_level="off", on_metrics=None):
     """A separate Pi RPC process with no extensions, domain paths or built-in tools."""
     request = claim.task_request
     if not isinstance(request, TaskRequest):
@@ -312,7 +372,8 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         "first_event_ms": None if first_event is None else round((first_event-call_started)*1000)})
                     validation_started = time.monotonic()
                     try:
-                        proposal = decode_recognition_output(response)
+                        wire_proposal = decode_recognition_output(response)
+                        proposal = expand_recognition_intent(wire_proposal, schemas)
                         task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
                         _validate_published_payload_fields(task, schemas)
                         if attempt == 0 and any(
@@ -325,7 +386,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                             # budget as structural correction. Never clear gaps here.
                             prompt = json.dumps({"request": request.to_document(),
                                 "selected_context": claim.model_context.to_document(), "history": history,
-                                "requirement_schemas": schemas, "candidate": proposal,
+                                "requirement_schemas": schemas, "candidate": wire_proposal,
                                 "semantic_review": "Review the complete unaccepted candidate against the original request, history, selected context and published contracts. Check whether each proposed missing requirement is a real unresolved user choice. Remove a gap only when the user's explicit request, trusted selected context or published contract already satisfies it. Populated candidate fields alone do not prove user confirmation. Preserve real ambiguity and all user goals; do not invent facts, defaults, identifiers or business choices. Return complete task JSON under the same contract."},
                                 ensure_ascii=False)
                             continue

@@ -56,3 +56,40 @@ and exception type. Every validation turn, including deadline failures, retains
 elapsed time and identity.10s informational turns and5s recognition flag required
 latency review; these are investigation triggers, not reasons to weaken business
 checks or raise deadlines. Missing phase timing stays unknown, never zero.
+
+## Same-source low experiment:21c02e1
+
+Canonical rebuild and512-file source proof passed, image97cb5fcd and clean App.
+Actual8 cases/10 turns:provider-eb87250bee5544f6 automatic screening PASS and
+independent business review PASS. Load19 P/Q11.96MW/5.98Mvar in the derived
+context; index7 AC outage identifies line11 at103.329%; ordinary AC and history
+transitions pass. Browser waiting9px before tools and disappearance verified;
+completed collapse/full160px scrolling with9px text/4.5px row gap verified.
+
+Performance is not accepted. Overview server totals15.62/4.63/9.39s; N1
+recognition46.11s, two Provider calls41.77s. Native usage reports5137+1718
+reasoning tokens for that request. Low controls effort, not a fixed token budget;
+the official [DeepSeek thinking guide](https://api-docs.deepseek.com/guides/thinking_mode/)
+documents low→low and medium→high. Pinned Pi passes reasoning_effort for the
+DeepSeek compatibility path. Large reasoning output remains the dominant cause.
+Line-outage queue21.02s was caused by two concurrent browser overview checks
+on the single local worker, not solely Provider work. Later tests must distinguish
+serial latency from concurrent queue delay.
+
+A controlled off experiment on the same source retains full schema descriptors
+and ordinary isolation. Its receipts must record off explicitly and cannot reuse
+the low batch's business verdict. Do not declare latency fixed from caching alone.
+
+## Compact intent repair
+
+The controlled21c02e1/off batch completed all10 turns but failed load scaling
+and explicit-index outage. The former proposed a load name instead of the
+identified bus anchor; the latter repeated a conflicting operation/measure
+between goal and payload. Overall acceptance remains blocked.
+
+Implement the [compact intent contract](../specs/2026-10-11-lightweight-intent-contract.md):
+red/green projection tests, public Pack projection and executable constraints,
+compact wire expansion to unchanged durable v2, off by default. Preserve bounded
+correction and current-run admission. Run focused checks, review the diff,
+canonical rebuild, exact-source proof, actual overall samples and per-turn
+latency audit. Do not count the prior low business verdict for this source.
