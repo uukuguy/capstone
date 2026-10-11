@@ -15,6 +15,16 @@ and clarification-to-overview. It records the prefix, proposal-schema and frozen
 metadata changes. No duplicate instructions are maintained in the update file.
 Future upgrades use their own selection. Tests do not grant production capabilities.
 
+Update acceptance checks the defects addressed by that upgrade. Selecting a case
+does not inherit every overall semantic requirement as an update gate. Record
+each repair criterion, observed evidence and pass/fail/pending result separately.
+For example, prefix removal passes when the formal answer contains no leaked
+process or application prefix; it does not require that the same answer also
+complete an unrelated calculation. Record other answer defects separately.
+They block update acceptance only when they prevent verification of the repair
+or are regressions caused by the change. Evidence contracts still apply.
+Overall baseline acceptance retains its own requirements.
+
 Run the overall corpus when freezing a baseline, validating broad integration or
 preparing a release. Ordinary iteration uses the selected update set and affected
 regressions. For this baseline repair, the overall corpus is required before human
@@ -78,10 +88,16 @@ remain required separate receipts.
 ## Acceptance status
 
 Use separate states: source verified, infrastructure ready, business samples
-passed, and human accepted. Any required failure blocks handoff. A skipped or
+passed, and human accepted. Any required failure within the selected acceptance
+scope blocks that scope's handoff. A skipped or
 unauthorized Provider run stays pending. No passing tag or successful deployment
 claim may imply that pending business samples passed. Existing technical baseline
 tags remain immutable; append a correction to the acceptance record.
+
+The API runner records answer screening observations for the selected cases.
+Its aggregate status is not a repair-specific verdict. Review those observations
+against the update's repair criteria before deciding update acceptance; do not
+turn an unrelated overall-answer failure into a failed repair criterion.
 
 The previous local-dev2473e48 fails this set: the recorded clarification includes an
 application English prefix, and overview Attempt28ed976b fails while resolving

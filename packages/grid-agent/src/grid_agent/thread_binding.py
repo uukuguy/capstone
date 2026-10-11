@@ -10,12 +10,15 @@ from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 
 
 def bind_thread_tool_catalog(path: Path, binding: AuthorityModelBinding) -> None:
-    """Restrict model-facing tools while preserving authority discovery tools."""
+    """Restrict model opening; retain registered scenario derivation contracts.
+
+    Current-run admission verifies each derived context against frozen patches.
+    A base-only context enum would reject those legitimate scenarios before
+    their Authority calculation can run.
+    """
     document = json.loads(path.read_text(encoding="utf-8"))
     for tool in document["tools"]:
         properties = tool["input_schema"].get("properties", {})
         if tool["capability"] == "context.open":
             properties["model_id"]["enum"] = [binding.model_id]
-        if "context_ref" in properties:
-            properties["context_ref"]["enum"] = [binding.context_ref]
     write_bound_text(path, json.dumps(document, ensure_ascii=False, indent=2) + "\n")

@@ -24,8 +24,8 @@ exists, but no R1 code has been implemented.
   verified. Exact local-dev imagee614ce0d, API/two-worker512-file source identity,
   three cases/nine turns/report/evidence and formal RPC/UI boundaries pass.
   Human live Provider answer acceptance is pending. No paid calls or cloud deploy.
-- local-dev App5173/API8767 now uses temporary fix candidatec490c71, imageeb0807fd.
-  Three-role483 backend source/config checks and clean App identity pass; real
+- local-dev App5173/API8767 now uses temporary fix candidate9dd2492, image6dce856f.
+  Three-role511 backend source/config/manifest checks and clean App identity pass; real
   Provider business samples remain pending. PR #13 targets dev as draft.
   local-demo App15173/API18767 and
   recorded clouds remained2524f. Root checkout is not a deployed stage.
@@ -84,7 +84,7 @@ null only for unranked requests, require ranking direction, improve schema re-as
 feedback and reply-language guidance, and continue completed conversation turns.
 Checks:52 focused,30 Pack plus5 new focused, types zero errors. Rebuild and rerun
 the complete corpus under the existing authorization before handoff.
-The graph pins accepted organization50d8ebc and actual candidatec490c71, not every
+The graph pins accepted organization50d8ebc and actual candidate9dd2492, not every
 later documentation or sample-tool commit.
 
 Then prepare R1 contract/lifecycle implementation from the accepted R1–R5 plan.
@@ -120,3 +120,11 @@ Nested enum arrays/string change targets caused line/load decode failure; endpoi
 misused overview; generation asked blocked downstream quantity. Complete public
 JSON Schema and generic App validation plus dependency propagation are in review. Prior receipts remain failed, not superseded
 by source tests.34 closure and47 recognition/sample checks pass; types zero.
+
+Live checkpoint:9dd2492 reviewed, pushed PR13 and rebuilt same-image6dce856f,
+clean App exact source. Fourth authorized overall screening passed, but load
+scaling lacked changed-scenario evidence because the Application catalog rejected
+derived contexts. Reviewed catalog repair passes37 focused checks and types;
+deployment retest pending. Update acceptance checks only repair-specific criteria,
+with unrelated defects recorded separately. Both
+Issues2/3 corrected by independent App and remain open. Do not claim acceptance.

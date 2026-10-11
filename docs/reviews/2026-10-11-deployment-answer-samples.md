@@ -1,5 +1,21 @@
 # Deployment answer sample correction
 
+## Derived-context repair verification
+
+Fourth overall receipt `provider-4b5afbad3e83416d` passes mechanical screening.
+Its load-scaling turn does not prove the requested changed scenario: the
+Application tool catalog pins `context_ref` to the base context, so Pi rejects
+the valid derived context before calculation. This is an Application binding
+defect, not missing Authority or Domain Pack calculation support.
+
+The repair retains selected-model opening and the registered context schema,
+without the base-only enum. Real prepared-application tests validate derived
+arguments, calculate the 1.3 scenario and admit its evidence; 1.4 evidence is
+rejected against the frozen 1.3 request. Focused binding/conclusion checks pass
+37; types report zero errors. Independent source review approves. Deployed
+verification remains pending. This repair's专项 tests derived-context execution
+and exact scenario admission, not perfect wording across unrelated answers.
+
 ## Failed deployed source
 
 local-dev2473e48 infrastructure and the earlier registered/scripted checks passed.

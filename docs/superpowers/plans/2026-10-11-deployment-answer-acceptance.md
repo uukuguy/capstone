@@ -43,7 +43,11 @@ process/final text isolation, evidence binding, running preview/full window and
 completed collapsed/full window. Unsupported generation calculations must state
 the actual capability gap and never manufacture a severity ranking.
 
-Any required sample failure blocks business acceptance. A skipped real Provider
+专项验证按本次修复目标逐项判定，不要求所选样例的完整回答达到整体验收标准。
+与修复无关的回答问题单独记录；仅在无法验证修复或由本次变更引入回归时阻断专项。
+整体基线验收仍使用整体样本要求，专项通过与整体通过分别记录。
+
+Any required overall sample failure blocks overall business acceptance. A skipped real Provider
 check is pending, not passed. Optional paid checks require explicit authorization.
 
 User authorized actual Provider validation with “md同意”. First overall run failed
@@ -55,3 +59,9 @@ Pack-published JSON Schema and generic bounded correction, screened Authority
 selector lookup, downstream prerequisite blocking and failed-turn recovery.
 Source review approves;55 focused,67 Pack/closure,5 limit agreement and types
 pass. Rebuild exact candidate and repeat frozen semantic acceptance.
+
+Fourth overall mechanical screening passed; changed-load calculation was blocked
+by a base-only context enum in the Application catalog. Remove that restriction,
+retain model opening and exact frozen-scenario result admission. Reviewed repair
+passes37 focused tests and types; rebuild and verify this repair independently
+of unrelated overall answer defects.

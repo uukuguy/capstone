@@ -149,6 +149,59 @@ def test_changed_lineage_is_allowed_only_for_resolved_patches(environment):
     assert answer.evidence_refs == evidence
 
 
+@pytest.mark.parametrize("actual_factor", [1.3, 1.4])
+def test_registered_thread_catalog_allows_only_admitted_scenario_results(tmp_path, actual_factor):
+    import json
+    from jsonschema import Draft202012Validator
+    from capability_agent.application.composition import prepare_application
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.application import EmptyCredentialBroker, domain_registry
+    from grid_agent.application.profile import build_pandapower_application_profile
+    from grid_agent.thread_binding import bind_thread_tool_catalog
+
+    application = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path, binding_ids=("grid",))
+    prepared = prepare_application(application, registry=domain_registry(application),
+        workspace=workspace.root, credentials=EmptyCredentialBroker())
+    binding = prepared.bindings["grid"]
+    executor = binding.endpoint.executor
+    try:
+        context = executor.invoke("context.open", {"model_id": "ieee39"})
+        bound = AuthorityModelBinding("grid", "ieee39", context["revision_ref"],
+            "pandapower", context["context_ref"])
+        profiles = (SimpleNamespace(prepared_application=prepared, model_binding=bound),)
+        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, bound)
+        tools = {tool["capability"]: tool for tool in
+            json.loads(binding.runtime.tool_catalog_path.read_text())["tools"]}
+        assert not Draft202012Validator(tools["context.open"]["input_schema"]).is_valid(
+            {"model_id": "case14"})
+        claim = recognized(context, operation="powerflow", scenario="changed", changes=[{
+            "target": {"kind": "bus", "namespace": "name", "identifier": "31"},
+            "fields": ["p_mw", "q_mvar"], "factor": 1.3}])
+        claim.task_resolutions = resolve_profiles(claim, profiles)
+        assert claim.task_resolutions[0].status == "ready"
+        patches = [{**patch, "factor": actual_factor}
+            for patch in claim.task_resolutions[0].requirement["patches"]]
+        changed = executor.invoke("model.revision.derive", {
+            "context_ref": context["context_ref"], "patches": patches})
+        arguments = {"context_ref": changed["context_ref"]}
+        Draft202012Validator(tools["analysis.powerflow.ac.run"]["input_schema"]).validate(arguments)
+        result = executor.invoke("analysis.powerflow.ac.run", arguments)
+        refs, evidence = (result["result_ref"],), tuple(result["evidence_refs"])
+        events = ({"binding_id": "grid", "ok": True, "capability": "analysis.powerflow.ac.run",
+            "result_refs": refs, "evidence_refs": evidence},)
+        admit = _build_kernel_admission(profiles)
+        if actual_factor == 1.3:
+            answer = admit(claim, "baseline", refs, evidence, events)
+            assert answer.mode == "authority_backed"
+            assert answer.evidence_refs == evidence
+        else:
+            with pytest.raises(ValueError):
+                admit(claim, "wrong scenario", refs, evidence, events)
+    finally:
+        binding.endpoint.close()
+
+
 def test_required_persistence_failure_remains_fatal_after_valid_result(environment):
     invoke, context, profiles, _ = environment
     claim = recognized(context, operation="powerflow")

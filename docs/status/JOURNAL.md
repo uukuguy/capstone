@@ -2490,3 +2490,7 @@ The following original entries were retained during document synchronization.
 - c7032d5 Repair live proposal contracts and regression continuity after authorized Provider failures.
 
 - c490c71 Resolve unknown selectors through screened Authority contracts; retain mixed diagnostics and test failed-turn recovery.
+
+- 9dd2492 Validate complete public task schemas before acceptance; block downstream questions when prerequisites fail.
+
+- 2026-10-11：专项验收仅判定修复目标；无关回答缺陷单独记录，整体基线验收独立。

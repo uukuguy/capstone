@@ -6,5 +6,5 @@
   "case_ids": ["generation-n1", "model-overview", "clarification-to-overview"],
   "change_scope": ["应用澄清前缀", "LLM提案完整字段与标量枚举校验及一次纠正", "Pack概况模型元数据及冻结重放"],
   "required_non_provider_checks": ["known-prefix-regression", "malformed-payload-repair-and-rejection", "overview-authority-metadata", "frozen-resolution-replay", "mixed-goal-completeness"],
-  "acceptance": {"skipped_is_pending": true, "failed_sample_blocks_human_handoff": true}
+  "acceptance": {"scope": "repair-specific", "skipped_is_pending": true, "required_repair_failure_blocks_update_acceptance": true, "unrelated_answer_defects": "record_separately", "complete_overall_answer_required": false}
 }
