@@ -377,6 +377,44 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     assert clients[0].argv[-2:] == ("--thinking", "off")
 
 
+@pytest.mark.parametrize("accepted", ["general", "professional"])
+def test_compiler_repairs_a_route_mismatch_before_acceptance(monkeypatch, tmp_path, accepted):
+    import json
+    from capstone_agent import task_recognition
+    from capstone_agent.task_routing import TaskRoute
+    from capstone_agent.task_understanding import SCHEMA_V2
+    service = _service()
+    _submit(service)
+    claim = service.claim_attempt("worker", 30)
+    claim = replace(claim, task_route=TaskRoute(claim.task_request, accepted))
+    prompts = []
+
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def start(self): pass
+        def stop(self): pass
+        def prompt_and_wait(self, prompt, **kwargs):
+            prompts.append(json.loads(prompt))
+            execution = accepted if len(prompts) == 2 else ("general" if accepted == "professional" else "professional")
+            decision = proposal()
+            decision["schema"] = SCHEMA_V2
+            decision["goals"][0].update(execution=execution, dependencies=[], domain_request=(
+                {"binding_id": "grid", "schema": "test/1", "payload": {"operation": "overview"}}
+                if execution == "professional" else None))
+            return json.dumps(decision)
+
+    monkeypatch.setattr(task_recognition, "build_pi_launch", lambda *args, **kwargs: SimpleNamespace(argv=("pi",), environment={}))
+    monkeypatch.setattr(task_recognition, "PiRpcClient", Client)
+    task = task_recognition.recognize_with_pi(claim,
+        runtime_host=SimpleNamespace(command=SimpleNamespace(argv=("pi",)), project_pi_dir=tmp_path),
+        resolved_llm=SimpleNamespace(secret=None, config=SimpleNamespace(model="controlled")),
+        base_environment={}, timeout_seconds=60, on_heartbeat=lambda: None,
+        requirement_schemas=({"binding_id": "grid", "schema": "test/1", "payload_fields": {"operation": ["overview"]}},))
+    assert task.goals[0].execution == accepted
+    assert len(prompts) == 2
+    assert "accepted task route" in prompts[1]["validation_error"]
+
+
 @pytest.mark.parametrize("repair", [True, False])
 @pytest.mark.parametrize("malformed", ["missing-field", "enum-array"])
 @pytest.mark.parametrize("gap", [False, True])

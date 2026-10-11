@@ -188,9 +188,7 @@ def accept_task(service, claim, recognizer: Callable, *, on_heartbeat: Callable[
         if not isinstance(understanding, TaskUnderstanding):
             raise ValueError("recognizer returned an invalid task")
         understanding = TaskUnderstanding.from_document(understanding.to_document(), expected_request=claim.task_request)
-        if route is not None and (any(goal.execution == "professional" for goal in understanding.goals)
-                                  != (route.route == "professional")):
-            raise ValueError("compiled goals changed the accepted task route")
+        _validate_compiled_route(understanding, None if route is None else route.route)
         service.append_runtime_event(claim, event_type="task_understanding_created",
                                      payload={"understanding": understanding.to_document()}, visibility="diagnostic")
         service.append_runtime_event(claim, event_type="task_requirements_compilation_timing" if route is not None else "task_recognition_timing",
@@ -349,6 +347,14 @@ def expand_recognition_intent(proposal, schemas):
     return document
 
 
+def _validate_compiled_route(task, accepted_route):
+    if accepted_route is not None and (
+        any(goal.execution == "professional" for goal in task.goals)
+        != (accepted_route == "professional")
+    ):
+        raise ValueError("compiled goals changed the accepted task route")
+
+
 def _validate_published_payload_fields(task, schemas):
     """Check public contract shape; the selected Pack still owns semantic validation."""
     for goal in task.goals:
@@ -467,6 +473,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         wire_proposal = decode_recognition_output(response)
                         proposal = expand_recognition_intent(wire_proposal, schemas)
                         task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
+                        _validate_compiled_route(task, accepted_route)
                         _validate_published_payload_fields(task, schemas)
                         if attempt == 0 and any(
                             goal.execution == "professional" and (
