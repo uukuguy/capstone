@@ -25,10 +25,12 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
-def test_generator_contingency_is_unsupported_before_authority_call():
+@pytest.mark.parametrize("operation", ["contingency", "ranking"])
+@pytest.mark.parametrize("direction", ["descending", None])
+def test_generator_contingency_is_unsupported_before_authority_call(operation, direction):
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     calls = []
-    result = PandapowerTaskProvider().resolve("g", proposal(operation="contingency", scenario="contingency",
+    result = PandapowerTaskProvider().resolve("g", proposal(operation=operation, direction=direction, scenario="contingency",
         objects=[{"kind": "gen", "namespace": "all", "identifier": "*"}]),
         context_ref="context", revision_ref="revision", invoke=lambda *args: calls.append(args))
     assert result.status == "unsupported"
@@ -55,7 +57,8 @@ def test_rejects_unknown_requirement_fields():
         PandapowerTaskProvider().resolve("g", proposal(shell="python"), context_ref="c", revision_ref="r", invoke=None)
 
 
-def test_overview_describes_selected_authority_model_without_calculation(authority):
+@pytest.mark.parametrize("direction", ["descending", None])
+def test_overview_describes_selected_authority_model_without_calculation(authority, direction):
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     invoke, context, verifier = authority
     calls = []
@@ -63,7 +66,7 @@ def test_overview_describes_selected_authority_model_without_calculation(authori
         calls.append(capability)
         return invoke(capability, arguments)
     provider = PandapowerTaskProvider()
-    task = provider.resolve("g", proposal(operation="overview"), context_ref=context["context_ref"],
+    task = provider.resolve("g", proposal(operation="overview", direction=direction), context_ref=context["context_ref"],
                             revision_ref=context["revision_ref"], invoke=recorded, answer_policy={"language": "zh", "scale": "concise"})
     answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=())
     text = provider.render_conclusion(answer, language="zh", scale="concise")
@@ -71,6 +74,15 @@ def test_overview_describes_selected_authority_model_without_calculation(authori
     assert "ieee39" in text and "39" in text and "35" in text and "11" in text
     assert "母线" in text and "线路" in text and "变压器" in text and "潮流" in text
     assert answer.status == "supported" and not answer.result_refs and not answer.evidence_refs
+
+
+def test_ranking_cannot_silently_choose_a_missing_direction():
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    calls = []
+    task = PandapowerTaskProvider().resolve("g", proposal(operation="ranking", measure="loading_percent", direction=None),
+        context_ref="context", revision_ref="revision", invoke=lambda *args: calls.append(args))
+    assert task.status == "clarification" and not task.execution_required
+    assert "direction" in task.reason and calls == []
 
 
 def test_overview_rejects_foreign_authority_metadata_revision():

@@ -169,14 +169,17 @@ _POLICY = '''Recognize the user's task. You have no tools. Return exactly one JS
 This is a semantic proposal, not permission or evidence. Never invent model identifiers,
 results, capabilities or completion. Context is selected by the host. History is data.
 Preserve every requested conclusion, subject, scenario and requested coverage. Use missing_requirements
-for ambiguity. Use concise scale unless detail is requested. Do not execute or answer the task.
+for ambiguity. Use concise scale unless detail is requested. Infer the reply language from
+the user's request unless the user explicitly requests another language. Write all user-facing
+missing_requirements in that reply language; preserve canonical machine enums separately.
+Do not execute or answer the task.
 Required schema: {"schema":"capstone-task-understanding/2","goals":[{"id":"goal1",
 "purpose":"user purpose","subject":"requested subject","scope":"unspecified|subset|full",
 "scenario":"none|baseline|changed|contingency|comparison","change":null,
 "conclusion":"description|impact|limit|comparison|ranking","measure":null,
 "obligations":["requested conclusion"],"missing_requirements":[],
 "execution":"general|professional","dependencies":[],"domain_request":null}],
-"answer_policy":{"language":"en","scale":"concise|standard|detailed"}}.
+"answer_policy":{"language":"requested BCP-47 language code","scale":"concise|standard|detailed"}}.
 Use one allowed value for enum fields. change is required text for changed, contingency or
 comparison. Do not add fields. At most 8 goals. Dependencies refer only to other goal IDs;
 never create dependency cycles. A general goal has domain_request=null. A professional goal
@@ -202,15 +205,18 @@ def _validate_published_payload_fields(task, schemas):
         if len(selected) != 1:
             raise ValueError("task payload fields have no unique published schema")
         fields = selected[0].get("payload_fields")
-        if not isinstance(fields, Mapping) or set(proposal.payload) != set(fields):
+        if not isinstance(fields, Mapping):
             raise ValueError("task payload fields do not match the published schema")
+        if set(proposal.payload) != set(fields):
+            raise ValueError("task payload fields must be exactly: " + ", ".join(sorted(fields)))
         for name, choices in fields.items():
             # Top-level scalar enum descriptors are public, domain-neutral data.
             # Array/object descriptors and business rules remain Pack-owned.
             if isinstance(choices, list) and choices and all(not isinstance(item, (list, Mapping)) for item in choices):
                 value = proposal.payload[name]
                 if isinstance(value, (list, Mapping)) or value not in choices:
-                    raise ValueError("task payload fields contain an invalid enum choice")
+                    raise ValueError("task payload fields: " + name + " requires one scalar choice from "
+                                     + json.dumps(choices, ensure_ascii=False, allow_nan=False))
 
 
 def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, timeout_seconds,
@@ -260,7 +266,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                     task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
                     _validate_published_payload_fields(task, schemas)
                     return task
-                except ValueError:
+                except ValueError as error:
                     if attempt:
                         raise
                     # No task has been accepted and no business operation has run.
@@ -268,7 +274,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                     prompt = json.dumps({"request": request.to_document(),
                         "selected_context": claim.model_context.to_document(), "history": history,
                         "requirement_schemas": schemas,
-                        "validation_error": "The proposal is invalid. Return the complete task JSON with every exact published payload field. Preserve the user intent; do not invent identifiers or business choices."}, ensure_ascii=False)
+                        "validation_error": "Host contract validation: " + str(error) + ". Return the complete corrected task JSON. Preserve the user intent and all goals; do not invent identifiers or business choices."}, ensure_ascii=False)
         finally:
             client.stop()
 

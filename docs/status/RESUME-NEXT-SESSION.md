@@ -74,8 +74,16 @@ Read-only existing-Thread browser checks verify completed collapsed/full/collaps
 switching,9px text,4.5px gap and160px scroll. PR #13 contains corpus commit2633bfb,
 while deployed source remains8f1c9b3. Independent App updated Issues2/3 with the
 corrected acceptance scope and kept both open. Existing local Provider selection
-is deepseek/deepseek-flash; executing the overall six turns needs separate paid-call
-authorization. No new Provider calls have been made.
+is deepseek/deepseek-flash; The user authorized actual Provider execution with “md同意”. The first overall
+run failed: generation and load recognition failed; overview rejected absent/null
+direction; endpoint clarification was English; line clarification incorrectly
+requested a threshold. Receipt: runs/task-answer-closure/provider-overall/
+provider-e569f035626f49b5.json. Five turns ran; the old runner skipped the sixth
+after a completed answer failed text screening. Reviewed repairs permit explicit
+null only for unranked requests, require ranking direction, improve schema re-ask
+feedback and reply-language guidance, and continue completed conversation turns.
+Checks:52 focused,30 Pack plus5 new focused, types zero errors. Rebuild and rerun
+the complete corpus under the existing authorization before handoff.
 The graph pins accepted organization50d8ebc and actual candidate8f1c9b3, not every
 later documentation or sample-tool commit.
 
@@ -83,8 +91,8 @@ Then prepare R1 contract/lifecycle implementation from the accepted R1–R5 plan
 Keep canonical dev records and affected branch plans aligned; never import
 the R0 experiment wholesale or mark controlled tests as autonomous research.
 CLI runtime dependency retirement remains a separate approved migration task.
-Issue2/3 remain open for human product and cloud acceptance. Cloud promotion
-and new paid Provider validation remain separately authorized operations.
+Issue2/3 remain open for human product and cloud acceptance. Cloud promotion remains separately authorized. Necessary local Provider repair
+and corpus retesting is authorized in this active task.
 
 ## Working rules
 

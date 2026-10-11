@@ -45,3 +45,7 @@ the actual capability gap and never manufacture a severity ranking.
 
 Any required sample failure blocks business acceptance. A skipped real Provider
 check is pending, not passed. Optional paid checks require explicit authorization.
+
+User authorized actual Provider validation with “md同意”. First overall run failed
+(receipt provider-e569f035626f49b5). Continue reviewed repairs, canonical rebuild
+and complete overall retesting before human handoff; Research R1 stays deferred.

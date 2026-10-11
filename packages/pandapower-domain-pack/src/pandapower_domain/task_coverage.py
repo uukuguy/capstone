@@ -47,7 +47,7 @@ def _selector(value):
 def _decode(payload):
     _fields(payload, {"operation", "objects", "changes", "measure", "direction", "scenario", "scope"})
     if (payload["operation"] not in _OPERATIONS or payload["measure"] not in _MEASURES
-        or payload["direction"] not in {"ascending", "descending"}
+        or payload["direction"] not in {None, "ascending", "descending"}
         or payload["scenario"] not in {"baseline", "changed", "contingency", "comparison"}
         or payload["scope"] not in {"subset", "full"}):
         raise ValueError("grid task requirement choice is invalid")
@@ -118,9 +118,9 @@ class PandapowerTaskProvider:
             "namespace": ["name", "alias", "pandapower_index", "asset_ref", "all"], "identifier": "exact user identifier; * only for all"}],
             "changes": [{"target": "same object selector, bus or load", "fields": ["p_mw", "q_mvar"], "factor": "positive finite multiplier"}],
             "measure": sorted(item for item in _MEASURES if item is not None) + [None],
-            "direction": ["ascending", "descending"], "scenario": ["baseline", "changed", "contingency", "comparison"],
+            "direction": [None, "ascending", "descending"], "scenario": ["baseline", "changed", "contingency", "comparison"],
             "scope": ["subset", "full"]},
-        "rules": "Use all exact fields. Goal scenario/scope/measure/conclusion must agree with the payload; use the same canonical measure identifier in both. Never convert a bus name into an index. Empty changes for baseline. Generator and external-grid contingency is not registered; preserve gen/sgen/ext_grid. Overview needs no calculation or object scope. Ranking requires an explicit measure and accepted scope; unspecified scope cannot become exhaustive. No caller context or result refs. Verified answer languages: en and zh; other languages require clarification.",
+        "rules": "Use all exact fields. Goal scenario/scope/measure/conclusion must agree with the payload; use the same canonical measure identifier in both. Never convert a bus name into an index. Preserve unresolved user identifiers for Authority resolution; internal namespace labels are not business questions for the user. Empty changes for baseline. Generator and external-grid contingency is not registered; preserve gen/sgen/ext_grid and let the Pack verify the capability boundary, rather than listing registration as a user missing requirement. Overview covers both current-model basic facts and registered analysis capabilities; it needs no calculation, object scope or ordering, so use direction=null. Other non-ranking operations may also use direction=null. Ranking requires an explicit ascending/descending direction, measure and accepted scope; unspecified scope cannot become exhaustive. Scope describes the selected input object set: a single outage is subset even when its constraints cover the network. Contingency constraint evaluation uses measure=null; the evaluated constraints include branch loading and bus voltages. Existing model constraints are the default for limit checks; do not demand a user threshold unless the user requests a different standard. No caller context or result refs. Verified answer languages: en and zh; other languages require clarification.",
     }
 
     def resolve(self, goal_id, payload, *, context_ref, revision_ref, invoke, semantic_goal=None, answer_policy=None):
@@ -154,8 +154,10 @@ class PandapowerTaskProvider:
                 or requirement["operation"] not in operations.get(semantic_goal.get("conclusion"), set())
                 or (scenario == "baseline" and semantic_goal.get("change") is not None)):
                 return resolved("clarification", "The proposed operation, scenario, scope or measure contradicts the accepted goal. Clarify the requirements before execution.")
-        if requirement["operation"] == "contingency" and any(item["kind"] not in _BRANCHES for item in requirement["objects"]):
+        if requirement["scenario"] == "contingency" and any(item["kind"] not in _BRANCHES for item in requirement["objects"]):
             return resolved("unsupported", "Generator and other non-branch N−1 outages are not supported by the registered contingency capability. Select line or transformer outages to request an alternative.")
+        if requirement["operation"] == "ranking" and requirement["direction"] is None:
+            return resolved("clarification", "Specify the requested ranking direction: ascending or descending.")
         if requirement["operation"] == "overview":
             if requirement["scenario"] != "baseline" or requirement["changes"] or requirement["objects"] or requirement["measure"] is not None:
                 return resolved("clarification", "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.")

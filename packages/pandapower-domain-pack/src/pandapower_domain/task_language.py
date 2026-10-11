@@ -2,6 +2,7 @@
 import re
 
 _FIXED = {
+    "Specify the requested ranking direction: ascending or descending.": "请明确所需排序方向：升序或降序。",
     "The saved overview has no selected-model metadata. Submit a new request to describe the current model.": "历史概况未保存选中模型的元数据，请重新提交请求以介绍当前模型。",
     "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.": "能力介绍不能代替对象、数值或修改要求，请选择所需分析操作。",
     "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.": "请同时明确对象及所需指标；也可单独请求整个场景的收敛与损耗结果。",

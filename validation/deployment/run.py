@@ -106,7 +106,7 @@ def main(argv=None):
                 for turn in sample["turns"]:
                     check = run_turn(session, turn, manifest)
                     report["checks"].append({"sample": sample["id"], **check})
-                    if check["status"] != "passed":
+                    if check["status"] != "passed" and check["terminal"] != "attempt_completed":
                         break
             except Exception as error:
                 # Exception messages may contain transport or configuration details.

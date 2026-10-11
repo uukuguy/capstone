@@ -77,3 +77,21 @@ This record does not claim successful business acceptance.
 Required next receipts: actual Provider
 sample execution, frozen-goal/scenario/Authority-result review, update/browser
 checks. Any required failure blocks human handoff and Research Model R1.
+
+## Authorized overall run and further repairs
+
+The user authorized live Provider validation with “md同意”. The first overall
+receipt is `runs/task-answer-closure/provider-overall/provider-e569f035626f49b5.json`.
+Business acceptance failed. Generation/load recognition failed; overview rejected
+an omitted then explicit null direction; endpoint clarification was English;
+line clarification incorrectly requested a threshold already owned by model
+constraints. Only five turns ran because text screening stopped the continuous
+case after a completed English answer. Numerical computation was not verified.
+
+Reviewed repairs allow explicit null for non-ranking requests, clarify ranking
+without direction before Authority execution, improve public-schema repair
+feedback and localized clarification guidance, and preserve continuous testing
+after a completed answer fails screening. No keyword intent routing was added.
+Checks pass52 focused; Pack30 full and5 new focused; types have zero errors.
+These are source checks. Rebuild and actual six-turn semantic validation remain
+required before human handoff. local-dev still runs8f1c9b3 until that rebuild.

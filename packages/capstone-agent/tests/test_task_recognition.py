@@ -359,6 +359,7 @@ def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypat
             task_recognition.recognize_with_pi(claim, **arguments)
     assert len(prompts) == 2
     assert prompts[1]["request"] == prompts[0]["request"]
+    assert "direction" in prompts[1]["validation_error"]
     assert 0 < timeouts[1] <= timeouts[0] <= 60
 
 

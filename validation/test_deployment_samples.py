@@ -118,3 +118,25 @@ def test_positive_api_screening_does_not_claim_provider_or_business_acceptance(m
     assert receipt["provider_execution_identity"] == "unverified"
     assert receipt["mode"] == "deployed-api-screening"
     assert "private-test-token" not in content
+
+
+def test_completed_bad_answer_does_not_skip_the_next_conversation_turn(monkeypatch, tmp_path):
+    from validation.deployment import run
+    samples = tmp_path / "samples.json"
+    samples.write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_id": "continuity",
+        "suite_kind": "overall", "model_id": "ieee39", "cases": [{"id": "continuous", "turns": [{"text": "先澄清"}, {"text": "再介绍"}]}]}))
+    class Session:
+        def __init__(self, *args): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def create(self, model): pass
+    executed = []
+    def turn(*args):
+        executed.append(args[1]["text"])
+        return {"status": "failed" if len(executed) == 1 else "passed", "terminal": "attempt_completed"}
+    monkeypatch.setenv("CAPSTONE_SAMPLE_API_ORIGIN", "http://127.0.0.1:8767")
+    monkeypatch.setenv("CAPSTONE_SAMPLE_OPERATOR_TOKEN", "private-test-token")
+    monkeypatch.setattr(run, "HttpThreadSession", Session)
+    monkeypatch.setattr(run, "run_turn", turn)
+    assert run.main(["--allow-provider", "--samples", str(samples), "--receipt-dir", str(tmp_path)]) == 1
+    assert executed == ["先澄清", "再介绍"]
