@@ -2571,3 +2571,4 @@ The following original entries were retained during document synchronization.
 - 2026-10-12：30a3ecb回退部署506项同源与浏览器通过；七轮真实业务仍有负荷失败、旧英文前缀及AC对象误报，不计整体验收。
 - 2026-10-12 · b9ff1f9：保存回退来源、实际失败与验证样本，避免把代码回退误报为业务稳定验收。
 - 2026-10-12 · 6d837a3：同步PR13撤回、PR14草稿及开放Issues；源码回退与实际失败分开登记。
+- 2026-10-12 · cf9ac88：固定local-dev产品30a3ecb并同步控制图；主工作区切回恢复分支，原补丁保留stash。

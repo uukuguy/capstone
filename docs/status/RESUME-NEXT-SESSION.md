@@ -4,7 +4,8 @@ User cancelled task/answer closure recovery. Restore pre-closure business execut
 from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.
 Do not resume task compilation, coverage, answer rewriting, frozen reuse or prewarm.
 
-- Worktree .worktrees/stable-route-recovery; branch fix/stable-route-recovery.
+- Root checkout now on fix/stable-route-recovery, documentationHEADcf9ac88.
+  Recovery worktree detachedcf9ac88; deployed App worktree stays detached30a3ecb.
 - Product30a3ecb; rollback88f40de and standalone routing633ed6b.
 - Published report/test commitb9ff1f9; PR13closed, PR14draft/base dev.
   Issues2/3 bot comments record rollback and failed overall acceptance; remain open.
@@ -29,7 +30,7 @@ Do not resume task compilation, coverage, answer rewriting, frozen reuse or prew
 - Prior1013dd2 human validation failed. Do not repeat earlier broad acceptance claims.
 - Main/dev, demo/cloud and existing data unchanged. No new baseline or Research R1.
 
-Next: align root checkout with recovery branch; preserve unfinished patches in stash
-and ignored backup. Do not merge PR14 or start new business fixes automatically.
+Root alignment complete. Interrupted patches preserved in stash and ignored backup.
+Do not merge PR14 or start new business fixes automatically.
 Do not resume withdrawn closure work or call this historical version fully stable.
 Session remains active; product30a3ecb differs from later documentation commits.
