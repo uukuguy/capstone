@@ -478,18 +478,6 @@ def test_thread_rejects_message_without_nonempty_text() -> None:
     assert service.read_events("thr_demo_39", 0).events == ()
 
 
-def test_oversized_task_instruction_returns_bounded_rejection_receipt():
-    service = _service()
-    before = service.snapshot("thr_demo_39")
-    command = {"schema": "capstone-command/1", "command_id": "cmd_large", "idempotency_key": "idem_large", "thread_id": "thr_demo_39", "run_id": "run_001", "kind": "send_auto", "expected_event_seq": 0, "payload": {"text": "x" * 16385}}
-    with TestClient(_app(service), base_url="http://localhost") as client:
-        response = client.post("/api/v1/threads/thr_demo_39/commands", headers=_auth(), json=command)
-    assert response.status_code == 202
-    assert response.json()["status"] == "rejected"
-    assert response.json()["rejection"] == "message_text_too_large"
-    assert service.snapshot("thr_demo_39") == before
-
-
 def test_thread_accepts_multiline_message_text() -> None:
     service = _service()
     command = {

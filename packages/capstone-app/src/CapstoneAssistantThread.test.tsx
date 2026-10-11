@@ -827,7 +827,7 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
-  it('shows only the latest running action until opened and respects closing it as steps arrive', () => {
+  it('shows up to three latest running actions until opened and respects closing it as steps arrive', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'running_activity'),
       event('attempt_started', 2, {}, 'running_activity'),
@@ -847,22 +847,26 @@ describe('CapstoneAssistantThread', () => {
     const next = [...events,
       event('tool_completed', 4, { tool_name: 'grid_context_get', tool_call_id: 'call_a' }, 'running_activity'),
       event('tool_started', 5, { tool_name: 'grid_model_list', tool_call_id: 'call_b' }, 'running_activity'),
+      event('tool_completed', 6, { tool_name: 'grid_model_list', tool_call_id: 'call_b' }, 'running_activity'),
+      event('tool_started', 7, { tool_name: 'grid_model_dataset_query', tool_call_id: 'call_c' }, 'running_activity'),
+      event('tool_completed', 8, { tool_name: 'grid_model_dataset_query', tool_call_id: 'call_c' }, 'running_activity'),
+      event('tool_started', 9, { tool_name: 'grid_analysis_powerflow_ac', tool_call_id: 'call_d' }, 'running_activity'),
     ]
     rerender(<CapstoneAssistantThread {...props} events={next} activity={projectAssistantActivity(next)} />)
     expect(details.open).toBe(false)
     const preview = screen.getByLabelText('运行过程预览')
-    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(1)
+    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(3)
     expect(preview.textContent).toContain('grid_model_list')
     expect(preview.textContent).not.toContain('grid_context_get')
     details.open = true
     fireEvent(details, new Event('toggle'))
-    const completed = [...next, event('attempt_completed', 6, { answer: '执行完成。' }, 'running_activity')]
+    const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
     expect(details.open).toBe(false)
     expect(screen.queryByLabelText('运行过程预览')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
     expect(details.open).toBe(true)
-    expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(2)
+    expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
   })
 
   it('renders the admitted result card and keeps evidence behind its action', () => {

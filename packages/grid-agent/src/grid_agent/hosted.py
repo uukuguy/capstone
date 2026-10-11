@@ -86,31 +86,20 @@ def build_registered_pandapower_thread_application():
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
         return model_binding
 
-    def rpc_builder():
+    def build_session(claim, context, profiles):
+        if validation_builder is not None:
+            return validation_builder(claim, context, profiles)
         environment = load_runtime_environment(root)
         resolved = resolve_harness_llm(root, environment)
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            resolved = resolve_recognition_llm(root, environment, resolved)
         runtime_host = build_runtime_host(
             root, build_pandapower_application_profile(), environment,
         )
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
-        )
-
-    def build_session(claim, context, profiles):
-        if validation_builder is not None:
-            return validation_builder(claim, context, profiles)
-        return rpc_builder()(claim, context, profiles)
-
-    def recognize_task(claim, *, on_heartbeat, requirement_schemas=()):
-        if validation_builder is not None:
-            recognizer = getattr(validation_builder, "recognize_task", None)
-            if not callable(recognizer):
-                raise RuntimeError("scripted task recognizer is unavailable")
-            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
-        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
-
-    setattr(build_session, "recognize_task", recognize_task)
+        )(claim, context, profiles)
 
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(root / "runs" / "capstone-agent")),
@@ -134,8 +123,17 @@ def build_registered_pandapower_thread_application():
     if not callable(set_diagram_provider):
         raise TypeError("Thread catalog has no diagram provider registration")
     set_diagram_provider(model_diagram)
-    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
-            if validation_builder is not None else assembly)
+    if validation_builder is not None:
+        return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    from capstone_agent.lightweight_turn_router import build_lightweight_router
+    from capstone_agent.runtime import resolve_recognition_llm
+    environment = load_runtime_environment(root)
+    def recognition_llm():
+        return resolve_recognition_llm(root, environment, resolve_harness_llm(root, environment))
+    router = build_lightweight_router(
+        runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
+        resolved_llm_factory=recognition_llm, environment=environment)
+    return replace(assembly, turn_router=router)
 
 
 def main() -> int:

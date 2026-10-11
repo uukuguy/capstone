@@ -1,6 +1,11 @@
 # Task answer closure: local-dev acceptance
 
 Source: 2473e4860dcaf11d575e8d009caeb088756a4cd2. Date: 2026-10-11.
+Acceptance correction: real user Attempts597f4144/28ed976b on this source expose
+an English clarification prefix and failed overview resolution. Business sample
+acceptance is blocked. The verified scope below remains a technical receipt,
+not approval to hand off this candidate as product-ready. See the
+[deployment sample set](../../validation/deployment/README.md).
 PR: [#9](https://github.com/uukuguy/capstone/pull/9), published by capstone-xiaoshi[bot].
 
 ## Verified scope

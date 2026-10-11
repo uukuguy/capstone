@@ -32,25 +32,6 @@ def build_topology_session(claim, context, profiles):
     return TopologyObservationSession(claim, context, profiles)
 
 
-def recognize_topology_task(claim, *, on_heartbeat, requirement_schemas):
-    from capstone_agent.task_understanding import recognize_decision
-    assert claim.instruction == OPEN_TOPOLOGY
-    selected = [item for item in requirement_schemas if item["schema"] == "capstone-professional-task/1"]
-    assert len(selected) == 1
-    on_heartbeat()
-    return recognize_decision(claim.task_request, {"schema": "capstone-task-understanding/2", "goals": [{
-        "id": "topology", "purpose": OPEN_TOPOLOGY, "subject": "selected model topology", "scope": "full",
-        "scenario": "baseline", "change": None, "conclusion": "description", "measure": None,
-        "obligations": ["Report registered current-model topology observations without AC calculations"],
-        "missing_requirements": [], "execution": "professional", "dependencies": [],
-        "domain_request": {"binding_id": selected[0]["binding_id"], "schema": selected[0]["schema"],
-            "payload": {"purpose": OPEN_TOPOLOGY}}}], "answer_policy": {"language": "en", "scale": "standard"}},
-        recognizer="controlled-topology-observation")
-
-
-setattr(build_topology_session, "recognize_task", recognize_topology_task)
-
-
 @pytest.mark.parametrize("model_id", ["four_loads_with_branches_out", "case24_ieee_rts", "ieee39", "GBnetwork", "case9241pegase"])
 def test_topology_only_answer_completes_and_projects_the_selected_model(monkeypatch, tmp_path, model_id):
     monkeypatch.setenv("CAPSTONE_RUNS_ROOT", str(tmp_path))
@@ -85,10 +66,6 @@ def test_topology_only_answer_completes_and_projects_the_selected_model(monkeypa
             assert outcome is not None and outcome.status == "completed", outcome
             assert not outcome.result_refs and not outcome.evidence_refs
             events = service.read_events("thr_topology", before).events
-            understanding = next(event.payload["understanding"] for event in events if event.event_type == "task_understanding_created")
-            assert understanding["goals"][0]["domain_request"]["schema"] == "capstone-professional-task/1"
-            resolution = next(event.payload["goals"] for event in events if event.event_type == "task_requirements_resolved")
-            assert resolution[0]["status"] == "uncertified" and resolution[0]["execution_required"] is True
             assert not any(event.event_type in {"network_layer_unavailable", "attempt_failed"} for event in events)
             diagram = next(event.payload["diagram"] for event in events if event.event_type == "network_diagram")
             assert diagram["model"]["id"] == model_id
@@ -97,7 +74,6 @@ def test_topology_only_answer_completes_and_projects_the_selected_model(monkeypa
             completed = events[-1]
             assert completed.event_type == "attempt_completed"
             assert completed.payload["admission"]["mode"] == "offline_information"
-            assert "task_goal_coverage_unverified" in completed.payload["admission"]["diagnostic_codes"]
             assert all(event.model_context_id == context.id for event in events)
             assert service.snapshot("thr_topology").active_model_context == context
     finally:

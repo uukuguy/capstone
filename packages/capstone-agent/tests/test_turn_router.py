@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from dataclasses import replace
 
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.turn_router import (
@@ -87,30 +86,6 @@ def test_disabled_ordinary_policy_fails_closed() -> None:
     with pytest.raises(DecisionUnavailable, match="disabled"):
         DefaultTurnRouter(ordinary_conversation_enabled=False).plan(claim)
     del service
-
-
-@pytest.mark.parametrize("instruction,route", [("hello", "professional"), ("电网潮流线路母线", "ordinary")])
-def test_resolved_semantics_route_independent_of_instruction_words(instruction, route):
-    _, claim = _claim(text=instruction)
-    bound = replace(routing_input_for_claim(claim), semantic_required=True, semantic_route=route)
-    plan = DefaultTurnRouter().plan(bound)
-    assert plan.route == route
-    assert plan.source == "task_resolution"
-    assert plan.fallback is False
-
-
-def test_semantic_resolution_failure_has_no_keyword_or_classifier_fallback():
-    _, claim = _claim(text="电网潮流")
-    bound = replace(routing_input_for_claim(claim), semantic_required=True)
-    with pytest.raises(DecisionUnavailable, match="task_resolution"):
-        DefaultTurnRouter(decision_router=FakeDecisionRouter("professional")).plan(bound)
-
-
-@pytest.mark.parametrize("kind,route", [("send_ordinary", "ordinary"), ("send_professional", "professional")])
-def test_explicit_modes_preserve_their_lane_with_semantic_resolution(kind, route):
-    _, claim = _claim(kind=kind)
-    bound = replace(routing_input_for_claim(claim), semantic_required=True, semantic_route="professional")
-    assert DefaultTurnRouter().plan(bound).route == route
 
 
 def test_auto_without_external_classifier_uses_bounded_domain_hint() -> None:

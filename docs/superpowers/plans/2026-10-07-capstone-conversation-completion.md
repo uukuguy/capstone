@@ -1,5 +1,17 @@
 # Capstone Conversation Contract Completion
 
+> 2026-10-12 user decision: withdraw this delivery's task compilation, coverage,
+> answer rewriting, enhanced reuse and prewarm implementation. Active work restores
+> c3b78bc business execution and retains standalone ordinary/professional LLM routing.
+> Prior checkmarks and reports are historical; they do not certify the rollback.
+
+2026-10-12 selective restoration requested by user: latest3-action small-font UI,
+ordinary tool-free lightweight answer path and final-message/process separation.
+Product82b243c; UI380/framework588/RPC11/related66/types passed, source506 files
+and same image6717818b verified. Real ordinary104chars/8.491s/zero tools and final
+Chinese1285chars/48.975s pass scoped independent review. Overall business defects
+and professional model-overview latency remain open; do not resume task compilation.
+
 > **For agentic workers:** Execute inline with test-driven development and focused review. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete remaining requirements in the existing agent-conversation designs while preserving the deployed user version.
@@ -393,3 +405,25 @@ PR #9/#10已合入main723b8e8；dev从该点建立，PR #11文档与治理改为
 实验R0和Pi保持独立；人工回答验收、CLI退出迁移、Issue验收与云发布仍分别记录。
 
 最新顺序：先同步项目文档和控制记录，再完成正式回答PR #9及新技术基线；CI调整PR #10保持独立。随后从新基线开启Research Model实施分支。旧CLI兼容要求已撤销，运行入口迁移按[退出计划](2026-10-11-retire-grid-cli.md)单独核验，不能以删除兼容测试冒充迁移完成。
+
+## 2026-10-12 当前阻断包：轻量路由与本地回答回归
+
+当前源码1013dd2已规范重建，515项三角色/镜像329ae580及App同源。
+fb6a921整体10/12失败：两条概况请求重复拆成多个专业契约或普通业务场景，
+原AC→复用已通过。新修复在接受前核对组合候选，独立普通目标仅走无工具
+会话，宿主合并已验证专业信息；历史v2回放保持。207项检查与复审通过，
+真实整体9案例12轮4b19beeaa3d349c6及专项3轮独立PASS，浏览器通过，待人工。
+复杂业务几十秒至分钟属正常范围，记录阶段耗时，不凭总时长判失败。
+依赖型一般任务交接和需要专业执行的混合隔离保持开放，不以本轮修复认证。
+整体与专项分别出结论；专项从同一真实整体收据选出三个修复轮次，保留
+来源哈希，避免重复收费执行。以下早期候选状态均为历史。
+
+当前候选b5fcc63恢复既有指南中未指定命名空间的Authority名称/别名查证路径，typed契约以user_label保留标号；禁止数字回退索引，真实缺失/歧义仍澄清。规范重建515项三角色/App同源；原始负荷指令和AC→复用三轮专项dccbeb158aea4086独立证据/工具/浏览器验收PASS。整体9案例12轮正在复验；负荷98.252秒、AC38.003秒、复用22.082秒主要耗在后续执行，性能仍开放。以下a4ea668整体失败和早期收据保留为历史，不覆盖当前专项结果。
+
+人工回归更新：潮流执行完整报告被typed正式结论摘要替换；明确沿用已有潮流列出前三条线路在编译/解析阶段被错误澄清。两项均为已有功能回归。先对照2473e48前后的回答准入及已有prior_results读取链路，恢复通用行为与精确目标/证据检查；不新增样例专用系统提示。整体样本扩为9案例12轮，原范围通过不能认证本次回归。新业务基线继续阻断。
+
+a4ea668已规范重建，完整回答与复用原始两轮专项经Authority/工具/浏览器独立验收PASS；复用仅4次读取/排序、零重算。整体9案例12轮11/12，负荷标识namespace在编译时被提前澄清，未进入Authority查询，整体FAIL。保持专项修复完成与整体阻断分别登记；不改样本为通过，不任意扩展领域包标识政策或添加个例提示。下一收口项是通用对象引用解析/编译边界，仍不得建立新基线或进入R1。见[实际验收报告](../../reviews/2026-10-12-answer-and-result-reuse.md)。
+
+PR #9/#10已集成；后续真实对话暴露回归，当前先按[识别与耗时计划](2026-10-11-recognition-latency.md)收口PR #13，不进入Research R1。用户明确：意图识别只做轻量LLM普通/专业路由，领域要求编译与契约校验移到路由后的链条；复杂发电N−1样本当前仅验路由，研究完成留给Research Model。完整打开模型时预热已实现；a634257将首次创建、新模型打开及切换绑定收敛到同一应用初始化实现。新源码需规范重建、真实支持业务样本、逐阶段耗时及浏览器验证通过，才能交人工；发布、合并和研究完成均不得由路由通过替代。
+
+beef6d4历史验收完成local-dev同源重建、9业务＋1路由范围验收、独立证据复核及等待/窗口实测；[验收记录](../../reviews/2026-10-12-lightweight-routing-local-verification.md)保留逐轮耗时与负荷81.747秒执行限制。新候选按[模型打开准备报告](../../reviews/2026-10-12-model-opening-preparation.md)记录。9843b04整体失败2轮，8ec1e1a整体9业务＋1路由独立核对通过；保留前者原始收据和业务身份/结论覆盖风险，不将后者通过解释为根因关闭。统一入口a634257已完成同源重建与真实专项复测。PR13仍草稿，Issues2/3仍打开；随后按范围推进dev集成，研究后置。

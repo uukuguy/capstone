@@ -14,7 +14,6 @@ from capstone_agent.thread_commands import ThreadCommandFactory
 from capstone_agent.thread_protocol import ModelContextSnapshot, ThreadSnapshot
 from capstone_agent.thread_service import InMemoryThreadService
 from capstone_agent.thread_worker import run_pending_attempt
-from capstone_agent.thread_application import FamilyRuntimeFactory
 from grid_agent import hosted
 
 
@@ -150,24 +149,9 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         sessions.append(session)
         return session
 
-    def recognize(claim, *, on_heartbeat, requirement_schemas):
-        from capstone_agent.task_understanding import recognize_decision
-        assert claim.instruction in {OPEN_RTS, FLOW_RTS, FLOW_RTS_REPEAT, RANK_RTS, OPEN_IEEE_ENDPOINT, ENDPOINT_IEEE, CONTINGENCY_IEEE}
-        selected = next(item for item in requirement_schemas if item["schema"] == "capstone-professional-task/1")
-        on_heartbeat()
-        return recognize_decision(claim.task_request, {"schema": "capstone-task-understanding/2", "goals": [{
-            "id": "legacy_contract", "purpose": claim.instruction, "subject": "selected model", "scope": "unspecified",
-            "scenario": "baseline", "change": None, "conclusion": "description", "measure": None,
-            "obligations": ["Preserve registered Authority query and result behavior"], "missing_requirements": [],
-            "execution": "professional", "dependencies": [], "domain_request": {"binding_id": selected["binding_id"],
-                "schema": selected["schema"], "payload": {"purpose": claim.instruction}}}],
-            "answer_policy": {"language": "en", "scale": "standard"}}, recognizer="controlled-model-sequence")
-    build.recognize_task = recognize
-
     monkeypatch.setenv("CAPSTONE_RUNS_ROOT", str(tmp_path))
     monkeypatch.setattr(hosted, "select_validation_builder", lambda *_args: build)
     assembly = hosted.build_registered_pandapower_thread_application()
-    outer_factory = FamilyRuntimeFactory({"pandapower": assembly.runtime_factory})
     initial = assembly.catalog.resolve("ieee39")
     selection = assembly.capability_catalog.resolve(initial)
     initial_context = ModelContextSnapshot(
@@ -197,7 +181,7 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         previous_cursor = service.snapshot("thr_sequence").last_event_seq
         submit(commands.send_professional, question)
         outcome = run_pending_attempt(
-            service, outer_factory, worker_id="worker_sequence", lease_seconds=120,
+            service, assembly.runtime_factory, worker_id="worker_sequence", lease_seconds=120,
             turn_router=assembly.turn_router_for_worker(), implementation_family="pandapower",
         )
         assert outcome is not None and outcome.status == "completed", outcome
@@ -211,9 +195,6 @@ def test_hosted_thread_model_switch_flow_endpoint_and_snapshot_share_authority_i
         assert all(event.model_context_id == snapshot.active_model_context.id
                    for event in events if event.event_type in {"tool_completed", "network_diagram", "network_layer", "attempt_completed"})
         completed = next(event for event in events if event.event_type == "attempt_completed")
-        resolution = next(event for event in events if event.event_type == "task_requirements_resolved")
-        assert resolution.payload["goals"][0]["status"] == "uncertified"
-        assert "task_goal_coverage_unverified" in completed.payload["admission"]["diagnostic_codes"]
         assert tuple(completed.payload["result_refs"]) == outcome.result_refs
         assert tuple(completed.payload["evidence_refs"]) == outcome.evidence_refs
         return outcome, diagram, layer, snapshot, events

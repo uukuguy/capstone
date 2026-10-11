@@ -1,0 +1,17 @@
+{
+  "schema": "capstone-deployment-samples/2",
+  "suite_id": "recognition-latency-and-waiting-20261011",
+  "suite_kind": "update",
+  "corpus": "ieee39.json",
+  "case_ids": ["model-overview", "selected-model-ac", "load-scaling", "flow-to-overview"],
+  "change_scope": ["识别独立配置与有界进程复用", "无工具阶段的即时等待反馈", "普通概况回答尺度"],
+  "repair_criteria": [
+    "真实识别记录推理配置、调用次数及耗时详情，后续任务复用进程且清空隐式历史",
+    "普通概况耗时与19.48秒历史识别基准比较，报告测量值而非保证固定时限",
+    "请求接受后无工具时显示等待状态，完成后移除",
+    "默认概况说明模型事实和分析用途，不能编造计算数值；明确简短请求保留简短尺度",
+    "低延迟识别保留选中模型AC执行和负荷变化场景证据要求"
+  ],
+  "required_non_provider_checks": ["reset-confirmation-and-failure", "idle-cleanup-without-new-task", "bounded-process-rotation", "provider-configuration-isolation", "family-timing-forwarding", "waiting-before-tool-events", "standard-overview-and-concise-preservation"],
+  "acceptance": {"scope": "repair-specific", "complete_overall_answer_required": false, "unrelated_answer_defects": "record_separately", "skipped_is_pending": true}
+}

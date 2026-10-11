@@ -96,6 +96,27 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ### Isolated local demo
 
+Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,
+`CAPSTONE_RECOGNITION_MODEL`, optional `CAPSTONE_RECOGNITION_BASE_URL` and
+`CAPSTONE_RECOGNITION_API_KEY_ENV`. Without overrides it uses the configured
+execution Provider/model. The restored standalone classifier uses thinking off
+and a15-second routing timeout. It selects ordinary or professional without
+compiling business requirements, checking capabilities or planning tools.
+Ordinary knowledge answers also use this configured lightweight role with thinking
+off, in a separate tool-free workspace. Professional execution retains its own
+Provider/model. Model information remains on the professional chain; this does not
+claim it is calculation-free or as fast as independent ordinary knowledge.
+Provider
+changes use that Provider's registered defaults, not execution endpoint/key
+settings. Supply credentials through protected backend environment variables;
+the key-name setting is not a secret value and creates no credential access.
+Restart workers after configuration changes. This rollback/restoration uses an
+isolated classifier process per route request. Task compilation, pooled recognition
+processes and API-triggered worker prewarm remain withdrawn. Ordinary answers still
+enter the existing model preparation path; record full elapsed time and do not
+claim zero initialization. The activity UI shows latest3 actions while running,
+uses a bounded160px full list and collapses after completion.
+
 `local-dev` is the local development and release-verification target for
 `cloud-dev`. `local-demo` is the local reproduction, emergency-repair and
 release-verification target for `cloud-demo`. At rest, select the accepted

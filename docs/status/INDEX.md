@@ -2,6 +2,16 @@
 
 ## Active
 
+2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
+[活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。
+历史整体筛查通过不能替代人工回归；[版本控制图](VERSION-CONTROL.md)登记回退范围。
+
+[回退与真实回归报告](../reviews/2026-10-12-pre-closure-rollback.md)：30a3ecb已部署同源；
+七轮真实业务保留失败，整体未验收。原候选与运行数据保留，独立意图识别继续。
+
+[选择性补回验证](../reviews/2026-10-12-selective-ui-and-answer-restoration.md)：82b243c
+补回三动作小窗、普通轻量问答与最终消息分离；两轮真实专项通过，整体验收未重做。
+
 dev默认开发集成主线和main发布主线均启用轻量保护：PR与两平台Actions检查、0审批，禁止强推和删除；main副本为发布快照。详见[组织设计](../superpowers/specs/2026-10-11-dev-integration-design.md)、[实施计划](../superpowers/plans/2026-10-11-dev-integration.md)和[版本台账](VERSION-CONTROL.md)。
 
 [迭代门禁与旧 CLI 退出计划](../superpowers/plans/2026-10-11-retire-grid-cli.md)：513a35e已实现并审查门禁拆分；PR #10两平台CI通过，约32/26分钟并已合入main。用户已撤销grid-agent CLI兼容要求；共用运行模块迁移尚未完成。
@@ -18,7 +28,8 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | dev保存当前控制记录，main保存发布快照；PR #9/#10/#11已集成，B2本地技术标签已推送，Research Model实施分支已建立；local-dev2473e48，demo/云端ed2524f，人工回答验收待完成。 |
+| [多线版本控制](VERSION-CONTROL.md) | local-dev1013dd2实际整体11业务＋1路由/专项3轮独立PASS及浏览器通过，待人工；阶段耗时和历史失败保留；PR #13草稿，demo/云端未变，未建立新基线。 |
+| [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
 | [并行开发运行准备](../superpowers/plans/2026-10-10-parallel-development-readiness.md) | 基础包已合并并关闭分支；当前计划同步了回答增强/Pi 归属、持续 PR 授权和独立发布验收；控制图与实际执行文件双向对齐。 |
@@ -27,7 +38,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [2026-10-11 Issue processing](../reviews/2026-10-11-issue-processing.md) | 独立App身份已核对；#1/#5待发布验收，#2/#3回答包处理中，#4受控诊断后等待一个触发信息；保持Issue打开，无云发布或付费模型调用。 |
 | [Baseline alignment plan](../superpowers/plans/2026-10-10-version-baseline-alignment.md) | Preserve experimental development, restore minimal demo foundation and verify local-only alignment. |
 | [Baseline alignment verification](../reviews/2026-10-10-version-baseline-alignment.md) | Main and isolated local-demo alignment passes full/local gates; six role identities match; experimental branches and user data retained; cloud unchanged. |
-| `KNOWN-ISSUES.md` | Open answer-quality and startup/recovery issues; accepted branch policy and local baseline alignment, with cloud rollback retained. |
+| `KNOWN-ISSUES.md` | Open business-compilation identity/coverage risks, answer-quality and startup/recovery issues; model preparation acceptance is separate from overall and baseline acceptance. |
 | [Demo outcomes and failure diagnostics](../superpowers/specs/2026-10-10-demo-outcome-and-diagnostics-design.md) | Approved design, implemented on main and demo baseline; remote acceptance pending. |
 | [Demo outcome repair plan](../superpowers/plans/2026-10-10-demo-outcome-and-diagnostics.md) | Incident implementation and two-baseline verification; remote release remains gated. |
 | [Demo outcome repair verification](../reviews/2026-10-10-demo-n1-repair-verification.md) | Confirmed defect, tested repair sources, local rebuild and explicit remote acceptance limits. |
@@ -58,6 +69,10 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | `2026-10-01-capstone-m5-verification.md` | M5 provider-free 双 Authority 验证、完整 release 门禁与 clean-wheel 工件闭包。 |
 
 ## External execution anchors
+
+- [Deployment answer acceptance repair](../superpowers/plans/2026-10-11-deployment-answer-acceptance.md): active priority; overall and update sample sets, captured real Provider failures, preacceptance repair and strict handoff states.
+- [Deployment samples](../../validation/deployment/README.md): durable8-case/10-turn overall corpus and separate repair-specific criteria. Local-dev beef6d4 passed9 business turns plus1 professional routing turn, independent business review and actual waiting/window checks. [Local verification](../reviews/2026-10-12-lightweight-routing-local-verification.md) records phase timings and execution limits. Generation research and complete opening-time prewarm remain deferred; PR13 remains draft, awaiting manual validation. No new baseline. Local checks do not wait for CI.
+- [Recognition latency repair](../superpowers/plans/2026-10-11-recognition-latency.md): user-observed19.48s recognition and absent waiting feedback; independent recognition configuration, bounded reset process reuse, timing and standard overview. f348993 source checks and review pass; exact local rebuild/Provider/browser acceptance pending. No opening-time cross-process prewarm claim.
 
 - [Autonomous research experiment](../superpowers/plans/2026-10-11-autonomous-research-experiment.md): user-approved experimental branch; two-layer knowledge/workflow/verification plus research nodes, IEEE39 four-case corpus, not deployed.
 - [Asterion P7 reference](../reviews/2026-10-11-asterion-p7-reference.md): local source and recorded public results; reusable research mechanisms, Capstone boundary adaptations and evidence limits.
@@ -124,3 +139,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | `climb/research-tree.json` | Machine-readable generated research tree. |
 | `climb/_archive/2026-08-28-workstream-b-package-extraction/` | Completed Workstream B package extraction climb snapshot. |
 | `climb/_archive/2026-08-18-full-capability/` | Completed 2026-08-18 full-capability climb session snapshot. |
+
+- [Domain Pack diff and content audit](../reviews/2026-10-11-domain-pack-sample-contamination.md): scope/completion/evidence repairs, generic instruction cleanup and continuous-overview repair; 8-case/10-turn overall and separate repair criteria under deployed verification.

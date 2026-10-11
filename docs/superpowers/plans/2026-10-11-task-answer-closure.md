@@ -1,5 +1,11 @@
 # Task Understanding and Formal Answer Closure Implementation Plan
 
+Acceptance correction, 2026-10-11: real local-dev2473e48 user samples failed.
+The English clarification prefix and malformed overview request are reproduced.
+Follow [deployment answer acceptance repair](2026-10-11-deployment-answer-acceptance.md)
+before human handoff or Research Model R1. Prior technical checks remain valid
+within their recorded scope; they did not prove real Provider business acceptance.
+
 **Goal:** Bind each requested conclusion to its actual model, scenario and verified coverage, then write a direct formal answer.
 
 **Architecture:** Application owns bounded semantic recognition and immutable task identity. Domain Packs resolve objects, operations, coverage and supported conclusions. Authorities remain the only source of model facts. Kernel remains domain neutral.
@@ -53,6 +59,40 @@ Related feedback: GitHub Issues #2 and #3, both `ai:working` since 2026-10-11. T
 
 Contract unit tests alone do not complete this package. Semantic recognition, Pack coverage, formal response and actual local-dev acceptance are all required.
 
+## Missing-input repair checkpoint
+
+The760ac0a overall8-case/10-turn receipt passes independent business review,
+but a real Provider review of the previously failed proposal retains the extra
+power-component question. Input-gap专项 is not accepted from the overall pass.
+The Pack now defines proportional whole-load scaling, normalizes empty component
+selection to explicit p/q fields, and freezes the resolved patches. Explicit
+component requests and true unresolved choices remain distinct.52 Pack tests and
+source review pass. Verify the captured proposal, true unresolved component choice,
+and the deployed load-change Thread before any baseline or human handoff claim.
+
+Exact f0d9b41 replay resolves the redundant gap and preserves the component
+choice, but rejects an honest missing-factor proposal as structurally incomplete.
+Application validation now distinguishes pending input proposals from executable
+requirements: missing nested inputs are allowed only while a gap remains; all
+supplied values and outer fields stay checked.84 focused tests and source review
+pass. Deployment and its original-proposal replay remain separate acceptance.
+
 ## Source acceptance checkpoint
+
+### Latest local business checkpoint51f4715
+
+Whole-load semantics, pending-input proposal validation and partial verified AC
+evidence retention are deployed through the canonical rebuild. Exact511-file
+identity and image00e64fdf pass. Overall provider-1cfbb0ad38fc40ea:8 cases/10 turns
+pass screening and independent business review; frozen load19 P/Q scaling and
+changed-context evidence, index7 outage overload, simple AC and overview history
+transitions verified. Three captured-proposal Provider review probes pass
+separately; they are seeded recognition reviews, not Thread executions.
+Filtered branch uses original failed-artifact replay plus focused negatives;
+latest outage Thread uses full checks. Running/completed window browser checks
+pass. Receipts input-gap-51f4715-review and filtered-contingency-51f4715-review
+are explicitly selected from the overall run. Human verification and integration
+remain pending; no new baseline or Research R1 yet. Generation boundary repetition
+and general completion-contract gaps remain open.
 
 Whole-source independent review approved; full test, E2E, validate and source/validation type gates passed. Fresh precommit checks:38 passed, including actual Authority coverage and formal-message separation. local-dev rebuild, actual App/API acceptance, exact remote CI and integration remain required. The next baseline must precede Research Model implementation; preserve the existing research experiment as a reference.

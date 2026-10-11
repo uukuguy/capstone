@@ -1,5 +1,12 @@
 # Current State
 
+Active priority (2026-10-11): former local-dev2473e48 real-user clarification and overview
+samples failed. Repair and add overall plus update deployment samples on
+fix/deployment-answer-acceptance from devc857837 before Research Model R1.
+User-authorized overall Provider validation failed; reviewed contract/language
+repairs await rebuild and complete retesting. Infrastructure readiness and prior scripted gates do not establish business
+acceptance. See [the repair plan](../superpowers/plans/2026-10-11-deployment-answer-acceptance.md).
+
 ## Project Snapshot
 
 - Project: Capstone Agent Framework
@@ -11,7 +18,7 @@
 - Theme-level focus: Complete the approved agent-conversation contracts over authority-backed Thread state
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-07-capstone-conversation-completion.md`
-- Active work package: Research Model implementation on feat/research-model under the [R1–R5 plan](../superpowers/plans/2026-10-11-research-model-evolution.md); the branch starts from accepted dev governance and the local B2 technical baseline. R1 code is not implemented. Unified task understanding, goal coverage and formal-message separation are implemented and locally verified under the [shared design](../superpowers/specs/2026-10-10-shared-intent-and-goal-answer-design.md); human Provider answer acceptance and cloud promotion remain separate.
+- Active work package: Local intent recognition and answer regression repair under the [latency plan](../superpowers/plans/2026-10-11-recognition-latency.md). Overall Provider acceptance must pass before manual handoff and further baseline integration. Research Model [R1–R5](../superpowers/plans/2026-10-11-research-model-evolution.md) remains deferred; R1 code is not implemented. Source checks, actual business validation, manual acceptance and cloud promotion remain separate.
 - Experimental work package (`feat/pi-skills-integration`): Shared business workspace and role resources, under the [approved plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md). Three Pi roles share bounded public context and project-managed skills/MCP configuration. Professional tools retain Domain Pack/Authority admission; native observations do not create simulator evidence. Accepted tasks bind immutable resources. Current public model context contains identity, version and bounded history, not complete model tables. Real Provider answer quality remains unaccepted; hosted stages still use the previous release. Case is a separate module outside this package.
 - Evolution discussion: `docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md` is secondary research. The user initiates it; remind only at an important boundary. Its open questions do not set the delivery order.
 - Milestone status: delivery reached M11 under the recorded bounded scopes. M6 Tasks1–9 closed for lightweight demo scope, with independent Task1–8 review/fix evidence; later M10/M11 passed full release gates. Portable whole-stage M6/M10 review records need consolidation. Generic runtime materialization was expressly deferred by the approved M2 review. See `docs/reviews/2026-10-07-capstone-m1-m11-status-audit.md`; do not reopen stages from stale checkboxes.
