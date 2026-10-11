@@ -317,12 +317,20 @@ class TaskUnderstanding:
         request = TaskRequest.from_document(value["request"])
         if expected_request is not None and request != expected_request:
             raise ValueError("task request binding does not match")
-        return recognize_decision(request, {key: value[key] for key in ("schema", "goals", "answer_policy")},
+        return _decode_decision(request, {key: value[key] for key in ("schema", "goals", "answer_policy")},
                                   recognizer=_text(value["recognizer"], 256))
 
 
 def recognize_decision(request: TaskRequest, proposal: object, *, recognizer: str) -> TaskUnderstanding:
     """Validate model semantics; request references come exclusively from the host."""
+    task = _decode_decision(request, proposal, recognizer=recognizer)
+    if any(goal.execution == "general" and not goal.dependencies and goal.scenario != "none" for goal in task.goals):
+        raise ValueError("independent general task cannot select a business scenario")
+    return task
+
+
+def _decode_decision(request: TaskRequest, proposal: object, *, recognizer: str) -> TaskUnderstanding:
+    """Decode persisted contracts without applying new proposal-only restrictions."""
     if not isinstance(request, TaskRequest):
         raise ValueError("task request is invalid")
     try:

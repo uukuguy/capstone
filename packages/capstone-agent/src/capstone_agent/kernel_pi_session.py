@@ -198,10 +198,15 @@ class PreparedKernelPiRpcSessionBuilder:
         if claim.task_resolutions and all(not goal.execution_required for goal in claim.task_resolutions) and not all(goal.status == "general" for goal in claim.task_resolutions):
             return _ResolvedTaskSession(claim, profiles)
         workspace = profiles[0].workspace
-        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+        general_only = bool(claim.task_resolutions) and any(
+            goal.status == "general" and goal.execution_required for goal in claim.task_resolutions
+        ) and all(not goal.execution_required or goal.status == "general" for goal in claim.task_resolutions) and claim.task_understanding is not None and all(
+            not goal.dependencies for goal in claim.task_understanding.goals if goal.execution == "general")
+        if general_only or (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"):
             directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
             policy = _compose_attempt_policy(directory, None, include_generic=True,
-                application_catalog=claim.application_catalog, task_understanding=claim.task_understanding)
+                application_catalog=None if general_only else claim.application_catalog,
+                task_understanding=claim.task_understanding, general_goals_only=general_only)
             paths = RuntimePaths(command=self._runtime_host.command,
                 project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
                 workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
@@ -210,7 +215,9 @@ class PreparedKernelPiRpcSessionBuilder:
             trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
             client = PiRpcClient(launch, _RpcWorkspace(directory), trace, secret_values=secrets,
                 correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds)
-            return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
+            admission = _build_general_only_admission(profiles) if general_only else _build_kernel_admission(())
+            return _KernelPiPromptSession(client, trace, admission=admission,
+                general_task_prompt=_render_general_goals(claim.task_understanding) if general_only else None)
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
         execution_catalogs = {}
@@ -375,6 +382,7 @@ def _compose_attempt_policy(
     prior_results: tuple[PriorResultReference, ...] = (),
     previous_instruction: PreviousInstruction | None = None,
     task_understanding=None,
+    general_goals_only: bool = False,
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -385,7 +393,12 @@ def _compose_attempt_policy(
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    task_text = render_task_policy(task_understanding)
+    if general_goals_only:
+        if task_understanding is None:
+            raise ValueError("general goals require an accepted task")
+        task_text = _render_general_goals(task_understanding)
+    else:
+        task_text = render_task_policy(task_understanding)
     if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) + len(task_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -396,6 +409,13 @@ def _compose_attempt_policy(
     )
     path.chmod(0o600)
     return path
+
+
+def _render_general_goals(task):
+    return "Respond only to these general goals. The host renders professional conclusions separately.\n" + json.dumps({
+        "goals": [goal.to_document() for goal in task.goals if goal.execution == "general"],
+        "answer_policy": {"language": task.answer_policy.language, "scale": task.answer_policy.scale},
+    }, ensure_ascii=False)
 
 
 def _render_attempt_model_context(
@@ -562,11 +582,13 @@ def _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners=
 
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
-                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None,
+                 general_task_prompt: str | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
+        self._general_task_prompt = general_task_prompt
 
     @property
     def command(self) -> object:
@@ -589,7 +611,7 @@ class _KernelPiPromptSession:
             on_semantic_event(event)
 
         return self._client.prompt_and_wait(
-            question,
+            self._general_task_prompt if self._general_task_prompt is not None else question,
             on_semantic_event=observed,
             correlation_id=correlation_id,
             on_heartbeat=on_heartbeat,
@@ -603,6 +625,23 @@ class _KernelPiPromptSession:
             self._client.stop()
         finally:
             self._trace.close()
+
+
+def _build_general_only_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
+    def admit(claim, answer, result_refs, evidence_refs, tool_events):
+        if result_refs or evidence_refs or tool_events:
+            raise ValueError("general-only response cannot admit business execution references")
+        if any(goal.execution_required and goal.status != "general" for goal in claim.task_resolutions):
+            raise ValueError("general-only response has pending professional execution")
+        result = _task_conclusion_answer(claim, profiles, (), (), general_answer=answer)
+        # Verify the professional informational part without certifying general prose.
+        general_ids = {goal.goal_id for goal in claim.task_resolutions if goal.status == "general"}
+        if any(item.goal_id not in general_ids and item.status == "supported"
+               and not item.result_refs and not item.evidence_refs for item in result.goal_conclusions):
+            from dataclasses import replace
+            result = replace(result, diagnostic_codes=result.diagnostic_codes + ("task_information_verified",))
+        return result
+    return admit
 
 
 def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):

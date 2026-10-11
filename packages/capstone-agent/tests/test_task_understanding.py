@@ -5,6 +5,31 @@ import pytest
 from capstone_agent import task_understanding as tasks
 
 
+def test_independent_general_goal_cannot_select_a_business_scenario():
+    value = typed_proposal()
+    value["goals"][0].update(execution="general", domain_request=None,
+                              dependencies=[], scenario="baseline", change=None)
+    with pytest.raises(ValueError, match="independent general task"):
+        tasks.recognize_decision(request(), value, recognizer="controlled-model/1")
+
+
+def test_independent_general_goal_without_business_scenario_is_valid():
+    value = typed_proposal()
+    value["goals"][0].update(execution="general", domain_request=None,
+                              dependencies=[], scenario="none", change=None)
+    decision = tasks.recognize_decision(request(), value, recognizer="controlled-model/1")
+    assert decision.goals[0].execution == "general"
+
+
+def test_historical_general_baseline_task_remains_replayable():
+    value = typed_proposal()
+    value["goals"][0].update(execution="general", domain_request=None,
+                              dependencies=[], scenario="none", change=None)
+    document = tasks.recognize_decision(request(), value, recognizer="controlled-model/1").to_document()
+    document["goals"][0]["scenario"] = "baseline"
+    assert tasks.TaskUnderstanding.from_document(document).goals[0].scenario == "baseline"
+
+
 def request():
     return tasks.TaskRequest("thread_1", "turn_1", "attempt_1", "分析故障影响", 12,
                              "context_1", "ieee39", "revision_1")

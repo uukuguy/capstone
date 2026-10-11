@@ -541,7 +541,8 @@ def test_m11_scripted_recognition_is_finite_and_provider_free(family, monkeypatc
 @pytest.mark.parametrize("review", ["satisfied", "unresolved", "invalid"])
 @pytest.mark.parametrize("schema", ["test/1", "capstone-professional-task/1"])
 @pytest.mark.parametrize("has_gap", [True, False])
-def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema, has_gap):
+@pytest.mark.parametrize("composition", ["single", "mixed", "contracts"])
+def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema, has_gap, composition):
     import copy
     import json
     from capstone_agent import task_recognition
@@ -554,6 +555,16 @@ def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypat
     decision["goals"][0].update(execution="professional", dependencies=[], scope="subset",
         missing_requirements=["Possible missing user choice"] if has_gap else [], domain_request={
             "binding_id": "test", "schema": schema, "payload": {"operation": "inspect"}})
+    if composition != "single":
+        decision["goals"][0].update(scope="full", scenario="baseline", change=None,
+                                    measure=None, missing_requirements=[])
+        extra = copy.deepcopy(decision["goals"][0])
+        extra.update(id="independent", purpose="Separate user objective")
+        if composition == "mixed":
+            extra.update(execution="general", scenario="none", domain_request=None)
+        else:
+            extra["domain_request"]["schema"] = "other/1"
+        decision["goals"].append(extra)
     prompts, timeouts = [], []
     class Client:
         def __init__(self, *args, **kwargs): pass
@@ -572,12 +583,14 @@ def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypat
     arguments = dict(runtime_host=SimpleNamespace(command=SimpleNamespace(argv=("pi",)), project_pi_dir=tmp_path),
         resolved_llm=SimpleNamespace(secret=None, config=SimpleNamespace(model="controlled")),
         base_environment={}, timeout_seconds=60, on_heartbeat=lambda: None,
-        requirement_schemas=({"binding_id": "test", "schema": schema, "payload_fields": {"operation": ["inspect"]}},))
+        requirement_schemas=({"binding_id": "test", "schema": schema, "payload_fields": {"operation": ["inspect"]}},
+                            {"binding_id": "test", "schema": "other/1", "payload_fields": {"operation": ["inspect"]}}))
     if review == "invalid":
         with pytest.raises(ValueError): task_recognition.recognize_with_pi(claim, **arguments)
     else:
         task = task_recognition.recognize_with_pi(claim, **arguments)
-        assert bool(task.goals[0].missing_requirements) == (review == "unresolved" and has_gap)
+        assert bool(task.goals[0].missing_requirements) == (review == "unresolved" and has_gap and composition == "single")
+        assert len(task.goals) == (1 if composition == "single" else 2)
     assert len(prompts) == 2
     assert prompts[1]["candidate"] == decision
     assert prompts[1]["request"] == prompts[0]["request"]

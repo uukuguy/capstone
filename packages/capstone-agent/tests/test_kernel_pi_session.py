@@ -6,9 +6,11 @@ from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from types import SimpleNamespace
+import pytest
 
 
-def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path):
+@pytest.mark.parametrize("mixed", [False, True])
+def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path, mixed):
     import capstone_agent.kernel_pi_session as module
     captured = []
     class Client:
@@ -16,6 +18,8 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
             self.workspace = workspace
         def stop(self):
             pass
+        def prompt_and_wait(self, question, **kwargs):
+            return question
     def launch(llm, paths, **kwargs):
         captured.append(paths)
         return SimpleNamespace(argv=("pi",), environment={})
@@ -30,6 +34,14 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     builder._timeout_seconds = 60
     claim = SimpleNamespace(turn_plan=SimpleNamespace(route="ordinary"), task_resolutions=(),
         task_understanding=None, application_catalog=None, attempt=SimpleNamespace(attempt_id="attempt_general"))
+    if mixed:
+        claim.turn_plan.route = "professional"
+        claim.task_resolutions = (SimpleNamespace(status="ready", execution_required=False),
+                                  SimpleNamespace(status="general", execution_required=True))
+        claim.task_understanding = SimpleNamespace(
+            goals=(SimpleNamespace(execution="professional", to_document=lambda: {"authority": "private-ref"}),
+                   SimpleNamespace(execution="general", dependencies=(), to_document=lambda: {"purpose": "Write a poem"})),
+            answer_policy=SimpleNamespace(language="en", scale="concise"))
     business = tmp_path / "business-workspace"
     profile = SimpleNamespace(workspace=SimpleNamespace(root=business, core_path=business / "core"))
     session = builder(claim, object(), (profile,))
@@ -38,6 +50,12 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     assert paths.extension_path is paths.runtime_descriptor_path is paths.tool_catalog_path is None
     assert paths.domain_search_paths == ()
     assert "business-policy" not in paths.system_policy_path.read_text()
+    if mixed:
+        assert "Write a poem" in paths.system_policy_path.read_text()
+        assert "private-ref" not in paths.system_policy_path.read_text()
+        prompt = session.prompt_and_wait("Original professional question private-ref", on_semantic_event=lambda event: None,
+                                         correlation_id=None, on_heartbeat=lambda: None)
+        assert "Write a poem" in prompt and "private-ref" not in prompt
     assert not (business / "core/pi/runtime-descriptor.json").exists()
     session.stop()
 
@@ -52,6 +70,37 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
             {"model_id": "unrelated-model", "display_name": "Other", "implementation_family": "pandapower", "available": True},
         ]},
     )
+
+
+def test_general_only_admission_keeps_verified_information_and_unverified_prose():
+    from capability_agent.domain.task import ResolvedTaskGoal, TaskConclusion
+    from capstone_agent.kernel_pi_session import _build_general_only_admission
+    from capstone_agent.harness import _offline_task_admitted
+    validated = []
+    provider = SimpleNamespace(
+        validate_semantic_binding=lambda goal, **kwargs: validated.append(goal.goal_id),
+        conclude=lambda goal, **kwargs: TaskConclusion(goal.goal_id, "supported", "Verified model overview"))
+    profile = SimpleNamespace(prepared_application=SimpleNamespace(bindings={"test": SimpleNamespace(
+        runtime=SimpleNamespace(profile=SimpleNamespace(task_provider=provider), authority=object()))}))
+    claim = SimpleNamespace(task_resolutions=(ResolvedTaskGoal("overview", "ready", "{}", binding_id="test", execution_required=False),
+                                              ResolvedTaskGoal("writing", "general", "{}")),
+        task_understanding=SimpleNamespace(goals=(SimpleNamespace(id="overview", to_document=lambda: {"id": "overview"}),),
+            answer_policy=SimpleNamespace(language="en", scale="concise")))
+    admit = _build_general_only_admission((profile,))
+    answer = admit(claim, "A short poem", (), (), ())
+    assert validated == ["overview"]
+    assert "Verified model overview" in answer.answer and "A short poem" in answer.answer
+    assert [goal.status for goal in answer.goal_conclusions] == ["supported", "general"]
+    assert answer.assurance == "general_knowledge"
+    assert _offline_task_admitted(answer)
+    assert answer.result_refs == answer.evidence_refs == ()
+    with pytest.raises(ValueError, match="business execution"):
+        admit(claim, "A short poem", ("invented-result",), (), ())
+    with pytest.raises(ValueError, match="business execution"):
+        admit(claim, "A short poem", (), (), ({"tool_name": "business-tool"},))
+    claim.task_resolutions = (ResolvedTaskGoal("overview", "ready", "{}", binding_id="test"),)
+    with pytest.raises(ValueError, match="pending professional"):
+        admit(claim, "A short poem", (), (), ())
 
 
 def test_catalog_admission_replaces_incomplete_answer_from_attempt_snapshot():
