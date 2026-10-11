@@ -88,8 +88,17 @@ bounded history enters the next prompt. Errors, cancellation,32 uses or180 secon
 idle discard the private process/session. Worker idle sweeps and shutdown close
 it. Configuration changes require worker restart. Domain state, facts and tools
 are never cached in this recognition process. Model/context/version and published
-contracts remain current per task. API model opening does not warm a separate
-worker process; opening-time warmup needs an explicit worker operation.
+contracts remain current per task.
+
+Initial Thread creation and opening a new model use one application-owned
+model initialization function. It binds the selected capabilities to the model
+identity already resolved by the catalog; it does not resolve that identity
+again. Restoring an opened model preserves its exact context and selection.
+The durable service queues worker preparation when the model or capability
+selection changes. Preparation and first execution use the same bounded context
+owner; an early instruction waits for that preparation instead of creating a
+second context. Pending activation preserves the prepared identity. Preparation
+does not classify a request, run a calculation or create simulator evidence.
 
 Recognition uses its own optional Provider/model selection, thinking level and
 bounded deadline; execution configuration is unchanged. Default thinking is low,

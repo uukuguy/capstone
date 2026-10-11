@@ -1,5 +1,20 @@
 # Known issues and deferred work
 
+## Business compilation identity and conclusion coverage
+
+- Actual9843b04 overall receipt115711f64191415d failed2/10. The overview route
+  mismatch now enters bounded correction in8ec1e1a; actual receipt371209e3d9b14d97
+  passed all10 automated turns. This pass does not close the identity/coverage risk.
+- Load scaling selected internal index31 instead of the user's label31 and
+  omitted the requested limits conclusion. Two semantic review calls did not
+  repair it. Resolution correctly reported no load for the selected index.
+- Do not automatically change namespaces or treat a later numerical result as
+  proof of the complete original goal. Identity-selection grounds and requested
+  conclusion coverage need explicit contracts. No incident-specific policy patch.
+- Opening-time preparation passed its separate lifecycle scope. It does not
+  close this business risk or establish a new baseline. See the
+  [preparation report](../reviews/2026-10-12-model-opening-preparation.md).
+
 ## Goal-based answers and response scale: manual acceptance fails
 
 - 2026-10-10 13:04: local-demo trial still shows baseline tables in place of answers to generator N−1 ranking and bus31 load scaling. Line7 has verified violations but lacks a concise direct conclusion and includes unrelated baseline detail. Generic partial diagnostics do not explain the remaining user-goal gap.

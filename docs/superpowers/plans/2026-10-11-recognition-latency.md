@@ -18,6 +18,12 @@ queue restart and newer-request fencing, more than one batch per wake, model
 switch reuse, actual first-instruction timing, whole business regression and
 exact local image/source identity. Completion requires a canonical local rebuild.
 
+Sourcea634257 also unifies first creation and new-model opening through one
+application initialization function. It uses the first resolved model identity
+for capability binding; restoration preserves the saved selection. Current
+receipts and bounded acceptance are in the
+[model preparation report](../../reviews/2026-10-12-model-opening-preparation.md).
+
 The user accepted stable preparation reuse, per-instruction LLM understanding,
 separate recognition configuration and immediate waiting feedback. No keyword
 routing or example-specific prompt changes. Current observed recognition19.48s

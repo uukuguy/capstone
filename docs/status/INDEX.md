@@ -18,7 +18,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | dev保存当前控制记录，main保存发布快照；PR #9/#10/#11已集成，B2本地技术标签已推送，Research Model实施分支已建立；local-dev候选与精确来源见台账；授权Provider整体回归仍失败，PR #13修复复测中，demo/云端ed2524f，禁止提前人工交接。 |
+| [多线版本控制](VERSION-CONTROL.md) | dev保存当前控制记录，main保存发布快照；local-deva634257统一模型初始化、同源重建及真实预热专项通过；8ec1e1a整体9业务＋1路由通过；历史业务风险保持打开，PR #13草稿；demo/云端ed2524f，未建立新基线。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
 | [并行开发运行准备](../superpowers/plans/2026-10-10-parallel-development-readiness.md) | 基础包已合并并关闭分支；当前计划同步了回答增强/Pi 归属、持续 PR 授权和独立发布验收；控制图与实际执行文件双向对齐。 |
@@ -27,7 +27,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [2026-10-11 Issue processing](../reviews/2026-10-11-issue-processing.md) | 独立App身份已核对；#1/#5待发布验收，#2/#3回答包处理中，#4受控诊断后等待一个触发信息；保持Issue打开，无云发布或付费模型调用。 |
 | [Baseline alignment plan](../superpowers/plans/2026-10-10-version-baseline-alignment.md) | Preserve experimental development, restore minimal demo foundation and verify local-only alignment. |
 | [Baseline alignment verification](../reviews/2026-10-10-version-baseline-alignment.md) | Main and isolated local-demo alignment passes full/local gates; six role identities match; experimental branches and user data retained; cloud unchanged. |
-| `KNOWN-ISSUES.md` | Open answer-quality and startup/recovery issues; accepted branch policy and local baseline alignment, with cloud rollback retained. |
+| `KNOWN-ISSUES.md` | Open business-compilation identity/coverage risks, answer-quality and startup/recovery issues; model preparation acceptance is separate from overall and baseline acceptance. |
 | [Demo outcomes and failure diagnostics](../superpowers/specs/2026-10-10-demo-outcome-and-diagnostics-design.md) | Approved design, implemented on main and demo baseline; remote acceptance pending. |
 | [Demo outcome repair plan](../superpowers/plans/2026-10-10-demo-outcome-and-diagnostics.md) | Incident implementation and two-baseline verification; remote release remains gated. |
 | [Demo outcome repair verification](../reviews/2026-10-10-demo-n1-repair-verification.md) | Confirmed defect, tested repair sources, local rebuild and explicit remote acceptance limits. |

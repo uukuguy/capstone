@@ -1,34 +1,53 @@
 # Active session checkpoint — 2026-10-12
 
-The session remains active. Local routing repair is ready for manual validation;
+The session remains active. User requires complete model-opening and switching
+preparation, with no deferred remainder. Source55174b1 adds the durable worker
+queue and pending identity freeze.9843b04 fixes new-workspace default binding;
+actual preparation scope passed. Overall9843b04 failed2/10: overview route
+mismatch and load namespace/conclusion coverage.8ec1e1a moves the frozen route
+invariant inside bounded compiler correction;64 tests, types and review passed.
+Canonical rebuild8ec1e1a and overall9-business/1-route checks passed. Sourcea634257
+now unifies initialization across creation, workspace opening and legacy switches;
+68 creation/workspace/real-PG checks, types, boundaries and review passed. Its
+canonical rebuild,514-file source proof and actual lifecycle repeat passed.
+The load identity/coverage risk remains explicit, without unsafe fixes.
 Research R1 and baseline integration remain later work.
 
 ## Current boundary
 
-- Branch: fix/deployment-answer-acceptance; deployed source beef6d4047b48417593203de6466a775ea9b670d.
+- Branch: fix/deployment-answer-acceptance; deployed source a634257709efbeb3bbe2326167904308534ca00e.
 - Clean local-dev worktree .worktrees/issue-1-local-dev; canonical rebuild passed.
-- Three roles have513 exact source files and image52f1f267; clean App matches source.
-- Actual provider-03e613bea16c4dbd passed9 business turns plus1 routing-only turn.
+- Three roles have514 exact source files and image8d64370f; clean App matches source.
+- Actual8ec1e1a provider-371209e3d9b14d97 passed9 business turns plus1 routing-only turn.
   Independent raw tool, frozen goal, Authority result and evidence review PASS.
 - Update scope explicitly reuses5 overall turns; actual waiting/running/completed
   window checks passed. Control graph regenerated; desktop/mobile and source edges checked.
 - Source pushed as capstone-xiaoshi[bot]; verification docs complete. PR13/issues2/3
   synchronization is recorded in the private publication receipt. Keep PR draft and issues open.
-- Routing mostly606–1397ms, one3038ms; overviews4020–6744ms.
-- Load81.747s remains slow downstream execution:11 model responses,32 tools,
-  9781 output tokens including4594 reasoning;54.675s Provider/transport,
-  11.777s tool batches/transport. Pure Authority CPU unknown.
-- Existing context reuse is implemented; complete model-opening worker prewarm is not.
+- Overall8ec1e1a routing454–660ms; overviews3739–5559ms.
+- Load105.589s remains slow downstream execution (95.422s execution).
+  Historical81.747s breakdown remains in the earlier report. Pure Authority CPU unknown.
+- Complete opening-time prewarm and unified application initialization are implemented.
+  Actuala634257 first overview5869ms; early submission6903ms including1926ms preparation queue.
 - No new baseline, dev/main integration, demo/cloud deployment or Research R1 implementation.
 
 ## Next work
 
+Active override: browser/document checks passed; publish PR13/Issues2/3 records.
+Current sourcea634257/image8d64370f. Unified initialization and actual lifecycle
+checks passed; desktop/mobile control graph source edges and layout passed.
+Report: docs/reviews/2026-10-12-model-opening-preparation.md. Preserve failed9843b04 receipt
+provider-115711f64191415d and model-preparation-9843b04.json. Known business risk
+is in KNOWN-ISSUES and must not be marked closed by a later sample pass.
+User requires action, not explaining two paths: a634257 actually replaces separate
+binding/context creation with initialize_model_context, resolves identity once,
+and preserves exact restoration. Old beef6d4 acceptance below is historical.
+
 1. Confirm runs/task-answer-closure/routing-closure-publication.json matches branch HEAD and PR13.
 2. User manually verifies local-dev http://127.0.0.1:5173/ after refresh.
 3. Integrate accepted repair into dev through PR13 checks; do not wait CI for local validation.
-4. Keep full opening-time prewarm and downstream execution latency explicit next work.
-   Investigate fresh-Thread initialization submission separately; first browser probe
-   raced page setup, while settled empty-Thread wait/answer verification passed.
+4. Keep downstream execution latency and business identity/coverage risks open.
+   Opening-time prewarm is complete; do not re-list it as unimplemented.
 5. Establish the next baseline only after required acceptance, then start Research R1.
 
 ## Durable verification
