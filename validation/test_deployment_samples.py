@@ -27,11 +27,39 @@ def test_calculation_without_current_run_evidence_blocks_handoff():
         "answer": "跳闸后线路重载。", "result_refs": ["result:one"], "evidence_refs": []})
 
 
-def test_sample_set_contains_overall_and_update_scopes():
+def test_overall_corpus_records_real_incidents_and_separate_update_selection():
+    from validation.deployment.run import load_samples
     manifest = json.loads((Path(__file__).parent / "deployment/ieee39.json").read_text())
-    assert len(manifest["overall"]) == 5
-    assert set(manifest["update"]) == {"formal-answer", "runtime-window"}
+    assert len(manifest["cases"]) == 5
+    assert manifest["suite_kind"] == "overall"
+    assert set(manifest["incident_records"]) == {case["id"] for case in manifest["cases"]}
+    for incident in manifest["incident_records"].values():
+        assert incident["failure"] and incident["semantic_requirements"]
+        assert (Path(__file__).parent / "deployment" / incident["source"]).is_file()
+    update, hashes = load_samples(Path(__file__).parent / "deployment/task-answer-update.json")
+    assert update["suite_kind"] == "update"
+    assert [case["id"] for case in update["cases"]] == ["generation-n1", "model-overview", "clarification-to-overview"]
+    assert len(hashes) == 2
     assert manifest["acceptance"]["skipped_is_pending"]
+
+
+def test_update_cannot_silently_skip_unknown_historical_case(tmp_path):
+    from validation.deployment.run import load_samples
+    (tmp_path / "overall.json").write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_kind": "overall", "cases": []}))
+    update = tmp_path / "update.json"
+    update.write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_kind": "update", "corpus": "overall.json", "case_ids": ["missing"]}))
+    with pytest.raises(ValueError):
+        load_samples(update)
+
+
+def test_update_rejects_duplicate_case_ids_in_overall_corpus(tmp_path):
+    from validation.deployment.run import load_samples
+    (tmp_path / "overall.json").write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_kind": "overall",
+        "cases": [{"id": "same", "turns": [{"text": "原始问题"}]}, {"id": "same", "turns": [{"text": "替代问题"}]}]}))
+    update = tmp_path / "update.json"
+    update.write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_kind": "update", "corpus": "overall.json", "case_ids": ["same"]}))
+    with pytest.raises(ValueError, match="sample_cases_invalid"):
+        load_samples(update)
 
 
 def test_provider_runner_requires_authorization_before_any_network(monkeypatch):
@@ -72,7 +100,7 @@ def test_result_reference_without_attempt_projection_cannot_pass():
 def test_positive_api_screening_does_not_claim_provider_or_business_acceptance(monkeypatch, tmp_path):
     from validation.deployment import run
     samples = tmp_path / "samples.json"
-    samples.write_text(json.dumps({"model_id": "ieee39", "overall": [{"id": "overview", "turns": [{"text": "介绍"}]}]}))
+    samples.write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_id": "test", "suite_kind": "overall", "model_id": "ieee39", "cases": [{"id": "overview", "turns": [{"text": "介绍"}]}]}))
     class Session:
         def __init__(self, *args): pass
         def __enter__(self): return self

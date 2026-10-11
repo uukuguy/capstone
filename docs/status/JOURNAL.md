@@ -2478,3 +2478,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-11：c857837 合并控制图；真实问答失败转为部署样本回归优先项。
 
 - 2026-10-11：76a7f58 建立部署样本并修复提案与概况，阻止未经验证的人工交接。
+
+- 2026-10-11：8f1c9b3 移除弱关键词验收，保留准确样例断言与独立语义复核。

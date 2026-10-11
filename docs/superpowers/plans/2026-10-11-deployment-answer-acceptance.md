@@ -30,9 +30,15 @@ real model-generated tasks. Keep Research Model R1 pending until this closes.
 
 ## Acceptance samples
 
-Overall: generation N-1 scope, line outage, load scaling, model/capability overview,
-and an overview following an object clarification in the same Thread.
-Update-specific: Chinese clarification, malformed typed payload, mixed goals,
+Overall: maintain a long-lived corpus of actual conversation failures, preserving
+the original instruction, incident source and semantic requirements. Initial
+cases cover generation N-1 scope, line outage, load scaling, model/capability
+overview and an overview following an object clarification in the same Thread.
+Use it for baseline, broad integration and release verification; resolved errors
+remain regression cases. Future confirmed failures extend the corpus.
+Update-specific: select affected historical cases by ID in a separate manifest;
+this repair selects generation clarification, overview and continuous overview.
+Additional focused checks cover Chinese clarification, malformed typed payload, mixed goals,
 process/final text isolation, evidence binding, running preview/full window and
 completed collapsed/full window. Unsupported generation calculations must state
 the actual capability gap and never manufacture a severity ranking.

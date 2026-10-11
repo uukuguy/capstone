@@ -23,7 +23,10 @@ feat/research-model exists, but no R1 code has been implemented.
   verified. Exact local-dev imagee614ce0d, API/two-worker512-file source identity,
   three cases/nine turns/report/evidence and formal RPC/UI boundaries pass.
   Human live Provider answer acceptance is pending. No paid calls or cloud deploy.
-- local-dev App5173/API8767 remains2473e48. local-demo App15173/API18767 and
+- local-dev App5173/API8767 now uses temporary fix candidate8f1c9b3, image6812266d.
+  Three-role483 backend source/config checks and clean App identity pass; real
+  Provider business samples remain pending. PR #13 targets dev as draft.
+  local-demo App15173/API18767 and
   recorded clouds remained2524f. Root checkout is not a deployed stage.
 - feat/research-model starts accepted dev50d8ebc, remote/local branch established,
   isolated .worktrees/research-model is clean. Prepare managed runtimes before
@@ -59,8 +62,15 @@ screening separate from semantic acceptance and preserve LLM intent recognition.
 Independent review approves source fix and screening-tool boundary. Real overview
 still requires full selected-model description and capabilities; generic prose
 alone fails. Do not claim product acceptance until all required samples pass.
-The graph pins accepted organization50d8ebc and tested product2473e48, not every
-later documentation commit.
+The overall corpus keeps original conversation failures and their semantic
+requirements; the separate update manifest selects related historical cases.
+Overall five cases/six turns, current update three cases/four turns. Runner scope
+must be selected explicitly. Both manifests are recorded by content hash;11
+selection/tool checks pass, including duplicate corpus-ID rejection. App64
+component checks and control-browser source/layout checks pass. Live running
+window and real Provider/semantic business acceptance are still pending.
+The graph pins accepted organization50d8ebc and actual candidate8f1c9b3, not every
+later documentation or sample-tool commit.
 
 Then prepare R1 contract/lifecycle implementation from the accepted R1–R5 plan.
 Keep canonical dev records and affected branch plans aligned; never import

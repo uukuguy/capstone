@@ -56,7 +56,24 @@ were removed: these cannot establish semantic correctness. The revised sample
 tool passes9 focused tests; positive screening still requires semantic review.
 Product intent recognition remains LLM-based.
 
-This record does not claim a deployed repair or successful business acceptance.
-Required next receipts: exact rebuilt API/worker/App identity, actual Provider
+Candidate8f1c9b3 was rebuilt using the canonical local entrypoint. API and both
+workers share image6812266d;483 regular backend source/config files match the
+exact commit. The separate App reports clean local-dev8f1c9b3. Frontend files
+are checked through the App, not expected inside the backend image. Component
+checks pass64. Source receipt: `runs/task-answer-closure/sample-candidate-source.json`.
+
+The user clarified the two corpus roles: overall means long-lived regression
+from actual conversation errors, while an upgrade-specific manifest selects
+affected cases and focused checks. The initial overall corpus has five cases/six
+turns with original instructions, incident sources and semantic requirements.
+The current update selects three cases/four turns by ID, without duplicate text.
+The runner records both content hashes and requires explicit scope selection.
+Corpus selection checks pass11, including rejecting duplicate historical IDs
+before selecting a subset. Independent review approves the source and corpus
+separation. Control graph desktop/mobile checks confirm four exact stage bindings,
+no independent edge crossings, no overlapping cards and no mobile overflow.
+
+This record does not claim successful business acceptance.
+Required next receipts: actual Provider
 sample execution, frozen-goal/scenario/Authority-result review, update/browser
 checks. Any required failure blocks human handoff and Research Model R1.

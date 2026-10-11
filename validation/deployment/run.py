@@ -13,6 +13,37 @@ from capstone_agent.thread_http import HttpThreadSession
 from validation.deployment.checks import check_answer
 
 
+def _validate_cases(manifest):
+    cases = manifest.get("cases", [])
+    if not cases or len({case["id"] for case in cases}) != len(cases) or any(not case["turns"] for case in cases):
+        raise ValueError("sample_cases_invalid")
+
+
+def load_samples(path):
+    raw = path.read_bytes()
+    manifest = json.loads(raw)
+    hashes = {path.name: sha256(raw).hexdigest()}
+    if manifest.get("schema") != "capstone-deployment-samples/2":
+        raise ValueError("sample_schema_invalid")
+    if manifest.get("suite_kind") == "update":
+        corpus_path = path.parent / manifest["corpus"]
+        corpus_raw = corpus_path.read_bytes()
+        corpus = json.loads(corpus_raw)
+        if corpus.get("schema") != "capstone-deployment-samples/2" or corpus.get("suite_kind") != "overall":
+            raise ValueError("update_requires_overall_corpus")
+        _validate_cases(corpus)
+        selected = manifest["case_ids"]
+        cases = {case["id"]: case for case in corpus["cases"]}
+        if not selected or len(set(selected)) != len(selected) or any(key not in cases for key in selected):
+            raise ValueError("update_case_selection_invalid")
+        manifest = {**corpus, **manifest, "cases": [cases[key] for key in selected]}
+        hashes[corpus_path.name] = sha256(corpus_raw).hexdigest()
+    elif manifest.get("suite_kind") != "overall":
+        raise ValueError("sample_scope_invalid")
+    _validate_cases(manifest)
+    return manifest, hashes
+
+
 def run_turn(session, turn, manifest, *, timeout=180):
     before = session.snapshot()
     receipt = session.command("send_auto", {"text": turn["text"], "enabled_profiles": [{
@@ -54,7 +85,7 @@ def run_turn(session, turn, manifest, *, timeout=180):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-provider", action="store_true", help="Run only after explicit authorization for Provider calls")
-    parser.add_argument("--samples", type=Path, default=Path(__file__).with_name("ieee39.json"))
+    parser.add_argument("--samples", type=Path, required=True, help="Explicit overall corpus or upgrade-specific selection")
     parser.add_argument("--receipt-dir", type=Path, default=Path("runs/deployment-samples"))
     args = parser.parse_args(argv)
     if not args.allow_provider:
@@ -63,12 +94,12 @@ def main(argv=None):
     token = os.environ.get("CAPSTONE_SAMPLE_OPERATOR_TOKEN", "")
     if not origin or not token:
         parser.error("Sample API origin or protected operator token is missing")
-    raw = args.samples.read_bytes()
-    manifest = json.loads(raw)
-    report = {"schema": "capstone-deployment-sample-receipt/1", "sample_sha256": sha256(raw).hexdigest(),
+    manifest, hashes = load_samples(args.samples)
+    report = {"schema": "capstone-deployment-sample-receipt/2", "sample_hashes": hashes,
+        "suite_id": manifest["suite_id"], "suite_kind": manifest["suite_kind"],
         "api_origin": origin, "mode": "deployed-api-screening", "provider_execution_identity": "unverified", "checks": [],
         "deployment_acceptance": "pending_identity_browser_and_update_checks"}
-    for sample in manifest["overall"]:
+    for sample in manifest["cases"]:
         with HttpThreadSession(origin, token) as session:
             try:
                 session.create(manifest["model_id"])
@@ -80,7 +111,7 @@ def main(argv=None):
             except Exception as error:
                 # Exception messages may contain transport or configuration details.
                 report["checks"].append({"sample": sample["id"], "status": "failed", "error_type": type(error).__name__})
-    passed = len(report["checks"]) == sum(len(s["turns"]) for s in manifest["overall"]) and all(c["status"] == "passed" for c in report["checks"])
+    passed = len(report["checks"]) == sum(len(s["turns"]) for s in manifest["cases"]) and all(c["status"] == "passed" for c in report["checks"])
     report["automated_screening"] = "passed" if passed else "failed"
     report["business_samples"] = "pending_semantic_and_execution_identity_review" if passed else "failed"
     args.receipt_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
