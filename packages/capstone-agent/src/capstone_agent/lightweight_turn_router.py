@@ -36,8 +36,12 @@ class LightweightTurnRouter:
                         "turn-plan-v1", None, request.context_snapshot)
 
 
-def build_lightweight_router(*, runtime_host, resolved_llm, environment, timeout_seconds=15):
+def build_lightweight_router(*, runtime_host, environment, resolved_llm=None,
+                             resolved_llm_factory=None, timeout_seconds=15):
     def classify(request):
+        selected_llm = resolved_llm_factory() if resolved_llm_factory is not None else resolved_llm
+        if selected_llm is None:
+            raise DecisionUnavailable("llm_route_unavailable")
         with tempfile.TemporaryDirectory(prefix="capstone-route-") as directory:
             root = Path(directory).resolve()
             policy = root / "policy.md"
@@ -45,9 +49,9 @@ def build_lightweight_router(*, runtime_host, resolved_llm, environment, timeout
             policy.chmod(0o600)
             paths = RuntimePaths(command=runtime_host.command, project_pi_dir=runtime_host.project_pi_dir,
                 session_dir=root / "session", workspace=root, system_policy_path=policy)
-            original = build_pi_launch(resolved_llm, paths, base_environment=environment)
+            original = build_pi_launch(selected_llm, paths, base_environment=environment)
             launch = PiLaunch((*original.argv, "--thinking", "off"), original.environment)
-            secrets = {resolved_llm.secret.value} if resolved_llm.secret is not None else set()
+            secrets = {selected_llm.secret.value} if selected_llm.secret is not None else set()
             client = PiRpcClient(launch, _Workspace(root),
                 JsonlTraceWriter(root / "events.jsonl", secret_values=secrets),
                 secret_values=secrets, timeout_seconds=timeout_seconds)

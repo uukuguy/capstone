@@ -128,10 +128,11 @@ def build_registered_pandapower_thread_application():
     from capstone_agent.lightweight_turn_router import build_lightweight_router
     from capstone_agent.runtime import resolve_recognition_llm
     environment = load_runtime_environment(root)
-    execution = resolve_harness_llm(root, environment)
+    def recognition_llm():
+        return resolve_recognition_llm(root, environment, resolve_harness_llm(root, environment))
     router = build_lightweight_router(
         runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
-        resolved_llm=resolve_recognition_llm(root, environment, execution), environment=environment)
+        resolved_llm_factory=recognition_llm, environment=environment)
     return replace(assembly, turn_router=router)
 
 

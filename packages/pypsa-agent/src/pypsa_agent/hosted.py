@@ -138,10 +138,11 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     from capstone_agent.lightweight_turn_router import build_lightweight_router
     from capstone_agent.runtime import resolve_recognition_llm
     environment = load_runtime_environment(ROOT)
-    execution = resolve_harness_llm(ROOT, environment)
+    def recognition_llm():
+        return resolve_recognition_llm(ROOT, environment, resolve_harness_llm(ROOT, environment))
     router = build_lightweight_router(
         runtime_host=build_runtime_host(ROOT, build_profile(), environment),
-        resolved_llm=resolve_recognition_llm(ROOT, environment, execution), environment=environment)
+        resolved_llm_factory=recognition_llm, environment=environment)
     return replace(assembly, turn_router=router)
 
 
