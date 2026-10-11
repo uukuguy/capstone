@@ -200,7 +200,7 @@ counts, prices, limits, versions, or deployment state here.
   commands, headings, or references change. Write for readers; move detailed
   procedures into the runbook and volatile status into `docs/status/`.
 - An isolated worktree is an implementation aid. Unless the user requests
-  branch-only delivery, integrate accepted changes into the main checkout
+  branch-only delivery, integrate accepted development changes into the dev checkout
   and verify its real entry point. Preserve deferred work and user data.
 - A fresh worktree lacks ignored runtimes. Before testing Pi, `gridctl`, or
   JavaScript tools there, run `make setup`, `make install-pi`, and
