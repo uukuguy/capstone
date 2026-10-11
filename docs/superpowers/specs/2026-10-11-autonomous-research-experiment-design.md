@@ -151,3 +151,19 @@ implement this complete model or prove model-driven autonomy. Persistent coding
 and Asterion WorldMap are not mandatory design dependencies. See the accepted
 [evolution plan](../plans/2026-10-11-research-model-evolution.md) for R0–R5,
 dependencies and acceptance criteria.
+
+## Development baseline adaptation — 2026-10-12
+
+The implementation branch `feat/research-model` now uses accepted dev baseline
+`6ff7094` (PR #14, exact candidate `bc08169` passed both protected checks).
+The R0 branch and its evidence remain at `bf678f2`; they are a mechanism reference,
+not implementation or acceptance of R1 on the new baseline.
+
+Research state must use existing Thread/Attempt/model identity and admitted
+Authority results, with its own task lifecycle. The lightweight LLM router only
+selects ordinary or professional work; it does not compile or complete research.
+Do not depend on the withdrawn task compiler, task coverage, answer rewriter,
+frozen reuse or prewarm modules. Keep process messages separate from the final
+answer. Known load admission, AC identity and overview latency defects remain
+explicit; affected research steps require a repair or a recorded block.
+Pi experiments are independent and do not become a prerequisite for R1.

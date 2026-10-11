@@ -1,49 +1,29 @@
-# Live session checkpoint — 2026-10-12 rollback
+# Live checkpoint — Research Model baseline adaptation
 
-User requested selective restoration after rollback: small-font latest3-action
-window, lightweight ordinary answers and final-message/process separation.
-Product82b243c deployed from detached issue-1-local-dev; exact506 files in API and
-both workers/image6717818b, clean matching App. UI380/framework588/RPC11 and related
-66 tests/types pass; independent source review approves. No compiler/coverage restored.
-Ordinary uses the existing configured recognition model and thinking off, with no
-business tools or authority descriptors. Model overview is still professional;
-its extra calculations/latency are not claimed repaired. Realad15bf6fe1d34606
-two-turn update independently PASS: ordinary104chars/8.491s/zero tools and final
-Chinese1285chars/48.975s without intermediate English. Actual event replay checks
-3-row preview/160px scroll/toggle/terminal collapse; actual App hover action and
-full scrollbar pass. Next: publish scoped report/PR14 update; overall defects remain.
+Date: 2026-10-12. Branch: feat/research-model.
+Accepted development baseline: 6ff7094e79f654abb24e626b2cdd1e593337efcb.
+PR #14 candidate bc08169 passed both protected GitHub checks before merge.
 
-User cancelled task/answer closure recovery. Restore pre-closure business execution
-from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.
-Do not resume task compilation, coverage, answer rewriting, frozen reuse or prewarm.
+The branch fast-forwarded from 50d8ebc; its previous root remains at
+archive/research-before-dev-baseline-20261012. R0 experiment/autonomous-research
+stays at bf678f2 with its original evidence. R1 has no code yet.
 
-- Root checkout now on fix/stable-route-recovery, documentationHEADcf9ac88.
-  Recovery worktree detachedcf9ac88; deployed App worktree stays detached30a3ecb.
-- Product30a3ecb; rollback88f40de and standalone routing633ed6b.
-- Published report/test commitb9ff1f9; PR13closed, PR14draft/base dev.
-  Issues2/3 bot comments record rollback and failed overall acceptance; remain open.
-- Deployment App is pinned to detached .worktrees/issue-1-local-dev at30a3ecb;
-  documentation revisions in the recovery checkout must not change its build identity.
-- Archive archive/answer-recovery-before-rollback-20261012 retains42a647b.
-  Uncommitted regression patches remain backed up under ignored runs/.
-- Framework585 and Pack105 tests passed; focused route/worker/Harness57,
-  types and doctor passed. Setup and install-pi completed.
-- Canonical local-dev rebuild30a3ecb completed.506 files match API and both workers;
-  same image7409a029, App5173 clean30a3ecb. Browser shows full overview/reuse table
-  and load failure. Control graph layout/source checks passed.
-- Rollback corpus validation/deployment/stable-execution-regression.json requires
-  real calculations for registered objects; wrong clarification cannot pass.
-  Reuse needs same preceding result and zero recalculation; review raw Authority data.
-- First screening9177d5f45be9424b ran during service replacement and failed transport;
-  retained as failed, never an acceptance receipt. Rerun only after readiness.
-- Ready-source overall2e107b34738b4b20 completed7 turns. Independent review confirms
-  same-ref reuse and zero recalculation; line7 calculation, topology and overview
-  restored. Load admission fails; old process prefix and wrong AC bus identity
-  remain. Overall business acceptance FAILED; no new enhancement attempted.
-- Prior1013dd2 human validation failed. Do not repeat earlier broad acceptance claims.
-- Main/dev, demo/cloud and existing data unchanged. No new baseline or Research R1.
+This change adapts the owning design and R1–R5 plan. Use existing Thread,
+Attempt, ModelContextSnapshot, selected semantic tools and Authority evidence.
+The binary LLM router only chooses a chain. Do not restore task compilation,
+coverage, answer rewriting, frozen reuse or prewarm. Research state requires its
+own lifecycle; ordinary questions do not require a full Research Model.
+Known load admission, AC identity and overview latency problems remain open.
+Affected research steps require a repair or an explicit block.
 
-Root alignment complete. Interrupted patches preserved in stash and ignored backup.
-Do not merge PR14 or start new business fixes automatically.
-Do not resume withdrawn closure work or call this historical version fully stable.
-Session remains active; product30a3ecb differs from later documentation commits.
+The independent plan review approved these dependencies. Product source,
+configuration and tests are unchanged from the accepted baseline.
+Own make setup/install-pi/doctor passed without authentication copies.
+Before the document commit, check links, CLAUDE symlink and git diff --check.
+See docs/reviews/2026-10-12-research-baseline-adaptation.md.
+
+Next implementation: R1 neutral state/dependencies/lifecycle contracts and R4
+actual capability-gap inventory, under the accepted research evolution plan.
+No R1 completion, Provider acceptance or deployment is claimed.
+Global branch and deployment facts belong to dev/docs/status/VERSION-CONTROL.md;
+do not overwrite that register with this branch's older snapshot.

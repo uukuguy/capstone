@@ -2,6 +2,10 @@
 
 ## Active
 
+[Research Model基线适配](../reviews/2026-10-12-research-baseline-adaptation.md)：
+实施起点dev6ff7094；设计与计划排除已撤回链路；本次仅文档，R1尚无代码。
+全局版本、分支与部署状态以dev中的VERSION-CONTROL.md为准。
+
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
 [活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。
 历史整体筛查通过不能替代人工回归；[版本控制图](VERSION-CONTROL.md)登记回退范围。
