@@ -325,6 +325,44 @@ class PiRpcClient:
             )
         return PiProtocolError("Pi RPC ended before agent completion")
 
+    def new_session(self, *, timeout_seconds: float = 10, on_heartbeat=None) -> None:
+        """Reset model conversation before a caller reuses an idle process."""
+        if self.process is None or self.process.stdin is None or self._stdout_lines is None:
+            raise PiProtocolError("Pi RPC process is not started")
+        if timeout_seconds <= 0:
+            raise ValueError("RPC reset timeout must be positive")
+        request_id = "session-reset"
+        try:
+            self.process.stdin.write((json.dumps({"type": "new_session", "id": request_id}) + "\n").encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError):
+            raise PiProtocolError("Pi RPC reset could not be sent") from None
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if on_heartbeat is not None:
+                on_heartbeat()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise PiProtocolError("Pi RPC reset timed out")
+            try:
+                raw = self._stdout_lines.get(timeout=min(remaining, 1))
+            except Empty:
+                continue
+            if raw is None:
+                raise self._eof_error()
+            try:
+                event = json.loads(raw)
+            except (ValueError, UnicodeDecodeError):
+                raise PiProtocolError("Pi RPC reset returned invalid JSON") from None
+            if not isinstance(event, dict):
+                raise PiProtocolError("Pi RPC reset returned invalid event")
+            if event.get("type") != "response" or event.get("id") != request_id:
+                continue
+            if (event.get("command") != "new_session" or event.get("success") is not True
+                or not isinstance(event.get("data"), dict) or event["data"].get("cancelled") is not False):
+                raise PiProtocolError("Pi RPC session reset was not confirmed")
+            return
+
     def stop(self) -> None:
         if self.process is None:
             return

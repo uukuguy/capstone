@@ -112,6 +112,21 @@ def retry(service):
     return service.submit_command({"schema": "capstone-command/1", "command_id": "cmd_retry", "idempotency_key": "idem_retry", "thread_id": "thr_worker", "run_id": "run_worker", "kind": "retry_new_attempt", "expected_event_seq": service.snapshot("thr_worker").last_event_seq, "payload": {"attempt_id": attempt}})
 
 
+def test_family_hosted_recognition_timing_keeps_inner_details():
+    from capstone_agent.thread_application import FamilyRuntimeFactory
+    from capstone_agent.task_recognition import accept_task
+    service = _service()
+    _submit(service)
+    claim = service.claim_attempt('worker', 30)
+    class TimedFactory(Factory):
+        def recognition_metrics(self, claim):
+            return {'process_reused': True, 'calls': [{'duration_ms': 12}]}
+    factory = FamilyRuntimeFactory({claim.model_context.implementation_family: TimedFactory(service)})
+    accept_task(service, claim, factory.recognize_task, on_heartbeat=lambda: None)
+    timing = next(e for e in service.read_events(claim.thread_id, 0).events if e.event_type == 'task_recognition_timing')
+    assert timing.payload['details'] == {'process_reused': True, 'calls': [{'duration_ms': 12}]}
+
+
 def test_worker_persists_host_bound_task_before_execution():
     service = _service()
     _submit(service)
@@ -329,12 +344,13 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     _submit(service)
     claim = service.claim_attempt("worker", 30)
     captured = []
+    clients = []
     def launch(llm, paths, **kwargs):
         captured.append(paths)
         return SimpleNamespace(argv=("pi",), environment={})
     class Client:
         def __init__(self, *args, **kwargs):
-            pass
+            clients.append(args[0])
         def start(self):
             pass
         def stop(self):
@@ -353,6 +369,7 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     assert captured[0].extension_path is None
     assert captured[0].domain_search_paths == ()
     assert captured[0].runtime_descriptor_path is None
+    assert clients[0].argv[-2:] == ("--thinking", "off")
 
 
 @pytest.mark.parametrize("repair", [True, False])

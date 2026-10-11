@@ -73,6 +73,11 @@ class FamilyRuntimeFactory:
             raise RuntimeError("family task resolver is unavailable")
         return resolver(claim)
 
+    def recognition_metrics(self, claim):
+        factory = self._factories.get(claim.model_context.implementation_family)
+        read = getattr(factory, "recognition_metrics", None)
+        return read(claim) if callable(read) else {}
+
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
@@ -211,10 +216,20 @@ class PreparedApplicationPiRuntimeFactory:
             raise
 
     def sweep_idle(self) -> int:
-        return self._context_owner.sweep_idle()
+        sweep = getattr(self._session_factory, "sweep_idle", None)
+        return self._context_owner.sweep_idle() + (cast(Callable[[], int], sweep)() if callable(sweep) else 0)
+
+    def recognition_metrics(self, claim=None):
+        read = getattr(self._session_factory, "recognition_metrics", None)
+        return read() if callable(read) else {}
 
     def close(self) -> None:
-        self._context_owner.close()
+        try:
+            close = getattr(self._session_factory, "close", None)
+            if callable(close):
+                close()
+        finally:
+            self._context_owner.close()
 
 
 @dataclass(frozen=True, slots=True)

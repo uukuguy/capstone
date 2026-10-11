@@ -32,6 +32,7 @@ from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruct
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 from .task_recognition import recognize_with_pi, render_task_policy
+from .recognition_process import RecognitionProcess
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -54,6 +55,19 @@ class PreparedKernelPiSessionFactory:
         if not callable(recognizer):
             raise RuntimeError("task recognizer is unavailable")
         return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
+
+    def close(self):
+        close = getattr(self._builder, "close", None)
+        if callable(close):
+            close()
+
+    def recognition_metrics(self):
+        read = getattr(self._builder, "recognition_metrics", None)
+        return read() if callable(read) else {}
+
+    def sweep_idle(self):
+        sweep = getattr(self._builder, "sweep_idle", None)
+        return sweep() if callable(sweep) else 0
 
     def __call__(
         self,
@@ -87,6 +101,7 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
+        recognition_llm: ResolvedLLM | None = None,
     ) -> None:
         if not isinstance(runtime_host, RuntimeHost):
             raise TypeError("runtime_host must be a RuntimeHost")
@@ -99,6 +114,8 @@ class PreparedKernelPiRpcSessionBuilder:
             raise TypeError("base_environment must contain text keys and values")
         self._runtime_host = runtime_host
         self._resolved_llm = resolved_llm
+        self._recognition_llm = recognition_llm or resolved_llm
+        self._recognition_process = RecognitionProcess()
         self._base_environment = None if base_environment is None else dict(base_environment)
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
@@ -106,9 +123,28 @@ class PreparedKernelPiRpcSessionBuilder:
             raise ValueError('Thread attempt timeout is invalid')
 
     def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
-        return recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
-                                 base_environment=self._base_environment, timeout_seconds=self._timeout_seconds,
-                                 on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
+        environment = self._base_environment or os.environ
+        timeout = float(environment.get("CAPSTONE_RECOGNITION_TIMEOUT_SECONDS", "60"))
+        if not 1 <= timeout <= 120:
+            raise ValueError("recognition timeout is invalid")
+        metrics = {}
+        task = recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._recognition_llm,
+            base_environment=self._base_environment, timeout_seconds=min(timeout, self._timeout_seconds),
+            on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas,
+            prepared_process=self._recognition_process,
+            thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "off"),
+            on_metrics=metrics.update)
+        self._recognition_metrics = metrics
+        return task
+
+    def recognition_metrics(self):
+        return dict(getattr(self, "_recognition_metrics", {}))
+
+    def close(self):
+        self._recognition_process.close()
+
+    def sweep_idle(self):
+        return self._recognition_process.sweep_idle()
 
     def __call__(
         self,

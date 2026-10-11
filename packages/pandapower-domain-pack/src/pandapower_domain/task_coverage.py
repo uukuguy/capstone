@@ -284,6 +284,18 @@ class PandapowerTaskProvider:
             text = (f"Selected model {metadata['model']}: {counts['buses']} buses, {counts['lines']} lines, "
                     f"{counts['transformers']} transformers. "
                     "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. No calculation was requested or needed.")
+            if req.get("answer_policy", {}).get("scale", "standard") != "concise":
+                text = ("## Grid overview\n\n"
+                    f"Selected model {metadata['model']}: {counts['buses']} buses, {counts['lines']} lines, "
+                    f"{counts['transformers']} transformers. \n\n"
+                    "This is a pandapower static network model. Buses represent connection points; lines and transformers connect those points. Operating values depend on the selected model revision and calculated scenario.\n\n"
+                    "## Available analyses\n\n"
+                    "- Model queries: inspect equipment, connections and model parameters.\n"
+                    "- AC power flow: calculate bus voltages, branch loading and active power losses, with convergence status.\n"
+                    "- Load changes: create a derived scenario and recalculate its operating state while preserving the original revision.\n"
+                    "- Limit evaluation: assess bus voltages and branch loading against available model limits; identify the affected equipment, values and limits.\n"
+                    "- Line or transformer N−1: evaluate individual branch outages, convergence and constraint violations, and order the supported impacts.\n\n"
+                    "Choose an analysis and identify the equipment or change of interest. Calculated conclusions will use that task's admitted results and evidence. This introduction does not establish that the present operating point meets its limits.")
             return conclusion("supported", text)
         # Every passed reference is checked, including references irrelevant to this goal.
         documents = {ref: authority.verify_result(ref).document for ref in result_refs}

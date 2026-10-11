@@ -2,6 +2,15 @@
 import re
 
 _FIXED = {
+    "## Grid overview": "## 电网概况",
+    "## Available analyses": "## 可开展的分析",
+    "This is a pandapower static network model. Buses represent connection points; lines and transformers connect those points. Operating values depend on the selected model revision and calculated scenario.": "这是一个 pandapower 静态电网模型。母线表示电气连接节点，线路和变压器连接这些节点；实际运行数值取决于选中的模型版本和计算场景。",
+    "- Model queries: inspect equipment, connections and model parameters.": "- **模型查询**：查看设备、连接关系和模型参数，了解电网的组成与拓扑。",
+    "- AC power flow: calculate bus voltages, branch loading and active power losses, with convergence status.": "- **交流潮流**：计算母线电压、支路负载率和有功损耗，并说明计算是否收敛。",
+    "- Load changes: create a derived scenario and recalculate its operating state while preserving the original revision.": "- **负荷变化分析**：建立修改后的场景并重新计算运行状态，保留原模型版本。",
+    "- Limit evaluation: assess bus voltages and branch loading against available model limits; identify the affected equipment, values and limits.": "- **越限评估**：依据模型中可用的电压与支路负载限值检查，列出受影响设备、实际数值和限值。",
+    "- Line or transformer N−1: evaluate individual branch outages, convergence and constraint violations, and order the supported impacts.": "- **线路或变压器 N−1**：逐个评估支路停运后的收敛状态和约束越限，并按有依据的影响指标排序。",
+    "Choose an analysis and identify the equipment or change of interest. Calculated conclusions will use that task's admitted results and evidence. This introduction does not establish that the present operating point meets its limits.": "你可以选择上述分析，并说明关注的设备或变化条件。计算结论会附带本次任务接纳的结果与证据；这份概况本身不代表当前运行点已通过限值校核。",
     " Some required constraint checks are not covered by retained evidence: ": " 部分所需约束检查未获当前保留证据覆盖：",
     "The requested AC power flow did not converge. The verified diagnostic provides no valid numerical operating result; loading and limit compliance cannot be concluded.": "请求的交流潮流未收敛。已核验诊断不提供有效运行数值，不能据此判断负载率或限值符合性。",
     "Verified violation details: ": "已核验越限明细：",

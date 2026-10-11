@@ -62,6 +62,24 @@ or execution. A proposal without missing inputs must satisfy the full published
 schema before resolution; the Pack then owns complete execution requirements.
 Pending proposals are never certified as complete business requests.
 
+Recognition is an application-owned role separate from execution. The worker
+reuses its verified runtime preparation and one tool-free recognition process.
+Before a new task, Pi must confirm creation of an empty session; only explicit
+bounded history enters the next prompt. Errors, cancellation,32 uses or180 seconds
+idle discard the private process/session. Worker idle sweeps and shutdown close
+it. Configuration changes require worker restart. Domain state, facts and tools
+are never cached in this recognition process. Model/context/version and published
+contracts remain current per task. API model opening does not warm a separate
+worker process; opening-time warmup needs an explicit worker operation.
+
+Recognition uses its own optional Provider/model selection, thinking level and
+bounded deadline; execution configuration is unchanged. Default thinking is off,
+and ordinary answer scale is standard unless the user requests a different scale.
+The durable timing event records input bytes, reuse, per-call first content event,
+duration and validation, preparation and cleanup. These measurements are not
+simulator evidence. The App displays waiting feedback immediately on acceptance,
+including before the first tool action.
+
 ### Shared business context and role resources
 
 This subsection records the accepted Pi/skills branch design. Its complete

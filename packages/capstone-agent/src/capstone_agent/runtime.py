@@ -69,6 +69,25 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> Resolve
         raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
 
 
+def resolve_recognition_llm(repo_root: Path, environment: dict[str, str], execution: ResolvedLLM) -> ResolvedLLM:
+    """Select a separately configured recognition role without changing execution."""
+    names = {"PROVIDER": "PROVIDER", "MODEL": "MODEL", "API_KEY_ENV": "API_KEY_ENV", "BASE_URL": "BASE_URL"}
+    if not any(environment.get("CAPSTONE_RECOGNITION_" + key) for key in names):
+        return execution
+    selected = dict(environment)
+    if selected.get("CAPSTONE_RECOGNITION_PROVIDER"):
+        for key in names:
+            selected.pop("CAPABILITY_AGENT_LLM_" + key, None)
+    for key, target in names.items():
+        if selected.get("CAPSTONE_RECOGNITION_" + key):
+            selected["CAPABILITY_AGENT_LLM_" + target] = selected["CAPSTONE_RECOGNITION_" + key]
+    try:
+        return resolve_llm(catalog=ProviderCatalog.load(repo_root / "configs/llm-providers.json"),
+                           cli=CliLLMOptions(), environ=selected, dotenv_values={})
+    except ConfigurationError:
+        raise HarnessRuntimeConfigurationError("Thread recognition configuration is invalid") from None
+
+
 def build_runtime_host(
     repo_root: Path, profile: object, environment: Mapping[str, str] | None = None,
 ) -> RuntimeHost:

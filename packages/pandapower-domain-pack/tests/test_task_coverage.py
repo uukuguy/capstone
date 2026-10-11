@@ -184,8 +184,23 @@ def test_separate_filtered_contingencies_do_not_form_full_certificate(authority)
     assert len(answer.result_refs) == 1
 
 
-@pytest.mark.parametrize("direction", ["descending", None])
+def test_standard_overview_explains_analysis_purposes_without_inventing_operating_results(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="overview"), context_ref=context["context_ref"],
+        revision_ref=context["revision_ref"], invoke=invoke, answer_policy={"language": "zh", "scale": "standard"})
+    answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=())
+    text = provider.render_conclusion(answer, language="zh", scale="standard")
+    assert "电网概况" in text and "可开展的分析" in text
+    assert "交流潮流" in text and "负荷" in text and "电压" in text
+    assert text.count("\n-") >= 4
+    assert "发电机" not in text and "已收敛" not in text
+    assert not task.execution_required and not answer.result_refs and not answer.evidence_refs
+
+
 @pytest.mark.parametrize("objects", [[], [{"kind": "network", "namespace": "all", "identifier": "*"}]])
+@pytest.mark.parametrize("direction", ["descending", None])
 def test_overview_describes_selected_authority_model_without_calculation(authority, direction, objects):
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     invoke, context, verifier = authority

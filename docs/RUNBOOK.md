@@ -96,6 +96,21 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ### Isolated local demo
 
+Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,
+`CAPSTONE_RECOGNITION_MODEL`, optional `CAPSTONE_RECOGNITION_BASE_URL` and
+`CAPSTONE_RECOGNITION_API_KEY_ENV`. Without overrides it uses the configured
+execution Provider/model, but its own `CAPSTONE_RECOGNITION_THINKING_LEVEL`
+defaults to `off` and `CAPSTONE_RECOGNITION_TIMEOUT_SECONDS` defaults to60.
+The timeout must be1–120 seconds and is capped by the Attempt deadline. Provider
+changes use that Provider's registered defaults, not execution endpoint/key
+settings. Supply credentials through protected backend environment variables;
+the key-name setting is not a secret value and creates no credential access.
+Restart workers after configuration changes. The worker retains at most one
+tool-free recognition process per family, resets model history before reuse,
+rotates after32 tasks and releases it after180 seconds idle or on failure.
+Task timing records per-call content latency and reuse; waiting feedback starts
+before tools. API model opening does not prewarm a different worker process.
+
 `local-dev` is the local development and release-verification target for
 `cloud-dev`. `local-demo` is the local reproduction, emergency-repair and
 release-verification target for `cloud-demo`. At rest, select the accepted

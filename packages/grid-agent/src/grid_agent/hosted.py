@@ -8,6 +8,7 @@ without making capstone-agent import a domain implementation.
 from __future__ import annotations
 
 import os
+from functools import cache
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
@@ -16,7 +17,7 @@ from capstone_agent.hosted import run_hosted_api
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
-from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm
+from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm, resolve_recognition_llm
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
@@ -86,6 +87,7 @@ def build_registered_pandapower_thread_application():
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
         return model_binding
 
+    @cache
     def rpc_builder():
         environment = load_runtime_environment(root)
         resolved = resolve_harness_llm(root, environment)
@@ -95,6 +97,7 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
+            recognition_llm=resolve_recognition_llm(root, environment, resolved),
         )
 
     def build_session(claim, context, profiles):
@@ -111,6 +114,9 @@ def build_registered_pandapower_thread_application():
         return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     setattr(build_session, "recognize_task", recognize_task)
+    setattr(build_session, "recognition_metrics", lambda: {} if validation_builder is not None else rpc_builder().recognition_metrics())
+    setattr(build_session, "close", lambda: None if validation_builder is not None or not rpc_builder.cache_info().currsize else rpc_builder().close())
+    setattr(build_session, "sweep_idle", lambda: 0 if validation_builder is not None or not rpc_builder.cache_info().currsize else rpc_builder().sweep_idle())
 
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(root / "runs" / "capstone-agent")),

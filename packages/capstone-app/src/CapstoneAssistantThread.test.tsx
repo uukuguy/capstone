@@ -712,6 +712,15 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('正在生成回答…')).toBeTruthy()
   })
 
+  it('shows compact waiting feedback before recognition has produced a tool action', () => {
+    const events = [event('command_accepted', 1, { kind: 'send_auto', payload: { text: '介绍当前模型' } }, 'waiting')]
+    const { rerender } = render(<CapstoneAssistantThread events={events} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByRole('status', { name: '请求处理状态' }).textContent).toContain('正在理解请求')
+    expect(screen.queryByText(/0 个步骤/)).toBeNull()
+    rerender(<CapstoneAssistantThread events={[...events, event('attempt_completed', 2, { answer: '介绍完成。' }, 'waiting')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.queryByRole('status', { name: '请求处理状态' })).toBeNull()
+  })
+
   it('shows tool activity and elapsed time as soon as an attempt starts', () => {
     const startedAt = new Date(Date.now() - 2300).toISOString()
     const events = [
@@ -818,8 +827,8 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
     const first = screen.getByText('已打开模型。').closest('.capstone-chat-message')!
     const second = screen.getByRole('table').closest('.capstone-chat-message')!
-    expect(within(first as HTMLElement).getByText('已完成 1 个步骤')).toBeTruthy()
-    expect(within(second as HTMLElement).getByText('已完成 2 个步骤')).toBeTruthy()
+    expect(within(first as HTMLElement).getByText(/^已完成 1 个步骤(?: · 运行 .+)?$/)).toBeTruthy()
+    expect(within(second as HTMLElement).getByText(/^已完成 2 个步骤(?: · 运行 .+)?$/)).toBeTruthy()
     expect(first.querySelectorAll('details')).toHaveLength(1)
     expect(second.querySelectorAll('details')).toHaveLength(1)
     fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '查看运行过程' }))

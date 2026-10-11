@@ -18,6 +18,21 @@ class _Workspace:
 
 
 @pytest.mark.parametrize("terminal_snapshot", [False, True])
+def test_rpc_reset_cannot_reuse_a_cancelled_session(tmp_path, terminal_snapshot):
+    script = tmp_path / 'reset.py'
+    script.write_text("import json\nc=json.loads(input())\nprint(json.dumps({'type':'response','id':c['id'],'command':'new_session','success':True,'data':{'cancelled':" + str(terminal_snapshot) + "}}),flush=True)\n")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), JsonlTraceWriter(tmp_path / 'trace.jsonl'))
+    client.start()
+    try:
+        if terminal_snapshot:
+            with pytest.raises(PiProtocolError): client.new_session(timeout_seconds=1)
+        else:
+            client.new_session(timeout_seconds=1)
+    finally:
+        client.stop()
+
+
+@pytest.mark.parametrize("terminal_snapshot", [False, True])
 def test_rpc_keeps_only_last_assistant_message_after_tool_cycle(tmp_path, terminal_snapshot):
     before = {"role": "assistant", "content": [{"type": "text", "text": "I'll check runtime capabilities."},
         {"type": "toolCall", "id": "c", "name": "lookup", "arguments": {}}], "stopReason": "toolUse"}
