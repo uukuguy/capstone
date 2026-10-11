@@ -108,12 +108,14 @@ def test_mixed_clarification_retains_verified_capability_boundary(environment):
                        objects=[{"kind": "gen", "namespace": "all", "identifier": "*"}])
     original = claim.task_understanding.goals[0]
     claim.task_understanding = replace(claim.task_understanding, goals=(original,
-        replace(original, id="followup", missing_requirements=("Need a separate object",))))
+        replace(original, id="followup", dependencies=(original.id,), missing_requirements=("Need a separate object",))))
     claim.task_resolutions = resolve_profiles(claim, profiles)
     session = _ResolvedTaskSession(claim, profiles)
     answer = session.prompt_and_wait("request", on_semantic_event=lambda event: None, correlation_id="a", on_heartbeat=lambda: None)
     admitted = session.admit_attempt(claim, answer, (), (), ())
     assert set(admitted.diagnostic_codes) == {"task_capability_boundary_verified", "task_clarification_verified"}
+    assert "Need a separate object" not in admitted.answer
+    assert "preceding goal" in admitted.answer
 
 
 def test_outage_formal_conclusion_survives_optional_query_failure(environment):

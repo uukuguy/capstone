@@ -2488,3 +2488,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-11：7823ceb 更新恢复检查点，明确候选、整体样本与待授权Provider验收。
 
 - c7032d5 Repair live proposal contracts and regression continuity after authorized Provider failures.
+
+- c490c71 Resolve unknown selectors through screened Authority contracts; retain mixed diagnostics and test failed-turn recovery.

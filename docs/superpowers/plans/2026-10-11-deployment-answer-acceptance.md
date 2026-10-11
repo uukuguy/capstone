@@ -49,3 +49,9 @@ check is pending, not passed. Optional paid checks require explicit authorizatio
 User authorized actual Provider validation with “md同意”. First overall run failed
 (receipt provider-e569f035626f49b5). Continue reviewed repairs, canonical rebuild
 and complete overall retesting before human handoff; Research R1 stays deferred.
+
+Three authorized overall receipts failed. Current source repair includes full
+Pack-published JSON Schema and generic bounded correction, screened Authority
+selector lookup, downstream prerequisite blocking and failed-turn recovery.
+Source review approves;55 focused,67 Pack/closure,5 limit agreement and types
+pass. Rebuild exact candidate and repeat frozen semantic acceptance.

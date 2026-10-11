@@ -114,7 +114,7 @@ def resolve_profiles(claim, profiles):
         blocked = {goal.goal_id for goal in goals if goal.status not in {"ready", "general"}}
         goals = [replace(goal, status="clarification", execution_required=False,
                          reason="A required preceding goal is unresolved. Resolve that goal before this operation.")
-                 if goal.status in {"ready", "general"} and any(dependency in blocked for original in claim.task_understanding.goals
+                 if goal.status in {"ready", "general", "clarification"} and any(dependency in blocked for original in claim.task_understanding.goals
                                                     if original.id == goal.goal_id for dependency in original.dependencies)
                  else goal for goal in goals]
     return tuple(goals)

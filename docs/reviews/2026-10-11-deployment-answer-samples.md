@@ -105,3 +105,22 @@ duplicate and transport paths. The Pack now queries complete bounded datasets
 before unique asset resolution; Kernel credential screening stays intact.
 Mixed conclusions retain each verified unsupported-boundary diagnostic. The runner
 continues after failed terminal turns to test recovery; aggregate failure remains.
+
+The c490c71 overall receipt is provider-200d2ae33a874c27; all six turns ran,
+but acceptance failed. Line/load proposals contained nested enum arrays and a
+string change target. Top-level checks did not reject these before Pack decoding.
+The continuous next overview recovered; endpoint clarification itself selected
+an unsuitable overview operation and fails semantic acceptance. Generation
+correctly reports the capability gap but asks downstream quantity despite its
+blocked analysis dependency. These defects remain recorded, not relaxed.
+
+The Pack now publishes a full closed JSON Schema for selectors and load changes.
+Application validation is generic and reports only trusted schema paths in its
+single correction request. Pack semantics stay separate. Dependency blocking also
+replaces pending downstream clarification with its actual prerequisite gap.
+55 focused checks and zero-error type checks pass; full Pack/closure checks and
+independent review precede the next exact-source rebuild and Provider rerun.
+
+Complete schema review approves all existing decoder limits.55 recognition/
+resolution/sample checks,67 Pack/closure checks,5 schema-bound agreement checks
+and zero-error types pass. These precede deployment acceptance, not replace it.

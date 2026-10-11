@@ -7,6 +7,19 @@ import pytest
 from types import SimpleNamespace
 
 
+@pytest.mark.parametrize("value", [["line"], "private invalid value"])
+def test_published_json_schema_rejects_nested_enum_without_echoing_values(value):
+    from capstone_agent.task_recognition import _validate_published_payload_fields
+    schema = {"binding_id": "grid", "schema": "test/1", "payload_fields": {"objects": [{}]},
+        "payload_schema": {"type": "object", "properties": {"objects": {"type": "array", "items": {
+            "type": "object", "properties": {"kind": {"enum": ["line", "bus"]}}, "required": ["kind"],
+            "additionalProperties": False}}}, "required": ["objects"], "additionalProperties": False}}
+    proposal = SimpleNamespace(binding_id="grid", schema="test/1", payload={"objects": [{"kind": value}]})
+    with pytest.raises(ValueError, match="objects.*kind") as error:
+        _validate_published_payload_fields(SimpleNamespace(goals=(SimpleNamespace(domain_request=proposal),)), (schema,))
+    assert "private invalid value" not in str(error.value)
+
+
 def pending_snapshot(snapshot, state):
     from capstone_agent.thread_protocol import PendingSelectionSnapshot, PendingModelSwitchSnapshot
     if state == "selection":

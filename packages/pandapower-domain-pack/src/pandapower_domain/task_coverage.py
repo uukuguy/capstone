@@ -14,6 +14,26 @@ _KINDS = {"bus", "load", "line", "trafo", "trafo3w", "gen", "sgen", "ext_grid", 
 _BRANCHES = {"line", "trafo", "trafo3w"}
 _OPERATIONS = {"overview", "powerflow", "limits", "contingency", "ranking", "compare"}
 _MEASURES = {None, "loading_percent", "p_from_mw", "p_to_mw", "pl_mw", "risk_score", "max_loading_percent"}
+_SELECTOR_SCHEMA = {"type": "object", "additionalProperties": False,
+    "required": ["kind", "namespace", "identifier"], "properties": {
+        "kind": {"enum": sorted(_KINDS)},
+        "namespace": {"enum": ["name", "alias", "pandapower_index", "asset_ref", "all"]},
+        "identifier": {"type": "string", "minLength": 1, "maxLength": 512}},
+    "if": {"properties": {"namespace": {"const": "all"}}},
+    "then": {"properties": {"identifier": {"const": "*"}}}}
+_PAYLOAD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
+    "additionalProperties": False, "required": ["operation", "objects", "changes", "measure", "direction", "scenario", "scope"],
+    "properties": {
+        "operation": {"enum": sorted(_OPERATIONS)}, "objects": {"type": "array", "maxItems": 64, "items": _SELECTOR_SCHEMA},
+        "changes": {"type": "array", "maxItems": 16, "items": {"type": "object", "additionalProperties": False,
+            "required": ["target", "fields", "factor"], "properties": {
+                "target": {**_SELECTOR_SCHEMA, "properties": {**_SELECTOR_SCHEMA["properties"], "kind": {"enum": ["bus", "load"]}}},
+                "fields": {"type": "array", "minItems": 1, "uniqueItems": True, "items": {"enum": ["p_mw", "q_mvar"]}},
+                "factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 100}}}},
+        "measure": {"enum": sorted(item for item in _MEASURES if item is not None) + [None]},
+        "direction": {"enum": [None, "ascending", "descending"]},
+        "scenario": {"enum": ["baseline", "changed", "contingency", "comparison"]},
+        "scope": {"enum": ["subset", "full"]}}}
 
 
 class _ResolutionScopeExceeded(ValueError):
@@ -114,13 +134,14 @@ class PandapowerTaskProvider:
         return tuple(result)
     schema_document: Mapping[str, object] = {
         "schema": SCHEMA,
+        "payload_schema": _PAYLOAD_SCHEMA,
         "payload_fields": {"operation": sorted(_OPERATIONS), "objects": [{"kind": sorted(_KINDS),
             "namespace": ["name", "alias", "pandapower_index", "asset_ref", "all"], "identifier": "exact user identifier; * only for all"}],
             "changes": [{"target": "same object selector, bus or load", "fields": ["p_mw", "q_mvar"], "factor": "positive finite multiplier"}],
             "measure": sorted(item for item in _MEASURES if item is not None) + [None],
             "direction": [None, "ascending", "descending"], "scenario": ["baseline", "changed", "contingency", "comparison"],
             "scope": ["subset", "full"]},
-        "rules": "Use all exact fields. Goal scenario/scope/measure/conclusion must agree with the payload; use the same canonical measure identifier in both. Never convert a bus name into an index. Preserve unresolved user identifiers for Authority resolution; internal namespace labels are not business questions for the user. Empty changes for baseline. Generator and external-grid contingency is not registered; preserve gen/sgen/ext_grid and let the Pack verify the capability boundary, rather than listing registration as a user missing requirement. Overview covers both current-model basic facts and registered analysis capabilities; it needs no calculation, object scope or ordering, so use direction=null. Other non-ranking operations may also use direction=null. Ranking requires an explicit ascending/descending direction, measure and accepted scope; unspecified scope cannot become exhaustive. Scope describes the selected input object set: a single outage is subset even when its constraints cover the network. Contingency constraint evaluation uses measure=null; the evaluated constraints include branch loading and bus voltages. Existing model constraints are the default for limit checks; do not demand a user threshold unless the user requests a different standard. No caller context or result refs. Verified answer languages: en and zh; other languages require clarification.",
+        "rules": "Use all exact fields. Goal scenario/scope/measure/conclusion must agree with the payload; use the same canonical measure identifier in both. Never convert a bus name into an index. Preserve unresolved user identifiers for Authority resolution; internal namespace labels are not business questions for the user. Empty changes for baseline. Generator and external-grid contingency is not registered; preserve gen/sgen/ext_grid and let the Pack verify the capability boundary, rather than listing registration as a user missing requirement. Overview covers both current-model basic facts and registered analysis capabilities; it needs no calculation, object scope or ordering, so use direction=null. Other non-ranking operations may also use direction=null. Ranking requires an explicit ascending/descending direction, measure and accepted scope; unspecified scope cannot become exhaustive. Scope describes the selected input object set: a single outage is subset even when its constraints cover the network. Contingency constraint evaluation uses measure=null; the evaluated constraints include branch loading and bus voltages. Existing model constraints are the default for limit checks; do not demand a user threshold unless the user requests a different standard. For limits, use objects=[] and measure=null; load-change targets are complete selector objects inside changes.target, never a string or a second measurement object. Topology endpoint and other object-query operations are outside this typed execution schema; use the published professional compatibility schema rather than overview for those operations. No caller context or result refs. Verified answer languages: en and zh; other languages require clarification.",
     }
 
     def resolve(self, goal_id, payload, *, context_ref, revision_ref, invoke, semantic_goal=None, answer_policy=None):

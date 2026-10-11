@@ -25,6 +25,31 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
+@pytest.mark.parametrize("invalid", ["identifier-length", "object-count", "change-count", "factor-limit", "all-identifier"])
+def test_published_schema_enforces_decoder_bounds(invalid):
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider, _decode
+    selector = {"kind": "bus", "namespace": "name", "identifier": "x" * 512}
+    change = {"target": selector, "fields": ["p_mw", "q_mvar"], "factor": 100}
+    payload = proposal(objects=[selector] * 64, changes=[change] * 16)
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["payload_schema"])
+    assert validator.is_valid(payload)
+    _decode(payload)
+    if invalid == "identifier-length":
+        selector["identifier"] += "x"
+    elif invalid == "object-count":
+        payload["objects"].append(selector)
+    elif invalid == "change-count":
+        payload["changes"].append(change)
+    elif invalid == "factor-limit":
+        change["factor"] = 101
+    else:
+        selector["namespace"] = "all"
+    assert not validator.is_valid(payload)
+    with pytest.raises(ValueError):
+        _decode(payload)
+
+
 @pytest.mark.parametrize("operation", ["contingency", "ranking"])
 @pytest.mark.parametrize("direction", ["descending", None])
 def test_generator_contingency_is_unsupported_before_authority_call(operation, direction):

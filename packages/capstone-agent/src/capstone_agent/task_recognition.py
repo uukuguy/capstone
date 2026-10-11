@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 from typing import TypedDict, cast
 import time
+from jsonschema import Draft202012Validator
 
 from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
 from capability_agent.runtime.rpc import PiRpcClient
@@ -188,8 +189,10 @@ Internal measure names and tool registration are not user missing requirements.
 A general goal has domain_request=null. A professional goal has
 domain_request={"binding_id":"registered binding","schema":"published requirement schema",
 "payload":{}}. Use only the supplied requirement_schemas to form that payload. They are
-published Pack contracts, not tools or execution grants. Preserve unsupported subjects and
-missing requirements rather than substituting available work. Do not infer object indices
+published Pack contracts, not tools or execution grants.
+payload_schema is the complete normative JSON Schema when present; enum lists describe
+allowed scalar choices, not output arrays. Follow nested object and array item schemas.
+Preserve unsupported subjects and missing requirements rather than substituting available work. Do not infer object indices
 from display names. Questions about the selected business model and its registered analysis
 capabilities are professional goals using the supplied Pack contracts, not independent general
 knowledge. Missing requirements concern the user's intended objects or business rules;
@@ -220,6 +223,14 @@ def _validate_published_payload_fields(task, schemas):
                 if isinstance(value, (list, Mapping)) or value not in choices:
                     raise ValueError("task payload fields: " + name + " requires one scalar choice from "
                                      + json.dumps(choices, ensure_ascii=False, allow_nan=False))
+        published = selected[0].get("payload_schema")
+        if isinstance(published, Mapping):
+            Draft202012Validator.check_schema(published)
+            error = next(Draft202012Validator(published).iter_errors(proposal.payload), None)
+            if error is not None:
+                # Report trusted schema paths, never rejected user values or raw exceptions.
+                path = ".".join(str(part) for part in error.absolute_schema_path)
+                raise ValueError("task payload fields violate published schema: " + path)
 
 
 def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, timeout_seconds,
