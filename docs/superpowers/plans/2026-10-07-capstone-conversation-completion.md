@@ -1,5 +1,10 @@
 # Capstone Conversation Contract Completion
 
+> 2026-10-12 user decision: withdraw this delivery's task compilation, coverage,
+> answer rewriting, enhanced reuse and prewarm implementation. Active work restores
+> c3b78bc business execution and retains standalone ordinary/professional LLM routing.
+> Prior checkmarks and reports are historical; they do not certify the rollback.
+
 > **For agentic workers:** Execute inline with test-driven development and focused review. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete remaining requirements in the existing agent-conversation designs while preserving the deployed user version.

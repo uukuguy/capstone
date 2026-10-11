@@ -1,5 +1,18 @@
 # Known issues and deferred work
 
+## User-directed rollback — 2026-10-12
+
+The user rejected the closure candidate after original business requests failed.
+Local recovery30a3ecb restores c3b78bc business execution and only standalone LLM
+routing. The following1013dd2 claims are historical, not current acceptance.
+Actual seven-turn regression finished; line7 calculates and overview is full again.
+Overall remains failed: the changed-load attempt fails admission, and AC prose
+uses violation row index0 as bus identity instead of the actual bus index35.
+The original Pi process prefix can still appear in the restored version. Do not
+certify it as fixed or reintroduce unaccepted answer enhancements during rollback.
+Source proof506 files/three roles/image7409a029 and clean App passed; no cloud/demo
+update. Old candidate and uncommitted patches are preserved for recovery.
+
 ## Existing answer presentation and result reuse regressions — 2026-10-12
 
 Current1013dd2 repairs composed candidate review and independent-general-only

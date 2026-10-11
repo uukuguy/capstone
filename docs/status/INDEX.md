@@ -2,6 +2,13 @@
 
 ## Active
 
+2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
+[活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。
+历史整体筛查通过不能替代人工回归；[版本控制图](VERSION-CONTROL.md)登记回退范围。
+
+[回退与真实回归报告](../reviews/2026-10-12-pre-closure-rollback.md)：30a3ecb已部署同源；
+七轮真实业务保留失败，整体未验收。原候选与运行数据保留，独立意图识别继续。
+
 dev默认开发集成主线和main发布主线均启用轻量保护：PR与两平台Actions检查、0审批，禁止强推和删除；main副本为发布快照。详见[组织设计](../superpowers/specs/2026-10-11-dev-integration-design.md)、[实施计划](../superpowers/plans/2026-10-11-dev-integration.md)和[版本台账](VERSION-CONTROL.md)。
 
 [迭代门禁与旧 CLI 退出计划](../superpowers/plans/2026-10-11-retire-grid-cli.md)：513a35e已实现并审查门禁拆分；PR #10两平台CI通过，约32/26分钟并已合入main。用户已撤销grid-agent CLI兼容要求；共用运行模块迁移尚未完成。

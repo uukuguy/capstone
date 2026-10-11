@@ -1,5 +1,15 @@
 # Capstone Agent Framework
 
+## Standalone intent routing after rollback
+
+The current local recovery candidate restores pre-closure business execution.
+An application-owned, tool-free LLM selects ordinary or professional before the
+existing execution chain. It does not compile business requirements, rewrite the
+request, certify goal coverage or replace the final answer. Recognition can use
+its separately configured Provider/model. A failed classifier stops the attempt
+with a routing diagnostic; hosted applications do not use keyword fallback.
+The experimental closure design remains historical, not current runtime behavior.
+
 Capstone assembles evidence-backed agent applications over authoritative
 business-domain systems. It is the composition boundary between a reader-facing
 application, a domain's semantic capabilities, and the registered system that
@@ -52,68 +62,7 @@ model still requires an explicit Domain Pack contract and authority admission.
 Accepted recognition decisions, executor identity and child task identity are fixed
 for retry. An unknown prior execution outcome must not trigger blind side-effect replay.
 
-An accepted task-understanding record can describe a pending clarification; it
-is not necessarily an executable Domain Pack requirement. When a goal declares
-missing inputs, its proposal may omit required nested input fields. The
-application still validates the public outer shape and every supplied value,
-including types, enums and unknown-field restrictions. It supplies no guessed
-value. Such a goal resolves to clarification before any Pack capability check
-or execution. A proposal without missing inputs must satisfy the full published
-schema before resolution; the Pack then owns complete execution requirements.
-Pending proposals are never certified as complete business requests.
-
-The model wire uses compact `capstone-task-intent/1`. Registered Pack projections
-copy scope, scenario and measure into payload fields once; Application expands
-intent text into the existing durable v2 views and validates the original full
-contracts before acceptance. Model-visible wire schemas omit projected payload
-fields. Supported projections have flat, reference-free object roots; complex
-root constraints fail closed. Non-projected contracts are unchanged. Pack-owned
-goal constraints prevent contradictory operation/conclusion choices. No
-recognition path performs tool planning, calculation or evidence admission.
-
-Recognition is an application-owned role separate from execution. The worker
-first performs a light LLM route classification without Domain Pack contracts,
-tool catalogs or Authority queries. It persists the unchanged request and route
-before downstream requirement compilation. Compilation owns the compact wire
-and published Pack schema checks described above; its timing and failures are
-separate from routing. A complex business request remains professional even
-when its completion needs future research mechanisms. Explicit command lanes
-already select their route and do not need automatic classification. Replays
-retain the immutable route; they do not repeat successful classification.
-
-The worker reuses verified runtime preparation and two isolated tool-free
-processes for routing and requirement compilation.
-Before a new task, Pi must confirm creation of an empty session; only explicit
-bounded history enters the next prompt. Errors, cancellation,32 uses or180 seconds
-idle discard the private process/session. Worker idle sweeps and shutdown close
-it. Configuration changes require worker restart. Domain state, facts and tools
-are never cached in this recognition process. Model/context/version and published
-contracts remain current per task.
-
-Initial Thread creation and opening a new model use one application-owned
-model initialization function. It binds the selected capabilities to the model
-identity already resolved by the catalog; it does not resolve that identity
-again. Restoring an opened model preserves its exact context and selection.
-The durable service queues worker preparation when the model or capability
-selection changes. Preparation and first execution use the same bounded context
-owner; an early instruction waits for that preparation instead of creating a
-second context. Pending activation preserves the prepared identity. Preparation
-does not classify a request, run a calculation or create simulator evidence.
-
-Recognition uses its own optional Provider/model selection, thinking level and
-bounded deadline; execution configuration is unchanged. Default thinking is low,
-and ordinary answer scale is standard unless the user requests a different scale.
-The durable timing event records input bytes, reuse, per-call first content event,
-duration and validation, preparation and cleanup. These measurements are not
-simulator evidence. The App displays waiting feedback immediately on acceptance,
-including before the first tool action.
-
 ### Shared business context and role resources
-
-This subsection records the accepted Pi/skills branch design. Its complete
-business-context and role-resource implementation is not in the current main
-or local-dev baseline. Track implementation and acceptance in the
-[resource plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md).
 
 The application owns `capstone-business-context/1`: an immutable Thread snapshot,
 per-goal object and material selection, explicit exclusions, public outcomes and
@@ -125,7 +74,7 @@ data access within the task; it does not publish tools.
 Three execution roles have distinct resource profiles: `harness_engine`,
 `delegated_pi` and `direct_pi`. The last two are execution identities under the
 existing Capstone/Pi modes. Checked-in native settings and
-`configs/runtime/agent-resources.json` in that branch select fixed
+[`agent-resources.json`](../../configs/runtime/agent-resources.json) select fixed
 sources and role adapters. Managed installation, actual SDK loading and exact
 tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing
@@ -367,12 +316,10 @@ through that generic path. These results verify the first application's
 assembly and compatibility boundary, not a claim that every prospective domain
 has been accepted.
 
-The user withdrew the `grid-agent` CLI compatibility requirement on 2026-10-11.
-Its old stdout envelope is a historical adapter contract, not a required future
-product interface. The supported application entry is `capstone-agent`.
-The old package still contains runtime modules used by the formal pandapower
-application; their migration must precede package removal. See the
-[retirement plan](../superpowers/plans/2026-10-11-retire-grid-cli.md).
+The stable `grid-agent` compatibility commands remain a vertical adapter. They
+write exactly one JSON object to stdout with `question_id` and `answer_output`;
+progress, diagnostics, tool events, and warnings belong on stderr. This is a
+grid application contract, not the generic Capstone output protocol.
 
 ## Conformance proof and deferred scope
 
@@ -436,10 +383,8 @@ adapters: headless JSON request, interactive terminal, and loopback HTTP/SSE.
 It selects only source-registered application workers through a bounded,
 sequenced JSONL protocol. CLI and HTTP use the same `WorkerSession` API;
 application workers own Profile assembly, Domain Pack selection, and the
-current-run authority. The registered pandapower worker currently remains in
-the old `grid_agent` package, pending application-layer migration; this is not
-a continuing CLI compatibility requirement. `pypsa-agent` owns the PyPSA
-two-binding application.
+current-run authority. The `grid-agent` compatibility entry remains the
+pandapower adapter; `pypsa-agent` owns the PyPSA two-binding application.
 Scripted demos and Provider routes share the Kernel's incremental turn runner.
 Only the selected worker can read its admitted result/evidence references.
 The legacy `tools/capstone_client.py` request command remains available. No

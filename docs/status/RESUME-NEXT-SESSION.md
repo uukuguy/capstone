@@ -1,48 +1,30 @@
-# Active session checkpoint — 2026-10-12
+# Live session checkpoint — 2026-10-12 rollback
 
-The session remains active. Restore existing complete AC answers and cross-turn
-reuse; verify actual deployment samples. No case-specific prompts or keyword routing.
+User cancelled task/answer closure recovery. Restore pre-closure business execution
+from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.
+Do not resume task compilation, coverage, answer rewriting, frozen reuse or prewarm.
 
-- Branch fix/deployment-answer-acceptance; HEADff9d1c3 docs/test commit;
-  deployed product source remains clean1013dd2.
-- b5fcc63 overall86e8f00c32d94eab failed1/12: reused line ranking mistakenly
-  proposed network/all + loading_percent, then frozen unsupported. Other core
-  scenarios passed independent review. fb6a921 publishes existing branch-only
-  measure rules into pre-acceptance validation, allowing bounded correction.
-  77 Pack/64 compiler checks/types/boundaries/review passed. Actual686b7fb69b7f4e3b
-  failed2/12: overview duplicate multi-contract/general goals; reuse passed.
-  New proposal-only general scenario restriction, bounded composition review and
-  independent-general-only tool-free session repair committed1013dd2;207 tests,
-  types/boundaries and independent review passed. Dependent-general handoff and
-  professional-executing mixed isolation remain open; historical replay retained.
-- a4ea668 actual original AC→reuse passed independent semantic/tool/browser review:
-  provider-350a5911c3b64860. Full reports, three ranking rows, frozen prior evidence,
-  four read-only reuse calls and zero recalculation.
-- Overall a4ea668 provider-c9a70df5226b4cf2 failed1/12: compiler prematurely
-  clarified load target namespace, before Authority lookup. Preserve failed receipt.
-- b5fcc63 restores existing guide lookup using typed user_label: names/aliases
-  only, never numeric index fallback. Five identity checks,71 Pack tests,
-  types/boundaries passed; source review approved. Actual3-turn update
-  dccbeb158aea4086 independently PASS including compiler/user_label/Authority.
-- Current source proof1013dd2:515 files/three roles/image329ae580/clean matching App.
-- Real4b19beeaa3d349c6 overall11 business+1 routing and selected3-turn update
-  independently PASS. Browser AC/reuse/load/overview PASS; source graph checks PASS.
-  Complex task total durations do not fail acceptance. Phase timing retained;
-  reuse has3 successful Authority reads+1 Pi-local refusal, zero recalculation.
-- ff9d1c3 pushed and read back under capstone-xiaoshi[bot]; PR13 draft/base dev
-  and Issues2/3 synchronized with actual scope, timing and remaining limits.
-- Unified initialization/prewarm a634257 remains verified. No baseline, dev/main
-  merge, demo/cloud update or Research R1 acceptance.
+- Worktree .worktrees/stable-route-recovery; branch fix/stable-route-recovery.
+- Product30a3ecb; rollback88f40de and standalone routing633ed6b.
+- Archive archive/answer-recovery-before-rollback-20261012 retains42a647b.
+  Uncommitted regression patches remain backed up under ignored runs/.
+- Framework585 and Pack105 tests passed; focused route/worker/Harness57,
+  types and doctor passed. Setup and install-pi completed.
+- Canonical local-dev rebuild30a3ecb completed.506 files match API and both workers;
+  same image7409a029, App5173 clean30a3ecb. Browser shows full overview/reuse table
+  and load failure. Control graph layout/source checks passed.
+- Rollback corpus validation/deployment/stable-execution-regression.json requires
+  real calculations for registered objects; wrong clarification cannot pass.
+  Reuse needs same preceding result and zero recalculation; review raw Authority data.
+- First screening9177d5f45be9424b ran during service replacement and failed transport;
+  retained as failed, never an acceptance receipt. Rerun only after readiness.
+- Ready-source overall2e107b34738b4b20 completed7 turns. Independent review confirms
+  same-ref reuse and zero recalculation; line7 calculation, topology and overview
+  restored. Load admission fails; old process prefix and wrong AC bus identity
+  remain. Overall business acceptance FAILED; no new enhancement attempted.
+- Prior1013dd2 human validation failed. Do not repeat earlier broad acceptance claims.
+- Main/dev, demo/cloud and existing data unchanged. No new baseline or Research R1.
 
-Next: collect human validation, then integrate accepted scope into dev.
-The same actual execution supplies separate overall/update verdicts, not two repeats.
-Do not merge/create baseline or certify generator research/mixed isolation.
-Human validation follows this scoped local acceptance; full evidence and timing
-are in provider-overall-1013dd2/independent-review.md and public repair report.
-
-Receipts: runs/task-answer-closure/provider-reuse-a4ea668/ and
-provider-overall-a4ea668/. Earlier bcddf70/3e7e250 failures retained (manifest
-identity, then catalog workspace). Focused AC32.310s/reuse24.909s; routing1.367s/
-.660s. Execution dominates; tool wall spans are not pure CPU. No speed claim.
-Public report docs/reviews/2026-10-12-answer-and-result-reuse.md.
-Local-demo15173/API18767 and cloud/demoed2524f unchanged. Preserve data/auth.
+Next: publish rollback report/Issues/PR, align root checkout with recovery branch.
+Do not resume withdrawn closure work or call this historical version fully stable.
+Session remains active; product30a3ecb differs from later documentation commits.
