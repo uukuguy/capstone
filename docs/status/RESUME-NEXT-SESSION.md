@@ -3,7 +3,7 @@
 PR #14 merged candidatebc08169 into dev6ff7094 after exact Linux/macOS CI
 38181053709 success. Original17debfb CI failure remains recorded. Recovery branch
 closed; exact candidate saved at refs/archive/20261012/fix-stable-route-recovery.
-Root is temporarily detached for governance-only publication to protected dev;
+Governance-only PR #15 targets protected dev; root temporarily detached at e5fe23a.
 archive/dev-recovery-control-staging-20261012 preserves39ffe2b.
 
 Pi38e19db and Research Model2b0b0a5 are pushed and have exact merge-base6ff7094.

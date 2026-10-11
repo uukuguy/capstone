@@ -145,6 +145,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 12 | main | docs/dev-baseline-control | dev | MERGED | 合入c857837；B2标签、分支关闭、Research Model旧起点及四环境前缀；不作为产品部署 |
 | 13 | answers | fix/deployment-answer-acceptance | dev | CLOSED | 人工回归失败后按用户决定撤回；源码42a647b与旧补丁保留；不再作为验收通过候选 |
 | 14 | answers | fix/stable-route-recovery | dev | MERGED | 精确bc08169双平台CI38181053709通过；合并6ff7094；恢复分支已关闭；新基线及两实施分支适配，业务缺陷及Issues2/3保持开放 |
+| 15 | main | docs/dev-recovery-baseline-control | dev | 状态见GitHub | 全局基线台账、两实施分支适配报告及控制图；仅文档与图模板，产品来源仍为6ff7094；临时远端分支接受后关闭 |
 
 ## 全部分支进展
 
