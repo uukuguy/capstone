@@ -2494,3 +2494,13 @@ The following original entries were retained during document synchronization.
 - 9dd2492 Validate complete public task schemas before acceptance; block downstream questions when prerequisites fail.
 
 - 2026-10-11：专项验收仅判定修复目标；无关回答缺陷单独记录，整体基线验收独立。
+
+- 838ea02 Allow registered derived-context calculations while retaining exact frozen-scenario evidence admission; separate repair-specific acceptance.
+
+- 2026-10-11：local-dev838ea02规范重建；511文件/角色、同镜像82bb9312和干净App核对通过；派生场景专项运行中。
+
+- 2026-10-11：838ea02真实派生场景专项通过；冻结负荷19×1.3场景证据已接纳，窗口切换/160px滚动通过；整体独立复验。
+
+- 2026-10-11：838ea02整体六轮必要业务路径复核通过；CI失败定位为旧基础context枚举测试断言，修复复验中。
+
+- 2026-10-11：旧目录断言六项失败已复现；修正后模型切换/拓扑六项通过，保留选定模型及注册context契约。

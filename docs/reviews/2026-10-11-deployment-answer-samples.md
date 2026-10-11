@@ -140,3 +140,30 @@ independent review precede the next exact-source rebuild and Provider rerun.
 Complete schema review approves all existing decoder limits.55 recognition/
 resolution/sample checks,67 Pack/closure checks,5 schema-bound agreement checks
 and zero-error types pass. These precede deployment acceptance, not replace it.
+
+## Deployed derived-context update
+
+local-dev838ea02 source/image verified511 files per role; App clean same source.
+Actual Provider receipt `provider-9866cf4e6b8a485e` and frozen ledger review pass
+the two repair criteria: valid derived-context calculation and admission for
+load19 p/q×1.3. Goal is supported on child context7d508e85/revision59c75a04,
+with current Attempt results and evidence. Result display projections unavailable
+is recorded separately; it does not fail the catalog repair. Actual running
+one-action/full and completed collapsed/full toggles pass; full list has160px
+maximum height and auto scroll. Overall acceptance remains independent.
+
+## Fifth overall review
+
+`provider-9432b7ac12704d9a` executes all six turns; mechanical screening and
+independent review of necessary business paths pass. Frozen records, current
+changed-scenario evidence and endpoint Authority rows are retained. Professional
+Pi sessions identify deepseek/deepseek-flash; all actual recognition records
+identify pi-rpc:deepseek-flash with the selected worker Provider. Transient
+recognizer sessions are not retained as separate Provider identity receipts.
+Nonblocking observations: gen prerequisite wording, terse limit answer, unavailable
+result projections with inaccurate source labels, verbose endpoint compatibility
+notice. They do not make the repaired catalog fail. CI failed because controlled
+ModelSequenceSession still asserted the removed base-context enum. Its fixture
+now validates the registered schema and preserves selected-model restriction.
+Focused model-switch/topology regressions pass6 after reproducing the old
+fixture failure. Complete deployment acceptance remains pending hosted CI.

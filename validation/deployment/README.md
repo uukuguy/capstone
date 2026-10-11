@@ -25,6 +25,11 @@ They block update acceptance only when they prevent verification of the repair
 or are regressions caused by the change. Evidence contracts still apply.
 Overall baseline acceptance retains its own requirements.
 
+[derived-context-update.json](derived-context-update.json) is the catalog repair
+专项: one load-scaling case with two criteria, valid derived-context execution
+and exact frozen-scenario evidence admission. Display quality and unrelated
+answer defects are recorded separately.
+
 Run the overall corpus when freezing a baseline, validating broad integration or
 preparing a release. Ordinary iteration uses the selected update set and affected
 regressions. For this baseline repair, the overall corpus is required before human

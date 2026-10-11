@@ -43,7 +43,10 @@ class ModelSequenceSession:
         catalog = json.loads(self.runtime.tool_catalog_path.read_text())
         self.tools = {tool["capability"]: tool for tool in catalog["tools"]}
         assert self.tools["context.open"]["input_schema"]["properties"]["model_id"]["enum"] == [self.binding.model_id]
-        assert self.tools["analysis.powerflow.ac.run"]["input_schema"]["properties"]["context_ref"]["enum"] == [self.binding.context_ref]
+        from jsonschema import Draft202012Validator
+        flow_schema = self.tools["analysis.powerflow.ac.run"]["input_schema"]
+        assert "enum" not in flow_schema["properties"]["context_ref"]
+        Draft202012Validator(flow_schema).validate({"context_ref": self.binding.context_ref})
         self.calls = []
         self.native_events = []
         self._admission = _build_kernel_admission(profiles)

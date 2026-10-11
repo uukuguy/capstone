@@ -60,7 +60,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 ## External execution anchors
 
 - [Deployment answer acceptance repair](../superpowers/plans/2026-10-11-deployment-answer-acceptance.md): active priority; overall and update sample sets, captured real Provider failures, preacceptance repair and strict handoff states.
-- [Deployment samples](../../validation/deployment/README.md): long-lived overall corpus and repair-specific update verdicts; unrelated answer defects are recorded separately. Fourth run exposed a base-context catalog restriction; focused repair checks pass37, deployed verification pending.
+- [Deployment samples](../../validation/deployment/README.md): long-lived overall corpus and repair-specific update verdicts; unrelated answer defects are recorded separately. Fourth run exposed a base-context catalog restriction; focused repair checks pass37, local-dev838ea02 rebuilt; real derived-context repair PASSED; overall six necessary paths reviewed; CI fixture correction pending.
 
 - [Autonomous research experiment](../superpowers/plans/2026-10-11-autonomous-research-experiment.md): user-approved experimental branch; two-layer knowledge/workflow/verification plus research nodes, IEEE39 four-case corpus, not deployed.
 - [Asterion P7 reference](../reviews/2026-10-11-asterion-p7-reference.md): local source and recorded public results; reusable research mechanisms, Capstone boundary adaptations and evidence limits.
