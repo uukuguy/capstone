@@ -26,6 +26,10 @@ def test_pi_classifier_has_no_tools_and_receives_only_route_input(monkeypatch, t
     from types import SimpleNamespace
     import capstone_agent.lightweight_turn_router as module
     observed = {}
+    resolutions = []
+    def resolve_model():
+        resolutions.append(1)
+        return SimpleNamespace(secret=None)
     class Client:
         def __init__(self, launch, workspace, trace, **kwargs):
             observed["launch"] = launch
@@ -41,9 +45,11 @@ def test_pi_classifier_has_no_tools_and_receives_only_route_input(monkeypatch, t
     monkeypatch.setattr(module, "build_pi_launch", lambda *_args, **_kwargs:
         SimpleNamespace(argv=("pi", "--no-builtin-tools", "--no-extensions"), environment={}))
     router = module.build_lightweight_router(runtime_host=SimpleNamespace(command=None, project_pi_dir=tmp_path),
-        resolved_llm=SimpleNamespace(secret=None), environment={})
+        resolved_llm_factory=resolve_model, environment={})
+    assert resolutions == []
     request = RoutingInput("turn_1", "attempt_1", "original question", "send_auto", {"model_id": "ieee39"})
     assert router.plan(request).route == "professional"
+    assert resolutions == [1]
     assert set(observed["input"]) == {"instruction", "selected_model"}
     assert "--thinking" in observed["launch"].argv
     assert observed["stopped"]

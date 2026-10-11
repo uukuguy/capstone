@@ -2575,3 +2575,4 @@ The following original entries were retained during document synchronization.
 - 2026-10-12 · 244e298：保存主工作区恢复检查点；本地入口26项复查通过，产品部署仍固定30a3ecb。
 - 2026-10-12 · 82b243c：按用户要求补回三动作小窗、普通无工具轻量问答和最终消息收集，避免恢复任务编译。
 - 2026-10-12：82b243c同源506项、588框架/380App及真实两轮专项通过；3动作9px/160px滚动浏览器通过，整体缺陷保留。
+- 2026-10-12: Pi merged recovery baseline to preserve experiments and adapt final-only streaming [fb2bcf0].

@@ -1,49 +1,15 @@
-# Live session checkpoint — 2026-10-12 rollback
+# Live Session Checkpoint
 
-User requested selective restoration after rollback: small-font latest3-action
-window, lightweight ordinary answers and final-message/process separation.
-Product82b243c deployed from detached issue-1-local-dev; exact506 files in API and
-both workers/image6717818b, clean matching App. UI380/framework588/RPC11 and related
-66 tests/types pass; independent source review approves. No compiler/coverage restored.
-Ordinary uses the existing configured recognition model and thinking off, with no
-business tools or authority descriptors. Model overview is still professional;
-its extra calculations/latency are not claimed repaired. Realad15bf6fe1d34606
-two-turn update independently PASS: ordinary104chars/8.491s/zero tools and final
-Chinese1285chars/48.975s without intermediate English. Actual event replay checks
-3-row preview/160px scroll/toggle/terminal collapse; actual App hover action and
-full scrollbar pass. Next: publish scoped report/PR14 update; overall defects remain.
+> Updated: 2026-10-12 06:47. **Session remains active — not a final handoff.**
 
-User cancelled task/answer closure recovery. Restore pre-closure business execution
-from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.
-Do not resume task compilation, coverage, answer rewriting, frozen reuse or prewarm.
+This checkpoint belongs to `feat/pi-skills-integration`. Canonical project control stays on dev; the primary agent owns its graph and release record.
 
-- Root checkout now on fix/stable-route-recovery, documentationHEADcf9ac88.
-  Recovery worktree detachedcf9ac88; deployed App worktree stays detached30a3ecb.
-- Product30a3ecb; rollback88f40de and standalone routing633ed6b.
-- Published report/test commitb9ff1f9; PR13closed, PR14draft/base dev.
-  Issues2/3 bot comments record rollback and failed overall acceptance; remain open.
-- Deployment App is pinned to detached .worktrees/issue-1-local-dev at30a3ecb;
-  documentation revisions in the recovery checkout must not change its build identity.
-- Archive archive/answer-recovery-before-rollback-20261012 retains42a647b.
-  Uncommitted regression patches remain backed up under ignored runs/.
-- Framework585 and Pack105 tests passed; focused route/worker/Harness57,
-  types and doctor passed. Setup and install-pi completed.
-- Canonical local-dev rebuild30a3ecb completed.506 files match API and both workers;
-  same image7409a029, App5173 clean30a3ecb. Browser shows full overview/reuse table
-  and load failure. Control graph layout/source checks passed.
-- Rollback corpus validation/deployment/stable-execution-regression.json requires
-  real calculations for registered objects; wrong clarification cannot pass.
-  Reuse needs same preceding result and zero recalculation; review raw Authority data.
-- First screening9177d5f45be9424b ran during service replacement and failed transport;
-  retained as failed, never an acceptance receipt. Rerun only after readiness.
-- Ready-source overall2e107b34738b4b20 completed7 turns. Independent review confirms
-  same-ref reuse and zero recalculation; line7 calculation, topology and overview
-  restored. Load admission fails; old process prefix and wrong AC bus identity
-  remain. Overall business acceptance FAILED; no new enhancement attempted.
-- Prior1013dd2 human validation failed. Do not repeat earlier broad acceptance claims.
-- Main/dev, demo/cloud and existing data unchanged. No new baseline or Research R1.
+Recovery candidate `17debfbc38b46ae4eb3b7acf47fe3820593dbea8` is merged locally as `fb2bcf0`. The original Pi head `749e0b8` is retained by `archive/pi-before-dev-baseline-20261012`. Native/delegated Pi, skills/MCP, `pi_reference`, frozen request intent, input, decision and conversation state remain present. The baseline final-only collector and diagnostic process events are adapted; eight new process-event tests failed before the narrow fix and now pass.
 
-Root alignment complete. Interrupted patches preserved in stash and ignored backup.
-Do not merge PR14 or start new business fixes automatically.
-Do not resume withdrawn closure work or call this historical version fully stable.
-Session remains active; product30a3ecb differs from later documentation commits.
+The lazy-credential candidate `bc081695bebb18b0e2f330c474cea1e50d343f7d` is now in an uncommitted local merge. Two hosted conflicts are resolved by retaining the experiment's lazy `with_intent_runtime` factories. The independent baseline route module now includes the lazy resolver API. Root CI and the final dev commit are still pending.
+
+Verified: Pi/context/input/native/frozen SQL group305 passed with one disabled Docker-native test; delegated/runtime/server/relay72 passed; delegated-review23 passed; full App417 passed; App type check/build and source Pyright passed; both hosted family groups10 passed each; doctor passed. One initial grid environment transport failure could not be reproduced: direct and copied registered transports, the failing focused test and the combined10-test repeat passed. Its original cause remains unconfirmed.
+
+Ordinary execution boundaries differ by path. The Pi hosted experiment uses native/delegated execution. The baseline lightweight no-domain path applies to ordinary prepared nonempty profiles, while the pre-existing empty-selection adapter remains separate. Do not claim that all Pi ordinary paths are lightweight or tool-free.
+
+Next: verify and commit the lazy-credential merge, then merge the exact accepted dev commit supplied by the primary agent. Write the branch adaptation report and journal; do not push, deploy, copy authentication, call a live Provider or alter another worktree. This is source adaptation, not full Pi business acceptance or a demo promotion.
