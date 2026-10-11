@@ -26,6 +26,28 @@ def test_workspace_is_separate_from_legacy_snapshot_and_starts_with_current_mode
     assert "model_workspace" not in service.snapshot("thr_attempts").to_document()
 
 
+def test_new_model_uses_application_default_and_restored_model_keeps_its_selection():
+    from capstone_model_capability_spi import ModelCapabilitySelection
+    service = _model_service()
+    original = service.snapshot("thr_attempts").active_model_context
+
+    class Capabilities:
+        def resolve(self, descriptor, selection):
+            assert selection is None
+            return ModelCapabilitySelection((("operations", "1.0.0"),))
+
+    service.set_capability_catalog(Capabilities())
+    receipt = service.submit_command(command(service, "open_model", {"model_id": "pypsa39"}))
+    assert receipt.status == "accepted"
+    opened = service.snapshot("thr_attempts").active_model_context
+    assert opened.enabled_profiles == (("operations", "1.0.0"),)
+    models = service.read_models("thr_attempts")
+    entry = next(item for item in models["models"] if item["model_id"] == "ieee39")
+    receipt = service.submit_command(command(service, "activate_model", {"entry_id": entry["entry_id"]}, "back"))
+    assert receipt.status == "accepted"
+    assert service.snapshot("thr_attempts").active_model_context == original
+
+
 def test_open_and_activate_finish_without_an_attempt_and_keep_exact_revision():
     service = _model_service()
     original = service.snapshot("thr_attempts").active_model_context

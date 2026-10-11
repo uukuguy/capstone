@@ -1106,7 +1106,7 @@ class InMemoryThreadService:
                 return receipt
             if parsed["kind"] in MODEL_COMMANDS:
                 self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
-                change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available)
+                change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available, self._capability_catalog)
                 if _application_case_active(self._snapshot):
                     rejection = "case_execution_active"
                 if rejection is not None:
@@ -2658,7 +2658,7 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
             elif parsed["kind"] in MODEL_COMMANDS:
                 workspace = self._synchronize_model_workspace(connection, thread, snapshot)
-                change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available)
+                change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available, self._capability_catalog)
                 if _application_case_active(snapshot):
                     rejection = "case_execution_active"
                 if rejection is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from .model_identity import validate_model_id
@@ -180,7 +180,8 @@ def workspace_outcome(command: Mapping[str, Any], before: dict[str, Any], after:
 
 
 def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any], command: Mapping[str, Any],
-                             catalog: Any, family_available: Callable[[str], bool]) -> tuple[WorkspaceChange | None, str | None]:
+                             catalog: Any, family_available: Callable[[str], bool],
+                             capability_catalog: Any = None) -> tuple[WorkspaceChange | None, str | None]:
     if snapshot.current_attempt is not None:
         return None, "attempt_in_progress"
     if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None:
@@ -230,6 +231,13 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
     context = ModelContextSnapshot.from_document(target["work_context"]) if resumed else ModelContextSnapshot(id="ctx_" + secrets.token_hex(10), model_id=target["model_id"],
                                    model_revision=target["model_revision"], implementation_family=target["implementation_family"],
                                    selection_revision="sel_0", enabled_profiles=())
+    if not resumed and capability_catalog is not None:
+        try:
+            descriptor = catalog.resolve(context.model_id)
+            selection = capability_catalog.resolve(descriptor, None)
+            context = replace(context, enabled_profiles=selection.enabled_profiles)
+        except (LookupError, TypeError, ValueError, RuntimeError):
+            return None, "model_preparation_failed"
     diagram = None
     if not resumed and callable(getattr(catalog, "diagram", None)):
         try:
