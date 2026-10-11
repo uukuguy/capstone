@@ -254,7 +254,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | .worktrees/stable-route-recovery；稳态恢复候选30a3ecb | 恢复c3b78bc业务代码，只保留独立LLM路由；506项三角色同源与干净App；浏览器可见结果与失败；实际整体业务未通过 | App5173，API8767；镜像7409a029；重建runs/task-answer-closure/rebuild-rollback-30a3ecb.log；未合入dev或main |
+| local-dev | detached .worktrees/issue-1-local-dev；稳态恢复候选30a3ecb | 恢复c3b78bc业务代码，只保留独立LLM路由；506项三角色同源与干净App；浏览器可见结果与失败；实际整体业务未通过 | App5173，API8767；镜像7409a029；重建runs/task-answer-closure/rebuild-rollback-30a3ecb.log；App固定产品提交，不随文档提交漂移；未合入dev或main |
 | local-demo | detached `.worktrees/demo-baseline`；线上精确基线 `ed2524f` | 已恢复与 cloud-demo 对齐；505 个后端文件/三角色同镜像、注册用例/报告/证据回放通过；原有事件保留。旧线上 App 无四环境徽标，随下一正式发布更新 | App `http://127.0.0.1:15173/`，API `18767`；用例 `runs/version-baseline-alignment/local-demo-ed-cases.json`；兼容验证入口 `runs/issue-automation-acceptance/local-demo-ed-wrapper-compatible.log` |
 | cloud-dev | `ed2524f`，历史标签 `cloud-dev-20261008-1941-ed2524f` | 未部署新版本；本次只读核对公开 App 仍为此来源，后端身份沿用验收记录 | App https://capstone-app-production-83ef.up.railway.app/；[验收报告](../reviews/2026-10-08-cloud-dev-app-version.md) |
 | cloud-demo | `ed2524f`，回滚标签 `demo-20261010-1231-ed2524f` | 只读核对公开 App 仍为回滚来源；后端身份沿用验收记录，已知问题仍开放 | App https://capstone-app-production-975e.up.railway.app/；[发布与回滚报告](../reviews/2026-10-10-demo-n1-release.md) |

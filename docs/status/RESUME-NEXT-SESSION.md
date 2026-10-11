@@ -8,6 +8,8 @@ Do not resume task compilation, coverage, answer rewriting, frozen reuse or prew
 - Product30a3ecb; rollback88f40de and standalone routing633ed6b.
 - Published report/test commitb9ff1f9; PR13closed, PR14draft/base dev.
   Issues2/3 bot comments record rollback and failed overall acceptance; remain open.
+- Deployment App is pinned to detached .worktrees/issue-1-local-dev at30a3ecb;
+  documentation revisions in the recovery checkout must not change its build identity.
 - Archive archive/answer-recovery-before-rollback-20261012 retains42a647b.
   Uncommitted regression patches remain backed up under ignored runs/.
 - Framework585 and Pack105 tests passed; focused route/worker/Harness57,
