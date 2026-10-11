@@ -11,6 +11,17 @@ This draft does not authorize cloud deployment or paid replay.
 
 ## Problem and observed implementation
 
+2026-10-12 regression correction: the user confirms complete calculation
+presentation and cross-turn result reuse already existed. The typed conclusion
+adapter must guard goal coverage, not replace every execution answer with a
+coverage summary. Preserve a reader-facing model final response only after
+supported-goal and existing evidence admission checks; use trusted conclusions
+for blocked or incomplete goals and missing prose. Reuse and requested output
+cardinality belong in reusable typed requirements. Existing-result execution
+uses published reads and re-admission, without a replacement calculation.
+The [restoration plan](../plans/2026-10-12-answer-and-result-reuse-regression.md)
+records the bounded implementation and actual continuous-dialogue acceptance.
+
 Delivery scope, 2026-10-11: semantic task understanding and formal-answer
 closure form one enhancement package and one new main-based branch. Implement
 and verify them in stages within that branch. Reuse the valid safety guards

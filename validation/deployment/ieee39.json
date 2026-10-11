@@ -14,12 +14,14 @@
     {"id": "clarification-to-overview", "turns": [{"text": "解析线路 11 的端点。", "expect": "result-or-object-clarification"}, {"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-and-capabilities"}]},
     {"id": "selected-model-ac", "turns": [{"text": "执行一次交流潮流。", "expect": "calculation-required"}]},
     {"id": "explicit-index-outage", "turns": [{"text": "将当前模型中 pandapower 索引为 7 的线路停运，分析哪些线路重载；如果潮流不收敛请明确说明。", "expect": "scenario-execution-required"}]},
-    {"id": "flow-to-overview", "turns": [{"text": "执行一次交流潮流。", "expect": "calculation-required"}, {"text": "介绍当前电网的基本情况和可用分析。", "expect": "model-and-capabilities"}]}
+    {"id": "flow-to-overview", "turns": [{"text": "执行一次交流潮流。", "expect": "calculation-required"}, {"text": "介绍当前电网的基本情况和可用分析。", "expect": "model-and-capabilities"}]},
+    {"id": "flow-to-reused-ranking", "turns": [{"text": "执行一次交流潮流。", "expect": "calculation-required"}, {"text": "沿用当前潮流结果列出负载率最高的三条线路。", "expect": "calculation-required"}]}
   ],
   "incident_records": {
     "explicit-index-outage": {"source": "../../docs/reviews/2026-10-11-domain-pack-sample-contamination.md", "observed": "2026-10-11 code-diff audit", "failure": "原整体集允许线路标识澄清，未覆盖明确对象的故障执行及元件明细，汇总数量可被误判为完整回答", "semantic_requirements": ["停运对象必须是当前模型明确索引7的线路", "故障场景执行不能被缺指标澄清替代", "收敛时列出已核验重载线路及负载率/限值；不收敛不得给出无效数值"]},
     "flow-to-overview": {"source": "../../docs/reviews/2026-10-11-domain-pack-sample-contamination.md", "observed": "2026-10-11 code-diff audit", "failure": "原整体集未覆盖已选模型执行后切换为普通概况；固定模板与旧任务信息可能污染新目标", "semantic_requirements": ["潮流绑定当前模型与当前Attempt证据", "下一轮概况按新目标回答，不附无关发电N−1缺口", "新目标不追加无请求的计算，也不丢失已完成回答"]},
-    "selected-model-ac": {"source": "../../docs/reviews/2026-10-11-domain-pack-sample-contamination.md", "observed": "2026-10-11 19:48", "failure": "已有选中模型，全网络无逐元件指标的潮流请求被错误要求补充对象及指标", "semantic_requirements": ["使用当前选中模型与版本执行交流潮流", "全网计算不能因未指定逐元件指标被拒", "计算结论绑定当前Attempt的Authority结果及证据"]},
+    "selected-model-ac": {"source": "../../docs/status/KNOWN-ISSUES.md", "observed": "2026-10-11 19:48; 2026-10-12 02:19", "failure": "已有选中模型的潮流曾被错误澄清；之后执行模型完整回答被正式结论模板覆盖，40秒只显示收敛和损耗", "semantic_requirements": ["使用当前选中模型与版本执行交流潮流", "全网计算不能因未指定逐元件指标被拒", "计算结论绑定当前Attempt的Authority结果及证据", "标准尺度应保留有依据的主要运行结果，而非只输出覆盖判定摘要", "回答中涉及约束评估时须接纳对应结果和证据，不得丢弃已验证结果或将未评估说成通过"]},
+    "flow-to-reused-ranking": {"source": "../../docs/status/KNOWN-ISSUES.md", "observed": "2026-10-12 02:20", "failure": "上一轮潮流结果存在，明确要求沿用并列出前三条线路，编译丢失线路集合和数量，在执行前错误澄清", "semantic_requirements": ["复用当前模型及场景的已存在潮流结果，不重新计算", "通过注册读取能力核验并重新接纳结果及证据，不直接信任历史回答文本", "保留线路对象全集、负载率降序和前三条输出要求", "只列线路，不能用变压器替代；数量、顺序及数值均与已验证结果一致", "模型或场景不匹配时才报告真实复用边界，不能要求用户重复已有明确对象"]},
     "generation-n1": {"source": "../../docs/status/KNOWN-ISSUES.md", "observed": "2026-10-10/11", "failure": "基态表替代机组停运排序；无能力时未明确缺口；中文请求产生英文澄清", "semantic_requirements": ["覆盖全部发电设备的原始目标", "不得将支路N-1作为机组N-1结果", "当前能力缺口不产生虚构机组严重度排序"]},
     "line-outage": {"source": "../../docs/status/KNOWN-ISSUES.md", "observed": "2026-10-10", "failure": "已有变化场景越限结果，但正式回答未直接说明重载线路，混入无关基态表", "semantic_requirements": ["按用户对象标识解析或说明真实歧义", "计算结论必须来自line7停运场景", "直接回答哪些线路重载；无重载也需场景证据"]},
     "load-scaling": {"source": "../../docs/status/KNOWN-ISSUES.md", "observed": "2026-10-10", "failure": "基态表替代母线31负荷增长1.3倍后的越限判断", "semantic_requirements": ["核实目标母线及其实际负荷", "保留基态并证明1.3倍修改的准确范围", "只用修改后场景判断越限，缺少负荷不得猜造"]},

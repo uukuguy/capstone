@@ -7,6 +7,29 @@ import pytest
 from types import SimpleNamespace
 
 
+@pytest.mark.parametrize("payload, valid", [
+    ({"operation": "read"}, True),
+    ({"operation": "read", "count": 3}, True),
+    ({"operation": "read", "count": True}, False),
+    ({"operation": "read", "private": 3}, False),
+    ({"count": 3}, False),
+])
+def test_declared_optional_fields_do_not_relax_required_or_unknown_fields(payload, valid):
+    from capstone_agent.task_recognition import _validate_published_payload_fields
+    schema = {"binding_id": "test", "schema": "test/1",
+              "payload_fields": {"operation": ["read"], "count": "Optional count"},
+              "payload_schema": {"type": "object", "additionalProperties": False,
+                  "required": ["operation"], "properties": {
+                      "operation": {"enum": ["read"]}, "count": {"type": "integer", "minimum": 1}}}}
+    domain = SimpleNamespace(binding_id="test", schema="test/1", payload=payload)
+    task = SimpleNamespace(goals=(SimpleNamespace(domain_request=domain, missing_requirements=()),))
+    if valid:
+        _validate_published_payload_fields(task, (schema,))
+    else:
+        with pytest.raises(ValueError):
+            _validate_published_payload_fields(task, (schema,))
+
+
 @pytest.mark.parametrize("gap, invalid, allowed", [
     (True, None, True), (False, None, False),
     (True, "unknown-field", False), (True, "wrong-type", False),

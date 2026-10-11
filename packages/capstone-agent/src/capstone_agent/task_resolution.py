@@ -109,6 +109,15 @@ def resolve_profiles(claim, profiles):
                                     semantic_goal=goal.to_document(), answer_policy={
                                         "language": claim.task_understanding.answer_policy.language,
                                         "scale": claim.task_understanding.answer_policy.scale})
+        bind_candidates = getattr(provider, "bind_result_candidates", None)
+        if callable(bind_candidates) and resolved.status == "ready":
+            pack_id = getattr(runtime.profile, "id", proposal.binding_id)
+            candidates = tuple((item.result_ref, item.evidence_refs)
+                               for item in getattr(claim, "prior_results", ())
+                               if item.domain_pack_id == pack_id)
+            resolved = bind_candidates(resolved, authority=runtime.authority, candidates=candidates)
+            if not isinstance(resolved, ResolvedTaskGoal):
+                raise ValueError("Pack result candidate binding returned an invalid task")
         goals.append(replace(resolved, binding_id=proposal.binding_id))
     for _ in goals:
         blocked = {goal.goal_id for goal in goals if goal.status not in {"ready", "general"}}

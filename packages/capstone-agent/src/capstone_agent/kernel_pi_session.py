@@ -31,6 +31,7 @@ from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
+from .task_execution_catalog import task_execution_catalog
 from .task_recognition import recognize_with_pi, render_task_policy
 from .recognition_process import RecognitionProcess
 
@@ -212,6 +213,7 @@ class PreparedKernelPiRpcSessionBuilder:
             return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
+        execution_catalogs = {}
         binding_runtimes: list[tuple[str, object, object]] = []
         for profile in profiles:
             if profile.workspace.root != workspace.root:
@@ -237,6 +239,10 @@ class PreparedKernelPiRpcSessionBuilder:
                     for path in (tool_catalog_path, guide_index_path)
                 ):
                     raise RuntimeError("prepared Pi tool resources are unavailable")
+                tool_catalog_path = task_execution_catalog(
+                    claim, binding_id, runtime, cast(Path, tool_catalog_path), workspace.core_path / "pi" / "attempts",
+                )
+                execution_catalogs[binding_id] = tool_catalog_path
                 descriptor = descriptor_from_endpoint(
                     binding_id=binding_id,
                     workspace=workspace.domain_path(binding_id),
@@ -297,7 +303,7 @@ class PreparedKernelPiRpcSessionBuilder:
             workspace=workspace.root,
             domain_search_paths=search_paths,
             extension_path=self._runtime_host.extension_path,
-            tool_catalog_path=getattr(single_runtime, "tool_catalog_path", None) if single_runtime else None,
+            tool_catalog_path=execution_catalogs[binding_ids[0]] if single_runtime else None,
             guide_index_path=getattr(single_runtime, "guide_index_path", None) if single_runtime else None,
             system_policy_path=system_policy_path,
             runtime_descriptor_path=descriptor_path,
@@ -657,11 +663,15 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             raise ValueError("required persistence or reference integrity failed")
         _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events, claim.task_resolutions)
         compatibility = bool(claim.task_resolutions) and any(goal.status == "uncertified" and goal.execution_required for goal in claim.task_resolutions)
+        formal = None
         if claim.task_resolutions and not compatibility and any(goal.status != "general" for goal in claim.task_resolutions):
             from dataclasses import replace
             formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners, general_answer=answer)
-            projections = _build_result_projections(claim, profiles, binding_map, formal.result_refs, formal.evidence_refs, tool_events)
-            return replace(formal, result_projections=projections)
+            if (not formal.goal_conclusions
+                or any(item.status != "supported" for item in formal.goal_conclusions)
+                or not isinstance(answer, str) or not answer.strip()):
+                projections = _build_result_projections(claim, profiles, binding_map, formal.result_refs, formal.evidence_refs, tool_events)
+                return replace(formal, result_projections=projections)
         participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
@@ -715,6 +725,16 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
         )
         output, codes = decision.answer_output, tuple(decision.diagnostic_codes)
+        if formal is not None:
+            # Coverage is a checked record, not a replacement for final prose.
+            # All additional displayed references still pass the existing bound
+            # Authority and Pack admission checks above.
+            return AdmittedAttemptAnswer(
+                output, decision.mode, decision.assurance,
+                tuple(result_refs), tuple(evidence_refs),
+                tuple(dict.fromkeys((*codes, *formal.diagnostic_codes, "answer_semantics_not_verified"))),
+                result_projections=result_projections, goal_conclusions=formal.goal_conclusions,
+            )
         if compatibility:
             formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners,
                 general_answer=answer, compatibility_answer=output)

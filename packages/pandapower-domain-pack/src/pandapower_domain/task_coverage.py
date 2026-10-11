@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
 from collections.abc import Mapping
 
 from capability_agent.domain.task import ResolvedTaskGoal, TaskConclusion
@@ -15,6 +16,12 @@ _BRANCHES = {"line", "trafo", "trafo3w"}
 _OPERATIONS = {"overview", "powerflow", "limits", "contingency", "ranking", "compare"}
 _MEASURES = {None, "loading_percent", "p_from_mw", "p_to_mw", "pl_mw", "risk_score", "max_loading_percent"}
 _CONTINGENCY_CHECKS = {"line_overload", "bus_voltage_low", "bus_voltage_high", "non_convergence"}
+_RESULT_READ_CAPABILITIES = (
+    "environment.describe", "analysis.operation.list", "analysis.operation.describe",
+    "context.get", "model.dataset.list", "model.dataset.describe", "model.dataset.query", "model.element.get",
+    "result.dataset.list", "result.dataset.describe", "result.dataset.query", "result.branches.rank",
+    "result.aggregate", "result.compare", "evidence.get",
+)
 _SELECTOR_SCHEMA = {"type": "object", "additionalProperties": False,
     "required": ["kind", "namespace", "identifier"], "properties": {
         "kind": {"enum": sorted(_KINDS)},
@@ -37,7 +44,11 @@ _PAYLOAD_SCHEMA = {"$schema": "https://json-schema.org/draft/2020-12/schema", "t
         "measure": {"enum": sorted(item for item in _MEASURES if item is not None) + [None]},
         "direction": {"enum": [None, "ascending", "descending"]},
         "scenario": {"enum": ["baseline", "changed", "contingency", "comparison"]},
-        "scope": {"enum": ["subset", "full"]}}}
+        "scope": {"enum": ["subset", "full"]},
+        "result_mode": {"enum": ["calculate", "reuse"],
+                        "description": "Calculate a new scenario, or retrieve an existing result without recalculation when the user requests reuse."},
+        "row_limit": {"type": ["integer", "null"], "minimum": 1, "maximum": 64,
+                      "description": "Explicit requested output count; null preserves the response-scale default. This does not restrict the input object set."}}}
 
 
 class _ResolutionScopeExceeded(ValueError):
@@ -45,6 +56,8 @@ class _ResolutionScopeExceeded(ValueError):
 
 
 def _display_limit(requirement):
+    if requirement.get("row_limit") is not None:
+        return requirement["row_limit"]
     return {"concise": 1, "standard": 5, "detailed": 20}[requirement.get("answer_policy", {}).get("scale", "standard")]
 
 
@@ -77,7 +90,14 @@ def _decode(payload):
     # Resolve business semantics in the Pack, before freezing Authority patches.
     # Never mutate the recognizer's original proposal.
     payload = json.loads(json.dumps(payload, allow_nan=False))
-    _fields(payload, {"operation", "objects", "changes", "measure", "direction", "scenario", "scope"})
+    base = {"operation", "objects", "changes", "measure", "direction", "scenario", "scope"}
+    if not base <= set(payload) <= base | {"result_mode", "row_limit"}:
+        raise ValueError("grid task requirement fields are invalid")
+    if payload.get("result_mode", "calculate") not in {"calculate", "reuse"}:
+        raise ValueError("grid result mode is invalid")
+    count = payload.get("row_limit")
+    if count is not None and (type(count) is not int or not 1 <= count <= 64):
+        raise ValueError("grid output count is invalid")
     if (payload["operation"] not in _OPERATIONS or payload["measure"] not in _MEASURES
         or payload["direction"] not in {None, "ascending", "descending"}
         or payload["scenario"] not in {"baseline", "changed", "contingency", "comparison"}
@@ -120,6 +140,28 @@ def _overview_metadata(value, context_ref, revision_ref):
 class PandapowerTaskProvider:
     schema = SCHEMA
 
+    def bind_result_candidates(self, task, *, authority, candidates):
+        if task.requirement.get("result_mode") != "reuse" or not task.execution_required:
+            return task
+        if not isinstance(candidates, tuple) or len(candidates) > 8:
+            raise ValueError("prior result candidates are not bounded")
+        # Candidates are newest first and selected by the Application for this Pack.
+        # The Pack verifies scenario, scope and evidence before freezing the source.
+        for count in range(1, len(candidates) + 1):
+            refs = tuple(item[0] for item in candidates[:count])
+            evidence = tuple(dict.fromkeys(ref for item in candidates[:count] for ref in item[1]))
+            proof = self.conclude(task, authority=authority, result_refs=refs, evidence_refs=evidence)
+            if proof.status == "supported":
+                requirement = task.requirement
+                requirement["reuse_result_refs"] = list(proof.result_refs)
+                requirement["reuse_evidence_refs"] = list(proof.evidence_refs)
+                return replace(task, requirement_json=json.dumps(requirement))
+        return replace(task, status="clarification", execution_required=False,
+                       reason="No admitted prior result supports this requested scope and scenario. Select an existing result or request a calculation.")
+
+    def execution_capabilities(self, task):
+        return _RESULT_READ_CAPABILITIES if task.requirement.get("result_mode") == "reuse" else None
+
     def validate_semantic_binding(self, task, *, semantic_goal, answer_policy):
         requirement = task.requirement
         if (requirement.get("semantic_goal") != semantic_goal or requirement.get("answer_policy") != answer_policy):
@@ -138,6 +180,8 @@ class PandapowerTaskProvider:
         req = _decode(payload)
         if req["operation"] == "overview":
             return ("context.get",)
+        if req.get("result_mode") == "reuse":
+            return ("result.dataset.list", "result.dataset.query", "evidence.get")
         result = ["analysis.contingency.n_minus_one.run"] if req["scenario"] == "contingency" else ["analysis.powerflow.ac.run"]
         if req["operation"] == "limits" or req["measure"] == "risk_score":
             result.append("analysis.result.violations.evaluate")
@@ -157,6 +201,11 @@ class PandapowerTaskProvider:
                 "overview": ["description"], "powerflow": ["description", "impact"],
                 "limits": ["limit"], "contingency": ["impact", "limit"],
                 "compare": ["comparison"], "ranking": ["ranking"]}.items()] + [
+            {"if": {"required": ["missing_requirements"], "properties": {
+                "missing_requirements": {"maxItems": 0}, "domain_request": {"properties": {"payload": {
+                    "properties": {"operation": {"const": "ranking"}}, "required": ["operation"]}}}}},
+             "then": {"properties": {"domain_request": {"properties": {"payload": {
+                 "properties": {"objects": {"minItems": 1}}, "required": ["objects"]}}}}}},
             {"if": {"properties": {"domain_request": {"properties": {"payload": {
                 "properties": {"operation": {"const": "limits"}}, "required": ["operation"]}}}}},
              "then": {"properties": {"domain_request": {"properties": {"payload": {
@@ -188,7 +237,8 @@ class PandapowerTaskProvider:
             "changes": [{"target": "same object selector, bus or load", "fields": ["p_mw", "q_mvar"], "factor": "positive finite multiplier"}],
             "measure": sorted(item for item in _MEASURES if item is not None) + [None],
             "direction": [None, "ascending", "descending"], "scenario": ["baseline", "changed", "contingency", "comparison"],
-            "scope": ["subset", "full"]},
+            "scope": ["subset", "full"], "result_mode": ["calculate", "reuse"],
+            "row_limit": "Optional explicit requested output count, 1–64; null or absent uses response scale, never narrows the input set."},
         "rules": "Use all exact fields. Goal scenario/scope/measure/conclusion must agree with the payload; use the same canonical measure identifier in both. Never convert a bus name into an index. Preserve unresolved user identifiers for Authority resolution; internal namespace labels are not business questions for the user. Empty changes for baseline. Preserve the requested subject; the selected Pack resolves capability availability from its registered contracts. Overview covers both current-model basic facts and registered analysis capabilities; it needs no calculation, object scope or ordering, so use direction=null. Other non-ranking operations may also use direction=null. Ranking requires an ordering direction grounded in the meaning of the user request, a measure and accepted scope; the user need not write a machine enum literal; unspecified scope cannot become exhaustive. Scope describes the selected input object set: a single outage is subset even when its constraints cover the network. Contingency constraint evaluation uses measure=null; the evaluated constraints include branch loading and bus voltages. Existing model constraints are the default for limit checks; do not demand a user threshold unless the user requests a different standard. For limits, use objects=[] and measure=null; load-change targets are complete selector objects inside changes.target, never a string or a second measurement object. Topology endpoint and other object-query operations are outside this typed execution schema; use the published professional compatibility schema rather than overview for those operations. No caller context or result refs. Verified answer languages: en and zh; other languages require clarification.",
     }
 
@@ -330,6 +380,12 @@ class PandapowerTaskProvider:
         # Every passed reference is checked, including references irrelevant to this goal.
         documents = {ref: authority.verify_result(ref).document for ref in result_refs}
         evidence = {ref: authority.verify_evidence(ref).document for ref in evidence_refs}
+        frozen = req.get("reuse_result_refs")
+        if frozen is not None:
+            if not set(frozen) <= documents.keys() or not set(req["reuse_evidence_refs"]) <= evidence.keys():
+                return conclusion("unresolved", "The selected prior result and its evidence were not read and admitted for this attempt.")
+            documents = {ref: documents[ref] for ref in frozen}
+            evidence = {ref: evidence[ref] for ref in req["reuse_evidence_refs"]}
         matching = {}
         for ref, doc in documents.items():
             context = doc.get("context_ref")

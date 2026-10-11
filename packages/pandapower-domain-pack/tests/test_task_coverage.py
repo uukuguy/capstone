@@ -25,6 +25,67 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
+def test_reuse_freezes_prior_source_and_rejects_a_new_calculation(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    old = invoke("analysis.powerflow.ac.run", {"context_ref": context["context_ref"]})
+    task = provider.resolve("g", proposal(result_mode="reuse"), context_ref=context["context_ref"],
+                            revision_ref=context["revision_ref"], invoke=invoke)
+    bound = provider.bind_result_candidates(task, authority=verifier,
+        candidates=((old["result_ref"], tuple(old["evidence_refs"])),))
+    assert bound.status == "ready"
+    assert bound.requirement["reuse_result_refs"] == [old["result_ref"]]
+    assert provider.conclude(bound, authority=verifier, result_refs=(), evidence_refs=()).status == "unresolved"
+    assert provider.conclude(bound, authority=verifier, result_refs=(old["result_ref"],),
+                             evidence_refs=tuple(old["evidence_refs"])).status == "supported"
+    new = invoke("analysis.powerflow.ac.run", {"context_ref": context["context_ref"], "init": "flat"})
+    assert new["result_ref"] != old["result_ref"]
+    assert provider.conclude(bound, authority=verifier, result_refs=(new["result_ref"],),
+                             evidence_refs=tuple(new["evidence_refs"])).status == "unresolved"
+    missing = provider.bind_result_candidates(task, authority=verifier, candidates=())
+    assert missing.status == "clarification"
+    assert missing.execution_required is False
+
+
+def test_reuse_ranking_preserves_count_and_exposes_only_result_reads(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    result = invoke("analysis.powerflow.ac.run", {"context_ref": context["context_ref"]})
+    payload = proposal(operation="ranking", objects=[{"kind": "line", "namespace": "all", "identifier": "*"}],
+                       measure="loading_percent", result_mode="reuse", row_limit=3)
+    task = provider.resolve("g", payload, context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=invoke)
+    assert task.status == "ready"
+    assert "analysis.powerflow.ac.run" not in provider.required_capabilities(payload)
+    assert "analysis.powerflow.ac.run" not in provider.execution_capabilities(task)
+    assert "result.dataset.query" in provider.execution_capabilities(task)
+    answer = provider.conclude(task, authority=verifier, result_refs=(result["result_ref"],), evidence_refs=tuple(result["evidence_refs"]))
+    assert answer.status == "supported"
+    assert "line 21:" in answer.text and "line 11:" in answer.text and "line 26:" in answer.text
+    assert "line 2:" not in answer.text
+    assert "3 of 35" in answer.text
+    assert answer.result_refs == (result["result_ref"],)
+
+
+def test_complete_ranking_proposal_cannot_omit_its_object_set():
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["recognition_constraints"])
+    goal = {"conclusion": "ranking", "missing_requirements": [],
+            "domain_request": {"payload": proposal(operation="ranking", measure="loading_percent")}}
+    assert not validator.is_valid(goal)
+    goal["missing_requirements"] = ["Object type is not specified"]
+    assert validator.is_valid(goal)
+
+
+@pytest.mark.parametrize("count", [0, -1, 65, True, 2.5, "3"])
+def test_output_count_is_a_bounded_integer_not_an_input_scope(count):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    with pytest.raises(ValueError, match="output count"):
+        PandapowerTaskProvider().required_capabilities(proposal(row_limit=count))
+
+
 def test_published_intent_constraints_enforce_operation_conclusion_relationships():
     from jsonschema import Draft202012Validator
     from pandapower_domain.task_coverage import PandapowerTaskProvider

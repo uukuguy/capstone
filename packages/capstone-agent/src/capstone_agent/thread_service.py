@@ -361,6 +361,7 @@ class PriorResultReference:
     evidence_refs: tuple[str, ...]
     capability_id: str
     attempt_id: str
+    domain_pack_id: str = ""
 
     def __post_init__(self) -> None:
         try:
@@ -370,6 +371,7 @@ class PriorResultReference:
         except (TypeError, ValueError) as exc:
             raise ThreadExecutionError("prior result retrieval candidate is invalid") from exc
         if (not isinstance(self.evidence_refs, tuple) or len(self.evidence_refs) > 128
+                or not isinstance(self.domain_pack_id, str) or len(self.domain_pack_id) > 128
                 or not isinstance(self.capability_id, str) or not 0 < len(self.capability_id) <= 256
                 or not isinstance(self.attempt_id, str) or not re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", self.attempt_id)):
             raise ThreadExecutionError("prior result retrieval candidate is invalid")
@@ -386,7 +388,8 @@ def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultRef
                 or item.model_revision != context.model_revision
                 or item.source.implementation_family != context.implementation_family):
             continue
-        candidates.append(PriorResultReference(item.result_ref, item.evidence_refs, item.source.capability_id, item.attempt_id))
+        candidates.append(PriorResultReference(item.result_ref, item.evidence_refs, item.source.capability_id, item.attempt_id,
+                                               item.source.domain_pack_id))
         seen.add(item.result_ref)
         if len(candidates) == 8:
             break

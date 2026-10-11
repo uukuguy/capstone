@@ -17,8 +17,8 @@ separately because server events do not prove visible UI feedback.
 Maintain two separate sets. The long-lived overall corpus
 [ieee39.json](ieee39.json) uses real failures observed during agent conversation
 development. Each case preserves its instruction, incident source, failed
-behavior and semantic acceptance requirements. The current corpus has eight
-cases/ten turns. It covers generation N-1, line outage, load growth, model overview,
+behavior and semantic acceptance requirements. The current corpus has nine
+cases/twelve turns. It covers generation N-1, line outage, load growth, model overview,
 selected-model AC and continuous target transitions. Add newly confirmed failures to this
 corpus; keep resolved cases for regression rather than removing them.
 
@@ -37,11 +37,20 @@ adding product prompts or changing capability behavior.
 | `selected-model-ac` | Simplest AC execution | Use the selected model and current-run calculation evidence; no unnecessary element/measure clarification. |
 | `explicit-index-outage` | Unambiguous outage execution | Execute the exact outage; identify overloads from verified results or report actual non-convergence without invented values. |
 | `flow-to-overview` | Two-turn calculation-to-information transition | Calculate with current-run evidence, then answer the new informational goal without old-task contamination. |
+| `flow-to-reused-ranking` | Existing result reuse regression | Read and re-admit the current flow without recalculation; retain the full line set, descending loading order and exactly three requested rows. |
 
 The first six cases retain observed conversation failures. The last two are
 explicitly labeled audit-derived coverage gaps. A legitimate capability boundary
 can satisfy a boundary case; it cannot satisfy a required calculation case.
 These are business acceptance cases, not exact wording or perfect-answer targets.
+
+The2026-10-12 incidents strengthen standard AC result presentation and add the
+existing cross-turn result-reuse regression. Mechanical evidence checks cannot
+prove adequate result presentation, requested cardinality or actual reuse.
+Independent review must inspect the original goal, execution answer, public
+answer, read/calculate tools and result lineage. An automatic pass alone does
+not pass these semantic requirements. The captured deployed turns currently
+fail this scope; no new acceptance claim is made.
 
 On2026-10-12 the user separated the generation case's intent-routing acceptance
 from research completion. Its receipt records the immutable original request,

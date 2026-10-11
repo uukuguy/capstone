@@ -375,9 +375,13 @@ def _validate_published_payload_fields(task, schemas):
         fields = selected[0].get("payload_fields")
         if not isinstance(fields, Mapping):
             raise ValueError("task payload fields do not match the published schema")
-        if set(proposal.payload) != set(fields):
-            raise ValueError("task payload fields must be exactly: " + ", ".join(sorted(fields)))
+        published = selected[0].get("payload_schema")
+        required = set(published.get("required", fields)) if isinstance(published, Mapping) else set(fields)
+        if not required <= set(proposal.payload) <= set(fields):
+            raise ValueError("task payload fields must include required fields and only published fields: " + ", ".join(sorted(fields)))
         for name, choices in fields.items():
+            if name not in proposal.payload:
+                continue
             # Top-level scalar enum descriptors are public, domain-neutral data.
             # Array/object descriptors and business rules remain Pack-owned.
             if isinstance(choices, list) and choices and all(not isinstance(item, (list, Mapping)) for item in choices):
@@ -385,7 +389,6 @@ def _validate_published_payload_fields(task, schemas):
                 if isinstance(value, (list, Mapping)) or value not in choices:
                     raise ValueError("task payload fields: " + name + " requires one scalar choice from "
                                      + json.dumps(choices, ensure_ascii=False, allow_nan=False))
-        published = selected[0].get("payload_schema")
         if isinstance(published, Mapping):
             Draft202012Validator.check_schema(published)
             # An unresolved proposal is not an executable requirement. It may

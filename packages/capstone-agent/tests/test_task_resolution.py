@@ -4,6 +4,81 @@ from capability_agent.domain.task import ResolvedTaskGoal
 from capstone_agent.task_understanding import TaskRequest
 
 
+def test_prior_candidates_are_handed_only_to_the_selected_pack():
+    from capstone_agent.task_resolution import resolve_profiles
+    from capstone_agent.task_understanding import DomainTaskProposal
+    selected = []
+    class Provider:
+        schema = "test/1"
+        def required_capabilities(self, payload):
+            return ()
+        def resolve(self, goal_id, payload, **kwargs):
+            return ResolvedTaskGoal(goal_id, "ready", "{}")
+        def bind_result_candidates(self, task, *, authority, candidates):
+            selected.extend(candidates)
+            return task
+    runtime = SimpleNamespace(profile=SimpleNamespace(id="selected-pack", task_provider=Provider()),
+                              authority=object(), capability_documents=())
+    binding = SimpleNamespace(runtime=runtime, endpoint=SimpleNamespace(executor=None))
+    profile = SimpleNamespace(prepared_application=SimpleNamespace(bindings={"binding": binding}),
+                              model_binding=SimpleNamespace(context_ref="context", model_revision="revision"))
+    goal = SimpleNamespace(id="g", execution="professional", missing_requirements=(), dependencies=(),
+                          domain_request=DomainTaskProposal("binding", "test/1", "{}"), to_document=lambda: {})
+    prior = tuple(SimpleNamespace(domain_pack_id=pack, result_ref=ref, evidence_refs=())
+                  for pack, ref in (("selected-pack", "selected-result"), ("other-pack", "foreign-result")))
+    claim = SimpleNamespace(task_understanding=SimpleNamespace(goals=(goal,),
+        answer_policy=SimpleNamespace(language="en", scale="standard")), prior_results=prior)
+    assert resolve_profiles(claim, (profile,))[0].status == "ready"
+    assert selected == [("selected-result", ())]
+
+
+@pytest.mark.parametrize("status,model_text,expected", [
+    ("supported", "Complete reader report: voltage, loading and losses.", "Complete reader report: voltage, loading and losses."),
+    ("supported", "", "Verified coverage summary."),
+    ("partial", "All requested work is complete.", "Verified coverage summary."),
+    ("unresolved", "All requested work is complete.", "Verified coverage summary."),
+])
+def test_supported_professional_answer_preserves_final_prose_without_bypassing_coverage(
+    monkeypatch, status, model_text, expected,
+):
+    from dataclasses import replace
+    from capability_agent.domain.task import TaskConclusion
+    from capstone_agent.harness import AdmittedAttemptAnswer
+    import capstone_agent.kernel_pi_session as module
+    from test_kernel_bound_admission import _admission, CONTEXT, REVISION, EVIDENCE
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION})
+    claim = replace(claim, task_resolutions=(ResolvedTaskGoal("g", "ready", "{}", binding_id="grid"),))
+    formal = AdmittedAttemptAnswer(
+        "Verified coverage summary.", "authority_backed", "lineage_verified", (), (EVIDENCE,),
+        ("task_goal_coverage_verified",), goal_conclusions=(TaskConclusion("g", status, "Verified coverage summary.", evidence_refs=(EVIDENCE,)),),
+    )
+    monkeypatch.setattr(module, "_task_conclusion_answer", lambda *args, **kwargs: formal)
+    result = admit(claim, model_text, (), (EVIDENCE,), ({"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE]},))
+    assert result.answer == expected
+    assert result.goal_conclusions == formal.goal_conclusions
+    assert result.evidence_refs == (EVIDENCE,)
+
+
+def test_supported_final_prose_keeps_additional_verified_result_evidence(monkeypatch):
+    from dataclasses import replace
+    from capability_agent.domain.task import TaskConclusion
+    from capstone_agent.harness import AdmittedAttemptAnswer
+    import capstone_agent.kernel_pi_session as module
+    from test_kernel_bound_admission import _admission, CONTEXT, REVISION, EVIDENCE
+    extra = "evidence:sha256:" + "d" * 64
+    admit, claim, _ = _admission({"context_ref": CONTEXT, "revision_ref": REVISION})
+    claim = replace(claim, task_resolutions=(ResolvedTaskGoal("g", "ready", "{}", binding_id="grid"),))
+    formal = AdmittedAttemptAnswer("Verified coverage summary.", "authority_backed", "lineage_verified",
+        (), (EVIDENCE,), ("task_goal_coverage_verified",),
+        goal_conclusions=(TaskConclusion("g", "supported", "Verified coverage summary.", evidence_refs=(EVIDENCE,)),))
+    monkeypatch.setattr(module, "_task_conclusion_answer", lambda *args, **kwargs: formal)
+    answer = admit(claim, "Report includes the verified optional assessment.", (), (EVIDENCE, extra),
+        ({"binding_id": "grid", "ok": True, "evidence_refs": [EVIDENCE, extra]},))
+    assert answer.evidence_refs == (EVIDENCE, extra)
+    assert answer.goal_conclusions == formal.goal_conclusions
+    assert "answer_semantics_not_verified" in answer.diagnostic_codes
+
+
 def test_resolution_replay_rejects_changed_digest():
     from capstone_agent.task_resolution import resolution_payload, resolution_state_from_events
     request = TaskRequest("t", "v", "a", "question", 0, "c", "m", "r")

@@ -148,3 +148,16 @@ class DomainTaskProvider(Protocol):
 
     def conclude(self, task: ResolvedTaskGoal, *, authority: object, result_refs: tuple[str, ...],
                  evidence_refs: tuple[str, ...]) -> TaskConclusion: ...
+
+
+class TaskExecutionRestrictions(Protocol):
+    """Optional Pack extension; existing task providers remain valid."""
+
+    def execution_capabilities(self, task: ResolvedTaskGoal) -> tuple[str, ...] | None: ...
+
+
+class TaskResultReuse(Protocol):
+    """Optional binding of application-selected prior references before persistence."""
+
+    def bind_result_candidates(self, task: ResolvedTaskGoal, *, authority: object,
+                               candidates: tuple[tuple[str, tuple[str, ...]], ...]) -> ResolvedTaskGoal: ...

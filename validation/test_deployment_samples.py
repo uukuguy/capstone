@@ -106,7 +106,7 @@ def test_evidence_cannot_hide_partial_task_coverage():
 def test_overall_corpus_records_real_incidents_and_separate_update_selection():
     from validation.deployment.run import load_samples
     manifest = json.loads((Path(__file__).parent / "deployment/ieee39.json").read_text())
-    assert len(manifest["cases"]) == 8
+    assert len(manifest["cases"]) == 9
     assert manifest["suite_kind"] == "overall"
     assert set(manifest["incident_records"]) == {case["id"] for case in manifest["cases"]}
     for incident in manifest["incident_records"].values():
