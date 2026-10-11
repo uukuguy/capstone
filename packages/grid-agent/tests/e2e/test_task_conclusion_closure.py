@@ -14,6 +14,45 @@ from pandapower_domain import build_pandapower_profile
 from pandapower_domain.execution import SimulatorCapabilityError
 
 
+@pytest.mark.parametrize("namespace,identifier,status", [("name", "line7", "clarification"),
+    ("pandapower_index", "99999", "clarification"), ("pandapower_index", "7", "ready"),
+    ("name", "duplicate", "clarification"), ("name", "transport-failure", "transport-failure")])
+def test_selector_resolution_through_registered_application(tmp_path, monkeypatch, namespace, identifier, status):
+    from capability_agent.application.composition import prepare_application
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.application import EmptyCredentialBroker, domain_registry
+    from grid_agent.application.profile import build_pandapower_application_profile
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    profile = build_pandapower_application_profile()
+    workspace = ApplicationWorkspace.create(tmp_path, binding_ids=("grid",))
+    prepared = prepare_application(profile, registry=domain_registry(profile), workspace=workspace.root,
+                                   credentials=EmptyCredentialBroker())
+    executor = prepared.bindings["grid"].endpoint.executor
+    context = executor.invoke("context.open", {"model_id": "ieee39"})
+    if identifier == "duplicate":
+        context = executor.invoke("model.revision.derive", {"context_ref": context["context_ref"], "patches": [
+            {"operation": "set", "kind": "line", "selector": {"indices": [2, 3]}, "values": {"name": "duplicate"}}]})
+    if status == "transport-failure":
+        from pandapower_domain.execution import GridctlExecutor
+        def unavailable(*args):
+            raise RuntimeError("private transport detail")
+        monkeypatch.setattr(GridctlExecutor, "invoke", unavailable)
+    def resolve():
+        return PandapowerTaskProvider().resolve("g", {
+        "operation": "contingency", "objects": [{"kind": "line", "namespace": namespace, "identifier": identifier}],
+        "changes": [], "measure": None, "direction": None, "scenario": "contingency", "scope": "subset"},
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=executor.invoke)
+    try:
+        if status == "transport-failure":
+            from capability_agent.application.errors import CapabilityTransportError
+            with pytest.raises(CapabilityTransportError, match="capability transport failed"):
+                resolve()
+        else:
+            assert resolve().status == status
+    finally:
+        prepared.bindings["grid"].endpoint.close()
+
+
 @pytest.fixture
 def environment(tmp_path):
     calls = []
@@ -61,6 +100,20 @@ def test_unsupported_generator_finishes_without_unrelated_authority_work(environ
     assert "not supported" in admitted.answer
     assert admitted.diagnostic_codes == ("task_capability_boundary_verified",)
     assert calls == []
+
+
+def test_mixed_clarification_retains_verified_capability_boundary(environment):
+    _, context, profiles, _ = environment
+    claim = recognized(context, operation="contingency", scenario="contingency",
+                       objects=[{"kind": "gen", "namespace": "all", "identifier": "*"}])
+    original = claim.task_understanding.goals[0]
+    claim.task_understanding = replace(claim.task_understanding, goals=(original,
+        replace(original, id="followup", missing_requirements=("Need a separate object",))))
+    claim.task_resolutions = resolve_profiles(claim, profiles)
+    session = _ResolvedTaskSession(claim, profiles)
+    answer = session.prompt_and_wait("request", on_semantic_event=lambda event: None, correlation_id="a", on_heartbeat=lambda: None)
+    admitted = session.admit_attempt(claim, answer, (), (), ())
+    assert set(admitted.diagnostic_codes) == {"task_capability_boundary_verified", "task_clarification_verified"}
 
 
 def test_outage_formal_conclusion_survives_optional_query_failure(environment):

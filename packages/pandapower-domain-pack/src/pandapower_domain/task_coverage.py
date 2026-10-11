@@ -511,17 +511,25 @@ def _support(reference, document, evidence):
 def _resolve_selector(selector, context, revision, invoke):
     if selector["namespace"] == "all":
         return _query_rows(selector["kind"], context, revision, invoke)
-    result = invoke("model.element.get", {"context_ref": context, **selector})
+    namespace = selector["namespace"]
+    field = "index" if namespace == "pandapower_index" else namespace
+    identifier = selector["identifier"]
+    if namespace == "pandapower_index":
+        try:
+            identifier = str(int(identifier))
+        except ValueError:
+            raise SimulatorCapabilityError({"code": "unknown_element", "message": "requested index is invalid"}) from None
+    fields = (field,) if namespace in {"name", "alias"} else ()
+    matches = [row for row in _query_rows(selector["kind"], context, revision, invoke, fields=fields)
+               if str(row.get(field)) == identifier]
+    if len(matches) != 1:
+        raise SimulatorCapabilityError({"code": "ambiguous_element", "message": "requested object is missing or ambiguous"})
+    result = invoke("model.element.get", {"context_ref": context, "kind": selector["kind"],
+                    "namespace": "asset_ref", "identifier": matches[0]["asset_ref"]})
     _identity(result, context, revision)
     element = result["element"]
-    if selector["namespace"] in {"name", "alias"}:
-        field = selector["namespace"]
-        matches = [row for row in _query_rows(selector["kind"], context, revision, invoke, fields=(field,))
-                   if str(row.get(field)) == selector["identifier"]]
-        if len(matches) != 1:
-            raise SimulatorCapabilityError({"code": "ambiguous_element", "message": "requested name is missing or ambiguous"})
-        if matches[0]["asset_ref"] != result["asset_ref"] or matches[0]["index"] != element["index"]:
-            raise SimulatorIntegrityError("resolved element does not match its unique dataset row")
+    if matches[0]["asset_ref"] != result["asset_ref"] or matches[0]["index"] != element["index"]:
+        raise SimulatorIntegrityError("resolved element does not match its unique dataset row")
     return [{"kind": selector["kind"], "index": element["index"], "asset_ref": result["asset_ref"]}]
 
 

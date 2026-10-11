@@ -120,7 +120,8 @@ def test_positive_api_screening_does_not_claim_provider_or_business_acceptance(m
     assert "private-test-token" not in content
 
 
-def test_completed_bad_answer_does_not_skip_the_next_conversation_turn(monkeypatch, tmp_path):
+@pytest.mark.parametrize("terminal", ["attempt_completed", "attempt_failed"])
+def test_bad_answer_does_not_skip_the_next_conversation_turn(monkeypatch, tmp_path, terminal):
     from validation.deployment import run
     samples = tmp_path / "samples.json"
     samples.write_text(json.dumps({"schema": "capstone-deployment-samples/2", "suite_id": "continuity",
@@ -133,7 +134,7 @@ def test_completed_bad_answer_does_not_skip_the_next_conversation_turn(monkeypat
     executed = []
     def turn(*args):
         executed.append(args[1]["text"])
-        return {"status": "failed" if len(executed) == 1 else "passed", "terminal": "attempt_completed"}
+        return {"status": "failed" if len(executed) == 1 else "passed", "terminal": terminal}
     monkeypatch.setenv("CAPSTONE_SAMPLE_API_ORIGIN", "http://127.0.0.1:8767")
     monkeypatch.setenv("CAPSTONE_SAMPLE_OPERATOR_TOKEN", "private-test-token")
     monkeypatch.setattr(run, "HttpThreadSession", Session)

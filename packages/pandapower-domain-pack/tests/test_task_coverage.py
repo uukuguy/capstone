@@ -163,7 +163,7 @@ def test_bus_name_is_resolved_by_name_not_index(authority):
         "target": {"kind": "bus", "namespace": "name", "identifier": "4"},
         "fields": ["p_mw"], "factor": 1.1}]), context_ref=context["context_ref"],
         revision_ref=context["revision_ref"], invoke=observed)
-    assert calls[0][1]["namespace"] == "name"
+    assert calls[0][0] == "model.dataset.query" and "name" in calls[0][1]["select"]
     assert task.status == "ready"
     assert task.requirement["patches"][0]["selector"]["indices"] == [2]
 

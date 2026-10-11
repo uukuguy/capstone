@@ -95,3 +95,13 @@ after a completed answer fails screening. No keyword intent routing was added.
 Checks pass52 focused; Pack30 full and5 new focused; types have zero errors.
 These are source checks. Rebuild and actual six-turn semantic validation remain
 required before human handoff. local-dev still runs8f1c9b3 until that rebuild.
+
+The c7032d5 rerun also failed (provider-8f874754d107422a). Overview now passes
+with frozen model sizes and registered capabilities. Actual prepared applications
+wrap simulator errors for credential protection; unknown object selectors became
+transport failures, while stub tests returned clarification. New registered
+prepare_application regressions reproduce two failures and cover unique, unknown,
+duplicate and transport paths. The Pack now queries complete bounded datasets
+before unique asset resolution; Kernel credential screening stays intact.
+Mixed conclusions retain each verified unsupported-boundary diagnostic. The runner
+continues after failed terminal turns to test recovery; aggregate failure remains.

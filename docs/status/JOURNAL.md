@@ -2486,3 +2486,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-11 Verified completed-window9px/4.5px/160px browser behavior; App updated PR13 and Issues2/3 without claiming business acceptance.
 
 - 2026-10-11：7823ceb 更新恢复检查点，明确候选、整体样本与待授权Provider验收。
+
+- c7032d5 Repair live proposal contracts and regression continuity after authorized Provider failures.

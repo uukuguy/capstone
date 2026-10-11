@@ -456,9 +456,12 @@ def _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners=
             "task_capability_boundary_verified" if any(item.status == "unsupported" for item in conclusions) else
             "task_goal_coverage_unverified" if any(item.status == "uncertified" for item in conclusions) else "task_information_verified")
     has_general = any(item.status == "general" for item in conclusions)
+    codes = (code,)
+    if any(item.status == "unsupported" for item in conclusions) and "task_capability_boundary_verified" not in codes:
+        codes += ("task_capability_boundary_verified",)
     return AdmittedAttemptAnswer(answer, "authority_backed" if evidence else "offline_information",
         "lineage_verified" if evidence else "general_knowledge" if has_general else "deterministic_information", results, evidence,
-        (code,) + (("general_response_unverified",) if has_general else ()),
+        codes + (("general_response_unverified",) if has_general else ()),
         goal_conclusions=tuple(conclusions))
 
 
