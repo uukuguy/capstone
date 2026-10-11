@@ -3,7 +3,8 @@
 The session remains active. Restore existing complete AC answers and cross-turn
 reuse; verify actual deployment samples. No case-specific prompts or keyword routing.
 
-- Branch fix/deployment-answer-acceptance; HEAD1013dd2; clean local-dev1013dd2 rebuilt.
+- Branch fix/deployment-answer-acceptance; HEADff9d1c3 docs/test commit;
+  deployed product source remains clean1013dd2.
 - b5fcc63 overall86e8f00c32d94eab failed1/12: reused line ranking mistakenly
   proposed network/all + loading_percent, then frozen unsupported. Other core
   scenarios passed independent review. fb6a921 publishes existing branch-only
@@ -28,11 +29,12 @@ reuse; verify actual deployment samples. No case-specific prompts or keyword rou
   independently PASS. Browser AC/reuse/load/overview PASS; source graph checks PASS.
   Complex task total durations do not fail acceptance. Phase timing retained;
   reuse has3 successful Authority reads+1 Pi-local refusal, zero recalculation.
-- New commits not pushed. PR13 draft and Issues2/3 open; publication needs updating.
+- ff9d1c3 pushed and read back under capstone-xiaoshi[bot]; PR13 draft/base dev
+  and Issues2/3 synchronized with actual scope, timing and remaining limits.
 - Unified initialization/prewarm a634257 remains verified. No baseline, dev/main
   merge, demo/cloud update or Research R1 acceptance.
 
-Next: finish documentation gates/commit and publish updated PR13/Issues2/3.
+Next: collect human validation, then integrate accepted scope into dev.
 The same actual execution supplies separate overall/update verdicts, not two repeats.
 Do not merge/create baseline or certify generator research/mixed isolation.
 Human validation follows this scoped local acceptance; full evidence and timing
