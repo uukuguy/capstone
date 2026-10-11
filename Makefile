@@ -291,6 +291,22 @@ check-types-validation:
 
 check-fast: check-package-boundaries check-types test
 
+# Local edits require explicit affected checks, not a release aggregate.
+.PHONY: check-iteration check-pr test-registered-workers test-pandapower-application
+check-iteration:
+	@test -n "$(CHECK_TARGETS)" || (echo "Use CHECK_TARGETS='test-capstone-app' or affected checks" >&2; exit 2)
+	@$(MAKE) $(CHECK_TARGETS)
+
+# Verify the formal applications. The retired compatibility CLI suite remains
+# in check-release while its shared runtime code is moved to its owning layer.
+check-pr: check-package-boundaries check-types test-pandapower-application test-simulator test-tools test-capstone-agent test-model-capability-spi test-capstone-app test-capstone-client test-local-rebuild test-verification-targets test-kernel test-domain-package test-generic-tools test-inventory test-pypsa test-workbench test-registered-workers
+
+test-pandapower-application:
+	uv run --project packages/grid-agent pytest packages/grid-agent/tests --ignore=packages/grid-agent/tests/e2e --ignore=packages/grid-agent/tests/cli --ignore=packages/grid-agent/tests/compat --ignore=packages/grid-agent/tests/test_console_target.py --ignore=packages/grid-agent/tests/contract/test_application_instantiation_baseline.py -q
+
+test-registered-workers:
+	uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_registered_workers.py -q
+
 test-pi-capture-runtime:
 	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode success
 	node tools/test_pi_capture_runtime.mjs --wrapper generic --mode failure

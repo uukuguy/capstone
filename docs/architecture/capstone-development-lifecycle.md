@@ -42,6 +42,32 @@ flowchart LR
     T -->|rollback to previous verified revision| T
 ```
 
+## Verification scope during development
+
+Local iteration runs the checks affected by the edit. Use, for example,
+`make check-iteration CHECK_TARGETS='test-capstone-app'`. A backend change selects
+the relevant Python tests and its application entry smoke check. Do not repeat
+all offline, E2E, packaging and release checks after each edit. Local API, worker
+or App changes still use the canonical local rebuild before deployment claims.
+
+Pull requests and main pushes run `make check-pr` on Linux and macOS. Feature
+branch pushes do not run a second copy of the PR workflow. New revisions cancel
+obsolete automatic runs for the same event and ref. The PR gate checks formal
+applications, Authorities, Domain Packs, Kernel, App and registered workers.
+It excludes the old grid CLI suite, full validation suites and distribution
+installation checks. The required CI job names remain unchanged.
+
+Baseline and release acceptance explicitly run `make check-release` on both
+platforms through the `verify` workflow with `release=true`. A successful PR gate
+does not prove baseline or release acceptance. Existing deployment verification
+and exact source/image promotion requirements still apply.
+
+The application no longer requires compatibility with the `grid-agent` CLI.
+Its package still holds runtime modules used by the formal pandapower worker.
+Move those modules to their owning application before deleting the old package.
+The old suite remains in the explicit release aggregate during that migration;
+this is a temporary verification reference, not a public compatibility promise.
+
 ## Server resource lifecycle
 
 A durable Thread is a database record. It does not reserve a worker or keep a

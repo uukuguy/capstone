@@ -3,6 +3,17 @@ name: verify
 on:
   pull_request:
   push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Run complete baseline or release verification
+        type: boolean
+        default: false
+
+concurrency:
+  group: verify-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   verify:
@@ -27,7 +38,12 @@ jobs:
       - run: make setup
       - run: make install-pi
       - run: make doctor
-      - run: make check-release
+      - name: Verify formal applications
+        if: github.event_name != 'workflow_dispatch' || !inputs.release
+        run: make check-pr
+      - name: Verify baseline or release
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        run: make check-release
       - name: Show failed offline validation checks
         if: failure()
         run: |
