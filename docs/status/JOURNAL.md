@@ -2480,3 +2480,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-11：76a7f58 建立部署样本并修复提案与概况，阻止未经验证的人工交接。
 
 - 2026-10-11：8f1c9b3 移除弱关键词验收，保留准确样例断言与独立语义复核。
+
+- 2026-10-11：2633bfb 分离长期错误回归与升级专项，登记同源local-dev候选，防止误报验收。
+
+- 2026-10-11 Verified completed-window9px/4.5px/160px browser behavior; App updated PR13 and Issues2/3 without claiming business acceptance.

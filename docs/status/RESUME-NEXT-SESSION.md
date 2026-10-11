@@ -1,14 +1,15 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-11 after dev governance acceptance. Session remains active.
+Updated: 2026-10-11 after candidate rebuild and conversation-corpus separation. Session remains active.
 
 ## Accepted organization and active package
 
 dev is the default development integration branch and owns current global
 documents, control graph and canonical worklists. main holds release snapshots.
 Feature/fix/docs/chore PRs target dev; release PRs target main. No branch push
-automatically deploys user trial. Current package is Research Model R1 preparation;
-feat/research-model exists, but no R1 code has been implemented.
+automatically deploys user trial. Current package is deployment business acceptance
+repair; Research Model R1 waits for this baseline to close. feat/research-model
+exists, but no R1 code has been implemented.
 
 ## Verified identities and recovery
 
@@ -69,6 +70,12 @@ must be selected explicitly. Both manifests are recorded by content hash;11
 selection/tool checks pass, including duplicate corpus-ID rejection. App64
 component checks and control-browser source/layout checks pass. Live running
 window and real Provider/semantic business acceptance are still pending.
+Read-only existing-Thread browser checks verify completed collapsed/full/collapsed
+switching,9px text,4.5px gap and160px scroll. PR #13 contains corpus commit2633bfb,
+while deployed source remains8f1c9b3. Independent App updated Issues2/3 with the
+corrected acceptance scope and kept both open. Existing local Provider selection
+is deepseek/deepseek-flash; executing the overall six turns needs separate paid-call
+authorization. No new Provider calls have been made.
 The graph pins accepted organization50d8ebc and actual candidate8f1c9b3, not every
 later documentation or sample-tool commit.
 
