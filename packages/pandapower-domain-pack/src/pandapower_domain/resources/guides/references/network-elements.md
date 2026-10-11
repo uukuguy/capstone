@@ -20,12 +20,7 @@ Elements have a `kind`: `bus`, `line`, `trafo`, or `trafo3w`. Resolution namespa
 
 ## Parameters and Defaults
 
-`model.element.get` requires `context_ref`, `kind`, `namespace`, and `identifier`.
-Use the selected model context and preserve the namespace established by the
-request or prior resolved identity. A numeric label alone does not establish
-`pandapower_index`. When the namespace is not known, inspect registered names
-and aliases through the Authority. Ask for clarification if no unique identity
-can be established. Use a returned `asset_ref` for later operations.
+`model.element.get` requires `context_ref`, `kind`, `namespace`, and `identifier`. For a user phrase "line 11", use `kind: "line"`, `namespace: "pandapower_index"`, and `identifier: "11"` unless prior context indicates a stable `asset_ref`.
 
 `model.dataset.describe` requires `context_ref` and `dataset`, where `dataset` is `network.buses` or `network.branches`.
 
@@ -41,8 +36,7 @@ Branch fields: `asset_ref`, `kind`, `index`, `name`, `alias`, `from_bus_ref`, `t
 
 ## Single-step Examples
 
-- Resolve an element with `model.element.get`, using its requested kind and
-  established namespace and identifier.
+- Resolve line 11: `model.element.get` with `kind: "line"`, `namespace: "pandapower_index"`, `identifier: "11"`.
 - List branch aliases: `model.dataset.query` on `network.branches` selecting `kind`, `index`, `alias`, `asset_ref`, with an appropriate `limit`.
 - Describe bus fields: `model.dataset.describe` with `dataset: "network.buses"`.
 

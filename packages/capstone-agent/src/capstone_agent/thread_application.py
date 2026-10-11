@@ -59,42 +59,6 @@ class FamilyRuntimeFactory:
             raise RuntimeError(f"implementation family is not registered: {family}")
         return factory(claim)
 
-    def route_task(self, claim, *, on_heartbeat):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        router = getattr(factory, "route_task", None)
-        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
-
-    def prepare_model(self, snapshot):
-        factory = self._factories.get(snapshot.active_model_context.implementation_family)
-        prepare = getattr(factory, "prepare_model", None)
-        if not callable(prepare):
-            raise RuntimeError("model preparation is unavailable for this family")
-        return prepare(snapshot)
-
-    def routing_metrics(self, claim):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        read = getattr(factory, "routing_metrics", None)
-        return read(claim) if callable(read) else {}
-
-    def recognize_task(self, claim, *, on_heartbeat):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        recognizer = getattr(factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("family task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat)
-
-    def resolve_task(self, claim):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        resolver = getattr(factory, "resolve_task", None)
-        if not callable(resolver):
-            raise RuntimeError("family task resolver is unavailable")
-        return resolver(claim)
-
-    def recognition_metrics(self, claim):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        read = getattr(factory, "recognition_metrics", None)
-        return read(claim) if callable(read) else {}
-
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
@@ -135,20 +99,6 @@ class ApplicationPiRuntimeFactory:
         return HarnessPiClient(
             self._session_factory(claim), runtime_mode=self._runtime_mode,
         )
-
-    def route_task(self, claim, *, on_heartbeat):
-        router = getattr(self._session_factory, "route_task", None)
-        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
-
-    def routing_metrics(self, claim=None):
-        read = getattr(self._session_factory, "routing_metrics", None)
-        return read() if callable(read) else {}
-
-    def recognize_task(self, claim, *, on_heartbeat):
-        recognizer = getattr(self._session_factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("application task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat)
 
 
 class PreparedApplicationPiRuntimeFactory:
@@ -191,47 +141,6 @@ class PreparedApplicationPiRuntimeFactory:
         self._network_projection_factory = network_projection_factory
         self.rollback_selection_on_failure = True
 
-    def route_task(self, claim, *, on_heartbeat):
-        # Routing needs no prepared Pack, tool catalog or Authority model query.
-        router = getattr(self._session_factory, "route_task", None)
-        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
-
-    def prepare_model(self, snapshot):
-        return self._context_owner.prepare_model(
-            snapshot.thread_id, snapshot.run.run_id, snapshot.active_model_context,
-        )
-
-    def routing_metrics(self, claim=None):
-        read = getattr(self._session_factory, "routing_metrics", None)
-        return read() if callable(read) else {}
-
-    def recognize_task(self, claim, *, on_heartbeat):
-        recognizer = getattr(self._session_factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("prepared application task recognizer is unavailable")
-        from .kernel_pi_session import PreparedKernelPiSessionFactory
-        from .task_resolution import requirement_schemas
-        if (isinstance(self._session_factory, PreparedKernelPiSessionFactory) and claim.kind != "send_ordinary"
-            and claim.model_context.enabled_profiles
-            and (getattr(claim, "task_route", None) is None or claim.task_route.route == "professional")):
-            context = self._context_owner.acquire(claim)
-            try:
-                schemas = requirement_schemas(tuple(getattr(contribution, "prepared") for contribution in context.contributions))
-            finally:
-                self._context_owner.release(context)
-            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=schemas)
-        return recognizer(claim, on_heartbeat=on_heartbeat)
-
-    def resolve_task(self, claim):
-        from .task_resolution import resolve_profiles
-        if claim.kind == "send_ordinary" or not claim.model_context.enabled_profiles or all(goal.execution == "general" for goal in claim.task_understanding.goals):
-            return resolve_profiles(claim, ())
-        context = self._context_owner.acquire(claim)
-        try:
-            return resolve_profiles(claim, tuple(getattr(contribution, "prepared") for contribution in context.contributions))
-        finally:
-            self._context_owner.release(context)
-
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         context = self._context_owner.acquire(claim)
         session = None
@@ -257,20 +166,10 @@ class PreparedApplicationPiRuntimeFactory:
             raise
 
     def sweep_idle(self) -> int:
-        sweep = getattr(self._session_factory, "sweep_idle", None)
-        return self._context_owner.sweep_idle() + (cast(Callable[[], int], sweep)() if callable(sweep) else 0)
-
-    def recognition_metrics(self, claim=None):
-        read = getattr(self._session_factory, "recognition_metrics", None)
-        return read() if callable(read) else {}
+        return self._context_owner.sweep_idle()
 
     def close(self) -> None:
-        try:
-            close = getattr(self._session_factory, "close", None)
-            if callable(close):
-                close()
-        finally:
-            self._context_owner.close()
+        self._context_owner.close()
 
 
 @dataclass(frozen=True, slots=True)

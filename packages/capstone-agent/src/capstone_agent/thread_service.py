@@ -23,11 +23,6 @@ if TYPE_CHECKING:
     from .turn_router import TurnPlan
 
 from capstone_model_capability_spi import ModelCapabilitySelection
-from capability_agent.domain.task import ResolvedTaskGoal, TaskConclusion
-from .task_understanding import MAX_INSTRUCTION_CHARS, MAX_REFERENCE_CHARS, MAX_HISTORY_CUTOFF, TaskRequest, TaskUnderstanding
-from .task_routing import TaskRoute
-from .task_recognition import task_state_from_events, task_acceptance_marker
-from copy import deepcopy
 
 import psycopg
 from capstone_agent.database_connect import connect_database
@@ -51,7 +46,6 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
-from .model_opening import initialize_model_context
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
@@ -361,7 +355,6 @@ class PriorResultReference:
     evidence_refs: tuple[str, ...]
     capability_id: str
     attempt_id: str
-    domain_pack_id: str = ""
 
     def __post_init__(self) -> None:
         try:
@@ -371,7 +364,6 @@ class PriorResultReference:
         except (TypeError, ValueError) as exc:
             raise ThreadExecutionError("prior result retrieval candidate is invalid") from exc
         if (not isinstance(self.evidence_refs, tuple) or len(self.evidence_refs) > 128
-                or not isinstance(self.domain_pack_id, str) or len(self.domain_pack_id) > 128
                 or not isinstance(self.capability_id, str) or not 0 < len(self.capability_id) <= 256
                 or not isinstance(self.attempt_id, str) or not re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", self.attempt_id)):
             raise ThreadExecutionError("prior result retrieval candidate is invalid")
@@ -388,8 +380,7 @@ def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultRef
                 or item.model_revision != context.model_revision
                 or item.source.implementation_family != context.implementation_family):
             continue
-        candidates.append(PriorResultReference(item.result_ref, item.evidence_refs, item.source.capability_id, item.attempt_id,
-                                               item.source.domain_pack_id))
+        candidates.append(PriorResultReference(item.result_ref, item.evidence_refs, item.source.capability_id, item.attempt_id))
         seen.add(item.result_ref)
         if len(candidates) == 8:
             break
@@ -466,29 +457,8 @@ class AttemptClaim:
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
-    task_request: TaskRequest | None = None
-    task_route: TaskRoute | None = None
-    task_understanding: TaskUnderstanding | None = None
-    task_certification: str = "pending"
-    task_history: tuple[str, str] | None = None
-    task_resolutions: tuple[ResolvedTaskGoal, ...] = ()
-    task_resolution_route: str | None = None
 
     def __post_init__(self) -> None:
-        if (not isinstance(self.task_resolutions, tuple) or len(self.task_resolutions) > 8
-            or any(not isinstance(goal, ResolvedTaskGoal) for goal in self.task_resolutions)
-            or self.task_resolution_route not in {None, "ordinary", "professional"}):
-            raise ThreadExecutionError("task resolutions are invalid")
-        if self.task_history is not None and (not isinstance(self.task_history, tuple) or len(self.task_history) != 2
-                or any(not isinstance(text, str) or len(text) > 4096 for text in self.task_history)):
-            raise ThreadExecutionError("task history is invalid")
-        if self.task_certification not in {"pending", "recognized", "legacy_uncertified"}:
-            raise ThreadExecutionError("task certification is invalid")
-        if self.task_understanding is not None and self.task_understanding.request != self.task_request:
-            raise ThreadExecutionError("task understanding request is inconsistent")
-        if self.task_route is not None and (not isinstance(self.task_route, TaskRoute)
-                                           or self.task_route.request != self.task_request):
-            raise ThreadExecutionError("task route request is inconsistent")
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
             raise ThreadExecutionError("attempt previous instruction is invalid")
         if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
@@ -644,45 +614,6 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
-    if event_type == "task_goal_conclusions":
-        try:
-            if set(payload) != {"request", "conclusions"} or TaskRequest.from_document(payload["request"]) != claim.task_request:
-                raise ValueError("conclusion task binding differs")
-            conclusions = tuple(TaskConclusion.from_document(item) for item in payload["conclusions"])
-            if len(conclusions) > 8 or {item.goal_id for item in conclusions} != {item.goal_id for item in claim.task_resolutions}:
-                raise ValueError("conclusion goals differ")
-        except (ValueError, TypeError):
-            raise ThreadExecutionError("task conclusion binding is invalid") from None
-    if event_type == "task_requirements_resolved":
-        from .task_resolution import resolution_state_from_events
-        from types import SimpleNamespace
-        try:
-            resolution_state_from_events([SimpleNamespace(event_type=event_type, payload=payload)], request=claim.task_request)
-        except (ValueError, TypeError):
-            raise ThreadExecutionError("task requirements binding is invalid") from None
-    if event_type == "task_route_created":
-        if set(payload) != {"routing"} or claim.task_request is None:
-            raise ThreadExecutionError("task route binding is invalid")
-        try:
-            TaskRoute.from_document(payload["routing"], request=claim.task_request)
-        except ValueError:
-            raise ThreadExecutionError("task route binding is invalid") from None
-    if event_type in {"task_request_created", "task_understanding_created"}:
-        key = "request" if event_type == "task_request_created" else "understanding"
-        expected_fields = {"request", "history"} if key == "request" else {key}
-        if set(payload) != expected_fields or claim.task_request is None:
-            raise ThreadExecutionError("task decision binding is invalid")
-        try:
-            if key == "request":
-                request = TaskRequest.from_document(payload[key])
-                if payload["history"] != (None if claim.task_history is None else list(claim.task_history)):
-                    raise ValueError("task history does not match")
-            else:
-                request = TaskUnderstanding.from_document(payload[key], expected_request=claim.task_request).request
-            if request != claim.task_request:
-                raise ValueError("task request does not match")
-        except ValueError:
-            raise ThreadExecutionError("task decision binding is invalid") from None
     if event_type != "network_diagram":
         _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
         return
@@ -696,12 +627,6 @@ def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim
     if (diagram["model"]["id"] != claim.model_context.model_id or
             diagram["model"]["revision"] != claim.model_context.model_revision):
         raise ThreadProtocolError("network diagram does not match the claimed model")
-
-
-def _detached_task_event(event: EventEnvelope) -> EventEnvelope:
-    if event.event_type.startswith("task_") or (event.event_type == "command_accepted" and "task_recognition" in event.payload):
-        return replace(event, payload=deepcopy(event.payload))
-    return event
 
 
 def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[EventEnvelope, ...]) -> EventPage:
@@ -719,7 +644,7 @@ def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[Eve
     return EventPage(thread_id, after, cursor, bool(selected and cursor < last), tuple(selected))
 
 
-def _admission_rejection(command: Mapping[str, Any], snapshot: ThreadSnapshot) -> str | None:
+def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     """Return a bounded semantic rejection before a command enters the ledger."""
 
     if command["kind"] in _CONTROL_COMMAND_KINDS:
@@ -794,19 +719,6 @@ def _admission_rejection(command: Mapping[str, Any], snapshot: ThreadSnapshot) -
     text = command["payload"].get("text")
     if not isinstance(text, str) or not text.strip():
         return "message_text_required"
-    if command["kind"] in {"send_auto", "send_ordinary", "send_professional"}:
-        if len(text) > MAX_INSTRUCTION_CHARS:
-            return "message_text_too_large"
-        target = snapshot.pending_model_switch or snapshot.active_model_context
-        # Public identifiers and generated Turn/Attempt/context identifiers
-        # are bounded already. Model revisions can enter through old snapshots.
-        if any(not isinstance(value, str) or not value.strip() or len(value) > MAX_REFERENCE_CHARS
-               for value in (snapshot.thread_id, snapshot.active_model_context.id, target.model_id, target.model_revision)):
-            return "task_context_invalid"
-        # Reserve the two possible pending-context activation events before
-        # the accepted instruction freezes its signed-64-bit history cutoff.
-        if not 0 <= snapshot.last_event_seq <= MAX_HISTORY_CUTOFF - 2:
-            return "task_context_invalid"
     if "enabled_profiles" in command["payload"]:
         try:
             _message_payload_selection(command)
@@ -1016,8 +928,8 @@ class InMemoryThreadService:
         with self._lock:
             self._check_thread(thread_id)
             cursor = history_cursor(self._snapshot, before)
-            events = [_detached_task_event(event) for event in islice((event for event in reversed(self._events)
-                if event.event_seq < cursor and event.visibility == "public"), limit + 1)]
+            events = list(islice((event for event in reversed(self._events)
+                if event.event_seq < cursor and event.visibility == "public"), limit + 1))
             return history_page(thread_id, cursor, events, limit)
 
     def read_network_events(self, thread_id: str, *, context_id: str | None = None, attempt_id: str | None = None) -> dict[str, Any]:
@@ -1048,7 +960,7 @@ class InMemoryThreadService:
             self._check_thread(thread_id)
             if after_event_seq < self._snapshot.base_event_seq:
                 raise ThreadResyncRequired(self._snapshot)
-            events = tuple(_detached_task_event(event) for event in islice((event for event in self._events if event.event_seq > after_event_seq), 256))
+            events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
             return _bounded_event_page(thread_id, after_event_seq, self._snapshot.last_event_seq, events)
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
@@ -1078,7 +990,7 @@ class InMemoryThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
-            semantic_rejection = _admission_rejection(parsed, self._snapshot)
+            semantic_rejection = _admission_rejection(parsed)
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1110,7 +1022,7 @@ class InMemoryThreadService:
                 return receipt
             if parsed["kind"] in MODEL_COMMANDS:
                 self._model_workspace = synchronize_workspace(self._model_workspace, self._snapshot, self._model_catalog)
-                change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available, self._capability_catalog)
+                change, rejection = prepare_workspace_change(self._snapshot, self._model_workspace, parsed, self._model_catalog, self.is_family_available)
                 if _application_case_active(self._snapshot):
                     rejection = "case_execution_active"
                 if rejection is not None:
@@ -1336,13 +1248,8 @@ class InMemoryThreadService:
                 selection_revision=self._snapshot.active_model_context.selection_revision,
                 occurred_at=_now(), visibility="public",
                 payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                         "payload": parsed["payload"],
-                         **task_acceptance_marker(kind=parsed["kind"], thread_id=self._snapshot.thread_id,
-                             attempt=attempt, instruction=parsed["payload"]["text"],
-                             context=self._snapshot.active_model_context, cutoff=event_seq - 1,
-                             previous_instruction=_previous_instruction_from_events(self._events, self._attempts, self._snapshot.active_model_context))},
+                         "payload": parsed["payload"]},
             )
-            event = _detached_task_event(event)
             self._events.append(event)
             self._snapshot = replace(
                 self._snapshot, current_attempt=attempt, last_event_seq=event_seq,
@@ -1511,9 +1418,6 @@ class InMemoryThreadService:
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     application_catalog=application_catalog,
-                    **task_state_from_events(self._events, thread_id=self._snapshot.thread_id,
-                                             attempt=running, instruction=record["instruction"], context=context,
-                                             previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context)),
                 )
             return None
 
@@ -1646,20 +1550,13 @@ class InMemoryThreadService:
                 raise ThreadExecutionError("attempt is not running")
             if visibility not in {"public", "diagnostic"}:
                 raise ThreadProtocolError("event visibility is invalid")
-            if event_type in {"task_request_created", "task_route_created", "task_understanding_created", "task_requirements_resolved"}:
-                previous = next((event for event in self._events if event.turn_id == claim.attempt.turn_id
-                                 and event.event_type == event_type), None)
-                if previous is not None:
-                    if previous.payload != payload:
-                        raise ThreadExecutionError("task decision is immutable")
-                    return _detached_task_event(previous)
             event = self._append_event(
                 event_type=event_type, attempt=record["attempt"],
                 payload=dict(payload), visibility=visibility,
                 context=record["model_context"],
             )
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
-            return _detached_task_event(event)
+            return event
 
     def finish_attempt(
         self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
@@ -1775,16 +1672,18 @@ class InMemoryThreadService:
             and descriptor.implementation_family == active.implementation_family
         ):
             return None, "model_already_active"
-        try:
-            context = initialize_model_context(descriptor, self._capability_catalog)
-        except (KeyError, TypeError, ValueError):
-            return None, "selection_unavailable"
+        selection = ModelCapabilitySelection.empty()
+        if self._capability_catalog is not None:
+            try:
+                selection = self._capability_catalog.resolve(descriptor, None)
+            except (KeyError, TypeError, ValueError):
+                return None, "selection_unavailable"
         return PendingModelSwitchSnapshot(
             command_id=command["command_id"],
             model_id=descriptor.model_id,
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
-            enabled_profiles=context.enabled_profiles,
+            enabled_profiles=selection.enabled_profiles,
             reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
             fresh_context_reason=(
                 command["payload"].get("reason")
@@ -1897,9 +1796,8 @@ class InMemoryThreadService:
             selection_revision=active.selection_revision,
             occurred_at=_now(), visibility=visibility, payload=dict(payload),
         )
-        event = _detached_task_event(event)
         self._events.append(event)
-        return _detached_task_event(event)
+        return event
 
     def compact_before(self, base_event_seq: int) -> None:
         with self._lock:
@@ -2032,12 +1930,23 @@ class ThreadCreator:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
         )
+        if not descriptor.available:
+            raise ValueError(descriptor.unavailable_reason or "model_unavailable")
         available = getattr(self._service, "is_family_available", None)
+        if callable(available) and not available(descriptor.implementation_family):
+            raise ValueError("worker_unavailable")
+        enabled_profiles = (
+            self._capability_catalog.resolve(descriptor, selection).enabled_profiles
+            if self._capability_catalog is not None
+            else (() if selection is None else selection.enabled_profiles)
+        )
         token = secrets.token_hex(10)
-        context = initialize_model_context(
-            descriptor, self._capability_catalog, selection,
-            family_available=(lambda family: bool(available(family))) if callable(available) else None,
-            context_id="ctx_" + token,
+        context = ModelContextSnapshot(
+            id="ctx_" + token, model_id=descriptor.model_id,
+            model_revision=descriptor.model_revision,
+            implementation_family=descriptor.implementation_family,
+            selection_revision="sel_0",
+            enabled_profiles=enabled_profiles,
         )
         snapshot = ThreadSnapshot(
             thread_id="thr_" + token,
@@ -2079,17 +1988,6 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL 
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
-CREATE TABLE IF NOT EXISTS capstone_model_preparations (
-    thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
-    generation bigint NOT NULL DEFAULT 1,
-    lease_until timestamptz,
-    retry_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS capstone_pending_model_contexts (
-    thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
-    signature text NOT NULL,
-    model_context jsonb NOT NULL
-);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -2195,104 +2093,6 @@ class PostgresThreadService:
                 if statement.strip():
                     connection.execute(statement)
 
-    def request_model_preparation(self, thread_id: str) -> None:
-        """Queue worker-owned preparation; retain newer requests during a lease."""
-        with self._connect() as connection:
-            connection.execute(
-                """INSERT INTO capstone_model_preparations(thread_id)
-                SELECT thread_id FROM capstone_threads WHERE thread_id = %s AND NOT archived
-                ON CONFLICT(thread_id) DO UPDATE SET
-                generation = capstone_model_preparations.generation + 1,
-                retry_at = now()""", (thread_id,),
-            )
-
-    def claim_model_preparation(self, implementation_family: str | None = None) -> tuple[ThreadSnapshot, int, datetime] | None:
-        with self._connect() as connection:
-            row = connection.execute(
-                """SELECT p.thread_id, p.generation FROM capstone_model_preparations p
-                JOIN capstone_threads t USING(thread_id)
-                WHERE NOT t.archived AND t.run_state = 'open'
-                AND (%s::text IS NULL OR COALESCE(t.pending_model_switch->>'implementation_family', t.implementation_family) = %s)
-                AND p.retry_at <= now() AND (p.lease_until IS NULL OR p.lease_until < now())
-                ORDER BY p.retry_at LIMIT 1 FOR UPDATE OF p SKIP LOCKED""",
-                (implementation_family, implementation_family),
-            ).fetchone()
-            if row is None:
-                return None
-            leased = connection.execute(
-                """UPDATE capstone_model_preparations SET lease_until = now() + interval '30 seconds'
-                WHERE thread_id = %s RETURNING lease_until""", (row["thread_id"],),
-            ).fetchone()
-            assert leased is not None
-            lease = leased["lease_until"]
-        with self._connect() as connection:
-            thread = connection.execute(
-                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE", (row["thread_id"],),
-            ).fetchone()
-            if thread is None:
-                raise ThreadNotFound(row["thread_id"])
-            snapshot = self._snapshot_from_row(thread)
-            context = self._pending_preparation_context(connection, snapshot)
-        if context is not None:
-            snapshot = replace(snapshot, active_model_context=context)
-        return snapshot, row["generation"], lease
-
-    @staticmethod
-    def _pending_preparation_context(connection, snapshot: ThreadSnapshot) -> ModelContextSnapshot | None:
-        pending = snapshot.pending_model_switch or snapshot.pending_selection
-        if pending is None:
-            return None
-        current = snapshot.active_model_context
-        signature = hashlib.sha256(_canonical({
-            "run_id": snapshot.run.run_id, "current": current.to_document(),
-            "pending": pending.to_document(),
-        }).encode()).hexdigest()
-        if snapshot.pending_model_switch is not None:
-            switch = snapshot.pending_model_switch
-            context = ModelContextSnapshot(
-                id="ctx_" + secrets.token_hex(10), model_id=switch.model_id,
-                model_revision=switch.model_revision, implementation_family=switch.implementation_family,
-                selection_revision="sel_0", enabled_profiles=switch.enabled_profiles,
-            )
-        else:
-            context = replace(current,
-                selection_revision=_next_selection_revision(current.selection_revision, snapshot.last_event_seq),
-                enabled_profiles=pending.enabled_profiles)
-        row = connection.execute(
-            """INSERT INTO capstone_pending_model_contexts(thread_id, signature, model_context)
-            VALUES (%s, %s, %s) ON CONFLICT(thread_id) DO UPDATE SET
-            model_context = CASE WHEN capstone_pending_model_contexts.signature = excluded.signature
-                THEN capstone_pending_model_contexts.model_context ELSE excluded.model_context END,
-            signature = excluded.signature RETURNING model_context""",
-            (snapshot.thread_id, signature, Jsonb(context.to_document())),
-        ).fetchone()
-        assert row is not None
-        return ModelContextSnapshot.from_document(row["model_context"])
-
-    def finish_model_preparation(self, thread_id: str, generation: int, lease, *, succeeded: bool) -> None:
-        with self._connect() as connection:
-            if succeeded:
-                connection.execute(
-                    "DELETE FROM capstone_model_preparations WHERE thread_id = %s AND generation = %s AND lease_until = %s",
-                    (thread_id, generation, lease),
-                )
-            connection.execute(
-                """UPDATE capstone_model_preparations SET lease_until = NULL,
-                retry_at = now() + CASE WHEN %s THEN interval '0 seconds' ELSE interval '5 seconds' END
-                WHERE thread_id = %s AND lease_until = %s""", (succeeded, thread_id, lease),
-            )
-
-    def has_pending_model_preparation(self, implementation_family: str | None = None) -> bool:
-        with self._connect() as connection:
-            row = connection.execute(
-                """SELECT EXISTS(SELECT 1 FROM capstone_model_preparations p
-                JOIN capstone_threads t USING(thread_id) WHERE NOT t.archived
-                AND t.run_state = 'open' AND (%s::text IS NULL OR COALESCE(t.pending_model_switch->>'implementation_family', t.implementation_family) = %s)) AS pending""",
-                (implementation_family, implementation_family),
-            ).fetchone()
-            assert row is not None
-            return row["pending"]
-
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
         initial_diagram = None
@@ -2332,7 +2132,6 @@ class PostgresThreadService:
                 self._insert_event(connection, event)
                 snapshot = replace(snapshot, last_event_seq=event.event_seq)
                 connection.execute("UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s", (event.event_seq, snapshot.thread_id))
-            connection.execute("INSERT INTO capstone_model_preparations(thread_id) VALUES (%s)", (snapshot.thread_id,))
         return snapshot
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
@@ -2624,7 +2423,7 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
             elif parsed["expected_event_seq"] != snapshot.last_event_seq:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
-            elif (semantic_rejection := _admission_rejection(parsed, snapshot)) is not None:
+            elif (semantic_rejection := _admission_rejection(parsed)) is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
             elif (
                 (context_lock := _application_context_lock(snapshot)) is not None
@@ -2649,7 +2448,7 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_not_open")
             elif parsed["kind"] in MODEL_COMMANDS:
                 workspace = self._synchronize_model_workspace(connection, thread, snapshot)
-                change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available, self._capability_catalog)
+                change, rejection = prepare_workspace_change(snapshot, workspace, parsed, self._model_catalog, self.is_family_available)
                 if _application_case_active(snapshot):
                     rejection = "case_execution_active"
                 if rejection is not None:
@@ -2939,11 +2738,7 @@ class PostgresThreadService:
                     selection_revision=snapshot.active_model_context.selection_revision,
                     occurred_at=_now(), visibility="public",
                     payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
-                             "payload": parsed["payload"],
-                             **task_acceptance_marker(kind=parsed["kind"], thread_id=snapshot.thread_id,
-                                 attempt=attempt, instruction=parsed["payload"]["text"],
-                                 context=snapshot.active_model_context, cutoff=event_seq - 1,
-                                 previous_instruction=_previous_instruction_from_postgres(connection, snapshot.thread_id, snapshot.active_model_context))},
+                             "payload": parsed["payload"]},
                 )
                 connection.execute(
                     """INSERT INTO capstone_thread_events
@@ -3260,12 +3055,6 @@ class PostgresThreadService:
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 application_catalog=application_catalog,
-                **task_state_from_events(
-                    tuple(self._event_from_row(item) for item in connection.execute(
-                        "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s ORDER BY event_seq",
-                        (thread["thread_id"], running.turn_id)).fetchall()),
-                    thread_id=thread["thread_id"], attempt=running, instruction=updated["instruction"], context=context,
-                    previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context)),
             )
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:
@@ -3479,14 +3268,6 @@ class PostgresThreadService:
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             running = AttemptSnapshot.from_document(current)
-            if event_type in {"task_request_created", "task_route_created", "task_understanding_created", "task_requirements_resolved"}:
-                previous = connection.execute(
-                    "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s AND event_type = %s ORDER BY event_seq LIMIT 1",
-                    (claim.thread_id, claim.attempt.turn_id, event_type)).fetchone()
-                if previous is not None:
-                    if previous["payload"] != payload:
-                        raise ThreadExecutionError("task decision is immutable")
-                    return self._event_from_row(previous)
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
                 event_type=event_type, payload=dict(payload), visibility=visibility,
@@ -3630,16 +3411,18 @@ class PostgresThreadService:
             and descriptor.implementation_family == active.implementation_family
         ):
             return None, "model_already_active"
-        try:
-            context = initialize_model_context(descriptor, self._capability_catalog)
-        except (KeyError, TypeError, ValueError):
-            return None, "selection_unavailable"
+        selection = ModelCapabilitySelection.empty()
+        if self._capability_catalog is not None:
+            try:
+                selection = self._capability_catalog.resolve(descriptor, None)
+            except (KeyError, TypeError, ValueError):
+                return None, "selection_unavailable"
         return PendingModelSwitchSnapshot(
             command_id=command["command_id"],
             model_id=descriptor.model_id,
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
-            enabled_profiles=context.enabled_profiles,
+            enabled_profiles=selection.enabled_profiles,
             reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
             fresh_context_reason=(
                 command["payload"].get("reason")
@@ -3657,8 +3440,14 @@ class PostgresThreadService:
         pending = snapshot.pending_model_switch
         assert pending is not None
         previous = snapshot.active_model_context
-        active = self._pending_preparation_context(connection, snapshot)
-        assert active is not None
+        active = ModelContextSnapshot(
+            id="ctx_" + secrets.token_hex(10),
+            model_id=pending.model_id,
+            model_revision=pending.model_revision,
+            implementation_family=pending.implementation_family,
+            selection_revision="sel_0",
+            enabled_profiles=pending.enabled_profiles,
+        )
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
             event_type=(
@@ -3716,8 +3505,12 @@ class PostgresThreadService:
         pending = snapshot.pending_selection
         assert pending is not None
         context = snapshot.active_model_context
-        active = self._pending_preparation_context(connection, snapshot)
-        assert active is not None
+        revision = _next_selection_revision(context.selection_revision, snapshot.last_event_seq)
+        active = replace(
+            context,
+            selection_revision=revision,
+            enabled_profiles=pending.enabled_profiles,
+        )
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
             event_type="selection_activated",
@@ -3797,16 +3590,6 @@ class PostgresThreadService:
              event.model_context_id, event.selection_revision, event.occurred_at,
              event.visibility, Jsonb(event.payload)),
         )
-        if event.event_type in {
-            "model_workspace_changed", "model_context_change_pending", "selection_change_pending",
-            "model_context_activated", "model_context_reopened", "selection_activated",
-        }:
-            connection.execute(
-                """INSERT INTO capstone_model_preparations(thread_id) VALUES (%s)
-                ON CONFLICT(thread_id) DO UPDATE SET
-                generation = capstone_model_preparations.generation + 1, retry_at = now()""",
-                (event.thread_id,),
-            )
 
     def compact_before(self, thread_id: str, base_event_seq: int) -> None:
         with self._connect() as connection:

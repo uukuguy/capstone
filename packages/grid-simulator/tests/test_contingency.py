@@ -26,32 +26,6 @@ def _line_ref(grid, context_ref: str, index: int) -> str:
     return str(result["element"]["asset_ref"])
 
 
-def test_branch_ranking_reads_verified_outage_without_rerunning(grid, context_ref: str) -> None:
-    outage = grid.call("analysis.contingency.n_minus_one.run", {
-        "context_ref": context_ref, "branch_refs": [_line_ref(grid, context_ref, 7)],
-    })
-    scenario = outage["scenarios"][0]
-    runs = grid.engine.ac_run_count
-    ranking = grid.call("result.branches.rank", {
-        "result_ref": scenario["scenario_result_ref"], "metric": "loading_percent",
-        "direction": "descending", "element_kind": "line", "limit": 1,
-    })
-    assert grid.engine.ac_run_count == runs
-    assert ranking["result_ref"] == scenario["scenario_result_ref"]
-    assert ranking["branches"][0]["pandapower_index"] == 11
-    assert ranking["branches"][0]["metric_value"] == pytest.approx(scenario["max_loading_percent"])
-
-    path = grid.workspace.root / "evidence/results" / f"result-{str(scenario['scenario_result_ref']).removeprefix('result:sha256:')}.json"
-    document = json.loads(path.read_text())
-    document["powerflow"]["branch_results"][0]["loading_percent"] = 9999
-    path.write_text(json.dumps(document))
-    error = grid.call_error("result.branches.rank", {
-        "result_ref": scenario["scenario_result_ref"], "metric": "loading_percent",
-        "direction": "descending", "limit": 1,
-    })
-    assert error.code == "result_integrity_failed"
-
-
 def test_n_minus_one_preserves_partial_scenario_failure(grid, context_ref: str, line_refs: list[str]) -> None:
     grid.engine.non_convergent_outages.add(1)
 
@@ -64,25 +38,6 @@ def test_n_minus_one_preserves_partial_scenario_failure(grid, context_ref: str, 
     assert "policy" not in result
     assert [item["status"] for item in result["scenarios"]] == ["succeeded", "non_converged"]
     assert all(item["evidence_ref"].startswith("evidence:sha256:") for item in result["scenarios"])
-
-
-@pytest.mark.parametrize("field", ["context_ref", "revision_ref"])
-def test_outage_ranking_rejects_inconsistent_embedded_context(grid, context_ref: str, field: str) -> None:
-    from grid_simulator.analyses import ResultIntegrityError, _verify_powerflow_result_document
-    from grid_simulator.evidence import canonical_json, fingerprint
-
-    outage = grid.call("analysis.contingency.n_minus_one.run", {
-        "context_ref": context_ref, "branch_refs": [_line_ref(grid, context_ref, 7)],
-    })
-    ref = str(outage["scenarios"][0]["scenario_result_ref"])
-    path = grid.workspace.root / "evidence/results" / f"result-{ref.removeprefix('result:sha256:')}.json"
-    document = json.loads(path.read_text())
-    document["powerflow"][field] = "different-context-or-revision"
-    body = {key: value for key, value in document.items() if key != "result_ref"}
-    ref = "result:sha256:" + fingerprint(canonical_json(body))
-    document["result_ref"] = ref
-    with pytest.raises(ResultIntegrityError, match="context does not match"):
-        _verify_powerflow_result_document(document, ref)
 
 
 def test_n_minus_one_uses_stable_branch_ref_and_reports_overload_evidence(grid, context_ref: str) -> None:

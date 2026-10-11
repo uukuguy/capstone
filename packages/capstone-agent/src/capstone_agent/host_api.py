@@ -315,7 +315,7 @@ def create_host_app(
 
         if thread_creator is not None:
             @app.post("/api/v1/threads", status_code=201)
-            async def create_thread(request: Request, background_tasks: BackgroundTasks):
+            async def create_thread(request: Request):
                 require_private_thread(request)
                 try:
                     body = await request.json()
@@ -331,27 +331,17 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    snapshot = thread_creator.create(model_id)
-                    prepare = getattr(thread_service, "request_model_preparation", None)
-                    if callable(prepare):
-                        prepare(snapshot.thread_id)
-                        background_tasks.add_task(request_worker, snapshot.thread_id, force=True)
-                    return snapshot.to_document()
+                    return thread_creator.create(model_id).to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
                 except (LookupError, ValueError) as error:
                     raise HTTPException(422, str(error)) from None
 
         @app.get("/api/v1/threads/{thread_id}")
-        def get_thread_snapshot(thread_id: str, request: Request, background_tasks: BackgroundTasks):
+        def get_thread_snapshot(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                snapshot = thread_service.snapshot(thread_id)
-                prepare = getattr(thread_service, "request_model_preparation", None)
-                if callable(prepare):
-                    prepare(thread_id)
-                    background_tasks.add_task(request_worker, thread_id, force=True)
-                return snapshot.to_document()
+                return thread_service.snapshot(thread_id).to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
@@ -419,12 +409,6 @@ def create_host_app(
                 )
                 receipt = service.submit_command(command)
                 if receipt.status == 'accepted':
-                    prepare = getattr(thread_service, "request_model_preparation", None)
-                    if callable(prepare) and kind in {
-                        "open_model", "activate_model", "close_model", "switch_model",
-                        "reopen_model_context", "enable_profile", "disable_profile", "replace_selection",
-                    }:
-                        prepare(thread_id)
                     background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:

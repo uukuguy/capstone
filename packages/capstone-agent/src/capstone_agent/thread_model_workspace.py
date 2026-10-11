@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from .model_identity import validate_model_id
-from .model_opening import initialize_model_context
 from .network_diagram import normalize_network_diagram
 from .thread_protocol import ModelContextSnapshot, ThreadProtocolError, ThreadSnapshot
 
@@ -180,8 +180,7 @@ def workspace_outcome(command: Mapping[str, Any], before: dict[str, Any], after:
 
 
 def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any], command: Mapping[str, Any],
-                             catalog: Any, family_available: Callable[[str], bool],
-                             capability_catalog: Any = None) -> tuple[WorkspaceChange | None, str | None]:
+                             catalog: Any, family_available: Callable[[str], bool]) -> tuple[WorkspaceChange | None, str | None]:
     if snapshot.current_attempt is not None:
         return None, "attempt_in_progress"
     if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None:
@@ -189,7 +188,6 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
     state = validate_workspace(workspace)
     kind, payload = command["kind"], command["payload"]
     target = None
-    descriptor = None
     if kind == "open_model":
         if catalog is None:
             return None, "model_catalog_unavailable"
@@ -229,22 +227,9 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
     if not family_available(target["implementation_family"]):
         return None, "worker_unavailable"
     resumed = target["work_context"] is not None
-    try:
-        if not resumed and kind != "open_model":
-            descriptor = catalog.resolve(target["model_id"])
-        if not resumed:
-            assert descriptor is not None
-            if (descriptor.model_revision, descriptor.implementation_family) != (
-                target["model_revision"], target["implementation_family"]
-            ):
-                return None, "model_revision_unavailable"
-        context = (
-            ModelContextSnapshot.from_document(target["work_context"])
-            if resumed
-            else initialize_model_context(descriptor, capability_catalog, family_available=family_available)
-        )
-    except (LookupError, TypeError, ValueError, RuntimeError):
-        return None, "model_preparation_failed"
+    context = ModelContextSnapshot.from_document(target["work_context"]) if resumed else ModelContextSnapshot(id="ctx_" + secrets.token_hex(10), model_id=target["model_id"],
+                                   model_revision=target["model_revision"], implementation_family=target["implementation_family"],
+                                   selection_revision="sel_0", enabled_profiles=())
     diagram = None
     if not resumed and callable(getattr(catalog, "diagram", None)):
         try:

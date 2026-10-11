@@ -120,8 +120,6 @@ class RoutingInput:
     instruction: str
     command_kind: str
     context_snapshot: Mapping[str, object]
-    semantic_required: bool = False
-    semantic_route: str | None = None
 
     def __post_init__(self) -> None:
         if not self.turn_id or not self.attempt_id:
@@ -131,10 +129,6 @@ class RoutingInput:
         if self.command_kind not in {"send_auto", "send_ordinary", "send_professional"}:
             raise ValueError("routing command kind is invalid")
         _validate_context(self.context_snapshot)
-        if type(self.semantic_required) is not bool or (self.semantic_route is not None and self.semantic_route not in _ROUTES):
-            raise ValueError("semantic routing input is invalid")
-        if self.semantic_route is not None and not self.semantic_required:
-            raise ValueError("semantic route requires a bound task")
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,8 +206,6 @@ def routing_input_for_claim(claim: AttemptClaim) -> RoutingInput:
         instruction=_sanitize_instruction(claim.instruction),
         command_kind=claim.kind,
         context_snapshot=_context_snapshot(claim),
-        semantic_required=claim.task_understanding is not None,
-        semantic_route=getattr(claim, "task_resolution_route", None),
     )
 
 
@@ -264,11 +256,7 @@ class DefaultTurnRouter:
         elif routing_input.command_kind == "send_ordinary":
             intent = TurnIntent("ordinary", "explicit")
         elif routing_input.command_kind == "send_auto":
-            if routing_input.semantic_required:
-                if routing_input.semantic_route is None:
-                    raise DecisionUnavailable("task_resolution_unavailable")
-                intent = TurnIntent(routing_input.semantic_route, "task_resolution", "validated_requirements")
-            elif self._decision_router is None or self.config.mode in {"off", "heuristic", "jev_shadow"}:
+            if self._decision_router is None or self.config.mode in {"off", "heuristic", "jev_shadow"}:
                 intent = TurnIntent(
                     _heuristic_route(routing_input.instruction), "heuristic", "bounded_heuristic",
                 )
@@ -287,7 +275,7 @@ class DefaultTurnRouter:
         if intent.route == "ordinary" and not self.ordinary_conversation_enabled:
             raise DecisionUnavailable("ordinary_conversation_disabled")
         plan = self._make(routing_input, intent)
-        if self.config.mode == "jev_shadow" and routing_input.command_kind == "send_auto" and not routing_input.semantic_required:
+        if self.config.mode == "jev_shadow" and routing_input.command_kind == "send_auto":
             plan = replace(plan, shadow_decision=self._shadow(routing_input))
         return plan
 

@@ -32,9 +32,7 @@ Endpoint outputs contain branch `asset_ref`, `kind`, `index`, `name`, and `alias
 
 ## Single-step Examples
 
-- For a branch endpoint question, use `topology.branch.endpoints.get` with the
-  branch's resolved `asset_ref` or established kind, namespace and identifier.
-  Do not infer an index namespace from a bare numeric label.
+- "Line 11 connects which buses?" -> `topology.branch.endpoints.get` with `kind: "line"`, `namespace: "pandapower_index"`, `identifier: "11"`, after opening context.
 - "How many islands are in this model?" -> `topology.components.get` with the current `context_ref`.
 - "Which buses are within two hops?" -> describe and run `topology.neighbors`, then query `result.res_topology_neighbor`.
 

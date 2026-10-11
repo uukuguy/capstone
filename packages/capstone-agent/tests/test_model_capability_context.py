@@ -93,40 +93,6 @@ def _owner(log, *, second=None, first=None, seal=True, **limits):
     return owner, adapters
 
 
-def test_opening_preparation_is_reused_by_first_attempt():
-    owner, adapters = _owner([])
-    claim = _claim()
-    prepared = owner.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
-    borrowed = owner.acquire(claim)
-    assert borrowed is prepared
-    assert len(adapters["static"].inputs) == 1
-    owner.release(borrowed)
-    owner.close()
-
-
-def test_first_attempt_waits_for_opening_preparation():
-    entered, release = Event(), Event()
-
-    class SlowAdapter(_Adapter):
-        def prepare(self, handle, *, model_context):
-            entered.set()
-            assert release.wait(5)
-            return super().prepare(handle, model_context=model_context)
-
-    owner, adapters = _owner([], first=SlowAdapter([]))
-    claim = _claim()
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        opening = pool.submit(owner.prepare_model, claim.thread_id, claim.run_id, claim.model_context)
-        assert entered.wait(1)
-        attempt = pool.submit(owner.acquire, claim)
-        assert not attempt.done()
-        release.set()
-        assert opening.result() is attempt.result()
-    assert len(adapters["static"].inputs) == 1
-    owner.release(attempt.result())
-    owner.close()
-
-
 def test_health_counts_do_not_wait_for_slow_model_preparation():
     entered, release = Event(), Event()
 

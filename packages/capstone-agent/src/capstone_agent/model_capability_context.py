@@ -254,16 +254,9 @@ class ModelCapabilityContextOwner:
     def prepare(self, claim: AttemptClaim) -> PreparedModelCapabilityContext:
         if not isinstance(claim, AttemptClaim):
             raise TypeError("claim must be an AttemptClaim")
-        return self.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
-
-    def prepare_model(
-        self, thread_id: str, run_id: str, model_context: ModelContextSnapshot,
-    ) -> PreparedModelCapabilityContext:
-        """Prepare a ledger-selected model without creating a task or Attempt."""
-        if not thread_id or not run_id or not isinstance(model_context, ModelContextSnapshot):
-            raise TypeError("model preparation identity is invalid")
+        model_context = claim.model_context
         key = (
-            thread_id, run_id, model_context.id,
+            claim.thread_id, claim.run_id, model_context.id,
             model_context.selection_revision,
         )
         references = tuple(model_context.enabled_profiles)
@@ -306,7 +299,7 @@ class ModelCapabilityContextOwner:
                     self._validate_contribution(contribution, reference, model_context)
                     contributions.append(contribution)
                 context = PreparedModelCapabilityContext(
-                    thread_id, run_id, model_context,
+                    claim.thread_id, claim.run_id, model_context,
                     tuple(handles), tuple(contributions),
                 )
                 self._contexts[key] = context

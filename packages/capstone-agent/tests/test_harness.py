@@ -149,9 +149,8 @@ def test_pi_client_normalizes_native_events_and_preserves_answer() -> None:
     assert answer == "answer"
     assert session.started and session.stopped
     assert [event["event_type"] for event in events] == [
-        "assistant_process_delta", "tool_started",
+        "assistant_text_delta", "tool_started",
     ]
-    assert events[0]["visibility"] == "diagnostic"
     assert events[1]["runtime_mode"] == "capstone"
     assert events[1]["payload"] == {"tool_call_id": "call-1", "tool_name": "grid_model_list"}
 

@@ -9,11 +9,9 @@ identities and event sequence numbers around that seam.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import json
-import time
 from typing import Protocol, cast
-from capability_agent.domain.task import TaskConclusion
 
 from .attempt_lease import AttemptLeaseRenewal
 from .thread_service import AttemptClaim, ThreadExecutionService
@@ -24,7 +22,6 @@ from .thread_network import (
     normalize_thread_network_projection,
 )
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
-from .task_recognition import accept_task, TaskRecognitionFailed, TaskRecognitionCancelled
 
 
 RuntimeEventSink = Callable[[dict[str, object]], None]
@@ -45,15 +42,8 @@ class AdmittedAttemptAnswer:
     evidence_refs: tuple[str, ...] = ()
     diagnostic_codes: tuple[str, ...] = ()
     result_projections: tuple[Mapping[str, object], ...] = ()
-    goal_conclusions: tuple[TaskConclusion, ...] = ()
 
     def __post_init__(self) -> None:
-        if (not isinstance(self.goal_conclusions, tuple) or len(self.goal_conclusions) > 8
-            or any(not isinstance(item, TaskConclusion) for item in self.goal_conclusions)
-            or len({item.goal_id for item in self.goal_conclusions}) != len(self.goal_conclusions)):
-            raise ValueError("admitted goal conclusions are invalid")
-        if any(not set(item.result_refs) <= set(self.result_refs) or not set(item.evidence_refs) <= set(self.evidence_refs) for item in self.goal_conclusions):
-            raise ValueError("goal conclusions exceed admitted references")
         if not isinstance(self.answer, str) or not self.answer.strip() or len(self.answer) > 64_000:
             raise ValueError("admitted answer is invalid")
         if (self.mode, self.assurance) not in {
@@ -94,18 +84,6 @@ class AdmittedAttemptAnswer:
             raise ValueError("authority-backed admission requires evidence")
         if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
             raise ValueError("offline admission must not create run evidence")
-
-
-def _offline_task_admitted(candidate: AdmittedAttemptAnswer | None) -> bool:
-    if candidate is None or candidate.mode != "offline_information":
-        return False
-    trusted = {"current_model_observation_verified", "task_capability_boundary_verified", "task_clarification_verified", "task_information_verified"}
-    if not trusted.intersection(candidate.diagnostic_codes):
-        return False
-    if candidate.assurance == "deterministic_information":
-        return True
-    return (candidate.assurance == "general_knowledge" and "general_response_unverified" in candidate.diagnostic_codes
-            and any(item.status == "general" for item in candidate.goal_conclusions))
 
 
 class HarnessRuntimeUnavailable(RuntimeError):
@@ -188,10 +166,9 @@ class HarnessRuntimeRegistry:
 
 
 _EVENT_TYPES = {
-    "text_delta": ("assistant_process_delta", "diagnostic"),
-    "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
-    "message_update": ("assistant_process_update", "diagnostic"),
-    "message_end": ("assistant_process_end", "diagnostic"),
+    "text_delta": ("assistant_text_delta", "public"),
+    "message_update": ("assistant_message_update", "public"),
+    "message_end": ("assistant_message_end", "public"),
     "tool_execution_start": ("tool_started", "public"),
     "tool_execution_end": ("tool_completed", "public"),
     "tool_result": ("tool_completed", "public"),
@@ -214,7 +191,7 @@ def normalize_runtime_event(
         native_type = "unknown"
     event_type, visibility = _EVENT_TYPES.get(native_type, ("runtime_event", "diagnostic"))
     payload: dict[str, object]
-    if event_type == "assistant_process_delta":
+    if event_type == "assistant_text_delta":
         text = event.get("text")
         payload = {"text": text[:16_384]} if isinstance(text, str) else {}
     elif event_type in {"tool_started", "tool_completed"}:
@@ -244,10 +221,6 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     ok = event.get("ok", details.get("ok"))
     if isinstance(ok, bool):
         payload["ok"] = ok
-    error = details.get("error", event.get("error"))
-    error_code = error.get("code") if isinstance(error, Mapping) else event.get("error_code", details.get("error_code"))
-    if isinstance(error_code, str) and 0 < len(error_code) <= 128:
-        payload["error_code"] = error_code
     for source, target in (
         ("capability", "capability"),
         ("projector_id", "projector_id"),
@@ -477,7 +450,6 @@ class HarnessAttemptRunner:
         self, service: ThreadExecutionService, runtime: HarnessRuntime,
         *, lease_seconds: int = 30, turn_router: TurnRouter | None = None,
         lease: AttemptLeaseRenewal | None = None,
-        task_recognizer: Callable | None = None,
     ) -> None:
         if lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -485,7 +457,6 @@ class HarnessAttemptRunner:
         self._runtime = runtime
         self._lease_seconds = lease_seconds
         self._lease = lease
-        self._task_recognizer = task_recognizer
         self._turn_router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
         self._tools_observed = False
         self._result_refs: list[str] = []
@@ -497,16 +468,6 @@ class HarnessAttemptRunner:
             return self._run(claim, self._lease)
         with AttemptLeaseRenewal(self._service, claim, self._lease_seconds) as lease:
             return self._run(claim, lease)
-
-    def _recognize_task(self, claim: AttemptClaim, heartbeat: Callable[[], None]) -> AttemptClaim:
-        if self._task_recognizer is None or claim.kind not in {"send_auto", "send_ordinary", "send_professional"}:
-            return claim
-        def recognition_heartbeat():
-            try:
-                heartbeat()
-            except _AttemptCancelled:
-                raise TaskRecognitionCancelled from None
-        return accept_task(self._service, claim, self._task_recognizer, on_heartbeat=recognition_heartbeat)
 
     def _run(self, claim: AttemptClaim, lease: AttemptLeaseRenewal) -> HarnessAttemptResult:
         self._tools_observed = False
@@ -525,31 +486,24 @@ class HarnessAttemptRunner:
 
         try:
             lease.check()
-            claim = self._recognize_task(claim, heartbeat)
-            claim = self._resolve_task(claim)
             if plan is None and claim.kind in {
                 "send_auto", "send_ordinary", "send_professional",
             }:
                 try:
                     plan = self._turn_router.plan(routing_input_for_claim(claim))
-                except DecisionUnavailable as error:
-                    code = "task_resolution_failed" if str(error) == "task_resolution_unavailable" else "ordinary_conversation_disabled"
-                    self._finish_failed(claim, code)
-                    return HarnessAttemptResult("failed", None, code)
+                except DecisionUnavailable:
+                    self._finish_failed(claim, "ordinary_conversation_disabled")
+                    return HarnessAttemptResult("failed", None, "ordinary_conversation_disabled")
                 self._persist_plan(claim, plan)
-                claim = replace(claim, turn_plan=plan)
             self._runtime.start()
             lease.check()
             self._renew_lease(claim)
-            execution_started = time.monotonic()
             answer = self._runtime.prompt(
                 claim.instruction,
                 correlation_id=claim.attempt.attempt_id,
                 on_event=persist,
                 on_heartbeat=heartbeat,
             )
-            self._service.append_runtime_event(claim, event_type="task_execution_timing", payload={"duration_ms": round((time.monotonic() - execution_started) * 1000)}, visibility="diagnostic")
-            finalization_started = time.monotonic()
             if self._service.cancel_requested(claim):
                 raise _AttemptCancelled
             lease.check()
@@ -572,8 +526,11 @@ class HarnessAttemptRunner:
                 or not set(candidate.evidence_refs).issubset(self._evidence_refs)
             ):
                 raise _AttemptAdmissionError("answer_admission_invalid")
-            self._persist_conclusions(claim, candidate)
-            observation_admitted = _offline_task_admitted(candidate)
+            observation_admitted = candidate is not None and (
+                candidate.mode == "offline_information"
+                and candidate.assurance == "deterministic_information"
+                and "current_model_observation_verified" in candidate.diagnostic_codes
+            )
             if plan is not None and plan.route == "professional" and (
                 candidate is None
                 or (candidate.mode != "authority_backed" and not observation_admitted)
@@ -616,8 +573,44 @@ class HarnessAttemptRunner:
                 self._service.append_runtime_event(claim, event_type="turn_router_shadow", payload=shadow_payload, visibility="diagnostic")
             if admission is not None:
                 terminal_payload["admission"] = admission
-            self._service.append_runtime_event(claim, event_type="task_finalization_timing", payload={"duration_ms": round((time.monotonic() - finalization_started) * 1000)}, visibility="diagnostic")
-            self._publish_network(claim, result_refs, evidence_refs, lease)
+            network_projection = getattr(self._runtime, "network_projection", None)
+            if getattr(self._runtime, "network_projection_enabled", False) and callable(
+                network_projection
+            ):
+                lease.check()
+                project_network = cast(
+                    Callable[
+                        [AttemptClaim, tuple[str, ...], tuple[str, ...], tuple[Mapping[str, object], ...]],
+                        Mapping[str, object] | None,
+                    ],
+                    network_projection,
+                )
+                projection = project_network(
+                    claim, result_refs, evidence_refs, tuple(self._tool_events),
+                )
+                if projection is None:
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_layer_unavailable",
+                        payload={"ordinal": 1, "code": getattr(self._runtime, "network_projection_failure_code", "projection_unavailable")},
+                        visibility="public",
+                    )
+                else:
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_diagram",
+                        payload={"diagram": projection["diagram"]},
+                        visibility="public",
+                    )
+                    self._service.append_runtime_event(
+                        claim,
+                        event_type="network_layer",
+                        payload={
+                            "ordinal": projection["ordinal"],
+                            "layer": projection["layer"],
+                        },
+                        visibility="public",
+                    )
             lease.check()
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
@@ -625,12 +618,6 @@ class HarnessAttemptRunner:
             return HarnessAttemptResult(
                 "completed", admitted_answer, None, result_refs, evidence_refs, admission,
             )
-        except TaskRecognitionFailed as error:
-            self._finish_failed(claim, error.error_code)
-            return HarnessAttemptResult("failed", None, error.error_code)
-        except TaskRecognitionCancelled:
-            self._finish_cancelled(claim)
-            return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
         except _AttemptAdmissionError as error:
             self._finish_failed(claim, error.code)
             return HarnessAttemptResult("failed", None, error.code)
@@ -645,36 +632,6 @@ class HarnessAttemptRunner:
                 self._runtime.stop()
             except Exception:
                 pass
-
-    def _resolve_task(self, claim):
-        if claim.task_understanding is not None and not claim.task_resolutions:
-            from .task_resolution import accept_resolution, resolve_profiles
-            resolver = getattr(self._runtime, "resolve_task", lambda task: resolve_profiles(task, ()))
-            return accept_resolution(self._service, claim, resolver)
-        return claim
-
-    def _persist_conclusions(self, claim, candidate):
-        if candidate is None or not candidate.goal_conclusions:
-            return
-        if claim.task_request is None or {item.goal_id for item in candidate.goal_conclusions} != {item.goal_id for item in claim.task_resolutions}:
-            raise _AttemptAdmissionError("answer_admission_invalid")
-        self._service.append_runtime_event(claim, event_type="task_goal_conclusions",
-            payload={"request": claim.task_request.to_document(), "conclusions": [item.to_document() for item in candidate.goal_conclusions]}, visibility="diagnostic")
-
-    def _publish_network(self, claim, result_refs, evidence_refs, lease):
-        project = getattr(self._runtime, "network_projection", None)
-        if not getattr(self._runtime, "network_projection_enabled", False) or not callable(project):
-            return
-        lease.check()
-        projection = project(claim, result_refs, evidence_refs, tuple(self._tool_events))
-        if projection is None:
-            self._service.append_runtime_event(claim, event_type="network_layer_unavailable",
-                payload={"ordinal": 1, "code": getattr(self._runtime, "network_projection_failure_code", "projection_unavailable")}, visibility="public")
-            return
-        if not isinstance(projection, Mapping):
-            raise ValueError("network projection is invalid")
-        self._service.append_runtime_event(claim, event_type="network_diagram", payload={"diagram": projection["diagram"]}, visibility="public")
-        self._service.append_runtime_event(claim, event_type="network_layer", payload={"ordinal": projection["ordinal"], "layer": projection["layer"]}, visibility="public")
 
     def _persist_plan(self, claim: AttemptClaim, plan: TurnPlan) -> None:
         self._service.append_runtime_event(

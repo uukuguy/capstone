@@ -9,18 +9,14 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import replace
-from typing import TYPE_CHECKING, cast
-from datetime import datetime
-from .thread_protocol import ThreadSnapshot
+from typing import TYPE_CHECKING
 
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
-from .task_recognition import accept_task, TaskRecognitionFailed, TaskRecognitionCancelled, TaskRecognitionConfigurationFailed
 
 if TYPE_CHECKING:
     from .case_service import CaseExecutionService
@@ -57,33 +53,12 @@ def _run_claimed_attempt(
     claim: AttemptClaim, lease: AttemptLeaseRenewal, lease_seconds: int,
     turn_router: TurnRouter | None,
 ) -> HarnessAttemptResult:
-    recognizer = getattr(runtime_factory, "recognize_task", None)
-    if callable(recognizer) and claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
-        try:
-            claim = accept_task(service, claim, recognizer, on_heartbeat=lease.check)
-        except TaskRecognitionCancelled:
-            service.finish_attempt(claim, phase="cancelled", payload={"error_code": "attempt_cancelled"})
-            return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
-        except TaskRecognitionConfigurationFailed:
-            service.finish_attempt(claim, phase="failed", payload={"error_code": "runtime_configuration_invalid"})
-            return HarnessAttemptResult("failed", None, "runtime_configuration_invalid")
-        except TaskRecognitionFailed as error:
-            service.finish_attempt(claim, phase="failed", payload={"error_code": error.error_code, "retryable": True})
-            return HarnessAttemptResult("failed", None, error.error_code)
-    if claim.task_understanding is not None:
-        from .task_resolution import accept_resolution, resolve_profiles
-        try:
-            resolver = getattr(runtime_factory, "resolve_task", lambda task: resolve_profiles(task, ()))
-            claim = accept_resolution(service, claim, resolver)
-        except Exception:
-            service.finish_attempt(claim, phase="failed", payload={"error_code": "task_resolution_failed", "retryable": True})
-            return HarnessAttemptResult("failed", None, "task_resolution_failed")
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         try:
             plan = router.plan(routing_input_for_claim(claim))
-        except DecisionUnavailable as error:
-            error_code = "task_resolution_failed" if str(error) == "task_resolution_unavailable" else "ordinary_conversation_disabled"
+        except DecisionUnavailable:
+            error_code = "ordinary_conversation_disabled"
             service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
             return HarnessAttemptResult("failed", None, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
@@ -175,30 +150,6 @@ def serve_thread_attempts(
                     sweep()
                 if case_service is not None:
                     case_service.reconcile_active()
-                claim_preparation = getattr(service, "claim_model_preparation", None)
-                prepare_model = getattr(runtime_factory, "prepare_model", None)
-                if callable(claim_preparation) and callable(prepare_model):
-                    # Bound each pass so a burst of model opens cannot starve Attempts.
-                    for _ in range(4):
-                        preparation = claim_preparation(implementation_family)
-                        if preparation is None:
-                            break
-                        snapshot, generation, lease = cast(tuple[ThreadSnapshot, int, datetime], preparation)
-                        succeeded = False
-                        started = time.monotonic()
-                        try:
-                            prepare_model(snapshot)
-                            succeeded = True
-                            _LOG.info("Model preparation completed: thread=%s context=%s duration_ms=%d",
-                                      snapshot.thread_id, snapshot.active_model_context.id,
-                                      round((time.monotonic() - started) * 1000))
-                        except Exception:
-                            _LOG.warning("Model preparation failed; execution can retry preparation")
-                        finally:
-                            finish_preparation = getattr(service, "finish_model_preparation")
-                            finish_preparation(
-                                snapshot.thread_id, generation, lease, succeeded=succeeded,
-                            )
                 result = run_pending_attempt(
                     service, runtime_factory, worker_id=worker_id,
                     lease_seconds=lease_seconds,
@@ -208,8 +159,6 @@ def serve_thread_attempts(
                 )
                 if case_service is not None:
                     case_service.reconcile_active()
-                pending_preparation = getattr(service, "has_pending_model_preparation", None)
-                has_preparation = bool(callable(pending_preparation) and pending_preparation(implementation_family))
             except Exception:
                 # A lost claim or unavailable ledger must not kill the polling
                 # thread. The ledger fences late writes and expires stale claims.
@@ -217,9 +166,7 @@ def serve_thread_attempts(
                 stop.wait(poll_seconds)
                 continue
             if result is None:
-                if has_preparation:
-                    stop.wait(max(poll_seconds, 1))
-                elif wake_event is None:
+                if wake_event is None:
                     stop.wait(poll_seconds)
                 else:
                     idle = True
