@@ -102,16 +102,29 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             ),
         )
 
-    def build_session(claim, context, profiles):
-        if validation_builder is not None:
-            return validation_builder(claim, context, profiles)
+    def rpc_builder():
         environment = load_runtime_environment(ROOT)
         resolved = resolve_harness_llm(ROOT, environment)
         runtime_host = build_runtime_host(ROOT, build_profile(), environment)
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
-        )(claim, context, profiles)
+        )
+
+    def build_session(claim, context, profiles):
+        if validation_builder is not None:
+            return validation_builder(claim, context, profiles)
+        return rpc_builder()(claim, context, profiles)
+
+    def recognize_task(claim, *, on_heartbeat, requirement_schemas=()):
+        if validation_builder is not None:
+            recognizer = getattr(validation_builder, "recognize_task", None)
+            if not callable(recognizer):
+                raise RuntimeError("scripted task recognizer is unavailable")
+            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
+        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
+
+    setattr(build_session, "recognize_task", recognize_task)
 
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(ROOT / "runs" / "capstone-agent")),

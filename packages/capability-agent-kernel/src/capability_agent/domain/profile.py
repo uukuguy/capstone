@@ -17,6 +17,7 @@ from capability_agent.domain.presentation import PresentationProvider
 from capability_agent.domain.projection import DomainProjectorRegistry
 from capability_agent.domain.provisioning import DomainRuntimeProvisioner
 from capability_agent.domain.state import DomainStateAdapter
+from capability_agent.domain.task import DomainTaskProvider
 
 
 ExecutorFactory = Callable[[Path, Path, float], CapabilityExecutor]
@@ -44,6 +45,7 @@ class DomainRuntimeProfile:
     presentation_provider: PresentationProvider | None = None
     output_contract: DomainOutputContract | None = None
     acceptance_profile: DomainAcceptanceProfile | None = None
+    task_provider: DomainTaskProvider | None = None
 
     def missing_application_components(self) -> tuple[str, ...]:
         names = (

@@ -19,6 +19,14 @@ The user directs continued completion of these conversation plans. The core capa
 
 ## Delivery ledger
 
+### Active implementation — 2026-10-11
+
+The unified task-understanding and formal-answer design is approved. Execute
+[the task-answer plan](2026-10-11-task-answer-closure.md) on
+`feat/task-answer-closure`, based on accepted main c3b78bc. Experimental Pi
+features remain separate. Contract tests alone do not complete the package;
+semantic execution, Pack coverage and actual local-dev acceptance remain open.
+
 ### Current priority and release correction — 2026-10-08
 
 Superseded delivery boundary — 2026-10-09: the user approved one native general

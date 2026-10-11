@@ -1,11 +1,24 @@
 # Shared intent analysis and goal-based answer design
 
-Status: draft, paused pending development-lane discussion. The user approves
-the need for semantic intent analysis but now prioritizes deciding controlled
-development/release policy and rejects arbitrary parallel development. This
-document does not authorize implementation, cloud deployment or paid replay.
+Status: user approved this shared implementation direction on 2026-10-11.
+Task contracts, Pack coverage and formal answers are being implemented on
+`feat/task-answer-closure`; product acceptance remains open. The user
+prioritizes complete task and formal-answer repair over a maintenance-only
+baseline. Semantic task understanding is required; the concrete contracts still
+need implementation review. The approved development workflow uses local-dev
+for daily development and local-demo only for a planned user release candidate.
+This draft does not authorize cloud deployment or paid replay.
 
 ## Problem and observed implementation
+
+Delivery scope, 2026-10-11: semantic task understanding and formal-answer
+closure form one enhancement package and one new main-based branch. Implement
+and verify them in stages within that branch. Reuse the valid safety guards
+from 3e3bbfb; the archived source is not the new development branch.
+`feat/task-answer-closure` now starts from accepted main `c3b78bc`.
+Its first checkpoint covers the source audit and legacy deployment validation;
+semantic understanding and answer closure are not yet implemented.
+Ordinary/professional Pi routing remains separate.
 
 Manual local-demo acceptance fails. A baseline powerflow table does not answer
 a generator-outage ranking or a changed-load question. The line7 result contains
@@ -42,6 +55,24 @@ start but recreate the current drift. Promoting all development features into
 demo is a separate product/release decision and is outside this repair.
 
 ## Ownership and information flow
+
+### Current stable-source integration audit (2026-10-11)
+
+This is a source audit for the next package, not implemented behavior. Main
+`d70fc27` and foundation `cfd6ad6` retain the older `turn_router.py` path;
+the newer Pi intent runtime remains on its experimental branch.
+
+| Existing boundary | Required enhancement responsibility |
+| --- | --- |
+| `HarnessAttemptRunner._run` in `harness.py` freezes/persists the routing plan before prompting and submits the final answer for admission. | Add an explicit, bounded task-understanding decision and trace before business execution. Reuse accepted decisions on retry; route selection alone is insufficient. |
+| `_KernelPiPromptSession.admit_attempt` in `kernel_pi_session.py` aggregates Pack decisions and verifies bound references. | Keep current-run lineage checks; pass host-bound goal and coverage context through explicit contracts. Do not infer goal completion from the existence of result references. |
+| `PandapowerAnswerAdmissionPolicy.admit` admits lineage, deterministic model observation or guide-backed information. | Pack-owned checks must match requested object, scenario, coverage and conclusion to admitted Authority results. The current policy does not certify those semantics. |
+| Required answer persistence and service completion happen after admission. | Persist one reader-facing answer that directly states the supported conclusion; a table or repeated partial-status text is not the answer. Preserve fatal persistence failures. |
+
+The old candidate's guards are a reuse input, not a replacement for this task
+contract. Implement semantic understanding, goal coverage and formal response
+in the main-based enhancement branch. This audit does not authorize importing
+experimental Pi/skills code wholesale.
 
 Application owns intent, bounded user context, execution selection and reader
 response policy. Domain Packs own semantic object resolution, feasible analysis,
@@ -114,6 +145,15 @@ baseline calculation does not satisfy an uncomputed changed scenario. Mark a
 failed obligation recovered only when its required evidence/coverage is actually
 satisfied. Model declarations are insufficient.
 
+Coverage adapters must not remove existing published execution. A selected
+binding may expose the neutral purpose-only compatibility contract for published
+operations outside its typed coverage adapter. This preserves the existing tool
+allowlist and current-run admission, but explicitly withholds goal-coverage
+certification. It does not automatically retry a rejected typed requirement or
+replace its scope. In mixed tasks, each typed conclusion remains visible;
+compatibility for one goal cannot remove another goal's verified or unresolved
+conclusion.
+
 The outcome says which user question is answered, which is not, the confirmed
 reason and a useful next action. Unknown causes stay unknown. Raw tool messages,
 private paths and credentials remain outside public answers. Detailed tool-call
@@ -158,9 +198,10 @@ on an absent scheduler. If adapters cannot preserve the same semantics, the
 common repair remains incomplete until the shared foundation is reconciled.
 
 Local execution remains separate: local-dev5173/API8767 and local-demo15173/
-API18767. Rebuild both real entrypoints after accepted source changes. A common
-repair is delivered locally only when both run the verified common semantics;
-one passing branch or a passing source-only test is insufficient.
+API18767. Develop and verify the common repair through the actual local-dev
+entrypoint, then integrate reviewed changes into main. Keep local-demo at its
+accepted source until a planned user release freezes a tested main candidate
+for product acceptance. Development and demo release receipts remain distinct.
 
 Cloud-dev and cloud-demo retain independent data, credentials, origins, release
 verification and acceptance tags. Public source propagation does not authorize
@@ -168,9 +209,9 @@ simultaneous cloud deployment. Current scope remains local-only. Future release
 metadata shows local-dev/local-demo/cloud-dev/cloud-demo alongside product/source
 identity and common-patch acceptance. These display changes remain deferred.
 
-The precise long-lived branch names, merge policy, CI automation and general
-feature-promotion schedule require the separate two-lane discussion. This repair
-establishes the common-change rule without implementing that whole workflow.
+Branch names, merge policy, CI scope and feature promotion follow the canonical
+version-control register. This repair uses that workflow rather than introducing
+an independent demo development line.
 
 ## Acceptance in both lanes
 

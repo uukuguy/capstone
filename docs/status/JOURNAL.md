@@ -1707,3 +1707,14 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-08 19:46 — Rejected demo App root upload; corrected to the existing App-directory build entry while old App stayed available.
 - 2026-10-08 20:27 — 6b13498 Accepted demo promotion after cases, history and per-page recovery checks; records live-traffic cold-timing limits.
 - 2026-10-08 20:27 — Pushed demo-20261008-2027-ed2524f; exact-source release verified, owned test resources removed, customer connections preserved.
+
+## 2026-10-11
+
+- 04:35 Added bounded immutable semantic task proposals before execution; eighteen tests and independent review pass [45946db].
+- 04:53 Added tool-free semantic recognition and immutable retries to prevent execution without accepted task identity [491b23b].
+- 04:53 Independent V3 review approves; root verifies 159 focused tests including actual PostgreSQL. Pack coverage/formal-answer work started.
+- 2026-10-11 Added one-action live preview and scrollable bounded history to keep run details compact [4223a6d].
+- 2026-10-11 App full suite passes 380 tests and TypeScript; independent App review approves. Neutral semantic v2 review approves after byte-bound correction; 58 tests pass. Pack bridge integration remains active.
+- 2026-10-11 Added typed Pack proposals and resolved semantic routing to prevent keyword execution guesses [8631af0].
+- 2026-10-11 Neutral slice passes 58 tests, scoped Pyright and independent review; Pack/finalization bridge remains active.
+- 2026-10-11 Reduced activity typography and spacing; active status remains visible, completed details secondary [c6093de].

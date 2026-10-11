@@ -17,6 +17,51 @@ class _Workspace:
     root_path: Path
 
 
+@pytest.mark.parametrize("terminal_snapshot", [False, True])
+def test_rpc_keeps_only_last_assistant_message_after_tool_cycle(tmp_path, terminal_snapshot):
+    before = {"role": "assistant", "content": [{"type": "text", "text": "I'll check runtime capabilities."},
+        {"type": "toolCall", "id": "c", "name": "lookup", "arguments": {}}], "stopReason": "toolUse"}
+    after = {"role": "assistant", "content": [{"type": "text", "text": "已完成分析。"}], "stopReason": "stop"}
+    events = [{"type": "prompt_ack", "ok": True}, {"type": "message_start", "message": before},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "I'll check runtime capabilities."}},
+        {"type": "message_end", "message": before}, {"type": "tool_execution_start", "toolCallId": "c", "toolName": "lookup"},
+        {"type": "tool_execution_end", "toolCallId": "c", "toolName": "lookup", "result": {}},
+        {"type": "message_start", "message": {"role": "assistant", "content": []}},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "已完成"}},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "分析。"}},
+        {"type": "message_end", "message": after},
+        {"type": "agent_end", "messages": [before, {"role": "toolResult"}, after] if terminal_snapshot else []}]
+    script = tmp_path / "messages.py"
+    script.write_text("import json\ninput()\n" + "\n".join(f"print(json.dumps({event!r}), flush=True)" for event in events))
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    semantic = []
+    client.start()
+    try:
+        answer = client.prompt_and_wait("question", on_semantic_event=lambda event, _: semantic.append(event))
+    finally:
+        client.stop()
+        trace.close()
+    assert answer == "已完成分析。"
+    final = [event for event in semantic if event["type"] == "assistant_message"]
+    assert [event["text"] for event in final] == ["已完成分析。"]
+
+
+def test_rpc_terminal_snapshot_is_authoritative_without_deltas(tmp_path):
+    script = tmp_path / "snapshot.py"
+    events = [{"type": "prompt_ack", "ok": True}, {"type": "agent_end", "messages": [{"role": "assistant",
+        "content": [{"type": "thinking", "thinking": "private"}, {"type": "text", "text": "正式回答。"}], "stopReason": "stop"}]}]
+    script.write_text("import json\ninput()\n" + "\n".join(f"print(json.dumps({event!r}), flush=True)" for event in events))
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    client.start()
+    try:
+        assert client.prompt_and_wait("question") == "正式回答。"
+    finally:
+        client.stop()
+        trace.close()
+
+
 def test_rpc_framing_returns_only_assembled_answer(tmp_path: Path) -> None:
     script = tmp_path / "provider.py"
     script.write_text(

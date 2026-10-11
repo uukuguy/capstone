@@ -216,13 +216,20 @@ def test_thread_worker_uses_prepared_kernel_pi_rpc_transport(tmp_path):
     authority_models = ModelRegistry(Pandapower340Engine())
     revision = authority_models.trusted_revision_ref("ieee39")
     fake_pi = tmp_path / "fake-pi.py"
+    decision = {"schema": "capstone-task-understanding/2", "goals": [{"id": "general", "purpose": "inspect",
+        "subject": "ordinary request", "scope": "unspecified", "scenario": "none", "change": None,
+        "conclusion": "description", "measure": None, "obligations": ["Answer the ordinary request"],
+        "missing_requirements": [], "execution": "general", "dependencies": [], "domain_request": None}],
+        "answer_policy": {"language": "en", "scale": "concise"}}
     fake_pi.write_text(
         "import json,sys\n"
+        f"decision={decision!r}\n"
         "for line in sys.stdin:\n"
         " request=json.loads(line)\n"
         " correlation=request.get('request_id')\n"
         " print(json.dumps({'type':'prompt_ack','ok':True,'request_id':correlation}),flush=True)\n"
-        " print(json.dumps({'type':'text_delta','text':'prepared answer','request_id':correlation}),flush=True)\n"
+        " answer=json.dumps(decision) if str(correlation).startswith('task-recognition:') else 'prepared answer'\n"
+        " print(json.dumps({'type':'text_delta','text':answer,'request_id':correlation}),flush=True)\n"
         " print(json.dumps({'type':'agent_end','request_id':correlation}),flush=True)\n",
         encoding="utf-8",
     )
@@ -289,6 +296,8 @@ def test_thread_worker_uses_prepared_kernel_pi_rpc_transport(tmp_path):
     assert result is not None and result.status == "completed"
     assert result.answer == "prepared answer"
     events = service.read_events("thr_grid", 0).events
+    assert any(event.event_type == "task_understanding_created" for event in events)
+    assert any(event.event_type == "task_requirements_resolved" for event in events)
     assert events[-1].event_type == "attempt_completed"
     assert events[-1].payload["answer"] == "prepared answer"
     assembly.capability_context_owner.close()

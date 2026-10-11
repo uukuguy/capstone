@@ -4,7 +4,7 @@ set -Eeuo pipefail
 # Run the selected clean demo checkout with separate local data and ports.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_dir="${CAPSTONE_DEMO_SOURCE_DIR:-$repo_root/.worktrees/demo-baseline}"
-env_file="$repo_root/deploy/demo-local.env"
+env_file="${CAPSTONE_DEMO_LOCAL_ENV_FILE:-$repo_root/deploy/demo-local.env}"
 [ -f "$source_dir/deploy/rebuild_local.sh" ] || { echo 'local demo: selected source is missing' >&2; exit 1; }
 source_revision="$(git -C "$source_dir" rev-parse HEAD)"
 [ -z "$(git -C "$source_dir" status --porcelain --untracked-files=normal -- packages configs deploy Dockerfile compose.yaml)" ] \
@@ -50,8 +50,15 @@ echo "local demo source: $source_revision"
 (cd "$source_dir" && make capstone-local-rebuild)
 curl -fsS http://127.0.0.1:15173/__capstone-build | python3 -c '
 import json, sys
+from pathlib import Path
 build = json.load(sys.stdin)
-if build.get("revision") != sys.argv[1] or build.get("dirty") or build.get("environment") != "local-demo":
+requires_environment = (Path(sys.argv[2]) / "packages/capstone-app/src/appBuild.ts").is_file()
+environment = build.get("environment")
+if (build.get("revision") != sys.argv[1] or build.get("dirty") is not False
+    or (requires_environment and environment != "local-demo")
+    or ("environment" in build and environment != "local-demo")):
     raise SystemExit("local demo: App source differs from the selected clean checkout")
-' "$source_revision"
+if not requires_environment and "environment" not in build:
+    print("local demo: selected legacy source has no environment badge")
+' "$source_revision" "$source_dir"
 echo 'local demo: App and selected source identity match'

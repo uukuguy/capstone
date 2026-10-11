@@ -827,6 +827,44 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
+  it('shows only the latest running action until opened and respects closing it as steps arrive', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'running_activity'),
+      event('attempt_started', 2, {}, 'running_activity'),
+      event('tool_started', 3, { tool_name: 'grid_context_get', tool_call_id: 'call_a' }, 'running_activity'),
+    ]
+    const props = { disabled: false, isRunning: true, onSend: async () => {}, onCancel: async () => {} }
+    const { container, rerender } = render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)} />)
+    const details = container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')!
+    expect(details.open).toBe(false)
+    expect(screen.getByLabelText('运行过程预览').querySelectorAll('.capstone-chat-activity-item')).toHaveLength(1)
+    details.open = true
+    fireEvent(details, new Event('toggle'))
+    expect(details.open).toBe(true)
+    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
+    details.open = false
+    fireEvent(details, new Event('toggle'))
+    const next = [...events,
+      event('tool_completed', 4, { tool_name: 'grid_context_get', tool_call_id: 'call_a' }, 'running_activity'),
+      event('tool_started', 5, { tool_name: 'grid_model_list', tool_call_id: 'call_b' }, 'running_activity'),
+    ]
+    rerender(<CapstoneAssistantThread {...props} events={next} activity={projectAssistantActivity(next)} />)
+    expect(details.open).toBe(false)
+    const preview = screen.getByLabelText('运行过程预览')
+    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(1)
+    expect(preview.textContent).toContain('grid_model_list')
+    expect(preview.textContent).not.toContain('grid_context_get')
+    details.open = true
+    fireEvent(details, new Event('toggle'))
+    const completed = [...next, event('attempt_completed', 6, { answer: '执行完成。' }, 'running_activity')]
+    rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
+    expect(details.open).toBe(false)
+    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
+    expect(details.open).toBe(true)
+    expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(2)
+  })
+
   it('renders the admitted result card and keeps evidence behind its action', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_professional', payload: { text: '运行潮流' } }, 'attempt_cards'),

@@ -31,6 +31,8 @@
 
 ## External execution anchors
 
+- [Task understanding and formal answer implementation](../superpowers/plans/2026-10-11-task-answer-closure.md): approved enhancement on accepted main c3b78bc; semantic contract, recognition, Pack coverage and product acceptance have separate gates.
+
 | File | Purpose |
 | --- | --- |
 | [Capstone core evolution discussion](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md) | Active long-term notebook for professional conversation, practical grid work, and continued Skill/tool integration; proposals and open questions are not an approved implementation plan. |
