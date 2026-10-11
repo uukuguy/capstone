@@ -160,7 +160,17 @@ class PandapowerTaskProvider:
             {"if": {"properties": {"domain_request": {"properties": {"payload": {
                 "properties": {"operation": {"const": "limits"}}, "required": ["operation"]}}}}},
              "then": {"properties": {"domain_request": {"properties": {"payload": {
-                "properties": {"objects": {"maxItems": 0}, "measure": {"type": "null"}}}}}}}}
+                "properties": {"objects": {"maxItems": 0}, "measure": {"type": "null"}}}}}}}},
+            {"if": {"properties": {"domain_request": {"properties": {"payload": {
+                "properties": {"operation": {"enum": ["powerflow", "compare"]}}, "required": ["operation"]}}}}},
+             "then": {"properties": {"domain_request": {"properties": {"payload": {"anyOf": [
+                {"properties": {"objects": {"maxItems": 0}, "measure": {"type": "null"}}},
+                {"properties": {"objects": {"const": [{"kind": "network", "namespace": "all", "identifier": "*"}]},
+                                "scope": {"const": "full"}, "measure": {"type": "null"}}},
+                {"properties": {"objects": {"minItems": 1, "items": {"properties": {
+                    "kind": {"enum": sorted(_BRANCHES)}}}}, "measure": {
+                    "enum": ["loading_percent", "p_from_mw", "p_to_mw", "pl_mw"]}}}
+             ]}}}}}}
         ]},
         "load_scaling_contract": {
             "whole_load": "Proportional change of a load scales both active and reactive power by the same factor, preserving power factor. An unqualified load multiplier requests this whole-load operation.",

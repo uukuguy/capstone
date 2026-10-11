@@ -93,9 +93,9 @@ def run_turn(session, turn, manifest, *, timeout=180):
             observed.append(event)
             if turn.get("acceptance_stage") == "intent-routing" and event.event_type == "task_route_created":
                 failed = check_professional_route(observed)
-                # This validation task stops here; it does not certify or time
-                # downstream research completion. Preserve the actual route.
-                cancel = session.command("cancel_live_attempt", {})
+                # Request cancellation of this validation attempt; the receipt
+                # does not prove downstream termination or research completion.
+                cancel = session.command("cancel_live_attempt", {"attempt_id": attempt})
                 return {"instruction": turn["text"], "expectation": turn["expect"],
                     "attempt_id": attempt, "thread_id": session.thread_id, "model_revision": active.model_revision,
                     "terminal": "routing_stage_observed", "payload": {}, "failures": failed,
@@ -130,7 +130,7 @@ def run_turn(session, turn, manifest, *, timeout=180):
                 "timing": summarize_timing(observed, elapsed_ms=round((time.monotonic() - started) * 1000), expectation=turn["expect"]),
                 "status": "failed" if failed else "passed"}
         time.sleep(0.5)
-    session.command("cancel_live_attempt", {})
+    session.command("cancel_live_attempt", {"attempt_id": attempt})
     return {"instruction": turn["text"], "expectation": turn["expect"], "attempt_id": attempt,
         "thread_id": session.thread_id, "model_revision": active.model_revision,
         "terminal": "sample_deadline_exceeded", "payload": {}, "failures": ["sample_deadline_exceeded"],

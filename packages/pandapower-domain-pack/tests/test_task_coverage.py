@@ -39,6 +39,26 @@ def test_published_intent_constraints_enforce_operation_conclusion_relationships
     assert not validator.is_valid(goal("overview", "limit"))
 
 
+def test_powerflow_intent_preserves_measurement_contract():
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["recognition_constraints"])
+    payload = proposal(scenario="changed", changes=[{
+        "target": {"kind": "bus", "namespace": "name", "identifier": "sample-bus"},
+        "fields": [], "factor": 1.17}])
+    goal = {"conclusion": "impact", "domain_request": {"payload": payload}}
+    assert validator.is_valid(goal)
+    payload["objects"] = [{"kind": "bus", "namespace": "name", "identifier": "sample-bus"}]
+    assert not validator.is_valid(goal)
+    payload["objects"] = [{"kind": "network", "namespace": "all", "identifier": "*"}]
+    assert validator.is_valid(goal)
+    payload["objects"] = [{"kind": "line", "namespace": "name", "identifier": "sample-line"}]
+    payload["measure"] = "loading_percent"
+    assert validator.is_valid(goal)
+    payload["objects"][0]["kind"] = "bus"
+    assert not validator.is_valid(goal)
+
+
 def test_limit_intent_keeps_change_targets_separate_from_full_scenario_coverage():
     from jsonschema import Draft202012Validator
     from pandapower_domain.task_coverage import PandapowerTaskProvider

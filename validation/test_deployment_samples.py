@@ -55,6 +55,8 @@ def test_route_sample_stops_before_downstream_research_terminal():
         thread_id = "thread"
         def snapshot(self): return snapshot
         def command(self, kind, payload):
+            if kind == "cancel_live_attempt":
+                assert payload == {"attempt_id": "attempt_test"}
             commands.append(kind)
             return SimpleNamespace(status="accepted", target={"attempt_id": "attempt_test"})
         def events(self, **kwargs): return SimpleNamespace(next_event_seq=3, events=events)
