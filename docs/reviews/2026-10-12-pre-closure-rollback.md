@@ -60,3 +60,7 @@ provider-rollback-ready/provider-2e107b34738b4b20.json and semantic-facts/tool-l
 independent-review.md, rollback-control-verification.log, rollback-app-verification.log.
 Control/browser checks distinguish visible successful answers and visible load
 failure. No new accepted baseline, merge, demo/cloud update or research start.
+
+Publication: [PR13 withdrawn](https://github.com/uukuguy/capstone/pull/13),
+[PR14 rollback draft](https://github.com/uukuguy/capstone/pull/14), target dev.
+Issues2/3 remain open with bot updates; unresolved business defects are not closed.

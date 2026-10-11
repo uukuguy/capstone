@@ -74,7 +74,7 @@ data access within the task; it does not publish tools.
 Three execution roles have distinct resource profiles: `harness_engine`,
 `delegated_pi` and `direct_pi`. The last two are execution identities under the
 existing Capstone/Pi modes. Checked-in native settings and
-[`agent-resources.json`](../../configs/runtime/agent-resources.json) select fixed
+the separately planned `agent-resources.json` configuration select fixed
 sources and role adapters. Managed installation, actual SDK loading and exact
 tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing

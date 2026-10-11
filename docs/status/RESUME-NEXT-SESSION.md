@@ -6,6 +6,8 @@ Do not resume task compilation, coverage, answer rewriting, frozen reuse or prew
 
 - Worktree .worktrees/stable-route-recovery; branch fix/stable-route-recovery.
 - Product30a3ecb; rollback88f40de and standalone routing633ed6b.
+- Published report/test commitb9ff1f9; PR13closed, PR14draft/base dev.
+  Issues2/3 bot comments record rollback and failed overall acceptance; remain open.
 - Archive archive/answer-recovery-before-rollback-20261012 retains42a647b.
   Uncommitted regression patches remain backed up under ignored runs/.
 - Framework585 and Pack105 tests passed; focused route/worker/Harness57,
@@ -25,6 +27,7 @@ Do not resume task compilation, coverage, answer rewriting, frozen reuse or prew
 - Prior1013dd2 human validation failed. Do not repeat earlier broad acceptance claims.
 - Main/dev, demo/cloud and existing data unchanged. No new baseline or Research R1.
 
-Next: publish rollback report/Issues/PR, align root checkout with recovery branch.
+Next: align root checkout with recovery branch; preserve unfinished patches in stash
+and ignored backup. Do not merge PR14 or start new business fixes automatically.
 Do not resume withdrawn closure work or call this historical version fully stable.
 Session remains active; product30a3ecb differs from later documentation commits.

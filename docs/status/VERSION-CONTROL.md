@@ -142,7 +142,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 10 | foundation | chore/iteration-gates | main | MERGED | 精确513a35e两平台CI通过，约32/26分钟；合并723b8e8；本地迭代/PR/发布门禁分层 |
 | 11 | main | docs/project-state-sync | dev | MERGED | 原34文件积累文档及dev治理cfa6c1c已集成50d8ebc；精确CI38126098431两平台通过；68本地检查与独立审查通过；不作为产品部署 |
 | 12 | main | docs/dev-baseline-control | dev | 状态见GitHub | 控制图维护记录：B2标签、合并分支关闭、Research Model起点；四环境dev/main前缀、中栏dev演进及main发布点独立底色；精确状态以链接为准，不作为产品部署 |
-| 13 | answers | fix/deployment-answer-acceptance | dev | DRAFT | 完整回答、轻量路由、统一初始化与当前结果复用；local-dev1013dd2实际整体11业务＋1路由/专项3轮独立验收及浏览器通过；历史失败与混合隔离风险保留，待人工，Issues保持打开 |
+| 13 | answers | fix/deployment-answer-acceptance | dev | CLOSED | 人工回归失败后按用户决定撤回；源码42a647b与旧补丁保留；不再作为验收通过候选 |
+| 14 | answers | fix/stable-route-recovery | dev | DRAFT | 按用户决定恢复c3b78bc业务执行，仅保留独立LLM路由；local-dev30a3ecb同源与浏览器通过，七轮整体业务仍失败；Issues2/3保持打开，未合并 |
 
 ## 全部分支进展
 
