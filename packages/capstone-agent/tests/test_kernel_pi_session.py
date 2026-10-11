@@ -8,6 +8,40 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 from types import SimpleNamespace
 
 
+def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path):
+    import capstone_agent.kernel_pi_session as module
+    captured = []
+    class Client:
+        def __init__(self, launch, workspace, trace, **kwargs):
+            self.workspace = workspace
+        def stop(self):
+            pass
+    def launch(llm, paths, **kwargs):
+        captured.append(paths)
+        return SimpleNamespace(argv=("pi",), environment={})
+    monkeypatch.setattr(module, "build_pi_launch", launch)
+    monkeypatch.setattr(module, "PiRpcClient", Client)
+    host = SimpleNamespace(command=object(), project_pi_dir=tmp_path / "auth",
+        extension_path=tmp_path / "business-extension", system_policy_path=tmp_path / "business-policy")
+    builder = object.__new__(module.PreparedKernelPiRpcSessionBuilder)
+    builder._runtime_host = host
+    builder._resolved_llm = SimpleNamespace(secret=None)
+    builder._base_environment = {}
+    builder._timeout_seconds = 60
+    claim = SimpleNamespace(turn_plan=SimpleNamespace(route="ordinary"), task_resolutions=(),
+        task_understanding=None, application_catalog=None, attempt=SimpleNamespace(attempt_id="attempt_general"))
+    business = tmp_path / "business-workspace"
+    profile = SimpleNamespace(workspace=SimpleNamespace(root=business, core_path=business / "core"))
+    session = builder(claim, object(), (profile,))
+    paths = captured[0]
+    assert paths.workspace != business
+    assert paths.extension_path is paths.runtime_descriptor_path is paths.tool_catalog_path is None
+    assert paths.domain_search_paths == ()
+    assert "business-policy" not in paths.system_policy_path.read_text()
+    assert not (business / "core/pi/runtime-descriptor.json").exists()
+    session.stop()
+
+
 def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
     return SimpleNamespace(
         instruction=instruction,

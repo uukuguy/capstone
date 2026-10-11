@@ -51,6 +51,7 @@ class PreparedKernelPiSessionFactory:
         self._builder = builder
 
     def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
+        self._recognition_metrics = {}
         recognizer = getattr(self._builder, "recognize_task", None)
         if not callable(recognizer):
             raise RuntimeError("task recognizer is unavailable")
@@ -124,18 +125,20 @@ class PreparedKernelPiRpcSessionBuilder:
 
     def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
         environment = self._base_environment or os.environ
+        self._recognition_metrics = {}
         timeout = float(environment.get("CAPSTONE_RECOGNITION_TIMEOUT_SECONDS", "60"))
         if not 1 <= timeout <= 120:
             raise ValueError("recognition timeout is invalid")
         metrics = {}
-        task = recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._recognition_llm,
-            base_environment=self._base_environment, timeout_seconds=min(timeout, self._timeout_seconds),
-            on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas,
-            prepared_process=self._recognition_process,
-            thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "off"),
-            on_metrics=metrics.update)
-        self._recognition_metrics = metrics
-        return task
+        try:
+            return recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._recognition_llm,
+                base_environment=self._base_environment, timeout_seconds=min(timeout, self._timeout_seconds),
+                on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas,
+                prepared_process=self._recognition_process,
+                thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "low"),
+                on_metrics=metrics.update)
+        finally:
+            self._recognition_metrics = metrics
 
     def recognition_metrics(self):
         return dict(getattr(self, "_recognition_metrics", {}))
@@ -158,6 +161,19 @@ class PreparedKernelPiRpcSessionBuilder:
         if claim.task_resolutions and all(not goal.execution_required for goal in claim.task_resolutions) and not all(goal.status == "general" for goal in claim.task_resolutions):
             return _ResolvedTaskSession(claim, profiles)
         workspace = profiles[0].workspace
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
+            policy = _compose_attempt_policy(directory, None, include_generic=True,
+                application_catalog=claim.application_catalog, task_understanding=claim.task_understanding)
+            paths = RuntimePaths(command=self._runtime_host.command,
+                project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
+                workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
+            launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+            secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
+            trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
+            client = PiRpcClient(launch, _RpcWorkspace(directory), trace, secret_values=secrets,
+                correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds)
+            return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []

@@ -895,6 +895,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-frame:has(.capstone-chat-activity-preview) > details { border-bottom: 0; border-radius: 7px 7px 0 0; }
 .capstone-chat-activity-preview { border: 1px solid #e3eee8; border-top: 0; border-radius: 0 0 7px 7px; background: #fbfdfc; }
 .capstone-chat-activity-preview .capstone-chat-activity-list { max-height: 32px; padding: 0 7px 3px 22px; }
+.capstone-chat-waiting { display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-top: 1px solid #e3eee8; border-radius: 7px; color: #66877e; font-size: 9px; line-height: 1.5; }
+.capstone-chat-waiting .spinner { width: 10px; height: 10px; }
 .capstone-chat-activity-attached.is-failed, .capstone-chat-activity-attached.is-interrupted { border-color: #e7c9c2; }
 .capstone-chat-activity-attached.is-failed > summary svg, .capstone-chat-activity-attached.is-interrupted > summary svg { color: #c5574f; }
 .capstone-chat-activity-attached.is-cancelled > summary svg { color: #b78342; }

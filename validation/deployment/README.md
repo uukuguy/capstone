@@ -1,5 +1,19 @@
 # Deployment sample acceptance
 
+Each turn receipt includes client elapsed time, server total, worker queue,
+first tool time and available recognition/execution/finalization phases. Keep
+failed and deadline turns with their attempt IDs and timing. Recognition details
+include call count, first response, preparation, thinking configuration and reuse.
+Missing diagnostics are unknown. Do not report them as zero.
+
+An informational turn above10s or recognition above5s flags latency review.
+Investigate the phase, compare the source and cold/warm conditions, and record
+the cause and outcome before performance acceptance. These initial thresholds
+trigger investigation; they do not require unrelated answer perfection. Long
+calculations retain their own actual tool and Provider durations. Do not increase
+timeouts to conceal excessive waiting. Browser feedback latency is checked
+separately because server events do not prove visible UI feedback.
+
 Maintain two separate sets. The long-lived overall corpus
 [ieee39.json](ieee39.json) uses real failures observed during agent conversation
 development. Each case preserves its instruction, incident source, failed

@@ -100,7 +100,7 @@ Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,
 `CAPSTONE_RECOGNITION_MODEL`, optional `CAPSTONE_RECOGNITION_BASE_URL` and
 `CAPSTONE_RECOGNITION_API_KEY_ENV`. Without overrides it uses the configured
 execution Provider/model, but its own `CAPSTONE_RECOGNITION_THINKING_LEVEL`
-defaults to `off` and `CAPSTONE_RECOGNITION_TIMEOUT_SECONDS` defaults to60.
+defaults to `low` and `CAPSTONE_RECOGNITION_TIMEOUT_SECONDS` defaults to60.
 The timeout must be1–120 seconds and is capped by the Attempt deadline. Provider
 changes use that Provider's registered defaults, not execution endpoint/key
 settings. Supply credentials through protected backend environment variables;

@@ -4,6 +4,21 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_latency_receipt_separates_queue_and_recognition_and_flags_slow_information():
+    from validation.deployment.run import summarize_timing
+    events = [SimpleNamespace(event_type=kind, occurred_at=stamp, payload=payload) for kind, stamp, payload in [
+        ("command_accepted", "2026-10-11T12:00:00Z", {}),
+        ("attempt_started", "2026-10-11T12:00:02Z", {}),
+        ("task_recognition_timing", "2026-10-11T12:00:09Z", {"duration_ms": 7000, "details": {"calls": []}}),
+        ("attempt_failed", "2026-10-11T12:00:11Z", {})]]
+    timing = summarize_timing(events, elapsed_ms=11500, expectation="model-and-capabilities")
+    assert timing["queue_ms"] == 2000 and timing["server_total_ms"] == 11000
+    assert timing["phases"]["recognition"]["duration_ms"] == 7000
+    assert timing["first_tool_ms"] is None
+    assert set(timing["latency_review"]) == {"informational_turn_over_10s", "recognition_over_5s"}
+    assert timing["review_status"] == "required"
+
+
 def test_overview_clarification_cannot_pass_as_requested_information():
     from validation.deployment.checks import check_answer
     payload = {"answer": "请选择所需分析操作。", "result_refs": [], "evidence_refs": [],

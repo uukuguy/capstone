@@ -139,6 +139,7 @@ def accept_task(service, claim, recognizer: Callable, *, on_heartbeat: Callable[
         on_heartbeat()
         if service.cancel_requested(claim):
             raise TaskRecognitionCancelled
+    started = time.monotonic()
     try:
         heartbeat()
         if claim.task_request is None:
@@ -162,6 +163,10 @@ def accept_task(service, claim, recognizer: Callable, *, on_heartbeat: Callable[
         raise
     except Exception as error:
         from .harness import HarnessRuntimeConfigurationError
+        service.append_runtime_event(claim, event_type="task_recognition_timing",
+            payload={"duration_ms": round((time.monotonic() - started) * 1000), "outcome": "failed",
+                "failure_type": type(error).__name__,
+                "details": getattr(getattr(recognizer, "__self__", None), "recognition_metrics", lambda _claim: {})(claim)}, visibility="diagnostic")
         if isinstance(error, HarnessRuntimeConfigurationError):
             raise TaskRecognitionConfigurationFailed from None
         raise TaskRecognitionFailed from None
@@ -241,7 +246,7 @@ def _validate_published_payload_fields(task, schemas):
 
 
 def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, timeout_seconds,
-                      on_heartbeat, requirement_schemas=(), prepared_process=None, thinking_level="off", on_metrics=None):
+                      on_heartbeat, requirement_schemas=(), prepared_process=None, thinking_level="low", on_metrics=None):
     """A separate Pi RPC process with no extensions, domain paths or built-in tools."""
     request = claim.task_request
     if not isinstance(request, TaskRequest):
@@ -281,8 +286,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
             schemas = list(requirement_schemas)
             if len(schemas) > 16 or len(json.dumps(schemas, ensure_ascii=False, allow_nan=False).encode("utf-8")) > 32768:
                 raise ValueError("published task schemas are too large")
-            model_schemas = [{key: value for key, value in schema.items()
-                              if key != "payload_fields" or "payload_schema" not in schema} for schema in schemas]
+            model_schemas = schemas
             prompt = json.dumps({"requirement_schemas": model_schemas, "selected_context": claim.model_context.to_document(),
                                  "history": history, "request": request.to_document()}, ensure_ascii=False, separators=(",", ":"))
             metrics["input_bytes"] = len(prompt.encode("utf-8"))
@@ -339,6 +343,9 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         metrics["calls"][-1]["validation_ms"] = round((time.monotonic()-validation_started)*1000)
             finally:
                 metrics["total_ms"] = round((time.monotonic()-started)*1000)
+    except BaseException as error:
+        metrics["failure_type"] = type(error).__name__
+        raise
     finally:
         cleanup_started = time.monotonic()
         if prepared_process is None:

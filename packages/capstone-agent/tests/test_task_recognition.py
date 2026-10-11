@@ -159,6 +159,11 @@ def test_recognition_failure_stops_before_execution_and_retry_keeps_request():
     result = run_pending_attempt(service, factory, worker_id="worker")
     assert result.error_code == "task_recognition_failed"
     assert not factory.claims
+    timing = next(event for event in service.read_events("thr_worker", 0).events
+                  if event.event_type == "task_recognition_timing")
+    assert timing.payload["outcome"] == "failed"
+    assert timing.payload["duration_ms"] >= 0
+    assert set(timing.payload) == {"duration_ms", "outcome", "failure_type", "details"}
     retry(service)
     factory.fail = False
     result = run_pending_attempt(service, factory, worker_id="worker")
@@ -369,7 +374,7 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
     assert captured[0].extension_path is None
     assert captured[0].domain_search_paths == ()
     assert captured[0].runtime_descriptor_path is None
-    assert clients[0].argv[-2:] == ("--thinking", "off")
+    assert clients[0].argv[-2:] == ("--thinking", "low")
 
 
 @pytest.mark.parametrize("repair", [True, False])

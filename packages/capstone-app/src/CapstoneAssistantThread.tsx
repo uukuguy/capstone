@@ -500,7 +500,7 @@ function AttemptActivity({ activities, running, phase, open, onOpenChange, start
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
-  if (activities.length === 0) return running ? <div className="capstone-chat-activity-frame is-running" role="status" aria-label="请求处理状态" aria-busy="true"><div className="capstone-chat-activity-preview"><span className="spinner" aria-hidden="true" /><span>正在理解请求…{elapsed === undefined ? '' : ` · ${formatDuration(elapsed)}`}</span></div></div> : null
+  if (activities.length === 0) return running ? <div className="capstone-chat-activity-frame is-running" role="status" aria-label="请求处理状态" aria-busy="true"><div className="capstone-chat-activity-preview capstone-chat-waiting"><span className="spinner" aria-hidden="true" /><span>正在理解请求…{elapsed === undefined ? '' : ` · ${formatDuration(elapsed)}`}</span></div></div> : null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>

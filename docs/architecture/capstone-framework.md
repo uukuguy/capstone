@@ -73,7 +73,7 @@ contracts remain current per task. API model opening does not warm a separate
 worker process; opening-time warmup needs an explicit worker operation.
 
 Recognition uses its own optional Provider/model selection, thinking level and
-bounded deadline; execution configuration is unchanged. Default thinking is off,
+bounded deadline; execution configuration is unchanged. Default thinking is low,
 and ordinary answer scale is standard unless the user requests a different scale.
 The durable timing event records input bytes, reuse, per-call first content event,
 duration and validation, preparation and cleanup. These measurements are not

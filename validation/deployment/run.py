@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from hashlib import sha256
 import json
 import os
@@ -44,7 +45,33 @@ def load_samples(path):
     return manifest, hashes
 
 
+def summarize_timing(events, *, elapsed_ms, expectation):
+    times = {}
+    phases = {}
+    for event in events:
+        stamp = getattr(event, "occurred_at", None)
+        if stamp is not None:
+            times.setdefault(event.event_type, datetime.fromisoformat(stamp.replace("Z", "+00:00")))
+        if event.event_type in {"task_recognition_timing", "task_execution_timing", "task_finalization_timing"}:
+            phases[event.event_type.removeprefix("task_").removesuffix("_timing")] = event.payload
+    def span(start, end):
+        return round((times[end] - times[start]).total_seconds() * 1000) if start in times and end in times else None
+    terminal = next((name for name in ("attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted") if name in times), None)
+    timing = {"client_elapsed_ms": elapsed_ms, "queue_ms": span("command_accepted", "attempt_started"),
+        "server_total_ms": span("command_accepted", terminal) if terminal else None,
+        "first_tool_ms": span("command_accepted", "tool_started"), "phases": phases}
+    review = []
+    if expectation == "model-and-capabilities" and elapsed_ms > 10_000:
+        review.append("informational_turn_over_10s")
+    if phases.get("recognition", {}).get("duration_ms", 0) > 5_000:
+        review.append("recognition_over_5s")
+    timing["latency_review"] = review
+    timing["review_status"] = "required" if review else "unknown" if "recognition" not in phases else "no_threshold_exceeded"
+    return timing
+
+
 def run_turn(session, turn, manifest, *, timeout=180):
+    started = time.monotonic()
     before = session.snapshot()
     receipt = session.command("send_auto", {"text": turn["text"], "enabled_profiles": [{
         "profile_id": manifest["profile_id"], "profile_version": manifest["profile_version"]}]})
@@ -53,6 +80,7 @@ def run_turn(session, turn, manifest, *, timeout=180):
     attempt = receipt.target["attempt_id"]
     active = session.snapshot().active_model_context
     deadline, cursor = time.monotonic() + timeout, before.last_event_seq
+    observed = []
     while time.monotonic() < deadline:
         page = session.events(after=cursor)
         cursor = page.next_event_seq
@@ -61,6 +89,7 @@ def run_turn(session, turn, manifest, *, timeout=180):
                 continue
             if event.model_context_id != active.id or event.selection_revision != active.selection_revision:
                 raise ValueError("sample_context_changed")
+            observed.append(event)
             if event.event_type not in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}:
                 continue
             failed = [event.event_type] if event.event_type != "attempt_completed" else check_answer(turn["expect"], event.payload)
@@ -76,10 +105,14 @@ def run_turn(session, turn, manifest, *, timeout=180):
             return {"instruction": turn["text"], "expectation": turn["expect"], "attempt_id": attempt,
                 "thread_id": session.thread_id, "model_revision": active.model_revision,
                 "terminal": event.event_type, "payload": event.payload, "failures": failed,
+                "timing": summarize_timing(observed, elapsed_ms=round((time.monotonic() - started) * 1000), expectation=turn["expect"]),
                 "status": "failed" if failed else "passed"}
         time.sleep(0.5)
     session.command("cancel_live_attempt", {})
-    raise TimeoutError("sample_deadline_exceeded")
+    return {"instruction": turn["text"], "expectation": turn["expect"], "attempt_id": attempt,
+        "thread_id": session.thread_id, "model_revision": active.model_revision,
+        "terminal": "sample_deadline_exceeded", "payload": {}, "failures": ["sample_deadline_exceeded"],
+        "timing": summarize_timing(observed, elapsed_ms=round((time.monotonic() - started) * 1000), expectation=turn["expect"]), "status": "failed"}
 
 
 def main(argv=None):
