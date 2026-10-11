@@ -3,7 +3,7 @@
 The user withdrew the unstable task/answer closure implementation and retained
 independent lightweight LLM routing plus selected UI, ordinary-answer and final-message
 fixes. Overall business defects remain explicit. Development-baseline integration
-and adaptation of the independent Pi and Research Model branches are authorized;
+and source adaptation of the independent Pi and Research Model branches are complete;
 exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 
 ## Project Snapshot
@@ -17,7 +17,7 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - Theme-level focus: Preserve usable authority-backed conversation execution while evolving independent Pi and Research Model capabilities.
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-07-capstone-conversation-completion.md`
-- Active work package: Authorized dev baseline closure and Pi/Research Model branch adaptation. Research Model [R1–R5](../superpowers/plans/2026-10-11-research-model-evolution.md) uses existing execution and evidence contracts, not the withdrawn task compiler or prewarm chain; R1 code remains unimplemented. Scope verification, known business defects, human acceptance and cloud promotion remain distinct.
+- Active work package: Recovered dev baseline and independently adapted Pi/Research Model branches. Research Model [R1–R5](../superpowers/plans/2026-10-11-research-model-evolution.md) uses existing execution and evidence contracts, not the withdrawn task compiler or prewarm chain; R1 code remains unimplemented. Scope verification, known business defects, human acceptance and cloud promotion remain distinct.
 - Experimental work package (`feat/pi-skills-integration`): Shared business workspace and role resources, under the [approved plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md). Three Pi roles share bounded public context and project-managed skills/MCP configuration. Professional tools retain Domain Pack/Authority admission; native observations do not create simulator evidence. Accepted tasks bind immutable resources. Current public model context contains identity, version and bounded history, not complete model tables. Real Provider answer quality remains unaccepted; hosted stages still use the previous release. Case is a separate module outside this package.
 - Evolution discussion: `docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md` is secondary research. The user initiates it; remind only at an important boundary. Its open questions do not set the delivery order.
 - Milestone status: delivery reached M11 under the recorded bounded scopes. M6 Tasks1–9 closed for lightweight demo scope, with independent Task1–8 review/fix evidence; later M10/M11 passed full release gates. Portable whole-stage M6/M10 review records need consolidation. Generic runtime materialization was expressly deferred by the approved M2 review. See `docs/reviews/2026-10-07-capstone-m1-m11-status-audit.md`; do not reopen stages from stale checkboxes.

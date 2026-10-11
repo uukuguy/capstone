@@ -1,5 +1,10 @@
 # Capstone Conversation Contract Completion
 
+2026-10-12当前开发基线dev6ff7094已通过PR #14双平台检查并集成。
+Pi38e19db与Research Model2b0b0a5已适配并推送，起点均为6ff7094。
+首次新源专项普通误路由失败保留，独立重试通过不能覆盖失败；整体验收
+仍未通过。研究R1尚无代码，不自动恢复以下已撤回闭环工作。
+
 > 2026-10-12 user decision: withdraw this delivery's task compilation, coverage,
 > answer rewriting, enhanced reuse and prewarm implementation. Active work restores
 > c3b78bc business execution and retains standalone ordinary/professional LLM routing.
