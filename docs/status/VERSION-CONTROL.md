@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-12：用户撤回任务闭环后选择性补回已有修复；local-dev82b243c恢复三动作小字号窗口、普通无工具轻量问答和最终消息分离。506项三角色同源与干净App、源码审查及两轮真实专项通过；整体业务缺陷继续保留，不形成新基线。
+2026-10-12：用户批准将回退与选择性补回分支合入dev为新开发基线，并对齐适配Pi/Research Model分支。PR14候选bc08169修正无凭据装配提前失败，等待精确双平台检查。local-dev仍为82b243c；选择性专项通过，整体业务缺陷保留；当前尚未合并。
 
 原1013dd2及更早修复只保留历史证据，不再作为当前验收依据；预热、任务编译、覆盖判定、回答重写和增强复用均已撤回。回退分支fix/stable-route-recovery保存独立识别配置及路由失败诊断；旧分支归档保留，不删除工作或数据。PR #13原候选撤回待同步；dev/main/demo及云端未部署回退，Research R1后置。
 
@@ -143,7 +143,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 11 | main | docs/project-state-sync | dev | MERGED | 原34文件积累文档及dev治理cfa6c1c已集成50d8ebc；精确CI38126098431两平台通过；68本地检查与独立审查通过；不作为产品部署 |
 | 12 | main | docs/dev-baseline-control | dev | 状态见GitHub | 控制图维护记录：B2标签、合并分支关闭、Research Model起点；四环境dev/main前缀、中栏dev演进及main发布点独立底色；精确状态以链接为准，不作为产品部署 |
 | 13 | answers | fix/deployment-answer-acceptance | dev | CLOSED | 人工回归失败后按用户决定撤回；源码42a647b与旧补丁保留；不再作为验收通过候选 |
-| 14 | answers | fix/stable-route-recovery | dev | DRAFT | 用户回退并选择性补回三动作小窗、普通无工具问答、正式消息隔离；local-dev82b243c两轮专项与源码同源通过；整体业务缺陷保留，Issues2/3打开 |
+| 14 | answers | fix/stable-route-recovery | dev | READY | 用户批准合并为新开发基线；bc08169延迟Provider读取，复现修正及审查通过，等待精确CI；local-dev82b243c两轮专项与源码同源通过；整体缺陷及Issues2/3保留 |
 
 ## 全部分支进展
 
@@ -156,7 +156,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | Research Model实施 | 从dev50d8ebc建立，根工作区隔离目录.worktrees/research-model；尚无R1代码 | 按R1–R5阶段验收；新工作区测试前准备受管运行时；普通问答回归保留 | research |
 | fix/deployment-answer-acceptance | 已撤回的回答增强候选 | 42a647b保留，archive/answer-recovery-before-rollback-20261012固定恢复点；未提交补丁已备份 | 人工回归失败；用户取消本轮增强；不得继续作为可靠基线或验收通过版本 | answers |
-| fix/stable-route-recovery | 回退与选择性补回 | 恢复c3b78bc业务树；产品82b243c，仅补回用户明确要求的UI、普通轻量和过程隔离；PR14草稿 | 506项同源/588框架/380App/RPC11/types通过；实际两轮专项PASS；原七轮业务失败收据保留，不计新稳定基线 | answers |
+| fix/stable-route-recovery | 基线收口检查中 | 恢复c3b78bc业务树；产品82b243c补回授权修复，bc08169延迟Provider配置读取；PR14 READY | 实际两轮专项、完整集成及bc08169针对性检查通过；原七轮业务失败保留；精确CI通过后合入dev，再对齐两实验分支 | answers |
 | improve/run-process-window | 已被完整候选取代 | 22acf1b为早期界面验收来源；后续2473e48及当前d7ac7d9包含更紧凑窗口 | 保留来源参考，不继续作为当前部署候选；随PR #9收口 | answers |
 | improve/issue-4-active-recovery | 诊断工作区，产品源码未变 | 来源c3b78bc；4项生命周期检查确认隐藏页面恢复路径符合既有设计；Issue#4为ai:needs-info | 核对切后台/锁屏触发和实际时序；不猜测云端冷启动原因，不修改在线睡眠策略 | wake |
 | feat/pi-skills-integration | 实验在研 | 大量普通/专业问答路由、通用 Pi、skills、资源与业务上下文代码已保留 | 按依赖与验收范围分组；不直接进入 demo | pi |

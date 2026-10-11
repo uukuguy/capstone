@@ -1,5 +1,18 @@
 # Live session checkpoint — 2026-10-12 rollback
 
+User now authorizes PR14 merge into dev as the new development baseline and
+alignment/adaptation of feat/pi-skills-integration and feat/research-model.
+PR14 ready for review, candidatebc08169 pushed; exact dual-platform CI pending.
+Previous17debfb CI failed two hosted construction tests because route credentials
+were resolved eagerly; bc08169 defers resolution to actual classification.
+Reproduced RED; grid7/PyPSA5/unit4 and types pass, independent review approves.
+Current local-dev remains82b243c; do not bypass checks or claim merged yet.
+Pi adaptation owns .worktrees/pi-skills-integration; original749e0b8 is preserved
+as archive/pi-before-dev-baseline-20261012. Research has no R1 code and its original
+50d8ebc is preserved as archive/research-before-dev-baseline-20261012.
+Known business defects remain open; merge does not constitute full business acceptance.
+No cloud/main/demo promotion is authorized by this baseline action.
+
 User requested selective restoration after rollback: small-font latest3-action
 window, lightweight ordinary answers and final-message/process separation.
 Product82b243c deployed from detached issue-1-local-dev; exact506 files in API and
@@ -11,7 +24,9 @@ its extra calculations/latency are not claimed repaired. Realad15bf6fe1d34606
 two-turn update independently PASS: ordinary104chars/8.491s/zero tools and final
 Chinese1285chars/48.975s without intermediate English. Actual event replay checks
 3-row preview/160px scroll/toggle/terminal collapse; actual App hover action and
-full scrollbar pass. Next: publish scoped report/PR14 update; overall defects remain.
+full scrollbar pass. Report/test17debfb pushed and read back; PR14draft/base dev
+and Issues2/3 synchronized through the project bot. Local source remains82b243c.
+Selective delivery complete; overall defects remain and no new baseline is claimed.
 
 User cancelled task/answer closure recovery. Restore pre-closure business execution
 from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.

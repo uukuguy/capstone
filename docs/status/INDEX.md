@@ -3,7 +3,7 @@
 ## Active
 
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
-[活跃检查点](RESUME-NEXT-SESSION.md)以30a3ecb为候选，实际七轮业务整体未通过。
+[活跃检查点](RESUME-NEXT-SESSION.md)记录新dev基线收口与两分支适配；实际七轮业务整体未通过。
 历史整体筛查通过不能替代人工回归；[版本控制图](VERSION-CONTROL.md)登记回退范围。
 
 [回退与真实回归报告](../reviews/2026-10-12-pre-closure-rollback.md)：30a3ecb已部署同源；
@@ -28,7 +28,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | local-dev1013dd2实际整体11业务＋1路由/专项3轮独立PASS及浏览器通过，待人工；阶段耗时和历史失败保留；PR #13草稿，demo/云端未变，未建立新基线。 |
+| [多线版本控制](VERSION-CONTROL.md) | 用户批准PR14合入dev为新开发基线并对齐两实验分支；local-dev82b243c选择性专项通过，整体业务缺陷保留；精确CI等待中，PR13已撤回，demo及云端未变。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
