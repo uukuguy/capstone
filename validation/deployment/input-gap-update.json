@@ -13,6 +13,7 @@
     "review-and-schema-repair-share-two-call-deadline",
     "unresolved-gap-preserved",
     "invalid-review-rejected-before-execution",
+    "pending-nested-inputs-do-not-become-executable-values",
     "whole-load-fields-normalized-and-frozen",
     "explicit-components-preserved"
   ],

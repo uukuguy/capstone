@@ -226,7 +226,13 @@ def _validate_published_payload_fields(task, schemas):
         published = selected[0].get("payload_schema")
         if isinstance(published, Mapping):
             Draft202012Validator.check_schema(published)
-            error = next(Draft202012Validator(published).iter_errors(proposal.payload), None)
+            # An unresolved proposal is not an executable requirement. It may
+            # omit a nested input rather than invent a value. Keep all supplied
+            # values, unknown-field rules and the public outer shape validated.
+            # Resolution still stops every missing-input goal before Pack calls.
+            pending = bool(getattr(goal, "missing_requirements", ()))
+            error = next((item for item in Draft202012Validator(published).iter_errors(proposal.payload)
+                          if not (pending and item.validator == "required" and item.absolute_path)), None)
             if error is not None:
                 # Report trusted schema paths, never rejected user values or raw exceptions.
                 path = ".".join(str(part) for part in error.absolute_schema_path)

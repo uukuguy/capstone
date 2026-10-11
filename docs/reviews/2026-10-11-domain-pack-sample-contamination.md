@@ -158,3 +158,14 @@ the captured redundant gap is removed, the unknown multiplier stays unresolved,
 and the explicit undecided component choice stays unresolved. An earlier probe
 returned a malformed review and was rejected before execution; that failed probe
 is retained. These isolated replay results are not deployed Thread receipts.
+
+On the exact deployed f0d9b41, the redundant-gap and undecided-component probes
+pass. The unknown-multiplier review correctly preserves its gap and omits the
+factor, but Application schema validation rejects that pending proposal. This
+is a second framework mismatch, not a numerical execution failure. Pending
+goals now may omit nested required inputs while all supplied values and the
+outer shape remain checked. Missing-input resolution still stops before Pack
+calls. Without a gap, full validation remains required. The red test reproduces
+the mismatch;84 recognition/understanding/resolution tests pass and independent
+review approves. The pending/executable distinction is recorded in the owning
+framework contract. Exact deployment verification remains outstanding.

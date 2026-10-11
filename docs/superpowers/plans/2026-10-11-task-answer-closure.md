@@ -70,6 +70,13 @@ component requests and true unresolved choices remain distinct.52 Pack tests and
 source review pass. Verify the captured proposal, true unresolved component choice,
 and the deployed load-change Thread before any baseline or human handoff claim.
 
+Exact f0d9b41 replay resolves the redundant gap and preserves the component
+choice, but rejects an honest missing-factor proposal as structurally incomplete.
+Application validation now distinguishes pending input proposals from executable
+requirements: missing nested inputs are allowed only while a gap remains; all
+supplied values and outer fields stay checked.84 focused tests and source review
+pass. Deployment and its original-proposal replay remain separate acceptance.
+
 ## Source acceptance checkpoint
 
 Whole-source independent review approved; full test, E2E, validate and source/validation type gates passed. Fresh precommit checks:38 passed, including actual Authority coverage and formal-message separation. local-dev rebuild, actual App/API acceptance, exact remote CI and integration remain required. The next baseline must precede Research Model implementation; preserve the existing research experiment as a reference.

@@ -7,6 +7,31 @@ import pytest
 from types import SimpleNamespace
 
 
+@pytest.mark.parametrize("gap, invalid, allowed", [
+    (True, None, True), (False, None, False),
+    (True, "unknown-field", False), (True, "wrong-type", False),
+])
+def test_pending_input_proposal_can_omit_nested_required_values_only(gap, invalid, allowed):
+    from capstone_agent.task_recognition import _validate_published_payload_fields
+    schema = {"binding_id": "test", "schema": "test/1", "payload_fields": {"changes": [{}]},
+        "payload_schema": {"type": "object", "additionalProperties": False, "required": ["changes"],
+            "properties": {"changes": {"type": "array", "items": {"type": "object",
+                "additionalProperties": False, "required": ["factor"],
+                "properties": {"factor": {"type": "number", "exclusiveMinimum": 0}}}}}}}
+    item = {}
+    if invalid == "unknown-field": item["private"] = "value"
+    if invalid == "wrong-type": item["factor"] = "unknown"
+    payload = {"changes": [item]}
+    domain = SimpleNamespace(binding_id="test", schema="test/1", payload=payload)
+    task = SimpleNamespace(goals=(SimpleNamespace(domain_request=domain,
+        missing_requirements=("Parameter is not yet chosen",) if gap else ()),))
+    if allowed:
+        _validate_published_payload_fields(task, (schema,))
+        assert payload == {"changes": [{}]}  # No invented executable value.
+    else:
+        with pytest.raises(ValueError): _validate_published_payload_fields(task, (schema,))
+
+
 @pytest.mark.parametrize("value", [["line"], "private invalid value"])
 def test_published_json_schema_rejects_nested_enum_without_echoing_values(value):
     from capstone_agent.task_recognition import _validate_published_payload_fields

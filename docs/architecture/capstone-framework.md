@@ -52,6 +52,16 @@ model still requires an explicit Domain Pack contract and authority admission.
 Accepted recognition decisions, executor identity and child task identity are fixed
 for retry. An unknown prior execution outcome must not trigger blind side-effect replay.
 
+An accepted task-understanding record can describe a pending clarification; it
+is not necessarily an executable Domain Pack requirement. When a goal declares
+missing inputs, its proposal may omit required nested input fields. The
+application still validates the public outer shape and every supplied value,
+including types, enums and unknown-field restrictions. It supplies no guessed
+value. Such a goal resolves to clarification before any Pack capability check
+or execution. A proposal without missing inputs must satisfy the full published
+schema before resolution; the Pack then owns complete execution requirements.
+Pending proposals are never certified as complete business requests.
+
 ### Shared business context and role resources
 
 This subsection records the accepted Pi/skills branch design. Its complete
