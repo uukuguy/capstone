@@ -77,3 +77,20 @@ def test_chinese_missing_requirements_do_not_gain_english_process_prefix():
     resolved = resolve_profiles(claim, ())
     answer = render_conclusions((TaskConclusion("g", "clarification", resolved[0].reason),), language="zh", scale="concise")
     assert answer == "请确认线路标识。"
+
+
+def test_pending_typed_proposal_never_checks_or_calls_pack():
+    from capstone_agent.task_resolution import resolve_profiles
+    from capstone_agent.task_understanding import DomainTaskProposal
+    class ForbiddenPack:
+        def required_capabilities(self, payload):
+            raise AssertionError("Pending input must not reach Pack validation or execution")
+    binding = SimpleNamespace(runtime=SimpleNamespace(profile=SimpleNamespace(task_provider=ForbiddenPack())))
+    profiles = (SimpleNamespace(prepared_application=SimpleNamespace(bindings={"test": binding})),)
+    proposal = DomainTaskProposal("test", "test/1", '{"changes":[{}]}')
+    goal = SimpleNamespace(id="g", execution="professional", missing_requirements=("Multiplier is not chosen",),
+                           domain_request=proposal, dependencies=())
+    result, = resolve_profiles(SimpleNamespace(task_understanding=SimpleNamespace(goals=(goal,))), profiles)
+    assert result.status == "clarification" and result.execution_required is False
+    assert result.requirement_json == "{}"
+    assert proposal.payload == {"changes": [{}]}

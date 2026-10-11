@@ -79,4 +79,20 @@ pass. Deployment and its original-proposal replay remain separate acceptance.
 
 ## Source acceptance checkpoint
 
+### Latest local business checkpoint51f4715
+
+Whole-load semantics, pending-input proposal validation and partial verified AC
+evidence retention are deployed through the canonical rebuild. Exact511-file
+identity and image00e64fdf pass. Overall provider-1cfbb0ad38fc40ea:8 cases/10 turns
+pass screening and independent business review; frozen load19 P/Q scaling and
+changed-context evidence, index7 outage overload, simple AC and overview history
+transitions verified. Three captured-proposal Provider review probes pass
+separately; they are seeded recognition reviews, not Thread executions.
+Filtered branch uses original failed-artifact replay plus focused negatives;
+latest outage Thread uses full checks. Running/completed window browser checks
+pass. Receipts input-gap-51f4715-review and filtered-contingency-51f4715-review
+are explicitly selected from the overall run. Human verification and integration
+remain pending; no new baseline or Research R1 yet. Generation boundary repetition
+and general completion-contract gaps remain open.
+
 Whole-source independent review approved; full test, E2E, validate and source/validation type gates passed. Fresh precommit checks:38 passed, including actual Authority coverage and formal-message separation. local-dev rebuild, actual App/API acceptance, exact remote CI and integration remain required. The next baseline must precede Research Model implementation; preserve the existing research experiment as a reference.

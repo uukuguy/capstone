@@ -182,3 +182,26 @@ and keeps DC rejection and child/evidence integrity checks. The original failed
 artifact now returns partial with the original references, without recalculation.
 54 Pack checks plus the independent filtered-union negative pass; source review
 approves. Exact-source deployment and Thread acceptance are still required.
+
+## Exact local candidate51f4715 verification
+
+Canonical rebuild verifies511 source files per backend role, the same image
+00e64fdf and clean App51f4715. provider-1cfbb0ad38fc40ea records8 cases/10 real
+Thread turns. Screening and independent business review pass. Frozen bus name31
+resolves load19; P/Q both scale1.3, yielding11.96MW/5.98Mvar. Accepted evidence
+uses the changed context/revision. Index7 outage uses AC and complete four-category
+checks; line11 overload103.329% against100% matches the answer. Two simple AC
+turns execute; three overview turns avoid unrelated generator-gap text.
+
+Three captured-proposal review probes pass separately: redundant gap removed,
+unknown multiplier and undecided components preserved. Each has one seeded call
+and one actual Provider review, not a Thread run. Repair receipts explicitly
+reuse overall observations. Latest outage uses complete checks; filtered branch
+proof is original failed-artifact replay plus focused negatives, not that Thread.
+Filtered unions and DC still cannot certify complete AC coverage.
+
+Actual running/completed browser checks pass: one latest action,9px font,4.5px
+gap, full160px scrolling, completed default collapsed. Human verification remains
+pending, PR13 draft; no new baseline or cloud/demo acceptance. Generation boundary
+text repeats twice, endpoint compatibility goal coverage remains uncertified.
+General completion-contract gaps remain open. Historical failures are retained.
