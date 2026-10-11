@@ -103,7 +103,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
             raise ValueError("Invalid key commit row")
         identity, revision, lane, title, status, changes, package = map(plain, row)
         sha = git("rev-parse", revision + "^{commit}")
-        nodes.append(dict(id=identity, sha=sha, lane=lane, title=title,
+        nodes.append(dict(id=identity, sha=sha, lane="main" if lane == "release" else lane,
+                          release_point=lane == "release", title=title,
                           status=status, changes=changes, package=package,
                           tags=git("tag", "--points-at", sha).splitlines()))
     for stage in environments:

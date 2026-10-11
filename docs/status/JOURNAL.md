@@ -2466,3 +2466,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-11 Merged exact reviewed PR9 and PR10 through protected App publishing; main723b8e8, deployed local source2473e48 unchanged.
 - 2026-10-11 Created default dev from accepted main; verified both protections and retargeted document PR11 without administrator bypass.
 - 2026-10-11 Approved dev governance review;68 focused checks, doctor and browser edges passed; optional Docker tests not selected.
+- 2026-10-11 Established dev integration, trusted Issue routing and scoped CI to separate development from release; cfa6c1c.
+- 2026-10-11 Published exact2473e48 local technical baseline B2 with human/cloud limits; archived and closed merged PR9/10 branch names.
+- 2026-10-11 Merged reviewed PR11 into dev50d8ebc after exact CI: Linux60seconds, macOS131seconds; root switched to dev.
+- 2026-10-11 Created feat/research-model from accepted dev; preserved R0; archived and closed merged document branch without deleting worktrees.
+- 2026-10-11 Recorded accepted dev organization and Research Model start to align control documents with verified baseline; 8ae795e.
+- 2026-10-11 User requests dev/main environment prefixes, centered dev evolution and distinct main release-point background; sources remain unchanged.

@@ -10,15 +10,15 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 [任务理解与正式回答实施清单](../superpowers/plans/2026-10-11-task-answer-closure.md)：契约、识别、领域覆盖与实际应用验收分别留存；当前源码2473e48，本地技术验收通过，主线集成及人工产品验收另列。
 
-[研究模型演进计划](../superpowers/plans/2026-10-11-research-model-evolution.md)：R0受控实验已验证；R1研究模型、R2多轮连续性、R3自主推演、R4能力补齐、R5应用验收。未部署。
+[研究模型演进计划](../superpowers/plans/2026-10-11-research-model-evolution.md)：本地技术基线B2已登记；feat/research-model从接受的dev50d8ebc建立，R1尚无代码；R0受控实验保留参考。R1研究模型、R2多轮连续性、R3自主推演、R4能力补齐、R5应用验收。未部署。
 
 | File | Purpose |
 | --- | --- |
 | [项目推进控制全景](PROJECT-OVERVIEW.html) | 每次更新调用 ui-ux-pro-max 并重新排版验收；默认一屏，图标与标题同排，四环境绑定实际来源；demo 紧急修复直连已验收主线来源。Pi 包含业务数据共享，已合并分支退出主图。 |
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
-| [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | 合并后关闭分支规则与恢复依据；基础包 PR #6 分支已关闭，本地目录和精确归档引用保留；旧存储实验及未提交代码保留。 |
+| [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | local-dev已规范重建界面候选22acf1b，380项App测试及实际浏览器短窗/滚动/完成切换通过，待人工验证；local-demo保持ed2524f。回答增强识别491b23b与typed v2/routing8631af0已审查，后端闭环独立审查中，未部署。 |
+| [多线版本控制](VERSION-CONTROL.md) | dev保存当前控制记录，main保存发布快照；PR #9/#10/#11已集成，B2本地技术标签已推送，Research Model实施分支已建立；local-dev2473e48，demo/云端ed2524f，人工回答验收待完成。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
 | [并行开发运行准备](../superpowers/plans/2026-10-10-parallel-development-readiness.md) | 基础包已合并并关闭分支；当前计划同步了回答增强/Pi 归属、持续 PR 授权和独立发布验收；控制图与实际执行文件双向对齐。 |
