@@ -541,7 +541,7 @@ def test_m11_scripted_recognition_is_finite_and_provider_free(family, monkeypatc
 @pytest.mark.parametrize("review", ["satisfied", "unresolved", "invalid"])
 @pytest.mark.parametrize("schema", ["test/1", "capstone-professional-task/1"])
 @pytest.mark.parametrize("has_gap", [True, False])
-@pytest.mark.parametrize("composition", ["single", "mixed", "contracts"])
+@pytest.mark.parametrize("composition", ["single", "mixed", "contracts", "duplicate"])
 def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema, has_gap, composition):
     import copy
     import json
@@ -560,6 +560,8 @@ def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypat
                                     measure=None, missing_requirements=[])
         extra = copy.deepcopy(decision["goals"][0])
         extra.update(id="independent", purpose="Separate user objective")
+        if composition == "duplicate":
+            extra["purpose"] = decision["goals"][0]["purpose"]
         if composition == "mixed":
             extra.update(execution="general", scenario="none", domain_request=None)
         else:
@@ -575,6 +577,7 @@ def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypat
             timeouts.append(kwargs["timeout_seconds"])
             result = copy.deepcopy(decision)
             if len(prompts) == 2:
+                if composition == "duplicate": result["goals"].pop()
                 if review == "satisfied": result["goals"][0]["missing_requirements"] = []
                 if review == "invalid": result["goals"][0]["domain_request"]["payload"] = {}
             return json.dumps(result)
@@ -590,7 +593,7 @@ def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypat
     else:
         task = task_recognition.recognize_with_pi(claim, **arguments)
         assert bool(task.goals[0].missing_requirements) == (review == "unresolved" and has_gap and composition == "single")
-        assert len(task.goals) == (1 if composition == "single" else 2)
+        assert len(task.goals) == (1 if composition in {"single", "duplicate"} else 2)
     assert len(prompts) == 2
     assert prompts[1]["candidate"] == decision
     assert prompts[1]["request"] == prompts[0]["request"]

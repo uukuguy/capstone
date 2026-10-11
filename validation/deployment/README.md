@@ -49,8 +49,9 @@ existing cross-turn result-reuse regression. Mechanical evidence checks cannot
 prove adequate result presentation, requested cardinality or actual reuse.
 Independent review must inspect the original goal, execution answer, public
 answer, read/calculate tools and result lineage. An automatic pass alone does
-not pass these semantic requirements. The captured deployed turns currently
-fail this scope; no new acceptance claim is made.
+not pass these semantic requirements. The original failed deployed turns remain
+in the audit record. Each candidate needs its own actual acceptance receipt;
+a later pass does not erase a historical failure.
 
 On2026-10-12 the user separated the generation case's intent-routing acceptance
 from research completion. Its receipt records the immutable original request,
@@ -62,6 +63,14 @@ Historical failed receipts retain their original criteria and verdicts. All
 other overall cases keep their existing business-answer requirements.
 
 Upgrade manifests reuse case IDs rather than copying instructions. The
+[answer-reuse update](answer-reuse-update.json) selects load identity resolution
+and the original AC→top-three reuse dialogue. Its repair criteria are Authority
+lookup of an unqualified identifier, preservation of useful computed report
+facts, exact requested row count, and verified prior lineage without a new
+calculation. It does not require optional prose perfection or research completion.
+Record current-scenario evidence and phase timing in each actual receipt.
+
+The
 task-answer update checks prefix/contract/metadata repairs; the derived-context
 update checks executable derived contexts and exact scenario admission; the
 context-scope update checks unrelated overview text, whole-network AC scope and

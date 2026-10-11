@@ -1,6 +1,61 @@
 # Known issues and deferred work
 
+## Existing answer presentation and result reuse regressions — 2026-10-12
+
+Current1013dd2 repairs composed candidate review and independent-general-only
+execution. Canonical515-file/three-role/image329ae580/App source proof passed;
+actual4b19beeaa3d349c6 overall11 business+1 routing and selected3-turn update
+passed independent review; full AC/reuse/load/overview browser checks passed.
+Complex analysis taking tens of seconds or minutes is normal and does not fail
+acceptance by duration alone. Phase times are recorded; reuse's rejected tool
+attempt remains an optimization observation. fb6a921 failed2/12 overview turns due to duplicate
+contracts or general/business scenario misclassification; original reuse passed.
+207 tests/types/boundaries/review passed. Historical replay remains available;
+dependent-general handoff and professionally executing mixed isolation are open.
+
+Previousb5fcc63 adds the existing guide's unknown-namespace name/alias lookup.
+Actualdccbeb158aea4086 independently passed3 repair turns: correct load19/PQ×1.3,
+full computed reports and same-result three-row reuse without recalculation.
+Browser/source checks passed. Overallb5fcc63 failed the last reuse turn because
+network/all was incorrectly proposed for loading_percent. fb6a921 publishes
+existing branch-only ranking rules to bounded compiler correction; canonical
+source proof passed; its actual repeat failed2/12 as recorded above. Performance is open.
+Earliera4ea668 outcomes below remain historical, not the current verdict.
+
+Repair scope verified on locala4ea668: full AC prose and admitted constraint refs
+survive; follow-up re-admits frozen prior flow and shows lines21/11/26, with4 read
+calls and zero calculation/mutation. Independent2-turn update review PASS;
+overall repeated this path successfully, but overall11/12 FAIL due to the
+separate load namespace issue below. This does not establish a new baseline.
+See [actual repair report](../reviews/2026-10-12-answer-and-result-reuse.md).
+
+- User AC attempt33a3c110ac406d71 on locala634257 took40.423s overall:
+  routing875ms, compilation1030ms, execution35563ms, finalization1057ms.
+  The execution model produced a complete report with voltages, loading, losses
+  and constraint assessment. The typed formal-answer path replaced it with the
+  Pack coverage conclusion: convergence/loss and a limit-evaluation disclaimer.
+  This is a regression of existing presentation, not an unimplemented feature.
+- User follow-up attemptd93d84c1bfd5ac41 explicitly requested the current flow's
+  three highest-loaded lines. The compiled goal retained ranking intent but
+  objects=[], omitted output cardinality and did not encode result reuse. The
+  resolver correctly rejected that incomplete machine proposal before the
+  existing prior-result read path could run. User intent was already explicit.
+- Do not treat raw execution text as verified automatically, remove coverage
+  controls or bypass a frozen clarification. Recover the existing reader-facing
+  answer and result-read path while retaining explicit goal and evidence checks.
+- Overall corpus now has9 cases/12 turns; standard-result presentation and
+  flow-to-reused-ranking must be reviewed semantically. Prior9-business/1-route
+  acceptance does not establish this scope. This candidate is not accepted as
+  the next overall business baseline. No case-specific system prompt patch.
+
 ## Business compilation identity and conclusion coverage
+
+- Actuala4ea668 overall receiptc9a70df5226b4cf2 fails the load-scaling turn.
+  The compiler makes namespace a missing requirement while its proposal fills
+  an unconfirmed index31. No Authority identity query or calculation runs.
+  This is premature compiler clarification, not a load lookup failure.
+  Do not silently reinterpret the identifier, change a sample to pass, or claim
+  overall readiness from the completed answer/reuse update scope.
 
 - Actual9843b04 overall receipt115711f64191415d failed2/10. The overview route
   mismatch now enters bounded correction in8ec1e1a; actual receipt371209e3d9b14d97

@@ -1,10 +1,12 @@
 # 多线版本控制
 
-当前local-dev候选a634257已规范重建；三角色514项文件、同镜像8d64370f及App干净同源核验通过。首次创建、新模型打开及切换收敛到同一应用初始化实现；只解析一次身份，恢复保留精确选择，后续共用worker预热缓存。8ec1e1a整体9业务＋1路由已独立核对通过；9843b04失败收据保留，负荷对象身份与结论覆盖风险保持打开。负荷105.589秒主要在执行阶段，不属于轻量路由耗时。PR #13保持草稿；devc857837、main723b8e8及demo/云端未变，Research R1后置。
+2026-10-12：local-dev1013dd2同源重建、实际整体11业务＋1路由及专项3轮独立验收PASS，完整潮流/当前结果复用/概况转换浏览器通过，待人工验证。207项相关检查、类型/边界及复审通过；历史失败收据保留；尚不建立新基线。
+
+上一候选a634257统一初始化专项仍有效。1013dd2的515项三角色源码、镜像329ae580和干净App同源；实际4b19beeaa3d349c6整体9案例12轮通过，专项从同收据选取，独立复核通过。a4ea668/b5fcc63整体11/12、fb6a921整体10/12及更早失败保留。复杂分析几十秒至分钟属正常范围，分阶段记录；混合任务隔离未完成。PR #13草稿；devc857837、main723b8e8和demo/云端未变，Research R1后置。
 
 更新日期：2026-10-12。当前登记范围包含基线一本地验收、基础修订、全部现存分支进展及未提交存储工作；云端未更新运行版本。
 
-PR #9/#10已通过精确双平台CI并合入main723b8e8。PR #11文档及治理cfa6c1c已通过双平台CI并合入dev50d8ebc，PR #12已集成c857837；main保存发布基线快照。本地技术基线标签baseline-b2-local-20261011-1648-2473e48不可变；local-dev现为临时修复候选a634257，统一初始化已审查、重建和同源核对；local-demo及云端保持ed2524f。feat/research-model从接受的dev50d8ebc建立，R1尚未开始；R0实验保留。
+PR #9/#10已通过精确双平台CI并合入main723b8e8。PR #11文档及治理cfa6c1c已通过双平台CI并合入dev50d8ebc，PR #12已集成c857837；main保存发布基线快照。本地技术基线标签baseline-b2-local-20261011-1648-2473e48不可变；local-dev现为临时修复候选1013dd2，规范重建与实际整体/专项/浏览器通过，待人工；local-demo及云端保持ed2524f。feat/research-model从接受的dev50d8ebc建立，R1尚未开始；R0实验保留。
 
 当前全局记录以dev为准，main副本是发布快照。功能、修复、文档与治理PR面向dev；发布PR面向main。实验保留原始证据，按范围整理后集成，不能批量合并。两条永久分支禁止强推/删除、要求PR与原两平台Actions检查、0人工审批；管理员应急绕过仍保留，本次未使用。dev文档/治理按范围检查，未知改动走产品回归，main发布集成走完整门禁。详见[已批准设计](../superpowers/specs/2026-10-11-dev-integration-design.md)和[实施计划](../superpowers/plans/2026-10-11-dev-integration.md)。
 
@@ -28,7 +30,7 @@ main轻量保护已开启并回读核验：PR＋GitHub Actions两平台检查，
 
 每次更新控制图调用 `ui-ux-pro-max`，核对紧凑字号、间距与视觉层级、左右平衡和参考实现降级。状态不能只靠颜色。保留深青树提交与紫色部署提交、dev中栏演进、main发布点不同底色和四环境独立来源。生成后检查桌面一屏、间距两端、重叠、来源边、移动端与离线交互；有问题先修正。
 
-连接到同侧主线的分支和部署按来源顺序排列，避免倒置造成交叉。检查独立边交叉和穿过卡片，共享端点分叉不算交叉。local-dev挂修复候选a634257，demo及cloud挂ed2524f；工作线前缀和节点背景变化不改变Git来源或部署事实。
+连接到同侧主线的分支和部署按来源顺序排列，避免倒置造成交叉。检查独立边交叉和穿过卡片，共享端点分叉不算交叉。local-dev挂修复候选1013dd2，demo及cloud挂ed2524f；工作线前缀和节点背景变化不改变Git来源或部署事实。
 
 已确认推进顺序：收口基础修订 PR #6 并更新 local-dev → 核对数据兼容后恢复 local-demo 与 cloud-demo 的 `ed2524f` 基线对齐 → 从最新 main 建“任务理解与回答闭环”增强分支 → local-dev 分阶段验收 → 合并并冻结下一发布候选 → local-demo 产品验收 → cloud-dev 验证 → cloud-demo 计划发布。Pi/skills 和统一输入命令保留各自开发状态，不混入回答增强包；旧存储实验已归档。当前授权推进本地开发与验证，云发布仍需独立授权；尚未发生的合并、对齐和发布不得登记为完成。
 
@@ -71,7 +73,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从已接受dev开展Research Model R1；发布另按范围冻结 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8；dev组织验收50d8ebc，PR #11 CI Linux60秒/macOS131秒；本地B2技术标签已推送；demo与云端ed2524f |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
-| answers | 任务理解与回答闭环 | 2 | 候选已重建，统一入口专项通过，待人工 | 理解目标；冻结执行范围；以证据回答；模型预热与等待 | fix/deployment-answer-acceptance | 保留业务身份/结论覆盖风险，按范围集成dev；研究后置 | main c3b78bc | 首次创建与新模型打开共用初始化；并发复用、重试、租约恢复；编译路由纠错 | a634257真实生命周期与514项同源通过；68项创建/workspace/PG、类型和审查通过；8ec1e1a整体9业务＋1路由通过，9843b04失败保留；未合并 |
+| answers | 任务理解与回答闭环 | 2 | 整体与专项通过，待人工验证 | 理解目标；冻结执行范围；以证据回答；模型预热与等待；当前结果复用 | fix/deployment-answer-acceptance | 人工验证后按范围集成dev；记录阶段耗时；研究后置 | main c3b78bc | 完整正文；同Pack复用冻结；共享初始化；Authority标号解析；排序与组合契约；独立普通目标隔离 | 1013dd2规范重建515项同源；207项及类型/边界/审查通过；实际整体11业务＋1路由/专项3轮及浏览器通过；依赖与专业执行混合隔离未完成；未合并 |
 | pi | Pi 与 skills 能力扩展 | 3 | 实验分支 | 通用任务执行、完整业务上下文与数据共享、skills/MCP 与角色资源扩展 | feat/pi-skills-integration | 分支内设计实现当前模型数据投影和授权共享；验证真实业务输入与配置间效果 | 当前稳定能力（未排入发布） | 通用 Pi 与委派执行；skills/MCP 与专业结构检查；已有有限上下文；完整业务上下文和数据共享尚待实现；输入命令原型 /skills、/skill:<name>、/context | 完整业务上下文与数据共享归入本分支，不另列待推进包；输入原型不等于统一前端命令功能完成；尚无稳定发布验收 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
 | case | 独立 Case 模块产品接入 | 3 | 待范围设计 | 独立案例执行、状态查看与恢复入口 | — | 核对已有 Case 服务与当前对话入口，确定独立模块范围 | 已有独立 Case 执行基础 | 将 Case 作为完整模块接入产品；明确与普通对话的关系 | 底层已有能力，当前对话入口尚未组装完整模块；不视为从零开发 |
@@ -126,7 +128,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | baseline | a076b04 | main | 运行基线重整与本地隔离 | 已验收 | ed2524f → a076b04：实验 Pi/skills 与未验收回答实现移出运行代码；修正模型拓扑/历史接口；建立隔离 local-demo | main |
 | main | main | release | main · 发布基线主线 | 发布快照 | PR #9/#10已合入723b8e8；技术基线来源2473e48，真实业务样本失败；后续发布PR由dev冻结；云端未发布 | foundation |
 | dev | 50d8ebc | main | dev · 组织基线与研究起点 | 已集成，双平台通过 | PR #11已合并；当前全局文档与可信Issue路由在dev；治理CI Linux60秒/macOS131秒；feat/research-model从本提交建立；R1未实现，R0实验保留 | main |
-| answers | a634257 | repair | 回答与模型预热 · local-dev候选 | 专项通过，待人工 | 首次创建与打开新模型共用初始化；一次身份解析，恢复保留选择；worker预热与首条指令共用缓存；8ec1e1a整体9业务＋1路由通过，历史身份及结论覆盖风险保留；PR #13草稿 | answers |
+| answers | 1013dd2 | repair | 回答与结果复用 · local-dev候选 | 整体与专项通过，待人工验证 | 完整报告与冻结复用；组合候选纠正、独立普通目标无工具执行；515项同源/207项/类型/边界/审查通过；实际整体12轮及专项3轮/浏览器PASS；阶段耗时已记录，混合隔离未完成，PR #13草稿 | answers |
 | pi | feat/pi-skills-integration | feature | 通用 Pi、skills 与业务资源 | 功能在研，未发布 | 普通/专业路由、通用 Pi/委派执行、skills/MCP 与专业结构检查；输入命令原型 /skills、/skill:<name>、/context；已有身份与有限历史共享；待完成：完整业务上下文、当前模型数据投影与授权共享；待验收：真实业务输入与配置间效果 | pi |
 | research | experiment/autonomous-research | feature | Research Model · R0参考实验 | 保留参考，实施分支已建立 | R0来源c3b78bc，bf678f2；33测试/15节点/重放通过；受控策略，不代表自主研究验收；新实施分支feat/research-model从dev50d8ebc建立；R1待实现，未部署 | research |
 | answer-old | archive/answer-chain-unaccepted-20261010 | repair | 旧回答修复 · 防护复用来源 | 保留参考，未验收 | 已有结果/证据保留、诊断与展示防护；正式回答未过人工验收；供新增强分支复用有效防护，不原样合入或部署 | answers |
@@ -140,7 +142,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 10 | foundation | chore/iteration-gates | main | MERGED | 精确513a35e两平台CI通过，约32/26分钟；合并723b8e8；本地迭代/PR/发布门禁分层 |
 | 11 | main | docs/project-state-sync | dev | MERGED | 原34文件积累文档及dev治理cfa6c1c已集成50d8ebc；精确CI38126098431两平台通过；68本地检查与独立审查通过；不作为产品部署 |
 | 12 | main | docs/dev-baseline-control | dev | 状态见GitHub | 控制图维护记录：B2标签、合并分支关闭、Research Model起点；四环境dev/main前缀、中栏dev演进及main发布点独立底色；精确状态以链接为准，不作为产品部署 |
-| 13 | answers | fix/deployment-answer-acceptance | dev | DRAFT | 正式回答、轻量路由与统一模型初始化；a634257已提交和重建，真实专项通过；8ec1e1a整体9业务＋1路由独立复核通过；9843b04失败2轮与身份/结论风险保留，Issues保持打开 |
+| 13 | answers | fix/deployment-answer-acceptance | dev | DRAFT | 完整回答、轻量路由、统一初始化与当前结果复用；local-dev1013dd2实际整体11业务＋1路由/专项3轮独立验收及浏览器通过；历史失败与混合隔离风险保留，待人工，Issues保持打开 |
 
 ## 全部分支进展
 
@@ -152,7 +154,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev | 默认开发集成主线 | 从main723b8e8建立；PR #11合并50d8ebc；双平台治理CI通过 | 接收功能与研究实施，维护全局记录；main保持发布快照 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | Research Model实施 | 从dev50d8ebc建立，根工作区隔离目录.worktrees/research-model；尚无R1代码 | 按R1–R5阶段验收；新工作区测试前准备受管运行时；普通问答回归保留 | research |
-| fix/deployment-answer-acceptance | 部署业务样本与回答修复 | 从devc857837建立；d7ac7d9已推送PR #13草稿并临时部署local-dev；长期错误回归与本次专项分开维护 | 已复核实际专业Provider身份、冻结目标和当前场景结果；专项只判定修复目标，其他缺陷单列；整体验收撤回，框架三项修复与8案例10轮业务复核通过，待人工验证；CI只约束合并；尚未集成dev | answers |
+| fix/deployment-answer-acceptance | 部署业务样本与回答修复 | 从devc857837建立；PR #13草稿；local-dev1013dd2，长期错误回归与本次专项分开维护 | 已复核实际专业Provider身份、冻结目标和当前场景结果；实际整体9案例12轮/专项3轮与浏览器通过，待人工；复杂任务阶段耗时保留，混合隔离未完成；CI只约束合并，尚未集成dev | answers |
 | improve/run-process-window | 已被完整候选取代 | 22acf1b为早期界面验收来源；后续2473e48及当前d7ac7d9包含更紧凑窗口 | 保留来源参考，不继续作为当前部署候选；随PR #9收口 | answers |
 | improve/issue-4-active-recovery | 诊断工作区，产品源码未变 | 来源c3b78bc；4项生命周期检查确认隐藏页面恢复路径符合既有设计；Issue#4为ai:needs-info | 核对切后台/锁屏触发和实际时序；不猜测云端冷启动原因，不修改在线睡眠策略 | wake |
 | feat/pi-skills-integration | 实验在研 | 大量普通/专业问答路由、通用 Pi、skills、资源与业务上下文代码已保留 | 按依赖与验收范围分组；不直接进入 demo | pi |
@@ -250,7 +252,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | detached `.worktrees/issue-1-local-dev`；临时修复候选 `a634257` | 规范重建与514项/三角色同镜像及App同源通过；统一入口真实生命周期专项通过；整体验收来源8ec1e1a，执行性能及历史编译风险保留 | App `http://127.0.0.1:5173/`，API `8767`；重建 `runs/task-answer-closure/rebuild-a634257.log`；镜像8d64370f；PR #13草稿，未合并、未形成新基线 |
+| local-dev | detached `.worktrees/issue-1-local-dev`；临时修复候选 `1013dd2` | 规范重建515项同源；实际整体11业务＋1路由/专项3轮独立PASS，浏览器通过，待人工；阶段耗时与历史失败保留 | App `http://127.0.0.1:5173/`，API `8767`；重建 `runs/task-answer-closure/rebuild-1013dd2.log`；镜像329ae580；PR #13草稿，未合并、未形成新基线 |
 | local-demo | detached `.worktrees/demo-baseline`；线上精确基线 `ed2524f` | 已恢复与 cloud-demo 对齐；505 个后端文件/三角色同镜像、注册用例/报告/证据回放通过；原有事件保留。旧线上 App 无四环境徽标，随下一正式发布更新 | App `http://127.0.0.1:15173/`，API `18767`；用例 `runs/version-baseline-alignment/local-demo-ed-cases.json`；兼容验证入口 `runs/issue-automation-acceptance/local-demo-ed-wrapper-compatible.log` |
 | cloud-dev | `ed2524f`，历史标签 `cloud-dev-20261008-1941-ed2524f` | 未部署新版本；本次只读核对公开 App 仍为此来源，后端身份沿用验收记录 | App https://capstone-app-production-83ef.up.railway.app/；[验收报告](../reviews/2026-10-08-cloud-dev-app-version.md) |
 | cloud-demo | `ed2524f`，回滚标签 `demo-20261010-1231-ed2524f` | 只读核对公开 App 仍为回滚来源；后端身份沿用验收记录，已知问题仍开放 | App https://capstone-app-production-975e.up.railway.app/；[发布与回滚报告](../reviews/2026-10-10-demo-n1-release.md) |
@@ -266,7 +268,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 项目 | 来源/当前提交 | 状态与下一步 |
 | --- | --- | --- |
 | 现有 dev 的纯 Pi、skills、资源扩展及相关实验 | 原始快照 `archive/dev-before-baseline-20261010`：`ca062df`；`feat/pi-skills-integration` 实验代码 `fba1f51`；规范同步提交 `331f71c` | 从事故前 `e9aca89` 重新应用在共同基线上；测试文件仅清理末尾空行；已同步公共忽略规则与 main 管理规范；未重新部署或获得稳定发布验收；后续拆分依赖和合并范围 |
-| 公共回答链路修复 | [Issue #2](https://github.com/uukuguy/capstone/issues/2)；PR #9源码2473e48；修复PR #13；旧候选3e3bbfb保留参考 | B2技术标签不可变；local-deva634257统一入口、同源重建与真实专项通过；8ec1e1a整体9业务＋1路由通过。9843b04失败2轮保留，负荷身份/结论覆盖和执行性能风险未关闭。PR #13草稿；Issue保持打开，云端未更新 |
+| 公共回答链路修复 | [Issue #2](https://github.com/uukuguy/capstone/issues/2)；PR #9源码2473e48；修复PR #13；旧候选3e3bbfb保留参考 | B2技术标签不可变；local-dev1013dd2实际整体/专项与浏览器通过，待人工；复杂任务记录阶段耗时，混合隔离未完成。PR #13草稿，Issue打开，云端未更新 |
 | 基线一整理 | 云 demo 起点 `ed2524f`；运行基线 `2540bdc`；`release/demo-baseline-1` 固定候选 `a076b04`；整理分支 原 `integration/demo-baseline` 已归档，管理提交已在 main | 完整离线、集成、打包及两套本地实际入口验证通过；候选补入已验证的非运行忽略规则修复；已合并 main；云端推广未执行 |
 | 基线必要契约修正 | 归档 `fix/baseline-contracts`：`2540bdc` | 五个文件修正空事件/可选拓扑接口/凭据契约；13 个类型错误归零，Thread 46 项、pandapower 5 项、PyPSA 7 项针对性检查通过；不包含新 Pi 或回答策略 |
 | 本地 demo 管理守护 | 归档 `fix/local-demo-secret-ignore`：`a076b04` | 历史提交保留受保护环境文件的忽略规则；针对性检查通过；已回归 main、基线整理分支和 Pi/skills 分支；不改变运行代码或工件身份 |
