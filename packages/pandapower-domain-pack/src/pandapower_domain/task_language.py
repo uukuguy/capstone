@@ -16,6 +16,8 @@ _FIXED = {
     "Verified violation details: ": "已核验越限明细：",
     "Some verified violation details are not shown; the object list is incomplete.": "部分已核验越限明细未列出，对象清单尚不完整。",
     "Specify the requested ranking direction: ascending or descending.": "请明确所需排序方向：升序或降序。",
+    "No admitted prior result supports this requested scope and scenario. Select an existing result or request a calculation.": "已有准入结果尚不能支持请求的范围与场景。请选择已有结果，或请求执行计算。",
+    "The selected prior result and its evidence were not read and admitted for this attempt.": "本轮尚未读取并准入所选历史结果及其证据。",
     "The saved overview has no selected-model metadata. Submit a new request to describe the current model.": "历史概况未保存选中模型的元数据，请重新提交请求以介绍当前模型。",
     "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.": "能力介绍不能代替对象、数值或修改要求，请选择所需分析操作。",
     "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.": "请同时明确对象及所需指标；也可单独请求整个场景的收敛与损耗结果。",

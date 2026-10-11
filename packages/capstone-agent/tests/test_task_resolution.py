@@ -17,7 +17,7 @@ def test_prior_candidates_are_handed_only_to_the_selected_pack():
         def bind_result_candidates(self, task, *, authority, candidates):
             selected.extend(candidates)
             return task
-    runtime = SimpleNamespace(profile=SimpleNamespace(id="selected-pack", task_provider=Provider()),
+    runtime = SimpleNamespace(profile=SimpleNamespace(manifest=SimpleNamespace(domain_id="selected-pack"), task_provider=Provider()),
                               authority=object(), capability_documents=())
     binding = SimpleNamespace(runtime=runtime, endpoint=SimpleNamespace(executor=None))
     profile = SimpleNamespace(prepared_application=SimpleNamespace(bindings={"binding": binding}),

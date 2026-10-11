@@ -111,7 +111,10 @@ def resolve_profiles(claim, profiles):
                                         "scale": claim.task_understanding.answer_policy.scale})
         bind_candidates = getattr(provider, "bind_result_candidates", None)
         if callable(bind_candidates) and resolved.status == "ready":
-            pack_id = getattr(runtime.profile, "id", proposal.binding_id)
+            manifest = getattr(runtime.profile, "manifest", None)
+            pack_id = getattr(manifest, "domain_id", None)
+            if not isinstance(pack_id, str) or not pack_id:
+                raise ValueError("selected Pack manifest identity is unavailable")
             candidates = tuple((item.result_ref, item.evidence_refs)
                                for item in getattr(claim, "prior_results", ())
                                if item.domain_pack_id == pack_id)
