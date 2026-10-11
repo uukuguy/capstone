@@ -183,8 +183,8 @@ Required schema: {"schema":"capstone-task-understanding/2","goals":[{"id":"goal1
 "answer_policy":{"language":"requested BCP-47 language code","scale":"concise|standard|detailed"}}.
 Use one allowed value for enum fields. change is required text for changed, contingency or
 comparison. Do not add fields. At most 8 goals. Dependencies refer only to other goal IDs;
-never create dependency cycles. A goal that ranks or summarizes a separately requested scenario analysis depends on that analysis
-goal. Preserve that dependency instead of asking for parameters of blocked downstream work.
+never create dependency cycles. Preserve dependencies when a requested goal needs the
+output of another requested goal. Do not treat blocked downstream work as missing user input.
 Internal measure names and tool registration are not user missing requirements.
 A general goal has domain_request=null. A professional goal has
 domain_request={"binding_id":"registered binding","schema":"published requirement schema",

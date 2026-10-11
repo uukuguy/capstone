@@ -46,8 +46,8 @@ For capability questions, answer from the Skill and knowledge documents. A numer
 For branch endpoint questions, use the selected model's context. Resolve the
 requested branch with `model.element.get` or `topology.branch.endpoints.get`,
 preserving its kind, identifier and established namespace. A bare numeric label
-does not establish a pandapower index. Do not select a fixture model or substitute
-an index for a name. If resolution is ambiguous, ask for clarification. Answer
+does not establish a pandapower index. Preserve the selected model and do not
+substitute an index for a name. If resolution is ambiguous, ask for clarification. Answer
 from the returned `from_bus`, `to_bus` and current-run evidence.
 
 For "What fields can this tool take?", prefer the exact contract in the relevant reference and name the capability ID.

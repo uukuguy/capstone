@@ -22,7 +22,14 @@ Replace that execution default with selected-context and exact-selector rules.
 This supports the framework repair; it cannot substitute for resolver, execution
 or evidence verification. The user clarified that guide changes are permitted
 when justified, but prompt-only fixes must not hide framework defects.
-No recognition prompt or schema hint text is modified by this audit.
+The later prompt audit removes the generator-specific registration reminder from
+the model-facing schema rules. Capability availability remains a Pack resolver
+decision. The recognition dependency instruction is expressed for all dependent
+goals, without an outage/ranking-specific example. System policies and guides must
+stay reusable; concrete incident instructions belong only in validation samples.
+The network-elements reference had a second bare-label-to-index default and
+matching example. Both are removed in favor of established namespaces, Authority
+identity lookup and genuine ambiguity clarification.
 
 ## Retained general contract repairs
 

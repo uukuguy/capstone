@@ -12,14 +12,14 @@ acceptance. CI governs protected merge, not local verification or handoff.
 
 ## Source and deployment
 
-- Root: fix/deployment-answer-acceptance, HEAD d886b17, pushed draft PR13 to dev.
+- Root: fix/deployment-answer-acceptance, HEAD dbcd7fd, pushed draft PR13 to dev.
 - devc857837 and main723b8e8 unchanged; no merge or cloud promotion.
-- local-dev: detached .worktrees/issue-1-local-dev at838ea02, App5173/API8767.
-  Same-image receipt verifies511 backend files per role; image82bb9312.
+- local-dev: detached .worktrees/issue-1-local-dev atdbcd7fd, App5173/API8767.
+  Same-image receipt verifies511 backend files per role; image38ee0c50.
 - local-demo and recorded clouds remain ed2524f. Preserve data and credentials.
 - Research branch feat/research-model at50d8ebc; R1 not implemented.
 
-## Current uncommitted repairs
+## Committed framework repair and uncommitted prompt cleanup
 
 Whole-network scope no longer requires an element measure; overview removes the
 unrelated generator N-1 gap; endpoint guide no longer maps an unqualified example
@@ -29,6 +29,11 @@ details. Exact index/asset selectors use typed filters. Ordinary AC failure can
 report exact-scenario non-convergence evidence without numerical results.
 Contingency completeness now checks persisted Authority violation-type coverage
 and AC solver identity, rejecting filtered/DC results as full AC proof.
+
+The user requires generic system instructions, never incident-specific guidance.
+Remove the generator registration reminder from proposal rules; generalize goal
+dependencies; remove both endpoint-guide defaults from a bare numeric label to
+an index.83 recognition/Pack checks pass. This cleanup is not yet deployed.
 
 98 focused Pack/closure/sample checks and3 simulator contingency checks pass.
 Non-convergence red/green passed; real filtered/DC counterexamples failed before
