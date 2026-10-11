@@ -34,7 +34,13 @@ The actual-API runner is `python -m validation.deployment.run --allow-provider`.
 It requires protected `CAPSTONE_SAMPLE_API_ORIGIN` and
 `CAPSTONE_SAMPLE_OPERATOR_TOKEN` environment variables. Do not put tokens in
 arguments. The authorization switch is required before any network call.
-Its receipt is automated API screening only. Text screening and current-attempt
+Its receipt is automated API screening only. Fixture-specific checks may compare
+exact facts with registered Authority projections and frozen task contracts.
+Known process prefixes are regression checks, not intent classification. Word
+presence must not establish that a business goal was answered. Semantic review
+uses the original instruction, frozen task and admitted facts; an LLM may assist
+that review without replacing Authority truth or the product's LLM recognition.
+Mechanical answer checks and current-attempt
 projection checks cannot prove that the requested scenario, measure and scope
 were actually answered. Record and review the frozen task, admitted conclusions
 and Authority results against each sample's expected scenario. Read back the

@@ -49,6 +49,13 @@ Boundary, doctor, links and control-browser checks have
 separate local logs. Independent source review approves the application and Pack
 boundaries, and the screening tool's explicit pending acceptance state.
 
+The acceptance-tool clarification permits accurate checks for concrete fixtures.
+Mechanical checks retain explicit known-prefix regressions and admitted evidence
+contracts. Broad word-presence tests for overview, ambiguity and capability prose
+were removed: these cannot establish semantic correctness. The revised sample
+tool passes9 focused tests; positive screening still requires semantic review.
+Product intent recognition remains LLM-based.
+
 This record does not claim a deployed repair or successful business acceptance.
 Required next receipts: exact rebuilt API/worker/App identity, actual Provider
 sample execution, frozen-goal/scenario/Authority-result review, update/browser

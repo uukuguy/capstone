@@ -53,6 +53,9 @@ pass; Pack coverage28 and actual Authority conclusion E2E28 pass. Overview now
 freezes registered context.get metadata and includes current network sizes.
 The runner deliberately leaves Provider identity and semantic acceptance
 pending, even when text screening passes. No new Provider calls or deployment.
+The user permits accurate fixture-specific acceptance checks. Weak business
+word-presence checks were removed;9 sample-tool tests pass. Keep mechanical
+screening separate from semantic acceptance and preserve LLM intent recognition.
 Independent review approves source fix and screening-tool boundary. Real overview
 still requires full selected-model description and capabilities; generic prose
 alone fails. Do not claim product acceptance until all required samples pass.

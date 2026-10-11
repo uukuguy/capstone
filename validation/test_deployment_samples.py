@@ -6,9 +6,15 @@ import pytest
 from validation.deployment.checks import check_answer
 
 
-def test_overview_cannot_pass_with_only_generic_capability_prose():
-    assert "model_description_missing" in check_answer("model-and-capabilities", {
-        "answer": "支持潮流、负荷修改和支路 N-1 分析。", "result_refs": [], "evidence_refs": []})
+@pytest.mark.parametrize("answer", [
+    "支持潮流、负荷修改和支路 N-1 分析。",
+    "我无法确认39母线系统的线路情况，也无法提供分析。",
+])
+def test_mechanical_overview_checks_do_not_infer_meaning_from_words(answer):
+    # These texts require semantic review. Neither word presence nor absence
+    # establishes whether the requested model description is correct.
+    assert check_answer("model-and-capabilities", {
+        "answer": answer, "result_refs": [], "evidence_refs": []}) == []
 
 
 def test_public_process_prefix_blocks_chinese_handoff():
