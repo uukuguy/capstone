@@ -2088,6 +2088,17 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL 
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
+CREATE TABLE IF NOT EXISTS capstone_model_preparations (
+    thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
+    generation bigint NOT NULL DEFAULT 1,
+    lease_until timestamptz,
+    retry_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS capstone_pending_model_contexts (
+    thread_id text PRIMARY KEY REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
+    signature text NOT NULL,
+    model_context jsonb NOT NULL
+);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -2193,6 +2204,104 @@ class PostgresThreadService:
                 if statement.strip():
                     connection.execute(statement)
 
+    def request_model_preparation(self, thread_id: str) -> None:
+        """Queue worker-owned preparation; retain newer requests during a lease."""
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO capstone_model_preparations(thread_id)
+                SELECT thread_id FROM capstone_threads WHERE thread_id = %s AND NOT archived
+                ON CONFLICT(thread_id) DO UPDATE SET
+                generation = capstone_model_preparations.generation + 1,
+                retry_at = now()""", (thread_id,),
+            )
+
+    def claim_model_preparation(self, implementation_family: str | None = None) -> tuple[ThreadSnapshot, int, datetime] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT p.thread_id, p.generation FROM capstone_model_preparations p
+                JOIN capstone_threads t USING(thread_id)
+                WHERE NOT t.archived AND t.run_state = 'open'
+                AND (%s::text IS NULL OR COALESCE(t.pending_model_switch->>'implementation_family', t.implementation_family) = %s)
+                AND p.retry_at <= now() AND (p.lease_until IS NULL OR p.lease_until < now())
+                ORDER BY p.retry_at LIMIT 1 FOR UPDATE OF p SKIP LOCKED""",
+                (implementation_family, implementation_family),
+            ).fetchone()
+            if row is None:
+                return None
+            leased = connection.execute(
+                """UPDATE capstone_model_preparations SET lease_until = now() + interval '30 seconds'
+                WHERE thread_id = %s RETURNING lease_until""", (row["thread_id"],),
+            ).fetchone()
+            assert leased is not None
+            lease = leased["lease_until"]
+        with self._connect() as connection:
+            thread = connection.execute(
+                "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE", (row["thread_id"],),
+            ).fetchone()
+            if thread is None:
+                raise ThreadNotFound(row["thread_id"])
+            snapshot = self._snapshot_from_row(thread)
+            context = self._pending_preparation_context(connection, snapshot)
+        if context is not None:
+            snapshot = replace(snapshot, active_model_context=context)
+        return snapshot, row["generation"], lease
+
+    @staticmethod
+    def _pending_preparation_context(connection, snapshot: ThreadSnapshot) -> ModelContextSnapshot | None:
+        pending = snapshot.pending_model_switch or snapshot.pending_selection
+        if pending is None:
+            return None
+        current = snapshot.active_model_context
+        signature = hashlib.sha256(_canonical({
+            "run_id": snapshot.run.run_id, "current": current.to_document(),
+            "pending": pending.to_document(),
+        }).encode()).hexdigest()
+        if snapshot.pending_model_switch is not None:
+            switch = snapshot.pending_model_switch
+            context = ModelContextSnapshot(
+                id="ctx_" + secrets.token_hex(10), model_id=switch.model_id,
+                model_revision=switch.model_revision, implementation_family=switch.implementation_family,
+                selection_revision="sel_0", enabled_profiles=switch.enabled_profiles,
+            )
+        else:
+            context = replace(current,
+                selection_revision=_next_selection_revision(current.selection_revision, snapshot.last_event_seq),
+                enabled_profiles=pending.enabled_profiles)
+        row = connection.execute(
+            """INSERT INTO capstone_pending_model_contexts(thread_id, signature, model_context)
+            VALUES (%s, %s, %s) ON CONFLICT(thread_id) DO UPDATE SET
+            model_context = CASE WHEN capstone_pending_model_contexts.signature = excluded.signature
+                THEN capstone_pending_model_contexts.model_context ELSE excluded.model_context END,
+            signature = excluded.signature RETURNING model_context""",
+            (snapshot.thread_id, signature, Jsonb(context.to_document())),
+        ).fetchone()
+        assert row is not None
+        return ModelContextSnapshot.from_document(row["model_context"])
+
+    def finish_model_preparation(self, thread_id: str, generation: int, lease, *, succeeded: bool) -> None:
+        with self._connect() as connection:
+            if succeeded:
+                connection.execute(
+                    "DELETE FROM capstone_model_preparations WHERE thread_id = %s AND generation = %s AND lease_until = %s",
+                    (thread_id, generation, lease),
+                )
+            connection.execute(
+                """UPDATE capstone_model_preparations SET lease_until = NULL,
+                retry_at = now() + CASE WHEN %s THEN interval '0 seconds' ELSE interval '5 seconds' END
+                WHERE thread_id = %s AND lease_until = %s""", (succeeded, thread_id, lease),
+            )
+
+    def has_pending_model_preparation(self, implementation_family: str | None = None) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT EXISTS(SELECT 1 FROM capstone_model_preparations p
+                JOIN capstone_threads t USING(thread_id) WHERE NOT t.archived
+                AND t.run_state = 'open' AND (%s::text IS NULL OR COALESCE(t.pending_model_switch->>'implementation_family', t.implementation_family) = %s)) AS pending""",
+                (implementation_family, implementation_family),
+            ).fetchone()
+            assert row is not None
+            return row["pending"]
+
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
         initial_diagram = None
@@ -2232,6 +2341,7 @@ class PostgresThreadService:
                 self._insert_event(connection, event)
                 snapshot = replace(snapshot, last_event_seq=event.event_seq)
                 connection.execute("UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s", (event.event_seq, snapshot.thread_id))
+            connection.execute("INSERT INTO capstone_model_preparations(thread_id) VALUES (%s)", (snapshot.thread_id,))
         return snapshot
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
@@ -3558,14 +3668,8 @@ class PostgresThreadService:
         pending = snapshot.pending_model_switch
         assert pending is not None
         previous = snapshot.active_model_context
-        active = ModelContextSnapshot(
-            id="ctx_" + secrets.token_hex(10),
-            model_id=pending.model_id,
-            model_revision=pending.model_revision,
-            implementation_family=pending.implementation_family,
-            selection_revision="sel_0",
-            enabled_profiles=pending.enabled_profiles,
-        )
+        active = self._pending_preparation_context(connection, snapshot)
+        assert active is not None
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
             event_type=(
@@ -3623,12 +3727,8 @@ class PostgresThreadService:
         pending = snapshot.pending_selection
         assert pending is not None
         context = snapshot.active_model_context
-        revision = _next_selection_revision(context.selection_revision, snapshot.last_event_seq)
-        active = replace(
-            context,
-            selection_revision=revision,
-            enabled_profiles=pending.enabled_profiles,
-        )
+        active = self._pending_preparation_context(connection, snapshot)
+        assert active is not None
         event = self._make_control_event(
             thread, active, event_seq=snapshot.last_event_seq + 1,
             event_type="selection_activated",
@@ -3708,6 +3808,16 @@ class PostgresThreadService:
              event.model_context_id, event.selection_revision, event.occurred_at,
              event.visibility, Jsonb(event.payload)),
         )
+        if event.event_type in {
+            "model_workspace_changed", "model_context_change_pending", "selection_change_pending",
+            "model_context_activated", "model_context_reopened", "selection_activated",
+        }:
+            connection.execute(
+                """INSERT INTO capstone_model_preparations(thread_id) VALUES (%s)
+                ON CONFLICT(thread_id) DO UPDATE SET
+                generation = capstone_model_preparations.generation + 1, retry_at = now()""",
+                (event.thread_id,),
+            )
 
     def compact_before(self, thread_id: str, base_event_seq: int) -> None:
         with self._connect() as connection:

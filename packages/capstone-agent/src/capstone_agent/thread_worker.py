@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
+from datetime import datetime
+from .thread_protocol import ThreadSnapshot
 
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
@@ -172,6 +175,30 @@ def serve_thread_attempts(
                     sweep()
                 if case_service is not None:
                     case_service.reconcile_active()
+                claim_preparation = getattr(service, "claim_model_preparation", None)
+                prepare_model = getattr(runtime_factory, "prepare_model", None)
+                if callable(claim_preparation) and callable(prepare_model):
+                    # Bound each pass so a burst of model opens cannot starve Attempts.
+                    for _ in range(4):
+                        preparation = claim_preparation(implementation_family)
+                        if preparation is None:
+                            break
+                        snapshot, generation, lease = cast(tuple[ThreadSnapshot, int, datetime], preparation)
+                        succeeded = False
+                        started = time.monotonic()
+                        try:
+                            prepare_model(snapshot)
+                            succeeded = True
+                            _LOG.info("Model preparation completed: thread=%s context=%s duration_ms=%d",
+                                      snapshot.thread_id, snapshot.active_model_context.id,
+                                      round((time.monotonic() - started) * 1000))
+                        except Exception:
+                            _LOG.warning("Model preparation failed; execution can retry preparation")
+                        finally:
+                            finish_preparation = getattr(service, "finish_model_preparation")
+                            finish_preparation(
+                                snapshot.thread_id, generation, lease, succeeded=succeeded,
+                            )
                 result = run_pending_attempt(
                     service, runtime_factory, worker_id=worker_id,
                     lease_seconds=lease_seconds,
@@ -181,6 +208,8 @@ def serve_thread_attempts(
                 )
                 if case_service is not None:
                     case_service.reconcile_active()
+                pending_preparation = getattr(service, "has_pending_model_preparation", None)
+                has_preparation = bool(callable(pending_preparation) and pending_preparation(implementation_family))
             except Exception:
                 # A lost claim or unavailable ledger must not kill the polling
                 # thread. The ledger fences late writes and expires stale claims.
@@ -188,7 +217,9 @@ def serve_thread_attempts(
                 stop.wait(poll_seconds)
                 continue
             if result is None:
-                if wake_event is None:
+                if has_preparation:
+                    stop.wait(max(poll_seconds, 1))
+                elif wake_event is None:
                     stop.wait(poll_seconds)
                 else:
                     idle = True

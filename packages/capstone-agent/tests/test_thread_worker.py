@@ -45,6 +45,24 @@ def _submit(service: InMemoryThreadService) -> None:
     })
 
 
+def test_preparation_queue_probe_failure_does_not_stop_worker():
+    service = _service()
+    stop = Event()
+    probes = []
+
+    def pending(_family):
+        probes.append(True)
+        if len(probes) == 1:
+            raise OSError("temporary ledger failure")
+        stop.set()
+        return False
+
+    service.has_pending_model_preparation = pending
+    serve_thread_attempts(service, lambda claim: _Runtime(), stop_event=stop,
+                          wake_event=Event(), poll_seconds=.01)
+    assert len(probes) == 2
+
+
 def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None:
     service = _service()
     _submit(service)

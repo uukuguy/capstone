@@ -55,6 +55,170 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
+def test_model_preparation_survives_restart_and_fences_newer_requests(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.request_model_preparation(thread_id)
+    restarted = PostgresThreadService(service.dsn)
+    assert restarted.claim_model_preparation("pypsa") is None
+    snapshot, generation, lease = restarted.claim_model_preparation("pandapower")
+    assert snapshot.thread_id == thread_id
+    assert snapshot.current_attempt is None
+    assert restarted.claim_model_preparation("pandapower") is None
+    service.request_model_preparation(thread_id)
+    restarted.finish_model_preparation(thread_id, generation, lease, succeeded=True)
+    assert service.has_pending_model_preparation("pandapower")
+    snapshot, generation, lease = service.claim_model_preparation("pandapower")
+    service.finish_model_preparation(thread_id, generation, lease, succeeded=True)
+    assert not service.has_pending_model_preparation("pandapower")
+    assert service.read_events(thread_id, 0).events == ()
+
+
+@pytest.mark.parametrize("pending_kind", ["model", "selection"])
+def test_pending_model_preparation_identity_is_used_by_first_instruction(postgres_thread_service, pending_kind):
+    from test_task_recognition import pending_snapshot
+    service, thread_id = postgres_thread_service
+    before = pending_snapshot(_snapshot(thread_id), pending_kind)
+    service.create_thread(before)
+    service.request_model_preparation(thread_id)
+    prepared, generation, lease = service.claim_model_preparation()
+    assert prepared.active_model_context != before.active_model_context
+    assert prepared.current_attempt is None
+    service.finish_model_preparation(thread_id, generation, lease, succeeded=True)
+    assert service.submit_command(_command(thread_id)).status == "accepted"
+    claim = service.claim_attempt("worker", 30)
+    assert claim.model_context == prepared.active_model_context
+
+
+def test_worker_drains_more_than_one_preparation_batch_without_another_wake(postgres_thread_service):
+    from dataclasses import replace
+    from threading import Event, Thread
+    from capstone_agent.thread_worker import serve_thread_attempts
+    service, thread_id = postgres_thread_service
+    stop, wake = Event(), Event()
+    ids = [thread_id + "_" + str(index) for index in range(5)]
+    seen = []
+
+    class Factory:
+        def __call__(self, claim):
+            pytest.fail("preparation must not execute a task")
+
+        def prepare_model(self, snapshot):
+            seen.append(snapshot.thread_id)
+            if len(seen) == 5:
+                stop.set()
+
+    try:
+        for index, identity in enumerate(ids):
+            snapshot = _snapshot(identity)
+            service.create_thread(replace(snapshot, run=replace(snapshot.run, run_id="run_" + identity[4:])))
+            service.request_model_preparation(identity)
+        worker = Thread(target=serve_thread_attempts, args=(service, Factory()),
+                        kwargs={"stop_event": stop, "wake_event": wake, "implementation_family": "pandapower"})
+        worker.start()
+        worker.join(5)
+        assert not worker.is_alive()
+        assert set(seen) == set(ids)
+    finally:
+        stop.set()
+        wake.set()
+        if "worker" in locals():
+            worker.join(2)
+        with psycopg.connect(service.dsn) as connection:
+            connection.execute("DELETE FROM capstone_threads WHERE thread_id = ANY(%s)", (ids,))
+
+
+def test_worker_recovers_failed_preparation_without_another_wake(postgres_thread_service):
+    from threading import Event, Thread
+    from capstone_agent.thread_worker import serve_thread_attempts
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.request_model_preparation(thread_id)
+    stop, wake = Event(), Event()
+    seen = []
+
+    class Factory:
+        def __call__(self, claim):
+            pytest.fail("preparation must not execute a task")
+
+        def prepare_model(self, snapshot):
+            seen.append(snapshot.thread_id)
+            if len(seen) == 1:
+                raise RuntimeError("transient preparation failure")
+            stop.set()
+
+    worker = Thread(target=serve_thread_attempts, args=(service, Factory()),
+                    kwargs={"stop_event": stop, "wake_event": wake, "implementation_family": "pandapower"})
+    try:
+        worker.start()
+        worker.join(8)
+        assert not worker.is_alive()
+        assert seen == [thread_id, thread_id]
+        assert not service.has_pending_model_preparation("pandapower")
+    finally:
+        stop.set()
+        wake.set()
+        worker.join(2)
+
+
+def test_expired_preparation_lease_is_reclaimed_and_old_ack_is_fenced(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.request_model_preparation(thread_id)
+    _, generation, old_lease = service.claim_model_preparation()
+    with psycopg.connect(service.dsn) as connection:
+        connection.execute("UPDATE capstone_model_preparations SET lease_until = now() - interval '1 second' WHERE thread_id = %s", (thread_id,))
+    _, new_generation, new_lease = PostgresThreadService(service.dsn).claim_model_preparation()
+    service.finish_model_preparation(thread_id, generation, old_lease, succeeded=True)
+    assert service.has_pending_model_preparation()
+    service.finish_model_preparation(thread_id, new_generation, new_lease, succeeded=True)
+    assert not service.has_pending_model_preparation()
+
+
+def test_pending_identity_freeze_holds_thread_lock_against_a_new_selection(postgres_thread_service, monkeypatch):
+    from dataclasses import replace
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from test_task_recognition import pending_snapshot
+    service, thread_id = postgres_thread_service
+    before = pending_snapshot(_snapshot(thread_id), "selection")
+    service.create_thread(before)
+    service.request_model_preparation(thread_id)
+    entered, release, writing = Event(), Event(), Event()
+    original = PostgresThreadService._pending_preparation_context
+
+    def freeze(connection, snapshot):
+        entered.set()
+        assert release.wait(3)
+        return original(connection, snapshot)
+
+    monkeypatch.setattr(PostgresThreadService, "_pending_preparation_context", staticmethod(freeze))
+
+    def change_selection():
+        writing.set()
+        pending = replace(before.pending_selection, command_id="cmd_new_selection")
+        with psycopg.connect(service.dsn) as connection:
+            from psycopg.types.json import Jsonb
+            connection.execute("UPDATE capstone_threads SET pending_selection = %s WHERE thread_id = %s",
+                               (Jsonb(pending.to_document()), thread_id))
+        service.request_model_preparation(thread_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        preparing = pool.submit(service.claim_model_preparation)
+        assert entered.wait(1)
+        changing = pool.submit(change_selection)
+        assert writing.wait(1)
+        assert not changing.done()
+        release.set()
+        first, generation, lease = preparing.result()
+        changing.result()
+    service.finish_model_preparation(thread_id, generation, lease, succeeded=True)
+    second, generation, lease = service.claim_model_preparation()
+    service.finish_model_preparation(thread_id, generation, lease, succeeded=True)
+    assert service.submit_command(_command(thread_id)).status == "accepted"
+    assert service.claim_attempt("worker", 30).model_context == second.active_model_context
+
+
 def test_postgres_task_decision_survives_restart_and_compaction(postgres_thread_service):
     from capstone_agent.task_recognition import accept_task
     from capstone_agent.task_understanding import recognize_decision

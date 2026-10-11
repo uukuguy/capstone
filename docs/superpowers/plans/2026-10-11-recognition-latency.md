@@ -1,5 +1,23 @@
 # Recognition latency and ordinary-answer repair
 
+## Complete model-opening preparation — approved 2026-10-12
+
+The user requires this scope to be completed before the next local handoff.
+Opening, restoring or switching a model queues a durable worker operation.
+The API returns without waiting for the remote worker wake. Workers prepare
+registered contributions without an LLM request, calculation or task evidence.
+First execution borrows the same exact thread/run/model/selection context.
+Pending model and capability changes freeze their future context in PostgreSQL;
+activation uses that same identity. Requests use leases and generation fencing.
+Workers drain bounded batches and recover retries and expired leases without
+another browser request. Process caches keep existing capacity, expiry and
+cleanup rules; a changed worker configuration starts a new owner.
+
+Verification covers concurrent first execution, pending activation identity,
+queue restart and newer-request fencing, more than one batch per wake, model
+switch reuse, actual first-instruction timing, whole business regression and
+exact local image/source identity. Completion requires a canonical local rebuild.
+
 The user accepted stable preparation reuse, per-instruction LLM understanding,
 separate recognition configuration and immediate waiting feedback. No keyword
 routing or example-specific prompt changes. Current observed recognition19.48s

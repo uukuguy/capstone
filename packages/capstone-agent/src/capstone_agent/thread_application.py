@@ -64,6 +64,13 @@ class FamilyRuntimeFactory:
         router = getattr(factory, "route_task", None)
         return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
 
+    def prepare_model(self, snapshot):
+        factory = self._factories.get(snapshot.active_model_context.implementation_family)
+        prepare = getattr(factory, "prepare_model", None)
+        if not callable(prepare):
+            raise RuntimeError("model preparation is unavailable for this family")
+        return prepare(snapshot)
+
     def routing_metrics(self, claim):
         factory = self._factories.get(claim.model_context.implementation_family)
         read = getattr(factory, "routing_metrics", None)
@@ -188,6 +195,11 @@ class PreparedApplicationPiRuntimeFactory:
         # Routing needs no prepared Pack, tool catalog or Authority model query.
         router = getattr(self._session_factory, "route_task", None)
         return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
+
+    def prepare_model(self, snapshot):
+        return self._context_owner.prepare_model(
+            snapshot.thread_id, snapshot.run.run_id, snapshot.active_model_context,
+        )
 
     def routing_metrics(self, claim=None):
         read = getattr(self._session_factory, "routing_metrics", None)
