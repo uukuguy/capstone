@@ -49,3 +49,18 @@ PR #6 已合并到 main `c3b78bc`，精确候选 `cfd6ad6` 的源码树与合并
 关闭本地及远端 `feat/issue-operational-readiness`。保留精确归档引用 `refs/archive/20261011/feat/issue-operational-readiness` 和原工作区；工作区转为 detached `cfd6ad6`，忽略的运行文件不删除。远端删除要求分支仍指向已验收 cfd6ad6，防止误删新增改动。PR、功能增量和验收记录留在主线 c3b78bc 节点，不保留孤立开发框。
 
 恢复：`git branch feat/issue-operational-readiness refs/archive/20261011/feat/issue-operational-readiness`。当前活动分支为 main、任务理解与回答闭环、Pi/skills；旧回答参考未合入，不作为本次已合并分支关闭。
+
+## 2026-10-11：dev建立与已合并分支关闭
+
+PR #9 source2473e48、PR #10 source513a35e、PR #11 sourcecfa6c1c已分别通过
+精确检查并合并。关闭本地及远端对应分支名；归档引用分别为
+`refs/archive/20261011/feat-task-answer-closure`、
+`refs/archive/20261011/chore-iteration-gates`、
+`refs/archive/20261011/docs-project-state-sync`。
+原回答与门禁工作区转detached，回答工作区新增日志保留；未删除目录或忽略数据。
+远端删除前核对已合并PR及仍指向精确源提交，失败先核对再重试。
+
+dev从main723b8e8建立，文档治理PR #11合入50d8ebc；main保持发布快照。
+feat/research-model从接受的dev50d8ebc建立，隔离工作区为.worktrees/research-model。
+旧R0、Pi和未合入参考分支均保留，不批量重写历史或合并实验。
+收据位于runs/task-answer-closure/{dev-organization-merge,research-model-branch,baseline-b2-publication}.json。

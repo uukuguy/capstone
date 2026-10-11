@@ -1,6 +1,6 @@
 # 线上到本地的功能范围核对
 
-更新日期：2026-10-11。当前集成main为c3b78bc；local-dev实际来源2473e48，local-demo与记录的云端来源为ed2524f。正式回答PR #9及门禁PR #10尚未合入；本次不构成云端发布验收。当前状态以[版本台账](VERSION-CONTROL.md)为准。
+更新日期：2026-10-11。main发布基线为723b8e8，dev组织基线为50d8ebc；PR #9/#10已进入main，PR #11文档与治理已进入dev。local-dev实际来源2473e48，local-demo与记录的云端来源为ed2524f。本地技术基线B2已推送，Research Model实施分支已建立但R1未实现；本次不构成云端发布或人工回答体验验收。当前状态以[版本台账](VERSION-CONTROL.md)为准。
 
 环境职责分为两组：local-dev对应cloud-dev的开发测试和发布验证；local-demo对应cloud-demo的线上复现、紧急修复和发布验证。local-demo已恢复到ed2524f，不随日常开发升级。两个本地同为e8a8d92、main为d70fc27是早期核对时的历史状态，已被后续验收取代。
 
