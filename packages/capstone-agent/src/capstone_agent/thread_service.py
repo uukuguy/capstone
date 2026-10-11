@@ -51,6 +51,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .model_opening import initialize_model_context
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
@@ -1771,18 +1772,16 @@ class InMemoryThreadService:
             and descriptor.implementation_family == active.implementation_family
         ):
             return None, "model_already_active"
-        selection = ModelCapabilitySelection.empty()
-        if self._capability_catalog is not None:
-            try:
-                selection = self._capability_catalog.resolve(descriptor, None)
-            except (KeyError, TypeError, ValueError):
-                return None, "selection_unavailable"
+        try:
+            context = initialize_model_context(descriptor, self._capability_catalog)
+        except (KeyError, TypeError, ValueError):
+            return None, "selection_unavailable"
         return PendingModelSwitchSnapshot(
             command_id=command["command_id"],
             model_id=descriptor.model_id,
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
-            enabled_profiles=selection.enabled_profiles,
+            enabled_profiles=context.enabled_profiles,
             reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
             fresh_context_reason=(
                 command["payload"].get("reason")
@@ -2030,23 +2029,12 @@ class ThreadCreator:
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
         )
-        if not descriptor.available:
-            raise ValueError(descriptor.unavailable_reason or "model_unavailable")
         available = getattr(self._service, "is_family_available", None)
-        if callable(available) and not available(descriptor.implementation_family):
-            raise ValueError("worker_unavailable")
-        enabled_profiles = (
-            self._capability_catalog.resolve(descriptor, selection).enabled_profiles
-            if self._capability_catalog is not None
-            else (() if selection is None else selection.enabled_profiles)
-        )
         token = secrets.token_hex(10)
-        context = ModelContextSnapshot(
-            id="ctx_" + token, model_id=descriptor.model_id,
-            model_revision=descriptor.model_revision,
-            implementation_family=descriptor.implementation_family,
-            selection_revision="sel_0",
-            enabled_profiles=enabled_profiles,
+        context = initialize_model_context(
+            descriptor, self._capability_catalog, selection,
+            family_available=(lambda family: bool(available(family))) if callable(available) else None,
+            context_id="ctx_" + token,
         )
         snapshot = ThreadSnapshot(
             thread_id="thr_" + token,
@@ -3639,18 +3627,16 @@ class PostgresThreadService:
             and descriptor.implementation_family == active.implementation_family
         ):
             return None, "model_already_active"
-        selection = ModelCapabilitySelection.empty()
-        if self._capability_catalog is not None:
-            try:
-                selection = self._capability_catalog.resolve(descriptor, None)
-            except (KeyError, TypeError, ValueError):
-                return None, "selection_unavailable"
+        try:
+            context = initialize_model_context(descriptor, self._capability_catalog)
+        except (KeyError, TypeError, ValueError):
+            return None, "selection_unavailable"
         return PendingModelSwitchSnapshot(
             command_id=command["command_id"],
             model_id=descriptor.model_id,
             model_revision=descriptor.model_revision,
             implementation_family=descriptor.implementation_family,
-            enabled_profiles=selection.enabled_profiles,
+            enabled_profiles=context.enabled_profiles,
             reason="explicit_reopen" if command["kind"] == "reopen_model_context" else "model_switch",
             fresh_context_reason=(
                 command["payload"].get("reason")
