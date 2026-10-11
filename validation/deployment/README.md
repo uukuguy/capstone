@@ -86,6 +86,13 @@ wording. Any rejected malformed review remains a failed probe, not a pass.
 
 ## Required records
 
+[filtered-contingency-update.json](filtered-contingency-update.json) selects the
+explicit outage case for valid filtered AC evidence retention. Partial results
+must retain real overload details and identify uncovered categories; they do
+not certify all constraints. Full-candidate preference, separate-filter rejection
+as a full certificate, and DC rejection are focused offline checks. The actual
+failed-run artifact replay is separate from a new deployed Thread receipt.
+
 Record the exact commit, API/worker image identity, App source, sample-set version,
 model revision, Provider/model identity, each Thread/Attempt, terminal state,
 public final answer and current-run result/evidence references. Save bounded

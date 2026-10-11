@@ -2,6 +2,7 @@
 import re
 
 _FIXED = {
+    " Some required constraint checks are not covered by retained evidence: ": " 部分所需约束检查未获当前保留证据覆盖：",
     "The requested AC power flow did not converge. The verified diagnostic provides no valid numerical operating result; loading and limit compliance cannot be concluded.": "请求的交流潮流未收敛。已核验诊断不提供有效运行数值，不能据此判断负载率或限值符合性。",
     "Verified violation details: ": "已核验越限明细：",
     "Some verified violation details are not shown; the object list is incomplete.": "部分已核验越限明细未列出，对象清单尚不完整。",

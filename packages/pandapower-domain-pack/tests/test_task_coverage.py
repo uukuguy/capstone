@@ -128,13 +128,60 @@ def test_contingency_cannot_certify_filtered_or_dc_constraint_scope(authority, o
         "context_ref": context["context_ref"], "branch_refs": [task.requirement["targets"][0]["asset_ref"]], **options})
     answer = provider.conclude(task, authority=verifier, result_refs=(result["result_ref"],),
                               evidence_refs=tuple(result["evidence_refs"]))
-    assert answer.status == "unresolved"
+    if "violation_types" in options:
+        assert answer.status == "partial"
+        assert "not covered by retained evidence" in answer.text
+        assert answer.result_refs == (result["result_ref"],)
+        assert answer.evidence_refs
+    else:
+        assert answer.status == "unresolved"
+
+
+@pytest.mark.parametrize("include_complete", [False, True])
+def test_filtered_contingency_retains_verified_overload_without_full_certificate(authority, include_complete):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="contingency", scenario="contingency", scope="subset",
+        objects=[{"kind": "line", "namespace": "pandapower_index", "identifier": "7"}]),
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=invoke)
+    arguments = {"context_ref": context["context_ref"], "branch_refs": [task.requirement["targets"][0]["asset_ref"]]}
+    partial = invoke("analysis.contingency.n_minus_one.run", {**arguments,
+        "violation_types": ["line_overload", "non_convergence"]})
+    results = [partial]
+    if include_complete: results.append(invoke("analysis.contingency.n_minus_one.run", arguments))
+    answer = provider.conclude(task, authority=verifier, result_refs=tuple(r["result_ref"] for r in results),
+        evidence_refs=tuple(dict.fromkeys(e for r in results for e in r["evidence_refs"])))
+    assert answer.status == ("supported" if include_complete else "partial")
+    assert "line index 11" in answer.text and "103.329" in answer.text and "limit 100" in answer.text
+    assert answer.result_refs and answer.evidence_refs
+    assert ("not covered by retained evidence" in answer.text) == (not include_complete)
+    if include_complete:
+        assert answer.result_refs == (results[-1]["result_ref"],)
+    else:
+        assert "bus_voltage_high" in answer.text
 
 
 def test_rejects_unknown_requirement_fields():
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     with pytest.raises(ValueError):
         PandapowerTaskProvider().resolve("g", proposal(shell="python"), context_ref="c", revision_ref="r", invoke=None)
+
+
+def test_separate_filtered_contingencies_do_not_form_full_certificate(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="contingency", scenario="contingency", scope="subset",
+        objects=[{"kind": "line", "namespace": "pandapower_index", "identifier": "7"}]),
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=invoke)
+    results = [invoke("analysis.contingency.n_minus_one.run", {"context_ref": context["context_ref"],
+        "branch_refs": [task.requirement["targets"][0]["asset_ref"]], "violation_types": scope})
+        for scope in (["line_overload", "non_convergence"], ["bus_voltage_low", "bus_voltage_high"])]
+    answer = provider.conclude(task, authority=verifier, result_refs=tuple(r["result_ref"] for r in results),
+        evidence_refs=tuple(dict.fromkeys(e for r in results for e in r["evidence_refs"])))
+    assert answer.status == "partial" and "not covered by retained evidence" in answer.text
+    assert len(answer.result_refs) == 1
 
 
 @pytest.mark.parametrize("direction", ["descending", None])

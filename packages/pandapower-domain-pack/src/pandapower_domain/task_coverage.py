@@ -14,6 +14,7 @@ _KINDS = {"bus", "load", "line", "trafo", "trafo3w", "gen", "sgen", "ext_grid", 
 _BRANCHES = {"line", "trafo", "trafo3w"}
 _OPERATIONS = {"overview", "powerflow", "limits", "contingency", "ranking", "compare"}
 _MEASURES = {None, "loading_percent", "p_from_mw", "p_to_mw", "pl_mw", "risk_score", "max_loading_percent"}
+_CONTINGENCY_CHECKS = {"line_overload", "bus_voltage_low", "bus_voltage_high", "non_convergence"}
 _SELECTOR_SCHEMA = {"type": "object", "additionalProperties": False,
     "required": ["kind", "namespace", "identifier"], "properties": {
         "kind": {"enum": sorted(_KINDS)},
@@ -420,29 +421,36 @@ class PandapowerTaskProvider:
         requested = {row["asset_ref"] for row in req["targets"]}
         targets = {row["asset_ref"]: row for row in req["targets"]}
         covered = {}
+        checked = {}
         used_results, used_evidence = [], []
-        for ref, doc in documents.items():
+        # Prefer a complete candidate per outage; do not combine independent
+        # filtered evaluations into a claimed complete certificate.
+        ordered = sorted(documents.items(), key=lambda item: len(item[1].get("violation_types", []))
+                         if isinstance(item[1].get("violation_types"), list) else 0, reverse=True)
+        for ref, doc in ordered:
             if doc.get("result_type") != "analysis.contingency.n_minus_one.aggregate":
                 continue
-            # Equal child and aggregate rows cannot establish that the Authority
-            # evaluated the requested AC constraint scope without filtering it.
+            # AC subsets are useful evidence, but cannot establish full coverage.
             violation_types = doc.get("violation_types")
             if (doc.get("solver", {}).get("operation") != "pandapower.runpp"
                 or not isinstance(violation_types, list)
                 or not all(isinstance(item, str) for item in violation_types)
-                or not {"line_overload", "bus_voltage_low", "bus_voltage_high", "non_convergence"} <= set(violation_types)):
+                or not violation_types or not set(violation_types) <= _CONTINGENCY_CHECKS):
                 continue
             scenarios = doc.get("scenarios")
             if not isinstance(scenarios, list) or type(doc.get("scenario_count")) is not int or doc.get("scenario_count") != len(scenarios):
                 raise SimulatorIntegrityError("contingency count is inconsistent")
             if any(row.get("branch_ref") not in requested for row in scenarios):
                 continue
+            if len({row.get("branch_ref") for row in scenarios}) != len(scenarios):
+                raise SimulatorIntegrityError("duplicate contingency coverage")
+            selected = False
             for ordinal, row in enumerate(scenarios):
                 branch = row.get("branch_ref")
                 if branch not in requested:
                     continue
                 if branch in covered:
-                    raise SimulatorIntegrityError("duplicate contingency coverage")
+                    continue
                 child_ref, ev_ref = row.get("scenario_result_ref"), row.get("evidence_ref")
                 child = authority.verify_result(child_ref).document
                 ev = authority.verify_evidence(ev_ref).document
@@ -472,8 +480,11 @@ class PandapowerTaskProvider:
                 if row.get("violations") != child.get("violations"):
                     raise SimulatorIntegrityError("contingency violation link is inconsistent")
                 covered[branch] = child
+                checked[branch] = set(violation_types)
                 used_evidence.append(ev_ref)
-            used_results.append(ref)
+                selected = True
+            if selected:
+                used_results.append(ref)
         if not covered:
             return conclusion("unresolved", "No admitted outage result covers the requested branch set. Run the resolved N−1 cases.")
         failed = sum(doc.get("converged") is False for doc in covered.values())
@@ -481,6 +492,9 @@ class PandapowerTaskProvider:
         missing_limits = any(doc.get("constraint_evaluation", {}).get("status") != "evaluated"
                              for doc in covered.values() if doc.get("converged") is True)
         text = f"Executed {len(covered)} of {len(requested)} requested branch outages. {violations} evaluated limit violations were found; {failed} cases did not converge."
+        missing_checks = set().union(*(_CONTINGENCY_CHECKS - scope for scope in checked.values()))
+        if missing_checks:
+            text += " Some required constraint checks are not covered by retained evidence: " + ", ".join(sorted(missing_checks)) + "."
         details_complete = True
         remaining_details = 20
         for branch, child in covered.items():
@@ -514,7 +528,7 @@ class PandapowerTaskProvider:
                 text += f" Partial Pack ordering: {len(scalar_cases)} of {len(requested)} cases have valid max_loading_percent values. "
             text += "; ".join(f"{labels[branch]}: {value:.6g}%" for branch, value in scalar_cases[:_display_limit(req)]) + "." + _display_note(req, len(scalar_cases))
             text += " This is an ordering of verified scenario scalars, not a separate Authority ranking result."
-        return conclusion("supported" if set(covered) == requested and not failed and not missing_limits and ranking_complete and details_complete else "partial",
+        return conclusion("supported" if set(covered) == requested and not failed and not missing_limits and not missing_checks and ranking_complete and details_complete else "partial",
                           text, used_results, tuple(dict.fromkeys(used_evidence)))
 
     def _ranking(self, req, documents, evidence, conclusion):

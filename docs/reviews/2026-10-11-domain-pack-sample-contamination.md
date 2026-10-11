@@ -169,3 +169,16 @@ calls. Without a gap, full validation remains required. The red test reproduces
 the mismatch;84 recognition/understanding/resolution tests pass and independent
 review approves. The pending/executable distinction is recorded in the owning
 framework contract. Exact deployment verification remains outstanding.
+
+The f0d9b41 overall receipt provider-9854b24ca74343f5 fails the explicit-index
+outage answer. Recognition and execution are correct: the Authority calculates
+the outage with line_overload/non_convergence filtering and reports line11 at
+103.329% against100%. The Pack discards that intact aggregate because it lacks
+full four-category coverage. This wrongly loses valid evidence; the correct
+conclusion is partial, with actual overload details and the missing retained
+categories, never a full certificate. The repair retains per-outage coverage,
+prefers complete candidates, does not combine filtered results into full coverage
+and keeps DC rejection and child/evidence integrity checks. The original failed
+artifact now returns partial with the original references, without recalculation.
+54 Pack checks plus the independent filtered-union negative pass; source review
+approves. Exact-source deployment and Thread acceptance are still required.

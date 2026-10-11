@@ -29,6 +29,15 @@ numerical defaults and published capability coverage do not change. Published
 task-schema metadata exposes this meaning to recognition and its bounded review;
 system prompts contain no incident-specific instructions.
 
+Contingency conclusions distinguish valid evidence from complete coverage.
+A verified AC result with filtered constraint categories remains usable as a
+partial conclusion, with its actual violations and current-run references.
+The conclusion lists categories not covered by the retained evidence. It does
+not assert that those calculations never happened. A complete certificate still
+requires every required category for each outage. Separate filtered results are
+not combined into a complete certificate; a complete candidate is preferred and
+only selected evidence is cited. DC results do not certify an AC task.
+
 ## 1. 文档目的
 
 本文回答以下三个问题：
