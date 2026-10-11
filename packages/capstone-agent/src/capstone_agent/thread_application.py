@@ -59,6 +59,16 @@ class FamilyRuntimeFactory:
             raise RuntimeError(f"implementation family is not registered: {family}")
         return factory(claim)
 
+    def route_task(self, claim, *, on_heartbeat):
+        factory = self._factories.get(claim.model_context.implementation_family)
+        router = getattr(factory, "route_task", None)
+        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
+
+    def routing_metrics(self, claim):
+        factory = self._factories.get(claim.model_context.implementation_family)
+        read = getattr(factory, "routing_metrics", None)
+        return read(claim) if callable(read) else {}
+
     def recognize_task(self, claim, *, on_heartbeat):
         factory = self._factories.get(claim.model_context.implementation_family)
         recognizer = getattr(factory, "recognize_task", None)
@@ -119,6 +129,14 @@ class ApplicationPiRuntimeFactory:
             self._session_factory(claim), runtime_mode=self._runtime_mode,
         )
 
+    def route_task(self, claim, *, on_heartbeat):
+        router = getattr(self._session_factory, "route_task", None)
+        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
+
+    def routing_metrics(self, claim=None):
+        read = getattr(self._session_factory, "routing_metrics", None)
+        return read() if callable(read) else {}
+
     def recognize_task(self, claim, *, on_heartbeat):
         recognizer = getattr(self._session_factory, "recognize_task", None)
         if not callable(recognizer):
@@ -166,13 +184,24 @@ class PreparedApplicationPiRuntimeFactory:
         self._network_projection_factory = network_projection_factory
         self.rollback_selection_on_failure = True
 
+    def route_task(self, claim, *, on_heartbeat):
+        # Routing needs no prepared Pack, tool catalog or Authority model query.
+        router = getattr(self._session_factory, "route_task", None)
+        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
+
+    def routing_metrics(self, claim=None):
+        read = getattr(self._session_factory, "routing_metrics", None)
+        return read() if callable(read) else {}
+
     def recognize_task(self, claim, *, on_heartbeat):
         recognizer = getattr(self._session_factory, "recognize_task", None)
         if not callable(recognizer):
             raise RuntimeError("prepared application task recognizer is unavailable")
         from .kernel_pi_session import PreparedKernelPiSessionFactory
         from .task_resolution import requirement_schemas
-        if isinstance(self._session_factory, PreparedKernelPiSessionFactory) and claim.kind != "send_ordinary" and claim.model_context.enabled_profiles:
+        if (isinstance(self._session_factory, PreparedKernelPiSessionFactory) and claim.kind != "send_ordinary"
+            and claim.model_context.enabled_profiles
+            and (getattr(claim, "task_route", None) is None or claim.task_route.route == "professional")):
             context = self._context_owner.acquire(claim)
             try:
                 schemas = requirement_schemas(tuple(getattr(contribution, "prepared") for contribution in context.contributions))

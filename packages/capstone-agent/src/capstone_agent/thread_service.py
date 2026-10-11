@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from capstone_model_capability_spi import ModelCapabilitySelection
 from capability_agent.domain.task import ResolvedTaskGoal, TaskConclusion
 from .task_understanding import MAX_INSTRUCTION_CHARS, MAX_REFERENCE_CHARS, MAX_HISTORY_CUTOFF, TaskRequest, TaskUnderstanding
+from .task_routing import TaskRoute
 from .task_recognition import task_state_from_events, task_acceptance_marker
 from copy import deepcopy
 
@@ -462,6 +463,7 @@ class AttemptClaim:
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
     task_request: TaskRequest | None = None
+    task_route: TaskRoute | None = None
     task_understanding: TaskUnderstanding | None = None
     task_certification: str = "pending"
     task_history: tuple[str, str] | None = None
@@ -480,6 +482,9 @@ class AttemptClaim:
             raise ThreadExecutionError("task certification is invalid")
         if self.task_understanding is not None and self.task_understanding.request != self.task_request:
             raise ThreadExecutionError("task understanding request is inconsistent")
+        if self.task_route is not None and (not isinstance(self.task_route, TaskRoute)
+                                           or self.task_route.request != self.task_request):
+            raise ThreadExecutionError("task route request is inconsistent")
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
             raise ThreadExecutionError("attempt previous instruction is invalid")
         if not isinstance(self.prior_results, tuple) or len(self.prior_results) > 8 or any(not isinstance(item, PriorResultReference) for item in self.prior_results):
@@ -651,6 +656,13 @@ def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim
             resolution_state_from_events([SimpleNamespace(event_type=event_type, payload=payload)], request=claim.task_request)
         except (ValueError, TypeError):
             raise ThreadExecutionError("task requirements binding is invalid") from None
+    if event_type == "task_route_created":
+        if set(payload) != {"routing"} or claim.task_request is None:
+            raise ThreadExecutionError("task route binding is invalid")
+        try:
+            TaskRoute.from_document(payload["routing"], request=claim.task_request)
+        except ValueError:
+            raise ThreadExecutionError("task route binding is invalid") from None
     if event_type in {"task_request_created", "task_understanding_created"}:
         key = "request" if event_type == "task_request_created" else "understanding"
         expected_fields = {"request", "history"} if key == "request" else {key}
@@ -1630,7 +1642,7 @@ class InMemoryThreadService:
                 raise ThreadExecutionError("attempt is not running")
             if visibility not in {"public", "diagnostic"}:
                 raise ThreadProtocolError("event visibility is invalid")
-            if event_type in {"task_request_created", "task_understanding_created", "task_requirements_resolved"}:
+            if event_type in {"task_request_created", "task_route_created", "task_understanding_created", "task_requirements_resolved"}:
                 previous = next((event for event in self._events if event.turn_id == claim.attempt.turn_id
                                  and event.event_type == event_type), None)
                 if previous is not None:
@@ -3366,7 +3378,7 @@ class PostgresThreadService:
             if not isinstance(current, dict) or current.get("attempt_id") != claim.attempt.attempt_id:
                 raise ThreadExecutionError("attempt snapshot is inconsistent")
             running = AttemptSnapshot.from_document(current)
-            if event_type in {"task_request_created", "task_understanding_created", "task_requirements_resolved"}:
+            if event_type in {"task_request_created", "task_route_created", "task_understanding_created", "task_requirements_resolved"}:
                 previous = connection.execute(
                     "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND turn_id = %s AND event_type = %s ORDER BY event_seq LIMIT 1",
                     (claim.thread_id, claim.attempt.turn_id, event_type)).fetchone()

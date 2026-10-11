@@ -28,6 +28,45 @@ def test_overview_clarification_cannot_pass_as_requested_information():
 from validation.deployment.checks import check_answer
 
 
+@pytest.mark.parametrize("route,expected", [
+    ("professional", []),
+    ("general", ["professional_route_missing"]),
+    ("invalid", ["professional_route_missing"]),
+])
+def test_routing_acceptance_does_not_claim_research_completion(route, expected):
+    from validation.deployment.checks import check_professional_route
+    event = SimpleNamespace(event_type="task_route_created", payload={"routing": {"route": route}})
+    assert check_professional_route([event]) == expected
+    assert check_professional_route([]) == ["professional_route_missing"]
+
+
+def test_route_sample_stops_before_downstream_research_terminal():
+    from validation.deployment.run import run_turn
+    active = SimpleNamespace(id="context", selection_revision="selection", model_revision="revision")
+    snapshot = SimpleNamespace(last_event_seq=0, active_model_context=active)
+    events = [SimpleNamespace(event_type=kind, occurred_at=stamp, payload=payload,
+        attempt_id="attempt_test", model_context_id="context", selection_revision="selection")
+        for kind, stamp, payload in [
+            ("command_accepted", "2026-10-12T00:00:00Z", {}),
+            ("task_recognition_timing", "2026-10-12T00:00:01Z", {"duration_ms": 900}),
+            ("task_route_created", "2026-10-12T00:00:01Z", {"routing": {"route": "professional"}})]]
+    commands = []
+    class Session:
+        thread_id = "thread"
+        def snapshot(self): return snapshot
+        def command(self, kind, payload):
+            commands.append(kind)
+            return SimpleNamespace(status="accepted", target={"attempt_id": "attempt_test"})
+        def events(self, **kwargs): return SimpleNamespace(next_event_seq=3, events=events)
+    result = run_turn(Session(), {"text": "open research question", "expect": "professional-routing",
+        "acceptance_stage": "intent-routing"}, {"profile_id": "test", "profile_version": "1"})
+    assert result["status"] == "passed" and result["research_completion"] == "deferred"
+    assert result["terminal"] == "routing_stage_observed"
+    assert result["timing"]["routing_ready_ms"] == 1000
+    assert result["timing"]["phases"]["recognition"]["duration_ms"] == 900
+    assert commands == ["send_auto", "cancel_live_attempt"]
+
+
 @pytest.mark.parametrize("answer", [
     "支持潮流、负荷修改和支路 N-1 分析。",
     "我无法确认39母线系统的线路情况，也无法提供分析。",

@@ -114,6 +114,10 @@ def build_registered_pandapower_thread_application():
         return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     setattr(build_session, "recognize_task", recognize_task)
+    setattr(build_session, "route_task", lambda claim, **kwargs: None if validation_builder is not None
+            else rpc_builder().route_task(claim, **kwargs))
+    setattr(build_session, "routing_metrics", lambda: {} if validation_builder is not None
+            else rpc_builder().routing_metrics())
     setattr(build_session, "recognition_metrics", lambda: {} if validation_builder is not None else rpc_builder().recognition_metrics())
     setattr(build_session, "close", lambda: None if validation_builder is not None or not rpc_builder.cache_info().currsize else rpc_builder().close())
     setattr(build_session, "sweep_idle", lambda: 0 if validation_builder is not None or not rpc_builder.cache_info().currsize else rpc_builder().sweep_idle())

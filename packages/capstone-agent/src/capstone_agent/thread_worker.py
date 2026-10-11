@@ -64,9 +64,9 @@ def _run_claimed_attempt(
         except TaskRecognitionConfigurationFailed:
             service.finish_attempt(claim, phase="failed", payload={"error_code": "runtime_configuration_invalid"})
             return HarnessAttemptResult("failed", None, "runtime_configuration_invalid")
-        except TaskRecognitionFailed:
-            service.finish_attempt(claim, phase="failed", payload={"error_code": "task_recognition_failed", "retryable": True})
-            return HarnessAttemptResult("failed", None, "task_recognition_failed")
+        except TaskRecognitionFailed as error:
+            service.finish_attempt(claim, phase="failed", payload={"error_code": error.error_code, "retryable": True})
+            return HarnessAttemptResult("failed", None, error.error_code)
     if claim.task_understanding is not None:
         from .task_resolution import accept_resolution, resolve_profiles
         try:

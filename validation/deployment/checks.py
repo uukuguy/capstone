@@ -2,6 +2,17 @@
 import re
 
 
+def check_professional_route(events):
+    """Verify accepted routing only; execution and research remain separate."""
+    accepted = [event.payload.get("routing", {}) for event in events
+                if event.event_type == "task_route_created"]
+    if len(accepted) != 1:
+        return ["professional_route_missing"]
+    if accepted[0].get("route") != "professional":
+        return ["professional_route_missing"]
+    return []
+
+
 def check_answer(expectation, payload):
     text = payload.get("answer", "")
     failures = []

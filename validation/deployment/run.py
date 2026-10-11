@@ -11,7 +11,7 @@ import time
 import uuid
 
 from capstone_agent.thread_http import HttpThreadSession
-from validation.deployment.checks import check_answer
+from validation.deployment.checks import check_answer, check_professional_route
 
 
 def _validate_cases(manifest):
@@ -52,12 +52,13 @@ def summarize_timing(events, *, elapsed_ms, expectation):
         stamp = getattr(event, "occurred_at", None)
         if stamp is not None:
             times.setdefault(event.event_type, datetime.fromisoformat(stamp.replace("Z", "+00:00")))
-        if event.event_type in {"task_recognition_timing", "task_execution_timing", "task_finalization_timing"}:
+        if event.event_type in {"task_recognition_timing", "task_requirements_compilation_timing", "task_execution_timing", "task_finalization_timing"}:
             phases[event.event_type.removeprefix("task_").removesuffix("_timing")] = event.payload
     def span(start, end):
         return round((times[end] - times[start]).total_seconds() * 1000) if start in times and end in times else None
     terminal = next((name for name in ("attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted") if name in times), None)
     timing = {"client_elapsed_ms": elapsed_ms, "queue_ms": span("command_accepted", "attempt_started"),
+        "routing_ready_ms": span("command_accepted", "task_route_created"),
         "server_total_ms": span("command_accepted", terminal) if terminal else None,
         "first_tool_ms": span("command_accepted", "tool_started"), "phases": phases}
     review = []
@@ -90,9 +91,24 @@ def run_turn(session, turn, manifest, *, timeout=180):
             if event.model_context_id != active.id or event.selection_revision != active.selection_revision:
                 raise ValueError("sample_context_changed")
             observed.append(event)
+            if turn.get("acceptance_stage") == "intent-routing" and event.event_type == "task_route_created":
+                failed = check_professional_route(observed)
+                # This validation task stops here; it does not certify or time
+                # downstream research completion. Preserve the actual route.
+                cancel = session.command("cancel_live_attempt", {})
+                return {"instruction": turn["text"], "expectation": turn["expect"],
+                    "attempt_id": attempt, "thread_id": session.thread_id, "model_revision": active.model_revision,
+                    "terminal": "routing_stage_observed", "payload": {}, "failures": failed,
+                    "acceptance_stage": "intent-routing", "recognized_route": event.payload.get("routing"),
+                    "research_completion": "deferred", "downstream_cancellation": cancel.status,
+                    "timing": summarize_timing(observed, elapsed_ms=round((time.monotonic()-started)*1000),
+                        expectation=turn["expect"]), "status": "failed" if failed else "passed"}
             if event.event_type not in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}:
                 continue
-            failed = [event.event_type] if event.event_type != "attempt_completed" else check_answer(turn["expect"], event.payload)
+            routing_only = turn.get("acceptance_stage") == "intent-routing"
+            failed = (check_professional_route(observed)
+                      if routing_only else [event.event_type] if event.event_type != "attempt_completed"
+                      else check_answer(turn["expect"], event.payload))
             snapshot = session.snapshot()
             results = event.payload.get("result_refs", [])
             evidence = event.payload.get("evidence_refs", [])
@@ -105,6 +121,12 @@ def run_turn(session, turn, manifest, *, timeout=180):
             return {"instruction": turn["text"], "expectation": turn["expect"], "attempt_id": attempt,
                 "thread_id": session.thread_id, "model_revision": active.model_revision,
                 "terminal": event.event_type, "payload": event.payload, "failures": failed,
+                "acceptance_stage": turn.get("acceptance_stage", "business-answer"),
+                "research_completion": "deferred" if routing_only else "not_evaluated",
+                "recognized_route": next((e.payload.get("routing") for e in observed
+                    if e.event_type == "task_route_created"), None),
+                "recognized_goals": next((e.payload.get("understanding", {}).get("goals", [])
+                    for e in observed if e.event_type == "task_understanding_created"), []),
                 "timing": summarize_timing(observed, elapsed_ms=round((time.monotonic() - started) * 1000), expectation=turn["expect"]),
                 "status": "failed" if failed else "passed"}
         time.sleep(0.5)

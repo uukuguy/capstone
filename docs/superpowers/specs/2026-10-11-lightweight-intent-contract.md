@@ -1,5 +1,22 @@
 # Lightweight intent contract
 
+## Routing and downstream compilation — user correction2026-10-12
+
+Intent recognition is a light LLM classification, not a Domain Pack requirement
+compiler. Its model output contains only schema and general/professional route.
+The host binds that route to the unchanged original request and selected model;
+no business schema, measure, ordering, capability availability or input-gap
+validation belongs in this phase. Complex requests remain professional even
+when their research completion is unavailable. No keyword routing is introduced.
+
+After the route is persisted, the selected application compiles the existing
+typed task proposal with published Pack contracts. The compact intent wire below
+is the downstream compilation wire, not the routing output. Pack resolution,
+authority execution and answer admission keep their full checks. Routing and
+compilation use separate tool-free processes, timing events and failure codes.
+Both reuse bounded processes with acknowledged empty sessions. Retry preserves
+the original immutable route; implicit cross-turn history remains forbidden.
+
 The user requires lightweight LLM inference for intent recognition. Each new
 instruction still receives semantic inference, including bounded explicit
 conversation history. No keyword route or example-specific system guidance.

@@ -29,7 +29,7 @@ adding product prompts or changing capability behavior.
 
 | Case | Purpose | Business acceptance |
 | --- | --- | --- |
-| `generation-n1` | Original generation-outage request | Explain the actual capability boundary; never substitute branch outages or invent generator severity. |
+| `generation-n1` | Original complex research request | Verify professional routing for the selected grid model and preserve the original question; research completion belongs to Research Model and remains deferred. |
 | `line-outage` | Original ambiguous line label | Resolve the intended identity or explain a real ambiguity; any numerical answer uses that outage scenario. |
 | `load-scaling` | Changed-load limit assessment | Resolve actual loads, apply the exact factor, calculate and evaluate the changed scenario, with identified violations. |
 | `model-overview` | Basic model and available analysis | Answer both parts from selected-model facts and registered capabilities; no unrelated task text or unsolicited simulation. |
@@ -42,6 +42,15 @@ The first six cases retain observed conversation failures. The last two are
 explicitly labeled audit-derived coverage gaps. A legitimate capability boundary
 can satisfy a boundary case; it cannot satisfy a required calculation case.
 These are business acceptance cases, not exact wording or perfect-answer targets.
+
+On2026-10-12 the user separated the generation case's intent-routing acceptance
+from research completion. Its receipt records the immutable original request,
+accepted route and routing timing, then requests cancellation of this validation
+task's downstream work. It passes only the routing stage. Independent review must
+confirm the original subject and requested conclusions remain in the request.
+This pass never certifies generation-outage computation or severity ranking.
+Historical failed receipts retain their original criteria and verdicts. All
+other overall cases keep their existing business-answer requirements.
 
 Upgrade manifests reuse case IDs rather than copying instructions. The
 task-answer update checks prefix/contract/metadata repairs; the derived-context

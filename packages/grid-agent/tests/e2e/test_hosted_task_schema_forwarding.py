@@ -23,6 +23,11 @@ def test_registered_hosted_recognizer_forwards_public_schema(monkeypatch, tmp_pa
         return "controlled recognition"
     class Builder:
         recognize_task = staticmethod(recognize)
+        def route_task(self, claim, *, on_heartbeat):
+            on_heartbeat()
+            return "controlled route"
+        def routing_metrics(self):
+            return {"phase": "routing"}
         def __call__(self, *args):
             pytest.fail("recognition must not build execution session")
     monkeypatch.setattr(hosted, "select_validation_builder", lambda *_: Builder() if scripted else None)
@@ -38,6 +43,9 @@ def test_registered_hosted_recognizer_forwards_public_schema(monkeypatch, tmp_pa
         beats = []
         assert factory.recognize_task(claim, on_heartbeat=lambda: beats.append(1), requirement_schemas=schemas) == "controlled recognition"
         assert calls == [(claim, schemas)] and beats == [1]
+        monkeypatch.setattr(assembly.capability_context_owner, "acquire", lambda *_: pytest.fail("routing must not prepare a Pack"))
+        assert assembly.runtime_factory.route_task(claim, on_heartbeat=lambda: None) == (None if scripted else "controlled route")
+        assert assembly.runtime_factory.routing_metrics(claim) == ({} if scripted else {"phase": "routing"})
     finally:
         assembly.capability_context_owner.close()
 

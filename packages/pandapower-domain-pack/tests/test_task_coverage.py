@@ -39,6 +39,23 @@ def test_published_intent_constraints_enforce_operation_conclusion_relationships
     assert not validator.is_valid(goal("overview", "limit"))
 
 
+def test_limit_intent_keeps_change_targets_separate_from_full_scenario_coverage():
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["recognition_constraints"])
+    change = {"target": {"kind": "bus", "namespace": "name", "identifier": "sample-bus"},
+              "fields": [], "factor": 1.17}
+    payload = proposal(operation="limits", scenario="changed", changes=[change])
+    goal = {"conclusion": "limit", "scope": "full", "measure": None,
+            "domain_request": {"payload": payload}}
+    assert validator.is_valid(goal)
+    payload["objects"] = [change["target"]]
+    assert not validator.is_valid(goal)
+    payload["objects"] = []
+    payload["measure"] = "max_loading_percent"
+    assert not validator.is_valid(goal)
+
+
 @pytest.mark.parametrize("fields, expected", [([], ["p_mw", "q_mvar"]), (["p_mw"], ["p_mw"]), (["q_mvar"], ["q_mvar"])])
 def test_load_scaling_components_are_resolved_and_frozen_by_pack(authority, fields, expected):
     import copy

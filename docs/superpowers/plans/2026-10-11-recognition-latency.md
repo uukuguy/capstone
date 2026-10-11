@@ -114,3 +114,33 @@ that selector could suppress genuine clarification. Keep the input barrier and
 apply bounded semantic review uniformly to typed and compatibility proposals.
 No additional system-policy semantic hints are needed. Actual overall validation
 must confirm whether this removes the observed false input gaps.
+
+ddbb0d4 exact-source rebuild passed with512 files per role and image8bc60e89.
+Actual overall receipt provider-c3563873f69a4dbb failed2/10 turns: a false
+generation ordering gap and a changed-load target incorrectly used as limits
+measurement scope. Overview totals5.047/3.119/3.255s; Provider calls0.725–1.510s
+for most turns and2.449s across two calls for generation. Preserve the rejection.
+
+Publish the existing limits objects=[]/measure=null rule as an executable goal
+constraint, so invalid scope composition triggers bounded correction before
+resolution. Clarify the reusable ordering descriptor: natural-language ordering
+semantics satisfy direction; literal machine enums are not user requirements.
+No capability coverage, threshold or default is added. Source probes only inspect
+recognition and cannot establish deployed Thread acceptance.
+
+## Role separation — user correction2026-10-12
+
+Replace the combined classification/compiler responsibility with a lightweight
+LLM general/professional route. Bind the route to the unchanged original request,
+persist it before compilation, and reuse it on retry. No Pack schemas, tool
+catalogs, business missing-input checks or capability evaluation enter routing.
+Keep the existing compiler and Pack resolution after routing, with independent
+timing, failure codes and isolated bounded processes. Wire real pandapower and
+PyPSA hosted adapters; routing must not acquire the prepared Pack context.
+
+The generation case now verifies routing only, per user instruction. Request
+cancellation of that validation task after routing and record research completion as deferred; do not
+claim a generated-outage ranking or change historical failed verdicts. Preserve
+all other overall business requirements. New current-source deployment validation
+must measure routing, compilation and execution separately. Stable preparation
+reuse exists; full opening-time worker prewarm is still not implemented.

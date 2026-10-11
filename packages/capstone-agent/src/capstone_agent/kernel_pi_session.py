@@ -50,6 +50,14 @@ class PreparedKernelPiSessionFactory:
             raise TypeError("builder must be callable")
         self._builder = builder
 
+    def route_task(self, claim, *, on_heartbeat):
+        router = getattr(self._builder, "route_task", None)
+        return router(claim, on_heartbeat=on_heartbeat) if callable(router) else None
+
+    def routing_metrics(self):
+        read = getattr(self._builder, "routing_metrics", None)
+        return read() if callable(read) else {}
+
     def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
         self._recognition_metrics = {}
         recognizer = getattr(self._builder, "recognize_task", None)
@@ -117,11 +125,36 @@ class PreparedKernelPiRpcSessionBuilder:
         self._resolved_llm = resolved_llm
         self._recognition_llm = recognition_llm or resolved_llm
         self._recognition_process = RecognitionProcess()
+        self._routing_process = RecognitionProcess()
         self._base_environment = None if base_environment is None else dict(base_environment)
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
             raise ValueError('Thread attempt timeout is invalid')
+
+    def route_task(self, claim, *, on_heartbeat):
+        from .task_routing import route_with_pi
+        self._routing_metrics = {}
+        if claim.kind != "send_auto":
+            # Explicit command lanes already supply their route.
+            self._routing_metrics = {"phase": "routing", "source": "explicit-command", "calls": []}
+            return None
+        environment = self._base_environment or os.environ
+        timeout = float(environment.get("CAPSTONE_RECOGNITION_TIMEOUT_SECONDS", "60"))
+        if not 1 <= timeout <= 120:
+            raise ValueError("routing timeout is invalid")
+        metrics = {}
+        try:
+            return route_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._recognition_llm,
+                base_environment=self._base_environment, timeout_seconds=min(timeout, self._timeout_seconds),
+                on_heartbeat=on_heartbeat, prepared_process=self._routing_process,
+                thinking_level=environment.get("CAPSTONE_RECOGNITION_THINKING_LEVEL", "off"),
+                on_metrics=metrics.update)
+        finally:
+            self._routing_metrics = metrics
+
+    def routing_metrics(self):
+        return dict(getattr(self, "_routing_metrics", {}))
 
     def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
         environment = self._base_environment or os.environ
@@ -144,10 +177,13 @@ class PreparedKernelPiRpcSessionBuilder:
         return dict(getattr(self, "_recognition_metrics", {}))
 
     def close(self):
-        self._recognition_process.close()
+        try:
+            self._recognition_process.close()
+        finally:
+            self._routing_process.close()
 
     def sweep_idle(self):
-        return self._recognition_process.sweep_idle()
+        return self._recognition_process.sweep_idle() + self._routing_process.sweep_idle()
 
     def __call__(
         self,

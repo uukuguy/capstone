@@ -72,7 +72,17 @@ goal constraints prevent contradictory operation/conclusion choices. No
 recognition path performs tool planning, calculation or evidence admission.
 
 Recognition is an application-owned role separate from execution. The worker
-reuses its verified runtime preparation and one tool-free recognition process.
+first performs a light LLM route classification without Domain Pack contracts,
+tool catalogs or Authority queries. It persists the unchanged request and route
+before downstream requirement compilation. Compilation owns the compact wire
+and published Pack schema checks described above; its timing and failures are
+separate from routing. A complex business request remains professional even
+when its completion needs future research mechanisms. Explicit command lanes
+already select their route and do not need automatic classification. Replays
+retain the immutable route; they do not repeat successful classification.
+
+The worker reuses verified runtime preparation and two isolated tool-free
+processes for routing and requirement compilation.
 Before a new task, Pi must confirm creation of an empty session; only explicit
 bounded history enters the next prompt. Errors, cancellation,32 uses or180 seconds
 idle discard the private process/session. Worker idle sweeps and shutdown close
