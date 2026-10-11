@@ -186,7 +186,10 @@ class PandapowerTaskProvider:
                                                               context_ref, revision_ref)
             return resolved("ready")
         if requirement["operation"] in {"powerflow", "compare"}:
-            if bool(requirement["objects"]) != (requirement["measure"] is not None):
+            whole_network = requirement["scope"] == "full" and requirement["objects"] == [
+                {"kind": "network", "namespace": "all", "identifier": "*"}]
+            element_query = bool(requirement["objects"]) and not whole_network
+            if element_query != (requirement["measure"] is not None):
                 return resolved("clarification", "Specify both the exact objects and their requested measure, or request the whole-scenario convergence and losses without object measurements.")
             if requirement["measure"] is not None and (requirement["measure"] not in {"loading_percent", "p_from_mw", "p_to_mw", "pl_mw"}
                     or any(item["kind"] not in _BRANCHES for item in requirement["objects"])):
@@ -262,7 +265,7 @@ class PandapowerTaskProvider:
             counts = metadata["counts"]
             text = (f"Selected model {metadata['model']}: {counts['buses']} buses, {counts['lines']} lines, "
                     f"{counts['transformers']} transformers. "
-                    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. Generator N−1 is not registered. No calculation was requested or needed.")
+                    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. No calculation was requested or needed.")
             return conclusion("supported", text)
         # Every passed reference is checked, including references irrelevant to this goal.
         documents = {ref: authority.verify_result(ref).document for ref in result_refs}
@@ -314,12 +317,17 @@ class PandapowerTaskProvider:
                 count = meta.get("violation_count")
                 if type(count) is not int:
                     continue
+                rows = doc.get("datasets", {}).get("result.res_violation", {}).get("rows", [])
+                if not isinstance(rows, list) or len(rows) != count:
+                    raise SimulatorIntegrityError("violation detail count is inconsistent")
                 text = f"The requested scenario has {count} evaluated limit violations."
+                details, complete = _violation_details(rows, matching[source])
+                text += details
                 if missing:
                     text += " Limits were not evaluated for: " + ", ".join(str(item) for item in missing) + "."
                 elif count == 0:
                     text += " No violations were found for the defined, evaluated constraints; this does not certify undefined limits."
-                return conclusion("partial" if missing else "supported", text, (ref, source), refs,
+                return conclusion("partial" if missing or not complete else "supported", text, (ref, source), refs,
                                   doc["context_ref"], doc["revision_ref"])
         elif req["operation"] == "powerflow":
             for ref, doc in matching.items():
@@ -339,6 +347,26 @@ class PandapowerTaskProvider:
                         text += f" Total active loss is {loss:.6g} MW."
                     text += " Limit compliance requires a separate evaluated constraint result."
                     return conclusion("supported", text, (ref,), refs, doc["context_ref"], doc["revision_ref"])
+            for ref, diagnostic in evidence.items():
+                if (diagnostic.get("evidence_type") != "powerflow_non_convergence"
+                    or diagnostic.get("capability_id") != "analysis.powerflow.ac.run"
+                    or diagnostic.get("diagnostic") != "pandapower.LoadflowNotConverged"):
+                    continue
+                context = diagnostic.get("context_ref")
+                revision = diagnostic.get("revision_ref")
+                if not isinstance(context, str) or not isinstance(revision, str):
+                    raise SimulatorIntegrityError("powerflow diagnostic has no model identity")
+                if context == req["context_ref"]:
+                    matches = revision == req["revision_ref"] and not req["patches"]
+                else:
+                    verified_context = authority.verify_context(context).document
+                    if verified_context.get("revision_ref") != revision:
+                        raise SimulatorIntegrityError("powerflow diagnostic revision is inconsistent")
+                    patches = authority.verify_context_changes(context, req["context_ref"])
+                    matches = bool(req["patches"]) and list(patches) == req["patches"]
+                if matches:
+                    return conclusion("partial", "The requested AC power flow did not converge. The verified diagnostic provides no valid numerical operating result; loading and limit compliance cannot be concluded.",
+                                      evidence=(ref,), context=context, revision=revision)
         return conclusion("unresolved", "No admitted result proves the requested operation on the exact scenario. Run that operation with the resolved objects and changes.")
 
     def _measurement_values(self, req, document):
@@ -378,6 +406,14 @@ class PandapowerTaskProvider:
         used_results, used_evidence = [], []
         for ref, doc in documents.items():
             if doc.get("result_type") != "analysis.contingency.n_minus_one.aggregate":
+                continue
+            # Equal child and aggregate rows cannot establish that the Authority
+            # evaluated the requested AC constraint scope without filtering it.
+            violation_types = doc.get("violation_types")
+            if (doc.get("solver", {}).get("operation") != "pandapower.runpp"
+                or not isinstance(violation_types, list)
+                or not all(isinstance(item, str) for item in violation_types)
+                or not {"line_overload", "bus_voltage_low", "bus_voltage_high", "non_convergence"} <= set(violation_types)):
                 continue
             scenarios = doc.get("scenarios")
             if not isinstance(scenarios, list) or type(doc.get("scenario_count")) is not int or doc.get("scenario_count") != len(scenarios):
@@ -428,6 +464,18 @@ class PandapowerTaskProvider:
         missing_limits = any(doc.get("constraint_evaluation", {}).get("status") != "evaluated"
                              for doc in covered.values() if doc.get("converged") is True)
         text = f"Executed {len(covered)} of {len(requested)} requested branch outages. {violations} evaluated limit violations were found; {failed} cases did not converge."
+        details_complete = True
+        remaining_details = 20
+        for branch, child in covered.items():
+            if child.get("converged") is not True:
+                continue
+            rows = child.get("violations", [])
+            details, complete = _violation_details(rows, child, limit=remaining_details)
+            remaining_details = max(0, remaining_details - len(rows))
+            if details:
+                target = targets[branch]
+                text += f" Outage {target['kind']} index {target['index']}:" + details
+            details_complete = details_complete and complete
         if failed:
             text += " Non-converged cases have no valid numerical operating result."
         if missing_limits:
@@ -449,7 +497,7 @@ class PandapowerTaskProvider:
                 text += f" Partial Pack ordering: {len(scalar_cases)} of {len(requested)} cases have valid max_loading_percent values. "
             text += "; ".join(f"{labels[branch]}: {value:.6g}%" for branch, value in scalar_cases[:_display_limit(req)]) + "." + _display_note(req, len(scalar_cases))
             text += " This is an ordering of verified scenario scalars, not a separate Authority ranking result."
-        return conclusion("supported" if set(covered) == requested and not failed and not missing_limits and ranking_complete else "partial",
+        return conclusion("supported" if set(covered) == requested and not failed and not missing_limits and ranking_complete and details_complete else "partial",
                           text, used_results, tuple(dict.fromkeys(used_evidence)))
 
     def _ranking(self, req, documents, evidence, conclusion):
@@ -511,6 +559,27 @@ class PandapowerTaskProvider:
         return conclusion("unresolved", "No complete admitted risk ranking is bound to the requested scenario's evaluated violations and source calculation.")
 
 
+def _violation_details(rows, source, *, limit=20):
+    labels = {row["asset_ref"]: (dataset.removeprefix("result.res_"), row["index"])
+        for dataset, data in source.get("datasets", {}).items()
+        if dataset in {"result.res_bus", "result.res_line", "result.res_trafo", "result.res_trafo3w"}
+        for row in data.get("rows", []) if isinstance(row.get("asset_ref"), str) and type(row.get("index")) is int}
+    entries = []
+    for row in rows[:limit]:
+        identity = labels.get(row.get("asset_ref"))
+        if identity is None and isinstance(row.get("element_kind"), str) and type(row.get("pandapower_index")) is int:
+            identity = (row["element_kind"], row["pandapower_index"])
+        if identity is None or not _finite(row.get("value")) or not _finite(row.get("limit")):
+            continue
+        kind, index = identity
+        entries.append(f"{kind} index {index}: {row.get('kind', 'violation')}, value {row['value']:.6g} {row.get('unit', '')}, limit {row['limit']:.6g} {row.get('unit', '')}")
+    complete = len(entries) == len(rows)
+    text = " Verified violation details: " + "; ".join(entries) + "." if entries else ""
+    if not complete:
+        text += " Some verified violation details are not shown; the object list is incomplete."
+    return text, complete
+
+
 def _finite(value):
     return type(value) in {int, float} and math.isfinite(value)
 
@@ -541,7 +610,11 @@ def _resolve_selector(selector, context, revision, invoke):
         except ValueError:
             raise SimulatorCapabilityError({"code": "unknown_element", "message": "requested index is invalid"}) from None
     fields = (field,) if namespace in {"name", "alias"} else ()
-    matches = [row for row in _query_rows(selector["kind"], context, revision, invoke, fields=fields)
+    predicate_value = int(identifier) if namespace == "pandapower_index" else identifier
+    filters = ([{"field": field, "operator": "eq", "value": predicate_value}]
+               if namespace in {"pandapower_index", "asset_ref"} else None)
+    matches = [row for row in _query_rows(selector["kind"], context, revision, invoke, fields=fields,
+               filters=filters)
                if str(row.get(field)) == identifier]
     if len(matches) != 1:
         raise SimulatorCapabilityError({"code": "ambiguous_element", "message": "requested object is missing or ambiguous"})

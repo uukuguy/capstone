@@ -451,10 +451,11 @@ def _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners=
     answer = render_conclusions(tuple(conclusions), language=policy.language, scale=policy.scale)
     results = tuple(dict.fromkeys(ref for item in conclusions for ref in item.result_refs))
     evidence = tuple(dict.fromkeys(ref for item in conclusions for ref in item.evidence_refs))
-    code = ("task_goal_coverage_verified" if evidence else
-            "task_clarification_verified" if any(item.status in {"unresolved", "clarification"} for item in conclusions) else
+    code = ("task_clarification_verified" if any(item.status in {"unresolved", "clarification"} for item in conclusions) else
+            "task_goal_coverage_partial" if any(item.status == "partial" for item in conclusions) else
             "task_capability_boundary_verified" if any(item.status == "unsupported" for item in conclusions) else
-            "task_goal_coverage_unverified" if any(item.status == "uncertified" for item in conclusions) else "task_information_verified")
+            "task_goal_coverage_unverified" if any(item.status in {"uncertified", "general"} for item in conclusions) else
+            "task_goal_coverage_verified" if evidence else "task_information_verified")
     has_general = any(item.status == "general" for item in conclusions)
     codes = (code,)
     if any(item.status == "unsupported" for item in conclusions) and "task_capability_boundary_verified" not in codes:

@@ -2504,3 +2504,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-11：838ea02整体六轮必要业务路径复核通过；CI失败定位为旧基础context枚举测试断言，修复复验中。
 
 - 2026-10-11：旧目录断言六项失败已复现；修正后模型切换/拓扑六项通过，保留选定模型及注册context契约。
+
+- d886b17 Align scenario test fixtures and publish scoped repair acceptance; retain separate overall evidence and CI gate.
+
+- 2026-10-11：概况无关发电N−1提示来自Pack固定文案；两项失败回归复现，定向删除；本地人工验证不等CI。
+
+- 2026-10-11：选定上下文完整，失败来自全网范围解析；修复并保留逐元件校验，指南仅作配套，12项专项通过。

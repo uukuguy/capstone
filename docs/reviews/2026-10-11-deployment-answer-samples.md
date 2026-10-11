@@ -167,3 +167,17 @@ ModelSequenceSession still asserted the removed base-context enum. Its fixture
 now validates the registered schema and preserves selected-model restriction.
 Focused model-switch/topology regressions pass6 after reproducing the old
 fixture failure. Complete deployment acceptance remains pending hosted CI.
+
+## Correction after actual user regression
+
+The six-turn overall acceptance above is withdrawn. The user demonstrated that
+the selected-model AC request was wrongly clarified, and overview included an
+unrelated generator N-1 gap. The previous corpus missed the simplest AC request
+and allowed clarification in a required load-calculation case. These receipts
+remain evidence for their recorded paths, not overall product acceptance.
+Local verification does not depend on hosted CI; CI gates protected integration.
+
+The corpus now has eight cases/ten turns with explicit calculation requirements.
+See the [diff audit](2026-10-11-domain-pack-sample-contamination.md) for structural
+repairs, retained boundaries and remaining completion gaps. New deployed Provider
+and semantic verification is required before baseline or human handoff claims.

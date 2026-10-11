@@ -43,7 +43,12 @@ Base network-specific claims only on evidence and results returned in the curren
 
 For capability questions, answer from the Skill and knowledge documents. A numerical operating range requires an active model constraint, user criterion, or explicitly named standard. For supported model lists, use `environment.describe` or `model.list` if a runtime-backed answer is required.
 
-For "Which buses does line 11 connect?", open `ieee39` with `context.open`, resolve line 11 with `model.element.get` or directly call `topology.branch.endpoints.get` using `kind: line`, `namespace: pandapower_index`, `identifier: "11"`, then answer from `from_bus`, `to_bus`, and `evidence_ref`.
+For branch endpoint questions, use the selected model's context. Resolve the
+requested branch with `model.element.get` or `topology.branch.endpoints.get`,
+preserving its kind, identifier and established namespace. A bare numeric label
+does not establish a pandapower index. Do not select a fixture model or substitute
+an index for a name. If resolution is ambiguous, ask for clarification. Answer
+from the returned `from_bus`, `to_bus` and current-run evidence.
 
 For "What fields can this tool take?", prefer the exact contract in the relevant reference and name the capability ID.
 

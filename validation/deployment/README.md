@@ -108,3 +108,15 @@ The previous local-dev2473e48 fails this set: the recorded clarification include
 application English prefix, and overview Attempt28ed976b fails while resolving
 a payload without `direction`. Its prior registered-case receipt proves only
 the narrower scripted checks. New baseline acceptance remains blocked.
+
+The selected-model AC failure and code-diff audit extend the overall corpus to
+eight cases/ten turns. The added cases cover selected-model AC execution,
+an explicit index outage, and calculation-to-overview continuity. Calculation
+cases require execution and admitted evidence; a clarification cannot pass them.
+Audit-derived cases are labeled separately from observed conversation failures.
+[context-scope-update.json](context-scope-update.json) selects overview
+and AC execution for this repair; passing criteria concern the two defects.
+
+The earlier six-turn overall acceptance is withdrawn. It missed the simplest
+AC instruction and allowed clarification where calculation was required. Prior
+receipts remain historical evidence for their actual scope, not baseline acceptance.

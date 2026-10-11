@@ -196,6 +196,7 @@ def run_n_minus_one(
     status = _aggregate_status([str(scenario["status"]) for scenario in scenarios])
     aggregate_document = {
         "result_type": "analysis.contingency.n_minus_one.aggregate",
+        "violation_types": sorted(violation_types),
         "capability_id": CONTINGENCY_CAPABILITY_ID,
         "context_ref": context.context_ref,
         "revision_ref": context.revision_ref,

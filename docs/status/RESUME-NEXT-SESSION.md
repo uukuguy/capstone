@@ -1,134 +1,60 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-11 after candidate rebuild and conversation-corpus separation. Session remains active.
+Updated: 2026-10-11, regression diff audit. Session remains active.
 
-## Accepted organization and active package
+## Active work
 
-dev is the default development integration branch and owns current global
-documents, control graph and canonical worklists. main holds release snapshots.
-Feature/fix/docs/chore PRs target dev; release PRs target main. No branch push
-automatically deploys user trial. Current package is deployment business acceptance
-repair; Research Model R1 waits for this baseline to close. feat/research-model
-exists, but no R1 code has been implemented.
+Repair task/answer closure before a new baseline or Research Model R1.
+The user rejected the deployed answer regressions and weak overall acceptance.
+Previous six-turn overall acceptance is withdrawn. Historical derived-context
+receipts retain their actual scope. Never claim mechanical screening is semantic
+acceptance. CI governs protected merge, not local verification or handoff.
 
-## Verified identities and recovery
+## Source and deployment
 
-- main723b8e8 contains PR9 source2473e48 and PR10 source513a35e. PR9 full exact
-  two-platform CI and local gates passed; merge tree matches tested source.
-- PR11cfa6c1c merged into dev50d8ebc after exact CI38126098431: Linux60seconds,
-  macOS131seconds. Independent review approved,68 local checks pass;two optional
-  Docker checks skipped. Default branch and both protections read back.
-- Both main/dev require PR and original Linux/macOS checks,0 approvals, no
-  force-push/delete. Administrator emergency bypass retained but unused.
-- B2 annotated tag baseline-b2-local-20261011-1648-2473e48 pushed and remote object
-  verified. Exact local-dev imagee614ce0d, API/two-worker512-file source identity,
-  three cases/nine turns/report/evidence and formal RPC/UI boundaries pass.
-  Human live Provider answer acceptance is pending. No paid calls or cloud deploy.
-- local-dev App5173/API8767 now uses temporary fix candidate838ea02, image82bb9312.
-  Three-role511 backend source/config/manifest checks and clean App identity pass; real
-  Provider business samples remain pending. PR #13 targets dev as draft.
-  local-demo App15173/API18767 and
-  recorded clouds remained2524f. Root checkout is not a deployed stage.
-- feat/research-model starts accepted dev50d8ebc, remote/local branch established,
-  isolated .worktrees/research-model is clean. Prepare managed runtimes before
-  testing there. R0 bf678f2 and Pi experiments remain separate with their records.
-- PR9/10/11 branch names closed locally/remotely; exact refs archived under
-  refs/archive/20261011/{feat-task-answer-closure,chore-iteration-gates,
-  docs-project-state-sync}. Worktrees detached/preserved, including added logs.
-- Original37-file root document input backed up in runs/task-answer-closure/
-  document-sync-backup; stashae9d81b retained at refs/archive/20261011/document-sync-wip.
-  All34 changing input files committed69f7825 and integrated via PR11.
+- Root: fix/deployment-answer-acceptance, HEAD d886b17, pushed draft PR13 to dev.
+- devc857837 and main723b8e8 unchanged; no merge or cloud promotion.
+- local-dev: detached .worktrees/issue-1-local-dev at838ea02, App5173/API8767.
+  Same-image receipt verifies511 backend files per role; image82bb9312.
+- local-demo and recorded clouds remain ed2524f. Preserve data and credentials.
+- Research branch feat/research-model at50d8ebc; R1 not implemented.
 
-## Current work and next steps
+## Current uncommitted repairs
 
-PR12 source9eb4689 merged into devc857837 after exact two-platform CI: Linux66s,
-macOS113s. Root returned to dev; merge tree equals checked source. PR12 branch
-closed locally/remotely with archive reference. Root now works on
-fix/deployment-answer-acceptance. Four environments
-show dev/main workline prefixes; the middle lane is dev evolution, main uses blue.
-The user then reported real local-dev failures and requested overall plus update
-deployment sample sets. This is the active priority before Research Model R1.
-Captured attempts597f4144 and28ed976b show an application-added Clarify prefix and
-a typed overview payload missing direction. Investigate and replay these inputs;
-registered-case and controlled-transport success alone does not establish live
-Provider answer acceptance. First fixes pass48focused tests and674 backend tests
-(58 optional skips). New IEEE39 overall/update corpus and API screening8tests
-pass; Pack coverage28 and actual Authority conclusion E2E28 pass. Overview now
-freezes registered context.get metadata and includes current network sizes.
-The runner deliberately leaves Provider identity and semantic acceptance
-pending, even when text screening passes. No new Provider calls or deployment.
-The user permits accurate fixture-specific acceptance checks. Weak business
-word-presence checks were removed;9 sample-tool tests pass. Keep mechanical
-screening separate from semantic acceptance and preserve LLM intent recognition.
-Independent review approves source fix and screening-tool boundary. Real overview
-still requires full selected-model description and capabilities; generic prose
-alone fails. Do not claim product acceptance until all required samples pass.
-The overall corpus keeps original conversation failures and their semantic
-requirements; the separate update manifest selects related historical cases.
-Overall five cases/six turns, current update three cases/four turns. Runner scope
-must be selected explicitly. Both manifests are recorded by content hash;11
-selection/tool checks pass, including duplicate corpus-ID rejection. App64
-component checks and control-browser source/layout checks pass. Live running
-window and real Provider/semantic business acceptance are still pending.
-Read-only existing-Thread browser checks verify completed collapsed/full/collapsed
-switching,9px text,4.5px gap and160px scroll. PR #13 contains corpus commit2633bfb,
-while deployed source remains8f1c9b3. Independent App updated Issues2/3 with the
-corrected acceptance scope and kept both open. Existing local Provider selection
-is deepseek/deepseek-flash; The user authorized actual Provider execution with “md同意”. The first overall
-run failed: generation and load recognition failed; overview rejected absent/null
-direction; endpoint clarification was English; line clarification incorrectly
-requested a threshold. Receipt: runs/task-answer-closure/provider-overall/
-provider-e569f035626f49b5.json. Five turns ran; the old runner skipped the sixth
-after a completed answer failed text screening. Reviewed repairs permit explicit
-null only for unranked requests, require ranking direction, improve schema re-ask
-feedback and reply-language guidance, and continue completed conversation turns.
-Checks:52 focused,30 Pack plus5 new focused, types zero errors. Rebuild and rerun
-the complete corpus under the existing authorization before handoff.
-The graph pins accepted organization50d8ebc and actual candidate838ea02, not every
-later documentation or sample-tool commit.
+Whole-network scope no longer requires an element measure; overview removes the
+unrelated generator N-1 gap; endpoint guide no longer maps an unqualified example
+to a fixed model/index. Mixed goals cannot receive full-coverage diagnostics from
+evidence alone. Limit/outage answers include Authority-backed object/value/limit
+details. Exact index/asset selectors use typed filters. Ordinary AC failure can
+report exact-scenario non-convergence evidence without numerical results.
+Contingency completeness now checks persisted Authority violation-type coverage
+and AC solver identity, rejecting filtered/DC results as full AC proof.
 
-Then prepare R1 contract/lifecycle implementation from the accepted R1–R5 plan.
-Keep canonical dev records and affected branch plans aligned; never import
-the R0 experiment wholesale or mark controlled tests as autonomous research.
-CLI runtime dependency retirement remains a separate approved migration task.
-Issue2/3 remain open for human product and cloud acceptance. Cloud promotion remains separately authorized. Necessary local Provider repair
-and corpus retesting is authorized in this active task.
+98 focused Pack/closure/sample checks and3 simulator contingency checks pass.
+Non-convergence red/green passed; real filtered/DC counterexamples failed before
+repair, then12 affected tests passed. Independent review approves the scope repair.
+Overall corpus: validation/deployment/ieee39.json,8 cases/10 turns. Required AC
+and load calculations cannot pass as clarifications. Upgrade-specific criteria
+remain in separate manifests, including context-scope-update.json.
 
-## Working rules
+## Next actions
 
-CI scope fails closed; docs check links/symlink/compile, bounded governance runs
-complete Issue/gate tests, unknown files require product regression; main and
-explicit release always full gates. Issue policy/source comes from committed dev
-and ordinary repair PRs target dev, without main fallback. Changed old receipts
-require reassessment. AI public writes use capstone-xiaoshi App; workflow changes
-use a separate approved Workflows token. Never switch to maintainer publishing.
+1. Finish focused tests, types and independent diff review. Keep unresolved
+   obligation/output-count, missing-input ownership and renderer limits visible.
+2. Update canonical VERSION-CONTROL, graph, browser checks and audit records;
+   commit only owned paths, append journal immediately, bot-push draft PR13.
+3. Check no active attempts; canonically rebuild deployment worktree from exact
+   repair commit with make capstone-local-rebuild. Verify all three roles/App.
+4. Run authorized deepseek/deepseek-flash upgrade cases and whole8/10 corpus.
+   Inspect frozen tasks and actual Authority results, then review final answers.
+   Do not announce baseline/human handoff until required scope passes.
+5. Correct old Issues2/3 acceptance comments through capstone-xiaoshi App;
+   leave issues open until their real acceptance requirements close.
 
-Owned control URL http://127.0.0.1:18780/docs/status/PROJECT-OVERVIEW.html,
-browser session closure-control. Governance/docs changes do not redeploy local
-API/worker/App. Preserve ignored authentication, all user files and root var data.
+## Ownership and rules
 
-Live checkpoint: reviewed c7032d5 rebuilt successfully. All three roles match483
-backend files and image4bbfe010; App clean c7032d5. Authorized rerun completed failed: provider-8f874754d107422a. Overview passed;
-real credential-screened selector failures now reproduced and repaired in Pack.
-Registered five-path tests pass; full closure and source review underway before
-next commit/rebuild. Corpus runner now tests recovery after failed terminal turns.
-
-Live checkpoint: c490c71 reviewed, pushed PR13 and rebuilt clean. Exact483-file
-three-role verification and same imageeb0807fd pass; App exact c490c71. Third
-authorized overall run failed (provider-200d2ae33a874c27), all six turns ran.
-Nested enum arrays/string change targets caused line/load decode failure; endpoint
-misused overview; generation asked blocked downstream quantity. Complete public
-JSON Schema and generic App validation plus dependency propagation are in review. Prior receipts remain failed, not superseded
-by source tests.34 closure and47 recognition/sample checks pass; types zero.
-
-Previous checkpoint:9dd2492 reviewed, pushed PR13 and rebuilt same-image6dce856f,
-clean App exact source. Fourth authorized overall screening passed, but load
-scaling lacked changed-scenario evidence because the Application catalog rejected
-derived contexts. Reviewed catalog repair passes37 focused checks and types;
-deployment retest pending. Update acceptance checks only repair-specific criteria,
-with unrelated defects recorded separately. Both
-Issues2/3 corrected by independent App and remain open. Do not claim acceptance.
-
-Live checkpoint:838ea02 reviewed repair is committed and pushed to draft PR13. Canonical local-dev rebuild complete;511 files per role and same image82bb9312, clean App source verified;37 focused checks,13 sample checks, types, doctor, document links and graph browser checks pass. Next run targets only derived-context repair; overall verdict remains separate.
-
-Live validation:838ea02 derived-context update PASSED on actual Provider attempt002492efc3ec8056, frozen load19 p/q×1.3, supported changed goal and lineage-verified evidence. Receipt derived-context-verification.json. Unavailable display projection recorded outside this repair. Actual running single-action/full and completed collapse/full with160px scroll passed. Fifth overall run completed:9432b7ac12704d9a, six necessary business paths pass independent review; endpoint Authority row saved, Provider model_change and all recognizer identities checked. CI Linux failed due old test fixture expecting base-only context enum; fixture corrected, focused sequence/topology verification passes6; latest hosted CI rerun needed. No full deployment acceptance yet.
+No keyword intent fallback or prompt-only workaround. Never expand Authority
+capabilities or numerical thresholds for a sample. Keep LLM recognition and
+current-run exact-scenario evidence. Preserve all unrelated work and ignored data.
+Bot-only GitHub public writes; no admin bypass. Control browser URL18780,
+session closure-control. Local validation need not wait for GitHub CI.

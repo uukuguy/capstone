@@ -2,6 +2,9 @@
 import re
 
 _FIXED = {
+    "The requested AC power flow did not converge. The verified diagnostic provides no valid numerical operating result; loading and limit compliance cannot be concluded.": "请求的交流潮流未收敛。已核验诊断不提供有效运行数值，不能据此判断负载率或限值符合性。",
+    "Verified violation details: ": "已核验越限明细：",
+    "Some verified violation details are not shown; the object list is incomplete.": "部分已核验越限明细未列出，对象清单尚不完整。",
     "Specify the requested ranking direction: ascending or descending.": "请明确所需排序方向：升序或降序。",
     "The saved overview has no selected-model metadata. Submit a new request to describe the current model.": "历史概况未保存选中模型的元数据，请重新提交请求以介绍当前模型。",
     "A capability overview cannot answer object, measurement or change requirements. Select the requested analysis operation.": "能力介绍不能代替对象、数值或修改要求，请选择所需分析操作。",
@@ -16,7 +19,7 @@ _FIXED = {
     "Full scope requires an explicit complete element kind, not individual selectors.": "完整范围需要明确指定某类元件的全集，不能仅提供个别对象。",
     "The paired comparison lacks a valid requested measure for every resolved object.": "成对比较缺少部分已解析对象的有效请求指标。",
     "Generator and other non-branch N−1 outages are not supported by the registered contingency capability. Select line or transformer outages to request an alternative.": "当前注册的故障分析能力不支持发电机及其他非支路 N−1。可另行选择线路或变压器故障分析；本次不会擅自替换分析对象。",
-    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. Generator N−1 is not registered. No calculation was requested or needed.": "当前 pandapower 模型支持已注册的模型查询、交流潮流、负荷修改、越限评估及线路或变压器 N−1 分析。专门注册的发电机 N−1 流程尚未提供。本次仅介绍能力，无需运行计算。",
+    "The selected pandapower model supports registered model queries, AC power flow, load revision, evaluated limit checks, and line or transformer N−1 analysis. No calculation was requested or needed.": "当前 pandapower 模型支持已注册的模型查询、交流潮流、负荷修改、越限评估及线路或变压器 N−1 分析。本次仅介绍能力，无需运行计算。",
     "The requested operation and scenario do not match. Specify the intended calculation and scenario.": "分析操作与场景不一致，请明确所需计算和场景。",
     "Specify the ranking measure and the exact requested objects.": "请明确排序指标和对象范围。",
     "Risk ranking orders all sourced violations, not every grid element. Select the full network violation scope.": "风险排序针对有来源依据的越限记录；请确认全网越限记录范围。它不为每个电网元件生成评分。",
@@ -53,6 +56,9 @@ def localize(text, language):
     for original, translated in _FIXED.items():
         text = text.replace(original, translated)
     patterns = [
+        (r"Outage (\w+) index (\d+):", r"停运对象 \1（索引 \2）："),
+        (r"(bus|line|trafo|trafo3w) index (\d+):", r"\1（索引 \2）："),
+        (r", value ([^,]+), limit ([^;.]+)", r"，数值 \1，限值 \2"),
         (r"Selected model ([^:]+): (\d+) buses, (\d+) lines, (\d+) transformers\. ", r"当前模型 \1：\2 个母线、\3 条线路、\4 台变压器。"),
         (r"The requested (\w+) values cover all (\d+) resolved branches\. ", r"请求的 \1 数值覆盖全部 \2 个已解析支路。"),
         (r" Shown: (\d+) of (\d+) verified entries; full values are in the result view\.", r"显示 \2 项已验证记录中的 \1 项；完整数值见结果视图。"),

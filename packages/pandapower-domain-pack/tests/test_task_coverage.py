@@ -76,6 +76,40 @@ def test_baseline_cannot_certify_changed_scenario(authority):
     assert conclusion.status == "unresolved"
 
 
+def test_nonconverged_powerflow_reports_verified_diagnostic_without_numbers(authority):
+    from pandapower_domain.execution import SimulatorCapabilityError
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(), context_ref=context["context_ref"],
+                            revision_ref=context["revision_ref"], invoke=invoke)
+    with pytest.raises(SimulatorCapabilityError) as failure:
+        invoke("analysis.powerflow.ac.run", {"context_ref": context["context_ref"],
+                                             "init": "flat", "max_iteration": 1})
+    evidence_refs = tuple(failure.value.error["evidence_refs"])
+    answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=evidence_refs)
+    assert answer.status == "partial"
+    assert "did not converge" in answer.text
+    assert "MW" not in answer.text
+    assert answer.result_refs == ()
+    assert answer.evidence_refs == evidence_refs
+
+
+@pytest.mark.parametrize("options", [{"violation_types": ["bus_voltage_low"]}, {"analysis_method": "dc"}])
+def test_contingency_cannot_certify_filtered_or_dc_constraint_scope(authority, options):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="contingency", scenario="contingency", scope="subset",
+        objects=[{"kind": "line", "namespace": "pandapower_index", "identifier": "0"}]),
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=invoke)
+    result = invoke("analysis.contingency.n_minus_one.run", {
+        "context_ref": context["context_ref"], "branch_refs": [task.requirement["targets"][0]["asset_ref"]], **options})
+    answer = provider.conclude(task, authority=verifier, result_refs=(result["result_ref"],),
+                              evidence_refs=tuple(result["evidence_refs"]))
+    assert answer.status == "unresolved"
+
+
 def test_rejects_unknown_requirement_fields():
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     with pytest.raises(ValueError):
@@ -95,10 +129,41 @@ def test_overview_describes_selected_authority_model_without_calculation(authori
                             revision_ref=context["revision_ref"], invoke=recorded, answer_policy={"language": "zh", "scale": "concise"})
     answer = provider.conclude(task, authority=verifier, result_refs=(), evidence_refs=())
     text = provider.render_conclusion(answer, language="zh", scale="concise")
+    assert "发电机" not in text
+    assert "Generator N−1" not in answer.text
     assert calls == ["context.get"]
     assert "ieee39" in text and "39" in text and "35" in text and "11" in text
     assert "母线" in text and "线路" in text and "变压器" in text and "潮流" in text
     assert answer.status == "supported" and not answer.result_refs and not answer.evidence_refs
+
+
+@pytest.mark.parametrize("objects", [[], [{"kind": "network", "namespace": "all", "identifier": "*"}]])
+def test_whole_network_powerflow_uses_selected_context_without_element_measure(authority, objects):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    provider = PandapowerTaskProvider()
+    task = provider.resolve("g", proposal(operation="powerflow", objects=objects, measure=None,
+        direction=None, scope="full"), context_ref=context["context_ref"],
+        revision_ref=context["revision_ref"], invoke=invoke)
+    assert task.status == "ready" and task.execution_required
+    assert task.requirement["objects"] == objects
+    result = invoke("analysis.powerflow.ac.run", {"context_ref": context["context_ref"]})
+    answer = provider.conclude(task, authority=verifier, result_refs=(result["result_ref"],),
+        evidence_refs=tuple(result["evidence_refs"]))
+    assert answer.status == "supported" and answer.context_ref == context["context_ref"]
+
+
+@pytest.mark.parametrize("objects,scope,measure", [
+    ([{"kind": "line", "namespace": "name", "identifier": "7"}], "subset", None),
+    ([{"kind": "network", "namespace": "all", "identifier": "*"}], "subset", None),
+    ([{"kind": "network", "namespace": "all", "identifier": "*"}], "full", "loading_percent"),
+])
+def test_network_scope_does_not_erase_element_measurement_requirements(objects, scope, measure):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    task = PandapowerTaskProvider().resolve("g", proposal(operation="powerflow", objects=objects,
+        scope=scope, measure=measure), context_ref="c", revision_ref="r",
+        invoke=lambda *args: pytest.fail("invalid request must not call Authority"))
+    assert task.status == "clarification" and not task.execution_required
 
 
 def test_ranking_cannot_silently_choose_a_missing_direction():
@@ -108,6 +173,21 @@ def test_ranking_cannot_silently_choose_a_missing_direction():
         context_ref="context", revision_ref="revision", invoke=lambda *args: calls.append(args))
     assert task.status == "clarification" and not task.execution_required
     assert "direction" in task.reason and calls == []
+
+
+def test_exact_selector_queries_only_matching_authority_rows(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, _ = authority
+    queries = []
+    def recorded(capability, arguments):
+        if capability == "model.dataset.query":
+            queries.append(arguments)
+        return invoke(capability, arguments)
+    task = PandapowerTaskProvider().resolve("g", proposal(operation="contingency", scenario="contingency", scope="subset",
+        objects=[{"kind": "line", "namespace": "pandapower_index", "identifier": "7"}]),
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=recorded)
+    assert task.status == "ready"
+    assert queries and all(q["filters"] == [{"field": "index", "operator": "eq", "value": 7}] for q in queries)
 
 
 def test_overview_rejects_foreign_authority_metadata_revision():
@@ -242,6 +322,11 @@ def test_limit_result_is_required_and_bound_to_powerflow(authority):
     answer = provider.conclude(task, authority=verifier, result_refs=refs+(limits["result_ref"],), evidence_refs=evidence+tuple(limits["evidence_refs"]))
     assert answer.status in {"supported", "partial"}
     assert "limit violations" in answer.text
+    rows = verifier.verify_result(limits["result_ref"]).document["datasets"]["result.res_violation"]["rows"]
+    if rows:
+        assert "Verified violation details:" in answer.text
+        assert rows[0]["kind"] in answer.text
+        assert f"{rows[0]['value']:.6g}" in answer.text and f"{rows[0]['limit']:.6g}" in answer.text
 
 
 def test_foreign_and_tampered_references_are_fatal(authority, tmp_path):

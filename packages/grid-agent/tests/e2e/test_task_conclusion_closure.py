@@ -237,6 +237,8 @@ def test_mixed_goals_keep_supported_result_and_specific_boundary(environment):
         "capability": "analysis.powerflow.ac.run", "result_refs": refs, "evidence_refs": evidence},))
     assert "baseline" in answer.answer and "not supported" in answer.answer
     assert answer.result_refs == refs
+    assert "task_goal_coverage_verified" not in answer.diagnostic_codes
+    assert "task_capability_boundary_verified" in answer.diagnostic_codes
 
 
 def test_resolution_cannot_add_unpublished_capability_grants(environment):
