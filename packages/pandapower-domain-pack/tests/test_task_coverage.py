@@ -25,6 +25,51 @@ def proposal(**changes):
             "direction": "descending", "scenario": "baseline", "scope": "full", **changes}
 
 
+def test_user_label_is_resolved_from_registered_names_without_index_inference(authority):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, verifier = authority
+    task = PandapowerTaskProvider().resolve("g", proposal(operation="limits", scenario="changed",
+        changes=[{"target": {"kind": "bus", "namespace": "user_label", "identifier": "18"},
+                  "factor": 1.3, "fields": []}]), context_ref=context["context_ref"],
+        revision_ref=context["revision_ref"], invoke=invoke)
+    assert task.status == "ready"
+    load = invoke("model.dataset.query", {"context_ref": context["context_ref"], "dataset": "network.load",
+        "select": ["index", "bus"], "filters": [{"field": "bus", "operator": "eq", "value": 17}], "limit": 50})
+    assert load["rows"]
+    assert {index for patch in task.requirement["patches"] for index in patch["selector"]["indices"]} == {
+        row["index"] for row in load["rows"]}
+
+
+@pytest.mark.parametrize("identifier", ["not-a-registered-label", "7"])
+def test_unregistered_user_label_does_not_fall_back_to_an_index(authority, identifier):
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    invoke, context, _ = authority
+    task = PandapowerTaskProvider().resolve("g", proposal(operation="contingency", scenario="contingency",
+        objects=[{"kind": "line", "namespace": "user_label", "identifier": identifier}]),
+        context_ref=context["context_ref"], revision_ref=context["revision_ref"], invoke=invoke)
+    assert task.status == "clarification" and not task.execution_required
+
+
+@pytest.mark.parametrize("collision", [False, True])
+def test_user_label_counts_objects_not_matching_fields(authority, collision):
+    from pandapower_domain.execution import SimulatorCapabilityError
+    from pandapower_domain.task_coverage import _resolve_selector
+    invoke, context, _ = authority
+    def labels(capability, arguments):
+        result = invoke(capability, arguments)
+        if capability == "model.dataset.query" and arguments["dataset"] == "network.bus":
+            for row in result["rows"]:
+                row["alias"] = "18" if row["index"] == (16 if collision else 17) else row["alias"]
+        return result
+    selector = {"kind": "bus", "namespace": "user_label", "identifier": "18"}
+    if collision:
+        with pytest.raises(SimulatorCapabilityError, match="missing or ambiguous"):
+            _resolve_selector(selector, context["context_ref"], context["revision_ref"], labels)
+    else:
+        rows = _resolve_selector(selector, context["context_ref"], context["revision_ref"], labels)
+        assert len(rows) == 1 and rows[0]["index"] == 17
+
+
 def test_reuse_freezes_prior_source_and_rejects_a_new_calculation(authority):
     from pandapower_domain.task_coverage import PandapowerTaskProvider
     invoke, context, verifier = authority

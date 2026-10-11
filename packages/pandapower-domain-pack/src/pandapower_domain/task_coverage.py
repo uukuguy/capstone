@@ -25,7 +25,8 @@ _RESULT_READ_CAPABILITIES = (
 _SELECTOR_SCHEMA = {"type": "object", "additionalProperties": False,
     "required": ["kind", "namespace", "identifier"], "properties": {
         "kind": {"enum": sorted(_KINDS)},
-        "namespace": {"enum": ["name", "alias", "pandapower_index", "asset_ref", "all"]},
+        "namespace": {"enum": ["name", "alias", "pandapower_index", "asset_ref", "all", "user_label"],
+                      "description": "Use user_label for a user-facing identifier without an established namespace. The Pack queries Authority names and aliases before asking about identity. A bare numeric label does not establish an index."},
         "identifier": {"type": "string", "minLength": 1, "maxLength": 512}},
     "if": {"properties": {"namespace": {"const": "all"}}},
     "then": {"properties": {"identifier": {"const": "*"}}}}
@@ -78,7 +79,7 @@ def _fields(value, fields):
 
 def _selector(value):
     _fields(value, {"kind", "namespace", "identifier"})
-    if value["kind"] not in _KINDS or value["namespace"] not in {"name", "alias", "pandapower_index", "asset_ref", "all"}:
+    if value["kind"] not in _KINDS or value["namespace"] not in {"name", "alias", "pandapower_index", "asset_ref", "all", "user_label"}:
         raise ValueError("grid task selector is invalid")
     if not isinstance(value["identifier"], str) or not 1 <= len(value["identifier"]) <= 512:
         raise ValueError("grid task identifier is invalid")
@@ -233,7 +234,7 @@ class PandapowerTaskProvider:
         },
         "payload_schema": _PAYLOAD_SCHEMA,
         "payload_fields": {"operation": sorted(_OPERATIONS), "objects": [{"kind": sorted(_KINDS),
-            "namespace": ["name", "alias", "pandapower_index", "asset_ref", "all"], "identifier": "exact user identifier; * only for all"}],
+            "namespace": ["name", "alias", "pandapower_index", "asset_ref", "all", "user_label"], "identifier": "exact user identifier; * only for all"}],
             "changes": [{"target": "same object selector, bus or load", "fields": ["p_mw", "q_mvar"], "factor": "positive finite multiplier"}],
             "measure": sorted(item for item in _MEASURES if item is not None) + [None],
             "direction": [None, "ascending", "descending"], "scenario": ["baseline", "changed", "contingency", "comparison"],
@@ -738,13 +739,14 @@ def _resolve_selector(selector, context, revision, invoke):
             identifier = str(int(identifier))
         except ValueError:
             raise SimulatorCapabilityError({"code": "unknown_element", "message": "requested index is invalid"}) from None
-    fields = (field,) if namespace in {"name", "alias"} else ()
+    fields = ("name", "alias") if namespace == "user_label" else (field,) if namespace in {"name", "alias"} else ()
     predicate_value = int(identifier) if namespace == "pandapower_index" else identifier
     filters = ([{"field": field, "operator": "eq", "value": predicate_value}]
                if namespace in {"pandapower_index", "asset_ref"} else None)
     matches = [row for row in _query_rows(selector["kind"], context, revision, invoke, fields=fields,
                filters=filters)
-               if str(row.get(field)) == identifier]
+               if (any(row.get(label) is not None and str(row[label]) == identifier for label in ("name", "alias"))
+                   if namespace == "user_label" else str(row.get(field)) == identifier)]
     if len(matches) != 1:
         raise SimulatorCapabilityError({"code": "ambiguous_element", "message": "requested object is missing or ambiguous"})
     result = invoke("model.element.get", {"context_ref": context, "kind": selector["kind"],

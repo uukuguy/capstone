@@ -37,6 +37,13 @@ framework, question-specific prompts or relaxed evidence admission.
 
 ## Verification and delivery
 
+- Restore the existing guide's unknown-namespace lookup path through a typed
+  `user_label` selector. The Pack checks registered Authority names and aliases,
+  freezes a unique asset identity, and clarifies missing or ambiguous matches.
+  Numeric labels never fall back to indexes. Explicit namespaces keep their
+  semantics. Verify compiler delivery with the original load-change request;
+  do not bypass missing requirements or alter system prompts for a sample.
+
 - Run focused admission/recognition/Pack/runtime tests, types and boundaries.
   Review the code before a canonical local-dev rebuild.
 - Verify exact API/worker/App source. Run actual AC then the original reuse
