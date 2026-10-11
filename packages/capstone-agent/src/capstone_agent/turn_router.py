@@ -265,6 +265,8 @@ class DefaultTurnRouter:
                     nested = self._decision_router.plan(routing_input)
                     intent = TurnIntent(nested.route, nested.source, nested.confidence)
                 except Exception:
+                    if getattr(self._decision_router, "requires_decision", False):
+                        raise DecisionUnavailable("llm_route_unavailable") from None
                     intent = TurnIntent(
                         _heuristic_route(routing_input.instruction),
                         "decision_unavailable",

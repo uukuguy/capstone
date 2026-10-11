@@ -121,8 +121,16 @@ def build_registered_pandapower_thread_application():
     if not callable(set_diagram_provider):
         raise TypeError("Thread catalog has no diagram provider registration")
     set_diagram_provider(model_diagram)
-    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
-            if validation_builder is not None else assembly)
+    if validation_builder is not None:
+        return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    from capstone_agent.lightweight_turn_router import build_lightweight_router
+    from capstone_agent.runtime import resolve_recognition_llm
+    environment = load_runtime_environment(root)
+    execution = resolve_harness_llm(root, environment)
+    router = build_lightweight_router(
+        runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
+        resolved_llm=resolve_recognition_llm(root, environment, execution), environment=environment)
+    return replace(assembly, turn_router=router)
 
 
 def main() -> int:
