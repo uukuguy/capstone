@@ -32,7 +32,9 @@ These are business acceptance cases, not exact wording or perfect-answer targets
 Upgrade manifests reuse case IDs rather than copying instructions. The
 task-answer update checks prefix/contract/metadata repairs; the derived-context
 update checks executable derived contexts and exact scenario admission; the
-context-scope update checks unrelated overview text and whole-network AC scope.
+context-scope update checks unrelated overview text, whole-network AC scope and
+the overview after an object-query turn. It selects three cases/four turns; only
+the relevant overview/scope repair is required from the continuous case.
 An unrelated defect is recorded separately from the update's repair verdict.
 
 An upgrade-specific manifest selects relevant cases from that corpus and adds
@@ -61,6 +63,11 @@ Run the overall corpus when freezing a baseline, validating broad integration or
 preparing a release. Ordinary iteration uses the selected update set and affected
 regressions. For this baseline repair, the overall corpus is required before human
 handoff because the earlier technical receipt missed real business failures.
+
+[scenario-result-update.json](scenario-result-update.json) selects the explicit
+index outage. It checks that a verified converged scenario can be ranked without
+an incorrect integrity failure or another calculation, while tampered artifacts
+remain rejected. Final evidence admission is checked separately from answer style.
 
 ## Required records
 
@@ -141,8 +148,9 @@ eight cases/ten turns. The added cases cover selected-model AC execution,
 an explicit index outage, and calculation-to-overview continuity. Calculation
 cases require execution and admitted evidence; a clarification cannot pass them.
 Audit-derived cases are labeled separately from observed conversation failures.
-[context-scope-update.json](context-scope-update.json) selects overview
-and AC execution for this repair; passing criteria concern the two defects.
+[context-scope-update.json](context-scope-update.json) selects overview,
+AC execution and endpoint-to-overview continuity. Passing criteria concern the
+overview text and scope repairs; an unrelated endpoint answer need not be perfect.
 
 The earlier six-turn overall acceptance is withdrawn. It missed the simplest
 AC instruction and allowed clarification where calculation was required. Prior

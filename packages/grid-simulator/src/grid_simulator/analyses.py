@@ -681,6 +681,8 @@ def _load_powerflow_result(workspace: SimulatorWorkspace, result_ref: str) -> di
     except json.JSONDecodeError as exc:
         raise ResultIntegrityError("powerflow result document is not valid JSON") from exc
     _verify_powerflow_result_document(document, result_ref)
+    if document.get("operation") == "contingency.n_minus_one.scenario":
+        return {**document, "branch_results": document["powerflow"]["branch_results"]}
     return document
 
 
@@ -696,8 +698,15 @@ def _verify_powerflow_result_document(document: object, result_ref: str) -> None
         raise ResultIntegrityError("powerflow result document is not canonical JSON") from exc
     if result_ref != f"result:sha256:{digest}":
         raise ResultIntegrityError("powerflow result document content does not match result reference")
+    scenario = (
+        document.get("result_type") == "analysis.operation"
+        and document.get("operation") == "contingency.n_minus_one.scenario"
+        and document.get("status") == "succeeded"
+        and document.get("converged") is True
+    )
     if not (
-        document.get("result_type") == "analysis.powerflow.ac"
+        scenario
+        or document.get("result_type") == "analysis.powerflow.ac"
         or (
             document.get("result_type") == "analysis.operation"
             and document.get("operation") == "powerflow.ac"
@@ -706,7 +715,15 @@ def _verify_powerflow_result_document(document: object, result_ref: str) -> None
         raise ResultIntegrityError("powerflow result document has an unsupported result type")
     if not isinstance(document.get("context_ref"), str) or not isinstance(document.get("revision_ref"), str):
         raise ResultIntegrityError("powerflow result document is missing context references")
-    branch_results = document.get("branch_results")
+    branch_document = document
+    if scenario:
+        branch_document = document.get("powerflow")
+        if not isinstance(branch_document, dict) or any(
+            branch_document.get(field) != document.get(field)
+            for field in ("context_ref", "revision_ref")
+        ):
+            raise ResultIntegrityError("scenario powerflow context does not match its result")
+    branch_results = branch_document.get("branch_results")
     if not isinstance(branch_results, list):
         raise ResultIntegrityError("powerflow result document is missing branch results")
     required_branch_fields = {

@@ -128,4 +128,4 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | `climb/_archive/2026-08-28-workstream-b-package-extraction/` | Completed Workstream B package extraction climb snapshot. |
 | `climb/_archive/2026-08-18-full-capability/` | Completed 2026-08-18 full-capability climb session snapshot. |
 
-- [Domain Pack diff and content audit](../reviews/2026-10-11-domain-pack-sample-contamination.md): overview, scope, completion, violation details and diagnostic repairs; prior overall acceptance withdrawn, 8-case/10-turn corpus pending deployed verification.
+- [Domain Pack diff and content audit](../reviews/2026-10-11-domain-pack-sample-contamination.md): scope/completion/evidence repairs, generic instruction cleanup and continuous-overview repair; 8-case/10-turn overall and separate repair criteria under deployed verification.
