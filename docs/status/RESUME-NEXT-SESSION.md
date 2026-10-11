@@ -1,52 +1,46 @@
-# Live Session Checkpoint
+# Active session checkpoint — 2026-10-12
 
-Updated: 2026-10-11. Session remains active.
+The session remains active. Local routing repair is ready for manual validation;
+Research R1 and baseline integration remain later work.
 
-Repair task/answer closure before new baseline and Research Model R1. Prompts
-remain generic; overall business and repair-specific acceptance remain separate.
+## Current boundary
 
-## Exact deployed candidate
-
-local-dev clean detached worktree .worktrees/issue-1-local-dev is51f4715.
-Canonical rebuild passed; API/worker/worker-pypsa each match511 source files,
-same image00e64fdf; clean App51f4715 on5173/API8767.
-Proof: runs/task-answer-closure/sample-candidate-source.json.
-Root fix/deployment-answer-acceptance contains additional validation/state edits;
-these are not yet deployed and must not change the reported deployed identity.
-main723b8e8/devc857837/clouds/local-demoed2524f unchanged; PR13 draft to dev.
-
-## Verified outcomes
-
-- Overall provider-1cfbb0ad38fc40ea:8 cases/10 actual Thread turns; automatic
-  screening and independent closure_final_review business review PASS.
-  Frozen task, Authority evidence and Provider identity checked. Semantic facts
-  saved before rebuilding. Load19 P/Q11.96MW/5.98Mvar at factor1.3, changed context.
-  Index7 outage AC with complete four check categories; line11 at103.329%>100.
-- captured-gap-review-51f4715: three probes PASS. Each uses one seeded proposal
-  and one real Provider review. These are not three Thread executions.
-- Separate input-gap-51f4715-review and filtered-contingency-51f4715-review
-  explicitly reuse overall observations; no independent manifest run claim.
-  Latest outage Thread uses full checks. Filtered branch proof is original failed
-  artifact replay plus focused checks; no recalculation and no full certificate.
-- Source repairs: f0d9b41 whole-load contract;5135221 pending-input proposal schema;
-  51f4715 partial verified AC evidence retained.84 related checks;54 Pack checks
-  plus separate union negative; types0; independent reviews approved.
-- Pending-proposal execution barrier added and passes1. Manifest tests pass16.
-- Running/completed browser checks pass: latest action1,9px font,4.5px gap,
-  full160px scroll; completed defaults collapsed. Control graph needs final
-  regenerated-state browser check before committing these state updates.
+- Branch: fix/deployment-answer-acceptance; deployed source beef6d4047b48417593203de6466a775ea9b670d.
+- Clean local-dev worktree .worktrees/issue-1-local-dev; canonical rebuild passed.
+- Three roles have513 exact source files and image52f1f267; clean App matches source.
+- Actual provider-03e613bea16c4dbd passed9 business turns plus1 routing-only turn.
+  Independent raw tool, frozen goal, Authority result and evidence review PASS.
+- Update scope explicitly reuses5 overall turns; actual waiting/running/completed
+  window checks passed. Control graph regenerated; desktop/mobile and source edges checked.
+- Source pushed as capstone-xiaoshi[bot]; verification docs complete. PR13/issues2/3
+  synchronization is recorded in the private publication receipt. Keep PR draft and issues open.
+- Routing mostly606–1397ms, one3038ms; overviews4020–6744ms.
+- Load81.747s remains slow downstream execution:11 model responses,32 tools,
+  9781 output tokens including4594 reasoning;54.675s Provider/transport,
+  11.777s tool batches/transport. Pure Authority CPU unknown.
+- Existing context reuse is implemented; complete model-opening worker prewarm is not.
+- No new baseline, dev/main integration, demo/cloud deployment or Research R1 implementation.
 
 ## Next work
 
-1. Finish canonical state/plan/audit/graph, doctor/diff/link checks; stage only
-   task-owned changes. Push using capstone-xiaoshi[bot], update PR13/Issues2/3.
-2. Hand exact local candidate to human verification, not new baseline acceptance.
-   Keep Issues open until their broader scope and integration are complete.
-3. After baseline is accepted and integrated, advance Research Model R1.
+1. Confirm runs/task-answer-closure/routing-closure-publication.json matches branch HEAD and PR13.
+2. User manually verifies local-dev http://127.0.0.1:5173/ after refresh.
+3. Integrate accepted repair into dev through PR13 checks; do not wait CI for local validation.
+4. Keep full opening-time prewarm and downstream execution latency explicit next work.
+   Investigate fresh-Thread initialization submission separately; first browser probe
+   raced page setup, while settled empty-Thread wait/answer verification passed.
+5. Establish the next baseline only after required acceptance, then start Research R1.
 
-Historical760ac0a overall passed but captured gap failed;f0d9b41 overall failed
-filtered AC retention and unknown-factor proposal schema. Preserve all receipts.
-Generation boundary text repeats; endpoint compatibility coverage uncertified.
-Free-text obligations/counts, fixed formal templates and selected-binding
-capability projection remain open. This scoped acceptance does not close them.
-No cloud/demo changes or acceptance tags. Never print protected credentials.
+## Durable verification
+
+See docs/reviews/2026-10-12-lightweight-routing-local-verification.md.
+Private receipts remain in runs/task-answer-closure/provider-beef6d4/:
+provider-03e613bea16c4dbd.json, matching semantic-facts/latency,
+recognition-latency-update-selected.json, local-acceptance.json and
+load-execution-timing.json. Source proof: runs/task-answer-closure/source-beef6d4.json.
+
+Historical a9be99f failed1/10, 5edfb51 failed2/10, and earlier failures remain.
+Generation N−1 completion is deferred; route-only acceptance never proves research completion.
+Keep general task isolation, exact original request, frozen route and current-run evidence.
+No keyword routing, case-specific system policy, invented parameters or relaxed sample criteria.
+Local-demo15173/API18767 and cloud/demoed2524f remain unchanged. Preserve ignored data and auth.

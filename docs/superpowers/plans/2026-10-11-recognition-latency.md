@@ -169,3 +169,13 @@ Review is generic, not an incident-specific system policy. Structural repair
 uses that same budget; a second independent semantic review is not guaranteed
 after structural correction. Real Provider fidelity and additional compilation
 latency still require new-source validation.
+
+beef6d4 local deployment passed9 business turns plus1 routing-only turn in
+provider-03e613bea16c4dbd, independent raw-tool/Authority review and actual
+waiting/running/completed-window checks. Routing mostly606–1397ms, one3038ms;
+overviews4020–6744ms. Load81.747s remains an execution-performance limit; trace
+analysis records11 model responses/32 tool results and54.675s Provider response
+plus transport. See [local verification](../../reviews/2026-10-12-lightweight-routing-local-verification.md).
+Update observations explicitly reuse5 turns from overall; no separate execution
+claim. New-Thread initialization submission, complete opening-time prewarm,
+generation research, release baseline and cloud deployment remain unverified.
