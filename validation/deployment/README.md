@@ -1,7 +1,7 @@
 # Deployment sample acceptance
 
 Each turn receipt includes client elapsed time, server total, worker queue,
-first tool time and available recognition/execution/finalization phases. Keep
+first tool time and available routing/requirements-compilation/execution/finalization phases. Keep
 failed and deadline turns with their attempt IDs and timing. Recognition details
 include call count, first response, preparation, thinking configuration and reuse.
 Missing diagnostics are unknown. Do not report them as zero.

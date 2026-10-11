@@ -170,7 +170,11 @@ class PandapowerTaskProvider:
                 {"properties": {"objects": {"minItems": 1, "items": {"properties": {
                     "kind": {"enum": sorted(_BRANCHES)}}}}, "measure": {
                     "enum": ["loading_percent", "p_from_mw", "p_to_mw", "pl_mw"]}}}
-             ]}}}}}}
+             ]}}}}}},
+            {"if": {"properties": {"domain_request": {"properties": {"payload": {
+                "properties": {"operation": {"const": "contingency"}}, "required": ["operation"]}}}}},
+             "then": {"properties": {"domain_request": {"properties": {"payload": {
+                "properties": {"measure": {"type": "null"}}}}}}}}
         ]},
         "load_scaling_contract": {
             "whole_load": "Proportional change of a load scales both active and reactive power by the same factor, preserving power factor. An unqualified load multiplier requests this whole-load operation.",

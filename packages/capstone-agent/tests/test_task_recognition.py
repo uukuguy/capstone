@@ -479,7 +479,8 @@ def test_m11_scripted_recognition_is_finite_and_provider_free(family, monkeypatc
 
 @pytest.mark.parametrize("review", ["satisfied", "unresolved", "invalid"])
 @pytest.mark.parametrize("schema", ["test/1", "capstone-professional-task/1"])
-def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema):
+@pytest.mark.parametrize("has_gap", [True, False])
+def test_professional_choices_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema, has_gap):
     import copy
     import json
     from capstone_agent import task_recognition
@@ -489,8 +490,8 @@ def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatc
     claim = service.claim_attempt("worker", 30)
     decision = proposal()
     decision["schema"] = SCHEMA_V2
-    decision["goals"][0].update(execution="professional", dependencies=[],
-        missing_requirements=["Possible missing user choice"], domain_request={
+    decision["goals"][0].update(execution="professional", dependencies=[], scope="subset",
+        missing_requirements=["Possible missing user choice"] if has_gap else [], domain_request={
             "binding_id": "test", "schema": schema, "payload": {"operation": "inspect"}})
     prompts, timeouts = [], []
     class Client:
@@ -515,7 +516,7 @@ def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatc
         with pytest.raises(ValueError): task_recognition.recognize_with_pi(claim, **arguments)
     else:
         task = task_recognition.recognize_with_pi(claim, **arguments)
-        assert bool(task.goals[0].missing_requirements) == (review == "unresolved")
+        assert bool(task.goals[0].missing_requirements) == (review == "unresolved" and has_gap)
     assert len(prompts) == 2
     assert prompts[1]["candidate"] == decision
     assert prompts[1]["request"] == prompts[0]["request"]

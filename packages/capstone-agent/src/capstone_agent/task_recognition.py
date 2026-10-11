@@ -469,7 +469,10 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
                         _validate_published_payload_fields(task, schemas)
                         if attempt == 0 and any(
-                            goal.execution == "professional" and goal.missing_requirements
+                            goal.execution == "professional" and (
+                                goal.missing_requirements or goal.change is not None
+                                or goal.scope == "subset" or goal.measure is not None
+                                or goal.scenario != "baseline")
                             and goal.domain_request is not None
                             for goal in task.goals
                         ):
@@ -479,7 +482,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                                 "accepted_route": accepted_route,
                                 "selected_context": claim.model_context.to_document(), "history": history,
                                 "requirement_schemas": model_schemas, "candidate": wire_proposal,
-                                "semantic_review": "Review the complete unaccepted candidate against the original request, history, selected context and published contracts. Check whether each proposed missing requirement is a real unresolved user choice. Remove a gap only when the user's explicit request, trusted selected context or published contract already satisfies it. Populated candidate fields alone do not prove user confirmation. Preserve real ambiguity and all user goals; do not invent facts, defaults, identifiers or business choices. Return complete task JSON under the same contract."},
+                                "semantic_review": "Review the complete unaccepted candidate against the original request, history, selected context and published contracts. Verify that scope, object identifiers and their namespaces, changes and measurements preserve the user's actual choices. Do not reinterpret an identifier in an internal namespace the user did not select. Check whether each proposed missing requirement is a real unresolved user choice. Remove a gap only when the user's explicit request, trusted selected context or published contract already satisfies it. Populated candidate fields alone do not prove user confirmation. Preserve real ambiguity and all user goals; do not invent facts, defaults, identifiers or business choices. Return complete task JSON under the same contract."},
                                 ensure_ascii=False)
                             continue
                         return task

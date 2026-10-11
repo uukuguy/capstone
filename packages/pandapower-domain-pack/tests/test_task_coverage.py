@@ -59,6 +59,17 @@ def test_powerflow_intent_preserves_measurement_contract():
     assert not validator.is_valid(goal)
 
 
+def test_contingency_intent_matches_existing_violation_coverage_contract():
+    from jsonschema import Draft202012Validator
+    from pandapower_domain.task_coverage import PandapowerTaskProvider
+    validator = Draft202012Validator(PandapowerTaskProvider.schema_document["recognition_constraints"])
+    payload = proposal(operation="contingency", scenario="contingency")
+    goal = {"conclusion": "impact", "domain_request": {"payload": payload}}
+    assert validator.is_valid(goal)
+    payload["measure"] = "loading_percent"
+    assert not validator.is_valid(goal)
+
+
 def test_limit_intent_keeps_change_targets_separate_from_full_scenario_coverage():
     from jsonschema import Draft202012Validator
     from pandapower_domain.task_coverage import PandapowerTaskProvider

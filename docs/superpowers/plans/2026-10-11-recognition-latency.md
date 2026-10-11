@@ -144,3 +144,28 @@ claim a generated-outage ranking or change historical failed verdicts. Preserve
 all other overall business requirements. New current-source deployment validation
 must measure routing, compilation and execution separately. Stable preparation
 reuse exists; full opening-time worker prewarm is still not implemented.
+
+### Actual split validation and correction
+
+Deployed a9be99f with513 source files per role and exact App identity. Receipt
+provider-423cb31024104d20 passed9/10 scoped turns; load scaling failed. Routing
+was635–1471ms and model overviews4194–6596ms. Preserve this failed receipt.
+The load compiler proposed a bus-specific powerflow goal with no measure and a
+dependent full limits goal. Existing Pack resolution correctly rejected the
+first goal. 5edfb51 publishes that existing powerflow/compare measurement rule
+as a preadmission constraint, allowing bounded model correction before freezing.
+No incident-specific policy or Authority default changes.80 focused checks,
+types and independent review passed; actual new-source acceptance remains pending.
+The routing-only runner also now targets its exact attempt when requesting
+cancellation; its receipt does not prove downstream termination.
+
+5edfb51 receipt provider-650295a2bb8c4819 failed2/10 scoped turns. Its load
+proposal changed the business identifier to an internal index; outage proposal
+used a measurement not accepted by the existing contingency contract. Publish
+the existing contingency measure rule before freezing. Extend the existing
+bounded semantic review to professional user choices even without proposed
+gaps; retain the same two-call deadline budget and unchanged lightweight route.
+Review is generic, not an incident-specific system policy. Structural repair
+uses that same budget; a second independent semantic review is not guaranteed
+after structural correction. Real Provider fidelity and additional compilation
+latency still require new-source validation.
