@@ -279,6 +279,20 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                     proposal = decode_recognition_output(response)
                     task = recognize_decision(request, proposal, recognizer="pi-rpc:" + resolved_llm.config.model)
                     _validate_published_payload_fields(task, schemas)
+                    if attempt == 0 and any(
+                        goal.execution == "professional" and goal.missing_requirements
+                        and goal.domain_request is not None
+                        and goal.domain_request.schema != "capstone-professional-task/1"
+                        for goal in task.goals
+                    ):
+                        # Review before acceptance, using the same call/deadline
+                        # budget as structural correction. Never clear gaps here.
+                        prompt = json.dumps({"request": request.to_document(),
+                            "selected_context": claim.model_context.to_document(), "history": history,
+                            "requirement_schemas": schemas, "candidate": proposal,
+                            "semantic_review": "Review the complete unaccepted candidate against the original request, history, selected context and published contracts. Check whether each proposed missing requirement is a real unresolved user choice. Remove a gap only when the user's explicit request, trusted selected context or published contract already satisfies it. Populated candidate fields alone do not prove user confirmation. Preserve real ambiguity and all user goals; do not invent facts, defaults, identifiers or business choices. Return complete task JSON under the same contract."},
+                            ensure_ascii=False)
+                        continue
                     return task
                 except ValueError as error:
                     if attempt:

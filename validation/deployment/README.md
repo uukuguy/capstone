@@ -69,6 +69,13 @@ index outage. It checks that a verified converged scenario can be ranked without
 an incorrect integrity failure or another calculation, while tampered artifacts
 remain rejected. Final evidence admission is checked separately from answer style.
 
+[input-gap-update.json](input-gap-update.json) checks preacceptance consistency
+review of proposed missing inputs. A complete load-change request must execute;
+real object ambiguity remains a clarification. The review shares the original
+two-call/deadline budget with schema correction. Neither a populated payload nor
+a passing review alone proves numerical results; normal Pack and evidence
+admission still apply.
+
 ## Required records
 
 Record the exact commit, API/worker image identity, App source, sample-set version,

@@ -66,6 +66,25 @@ def test_n_minus_one_preserves_partial_scenario_failure(grid, context_ref: str, 
     assert all(item["evidence_ref"].startswith("evidence:sha256:") for item in result["scenarios"])
 
 
+@pytest.mark.parametrize("field", ["context_ref", "revision_ref"])
+def test_outage_ranking_rejects_inconsistent_embedded_context(grid, context_ref: str, field: str) -> None:
+    from grid_simulator.analyses import ResultIntegrityError, _verify_powerflow_result_document
+    from grid_simulator.evidence import canonical_json, fingerprint
+
+    outage = grid.call("analysis.contingency.n_minus_one.run", {
+        "context_ref": context_ref, "branch_refs": [_line_ref(grid, context_ref, 7)],
+    })
+    ref = str(outage["scenarios"][0]["scenario_result_ref"])
+    path = grid.workspace.root / "evidence/results" / f"result-{ref.removeprefix('result:sha256:')}.json"
+    document = json.loads(path.read_text())
+    document["powerflow"][field] = "different-context-or-revision"
+    body = {key: value for key, value in document.items() if key != "result_ref"}
+    ref = "result:sha256:" + fingerprint(canonical_json(body))
+    document["result_ref"] = ref
+    with pytest.raises(ResultIntegrityError, match="context does not match"):
+        _verify_powerflow_result_document(document, ref)
+
+
 def test_n_minus_one_uses_stable_branch_ref_and_reports_overload_evidence(grid, context_ref: str) -> None:
     line_11_ref = _line_ref(grid, context_ref, 11)
 

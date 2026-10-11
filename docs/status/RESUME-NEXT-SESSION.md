@@ -1,76 +1,57 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-11, regression diff audit. Session remains active.
+Updated: 2026-10-11. Session remains active.
 
-## Active work
+Repair task/answer closure before baseline and Research Model R1. System prompts
+must remain generic. Overall and upgrade acceptance are separate; keyword or
+mechanical screening alone cannot prove a business answer.
 
-Repair task/answer closure before a new baseline or Research Model R1.
-The user rejected the deployed answer regressions and weak overall acceptance.
-Previous six-turn overall acceptance is withdrawn. Historical derived-context
-receipts retain their actual scope. Never claim mechanical screening is semantic
-acceptance. CI governs protected merge, not local verification or handoff.
+## Current source and deployment
 
-## Source and deployment
+Root fix/deployment-answer-acceptance HEAD d7ac7d9; PR13 remains draft.
+dev c857837 and main723b8e8 unchanged. No cloud or demo promotion.
+local-dev worktree is clean detached d7ac7d9; canonical rebuild and source checks
+pass:511 files per role, image79d5827c, clean App. Full10-turn receipt
+provider-62974bed639c41d3 verifies outage sorting/admission but fails load-scaling:
+the complete proposed load fields also carry a model missing-input question.
 
-- Root: fix/deployment-answer-acceptance, HEAD0e4deb3, pushed draft PR13 to dev.
-- devc857837 and main723b8e8 unchanged; no merge or cloud promotion.
-- local-dev: detached .worktrees/issue-1-local-dev at0e4deb3, App5173/API8767.
-  Same-image receipt verifies511 backend files per role; imagefd04ef3b.
-- local-demo and recorded clouds remain ed2524f. Preserve data and credentials.
-- Research branch feat/research-model at50d8ebc; R1 not implemented.
+## Latest real failure and fix
 
-## Committed repairs and remaining scope repair
+Overall8 cases/10 turns on986fc20 completed, receipt
+runs/task-answer-closure/provider-overall/provider-9b58a248ae8d4282.json.
+Explicit-index-outage Attempt e0cae6bd29f3d372 failed answer admission.
+Recognition and Authority calculation succeeded. result.branches.rank rejected
+an intact analysis.operation/contingency.n_minus_one.scenario as integrity
+failure; Kernel correctly treated that event as fatal.
 
-Whole-network scope no longer requires an element measure; overview removes the
-unrelated generator N-1 gap; endpoint guide no longer maps an unqualified example
-to a fixed model/index. Mixed goals cannot receive full-coverage diagnostics from
-evidence alone. Limit/outage answers include Authority-backed object/value/limit
-details. Exact index/asset selectors use typed filters. Ordinary AC failure can
-report exact-scenario non-convergence evidence without numerical results.
-Contingency completeness now checks persisted Authority violation-type coverage
-and AC solver identity, rejecting filtered/DC results as full AC proof.
+Committed d7ac7d9 allows ranking a hash-verified, successful converged scenario's
+embedded powerflow, with matching context/revision and valid branch rows.
+Kernel fatal rules remain unchanged.12 focused tests pass; new tamper rejection
+passes; same actual failed calculation artifact now ranks line index11 at
+103.3289466%, without recalculation. Independent review approves.
+Type checks report0 errors and doctor passes. Control graph desktop/mobile,
+source edges and crossing checks pass for recorded986fc20 deployment.
 
-The user requires generic system instructions, never incident-specific guidance.
-Remove the generator registration reminder from proposal rules; generalize goal
-dependencies; remove both endpoint-guide defaults from a bare numeric label to
-an index.83 recognition/Pack checks pass. This cleanup is deployed at0e4deb3.
+## Acceptance work remaining
 
-The standalone overview/AC专项 passed actual Provider and Authority review.
-Receipt provider-context-scope/provider-0872dbeff1324585.json; frozen records,
-Authority facts and professional deepseek/deepseek-flash identity are retained.
-The overall8/10 run bd2d0661 mechanically passed but semantic review FAILED:
-continuous overview Attempt1ce5a711 incorrectly rejected network/all/*.
-Uncommitted repair shares exact whole-network predicate with overview, preserves
-frozen selector, and requires verified information diagnostic in screening.
-49 Pack and16 sample checks pass, types zero errors, source review approves.
-context-scope专项 now selects three cases/four turns; unrelated endpoint answer
-quality is not a repair gate. Rebuild and repeat acceptance before any handoff.
+1. Commit the approved preacceptance semantic review, push draft PR13, rebuild
+   the exact candidate and run input-gap-update.json. Preserve true ambiguity.
+2. The provisional missing-input bypass was rejected and removed. The approved
+   implementation shares the original two-call/deadline budget with schema
+   correction; unresolved gaps retain clarification.80 focused checks pass,
+   types0 errors. System policy unchanged; no case-specific instructions.
+3. Re-run overall when claiming a new baseline. Preserve prior failed receipt,
+   do not substitute a专项 pass for overall acceptance.
+4. Update canonical register/generated graph and browser checks, bot-push PR13;
+   Issues2/3 stay open pending scope closure. Journal each commit.
 
-98 focused Pack/closure/sample checks and3 simulator contingency checks pass.
-Non-convergence red/green passed; real filtered/DC counterexamples failed before
-repair, then12 affected tests passed. Independent review approves the scope repair.
-Overall corpus: validation/deployment/ieee39.json,8 cases/10 turns. Required AC
-and load calculations cannot pass as clarifications. Upgrade-specific criteria
-remain in separate manifests, including context-scope-update.json.
+Scripts live under ignored runs/task-answer-closure. Credentials must stay in
+protected environment state, not arguments/output. Save semantic facts before
+rebuild, because private Pi workspaces are ephemeral.986 overall facts saved as
+provider-9b58a248ae8d4282-semantic-facts.json. Completed-window browser checks
+passed; latest running-preview probe timed out on the failed outage, not passed.
 
-## Next actions
-
-1. Finish focused tests, types and independent diff review. Keep unresolved
-   obligation/output-count, missing-input ownership and renderer limits visible.
-2. Update canonical VERSION-CONTROL, graph, browser checks and audit records;
-   commit only owned paths, append journal immediately, bot-push draft PR13.
-3. Check no active attempts; canonically rebuild deployment worktree from exact
-   repair commit with make capstone-local-rebuild. Verify all three roles/App.
-4. Run authorized deepseek/deepseek-flash upgrade cases and whole8/10 corpus.
-   Inspect frozen tasks and actual Authority results, then review final answers.
-   Do not announce baseline/human handoff until required scope passes.
-5. Correct old Issues2/3 acceptance comments through capstone-xiaoshi App;
-   leave issues open until their real acceptance requirements close.
-
-## Ownership and rules
-
-No keyword intent fallback or prompt-only workaround. Never expand Authority
-capabilities or numerical thresholds for a sample. Keep LLM recognition and
-current-run exact-scenario evidence. Preserve all unrelated work and ignored data.
-Bot-only GitHub public writes; no admin bypass. Control browser URL18780,
-session closure-control. Local validation need not wait for GitHub CI.
+Remaining broader gaps: free-text obligation/output-count completeness,
+model-declared missing-input short circuit, fixed formal templates and selected
+binding capability prose. Do not mark all framework closure complete from the
+current repair. Research R1 remains unimplemented; local-demo/clouds ed2524f.

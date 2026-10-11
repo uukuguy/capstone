@@ -332,7 +332,8 @@ def test_rpc_recognition_has_no_extension_or_domain_paths(monkeypatch, tmp_path)
 
 @pytest.mark.parametrize("repair", [True, False])
 @pytest.mark.parametrize("malformed", ["missing-field", "enum-array"])
-def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypatch, tmp_path, repair, malformed):
+@pytest.mark.parametrize("gap", [False, True])
+def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypatch, tmp_path, repair, malformed, gap):
     import json
     from capstone_agent import task_recognition
     from capstone_agent.task_understanding import SCHEMA_V2
@@ -343,6 +344,8 @@ def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypat
     decision["schema"] = SCHEMA_V2
     decision["goals"][0].update(execution="professional", dependencies=[], domain_request={
         "binding_id": "grid", "schema": "test-requirement/1", "payload": {"operation": "overview"}})
+    if gap:
+        decision["goals"][0]["missing_requirements"] = ["Unresolved user choice"]
     if malformed == "enum-array":
         decision["goals"][0]["domain_request"]["payload"]["direction"] = ["descending"]
     prompts = []
@@ -367,6 +370,7 @@ def test_rpc_repairs_missing_published_payload_field_before_acceptance(monkeypat
     if repair:
         task = task_recognition.recognize_with_pi(claim, **arguments)
         assert task.goals[0].domain_request.payload["direction"] == "descending"
+        assert bool(task.goals[0].missing_requirements) == gap
     else:
         with pytest.raises(ValueError, match="payload fields"):
             task_recognition.recognize_with_pi(claim, **arguments)
@@ -424,3 +428,48 @@ def test_m11_scripted_recognition_is_finite_and_provider_free(family, monkeypatc
     claim.instruction = "unregistered instruction"
     with pytest.raises(ValueError):
         builder.recognize_task(claim, on_heartbeat=lambda: None)
+
+
+@pytest.mark.parametrize("review", ["satisfied", "unresolved", "invalid"])
+def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review):
+    import copy
+    import json
+    from capstone_agent import task_recognition
+    from capstone_agent.task_understanding import SCHEMA_V2
+    service = _service()
+    _submit(service)
+    claim = service.claim_attempt("worker", 30)
+    decision = proposal()
+    decision["schema"] = SCHEMA_V2
+    decision["goals"][0].update(execution="professional", dependencies=[],
+        missing_requirements=["Possible missing user choice"], domain_request={
+            "binding_id": "test", "schema": "test/1", "payload": {"operation": "inspect"}})
+    prompts, timeouts = [], []
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def start(self): pass
+        def stop(self): pass
+        def prompt_and_wait(self, prompt, **kwargs):
+            prompts.append(json.loads(prompt))
+            timeouts.append(kwargs["timeout_seconds"])
+            result = copy.deepcopy(decision)
+            if len(prompts) == 2:
+                if review == "satisfied": result["goals"][0]["missing_requirements"] = []
+                if review == "invalid": result["goals"][0]["domain_request"]["payload"] = {}
+            return json.dumps(result)
+    monkeypatch.setattr(task_recognition, "build_pi_launch", lambda *args, **kwargs: SimpleNamespace(argv=("pi",), environment={}))
+    monkeypatch.setattr(task_recognition, "PiRpcClient", Client)
+    arguments = dict(runtime_host=SimpleNamespace(command=SimpleNamespace(argv=("pi",)), project_pi_dir=tmp_path),
+        resolved_llm=SimpleNamespace(secret=None, config=SimpleNamespace(model="controlled")),
+        base_environment={}, timeout_seconds=60, on_heartbeat=lambda: None,
+        requirement_schemas=({"binding_id": "test", "schema": "test/1", "payload_fields": {"operation": ["inspect"]}},))
+    if review == "invalid":
+        with pytest.raises(ValueError): task_recognition.recognize_with_pi(claim, **arguments)
+    else:
+        task = task_recognition.recognize_with_pi(claim, **arguments)
+        assert bool(task.goals[0].missing_requirements) == (review == "unresolved")
+    assert len(prompts) == 2
+    assert prompts[1]["candidate"] == decision
+    assert prompts[1]["request"] == prompts[0]["request"]
+    assert "semantic_review" in prompts[1]
+    assert 0 < timeouts[1] <= timeouts[0] <= 60

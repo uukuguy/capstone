@@ -109,3 +109,32 @@ because it instructed execution for an unqualified user question.
 Do not modify numerical capability coverage, thresholds, defaults or Authority
 results to make a deployment sample pass. Repair criteria must cite the owning
 contract, preserve unrelated business semantics and verify affected boundaries.
+
+## Follow-up deployment failures
+
+The full Provider run on0e4deb3 exposed a continuous overview whose exact
+whole-network selector was rejected.986fc20 shares the whole-network predicate
+between overview and calculation and requires verified informational completion.
+No system prompt was changed for this repair.
+
+The next full8-case/10-turn run on986fc20 failed explicit-index-outage Attempt
+e0cae6bd29f3d372. Recognition, target resolution and Authority calculation
+succeeded. The branch-ranking reader rejected a hash-valid, converged contingency
+scenario because it accepted ordinary AC results only. It returned
+result_integrity_failed, which correctly triggered the Kernel's fatal admission
+rule. d7ac7d9 reads the verified scenario's embedded powerflow with matching
+context/revision and validated rows; it preserves the original result reference.
+The Kernel rule is unchanged.12 related tests, tamper rejection and readback of
+the actual failed-run artifact pass. Deployment acceptance still needs the new
+candidate's Provider and browser receipts. The prior failed receipt is retained
+as provider-overall/provider-9b58a248ae8d4282.json under ignored runs storage.
+
+The10-turn Provider run on d7ac7d9 verifies the repaired outage ranking and final
+evidence admission, but fails load-scaling with required_calculation_missing
+(receipt provider-62974bed639c41d3). The recognizer proposed complete load-change
+parameters and also a missing-input question; the application froze that question
+as clarification. A provisional bypass was rejected in review and removed: a
+populated payload cannot prove a real user choice is resolved. The next repair
+adds one bounded semantic review before acceptance, sharing the two-call/deadline
+budget with structural correction. It preserves unresolved gaps and the original
+resolution barrier.80 focused checks pass; actual Provider validation is pending.
