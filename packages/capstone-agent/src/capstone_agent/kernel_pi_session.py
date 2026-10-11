@@ -240,7 +240,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 ):
                     raise RuntimeError("prepared Pi tool resources are unavailable")
                 tool_catalog_path = task_execution_catalog(
-                    claim, binding_id, runtime, cast(Path, tool_catalog_path), workspace.core_path / "pi" / "attempts",
+                    claim, binding_id, runtime, cast(Path, tool_catalog_path),
                 )
                 execution_catalogs[binding_id] = tool_catalog_path
                 descriptor = descriptor_from_endpoint(

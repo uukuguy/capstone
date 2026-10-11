@@ -8,7 +8,7 @@ from pathlib import Path
 from capability_agent.tools.catalog import ToolCatalog, ToolDocument
 
 
-def task_execution_catalog(claim, binding_id, runtime, source: Path, directory: Path) -> Path:
+def task_execution_catalog(claim, binding_id, runtime, source: Path) -> Path:
     goals = [goal for goal in claim.task_resolutions if goal.binding_id == binding_id and goal.execution_required]
     provider = getattr(runtime.profile, "task_provider", None)
     select = getattr(provider, "execution_capabilities", None)
@@ -27,6 +27,7 @@ def task_execution_catalog(claim, binding_id, runtime, source: Path, directory: 
     tools = tuple(ToolDocument(**tool) for tool in document["tools"] if tool["capability"] in allowed)
     if not tools:
         raise ValueError("Pack task has no registered execution capabilities")
-    path = directory / claim.attempt.attempt_id / binding_id / "tool-catalog.json"
+    # Runtime descriptors require semantic resources inside the Pack workspace.
+    path = source.parent / "task-catalogs" / claim.attempt.attempt_id / "tool-catalog.json"
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     return ToolCatalog(tools, protocol=document["protocol"]).materialize(path)
