@@ -1,5 +1,15 @@
 # Known issues and deferred work
 
+## Selective restoration — 2026-10-12
+
+The user requested existing compact activity, lightweight ordinary and final-message
+fixes back. Product82b243c restores only those scopes; source/UI and real2-turn
+update pass independent review. Ordinary104chars/8.491s, zero tools, configured
+deepseek-flash; final1285-character Chinese calculation answer excludes three
+intermediate English process messages. No Task compiler/coverage/prewarm restored.
+Model overview remains professional; its extra computation and latency remain open.
+Earlier30a3ecb load failure and AC identity error are not certified repaired.
+
 ## User-directed rollback — 2026-10-12
 
 The user rejected the closure candidate after original business requests failed.

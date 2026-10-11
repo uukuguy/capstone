@@ -6,6 +6,7 @@
   "profile_version": "1.0.1",
   "model_id": "ieee39",
   "cases": [
+    {"id": "ordinary-information", "turns": [{"text": "用两三句话解释一下什么是彩虹。", "expect": "model-overview"}]},
     {"id": "overview", "turns": [{"text": "帮我介绍一下当前电网的基本情况，以及你能做哪些分析", "expect": "model-overview"}]},
     {"id": "line-outage", "turns": [{"text": "如果line7跳闸，帮我分析一下哪些线路会重载", "expect": "authority-calculation"}]},
     {"id": "load-scaling", "turns": [{"text": "如果母线31下面的负荷变成当前负荷的1.3倍，会不会发生越界等问题?", "expect": "authority-calculation"}]},

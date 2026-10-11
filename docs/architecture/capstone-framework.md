@@ -10,6 +10,14 @@ its separately configured Provider/model. A failed classifier stops the attempt
 with a routing diagnostic; hosted applications do not use keyword fallback.
 The experimental closure design remains historical, not current runtime behavior.
 
+After the user-directed rollback, three existing fixes are selectively restored:
+the compact activity window, isolated ordinary knowledge answers and final-message
+collection. Ordinary answers have no business extension/catalog/Authority handle;
+they use the configured lightweight role with thinking off. Process deltas remain
+diagnostic and cannot become the formal answer. Task compilation, coverage and
+model prewarm remain withdrawn. Model information requests still use the professional
+chain; no speed or calculation-free claim is made for that path.
+
 Capstone assembles evidence-backed agent applications over authoritative
 business-domain systems. It is the composition boundary between a reader-facing
 application, a domain's semantic capabilities, and the registered system that

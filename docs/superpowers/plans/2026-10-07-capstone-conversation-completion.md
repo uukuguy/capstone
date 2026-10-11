@@ -5,6 +5,13 @@
 > c3b78bc business execution and retains standalone ordinary/professional LLM routing.
 > Prior checkmarks and reports are historical; they do not certify the rollback.
 
+2026-10-12 selective restoration requested by user: latest3-action small-font UI,
+ordinary tool-free lightweight answer path and final-message/process separation.
+Product82b243c; UI380/framework588/RPC11/related66/types passed, source506 files
+and same image6717818b verified. Real ordinary104chars/8.491s/zero tools and final
+Chinese1285chars/48.975s pass scoped independent review. Overall business defects
+and professional model-overview latency remain open; do not resume task compilation.
+
 > **For agentic workers:** Execute inline with test-driven development and focused review. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete remaining requirements in the existing agent-conversation designs while preserving the deployed user version.

@@ -1,5 +1,18 @@
 # Live session checkpoint — 2026-10-12 rollback
 
+User requested selective restoration after rollback: small-font latest3-action
+window, lightweight ordinary answers and final-message/process separation.
+Product82b243c deployed from detached issue-1-local-dev; exact506 files in API and
+both workers/image6717818b, clean matching App. UI380/framework588/RPC11 and related
+66 tests/types pass; independent source review approves. No compiler/coverage restored.
+Ordinary uses the existing configured recognition model and thinking off, with no
+business tools or authority descriptors. Model overview is still professional;
+its extra calculations/latency are not claimed repaired. Realad15bf6fe1d34606
+two-turn update independently PASS: ordinary104chars/8.491s/zero tools and final
+Chinese1285chars/48.975s without intermediate English. Actual event replay checks
+3-row preview/160px scroll/toggle/terminal collapse; actual App hover action and
+full scrollbar pass. Next: publish scoped report/PR14 update; overall defects remain.
+
 User cancelled task/answer closure recovery. Restore pre-closure business execution
 from c3b78bc; retain only standalone tool-free LLM ordinary/professional routing.
 Do not resume task compilation, coverage, answer rewriting, frozen reuse or prewarm.

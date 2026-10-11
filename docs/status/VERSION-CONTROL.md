@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-12：用户撤回回答增强；local-dev30a3ecb已恢复c3b78bc业务链，只保留独立无工具LLM路由。506项三角色同源与干净App、离线检查及浏览器通过；七轮真实回归保留负荷执行失败、旧英文前缀及AC正文对象错误，整体业务验收未通过，不建立新基线。
+2026-10-12：用户撤回任务闭环后选择性补回已有修复；local-dev82b243c恢复三动作小字号窗口、普通无工具轻量问答和最终消息分离。506项三角色同源与干净App、源码审查及两轮真实专项通过；整体业务缺陷继续保留，不形成新基线。
 
 原1013dd2及更早修复只保留历史证据，不再作为当前验收依据；预热、任务编译、覆盖判定、回答重写和增强复用均已撤回。回退分支fix/stable-route-recovery保存独立识别配置及路由失败诊断；旧分支归档保留，不删除工作或数据。PR #13原候选撤回待同步；dev/main/demo及云端未部署回退，Research R1后置。
 
@@ -30,7 +30,7 @@ main轻量保护已开启并回读核验：PR＋GitHub Actions两平台检查，
 
 每次更新控制图调用 `ui-ux-pro-max`，核对紧凑字号、间距与视觉层级、左右平衡和参考实现降级。状态不能只靠颜色。保留深青树提交与紫色部署提交、dev中栏演进、main发布点不同底色和四环境独立来源。生成后检查桌面一屏、间距两端、重叠、来源边、移动端与离线交互；有问题先修正。
 
-连接到同侧主线的分支和部署按来源顺序排列，避免倒置造成交叉。检查独立边交叉和穿过卡片，共享端点分叉不算交叉。local-dev挂回退候选30a3ecb，demo及cloud挂ed2524f；工作线前缀和节点背景变化不改变Git来源或部署事实。
+连接到同侧主线的分支和部署按来源顺序排列，避免倒置造成交叉。检查独立边交叉和穿过卡片，共享端点分叉不算交叉。local-dev挂选择性补回候选82b243c，demo及cloud挂ed2524f；工作线前缀和节点背景变化不改变Git来源或部署事实。
 
 已确认推进顺序：收口基础修订 PR #6 并更新 local-dev → 核对数据兼容后恢复 local-demo 与 cloud-demo 的 `ed2524f` 基线对齐 → 从最新 main 建“任务理解与回答闭环”增强分支 → local-dev 分阶段验收 → 合并并冻结下一发布候选 → local-demo 产品验收 → cloud-dev 验证 → cloud-demo 计划发布。Pi/skills 和统一输入命令保留各自开发状态，不混入回答增强包；旧存储实验已归档。当前授权推进本地开发与验证，云发布仍需独立授权；尚未发生的合并、对齐和发布不得登记为完成。
 
@@ -73,7 +73,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从已接受dev开展Research Model R1；发布另按范围冻结 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8；dev组织验收50d8ebc，PR #11 CI Linux60秒/macOS131秒；本地B2技术标签已推送；demo与云端ed2524f |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
-| answers | 稳态恢复与独立意图识别 | 2 | 回退完成，整体未通过 | 恢复原业务执行；独立LLM仅选择普通/专业；撤销任务编译和回答增强 | fix/stable-route-recovery | 记录原链缺陷；回退与业务验收分开；研究后置 | main c3b78bc | c3b78bc业务代码；独立无工具LLM路由及单独Provider配置 | 30a3ecb规范重建506项同源；585框架/105领域包/57聚焦检查、类型与doctor通过；七轮真实业务未通过：负荷场景失败、旧英文前缀、AC对象错误；无新基线 |
+| answers | 回退与选择性补回 | 2 | 专项通过，整体缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | fix/stable-route-recovery | 保留旧业务缺陷与概况耗时；研究后置 | main c3b78bc | 仅补回c6093de/21c02e1/2473e48对应UI、普通隔离和消息收集；不恢复任务编译 | 82b243c重建506项同源；588框架/380App/RPC11/相关66/types通过；真实普通104字8.491s、计算最终中文48.975s专项PASS；整体验收未重做 |
 | pi | Pi 与 skills 能力扩展 | 3 | 实验分支 | 通用任务执行、完整业务上下文与数据共享、skills/MCP 与角色资源扩展 | feat/pi-skills-integration | 分支内设计实现当前模型数据投影和授权共享；验证真实业务输入与配置间效果 | 当前稳定能力（未排入发布） | 通用 Pi 与委派执行；skills/MCP 与专业结构检查；已有有限上下文；完整业务上下文和数据共享尚待实现；输入命令原型 /skills、/skill:<name>、/context | 完整业务上下文与数据共享归入本分支，不另列待推进包；输入原型不等于统一前端命令功能完成；尚无稳定发布验收 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
 | case | 独立 Case 模块产品接入 | 3 | 待范围设计 | 独立案例执行、状态查看与恢复入口 | — | 核对已有 Case 服务与当前对话入口，确定独立模块范围 | 已有独立 Case 执行基础 | 将 Case 作为完整模块接入产品；明确与普通对话的关系 | 底层已有能力，当前对话入口尚未组装完整模块；不视为从零开发 |
@@ -128,7 +128,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | baseline | a076b04 | main | 运行基线重整与本地隔离 | 已验收 | ed2524f → a076b04：实验 Pi/skills 与未验收回答实现移出运行代码；修正模型拓扑/历史接口；建立隔离 local-demo | main |
 | main | main | release | main · 发布基线主线 | 发布快照 | PR #9/#10已合入723b8e8；技术基线来源2473e48，真实业务样本失败；后续发布PR由dev冻结；云端未发布 | foundation |
 | dev | 50d8ebc | main | dev · 组织基线与研究起点 | 已集成，双平台通过 | PR #11已合并；当前全局文档与可信Issue路由在dev；治理CI Linux60秒/macOS131秒；feat/research-model从本提交建立；R1未实现，R0实验保留 | main |
-| answers | 30a3ecb | repair | 稳态恢复 · local-dev候选 | 回退完成，整体未通过 | 按用户决定撤回未稳定回答增强；恢复c3b78bc原业务链，独立无工具LLM仅选路由；506项三角色同源与干净App核验，七轮业务仍有真实失败，非稳定性验收通过；旧候选与失败记录保留 | answers |
+| answers | 82b243c | repair | 选择性补回 · local-dev候选 | 专项通过，整体缺陷保留 | 回退后按用户要求补回最新三动作9px窗口、160px滚动、普通无工具轻量问答和最终消息隔离；506项同源、两轮真实专项及独立复审通过；整体业务缺陷继续保留 | answers |
 | pi | feat/pi-skills-integration | feature | 通用 Pi、skills 与业务资源 | 功能在研，未发布 | 普通/专业路由、通用 Pi/委派执行、skills/MCP 与专业结构检查；输入命令原型 /skills、/skill:<name>、/context；已有身份与有限历史共享；待完成：完整业务上下文、当前模型数据投影与授权共享；待验收：真实业务输入与配置间效果 | pi |
 | research | experiment/autonomous-research | feature | Research Model · R0参考实验 | 保留参考，实施分支已建立 | R0来源c3b78bc，bf678f2；33测试/15节点/重放通过；受控策略，不代表自主研究验收；新实施分支feat/research-model从dev50d8ebc建立；R1待实现，未部署 | research |
 | answer-old | archive/answer-chain-unaccepted-20261010 | repair | 旧回答修复 · 防护复用来源 | 保留参考，未验收 | 已有结果/证据保留、诊断与展示防护；正式回答未过人工验收；供新增强分支复用有效防护，不原样合入或部署 | answers |
@@ -143,7 +143,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 11 | main | docs/project-state-sync | dev | MERGED | 原34文件积累文档及dev治理cfa6c1c已集成50d8ebc；精确CI38126098431两平台通过；68本地检查与独立审查通过；不作为产品部署 |
 | 12 | main | docs/dev-baseline-control | dev | 状态见GitHub | 控制图维护记录：B2标签、合并分支关闭、Research Model起点；四环境dev/main前缀、中栏dev演进及main发布点独立底色；精确状态以链接为准，不作为产品部署 |
 | 13 | answers | fix/deployment-answer-acceptance | dev | CLOSED | 人工回归失败后按用户决定撤回；源码42a647b与旧补丁保留；不再作为验收通过候选 |
-| 14 | answers | fix/stable-route-recovery | dev | DRAFT | 按用户决定恢复c3b78bc业务执行，仅保留独立LLM路由；local-dev30a3ecb同源与浏览器通过，七轮整体业务仍失败；Issues2/3保持打开，未合并 |
+| 14 | answers | fix/stable-route-recovery | dev | DRAFT | 用户回退并选择性补回三动作小窗、普通无工具问答、正式消息隔离；local-dev82b243c两轮专项与源码同源通过；整体业务缺陷保留，Issues2/3打开 |
 
 ## 全部分支进展
 
@@ -156,7 +156,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | Research Model实施 | 从dev50d8ebc建立，根工作区隔离目录.worktrees/research-model；尚无R1代码 | 按R1–R5阶段验收；新工作区测试前准备受管运行时；普通问答回归保留 | research |
 | fix/deployment-answer-acceptance | 已撤回的回答增强候选 | 42a647b保留，archive/answer-recovery-before-rollback-20261012固定恢复点；未提交补丁已备份 | 人工回归失败；用户取消本轮增强；不得继续作为可靠基线或验收通过版本 | answers |
-| fix/stable-route-recovery | 稳态回退与独立LLM路由 | 从42a647b保存历史后恢复c3b78bc业务树；产品30a3ecb，未合入dev | 规范重建506项同源、690框架/领域包检查及57聚焦检查通过；浏览器通过；七轮真实整体业务未通过 | answers |
+| fix/stable-route-recovery | 回退与选择性补回 | 恢复c3b78bc业务树；产品82b243c，仅补回用户明确要求的UI、普通轻量和过程隔离；PR14草稿 | 506项同源/588框架/380App/RPC11/types通过；实际两轮专项PASS；原七轮业务失败收据保留，不计新稳定基线 | answers |
 | improve/run-process-window | 已被完整候选取代 | 22acf1b为早期界面验收来源；后续2473e48及当前d7ac7d9包含更紧凑窗口 | 保留来源参考，不继续作为当前部署候选；随PR #9收口 | answers |
 | improve/issue-4-active-recovery | 诊断工作区，产品源码未变 | 来源c3b78bc；4项生命周期检查确认隐藏页面恢复路径符合既有设计；Issue#4为ai:needs-info | 核对切后台/锁屏触发和实际时序；不猜测云端冷启动原因，不修改在线睡眠策略 | wake |
 | feat/pi-skills-integration | 实验在研 | 大量普通/专业问答路由、通用 Pi、skills、资源与业务上下文代码已保留 | 按依赖与验收范围分组；不直接进入 demo | pi |
@@ -254,7 +254,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | detached .worktrees/issue-1-local-dev；稳态恢复候选30a3ecb | 恢复c3b78bc业务代码，只保留独立LLM路由；506项三角色同源与干净App；浏览器可见结果与失败；实际整体业务未通过 | App5173，API8767；镜像7409a029；重建runs/task-answer-closure/rebuild-rollback-30a3ecb.log；App固定产品提交，不随文档提交漂移；未合入dev或main |
+| local-dev | detached .worktrees/issue-1-local-dev；选择性补回82b243c | c3业务链加独立识别、三动作小窗、普通轻量无工具与最终消息隔离；506项三角色同源与干净App，两轮专项及浏览器通过；不声明整体稳定 | App5173，API8767；镜像6717818b；重建runs/task-answer-closure/rebuild-selective-restore.log；App固定产品提交；未合入dev/main |
 | local-demo | detached `.worktrees/demo-baseline`；线上精确基线 `ed2524f` | 已恢复与 cloud-demo 对齐；505 个后端文件/三角色同镜像、注册用例/报告/证据回放通过；原有事件保留。旧线上 App 无四环境徽标，随下一正式发布更新 | App `http://127.0.0.1:15173/`，API `18767`；用例 `runs/version-baseline-alignment/local-demo-ed-cases.json`；兼容验证入口 `runs/issue-automation-acceptance/local-demo-ed-wrapper-compatible.log` |
 | cloud-dev | `ed2524f`，历史标签 `cloud-dev-20261008-1941-ed2524f` | 未部署新版本；本次只读核对公开 App 仍为此来源，后端身份沿用验收记录 | App https://capstone-app-production-83ef.up.railway.app/；[验收报告](../reviews/2026-10-08-cloud-dev-app-version.md) |
 | cloud-demo | `ed2524f`，回滚标签 `demo-20261010-1231-ed2524f` | 只读核对公开 App 仍为回滚来源；后端身份沿用验收记录，已知问题仍开放 | App https://capstone-app-production-975e.up.railway.app/；[发布与回滚报告](../reviews/2026-10-10-demo-n1-release.md) |
