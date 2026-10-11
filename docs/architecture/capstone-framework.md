@@ -62,6 +62,15 @@ or execution. A proposal without missing inputs must satisfy the full published
 schema before resolution; the Pack then owns complete execution requirements.
 Pending proposals are never certified as complete business requests.
 
+The model wire uses compact `capstone-task-intent/1`. Registered Pack projections
+copy scope, scenario and measure into payload fields once; Application expands
+intent text into the existing durable v2 views and validates the original full
+contracts before acceptance. Model-visible wire schemas omit projected payload
+fields. Supported projections have flat, reference-free object roots; complex
+root constraints fail closed. Non-projected contracts are unchanged. Pack-owned
+goal constraints prevent contradictory operation/conclusion choices. No
+recognition path performs tool planning, calculation or evidence admission.
+
 Recognition is an application-owned role separate from execution. The worker
 reuses its verified runtime preparation and one tool-free recognition process.
 Before a new task, Pi must confirm creation of an empty session; only explicit

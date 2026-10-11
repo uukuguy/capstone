@@ -199,6 +199,7 @@ published Pack contracts, not tools or execution grants.
 recognition_projection maps goal fields into payload fields. Omit these mapped payload
 fields: the host copies their values exactly. All other payload fields remain required.
 Projected goal values must satisfy the selected payload schema's allowed values.
+projected_goal_fields lists those values at their single semantic source.
 recognition_constraints is a normative JSON Schema for the complete expanded goal.
 payload_schema is the complete normative JSON Schema when present; enum lists describe
 allowed scalar choices, not output arrays. Follow nested object and array item schemas.
@@ -208,6 +209,57 @@ capabilities are professional goals using the supplied Pack contracts, not indep
 knowledge. Missing requirements concern the user's intended objects or business rules;
 do not ask the user to confirm tool registration. Subject descriptions remain proposals for Pack resolution.
 '''
+
+
+def _recognition_projection(schema):
+    projection = schema.get("recognition_projection", {})
+    fields = schema.get("payload_fields", {})
+    if (not isinstance(projection, Mapping) or not isinstance(fields, Mapping)
+        or not set(projection) <= {"scope", "scenario", "measure"}
+        or any(not isinstance(target, str) or target not in fields for target in projection.values())
+        or len(set(projection.values())) != len(projection)):
+        raise ValueError("intent projection is invalid")
+    return projection
+
+
+def recognition_schema_documents(schemas):
+    """Show the wire shape, keeping full published validation host-side.
+
+    The removed fields are supplied only through the exact declared projection.
+    This prevents the model's wire schema from requiring duplicate values.
+    """
+    documents = json.loads(json.dumps(list(schemas), ensure_ascii=False, allow_nan=False))
+    for document in documents:
+        projection = _recognition_projection(document)
+        if not projection:
+            continue
+        targets = set(projection.values())
+        fields = document["payload_fields"]
+        document["projected_goal_fields"] = {source: fields[target] for source, target in projection.items()}
+        document["payload_fields"] = {name: value for name, value in fields.items() if name not in targets}
+        payload = document.get("payload_schema")
+        if isinstance(payload, dict):
+            # Only flat object roots have a proven projection. Do not silently
+            # rewrite composition, references or cross-field constraints.
+            allowed = {"$schema", "$id", "$defs", "definitions", "type", "properties", "required",
+                       "additionalProperties", "title", "description", "examples", "default",
+                       "deprecated", "readOnly", "writeOnly"}
+            if not set(payload) <= allowed or payload.get("type") != "object":
+                raise ValueError("intent projection schema has unsupported root constraints")
+            pending = [payload]
+            while pending:
+                node = pending.pop()
+                if isinstance(node, dict):
+                    if set(node) & {"$ref", "$dynamicRef", "$recursiveRef"}:
+                        raise ValueError("intent projection schema does not support references")
+                    pending.extend(node.values())
+                elif isinstance(node, list):
+                    pending.extend(node)
+            if "required" in payload:
+                payload["required"] = [name for name in payload["required"] if name not in targets]
+            if "properties" in payload:
+                payload["properties"] = {name: value for name, value in payload["properties"].items() if name not in targets}
+    return documents
 
 
 def expand_recognition_intent(proposal, schemas):
@@ -244,13 +296,7 @@ def expand_recognition_intent(proposal, schemas):
                     and item.get("schema") == request["schema"]]
         if len(selected) != 1 or not isinstance(request["payload"], dict):
             raise ValueError("intent has no unique published contract")
-        projection = selected[0].get("recognition_projection", {})
-        fields = selected[0].get("payload_fields", {})
-        if (not isinstance(projection, Mapping) or not isinstance(fields, Mapping)
-            or not set(projection) <= {"scope", "scenario", "measure"}
-            or any(not isinstance(target, str) or target not in fields for target in projection.values())
-            or len(set(projection.values())) != len(projection)):
-            raise ValueError("intent projection is invalid")
+        projection = _recognition_projection(selected[0])
         for source, target in projection.items():
             if target in request["payload"]:
                 raise ValueError("intent payload contains duplicate projected fields")
@@ -346,7 +392,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
             schemas = list(requirement_schemas)
             if len(schemas) > 16 or len(json.dumps(schemas, ensure_ascii=False, allow_nan=False).encode("utf-8")) > 32768:
                 raise ValueError("published task schemas are too large")
-            model_schemas = schemas
+            model_schemas = recognition_schema_documents(schemas)
             prompt = json.dumps({"requirement_schemas": model_schemas, "selected_context": claim.model_context.to_document(),
                                  "history": history, "request": request.to_document()}, ensure_ascii=False, separators=(",", ":"))
             metrics["input_bytes"] = len(prompt.encode("utf-8"))
@@ -379,14 +425,13 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         if attempt == 0 and any(
                             goal.execution == "professional" and goal.missing_requirements
                             and goal.domain_request is not None
-                            and goal.domain_request.schema != "capstone-professional-task/1"
                             for goal in task.goals
                         ):
                             # Review before acceptance, using the same call/deadline
                             # budget as structural correction. Never clear gaps here.
                             prompt = json.dumps({"request": request.to_document(),
                                 "selected_context": claim.model_context.to_document(), "history": history,
-                                "requirement_schemas": schemas, "candidate": wire_proposal,
+                                "requirement_schemas": model_schemas, "candidate": wire_proposal,
                                 "semantic_review": "Review the complete unaccepted candidate against the original request, history, selected context and published contracts. Check whether each proposed missing requirement is a real unresolved user choice. Remove a gap only when the user's explicit request, trusted selected context or published contract already satisfies it. Populated candidate fields alone do not prove user confirmation. Preserve real ambiguity and all user goals; do not invent facts, defaults, identifiers or business choices. Return complete task JSON under the same contract."},
                                 ensure_ascii=False)
                             continue
@@ -398,7 +443,7 @@ def recognize_with_pi(claim, *, runtime_host, resolved_llm, base_environment, ti
                         # Ask for a complete proposal; never fill business choices here.
                         prompt = json.dumps({"request": request.to_document(),
                             "selected_context": claim.model_context.to_document(), "history": history,
-                            "requirement_schemas": schemas,
+                            "requirement_schemas": model_schemas,
                             "validation_error": "Host contract validation: " + str(error) + ". Return the complete corrected task JSON. Preserve the user intent and all goals; do not invent identifiers or business choices."}, ensure_ascii=False)
                     finally:
                         metrics["calls"][-1]["validation_ms"] = round((time.monotonic()-validation_started)*1000)

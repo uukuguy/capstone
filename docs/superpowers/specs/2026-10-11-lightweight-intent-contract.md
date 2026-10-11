@@ -16,6 +16,14 @@ repeat purpose, subject, change and obligations as separate generated prose.
 The host expands those textual views without changing the intent. Existing
 durable `capstone-task-understanding/2` and current-run admission remain intact.
 
+The model sees a wire schema with projected payload fields removed, and their
+allowed values listed as goal fields. The host retains the complete original
+schema. Flat object roots support this projection; root composition, references
+and cross-field constraints fail closed rather than being silently rewritten.
+Nested selector constraints remain intact. Schemas without projection stay
+unchanged. Real ambiguity receives the same bounded semantic review for typed
+and professional compatibility proposals; compatibility is not an exemption.
+
 Each Pack may publish `recognition_projection`, mapping only scope, scenario
 and measure to fields in its payload. The application copies values exactly.
 It rejects duplicate fields, unknown sources, missing target fields and

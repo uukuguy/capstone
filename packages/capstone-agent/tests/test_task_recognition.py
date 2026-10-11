@@ -478,7 +478,8 @@ def test_m11_scripted_recognition_is_finite_and_provider_free(family, monkeypatc
 
 
 @pytest.mark.parametrize("review", ["satisfied", "unresolved", "invalid"])
-def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review):
+@pytest.mark.parametrize("schema", ["test/1", "capstone-professional-task/1"])
+def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatch, tmp_path, review, schema):
     import copy
     import json
     from capstone_agent import task_recognition
@@ -490,7 +491,7 @@ def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatc
     decision["schema"] = SCHEMA_V2
     decision["goals"][0].update(execution="professional", dependencies=[],
         missing_requirements=["Possible missing user choice"], domain_request={
-            "binding_id": "test", "schema": "test/1", "payload": {"operation": "inspect"}})
+            "binding_id": "test", "schema": schema, "payload": {"operation": "inspect"}})
     prompts, timeouts = [], []
     class Client:
         def __init__(self, *args, **kwargs): pass
@@ -509,7 +510,7 @@ def test_proposed_input_gaps_receive_one_bounded_preacceptance_review(monkeypatc
     arguments = dict(runtime_host=SimpleNamespace(command=SimpleNamespace(argv=("pi",)), project_pi_dir=tmp_path),
         resolved_llm=SimpleNamespace(secret=None, config=SimpleNamespace(model="controlled")),
         base_environment={}, timeout_seconds=60, on_heartbeat=lambda: None,
-        requirement_schemas=({"binding_id": "test", "schema": "test/1", "payload_fields": {"operation": ["inspect"]}},))
+        requirement_schemas=({"binding_id": "test", "schema": schema, "payload_fields": {"operation": ["inspect"]}},))
     if review == "invalid":
         with pytest.raises(ValueError): task_recognition.recognize_with_pi(claim, **arguments)
     else:

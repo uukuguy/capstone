@@ -93,3 +93,24 @@ compact wire expansion to unchanged durable v2, off by default. Preserve bounded
 correction and current-run admission. Run focused checks, review the diff,
 canonical rebuild, exact-source proof, actual overall samples and per-turn
 latency audit. Do not count the prior low business verdict for this source.
+
+915856f real batch failed3/10 turns: two recognition failures and a false
+generator ranking clarification through compatibility. An actual-Provider probe
+reproduced duplicate projected fields on the first response: the model-visible
+full schema still required those fields. Project the model-facing wire schema
+as well as output, retaining full host validation. Reject unsupported schema
+root composition. Apply the same bounded gap review to compatibility proposals;
+they must not bypass the semantic review. Keep915856f receipts and do not accept
+it. Recognition calls were1.08–2.13s. Independent metadata audit found load
+execution119.567s,14 model responses and30 tool results;17,092 output tokens
+included12,266 reasoning tokens. Provider response/transport102.293s and tool
+batch/transport13.670s explain the main wait; pure Authority CPU cannot be
+isolated from those intervals. This is separate from1.907s recognition Provider
+work and3.912s total recognition. Execution thinking remained high.
+
+An optional support preflight was rejected during review: a populated candidate
+selector does not prove that the user resolved an object choice. Prioritizing
+that selector could suppress genuine clarification. Keep the input barrier and
+apply bounded semantic review uniformly to typed and compatibility proposals.
+No additional system-policy semantic hints are needed. Actual overall validation
+must confirm whether this removes the observed false input gaps.

@@ -19,6 +19,33 @@ SCHEMAS = ({"binding_id": "example", "schema": "example/1",
         "case": ["changed", "baseline"], "metric": [None, "value"]}},)
 
 
+def test_model_wire_schema_requires_each_value_only_at_its_semantic_source():
+    original = copy.deepcopy(SCHEMAS[0])
+    original["payload_schema"] = {"type": "object", "additionalProperties": False,
+        "required": ["action", "target", "coverage", "case", "metric"],
+        "properties": {name: {"type": "string"} for name in original["payload_fields"]}}
+    before = copy.deepcopy(original)
+    visible = task_recognition.recognition_schema_documents((original,))[0]
+    assert set(visible["payload_fields"]) == {"action", "target"}
+    assert set(visible["payload_schema"]["required"]) == {"action", "target"}
+    assert set(visible["payload_schema"]["properties"]) == {"action", "target"}
+    assert visible["projected_goal_fields"] == {
+        "scope": ["subset", "full"], "scenario": ["changed", "baseline"], "measure": [None, "value"]}
+    assert original == before
+
+
+@pytest.mark.parametrize("extra", [{"allOf": [{"required": ["case"]}]}, {"$ref": "#/$defs/body"},
+    {"minProperties": 5}, {"dependentRequired": {"action": ["case"]}},
+    {"properties": {"action": {"$ref": "#/properties/case"}}}])
+def test_projected_wire_rejects_unsupported_root_constraints(extra):
+    schema = {**SCHEMAS[0], "payload_schema": {"type": "object", "properties": {}, **extra}}
+    with pytest.raises(ValueError, match="projection schema"):
+        task_recognition.recognition_schema_documents((schema,))
+    # Non-projected contracts keep their complete schema without rewriting.
+    plain = {name: value for name, value in schema.items() if name != "recognition_projection"}
+    assert task_recognition.recognition_schema_documents((plain,)) == [plain]
+
+
 def test_compact_intent_expands_once_without_changing_user_or_pack_data():
     source = intent()
     before = copy.deepcopy(source)
