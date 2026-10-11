@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 import json
+import os
 import subprocess
 import tomllib
 from pathlib import Path
@@ -117,8 +118,38 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert tuple(policy["required_ci"]) == expected_jobs
     assert "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d" in workflow
     assert 'node-version: "22.19.0"' in workflow
-    for command in ("make setup", "make install-pi", "make doctor", "make check-release"):
+    for command in ("make setup", "make install-pi", "make doctor"):
         assert f"- run: {command}" in workflow
+    assert 'run: make check-pr' in workflow
+    assert 'run: make check-release' in workflow
+    assert 'branches: [main]' in workflow
+    assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
+
+
+def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
+    output = _dry_run("check-pr")
+    for expected in ("pyright", "packages/capstone-agent/tests", "test_registered_workers.py",
+                     "packages/grid-simulator/tests", "packages/pandapower-domain-pack/tests"):
+        assert expected in output
+    assert "--ignore=packages/grid-agent/tests/cli" in output
+    assert "--ignore=packages/grid-agent/tests/compat" in output
+    for retired_or_release_only in ("pytest packages/grid-agent/tests/e2e -q", "test_package_artifacts.sh",
+                                    "test_source_setup.sh", "validation/run.py"):
+        assert retired_or_release_only not in output
+
+
+def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:
+    empty = subprocess.run(["make", "check-iteration"], cwd=ROOT, capture_output=True)
+    assert empty.returncode != 0
+    stub = tmp_path / "checks.mk"
+    marker = tmp_path / "executed"
+    stub.write_text(f".PHONY: selected-check\nselected-check:\n\t@touch '{marker}'\n\t@false\n")
+    failed = subprocess.run(["make", "-f", str(ROOT / "Makefile"), "-f", str(stub),
+                             "check-iteration", "CHECK_TARGETS=selected-check"],
+                            cwd=ROOT, capture_output=True,
+                            env={**os.environ, "MAKEFILES": str(stub)})
+    assert failed.returncode != 0
+    assert marker.is_file(), "selected check must execute before its failure propagates"
 
 
 def test_type_checking_config_covers_exactly_all_production_source_roots() -> None:
