@@ -12,6 +12,15 @@
 
 ## Global Constraints
 
+Current execution correction, 2026-10-11: this package belongs to
+`feat/pi-skills-integration` in `.worktrees/pi-skills-integration` (331f71c before
+this planning update). The original Tasks 1–7 are historical implementation
+instructions, with their bounded verification receipt; they do not certify the
+remaining data-sharing or product-quality work. Use Tasks 8–9 below for that work.
+Main is c3b78bc; local-dev runs the reviewed answer candidate2473e48;
+demo stages retain ed2524f. Do not promote the
+experimental package or rebuild local-demo during daily development.
+
 - Domain Packs are visible only inside Capstone Agent; delegated Pi and direct Pi receive public business context only.
 - Preserve Application → Domain Pack → Kernel → registered Authority ownership and current-run evidence admission.
 - No keyword intent selection or fallback. Direct Pi selects business context without entering professional Harness execution.
@@ -21,7 +30,7 @@
 - Context text limit 24 KiB; at most 16 objects and 8 materials. Material size at most 4 MiB, aggregate at most 16 MiB. Task JSON remains at most 256 KiB.
 - Public interfaces never expose credentials or Authority internals. Historical or MCP observations do not self-admit as current-run professional evidence.
 - Freeze resource versions and business snapshots on acceptance; never silently change them on retry.
-- Preserve existing dirty work and main `var/` data. Work in `.worktrees/business-workspace-resources`, integrate to main after review, and rebuild the real local entry point.
+- Preserve existing dirty work and main `var/` data. Develop in `.worktrees/pi-skills-integration`; group reviewed and locally verified changes in a PR, then integrate to main. Use local-dev for development acceptance; local-demo only for a frozen planned release candidate.
 - No third-party personal configuration changes. Selected samples may be fetched and installed in project-managed isolated runtimes. Paid Provider calls and remote deployments require separate authorization.
 
 ## Delivery map
@@ -35,6 +44,8 @@
 | 5 | B | Direct Harness skill integration and Authority-backed MCP structural audit |
 | 6 | C | Public operations, capability UI and typed slash/context inputs |
 | 7 | A–C | Cross-role actual-entry validation, review, main integration and rebuild |
+| 8 | A | Remaining authorized current-model data projection and cross-role sharing |
+| 9 | A–C | Real business-input acceptance and configuration comparison before promotion |
 
 ## Task 1: Public business context and Pi task v2
 
@@ -172,7 +183,9 @@ AnalysisOperation('diagnostic.structural', 'Structural network audit',
 
 ## Progress and review evidence
 
-Delivery is complete on local main through `7fda5e9`. Tasks 1–7 have independent
+Historical delivery was integrated on local main through `7fda5e9`; baseline
+restoration later moved this implementation to feat/pi-skills-integration.
+Tasks 1–7 have independent
 reviews; final whole-branch review and the actual-entry mobile follow-up are
 approved. The task checklists above preserve the implementation instructions;
 the [verification receipt](../../reviews/2026-10-09-business-workspace-resources-verification.md)
@@ -185,3 +198,29 @@ a separate module and remains outside this delivery.
 Task reports and diff packages live under ignored `.superpowers/sdd/business-workspace/`.
 The main checkout JOURNAL owns durable decisions and commit records; workers do not modify pre-existing status documents.
 Each task gets an independent spec/quality review before completion. Final review covers the entire implementation range.
+
+## Task 8: Complete required business context and authorized data sharing
+
+Status: not implemented; owned by the Pi branch, not an independent backlog package.
+
+**Existing source:** `packages/capstone-agent/src/capstone_agent/business_context.py`
+(`BusinessContext`, `business_context_for`), `context_selection.py`
+(`ContextSelectionRequest`, `selected_business_context`), `pi_delegation.py`,
+`delegated_runtime.py`, `general_pi_server.py`, and `resources/general-context.mjs`.
+Pack projection source: `packages/pandapower-domain-pack/src/pandapower_domain/projection.py`.
+The existing result projector does not by itself provide a model-data export.
+
+- [ ] Audit the actual selected-model input in all three roles. Record provided and absent fields, versions, grants and byte limits; compare against a task that requires current object attributes. Do not substitute a bundled sample model.
+- [ ] Extend the owning design with an explicit public projection contract: permitted fields/tables, object and revision binding, units, source identity, required/optional coverage and omission reasons. Keep domain semantics in the Pack and fact production in the Authority. Choose the first bounded task-sufficient projection before implementation; no arbitrary raw-network export.
+- [ ] Specify application grants and private material delivery using the existing BusinessContext and Pi request contracts. Freeze selected versions and hashes on acceptance; retries reuse them. Preserve existing 24 KiB context, 4 MiB per material, 16 MiB aggregate and 256 KiB request bounds unless an explicit contract revision is accepted.
+- [ ] Add and run failing focused regressions in `test_business_context.py`, `test_business_context_matrix.py`, `test_pi_delegation.py`, `test_delegated_runtime.py` and `test_general_pi_server.py`: required current data, unrelated context exclusion, missing permission, changed version, missing required fields, oversized material and retry after object switch. Add owning Pack/Authority tests for the selected projection.
+- [ ] Implement the reviewed projection and handoff; verify exact current-object data reaches the intended native input, without Domain Pack internals, raw objects or credentials. Missing data must identify the missing scope, not imply a complete analysis.
+- [ ] Run focused checks with `uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_business_context.py packages/capstone-agent/tests/test_business_context_matrix.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_general_pi_server.py`; add the selected Pack/Authority gates. Record red/green and explicit remaining limits.
+
+## Task 9: Product acceptance and governed integration
+
+- [ ] Exercise the same frozen business inputs with direct Pi, delegated Pi and Harness. Record actual data, tools and provenance, supported answer, missing-data behavior, retries and elapsed phases. Controlled transport tests do not replace user-answer acceptance; billed calls require separate authorization or user-operated trials.
+- [ ] Compare existing native/skill/Harness configurations without attributing different data grants to skill quality. Include unrelated ordinary tasks, current object attributes, cross-turn reference, model switch, unavailable material and resource failure.
+- [ ] Bind the new task-understanding/answer contract only after the unified answer branch defines its public interface. Do not import its application semantics into the Kernel or call Pi routing goal-completion proof.
+- [ ] Complete scope-appropriate local-dev and independent review before one coherent PR. Freeze only accepted source after main integration; planned local-demo, cloud-dev and cloud-demo acceptance remain separate release steps.
+- [ ] Update this plan, the owning design, branch progress, PR status and deployment facts together in VERSION-CONTROL and the control graph. No standalone full-command feature or separate data-sharing branch is created by this plan.

@@ -15,8 +15,15 @@ user command; scheduled and unattended processing are not enabled.
 For separate local demo data, run
 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
 The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.
+Local-dev serves cloud-dev development tests and release verification. Local-demo
+tracks cloud-demo for reproduction, emergency repairs and release verification;
+only a recorded repair or release candidate may temporarily differ.
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
+
+The supported application entry is `capstone-agent`. The `grid-agent` CLI has
+no continuing compatibility commitment. Its package still contains formal
+pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 

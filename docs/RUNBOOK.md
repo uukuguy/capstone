@@ -96,6 +96,14 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ### Isolated local demo
 
+`local-dev` is the local development and release-verification target for
+`cloud-dev`. `local-demo` is the local reproduction, emergency-repair and
+release-verification target for `cloud-demo`. At rest, select the accepted
+cloud-demo source and feature scope for local-demo. A frozen release candidate
+or demo repair may temporarily differ; record its baseline, purpose and source.
+Do not deploy ordinary local-dev changes into local-demo. Current deployment
+and pending alignment belong to [the version register](status/VERSION-CONTROL.md).
+
 Use a clean checkout of the exact demo candidate, rather than the current main
 checkout. Set up its managed runtimes with `make setup`, `make install-pi`, and
 `make doctor`, and install its verified PyPSA assets. Then run from main:

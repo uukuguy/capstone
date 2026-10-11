@@ -12,8 +12,13 @@ demo 只接收经过发布验收的功能范围。
 使用 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`
 运行独立数据的本地 demo。App 端口为 `15173`，API 为 `18767`；原有 local-dev
 端口仍为 `5173` 和 `8767`。
+local-dev 对应 cloud-dev 的开发测试和发布验证；local-demo 跟随 cloud-demo，
+用于线上复现、紧急修复和发布验证，仅在已登记的修复或发布候选验证时临时偏离。
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
+
+正式应用入口为 `capstone-agent`，不再要求保留 `grid-agent` CLI 兼容性。
+旧包仍包含正式 pandapower 运行模块，尚未删除；迁移与退出步骤见[计划](docs/superpowers/plans/2026-10-11-retire-grid-cli.md)。
 
 **连接智能体推理、领域能力、权威计算与可核查证据。**
 

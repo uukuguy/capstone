@@ -128,6 +128,28 @@ The supported CI acceptance runtime is Python 3.12. Run the release checks on
 Linux and macOS with that runtime. Do not add another Python version to the
 matrix without an explicit support requirement and acceptance scope.
 
+### Paired local and cloud environments
+
+The local lane has two isolated targets. `local-dev` serves `cloud-dev`:
+implementation, local integration tests and development deployment validation.
+It may run a recorded development candidate ahead of cloud-dev. `local-demo`
+serves `cloud-demo`: reproduce the released behavior, test emergency repairs
+and validate planned release candidates. It is not a second daily dev target.
+
+At rest, local-demo uses the exact accepted cloud-demo source and enabled
+feature scope. A repair starts from that source; a planned release uses a
+frozen, verified main candidate. Record the baseline, candidate, purpose and
+differences while local-demo temporarily runs ahead of cloud-demo. After release,
+keep it on the accepted release source; after a rejected or deferred candidate,
+restore the current cloud-demo baseline after checking data compatibility.
+Never delete existing local data to restore source alignment.
+
+The pairs define responsibilities, not automatic deployment or shared data.
+Do not make the local versions equal solely for convenience. The same revision
+is valid when a documented release candidate needs validation in both targets.
+The control view shows each actual revision, its paired target and any pending
+alignment; a planned source must not replace the observed deployment record.
+
 The local development and cloud-development path is one lane; the local demo
 and cloud user-trial path is the other. Before deliberate parallel development,
 record an accepted common foundation baseline. The present development/demo
@@ -154,6 +176,8 @@ candidate and deploy it to local-demo for product acceptance. Keep the two
 stages' databases, storage, runtime state and credentials separate. A shared fix
 uses one canonical implementation, but its development acceptance does not
 claim that demo has received it. Demo delivery requires its own release receipt.
+Emergency repairs use the demo-compatible candidate in local-demo as part of
+their repair task, with separate receipts for propagation and release.
 
 Source propagation and cloud release are separate actions. Each hosted stage
 retains its own required verification, exact role identity, promotion/rollback
@@ -172,6 +196,13 @@ register before branch integration, baseline changes, verification, release or
 rollback. Development environments may enable isolated experimental features;
 integration into main is distinct from user-trial acceptance. Native Pi and
 skills work remains experimental until its recorded integration gates pass.
+
+The control graph and execution documents are maintained in both directions.
+Source, branch, PR, verification and deployment changes update the register and
+graph. Scope, ownership and sequence decisions made through that graph update
+the owning design, implementation plan, canonical worklist and working-branch
+copies. Keep implemented, verified, merged and released states distinct. A graph
+edit alone does not complete the corresponding project adjustment.
 
 User feedback and AI-assisted repairs follow the normative
 [Issue workflow](capstone-issue-workflow.md). GitHub Issues owns feedback and
@@ -254,6 +285,19 @@ acceptable when it is limited to the development stage and still uses the
 verification protocol before promotion.
 
 ## Change and credential rules
+
+### Main branch integration protection
+
+`main` requires pull requests and the `verify (ubuntu-latest)` and
+`verify (macos-latest)` checks from GitHub Actions. Force pushes and branch
+deletion are disabled. Required approving reviews are zero; Code Owner reviews,
+last-push approvals, strict branch updates and linear history are not required.
+Administrators retain emergency bypass; ordinary integration follows the checks.
+The independent publishing App has no routine bypass. This protects integration
+without adding full release gates to local iteration. Baseline and deployment
+acceptance remain separate requirements.
+
+### Credentials and local work
 
 - Keep local runtime state, caches, model assets, and authentication state in
   ignored paths. Do not copy them into another lane or commit them.
