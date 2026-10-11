@@ -2593,3 +2593,4 @@ The following original entries were retained during document synchronization.
 - 线路轮仅消息隔离通过；整体业务、R1与云端发布未认证。
 - 控制图7节点、四来源及桌面/手机交叉检查通过。
 - e5fe23a登记新基线、两分支适配及首次失败，避免验收状态混淆。
+- 20c6e46登记PR15，文档经受保护dev门禁交付；产品基线不变。
