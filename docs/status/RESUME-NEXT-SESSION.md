@@ -1,45 +1,61 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-05 CST. Local delivery is in final closeout; continue without approval.
+Updated: 2026-10-11. Session remains active.
 
-All user-requested fixes are implemented. Authority changes are committed as
-7afca7c and 2e59e06; application, UI and documentation changes await final commit.
-No Provider/cloud calls occurred. Existing user Attempts remain immutable.
+## Current task and accepted order
 
-Verified:
-- Full make test passed, including 925 grid-agent, 178 simulator, 465 Capstone
-  Agent and 245 App tests. E2E passed 39 cases and three registered workers.
-- make validate passed with protected paths and 24/24 capability coverage.
-  Its final rerun after the typed authority-limit correction also passed.
-- make check-types now passes with zero errors. Authority model/protocol rerun
-  passed 33 tests. App TypeScript/Vite build and make doctor passed.
-- Real Thread tests passed two topology Attempts each for five models, including
-  GBnetwork and case9241pegase. Real PostgreSQL verified three byte-bounded
-  diagram pages, ordinary-event limits and no claimed user Attempts.
-- Browser displays complete GBnetwork (2,224 buses/3,207 branches) and
-  case9241pegase (9,241/16,049); zoom/refresh and screenshots passed.
-  Keyboard browse/Escape/reopen/candidate activation retained the draft.
-- Independent review APPROVE, no remaining findings. Documentation links,
-  relative CLAUDE symlink and diff checks pass.
-- Task-only API18761, Vite18762, browser and temporary auth are removed.
-  Normal API8767/App5173 remain running. Existing user Thread cursor is 99.
-- Final checked-in rebuild and read-only runtime receipt passed. API and both
-  workers use image sha256:52dbf9d89da88170df3e038ca14e8b1e3e11eed0eaf2c645c5712a31ad4a91f4.
-  App returns HTTP 200; the real catalogue exposes 81 registered models.
+User approved dev development integration / main release baseline organization.
+Create and protect dev from accepted main, integrate pending global documents and
+governance PR #11, register the exact local technical answer baseline, then create
+feat/research-model from accepted dev. Preserve R0/Pi experiments and user data.
 
-Implementation notes:
-- Domain observation admission accepts published topology/catalog reads;
-  endpoint/calculation lineage stays enforced.
-- Message bars keep hover/focus, fixed disabled slots, subtle toggle states,
-  disabled unfinished feedback in More and guarded completed-answer reruns.
-- Root opens conversation; original cases use /old. Model directory submits
-  only model-open text, with 9px popup, 8px hint and restrained focus.
-- Complete operator bounds are 10,000 buses/20,000 branches/4 MiB. Catalogue
-  preflight disables unsupported models and server switches reject them.
-- Diagram-specific transport bounds, pre-decoding SQL page limits, per-frame
-  SSE checks and per-page geometry sharing prevent large-model failures.
-- Errors show reason, recovery action and safe diagnostic code.
+## Current identities
 
-Next: commit the staged task files, append the commit journal and deliver.
-Receipts are ignored runs/topology-open-repair/; screenshots output/playwright/.
-Do not rerun inspect_local.py or rewrite old failed Attempts.
+- Root: docs/project-state-sync, prior committed source69f7825 plus reviewed dev
+  migration pending commit. Original37-file document input is backed up under
+  runs/task-answer-closure/document-sync-backup; stashae9d81b is retained at
+  refs/archive/20261011/document-sync-wip. No runtime/auth/root var data removed.
+- PR9 source2473e48 passed full local and exact Linux/macOS CI and mergedf7baef3.
+  Merge tree matches exact tested source. PR10 source513a35e passed both gates
+  (Linux32min/macOS26min) and merged723b8e8. Local main was safely fast-forwarded.
+- dev starts723b8e8 and is GitHub default. Both dev/main require PRs and existing
+  Linux/macOS Actions checks,0 approvals, no force push/delete; admin emergency
+  bypass retained but unused. Readback receipts under runs/task-answer-closure.
+- PR11 is OPEN targeting dev. New governance changes must pass exact two-platform
+  CI before App merge. Independent review APPROVE;68 focused tests passed,
+  two optional Docker tests skipped;doctor and desktop/mobile source-edge checks pass.
+- local-dev source2473e48, App5173/API8767, imagee614ce0d, API/two workers match512
+  files. Three cases/nine turns/report/evidence readback and controlled RPC/UI pass.
+  Human Provider answer acceptance remains pending. No paid calls or cloud deploy.
+- local-demo App15173/API18767 and recorded clouds remained2524f.
+- experiment/autonomous-research bf678f2 and its dirty accepted design copies are
+  preserved. No R1 implementation started; feat/research-model not yet created.
+- CLI compatibility requirement withdrawn; actual runtime dependency retirement
+  remains a separate accepted migration task.
+
+## Execution and verification
+
+CI scope fails closed: docs plus relative-link/symlink/compile checks; bounded
+governance plus complete Issue and gate test suites; unknown edits product;
+main and explicit release always full aggregate. Classifier failure cannot
+produce green. All non-doc gates test the classifier. Common setup/doctor retained.
+Issue tools now read committed dev source/policy and publish normal repair PRs
+to dev. Existing receipts are retained; changed source/old PR needs reassessment.
+AI public writes use independent capstone-xiaoshi App; workflow changes require
+separate approved Workflows-scoped token. Never use maintainer identity to push.
+
+## Next actions
+
+1. Commit and push reviewed dev organization changes to PR11 through the App.
+   Wait exact required checks; reconcile network failures before any retry.
+2. Merge PR11 into dev, fast-forward root dev without dropping post-commit journal.
+   Close merged feature/CI names only after archiving refs and preserving worktrees.
+3. Annotate/push exact2473e48 local technical baseline with full verification and
+   pending human/cloud limits. Create research implementation branch from accepted
+   dev; sync canonical control graph and affected research plan copies.
+4. Keep Issue2/3 human product/cloud acceptance open. No new paid Provider tests
+   or cloud promotion authorized.
+
+Control owner URL http://127.0.0.1:18780/docs/status/PROJECT-OVERVIEW.html;
+owned browser session closure-control. Use canonical rebuild only for changed
+local API/worker/App sources; governance/document changes do not redeploy them.

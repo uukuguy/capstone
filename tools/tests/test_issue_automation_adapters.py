@@ -123,10 +123,10 @@ def test_personal_or_mismatched_publisher_is_refused(tmp_path):
         assert not any(method == "POST" for method, path in calls)
 
 
-def test_publisher_never_inherits_personal_token(monkeypatch):
+def test_publisher_never_inherits_personal_token(monkeypatch, tmp_path):
     monkeypatch.setenv("GH_TOKEN", "personal-token")
     monkeypatch.delenv("CAPSTONE_ISSUE_GITHUB_APP_JWT", raising=False)
-    github = GitHub(Policy(write_enabled=True, publisher_login="trusted-bot[bot]", publisher_app_id=123, publisher_installation_id=123))
+    github = GitHub(Policy(write_enabled=True, publisher_login="trusted-bot[bot]", publisher_app_id=123, publisher_installation_id=123), root=tmp_path)
     with pytest.raises(ValueError, match="publisher"):
         github.require_write()
 
@@ -162,7 +162,7 @@ def test_recovered_pr_must_match_open_bot_candidate(tmp_path, state, author, tre
     store = Store(tmp_path / "q.sqlite")
     task = store.enqueue(1, "input", "policy", "source")
     branch = "fix/issue-1-input-source"
-    pr = {"number": 12, "state": state, "merged_at": None, "user": {"login": author}, "base": {"ref": "main", "repo": {"full_name": "uukuguy/capstone"}}, "head": {"ref": branch, "sha": "head", "repo": {"full_name": "uukuguy/capstone"}}}
+    pr = {"number": 12, "state": state, "merged_at": None, "user": {"login": author}, "base": {"ref": "dev", "repo": {"full_name": "uukuguy/capstone"}}, "head": {"ref": branch, "sha": "head", "repo": {"full_name": "uukuguy/capstone"}}}
     def api(method, path, data=None):
         if path == "app": return {"id": 123, "slug": "trusted-bot"}
         if path == "app/installations/123": return {"id": 123, "app_id": 123, "app_slug": "trusted-bot"}

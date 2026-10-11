@@ -19,13 +19,35 @@ The user directs continued completion of these conversation plans. The core capa
 
 ## Delivery ledger
 
-### Active implementation — 2026-10-11
+### Current execution ownership — 2026-10-11
 
-The unified task-understanding and formal-answer design is approved. Execute
-[the task-answer plan](2026-10-11-task-answer-closure.md) on
-`feat/task-answer-closure`, based on accepted main c3b78bc. Experimental Pi
-features remain separate. Contract tests alone do not complete the package;
-semantic execution, Pack coverage and actual local-dev acceptance remain open.
+This section supersedes earlier active-priority and direct-integration wording;
+older implementation and verification entries remain historical evidence.
+
+- Foundation PR #6 is merged on main c3b78bc and accepted on local-dev. Its
+  development branch is closed. local-demo follows cloud-demo ed2524f; foundation
+  user-release acceptance is still pending, not a daily dual-deployment task.
+- The active delivery is semantic task understanding, goal/scenario coverage and
+  formal answers, one package on feat/task-answer-closure under the
+  [shared design](../specs/2026-10-10-shared-intent-and-goal-answer-design.md).
+  Preparation402ac39 does not implement the complete answer closure.
+  The current reviewed source is2473e48: local-dev rebuilt, registered cases,
+  reports, evidence replay and formal transport separation passed. PR #9 awaits
+  its last exact CI check and integration; human wording acceptance is pending.
+  Contract-only checks did not prove completion; the later local report supplies
+  execution evidence. The old branch checkpoint below is historical.
+  The user approved implementation on 2026-10-11; execute the
+  [task-answer plan](2026-10-11-task-answer-closure.md). Initial contract tests
+  pass; semantic execution, Pack coverage and product acceptance remain open.
+- CONV-04/05 experimental Pi, skills and role resources continue on
+  feat/pi-skills-integration under the [resource plan](2026-10-09-business-workspace-agent-resources.md).
+  That plan's Tasks8–9 own full task-relevant business context, current-model
+  projections, authorized sharing and real business-input acceptance. Routing
+  does not replace task understanding. Unified frontend commands remain a
+  separate design package; Pi slash controls are reuse prototypes.
+- The control graph is a bidirectional execution view. Changes in scope, owner,
+  priority or acceptance update this worklist and owning plans/specs; implementation,
+  PR and deployment facts update the same graph. Neither direction may be omitted.
 
 ### Current priority and release correction — 2026-10-08
 
@@ -359,3 +381,15 @@ to the existing approved UI contract; do not implement cross-family conversion.
 - 2026-10-07: CONV-01/02 local implementation passes App289 tests/build, backend550 tests with35 skips, package boundaries and doctor. Local rebuild readiness and API/worker digest039ddb77e1f1 match. Isolated headless browser checks pass modes, per-answer expansion, event preservation, full copy, draft/reload, all five evidence states and390px keyboard/44px control target. Screenshots/log: `output/playwright/conversation-completion-20261007/`. No Provider or remote deployment. Independent review dispatch is unavailable because the platform selects unsupported model `gpt-6.1-luna`; review and release are not marked complete.
 - 2026-10-07: User requests major unfinished items. The next major delivery is CONV-04; CONV-05 is incomplete existing M2 execution wiring, formal TUI is explicitly deferred, and M6 retains full acceptance gaps. Stop expanding UI detail scope.
 - 2026-10-07: Correction after M1–M11 evidence audit: M6 Task1–8 independent follow-ups passed and Task9 closed for lightweight demo scope; subsequent M10/M11 full gates passed. M6/M10 need portable whole-stage review-record consolidation, not automatic reopening. M2 intentionally deferred native capability materialization to successor Harness work. Preserve these bounded milestone closures.
+
+## 2026-10-11 Research Model 工作包推进
+
+research独立实验进入R0已验证、R1待实施阶段。采用[研究模型演进计划](2026-10-11-research-model-evolution.md)作为R1–R5执行清单；当前正式回答包继续独立收口，不将实验混入local-dev候选。Research Model按任务跨轮次延续，知识包、可组合工作流和结论验证共同支撑自主推演。
+
+2026-10-11开发组织调整：用户批准dev默认开发集成主线、main发布基线主线。
+PR #9/#10已合入main723b8e8；dev从该点建立，PR #11文档与治理改为面向dev。
+先按[dev组织实施计划](2026-10-11-dev-integration.md)完成保护、CI、工具与全局记录集成，
+再登记精确2473e48本地技术基线并从已接受dev建立Research Model实施分支。
+实验R0和Pi保持独立；人工回答验收、CLI退出迁移、Issue验收与云发布仍分别记录。
+
+最新顺序：先同步项目文档和控制记录，再完成正式回答PR #9及新技术基线；CI调整PR #10保持独立。随后从新基线开启Research Model实施分支。旧CLI兼容要求已撤销，运行入口迁移按[退出计划](2026-10-11-retire-grid-cli.md)单独核验，不能以删除兼容测试冒充迁移完成。

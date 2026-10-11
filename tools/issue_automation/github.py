@@ -228,7 +228,7 @@ class GitHub:
         tree = self.publisher_api("POST", self.base + "/git/trees", {"base_tree": base["tree"]["sha"], "tree": tree_entries})
         existing = self.find_pr(branch)
         if existing:
-            valid = (existing.get("state") == "open" and not existing.get("merged_at") and existing.get("user", {}).get("login") == self.actor and existing.get("base", {}).get("ref") == "main" and existing.get("base", {}).get("repo", {}).get("full_name") == self.policy.repository and existing.get("head", {}).get("ref") == branch and existing.get("head", {}).get("repo", {}).get("full_name") == self.policy.repository)
+            valid = (existing.get("state") == "open" and not existing.get("merged_at") and existing.get("user", {}).get("login") == self.actor and existing.get("base", {}).get("ref") == "dev" and existing.get("base", {}).get("repo", {}).get("full_name") == self.policy.repository and existing.get("head", {}).get("ref") == branch and existing.get("head", {}).get("repo", {}).get("full_name") == self.policy.repository)
             if not valid:
                 raise ValueError("Existing pull request does not identify an open bot candidate")
             head = existing["head"]["sha"]
@@ -252,7 +252,7 @@ class GitHub:
             store.record_action(key, task, "uncertain", {"branch": branch, "commit": commit["sha"]})
             self.publisher_api("POST", self.base + "/git/refs", {"ref": "refs/heads/" + branch, "sha": commit["sha"]})
         store.record_action(key, task, "uncertain", {"branch": branch})
-        result = self.publisher_api("POST", self.base + "/pulls", {"title": public_text(title), "body": public_text(body), "head": branch, "base": "main", "draft": True})
+        result = self.publisher_api("POST", self.base + "/pulls", {"title": public_text(title), "body": public_text(body), "head": branch, "base": "dev", "draft": True})
         store.record_action(key, task, "done", {**result, "candidate_tree": tree["sha"], "source_sha": source_sha})
         return result
 

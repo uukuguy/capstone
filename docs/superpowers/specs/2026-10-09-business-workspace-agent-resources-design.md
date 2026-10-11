@@ -3,6 +3,24 @@
 状态：2026-10-09 用户已批准按方案实施。实施进行中，尚未完成验收。
 实施记录见[分任务计划](../plans/2026-10-09-business-workspace-agent-resources.md)。
 
+### 2026-10-11 当前交付归属
+
+本设计的开发归属是 `feat/pi-skills-integration`，不是当前 main 或 demo。
+早期实现和离线验收记录仍有效，但代码已在基线整理时移入实验分支；
+不能把历史“已合入 main”解读为当前部署包含这些能力。
+
+完整业务上下文与数据共享是本分支的剩余工作：当前模型数据的授权公共投影、
+相关资料和成果的版本绑定、三种角色的受控交接，以及真实业务输入的效果验收。
+已有身份与有限历史不是完整数据共享。这里的“完整”指任务所需资料范围完整，
+不表示向 Pi 无界导出整个网络或授予 Authority 内部访问。
+公共投影仍由 Domain Pack 定义、Authority 产生，应用选择并冻结授权范围；
+原始网络对象、凭据及专业工具权限不进入通用 Pi。具体投影契约设计在本分支收口。
+
+统一前端斜杠命令是另一个待设计开发包；本分支只保留现有三个入口原型供复用。
+任务目标理解与正式回答完成判定由 `feat/task-answer-closure` 交付；
+Pi 的普通/专业路由和上下文选择不替代该合同，两分支通过显式公共合同对接。
+这些归属与[版本台账](../../status/VERSION-CONTROL.md)双向维护。
+
 用户指定 PowerSkills pandapower 与 PowerMCP 为实际接入样本，并要求验证它们对
 Capstone Harness 的直接领域增强。固定版本的兼容性检查已确定一个具体路径：
 在 gridctl Authority 内通过 PowerMCP 执行结构检查，经现有 analysis.run 结果契约
@@ -77,9 +95,9 @@ Capstone 接入层负责角色适用性、工具发布、资料授权与结果�
 
 | 当前实现 | 已验证的行为 | 本设计需要补充 |
 | --- | --- | --- |
-| [intent_runtime.py](../../../packages/capstone-agent/src/capstone_agent/intent_runtime.py) | Capstone 识别器可见当前模型身份；直接 Pi 路径仅冻结历史消息 | 两种入口共用工作域投影；直接 Pi 增加语义上下文选择，不增加专业执行路由 |
-| [pi_delegation.py](../../../packages/capstone-agent/src/capstone_agent/pi_delegation.py) | 严格 `/1` 请求只有消息与依赖结果，通用 JSON 禁止模型版本及 Authority 字段 | 独立、类型化的公共业务上下文；不能通过虚构历史消息绕开校验 |
-| [general_pi_server.py](../../../packages/capstone-agent/src/capstone_agent/general_pi_server.py) | 原生任务 context.json 只有消息与依赖；每个任务有隔离目录 | 物化公共投影、受授权资源副本与加载收据 |
+| Pi 分支 `packages/capstone-agent/src/capstone_agent/intent_runtime.py` | 设计起点：Capstone 识别器可见当前模型身份；直接 Pi 路径仅冻结历史消息 | 两种入口共用工作域投影；直接 Pi 增加语义上下文选择，不增加专业执行路由 |
+| Pi 分支 `packages/capstone-agent/src/capstone_agent/pi_delegation.py` | 设计起点：严格 `/1` 请求只有消息与依赖结果，通用 JSON 禁止模型版本及 Authority 字段 | 独立、类型化的公共业务上下文；不能通过虚构历史消息绕开校验 |
+| Pi 分支 `packages/capstone-agent/src/capstone_agent/general_pi_server.py` | 设计起点：原生任务 context.json 只有消息与依赖；每个任务有隔离目录 | 物化公共投影、受授权资源副本与加载收据 |
 | [runtime_capabilities.py](../../../packages/capstone-agent/src/capstone_agent/runtime_capabilities.py) | 注册表记录 kind、id、version、source | 实际安装、解析、角色启用、工具可用状态及不可用原因 |
 | [专业启动器](../../../packages/capability-agent-kernel/src/capability_agent/runtime/environment.py) | 禁止自动发现和原生通用工具 | 显式物化获准 skills 和适配工具，保持专业边界 |
 | [ThreadFixtureApp.tsx](../../../packages/capstone-app/src/ThreadFixtureApp.tsx) | Pi 入口跳过模型控制解析，部分操作按模式直接禁用 | 公共操作目录按能力与当前状态决定可用性 |

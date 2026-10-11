@@ -10,7 +10,9 @@ For displaying logs and content output, please use the ASD-STE100 specification,
 
 Capstone Agent Framework builds evidence-backed applications over registered
 business-domain systems. The first formal application is pandapower grid static
-analysis; `grid-agent` remains its compatibility CLI. The repository also
+analysis. The user has withdrawn the `grid-agent` CLI compatibility requirement;
+its old package still contains formal pandapower runtime modules pending migration.
+The repository also
 contains registered PyPSA applications, capability-named Domain Packs, and an
 independent operator App.
 
@@ -61,10 +63,26 @@ before changing deployment, release, or environment behavior.
 - The local API, worker, and App path is rebuilt with
   `make capstone-local-rebuild` before remote validation. Do not test an old
   Compose image and call the result current.
+- `local-dev` serves `cloud-dev` development tests and release verification.
+  `local-demo` serves `cloud-demo` reproduction, emergency repairs and release
+  verification. At rest it follows the accepted cloud-demo source and feature
+  scope; record any temporary repair or release candidate difference. Do not
+  update local-demo with ordinary development builds or make the local versions
+  equal solely for convenience. Preserve existing data during source realignment.
 - Cloud-development validation covers readiness, App health, registered cases,
   Provider behavior when separately authorized, reports, evidence replay, and
   API/worker identity before promotion. Failed releases roll back to the last
   verified user-trial revision.
+- After every cloud-dev deployment passes its required validation, create and
+  push an annotated Git tag for that stage. After every demo deployment passes
+  its required validation, create and push a separate annotated Git tag for
+  demo, even when both stages use the same source revision. Use
+  `cloud-dev-<YYYYMMDD-HHMM>-<short-sha>` and
+  `demo-<YYYYMMDD-HHMM>-<short-sha>`. Each tag must point to the exact deployed
+  and verified source commit. Its annotation records the stage, source/image
+  identity, deployment IDs, and verification receipt or report. Failed or
+  incomplete validation must not receive an acceptance tag. Never move or
+  reuse an existing tag.
 - Hosted App build variables may contain only the selected API origin. Provider
   and operator secrets stay in protected environment variables or ignored
   authentication state and never enter source, logs, arguments, or artifacts.
@@ -140,9 +158,37 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
-- Continue architecture design discussions throughout development using the
+- `dev` is the default development integration branch. Feature, fix, docs and
+  chore PRs target dev. Experiments enter dev only as scoped reviewed work.
+  `main` holds accepted release baselines; release PRs target main and run full
+  verification. Hotfixes start from the actual accepted deployment tag and flow
+  back to dev. Do not rewrite shared history.
+- Current project control and canonical worklists live on dev. Main copies are
+  release snapshots. Both permanent branches require PRs and Linux/macOS
+  checks, with zero mandatory approvals and no force push or deletion. Record
+  any administrator emergency bypass. Branch heads do not imply deployment.
+
+- Keep project control bidirectionally aligned. Changes to implementation, branches,
+  PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its
+  generated `PROJECT-OVERVIEW.html`. Decisions made through the control graph
+  update owning designs, executable plans, canonical worklist and affected branch
+  copies before reporting alignment complete. Every graph update uses
+  `ui-ux-pro-max`, re-layout and browser checks, including source edges and crossings.
+  Close verified merged branches; preserve unmerged work and recovery references.
+
+- Use [the project control overview](docs/status/PROJECT-OVERVIEW.html) as the
+  shared development and release alignment view. Maintain its canonical
+  [version register](docs/status/VERSION-CONTROL.md) and regenerate the same
+  HTML after material package, branch, PR, validation or deployment changes,
+  before reporting progress. Keep implemented, verified, merged and deployed
+  states distinct. Do not turn planned edges into actual Git merge claims.
+
+- Keep secondary architecture research in the
   [Capstone core capability evolution notebook](docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)
-  as the shared record. Read it before related design work. Ground proposals in
+  as the shared record. It is not the active delivery worklist. Resume this
+  discussion when the user starts it; offer a reminder only at a particularly
+  important design or implementation boundary. Do not automatically make its
+  open questions the next task. Read it before related design work. Ground proposals in
   the actual implementation and practical grid work. Update the notebook with
   conclusions, open questions, and implementation feedback; distinguish
   proposed designs, accepted decisions, and verified behavior.
@@ -209,5 +255,5 @@ documentation change does not itself justify repeating every suite.
 Documentation-only changes require link and symlink checks,
 `git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
 is optional, may be billed, and requires explicit authorization.
-Every change must preserve the compatibility stdout envelope, authority
+Every change must preserve the supported Capstone output contracts, authority
 boundaries, and current-run evidence rules.

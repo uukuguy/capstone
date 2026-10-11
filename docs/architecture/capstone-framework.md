@@ -54,6 +54,11 @@ for retry. An unknown prior execution outcome must not trigger blind side-effect
 
 ### Shared business context and role resources
 
+This subsection records the accepted Pi/skills branch design. Its complete
+business-context and role-resource implementation is not in the current main
+or local-dev baseline. Track implementation and acceptance in the
+[resource plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md).
+
 The application owns `capstone-business-context/1`: an immutable Thread snapshot,
 per-goal object and material selection, explicit exclusions, public outcomes and
 coverage. Public projections keep source identity and version. Historical results
@@ -64,7 +69,7 @@ data access within the task; it does not publish tools.
 Three execution roles have distinct resource profiles: `harness_engine`,
 `delegated_pi` and `direct_pi`. The last two are execution identities under the
 existing Capstone/Pi modes. Checked-in native settings and
-[`agent-resources.json`](../../configs/runtime/agent-resources.json) select fixed
+`configs/runtime/agent-resources.json` in that branch select fixed
 sources and role adapters. Managed installation, actual SDK loading and exact
 tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing
@@ -306,10 +311,12 @@ through that generic path. These results verify the first application's
 assembly and compatibility boundary, not a claim that every prospective domain
 has been accepted.
 
-The stable `grid-agent` compatibility commands remain a vertical adapter. They
-write exactly one JSON object to stdout with `question_id` and `answer_output`;
-progress, diagnostics, tool events, and warnings belong on stderr. This is a
-grid application contract, not the generic Capstone output protocol.
+The user withdrew the `grid-agent` CLI compatibility requirement on 2026-10-11.
+Its old stdout envelope is a historical adapter contract, not a required future
+product interface. The supported application entry is `capstone-agent`.
+The old package still contains runtime modules used by the formal pandapower
+application; their migration must precede package removal. See the
+[retirement plan](../superpowers/plans/2026-10-11-retire-grid-cli.md).
 
 ## Conformance proof and deferred scope
 
@@ -373,8 +380,10 @@ adapters: headless JSON request, interactive terminal, and loopback HTTP/SSE.
 It selects only source-registered application workers through a bounded,
 sequenced JSONL protocol. CLI and HTTP use the same `WorkerSession` API;
 application workers own Profile assembly, Domain Pack selection, and the
-current-run authority. The `grid-agent` compatibility entry remains the
-pandapower adapter; `pypsa-agent` owns the PyPSA two-binding application.
+current-run authority. The registered pandapower worker currently remains in
+the old `grid_agent` package, pending application-layer migration; this is not
+a continuing CLI compatibility requirement. `pypsa-agent` owns the PyPSA
+two-binding application.
 Scripted demos and Provider routes share the Kernel's incremental turn runner.
 Only the selected worker can read its admitted result/evidence references.
 The legacy `tools/capstone_client.py` request command remains available. No
