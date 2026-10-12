@@ -589,7 +589,7 @@ class _KernelPiPromptSession:
                 "restart completed calculations without a stated need. Check numerical comparisons "
                 "against actual results and distinguish verified outcomes from hypotheses. If the goal "
                 "cannot be completed within the remaining budget, deliver the supported partial outcome "
-                "and state what remains unresolved."
+                "and state what remains unresolved. Use the original user's language for the final answer."
             )
             self._trace.append("application_prompt", {"correlation_id": correlation_id, "question": question})
         self._ready_for_correction = True
