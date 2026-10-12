@@ -124,6 +124,12 @@ class ApplicationContextStore:
 
     def append_research_update(self, draft: ContextEventDraft) -> ContextEvent:
         """Commit once under the same lock as revision validation and persistence."""
+        with self._append_lock:
+            committed = self.find_research_update(draft)
+            return committed if committed is not None else self.append(draft)
+
+    def find_research_update(self, draft: ContextEventDraft) -> ContextEvent | None:
+        """Resolve a committed request without applying a new transition."""
         if draft.event_type != "research.updated":
             raise ContextStoreError("research commit requires a research update")
         with self._append_lock:
@@ -140,7 +146,7 @@ class ApplicationContextStore:
                     if event.payload != draft.payload:
                         raise ContextStoreError("research request identity was reused with different content")
                     return event
-            return self.append(draft)
+            return None
 
     def append_many(
         self, drafts: Iterable[ContextEventDraft]
