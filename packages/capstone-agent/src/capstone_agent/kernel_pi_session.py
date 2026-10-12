@@ -544,11 +544,13 @@ class _KernelPiPromptSession:
             normalized = normalize_runtime_event(event, runtime_mode="capstone")
             if normalized is not None and normalized["event_type"] == "tool_completed":
                 payload = normalized["payload"]
-                if isinstance(payload, Mapping) and any(
-                    isinstance(payload.get(field), (list, tuple)) and payload[field]
-                    for field in ("result_refs", "evidence_refs")
-                ):
-                    self._has_result_observations = True
+                if isinstance(payload, Mapping):
+                    result_refs = payload.get("result_refs")
+                    failure = payload.get("failure")
+                    if (isinstance(result_refs, (list, tuple)) and result_refs) or (
+                        isinstance(failure, Mapping) and failure.get("phase") == "execute"
+                    ):
+                        self._has_result_observations = True
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,

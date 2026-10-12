@@ -208,7 +208,8 @@ def test_long_model_step_resumes_same_research_without_resetting_budget(tmp_path
     assert normalized["visibility"] == "public"
 
 
-def test_new_research_findings_receive_one_final_scope_review(tmp_path):
+@pytest.mark.parametrize("calculation_failed", [False, True])
+def test_new_research_findings_receive_one_final_scope_review(tmp_path, calculation_failed):
     from capstone_agent.kernel_pi_session import _KernelPiPromptSession
     research = AttemptResearch(tmp_path, thread_id="thr_review", run_id="run_review",
         attempt_id="attempt_review", model_context=MODEL, is_active=lambda: True,
@@ -217,9 +218,11 @@ def test_new_research_findings_receive_one_final_scope_review(tmp_path):
     def prompt(question, **kwargs):
         calls.append(question)
         if len(calls) == 1:
+            outcome = ({"ok": False, "error": {"code": "analysis_failed", "phase": "execute",
+                        "message": "Solver failed"}} if calculation_failed else
+                       {"ok": True, "result_refs": ["result:checked"], "evidence_refs": ["evidence:checked"]})
             kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "domain_run",
-                "capability": "analysis.run", "ok": True,
-                "result_refs": ["result:checked"], "evidence_refs": ["evidence:checked"]}, 1)
+                "capability": "analysis.run", **outcome}, 1)
             research.controller.update({"request_id": "save-review", "expected_revision": 0,
                 "changes": {"goal": "Compare scenarios", "open_questions": ["Global feasibility remains open"]}})
             return "Draft conclusion"
@@ -263,7 +266,8 @@ def test_factual_research_notes_do_not_trigger_an_experiment_review(tmp_path):
         calls.append(question)
         if len(calls) == 1:
             kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "domain_context",
-                "capability": "context.get", "ok": True, "context_ref": "context:current"}, 1)
+                "capability": "context.get", "ok": True, "context_ref": "context:current",
+                "evidence_refs": ["evidence:input-source"]}, 1)
             research.controller.update({"request_id": "facts-note", "expected_revision": 0,
                 "changes": {"goal": "Describe selected model"}})
         return "Model facts"
