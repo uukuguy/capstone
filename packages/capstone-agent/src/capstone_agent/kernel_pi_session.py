@@ -136,6 +136,7 @@ class PreparedKernelPiRpcSessionBuilder:
             active = self._research_is_active
             research = AttemptResearch(workspace.core_path / "research-attempts", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
+                model_context=claim.model_context,
                 is_active=lambda: active(claim) if active is not None else False,
                 admit_reference=references.admit)
         descriptors = []
@@ -463,6 +464,7 @@ class _KernelPiPromptSession:
         self._research = research
         self._research_reference_observer = research_reference_observer
         self._answer_admitted = False
+        self._published_research_revision = 0
 
     @property
     def command(self) -> object:
@@ -500,13 +502,26 @@ class _KernelPiPromptSession:
             if self._research_reference_observer is not None:
                 self._research_reference_observer(event)
 
+        def research_updates() -> None:
+            self._drain_research()
+            projection = self._research.current_projection() if self._research is not None else None
+            if projection is None:
+                return
+            revision = projection["research_revision"]
+            if not isinstance(revision, int) or revision <= self._published_research_revision:
+                return
+            sequence = self._trace.append("research_state", projection)
+            on_semantic_event({"type": "research_state", **projection,
+                               "trace_sequence": sequence, "trace_correlation_id": correlation_id})
+            self._published_research_revision = revision
+
         answer = self._client.prompt_and_wait(
             question,
             on_semantic_event=observed,
             correlation_id=correlation_id,
             on_heartbeat=on_heartbeat,
             timeout_seconds=remaining,
-            on_control_requests=self._drain_research if self._research is not None else None,
+            on_control_requests=research_updates if self._research is not None else None,
         )
         self._ready_for_correction = True
         return answer

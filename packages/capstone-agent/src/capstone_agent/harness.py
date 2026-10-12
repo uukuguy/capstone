@@ -167,6 +167,7 @@ class HarnessRuntimeRegistry:
 
 
 _EVENT_TYPES = {
+    "research_state": ("research_state_updated", "public"),
     "text_delta": ("assistant_process_delta", "diagnostic"),
     "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
     "message_update": ("assistant_process_update", "diagnostic"),
@@ -193,7 +194,17 @@ def normalize_runtime_event(
         native_type = "unknown"
     event_type, visibility = _EVENT_TYPES.get(native_type, ("runtime_event", "diagnostic"))
     payload: dict[str, object]
-    if event_type == "assistant_process_delta":
+    if event_type == "research_state_updated":
+        from .thread_protocol import ModelContextSnapshot
+        context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
+        identity, goal, revision = event.get("research_id"), event.get("goal"), event.get("research_revision")
+        if (not isinstance(identity, str) or not 0 < len(identity) <= 128
+            or not isinstance(goal, str) or not 0 < len(goal) <= 4000
+            or type(revision) is not int or revision < 1):
+            raise ValueError("invalid research projection")
+        payload = {"research_id": identity, "research_revision": revision, "goal": goal,
+                   "baseline_model_context": context.to_document()}
+    elif event_type == "assistant_process_delta":
         text = event.get("text")
         payload = {"text": text[:16_384]} if isinstance(text, str) else {}
     elif event_type in {"tool_started", "tool_completed"}:

@@ -11,6 +11,7 @@ from uuid import uuid4
 from capability_agent.application import ApplicationContextStore, ContextEventDraft, ResearchController
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.research_channel import ResearchRequestChannel
+from .thread_protocol import ModelContextSnapshot
 
 
 class AttemptResearch:
@@ -22,7 +23,10 @@ class AttemptResearch:
     """
 
     def __init__(self, root: Path, *, thread_id: str, run_id: str, attempt_id: str,
+                 model_context: ModelContextSnapshot,
                  is_active: Callable[[], bool], admit_reference: Callable[[str], bool]) -> None:
+        if not isinstance(model_context, ModelContextSnapshot):
+            raise TypeError("research requires the selected model snapshot")
         identities = (thread_id, run_id, attempt_id)
         if any(not isinstance(value, str) or not value or len(value) > 256 for value in identities):
             raise ValueError("invalid task research identity")
@@ -30,13 +34,15 @@ class AttemptResearch:
             raise ValueError("invalid research attempt identity")
         digest = sha256(json.dumps(identities).encode()).hexdigest()[:48]
         workspace = ApplicationWorkspace.create(root, run_id=f"task-{digest}")
-        # The first instruction starts a research identity. It is not derived
-        # from the execution identity; future turns must explicitly bind it.
+        # Reserve a host identity for the channel, not a visible research.
+        # Only a committed initial goal creates research state.
         self.research_id = f"research-{uuid4().hex}"
+        self.model_context = model_context
         self.identity_path = workspace.core_path / "task-binding.json"
         binding = {"schema": "capstone-task-research-binding/1", "thread_id": thread_id,
                    "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id,
-                   "research_id": self.research_id}
+                   "research_id": self.research_id,
+                   "baseline_model_context": model_context.to_document()}
         with self.identity_path.open("x", encoding="utf-8") as target:
             self.identity_path.chmod(0o600)
             json.dump(binding, target)
@@ -57,6 +63,14 @@ class AttemptResearch:
         if self._closed:
             raise RuntimeError("research attempt is closed")
         self._is_active = check
+
+    def current_projection(self) -> dict[str, object] | None:
+        state = self.controller.read()
+        if state is None:
+            return None
+        return {"research_id": state.research_id, "research_revision": state.revision,
+                "goal": state.goal, "baseline_model_context": self.model_context.to_document(),
+                "claim_count": len(state.claims), "open_question_count": len(state.open_questions)}
 
     def close(self, *, failed: bool) -> None:
         if self._closed:

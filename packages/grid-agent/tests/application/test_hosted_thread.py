@@ -5,6 +5,22 @@ from grid_agent import hosted_worker
 from grid_simulator.model_catalog import load_model_catalog
 
 
+def test_candidate_hosted_entry_skips_classifier_construction(monkeypatch, tmp_path):
+    from capstone_agent.turn_router import ResearchTurnRouter
+    import capstone_agent.lightweight_turn_router as router
+    monkeypatch.setenv("CAPSTONE_AUTONOMOUS_RESEARCH", "1")
+    monkeypatch.setenv("CAPSTONE_RUNS_ROOT", str(tmp_path))
+    monkeypatch.delenv("CAPSTONE_THREAD_VALIDATION", raising=False)
+    def forbidden(**kwargs):
+        raise AssertionError("candidate entry must not construct a classifier")
+    monkeypatch.setattr(router, "build_lightweight_router", forbidden)
+    assembly = build_registered_pandapower_thread_application()
+    try:
+        assert isinstance(assembly.turn_router, ResearchTurnRouter)
+    finally:
+        assembly.capability_context_owner.close()
+
+
 def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(monkeypatch, tmp_path):
     import json
     from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
@@ -47,7 +63,12 @@ def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(mon
         assert service.snapshot(snapshot.thread_id).current_attempt is None
         events = service.read_events(snapshot.thread_id, 0).events
         assert events[-1].event_type == "attempt_failed"
-        assert events[-1].payload == {"error_code": "runtime_configuration_invalid"}
+        assert events[-1].payload["error_code"] == "runtime_configuration_invalid"
+        assert events[-1].payload["answer"] == result.answer
+        assert result.answer and "运行准备未完成" in result.answer
+        assert events[-1].payload["outcome"]["stage"] == "preparation"
+        assert events[-1].payload["result_refs"] == []
+        assert events[-1].payload["evidence_refs"] == []
         assert "private-credential-sentinel" not in json.dumps([dict(e.payload) for e in events])
     finally:
         assembly.capability_context_owner.close()
