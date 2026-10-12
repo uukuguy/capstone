@@ -153,7 +153,15 @@ def dispatch(
             else _require_contract(active_services.capability_registry, request.capability)
         )
         _validate_arguments(contract, request.arguments)
-        result = _dispatch(request, SimulatorWorkspace(workspace_path), active_services)
+        from grid_simulator.context_scope import require_context_scope
+        workspace = SimulatorWorkspace(workspace_path)
+        try:
+            require_context_scope(workspace_path, ContextStore(workspace, ModelRegistry(active_services.engine)),
+                                  request.capability, request.arguments)
+        except (ValueError, TypeError, OSError, InvalidContextRef, ContextNotFoundError, ContextIntegrityError):
+            raise _failure("context_scope_rejected", "Context is outside the application scope or cannot be verified",
+                           phase="validate", allowed_recovery_actions=("use_selected_context",)) from None
+        result = _dispatch(request, workspace, active_services)
         _validate_result(contract, result)
     except _OperationFailure as exc:
         return GridCapabilityResponse(request_id=request.request_id, ok=False, error=exc.error)

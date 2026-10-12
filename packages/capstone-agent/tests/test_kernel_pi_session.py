@@ -9,6 +9,14 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_research_work_protocol_is_candidate_only(tmp_path):
+    from capstone_agent.kernel_pi_session import _compose_attempt_policy
+    for enabled in (False, True):
+        policy = _compose_attempt_policy(tmp_path / str(enabled), None, include_generic=False,
+                                        application_catalog=None, include_research=enabled)
+        assert ("Research work protocol" in policy.read_text()) is enabled
+
+
 @pytest.mark.parametrize("wrong_revision", [False, True])
 def test_bound_admission_checks_derived_result_revision(wrong_revision):
     from capstone_agent.kernel_pi_session import _verify_bound_attempt_references
@@ -61,6 +69,58 @@ def test_research_references_require_observed_success_and_bound_authority(monkey
         raise ValueError("wrong model revision")
     monkeypatch.setattr(module, "_verify_bound_attempt_references", reject)
     assert not references.admit("result:good")
+
+
+def test_research_result_read_does_not_erase_its_observed_evidence(monkeypatch):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    def verify(profiles, bindings, owners, results, evidence, events):
+        if not evidence:
+            raise ValueError("result has no observed evidence")
+    monkeypatch.setattr(module, "_verify_bound_attempt_references", verify)
+    references = module._ResearchReferences((profile,))
+    references.observe({"type": "tool_result", "tool_name": "grid_run", "ok": True,
+        "result_refs": ["result:good"], "evidence_refs": ["evidence:good"]})
+    references.observe({"type": "tool_result", "tool_name": "grid_result_query", "ok": True,
+        "result_refs": ["result:good"], "evidence_refs": []})
+    assert references.admit("result:good")
+
+
+@pytest.mark.parametrize("linked_result", ["result:good", "result:other"])
+def test_research_result_and_evidence_reads_can_form_a_verified_pair(monkeypatch, linked_result):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    profile.prepared_application.bindings["grid"].runtime.authority = SimpleNamespace(
+        verify_evidence=lambda _: SimpleNamespace(document={"result_ref": linked_result}))
+    def verify(profiles, bindings, owners, results, evidence, events):
+        if results == ("result:good",) and evidence == ("evidence:good",):
+            return
+        raise ValueError("no linked result and evidence")
+    monkeypatch.setattr(module, "_verify_bound_attempt_references", verify)
+    references = module._ResearchReferences((profile,))
+    references.observe({"type": "tool_result", "tool_name": "grid_result_query", "ok": True,
+        "result_refs": ["result:good"], "evidence_refs": []})
+    assert not references.admit("result:good")
+    references.observe({"type": "tool_result", "tool_name": "grid_evidence_get", "ok": True,
+        "result_refs": [], "evidence_refs": ["evidence:good"]})
+    assert references.admit("result:good") is (linked_result == "result:good")
+
+
+def test_research_can_reference_a_result_linked_by_observed_authority_evidence(monkeypatch):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    profile.prepared_application.bindings["grid"].runtime.authority = SimpleNamespace(
+        verify_evidence=lambda _: SimpleNamespace(document={"result_ref": "result:child"}))
+    def verify(profiles, bindings, owners, results, evidence, events):
+        if results != ("result:child",) or evidence != ("evidence:child",):
+            raise ValueError("unverified source")
+    monkeypatch.setattr(module, "_verify_bound_attempt_references", verify)
+    references = module._ResearchReferences((profile,))
+    assert not references.admit("result:child")
+    references.observe({"type": "tool_result", "tool_name": "grid_contingency", "ok": True,
+        "result_refs": ["result:aggregate"], "evidence_refs": ["evidence:child"]})
+    assert references.admit("result:child")
+    assert not references.admit("result:unobserved")
 
 
 def _research_admission_fixture():

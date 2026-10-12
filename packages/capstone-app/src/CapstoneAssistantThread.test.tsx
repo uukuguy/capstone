@@ -11,6 +11,19 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps a committed research goal on its own task without adding a selector', () => {
+    const events = [
+      event('attempt_started', 1, {}, 'study'),
+      event('research_state_updated', 2, { goal: '比较方案并核验可行性' }, 'study'),
+      event('attempt_completed', 3, { answer: '已完成比较。' }, 'study'),
+      event('attempt_completed', 4, { answer: '另一任务的回答。' }, 'other'),
+    ]
+    const messages = projectAssistantMessages(events)
+    expect(messages.find(message => message.id === 'assistant-study')?.metadata?.custom?.researchGoal).toBe('比较方案并核验可行性')
+    expect(messages.find(message => message.id === 'assistant-other')?.metadata?.custom?.researchGoal).toBeUndefined()
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getAllByText('本次任务的研究目标')).toHaveLength(1)
+  })
   it('includes failed execution and validation records in calculation results', () => {
     const events = [
       event('attempt_started', 1, {}, 'study'),

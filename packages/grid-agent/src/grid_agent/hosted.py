@@ -83,7 +83,8 @@ def build_registered_pandapower_thread_application():
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
         )
-        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
+        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding,
+                                authority_workspace=binding.runtime.authority.workspace_root)
         return model_binding
 
     def build_session(claim, context, profiles):

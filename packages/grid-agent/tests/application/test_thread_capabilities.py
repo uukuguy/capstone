@@ -63,6 +63,12 @@ def test_real_derived_powerflow_reaches_thread_result_projection(tmp_path):
         prepared = owner.prepare(claim).contributions[0].prepared
         bindings = prepared.prepared_application.bindings
         executor = bindings["grid"].runtime.executor
+        from grid_agent.thread_binding import bind_thread_tool_catalog
+        from capability_agent.application.errors import CapabilityTransportError
+        bind_thread_tool_catalog(bindings["grid"].runtime.tool_catalog_path, prepared.model_binding,
+                                authority_workspace=bindings["grid"].runtime.authority.workspace_root)
+        with pytest.raises(CapabilityTransportError):
+            executor.invoke("context.open", {"model_id": "case9"})
         child = executor.invoke("model.revision.derive", {
             "context_ref": prepared.model_binding.context_ref,
             "patches": [{"operation": "scale", "kind": "load", "selector": {"indices": [0]},

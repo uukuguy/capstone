@@ -207,6 +207,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
                 include_generic=ordinary,
+                include_research=self._research_enabled,
                 application_catalog=claim.application_catalog,
                 model_context=claim.model_context,
                 profiles=profiles,
@@ -289,6 +290,7 @@ def _compose_attempt_policy(
     *,
     include_generic: bool,
     application_catalog: Mapping[str, object] | None,
+    include_research: bool = False,
     model_context: ModelContextSnapshot | None = None,
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
@@ -298,17 +300,19 @@ def _compose_attempt_policy(
 
     generic = Path(__file__).parent / "resources" / "conversation-policy.md"
     generic_text = generic.read_text(encoding="utf-8") if include_generic else ""
+    research = Path(__file__).parent / "resources" / "research-policy.md"
+    research_text = research.read_text(encoding="utf-8") if include_research else ""
     domain_text = ""
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) > 128_000:
+    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) + len(research_text) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -426,6 +430,25 @@ class _ResearchReferences:
         for field in ("result_refs", "evidence_refs"):
             for ref in self._refs(payload, field):
                 self.events.setdefault(ref, []).append(record)
+        authority = getattr(getattr(self.bindings[binding], "runtime", None), "authority", None)
+        verify_evidence = getattr(authority, "verify_evidence", None)
+        if not callable(verify_evidence):
+            return
+        for evidence_ref in self._refs(payload, "evidence_refs"):
+            try:
+                document = getattr(verify_evidence(evidence_ref), "document", None)
+                linked_result = document.get("result_ref") if isinstance(document, Mapping) else None
+                if not isinstance(linked_result, str) or not linked_result:
+                    continue
+                linked_receipt = {**record, "result_refs": [linked_result], "evidence_refs": [evidence_ref]}
+                _verify_bound_attempt_references(self.profiles, self.bindings,
+                    {linked_result: binding, evidence_ref: binding}, (linked_result,), (evidence_ref,),
+                    (linked_receipt,))
+            except (ValueError, LookupError, RuntimeError):
+                continue
+            # This relationship comes from an observed, verified Authority
+            # artifact. It is not a reference asserted by the research model.
+            self.events.setdefault(linked_result, []).append(linked_receipt)
 
     @staticmethod
     def _refs(event: Mapping[str, object], field: str) -> tuple[str, ...]:
@@ -436,19 +459,22 @@ class _ResearchReferences:
         events = self.events.get(reference, [])
         if not events or len({event["binding_id"] for event in events}) != 1:
             return False
-        event = events[-1]
-        results = self._refs(event, "result_refs")
-        evidence = self._refs(event, "evidence_refs")
-        binding = event["binding_id"]
-        if not isinstance(binding, str):
-            return False
-        owners = {ref: binding for ref in (*results, *evidence)}
-        try:
-            _verify_bound_attempt_references(self.profiles, self.bindings, owners,
-                                             results, evidence, (event,))
-        except (ValueError, LookupError):
-            return False
-        return True
+        # A later dataset read can return an existing result without producing
+        # evidence. It must not retire the earlier verified calculation receipt.
+        for event in reversed(events):
+            results = self._refs(event, "result_refs")
+            evidence = self._refs(event, "evidence_refs")
+            binding = event["binding_id"]
+            if not isinstance(binding, str):
+                continue
+            owners = {ref: binding for ref in (*results, *evidence)}
+            try:
+                _verify_bound_attempt_references(self.profiles, self.bindings, owners,
+                                                 results, evidence, (event,))
+            except (ValueError, LookupError, RuntimeError):
+                continue
+            return True
+        return False
 
 
 class _KernelPiPromptSession:

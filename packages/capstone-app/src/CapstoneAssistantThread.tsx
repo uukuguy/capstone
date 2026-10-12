@@ -382,7 +382,9 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         phase: typeof failure.phase === 'string' ? failure.phase : '',
         sequence: event.eventSeq }
       })
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults } } }
+    const research = events.filter(event => event.attemptId === attemptId && event.eventType === 'research_state_updated').at(-1)
+    const researchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -678,6 +680,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   return <MessagePrimitive.Root data-message-id={id} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
     <div className="capstone-chat-body">
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : 'CAPSTONE'}</span>}
+      {role === 'assistant' && typeof custom?.researchGoal === 'string' && <details className="capstone-task-research">
+        <summary>本次任务的研究目标</summary>
+        <p>{custom.researchGoal}</p>
+      </details>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
