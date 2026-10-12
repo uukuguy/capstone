@@ -55,6 +55,26 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
+def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt("records-test", 30)
+    assert claim is not None
+    service.append_runtime_event(claim, event_type="validation_observation", payload={"status": "failed"})
+    service.append_runtime_event(claim, event_type="unverified_answer_recorded", payload={"text": "original"}, visibility="diagnostic")
+    service.finish_attempt(claim, phase="failed", payload={"answer": "Recorded outcome"})
+    first = service.read_attempt_records(thread_id, claim.attempt.attempt_id, limit=1)
+    assert first["has_more"] and len(first["events"]) == 1
+    remaining = service.read_attempt_records(thread_id, claim.attempt.attempt_id, after=first["next_after"])
+    assert remaining["model_context"] == snapshot.active_model_context.to_document()
+    assert any(item["event_type"] == "unverified_answer_recorded" for item in remaining["events"])
+    from capstone_agent.thread_service import ThreadNotFound
+    with pytest.raises(ThreadNotFound):
+        service.read_attempt_records(thread_id, "attempt-not-owned")
+
+
 class _ToolsCatalog:
     def resolve(self, model, selection=None):
         if selection is None:

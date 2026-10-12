@@ -363,6 +363,18 @@ def create_host_app(
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
+        @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/records")
+        def get_attempt_records(thread_id: str, attempt_id: str, request: Request,
+                                after: Annotated[int, Query(ge=0)] = 0,
+                                limit: Annotated[int, Query(ge=1, le=128)] = 32):
+            require_private_thread(request)
+            try:
+                return thread_service.read_attempt_records(thread_id, attempt_id, after=after, limit=limit)
+            except ThreadNotFound:
+                raise HTTPException(404, "task records not found") from None
+            except ThreadProtocolError:
+                raise HTTPException(422, "task record cursor is invalid") from None
+
         @app.get("/api/v1/threads/{thread_id}/events")
         def get_thread_events(thread_id: str, request: Request,
                               after: Annotated[int, Query(ge=0)] = 0):

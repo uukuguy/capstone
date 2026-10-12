@@ -336,6 +336,9 @@ class ThreadService(Protocol):
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
+    def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
+                             limit: int = 32) -> dict[str, Any]: ...
+
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
 
     def record_rejected_command(
@@ -650,6 +653,24 @@ def _bounded_event_page(thread_id: str, after: int, last: int, events: tuple[Eve
     return EventPage(thread_id, after, cursor, bool(selected and cursor < last), tuple(selected))
 
 
+def _validate_attempt_cursor(attempt_id: str, after: int, limit: int) -> None:
+    _identifier(attempt_id, name="attempt_id")
+    if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 128:
+        raise ThreadProtocolError("attempt record cursor is invalid")
+
+
+def _attempt_records_page(thread_id: str, attempt_id: str, instruction: str,
+                          context: dict[str, Any] | None, events: tuple[EventEnvelope, ...],
+                          after: int, limit: int) -> dict[str, Any]:
+    page = _bounded_event_page(thread_id, after, events[-1].event_seq if events else after, events[:limit])
+    documents = [event.to_document() for event in page.events]
+    cursor = page.events[-1].event_seq if page.events else after
+    return {"schema": "capstone-attempt-records/1", "thread_id": thread_id,
+            "attempt_id": attempt_id, "instruction": instruction, "model_context": context,
+            "events": documents, "next_after": cursor,
+            "has_more": bool(events and cursor < events[-1].event_seq)}
+
+
 def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     """Return a bounded semantic rejection before a command enters the ledger."""
 
@@ -958,6 +979,20 @@ class InMemoryThreadService:
                     if source is not None:
                         events.append(source)
             return network_context_page(self._snapshot, events)
+
+    def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
+                             limit: int = 32) -> dict[str, Any]:
+        _validate_attempt_cursor(attempt_id, after, limit)
+        with self._lock:
+            self._check_thread(thread_id)
+            record = self._attempts.get(attempt_id)
+            if record is None:
+                raise ThreadNotFound(attempt_id)
+            context = record.get("model_context")
+            events = tuple(islice((event for event in self._events
+                if event.attempt_id == attempt_id and event.event_seq > after), limit + 1))
+            return _attempt_records_page(thread_id, attempt_id, record["instruction"],
+                context.to_document() if context is not None else None, events, after, limit)
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
@@ -2314,6 +2349,27 @@ class PostgresThreadService:
                 assert remaining is not None
                 page["has_more"] = remaining["more"]
         return page
+
+    def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
+                             limit: int = 32) -> dict[str, Any]:
+        _validate_attempt_cursor(attempt_id, after, limit)
+        self.snapshot(thread_id)
+        with self._connect() as connection:
+            attempt = connection.execute(
+                "SELECT instruction, model_context_snapshot FROM capstone_thread_attempts "
+                "WHERE thread_id = %s AND attempt_id = %s", (thread_id, attempt_id),
+            ).fetchone()
+            if attempt is None:
+                raise ThreadNotFound(attempt_id)
+            rows = connection.execute(
+                "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND attempt_id = %s "
+                "AND event_seq > %s ORDER BY event_seq LIMIT %s",
+                (thread_id, attempt_id, after, limit + 1),
+            ).fetchall()
+        events = tuple(self._event_from_row(row) for row in rows)
+        context = attempt["model_context_snapshot"]
+        return _attempt_records_page(thread_id, attempt_id, attempt["instruction"],
+            context, events, after, limit)
 
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
