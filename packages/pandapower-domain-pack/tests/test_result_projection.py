@@ -86,6 +86,73 @@ def test_projector_returns_public_shaped_pandapower_result_payload() -> None:
     assert payload["overlay"]["values"] == [{"element_id": "line_11", "value": 67.15}]
 
 
+@pytest.mark.parametrize("operation,metadata", [
+    ("opf.ac", {"converged": True, "objective": 12.5}),
+    ("constraints.violations", {"violation_count": 0, "constraint_source": "model"}),
+    ("topology.unsupplied", {"unsupplied_bus_count": 2}),
+])
+def test_registered_analysis_projects_sourced_metadata_without_stale_calculation_tables(operation, metadata):
+    data = {**calculation(), "producer_capability": operation, "operation": operation,
+            "status": "succeeded", "metadata": metadata,
+            "datasets": {"result.res_bus": {"rows": [{"index": 3, "vm_pu": 1.02}]}}}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == "completed"
+    assert {m["metric_id"]: m["value"] for m in payload["summary"]} == metadata
+    if operation != "opf.ac":
+        assert payload["tables"] == []
+
+
+def test_opf_projects_every_supplied_line_and_price_with_declared_units():
+    data = {**calculation(), "producer_capability": "analysis.run", "operation": "opf.ac",
+            "status": "succeeded", "metadata": {"converged": True, "objective": 12.5},
+            "datasets": {
+                "result.res_line": {"fields": [{"name": "loading_percent", "unit": "%"}],
+                                    "rows": [{"index": 11, "loading_percent": 60.25}]},
+                "result.res_bus": {"fields": [{"name": "lam_p", "unit": None}],
+                                   "rows": [{"index": 3, "vm_pu": 1.02, "lam_p": 14.04}]},
+            }}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == "completed"
+    tables = {t["table_id"]: t for t in payload["tables"]}
+    assert tables["res_line"]["rows"][0]["cells"] == {"index": 11, "loading_percent": 60.25}
+    assert tables["res_bus"]["rows"][0]["cells"] == {"index": 3, "vm_pu": 1.02, "lam_p": 14.04}
+    price = next(c for c in tables["res_bus"]["columns"] if c["column_id"] == "lam_p")
+    assert "unit" not in price
+
+
+def test_contingency_projects_failed_scenarios_and_undefined_constraints():
+    data = {**calculation(), "producer_capability": "analysis.contingency.n_minus_one.run",
+            "status": "succeeded", "scenario_count": 2,
+            "constraint_evaluation": {"status": "not_defined"}, "scenarios": [
+                {"element_kind": "line", "pandapower_index": 7, "status": "succeeded",
+                 "converged": True, "max_loading_percent": 80, "min_vm_pu": 0.98, "max_vm_pu": 1.02},
+                {"element_kind": "trafo", "pandapower_index": 3, "status": "failed", "converged": False},
+            ]}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == "partial"
+    assert payload["tables"][0]["rows"][1]["cells"]["status"] == "failed"
+    assert {m["metric_id"]: m["value"] for m in payload["summary"]}["constraint_evaluation"] == "not_defined"
+
+
+def test_failed_opf_preserves_failure_status_without_presenting_old_result_tables():
+    data = {**calculation(), "producer_capability": "analysis.run", "operation": "opf.ac",
+            "status": "failed", "metadata": {"converged": False, "objective": 12.5},
+            "datasets": {"result.res_line": {"rows": [{"index": 11, "loading_percent": 60.25}]}}}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == "partial"
+    assert payload["tables"] == []
+    assert payload["summary"] == [{"metric_id": "status", "label": "执行状态", "value": "failed"}]
+    assert payload["result_ref"] == RESULT_REF
+
+
 def test_projector_rejects_missing_admitted_evidence_or_unknown_element() -> None:
     with pytest.raises(ValueError, match="evidence"):
         PandapowerResultProjector().project(

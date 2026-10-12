@@ -11,6 +11,8 @@ import re
 from collections.abc import Callable, Collection, Mapping
 from typing import Any
 
+from .analysis_result_projection import project_analysis_result
+
 
 _REF = re.compile(r"^(context|result|evidence|revision):sha256:[0-9a-f]{64}$")
 
@@ -221,7 +223,7 @@ class PandapowerResultProjector:
         if result_ref not in admitted or any(item not in admitted for item in evidence_refs):
             raise ValueError("calculation result or evidence is not admitted")
         if not supported:
-            return {
+            base = {
                 "schema": "capstone-result-projection/1.0",
                 "result_id": f"result_projection_{attempt_id}_{result_ref[-16:]}",
                 "result_ref": result_ref, "evidence_refs": evidence_refs,
@@ -232,6 +234,9 @@ class PandapowerResultProjector:
                 "status": "unavailable", "summary": [], "tables": [], "element_refs": [], "overlay": None,
                 "unavailable_reason": "该结果类型暂未提供结构化展示投影",
             }
+            analysis_base = {key: value for key, value in base.items() if key != "unavailable_reason"}
+            projected = project_analysis_result(calculation_document, analysis_base)
+            return base if projected is None else projected
         if not evidence_refs:
             raise ValueError("calculation evidence is required")
         capability = capability_hint if capability_hint != "powerflow.ac" else "analysis.powerflow.ac.run"
