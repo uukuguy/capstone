@@ -31,6 +31,10 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
+    research_mode = selected.get("CAPSTONE_AUTONOMOUS_RESEARCH", "0")
+    if research_mode not in {"0", "1"}:
+        raise RuntimeContractError("CAPSTONE_AUTONOMOUS_RESEARCH")
+    selected["CAPSTONE_AUTONOMOUS_RESEARCH"] = research_mode
     for key, expected in {**contract["shared_environment"], **spec["environment"]}.items():
         if key in selected and selected[key] != expected:
             raise RuntimeContractError(key)

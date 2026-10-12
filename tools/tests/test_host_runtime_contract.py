@@ -53,6 +53,15 @@ def test_worker_requires_provider_but_api_does_not():
     RUNTIME.select_runtime(ROOT, selected, "api")
 
 
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_research_candidate_is_explicit_and_shared_by_host_roles(application, command):
+    settings = environment(application)
+    assert RUNTIME.select_runtime(ROOT, settings, command)[3]["CAPSTONE_AUTONOMOUS_RESEARCH"] == "0"
+    assert RUNTIME.select_runtime(ROOT, settings | {"CAPSTONE_AUTONOMOUS_RESEARCH": "1"}, command)[3]["CAPSTONE_AUTONOMOUS_RESEARCH"] == "1"
+    with pytest.raises(ValueError, match="^CAPSTONE_AUTONOMOUS_RESEARCH$"):
+        RUNTIME.select_runtime(ROOT, settings | {"CAPSTONE_AUTONOMOUS_RESEARCH": "true"}, command)
+
+
 def test_trial_promotion_can_select_the_same_runtime_without_source_changes():
     local = RUNTIME.select_runtime(ROOT, environment(), "api")
     trial = RUNTIME.select_runtime(ROOT, environment(stage="user-trial"), "api")
