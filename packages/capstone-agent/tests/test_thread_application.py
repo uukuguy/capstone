@@ -335,6 +335,29 @@ def test_prepared_application_factory_passes_context_to_session_without_closing_
     assert received[0][1].closed
 
 
+def test_preparation_timings_distinguish_reused_context_from_new_session(monkeypatch):
+    owner, adapter = _prepared_owner()
+    claim = replace(_claim(), model_context=replace(_claim().model_context,
+        enabled_profiles=(("static", "1.0.0"),)))
+    clock = iter([10.0, 12.0, 13.0, 15.0, 20.0, 20.1, 20.4, 20.5])
+    monkeypatch.setattr("capstone_agent.thread_application.time.monotonic", lambda: next(clock))
+    recordings = []
+    class TimedSession(_Session):
+        def record_preparation_timing(self, stages):
+            recordings.append(stages)
+    factory = PreparedApplicationPiRuntimeFactory(owner, lambda *_: TimedSession())
+    first = factory(claim)
+    first.stop()
+    second = factory(claim)
+    second.stop()
+    assert len(adapter.contexts) == 1
+    assert recordings[0] == {"context_acquire_seconds": 2.0, "session_build_seconds": 1.0,
+                              "projection_build_seconds": 2.0}
+    assert recordings[1]["context_acquire_seconds"] == pytest.approx(0.1)
+    assert recordings[1]["session_build_seconds"] == pytest.approx(0.3)
+    owner.close()
+
+
 def test_failed_session_preparation_releases_the_context_pin():
     owner, _ = _prepared_owner()
     claim = replace(_claim(), model_context=replace(_claim().model_context, enabled_profiles=(("static", "1.0.0"),)))

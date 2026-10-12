@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import time
 from typing import Any, cast
 
 from .harness import (
@@ -142,14 +143,23 @@ class PreparedApplicationPiRuntimeFactory:
         self.rollback_selection_on_failure = True
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
+        started = time.monotonic()
         context = self._context_owner.acquire(claim)
+        context_ready = time.monotonic()
         session = None
         try:
             session = self._session_factory(claim, context)
+            session_ready = time.monotonic()
             admission = getattr(session, "admit_attempt", None)
             network_projection_provider = None
             if self._network_projection_factory is not None:
                 network_projection_provider = self._network_projection_factory(claim, context)
+            projection_ready = time.monotonic()
+            record_timing = getattr(session, "record_preparation_timing", None)
+            if callable(record_timing):
+                record_timing({"context_acquire_seconds": context_ready - started,
+                    "session_build_seconds": session_ready - context_ready,
+                    "projection_build_seconds": projection_ready - session_ready})
             return HarnessPiClient(
                 session,
                 runtime_mode=self._runtime_mode,

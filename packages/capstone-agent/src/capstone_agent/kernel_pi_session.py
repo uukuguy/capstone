@@ -515,6 +515,10 @@ class _KernelPiPromptSession:
     def command(self) -> object:
         return self._client.command
 
+    def record_preparation_timing(self, stages: Mapping[str, float]) -> None:
+        """Persist preparation durations without model text or credentials."""
+        self._trace.append("application_runtime_preparation", dict(stages))
+
     def start(self) -> None:
         self._client.start()
 
