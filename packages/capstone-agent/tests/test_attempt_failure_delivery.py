@@ -32,6 +32,32 @@ def test_tool_failure_keeps_bounded_reason_without_raw_error_details():
     assert "raw_response" not in str(event)
 
 
+def test_session_preserves_request_and_links_semantic_event_to_persisted_trace():
+    from types import SimpleNamespace
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    records = []
+    observations = []
+
+    def append(kind, payload):
+        records.append((kind, payload))
+        return len(records)
+
+    def prompt(question, **kwargs):
+        kwargs["on_semantic_event"]({"type": "tool_result", "capability": "analysis.run", "ok": False}, 7)
+        return "The calculation did not finish."
+
+    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=30, prompt_and_wait=prompt),
+        SimpleNamespace(append=append), admission=None)
+    session.prompt_and_wait("Inspect the active model", on_semantic_event=observations.append,
+                            correlation_id="attempt-a", on_heartbeat=lambda: None)
+    assert records[0][0] == "application_prompt"
+    assert records[0][1]["question"] == "Inspect the active model"
+    assert records[0][1]["correlation_id"] == "attempt-a"
+    normalized = normalize_runtime_event(observations[0], runtime_mode="capstone")
+    assert normalized["payload"]["trace_sequence"] == 7
+    assert normalized["payload"]["trace_correlation_id"] == "attempt-a"
+
+
 class Session:
     def start(self):
         pass
@@ -95,6 +121,34 @@ def test_admission_failure_returns_feedback_to_the_same_session_once():
     assert draft.payload["text"] == "Initial answer"
     assert draft.visibility == "diagnostic"
     assert events[-1].event_type == "attempt_completed"
+
+
+@pytest.mark.parametrize("first_decision", [None, "invalid", "offline"])
+def test_admission_gate_failure_is_an_observation_for_the_same_agent(first_decision):
+    service = _thread_service()
+    calls = []
+    feedback = []
+
+    class RecoveringSession(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            return "Initial response"
+
+        def recover_after_failure(self, observation, **kwargs):
+            feedback.append(observation)
+            return "The request remains unresolved because required evidence is unavailable."
+
+    def admit(claim, answer, *args):
+        calls.append(answer)
+        if len(calls) == 1:
+            if first_decision == "offline":
+                return AdmittedAttemptAnswer(answer, "offline_information", "general_knowledge")
+            return first_decision
+        return AdmittedAttemptAnswer(answer, "limited", "limited")
+
+    result = HarnessAttemptRunner(service, HarnessPiClient(RecoveringSession(), admission=admit)).run(claim_attempt(service))
+    assert result.status == "completed"
+    assert len(feedback) == 1 and feedback[0]["task_terminal"] is False
+    assert any(e.event_type == "validation_observation" for e in service.read_events("thr_harness", 0).events)
 
 
 def test_failed_recovery_is_bounded_and_does_not_publish_rejected_answer():
@@ -183,7 +237,7 @@ def test_pi_correction_uses_same_client_and_remaining_attempt_budget(monkeypatch
         return "Answer"
 
     client = SimpleNamespace(timeout_seconds=30, prompt_and_wait=prompt)
-    session = _KernelPiPromptSession(client, SimpleNamespace(close=lambda: None), admission=None)
+    session = _KernelPiPromptSession(client, SimpleNamespace(close=lambda: None, append=lambda *_: 1), admission=None)
     arguments = dict(on_semantic_event=lambda event: None, correlation_id="same-attempt", on_heartbeat=lambda: None)
     session.prompt_and_wait("Original instruction", **arguments)
     now[0] = 120.0

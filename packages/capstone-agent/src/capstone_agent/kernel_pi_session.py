@@ -405,10 +405,14 @@ class _KernelPiPromptSession:
         if remaining <= 0:
             raise TimeoutError("attempt time budget exhausted")
         self._ready_for_correction = False
+        self._trace.append("application_prompt", {
+            "correlation_id": correlation_id, "question": question,
+        })
         def observed(event, _sequence):
             if self._reference_observer is not None:
                 self._reference_observer(event)
-            on_semantic_event(event)
+            on_semantic_event({**event, "trace_sequence": _sequence,
+                               "trace_correlation_id": correlation_id})
 
         answer = self._client.prompt_and_wait(
             question,

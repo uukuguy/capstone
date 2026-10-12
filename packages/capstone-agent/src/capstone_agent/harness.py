@@ -202,6 +202,11 @@ def normalize_runtime_event(
         payload = {"native_type": native_type}
     else:
         payload = _small_runtime_payload(event)
+    sequence = event.get("trace_sequence")
+    correlation = event.get("trace_correlation_id")
+    if type(sequence) is int and sequence > 0 and isinstance(correlation, str) and 0 < len(correlation) <= 128:
+        payload["trace_sequence"] = sequence
+        payload["trace_correlation_id"] = correlation
     return {
         "event_type": event_type,
         "runtime_mode": runtime_mode,
@@ -542,67 +547,32 @@ class HarnessAttemptRunner:
             if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
                 raise TypeError("runtime answer is invalid")
             candidate = None
-            admit = getattr(self._runtime, "admit_attempt", None)
-            if callable(admit):
+            for correction in range(2):
                 try:
-                    candidate = admit(
-                        claim, answer, tuple(self._result_refs),
-                        tuple(self._evidence_refs), tuple(self._tool_events),
-                    )
-                except Exception:
-                    self._record_validation_failure(claim, answer, lease.check)
+                    candidate = self._admit_answer(claim, plan, answer)
+                    break
+                except _AttemptAdmissionError as error:
+                    self._record_validation_failure(claim, answer, lease.check, error.code)
                     recover = getattr(self._runtime, "recover_after_failure", None)
-                    if not callable(recover) or not getattr(self._runtime, "recovery_available", True):
-                        raise _AttemptAdmissionError("answer_admission_failed") from None
+                    if correction or not callable(recover) or not getattr(self._runtime, "recovery_available", True):
+                        raise
                     heartbeat()
                     recovery_attempted = True
                     try:
                         answer = recover(
-                            {"stage": "answer_check", "code": "answer_admission_failed",
+                            {"stage": "answer_check", "code": error.code,
                              "status": "failed", "task_terminal": False,
                              "products_retained": True},
-                            on_event=persist,
-                            correlation_id=claim.attempt.attempt_id,
+                            on_event=persist, correlation_id=claim.attempt.attempt_id,
                             on_heartbeat=heartbeat,
-                        )
-                        heartbeat()
-                        if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
-                            raise ValueError("recovery answer is invalid")
-                        candidate = admit(
-                            claim, answer, tuple(self._result_refs),
-                            tuple(self._evidence_refs), tuple(self._tool_events),
                         )
                     except _AttemptCancelled:
                         raise
                     except Exception:
-                        if isinstance(answer, str):
-                            self._record_validation_failure(claim, answer, lease.check)
-                        raise _AttemptAdmissionError("answer_admission_failed") from None
-            if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
-                raise _AttemptAdmissionError("answer_admission_invalid")
-            if candidate is not None and (
-                not set(candidate.result_refs).issubset(self._result_refs)
-                or not set(candidate.evidence_refs).issubset(self._evidence_refs)
-            ):
-                raise _AttemptAdmissionError("answer_admission_invalid")
-            observation_admitted = candidate is not None and (
-                candidate.mode == "offline_information"
-                and candidate.assurance == "deterministic_information"
-                and "current_model_observation_verified" in candidate.diagnostic_codes
-            )
-            if plan is not None and plan.route == "professional" and (
-                candidate is None
-                or (candidate.mode not in {"authority_backed", "limited"} and not observation_admitted)
-                or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
-            ):
-                raise _AttemptAdmissionError("capability_required")
-            professional_route = plan is not None and plan.route == "professional"
-            if candidate is None and (
-                professional_route
-                or (plan is None and claim.kind not in {"send_auto", "send_ordinary"})
-                or self._tools_observed
-            ):
-                raise _AttemptAdmissionError("answer_admission_unavailable")
+                        raise _AttemptAdmissionError("answer_recovery_unavailable") from None
+                    heartbeat()
+                    if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
+                        raise _AttemptAdmissionError("answer_admission_invalid")
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
             result_projections = () if candidate is None else candidate.result_projections
@@ -696,6 +666,44 @@ class HarnessAttemptRunner:
                 self._runtime.stop()
             except Exception:
                 pass
+
+    def _admit_answer(
+        self, claim: AttemptClaim, plan: TurnPlan | None, answer: str,
+    ) -> AdmittedAttemptAnswer | None:
+        candidate = None
+        admit = getattr(self._runtime, "admit_attempt", None)
+        if callable(admit):
+            try:
+                candidate = admit(claim, answer, tuple(self._result_refs),
+                                  tuple(self._evidence_refs), tuple(self._tool_events))
+            except Exception:
+                raise _AttemptAdmissionError("answer_admission_failed") from None
+        if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
+            raise _AttemptAdmissionError("answer_admission_invalid")
+        if candidate is not None and (
+            not set(candidate.result_refs).issubset(self._result_refs)
+            or not set(candidate.evidence_refs).issubset(self._evidence_refs)
+        ):
+            raise _AttemptAdmissionError("answer_admission_invalid")
+        observation_admitted = candidate is not None and (
+            candidate.mode == "offline_information"
+            and candidate.assurance == "deterministic_information"
+            and "current_model_observation_verified" in candidate.diagnostic_codes
+        )
+        if plan is not None and plan.route == "professional" and (
+            candidate is None
+            or (candidate.mode not in {"authority_backed", "limited"} and not observation_admitted)
+            or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
+        ):
+            raise _AttemptAdmissionError("capability_required")
+        professional_route = plan is not None and plan.route == "professional"
+        if candidate is None and (
+            professional_route
+            or (plan is None and claim.kind not in {"send_auto", "send_ordinary"})
+            or self._tools_observed
+        ):
+            raise _AttemptAdmissionError("answer_admission_unavailable")
+        return candidate
 
     def _persist_plan(self, claim: AttemptClaim, plan: TurnPlan) -> None:
         self._service.append_runtime_event(
@@ -801,6 +809,7 @@ class HarnessAttemptRunner:
 
     def _record_validation_failure(
         self, claim: AttemptClaim, answer: str, check_lease: Callable[[], None],
+        code: str = "answer_admission_failed",
     ) -> None:
         # Preserve the rejected product separately from the formal answer.
         # No raw exception text enters the public stream or model feedback.
@@ -815,7 +824,7 @@ class HarnessAttemptRunner:
         self._service.append_runtime_event(
             claim, event_type="validation_observation", visibility="public",
             payload={"status": "failed", "stage": "answer_check",
-                     "code": "answer_admission_failed", "task_terminal": False,
+                     "code": code, "task_terminal": False,
                      "products_retained": True,
                      "message": "回答核验未通过，原始内容和执行记录已保留，交由智能体继续处理。",
                      "observed_result_refs": list(self._result_refs),
