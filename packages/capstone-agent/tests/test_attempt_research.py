@@ -206,3 +206,45 @@ def test_long_model_step_resumes_same_research_without_resetting_budget(tmp_path
     normalized = normalize_runtime_event(events[0], runtime_mode="capstone")
     assert normalized["event_type"] == "research_step_resumed"
     assert normalized["visibility"] == "public"
+
+
+def test_new_research_findings_receive_one_final_scope_review(tmp_path):
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    research = AttemptResearch(tmp_path, thread_id="thr_review", run_id="run_review",
+        attempt_id="attempt_review", model_context=MODEL, is_active=lambda: True,
+        admit_reference=lambda _: False)
+    calls = []
+    def prompt(question, **kwargs):
+        calls.append(question)
+        if len(calls) == 1:
+            research.controller.update({"request_id": "save-review", "expected_revision": 0,
+                "changes": {"goal": "Compare scenarios", "open_questions": ["Global feasibility remains open"]}})
+            return "Draft conclusion"
+        return "Reviewed conclusion with limits"
+    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=600, prompt_and_wait=prompt),
+        SimpleNamespace(append=lambda *_: 1), admission=None, research=research)
+    answer = session.prompt_and_wait("Compare scenarios", on_semantic_event=lambda _: None,
+        correlation_id="attempt_review", on_heartbeat=lambda: None)
+    assert answer == "Reviewed conclusion with limits"
+    assert len(calls) == 2
+    assert "model revisions" in calls[1] and "Do not repeat" in calls[1]
+
+
+@pytest.mark.parametrize("previous_research", [False, True])
+def test_read_only_turn_does_not_add_a_final_review(previous_research, tmp_path):
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    research = AttemptResearch(tmp_path, thread_id="thr_read", run_id="run_read",
+        attempt_id="attempt_read", model_context=MODEL, is_active=lambda: True,
+        admit_reference=lambda _: False)
+    if previous_research:
+        research.controller.update({"request_id": "earlier", "expected_revision": 0,
+            "changes": {"goal": "Earlier study"}})
+    calls = []
+    def prompt(question, **kwargs):
+        calls.append(question)
+        return "Model facts"
+    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=600, prompt_and_wait=prompt),
+        SimpleNamespace(append=lambda *_: 1), admission=None, research=research)
+    assert session.prompt_and_wait("Describe model", on_semantic_event=lambda _: None,
+        correlation_id="attempt_read", on_heartbeat=lambda: None) == "Model facts"
+    assert calls == ["Describe model"]

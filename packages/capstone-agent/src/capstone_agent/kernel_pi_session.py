@@ -507,6 +507,8 @@ class _KernelPiPromptSession:
         self._answer_admitted = False
         existing_research = research.controller.read() if research is not None else None
         self._published_research_revision = existing_research.revision if existing_research is not None else 0
+        self._initial_research_revision = self._published_research_revision
+        self._final_reviewed = False
 
     @property
     def command(self) -> object:
@@ -573,6 +575,28 @@ class _KernelPiPromptSession:
                 model_idle_seconds=step_budget,
             )
             if not getattr(self._client, "last_prompt_interrupted", False):
+                state = self._research.controller.read() if self._research is not None else None
+                if (not self._final_reviewed and state is not None
+                        and state.revision > self._initial_research_revision
+                        and self._deadline - time.monotonic() >= 30):
+                    self._final_reviewed = True
+                    question = (
+                        "Review the draft answer against the original request and existing tool receipts. "
+                        "Check model revisions, scenario identities, actual constraints, numerical comparisons, "
+                        "coverage and failed or missing checks. Limit conclusions to what these receipts establish; "
+                        "distinguish observations from hypotheses and untested causal explanations. "
+                        "Do not repeat completed calculations or start a new investigation. Return the complete "
+                        "user-facing answer in the original user's language, without process prefaces. "
+                        "This review is an agent judgment, not an independent Authority verification."
+                    )
+                    self._trace.append("application_answer_review", {
+                        "correlation_id": correlation_id, "research_revision": state.revision,
+                    })
+                    self._trace.append("application_prompt", {
+                        "correlation_id": correlation_id, "question": question,
+                    })
+                    on_heartbeat()
+                    continue
                 break
             on_heartbeat()
             self._client.set_thinking_level("off")
