@@ -41,6 +41,7 @@ class AuthorityModelBinding:
     implementation_family: str
     context_ref: str
     model_reference_verifier: Callable[[str], bool] | None = field(default=None, repr=False, compare=False)
+    model_metadata: Mapping[str, object] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -58,6 +59,12 @@ class AuthorityModelBinding:
             raise ValueError("Authority model reference is invalid")
         if self.model_reference_verifier is not None and not callable(self.model_reference_verifier):
             raise TypeError("Authority model reference verifier must be callable")
+        if self.model_metadata is not None:
+            if not isinstance(self.model_metadata, Mapping):
+                raise TypeError("Authority model metadata must be a JSON mapping")
+            # Retain a source snapshot, not a caller-owned mutable mapping.
+            copied = json.loads(json.dumps(dict(self.model_metadata), allow_nan=False))
+            object.__setattr__(self, "model_metadata", copied)
 
     def accepts_model_reference(self, reference: str) -> bool:
         """Admit the bound reference or an application-verified related model."""

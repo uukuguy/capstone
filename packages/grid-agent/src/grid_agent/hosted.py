@@ -50,6 +50,19 @@ class RegisteredPandapowerThreadCatalog:
         )
 
 
+def _read_model_metadata(executor: Any, *, model_id: str, revision_ref: str,
+                         context_ref: str) -> Mapping[str, object]:
+    try:
+        metadata = executor.invoke("context.get", {"context_ref": context_ref, "include_overview": True})
+    except Exception:
+        # Optional preparation data must not prevent later task execution.
+        return {"status": "unavailable", "reason": "model_metadata_lookup_failed"}
+    if (not isinstance(metadata, Mapping) or metadata.get("model") != model_id
+        or metadata.get("revision_ref") != revision_ref or metadata.get("context_ref") != context_ref):
+        return {"status": "unavailable", "reason": "model_metadata_identity_mismatch"}
+    return metadata
+
+
 def build_registered_pandapower_thread_application():
     """Build the hosted pandapower Thread catalog and Pi Harness seam."""
 
@@ -82,6 +95,8 @@ def build_registered_pandapower_thread_application():
         model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
+            model_metadata=_read_model_metadata(binding.runtime.executor,
+                model_id=context.model_id, revision_ref=opened["revision_ref"], context_ref=opened["context_ref"]),
         )
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding,
                                 authority_workspace=binding.runtime.authority.workspace_root)

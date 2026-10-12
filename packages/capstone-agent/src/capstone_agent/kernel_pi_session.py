@@ -337,6 +337,14 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+        metadata = getattr(binding, "model_metadata", None)
+        if isinstance(metadata, Mapping):
+            serialized = json.dumps(dict(metadata), ensure_ascii=False, allow_nan=False)
+            lines.append("Authority model metadata for this exact bound revision; input values are not solved results.")
+            if len(serialized.encode("utf-8")) <= 32 * 1024:
+                lines.append(serialized)
+            else:
+                lines.append("Model metadata exceeds the initial context budget; retrieve needed fields through published tools.")
     if previous_instruction is not None:
         lines.extend([
             "## Latest previous instruction for this saved model Context",

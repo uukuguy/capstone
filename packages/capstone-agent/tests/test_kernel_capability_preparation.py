@@ -18,6 +18,14 @@ from capstone_agent.kernel_capability_preparation import (
 from capstone_agent.thread_protocol import ModelContextSnapshot
 
 
+def test_authority_binding_keeps_a_copy_of_prepared_metadata():
+    metadata = {"counts": {"buses": 2}}
+    bound = AuthorityModelBinding("grid", "model_one", "revision:sha256:" + "a" * 64,
+        "pandapower", "context:sha256:" + "b" * 64, model_metadata=metadata)
+    metadata["counts"]["buses"] = 99
+    assert bound.model_metadata == {"counts": {"buses": 2}}
+
+
 def _context():
     return ModelContextSnapshot(
         "ctx_1", "model_1", "revision:sha256:" + "a" * 64, "family", "sel_1",

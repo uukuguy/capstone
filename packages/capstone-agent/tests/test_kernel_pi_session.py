@@ -347,6 +347,22 @@ def test_followup_prompt_offers_existing_result_and_evidence_for_explicit_retrie
     assert "without rerunning" in rendered
 
 
+def test_initial_context_contains_bound_authority_metadata_without_a_calculation():
+    context = ModelContextSnapshot("ctx_saved", "ieee39", "revision:sha256:" + "a" * 64, "pandapower", "sel_0")
+    metadata = {"context_ref": "context:sha256:" + "b" * 64, "revision_ref": context.model_revision,
+        "model": "ieee39", "counts": {"buses": 39, "lines": 35, "transformers": 11},
+        "overview": [{"dataset": "network.load", "aggregates": [{"field": "p_mw", "value": 6254.23}]}]}
+    profile = SimpleNamespace(model_binding=SimpleNamespace(binding_id="grid", context_ref=metadata["context_ref"], model_metadata=metadata))
+    rendered = _render_attempt_model_context(context, (profile,))
+    assert '"network.load"' in rendered
+    assert '6254.23' in rendered
+    assert 'not solved' in rendered
+    profile.model_binding.model_metadata = {"data": "x" * 40_000}
+    bounded = _render_attempt_model_context(context, (profile,))
+    assert 'retrieve needed fields' in bounded
+    assert len(bounded) < 2000
+
+
 def test_followup_prompt_labels_previous_model_instruction_as_reader_text():
     from capstone_agent.thread_service import PreviousInstruction
     context = ModelContextSnapshot("ctx_saved", "ieee39", "7", "pandapower", "sel_0")
