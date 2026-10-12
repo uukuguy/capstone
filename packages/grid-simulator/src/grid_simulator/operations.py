@@ -1092,12 +1092,31 @@ def _analysis_contingency_n_minus_one_run(
     workspace: SimulatorWorkspace, engine: Pandapower340Engine, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
+    if "branch_selections" in arguments:
+        refs = []
+        for selection in arguments["branch_selections"]:
+            for index in selection["indices"]:
+                branch = find_branch(net, context.revision_ref, selection["kind"], "pandapower_index", str(int(index)))
+                if branch is None:
+                    raise _failure("unknown_branch", "Selected branch is not present in the requested context",
+                        phase="resolve", allowed_recovery_actions=("resolve_element",),
+                        details={"context_ref": context.context_ref, "kind": selection["kind"], "index": index})
+                refs.append(branch.asset_ref)
+        canonical = {key: value for key, value in arguments.items() if key != "branch_selections"}
+        canonical["branch_refs"] = refs
+        schema = CapabilityRegistry.load_packaged().require("analysis.contingency.n_minus_one.run").input_schema
+        try:
+            Draft202012Validator(schema).validate(canonical)
+        except JsonSchemaValidationError as exc:
+            raise _failure("invalid_branch_selection", "Selected branches must be distinct and within the published batch limit",
+                phase="validate", allowed_recovery_actions=("correct_request",)) from exc
+        arguments = canonical
     try:
         return run_n_minus_one(workspace=workspace, engine=engine, context=context, net=net, arguments=arguments)
     except UnknownBranchError as exc:
         raise _failure(
             "unknown_branch",
-            "Branch reference does not resolve to a model branch in this context revision",
+            "Branch reference does not resolve in the requested revision. Keep the target context and use branch_selections or resolve current refs.",
             phase="resolve",
             allowed_recovery_actions=("resolve_element",),
         ) from exc
