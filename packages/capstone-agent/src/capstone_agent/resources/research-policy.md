@@ -5,6 +5,10 @@ maintain a Research Model with the registered research tools in the same executi
 Simple factual queries do not need a research record.
 
 - Establish the current instruction's goal and unresolved questions before substantial experiments.
+- Keep the working goal limited to the user's requested output. Do not add an investigation merely
+  because tools or new observations make it possible. Prefer the least costly valid source or action
+  that resolves a required uncertainty. When the requested output is supported, deliver it; further
+  analyses belong to a later request. Do not omit a requested requirement to save time.
 - Use the committed research view to track assumptions, candidate explanations, verified findings,
   failed attempts, and the next useful action. Update it when these change, not after every tool call.
 - Research notes contain agent judgments. Only admitted Authority results support numerical or

@@ -34,6 +34,22 @@ def receipt(channel, request_id="update-1"):
     return json.loads((channel.receipts_path / f"{request_id}.json").read_text())
 
 
+def test_missing_initial_goal_is_rejected_and_can_be_repaired_without_uncertain_commit(channel):
+    pump, _ = channel
+    path = pump.requests_path / "missing-goal.json"
+    path.write_text(json.dumps({"request_id": "missing-goal", "expected_revision": 0,
+        "changes": {"notes": [{"note_id": "note-one", "text": "Observed failure"}]}}))
+    pump.drain()
+    ack = receipt(pump, "missing-goal")
+    assert ack["status"] == "rejected"
+    assert ack["code"] == "research_goal_required"
+    assert pump.controller.read() is None
+    publish(pump, request_id="repaired-goal")
+    pump.drain()
+    assert receipt(pump, "repaired-goal")["status"] == "committed"
+    assert receipt(pump, "missing-goal")["status"] == "rejected"
+
+
 def test_channel_publishes_view_before_success_receipt(channel):
     pump, _ = channel
     publish(pump)

@@ -107,6 +107,22 @@ test("returns paged research records with explicit coverage and no Authority evi
   assert.deepEqual(result.details.evidence_refs, []);
 });
 
+test("preserves the host rejection reason so the next update can repair it", async t => {
+  const f = await fixture(t);
+  const waiting = f.tools.get("agent_research_update").execute("tool-rejected", { expected_revision: 1, changes: { goal: "Updated goal" } });
+  const input = await pending(f.root);
+  await writeFile(join(f.root, "receipts", input.name), JSON.stringify({
+    schema_version: "capability-research-receipt/1.0", run_id: "run-1", turn_id: "turn-1", attempt_id: "attempt-1",
+    request_id: input.request.request_id, request_sha256: createHash("sha256").update(input.raw).digest("hex"),
+    status: "rejected", code: "research_goal_required", message: "The first research update requires changes.goal; no update was committed.",
+  }));
+  const result = await waiting;
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error.message, "The first research update requires changes.goal; no update was committed.");
+  assert.equal(result.details.error.phase, "validate");
+  assert.equal(f.view.research_revision, 1);
+});
+
 test("does not report update success until a matching durable receipt arrives", async t => {
   const f = await fixture(t);
   let settled = false;

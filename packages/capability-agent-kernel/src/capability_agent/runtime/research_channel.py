@@ -116,6 +116,9 @@ class ResearchRequestChannel:
                 if revision != request.expected_revision:
                     return {"status": "rejected", "code": "research_revision_conflict",
                             "research_revision": revision}
+                if state is None and request.changes.goal is None:
+                    return {"status": "rejected", "code": "research_goal_required",
+                            "message": "The first research update requires changes.goal; no update was committed."}
                 if any(not self.controller.admit_reference(ref) for ref in request.changes.references()):
                     return {"status": "rejected", "code": "research_reference_not_admitted"}
                 committed = self.controller.update(document)

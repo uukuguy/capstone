@@ -277,6 +277,13 @@ function success(capability, result) {
     details: { event: "tool_result", capability, ok: true, result, evidence_refs: [] } };
 }
 function failure(capability, code, result) {
-  return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, ...(result ? { result } : {}) }) }],
-    details: { event: "tool_result", capability, ok: false, error: { code }, ...(result ? { result } : {}), evidence_refs: [] } };
+  const errors = Array.isArray(result?.validation_errors) ? result.validation_errors.slice(0, 8) : [];
+  const validation = errors.filter(item => typeof item?.message === "string").map(item =>
+    `${Array.isArray(item.path) ? item.path.join(".") : "request"}: ${item.message}`).join("; ");
+  const message = (typeof result?.message === "string" ? result.message : validation ||
+    (result?.status === "not_confirmed" ? "Commit outcome is not confirmed. Read the receipt for the same request_id before writing again."
+      : "Research action did not complete. Check the error code and correct the rejected request.")).slice(0, 512);
+  const phase = result?.status === "not_confirmed" ? "persist" : "validate";
+  return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, phase, message, ...(result ? { result } : {}) }) }],
+    details: { event: "tool_result", capability, ok: false, error: { code, phase, message }, ...(result ? { result } : {}), evidence_refs: [] } };
 }
