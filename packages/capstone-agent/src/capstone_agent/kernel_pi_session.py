@@ -440,6 +440,10 @@ class _ResearchReferences:
         for field in ("result_refs", "evidence_refs"):
             for ref in self._refs(payload, field):
                 self.events.setdefault(ref, []).append(record)
+        for field in ("context_ref", "model_ref"):
+            reference = payload.get(field)
+            if isinstance(reference, str) and reference:
+                self.events.setdefault(reference, []).append(record)
         authority = getattr(getattr(self.bindings[binding], "runtime", None), "authority", None)
         verify_evidence = getattr(authority, "verify_evidence", None)
         if not callable(verify_evidence):
@@ -752,7 +756,7 @@ def _verify_bound_attempt_references(
                 if reference not in context_revisions:
                     method = getattr(authority, "verify_context_descendant", None)
                     if not callable(method):
-                        raise ValueError("authority cannot verify derived context")
+                        raise ValueError("authority cannot verify derived context against the bound model")
                     document = getattr(method(reference, bound.context_ref), "document", None)
                     if not isinstance(document, Mapping) or document.get("model_id") != bound.model_id:
                         raise ValueError("derived context does not match the bound model")

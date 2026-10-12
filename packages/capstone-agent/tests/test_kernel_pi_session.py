@@ -49,6 +49,26 @@ def test_bound_admission_checks_derived_result_revision(wrong_revision):
     assert checks == [("context:child", "context:root")]
 
 
+def test_research_conditions_accept_observed_bound_context_but_not_foreign_or_failed_reads():
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    references = module._ResearchReferences((profile,))
+    assert not references.admit("context:current")
+    references.observe({"type": "tool_result", "tool_name": "grid_context_get", "capability": "context.get",
+        "ok": False, "result": {"context_ref": "context:current"}})
+    assert not references.admit("context:current")
+    references.observe({"type": "tool_result", "tool_name": "grid_context_get", "capability": "context.get",
+        "ok": True, "result": {"context_ref": "context:current", "revision_ref": "revision-1", "model": "selected-model"}})
+    assert references.admit("context:current")
+    references.observe({"type": "tool_result", "tool_name": "grid_context_get", "capability": "context.get",
+        "ok": True, "result": {"context_ref": "context:foreign", "revision_ref": "revision-1", "model": "selected-model"}})
+    assert not references.admit("context:foreign")
+    wrong = module._ResearchReferences((profile,))
+    wrong.observe({"type": "tool_result", "tool_name": "grid_context_get", "capability": "context.get",
+        "ok": True, "result": {"context_ref": "context:current", "revision_ref": "revision-wrong", "model": "selected-model"}})
+    assert not wrong.admit("context:current")
+
+
 def test_research_references_require_observed_success_and_bound_authority(monkeypatch):
     from capstone_agent import kernel_pi_session as module
     profile, _, _ = _research_admission_fixture()
@@ -69,6 +89,23 @@ def test_research_references_require_observed_success_and_bound_authority(monkey
         raise ValueError("wrong model revision")
     monkeypatch.setattr(module, "_verify_bound_attempt_references", reject)
     assert not references.admit("result:good")
+
+
+def test_research_conditions_accept_a_verified_descendant_context():
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    checked = []
+    def verify(reference, ancestor):
+        checked.append((reference, ancestor))
+        if reference != "context:derived":
+            raise ValueError("not a descendant")
+        return SimpleNamespace(document={"model_id": "selected-model", "revision_ref": "revision-derived"})
+    profile.prepared_application.bindings["grid"].runtime.authority = SimpleNamespace(verify_context_descendant=verify)
+    refs = module._ResearchReferences((profile,))
+    refs.observe({"type": "tool_result", "tool_name": "grid_derive", "capability": "model.revision.derive",
+        "ok": True, "result": {"context_ref": "context:derived", "revision_ref": "revision-derived", "model": "selected-model"}})
+    assert refs.admit("context:derived")
+    assert checked == [("context:derived", "context:current")]
 
 
 def test_research_result_read_does_not_erase_its_observed_evidence(monkeypatch):
