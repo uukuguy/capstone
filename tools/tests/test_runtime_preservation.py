@@ -49,6 +49,10 @@ def test_each_compose_role_has_a_separate_project_scoped_runtime_volume():
     assert all(f"  {name}:\n" in config.split("\nvolumes:\n", 1)[1] for name in names)
 
 
+def test_migration_helper_is_in_the_backend_image():
+    assert "COPY deploy/preserve_local_runtime.py deploy/preserve_local_runtime.py" in (ROOT / "Dockerfile").read_text()
+
+
 def test_migration_stops_writers_before_copy_and_uses_selected_project(monkeypatch, tmp_path):
     import json
     module = _module()
