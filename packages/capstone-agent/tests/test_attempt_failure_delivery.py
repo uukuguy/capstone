@@ -72,6 +72,14 @@ def test_admission_failure_returns_feedback_to_the_same_session_once():
     assert session.recoveries[0]["stage"] == "answer_check"
     assert "private validation" not in str(session.recoveries)
     assert result.answer == checks[-1]
+    events = service.read_events("thr_harness", 0).events
+    failure = next(e for e in events if e.event_type == "validation_observation")
+    assert failure.payload["status"] == "failed"
+    assert failure.payload["task_terminal"] is False
+    draft = next(e for e in events if e.event_type == "unverified_answer_recorded")
+    assert draft.payload["text"] == "Initial answer"
+    assert draft.visibility == "diagnostic"
+    assert events[-1].event_type == "attempt_completed"
 
 
 def test_failed_recovery_is_bounded_and_does_not_publish_rejected_answer():
@@ -171,3 +179,35 @@ def test_pi_correction_uses_same_client_and_remaining_attempt_budget(monkeypatch
     with pytest.raises(TimeoutError):
         session.recover_after_failure({"stage": "answer_check"}, **arguments)
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize("all_invalid", [False, True])
+def test_one_invalid_reference_group_does_not_erase_other_verified_results(all_invalid):
+    service = _thread_service()
+    checks = []
+
+    class MixedSession(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            for label in ("good", "bad"):
+                kwargs["on_semantic_event"]({
+                    "type": "tool_result", "tool_name": "grid_analysis_run", "ok": True,
+                    "capability": "analysis.run", "result_refs": ["result:" + label],
+                    "evidence_refs": ["evidence:" + label],
+                })
+            raise RuntimeError("connection lost")
+
+    def admit(claim, answer, results, evidence, events):
+        checks.append((results, evidence))
+        if all_invalid or "result:bad" in results:
+            raise ValueError("reference unavailable")
+        assert evidence == ("evidence:good",)
+        return AdmittedAttemptAnswer(answer, "authority_backed", "lineage_verified", results, evidence)
+
+    result = HarnessAttemptRunner(service, HarnessPiClient(MixedSession(), admission=admit)).run(claim_attempt(service))
+    assert result.status == "failed"
+    assert result.result_refs == (() if all_invalid else ("result:good",))
+    assert result.evidence_refs == (() if all_invalid else ("evidence:good",))
+    assert len(checks) <= 4
+    if not all_invalid:
+        assert checks[-1] == (("result:good",), ("evidence:good",))
+    assert len([e for e in service.read_events("thr_harness", 0).events if e.event_type == "tool_completed"]) == 2

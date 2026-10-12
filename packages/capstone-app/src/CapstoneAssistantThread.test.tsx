@@ -11,6 +11,20 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('includes failed execution and validation records in calculation results', () => {
+    const events = [
+      event('attempt_started', 1, {}, 'study'),
+      event('tool_completed', 2, { tool_name: 'grid_analysis_run', tool_call_id: 'run-1', ok: false }, 'study'),
+      event('validation_observation', 3, { status: 'failed', stage: 'answer_check', code: 'answer_admission_failed', message: '回答核验未通过，原始内容和执行记录已保留。' }, 'study'),
+      event('attempt_completed', 4, { answer: '计算未完成；已记录失败步骤。', admission: { mode: 'limited', assurance: 'limited' } }, 'study'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    expect(screen.getByText('执行失败')).toBeTruthy()
+    expect(screen.getByText('核验未通过')).toBeTruthy()
+    expect(screen.getByText('grid_analysis_run')).toBeTruthy()
+    expect(screen.getByText('未作为已验证结论使用。')).toBeTruthy()
+  })
   it('shows the delivered partial outcome instead of replacing it with an error code', () => {
     const answer = '已保存潮流结果。后续检查中断，尚不能判断整个任务是否满足要求。'
     const events = [

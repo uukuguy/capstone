@@ -369,7 +369,15 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const custom = ((message.metadata as { custom?: Record<string, unknown> } | undefined)?.custom || {})
     const attemptId = typeof custom.attemptId === 'string' ? custom.attemptId : undefined
     const activities = attemptId ? projectAssistantActivity(events.filter((candidate) => candidate.attemptId === attemptId)) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities } } }
+    const failureResults = events.filter((event) => event.attemptId === attemptId &&
+      ((event.eventType === 'tool_completed' && event.payload.ok === false) ||
+       (event.eventType === 'validation_observation' && event.payload.status === 'failed')))
+      .map((event) => ({ id: event.eventId, kind: event.eventType === 'tool_completed' ? 'execution' : 'validation',
+        tool: typeof event.payload.tool_name === 'string' ? event.payload.tool_name : '',
+        message: typeof event.payload.message === 'string' ? event.payload.message : '',
+        code: typeof event.payload.code === 'string' ? event.payload.code : '',
+        sequence: event.eventSeq }))
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -619,6 +627,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const text = messageText({ content })
   const attemptId = id.replace(/^assistant-/, '')
   const attemptResultProjections = resultProjections?.filter((item) => item.attemptId === attemptId) ?? []
+  const failureResults = (Array.isArray(custom?.failureResults) ? custom.failureResults : []) as {
+    id: string; kind: string; tool: string; message: string; code: string; sequence: number;
+  }[]
+  const hasResults = attemptResultProjections.length > 0 || failureResults.length > 0
   const evidenceRefs = stringRefs(custom?.evidenceRefs)
   const resultRefs = stringRefs(custom?.resultRefs)
   const admission = custom?.admission
@@ -670,9 +682,17 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>
     {role === 'assistant' && <div className="capstone-chat-footer">
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
-      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={attemptResultProjections.length > 0} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
     </div>}
-    {role === 'assistant' && attemptResultProjections.length > 0 && resultOpen && <div className="capstone-result-group">{attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}</div>}
+    {role === 'assistant' && hasResults && resultOpen && <div className="capstone-result-group">
+      {attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}
+      {failureResults.map((item) => <section key={item.id} className="capstone-result-card is-failed" aria-label="计算结果失败记录">
+        <div className="capstone-result-heading"><strong>{item.kind === 'execution' ? '执行失败' : '核验未通过'}</strong><small>{item.tool || '回答核验'}</small></div>
+        <p>{item.message || '该步骤未成功完成。具体原因尚未提供，执行记录已保留。'}</p>
+        {item.kind === 'validation' && <p>未作为已验证结论使用。</p>}
+        <details><summary>技术追溯</summary><p>事件序号：{item.sequence}</p>{item.code && <p>诊断码：{item.code}</p>}</details>
+      </section>)}
+    </div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />

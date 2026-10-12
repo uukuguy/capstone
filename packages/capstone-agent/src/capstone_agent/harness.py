@@ -545,6 +545,7 @@ class HarnessAttemptRunner:
                         tuple(self._evidence_refs), tuple(self._tool_events),
                     )
                 except Exception:
+                    self._record_validation_failure(claim, answer, lease.check)
                     recover = getattr(self._runtime, "recover_after_failure", None)
                     if not callable(recover) or not getattr(self._runtime, "recovery_available", True):
                         raise _AttemptAdmissionError("answer_admission_failed") from None
@@ -552,7 +553,9 @@ class HarnessAttemptRunner:
                     recovery_attempted = True
                     try:
                         answer = recover(
-                            {"stage": "answer_check", "code": "answer_admission_failed"},
+                            {"stage": "answer_check", "code": "answer_admission_failed",
+                             "status": "failed", "task_terminal": False,
+                             "products_retained": True},
                             on_event=persist,
                             correlation_id=claim.attempt.attempt_id,
                             on_heartbeat=heartbeat,
@@ -567,6 +570,8 @@ class HarnessAttemptRunner:
                     except _AttemptCancelled:
                         raise
                     except Exception:
+                        if isinstance(answer, str):
+                            self._record_validation_failure(claim, answer, lease.check)
                         raise _AttemptAdmissionError("answer_admission_failed") from None
             if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
                 raise _AttemptAdmissionError("answer_admission_invalid")
@@ -670,7 +675,7 @@ class HarnessAttemptRunner:
             )
         except _AttemptAdmissionError as error:
             lease.check()
-            return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted)
+            return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted, lease.check)
         except _AttemptCancelled:
             self._finish_cancelled(claim)
             return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
@@ -680,7 +685,7 @@ class HarnessAttemptRunner:
                 # successful terminal write with a second, failed outcome.
                 raise
             lease.check()
-            return self._deliver_failure(claim, "runtime_failed", "execution", recovery_attempted)
+            return self._deliver_failure(claim, "runtime_failed", "execution", recovery_attempted, lease.check)
         finally:
             try:
                 self._runtime.stop()
@@ -754,6 +759,7 @@ class HarnessAttemptRunner:
 
     def _deliver_failure(
         self, claim: AttemptClaim, code: str, stage: str, recovery_attempted: bool,
+        check_lease: Callable[[], None],
     ) -> HarnessAttemptResult:
         # This text describes execution state only. Numerical findings still
         # require the application's normal authority and evidence admission.
@@ -765,19 +771,7 @@ class HarnessAttemptRunner:
         if recovery_attempted:
             answer += "已尝试纠正回答，但未能形成通过核验的最终结论。"
         answer += "已记录的执行过程仍保留。"
-        candidate = None
-        admit = getattr(self._runtime, "admit_attempt", None)
-        if self._result_refs and self._evidence_refs and callable(admit):
-            try:
-                checked = admit(claim, answer, tuple(self._result_refs),
-                                tuple(self._evidence_refs), tuple(self._tool_events))
-                if (isinstance(checked, AdmittedAttemptAnswer)
-                    and checked.mode == "authority_backed"
-                    and set(checked.result_refs).issubset(self._result_refs)
-                    and set(checked.evidence_refs).issubset(self._evidence_refs)):
-                    candidate = checked
-            except Exception:
-                pass
+        candidate = self._admit_partial_results(claim, answer, check_lease)
         results = () if candidate is None else candidate.result_refs
         evidence = () if candidate is None else candidate.evidence_refs
         admission = None if candidate is None else {
@@ -796,8 +790,84 @@ class HarnessAttemptRunner:
             payload["admission"] = admission
         if candidate is not None and candidate.result_projections:
             payload["result_projections"] = [dict(item) for item in candidate.result_projections]
+        check_lease()
         self._service.finish_attempt(claim, phase="failed", payload=payload)
         return HarnessAttemptResult("failed", answer, code, results, evidence, admission)
+
+    def _record_validation_failure(
+        self, claim: AttemptClaim, answer: str, check_lease: Callable[[], None],
+    ) -> None:
+        # Preserve the rejected product separately from the formal answer.
+        # No raw exception text enters the public stream or model feedback.
+        for index, offset in enumerate(range(0, len(answer), 8_000)):
+            check_lease()
+            self._service.append_runtime_event(
+                claim, event_type="unverified_answer_recorded", visibility="diagnostic",
+                payload={"status": "not_admitted", "chunk_index": index,
+                         "text": answer[offset:offset + 8_000]},
+            )
+        check_lease()
+        self._service.append_runtime_event(
+            claim, event_type="validation_observation", visibility="public",
+            payload={"status": "failed", "stage": "answer_check",
+                     "code": "answer_admission_failed", "task_terminal": False,
+                     "products_retained": True,
+                     "message": "回答核验未通过，原始内容和执行记录已保留，交由智能体继续处理。",
+                     "observed_result_refs": list(self._result_refs),
+                     "observed_evidence_refs": list(self._evidence_refs)},
+        )
+
+    def _admit_partial_results(
+        self, claim: AttemptClaim, answer: str, check_lease: Callable[[], None],
+    ) -> AdmittedAttemptAnswer | None:
+        admit = getattr(self._runtime, "admit_attempt", None)
+        if not self._result_refs or not self._evidence_refs or not callable(admit):
+            return None
+
+        def checked_group(results: tuple[str, ...], evidence: tuple[str, ...]) -> AdmittedAttemptAnswer | None:
+            check_lease()
+            try:
+                checked = admit(claim, answer, results, evidence, tuple(self._tool_events))
+                if (isinstance(checked, AdmittedAttemptAnswer)
+                    and checked.mode == "authority_backed"
+                    and checked.result_refs and checked.evidence_refs
+                    and set(checked.result_refs).issubset(results)
+                    and set(checked.evidence_refs).issubset(evidence)):
+                    return checked
+            except Exception:
+                pass
+            return None
+
+        candidate = checked_group(tuple(self._result_refs), tuple(self._evidence_refs))
+        if candidate is not None:
+            return candidate
+        # Tool receipts define candidate groups, never their validity. Bound
+        # recovery work and retain full history for groups not admitted here.
+        seen: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
+        retained_results: list[str] = []
+        retained_evidence: list[str] = []
+        for event in reversed(self._tool_events):
+            if event.get("ok") is not True:
+                continue
+            group_results: list[str] = []
+            group_evidence: list[str] = []
+            _extend_refs(group_results, event.get("result_refs"))
+            _extend_refs(group_evidence, event.get("evidence_refs"))
+            group = (tuple(group_results), tuple(group_evidence))
+            if not group_results or not group_evidence or group in seen:
+                continue
+            seen.add(group)
+            candidate = checked_group(*group)
+            if candidate is not None:
+                _extend_refs(retained_results, candidate.result_refs)
+                _extend_refs(retained_evidence, candidate.evidence_refs)
+            if len(seen) >= 16:
+                break
+        if not retained_results or not retained_evidence:
+            return None
+        # Re-admit the combined references: separately valid groups need not
+        # share a compatible model revision or answer policy.
+        return checked_group(tuple(retained_results), tuple(retained_evidence))
 
 
 class _AttemptAdmissionError(RuntimeError):
