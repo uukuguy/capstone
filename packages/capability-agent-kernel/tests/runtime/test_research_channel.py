@@ -215,4 +215,8 @@ def test_unadmitted_reference_receipt_is_a_rejection(channel):
     pump.drain()
     assert receipt(pump)["status"] == "rejected"
     assert receipt(pump)["code"] == "research_reference_not_admitted"
+    assert receipt(pump)["message"] == (
+        "Source reference 1 was not admitted for this attempt. No update was committed. "
+        "Use references from successful tool receipts; keep unsupported claims as hypotheses."
+    )
     assert pump.controller.read() is None

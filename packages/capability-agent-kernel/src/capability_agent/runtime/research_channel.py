@@ -119,8 +119,12 @@ class ResearchRequestChannel:
                 if state is None and request.changes.goal is None:
                     return {"status": "rejected", "code": "research_goal_required",
                             "message": "The first research update requires changes.goal; no update was committed."}
-                if any(not self.controller.admit_reference(ref) for ref in request.changes.references()):
-                    return {"status": "rejected", "code": "research_reference_not_admitted"}
+                for index, ref in enumerate(request.changes.references(), start=1):
+                    if not self.controller.admit_reference(ref):
+                        return {"status": "rejected", "code": "research_reference_not_admitted",
+                                "message": f"Source reference {index} was not admitted for this attempt. "
+                                "No update was committed. Use references from successful tool receipts; "
+                                "keep unsupported claims as hypotheses."}
                 committed = self.controller.update(document)
         except ContextStoreError:
             # A storage failure can have an uncertain outcome. Never label it a rollback.
