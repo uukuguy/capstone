@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
+import shutil
+from pathlib import Path
+import pytest
 
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner
@@ -148,7 +151,16 @@ def test_prepared_kernel_pi_factory_exposes_only_prepared_profile_inputs(tmp_pat
     assembly.capability_context_owner.close()
 
 
-def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_path):
+@pytest.mark.parametrize("execute_pi", [False, True])
+def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_path, execute_pi):
+    repo = Path(__file__).resolve().parents[4]
+    command = ("pi",)
+    if execute_pi:
+        node = shutil.which("node")
+        assert node is not None
+        assert (repo / ".grid-agent/runtime/pi/source/packages/coding-agent/dist/core/sdk.js").is_file()
+        driver = repo / "packages/capability-agent-kernel/tests/runtime/fixtures/pi_research_driver.mjs"
+        command = (node, str(driver), str(repo), str(tmp_path))
     authority_models = ModelRegistry(Pandapower340Engine())
     revision = authority_models.trusted_revision_ref("ieee39")
 
@@ -173,7 +185,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     host = RuntimeHost(
         command=PiCommand(
-            argv=("pi",),
+            argv=command,
             identity=PiRuntimeIdentity(
                 path=tmp_path / "pi", source="fixture", package_version="1.0",
                 lock_sha256="fixture",
@@ -202,7 +214,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     runtime = assembly.runtime_factory(_claim(revision))
     session = runtime._session  # type: ignore[attr-defined]
-    assert session.command.argv[0] == "pi"
+    assert session.command.argv[0] == command[0]
     assert "test-secret" not in session.command.argv
     assert session.command.environment["OPENAI_API_KEY"] == "test-secret"
     descriptor = next(
@@ -211,11 +223,21 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     assert descriptor is not None and descriptor.is_file()
     import json
-    from pathlib import Path
     document = json.loads(descriptor.read_text())
     channel = Path(document["core"]["researchChannelPath"])
     assert (channel / "binding.json").is_file()
     assert session._research is not None
+    if execute_pi:
+        events = []
+        try:
+            runtime.start()
+            assert runtime.prompt("Study the selected model", on_event=events.append) == "Research saved."
+            research_events = [event for event in events if event["event_type"] == "research_state_updated"]
+            assert len(research_events) == 1
+            assert research_events[0]["payload"]["baseline_model_context"]["model_id"] == "ieee39"
+            assert session._research.controller.read().revision == 1
+        finally:
+            runtime.stop()
     runtime.stop()
     assert not session._research.channel.is_active()
     assembly.capability_context_owner.close()
