@@ -96,6 +96,39 @@ def test_branch_ranking_rejects_tampered_result_document(grid, context_ref: str)
     assert error.phase == "resolve"
 
 
+@pytest.mark.parametrize("kind", ["line", "trafo"])
+def test_branch_ranking_reuses_generic_ac_result(grid, context_ref: str, kind: str) -> None:
+    legacy = grid.call("analysis.powerflow.ac.run", {"context_ref": context_ref})
+    generic = grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
+    arguments = {"metric": "loading_percent", "direction": "descending", "limit": 5,
+                 "element_kind": kind}
+    expected = grid.call("result.branches.rank", {**arguments, "result_ref": legacy["result_ref"]})
+    before = grid.engine.ac_run_count
+    actual = grid.call("result.branches.rank", {**arguments, "result_ref": generic["result_ref"]})
+    stored = json.loads(_result_document_path(str(generic["result_ref"]), grid.workspace.root).read_text())
+    source_rows = {row["index"]: row for row in stored["datasets"][f"result.res_{kind}"]["rows"]}
+    assert len(actual["branches"]) == len(expected["branches"])
+    for row, baseline in zip(actual["branches"], expected["branches"], strict=True):
+        for field in ("branch_ref", "element_kind", "pandapower_index", "unit"):
+            assert row[field] == baseline[field]
+        for field in ("metric_value", "loading_percent", "p_from_mw", "p_to_mw", "pl_mw"):
+            assert row[field] == pytest.approx(baseline[field], rel=1e-8, abs=1e-6)
+        assert row["metric_value"] == source_rows[row["pandapower_index"]]["loading_percent"]
+    assert actual["result_ref"] == generic["result_ref"]
+    assert grid.engine.ac_run_count == before
+
+
+def test_generic_ranking_rejects_tampered_dataset(grid, context_ref: str) -> None:
+    result = grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
+    path = _result_document_path(str(result["result_ref"]), grid.workspace.root)
+    document = json.loads(path.read_text())
+    document["datasets"]["result.res_line"]["rows"][0]["loading_percent"] = 9999
+    path.write_text(json.dumps(document))
+    error = grid.call_error("result.branches.rank", {"result_ref": result["result_ref"],
+        "metric": "loading_percent", "direction": "descending", "limit": 5})
+    assert error.code == "result_integrity_failed"
+
+
 def test_branch_ranking_rejects_invalid_json_result_document(grid, context_ref: str) -> None:
     powerflow = grid.call("analysis.powerflow.ac.run", {"context_ref": context_ref})
     _result_document_path(str(powerflow["result_ref"]), grid.workspace.root).write_text("{", encoding="utf-8")
