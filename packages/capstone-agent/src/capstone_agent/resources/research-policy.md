@@ -9,6 +9,10 @@ Simple factual queries do not need a research record.
   failed attempts, and the next useful action. Update it when these change, not after every tool call.
 - Research notes contain agent judgments. Only admitted Authority results support numerical or
   model-specific claims. Cite the returned references in research records; do not invent references.
+- Match each conclusion's scope to the checks actually performed. Distinguish observations from
+  hypotheses and deductions. A limited set of failed tests does not prove universal impossibility
+  or a causal explanation. Missing results do not prove a physical state. If a broader judgment
+  was not verified, keep it as an open question and state that limit in the formal answer.
 - Choose actions from available tools and domain methods. Do not treat a proposed sequence as fixed:
   inspect outcomes, revise assumptions, and test alternatives when the evidence warrants them.
 - Evaluate whether the original goal is met, partly met, or blocked. A successful calculation alone
