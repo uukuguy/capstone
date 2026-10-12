@@ -53,6 +53,21 @@ test("enforces application const and enum constraints before invoking the author
   const outcome = await tool.execute("call", { model_id: "selected-model", context_ref: "context:selected" });
   assert.equal(outcome.isError, undefined);
   assert.equal(calls, 1);
+  assert.deepEqual(outcome.details.request_parameters, { model_id: "selected-model", context_ref: "context:selected" });
+});
+
+test("retains actual validated parameters when the authority calculation fails", async () => {
+  const tool = createCapabilityTool(inventory, {
+    name: "inventory_check", capability: "model.check", description: "Check model",
+    input_schema: { type: "object", required: ["limit"], properties: { limit: { type: "number" } }, additionalProperties: false },
+  }, async (payload) => {
+    payload.arguments.limit = 99;
+    return { protocol: "inventory-capability", protocol_version: "1.0", request_id: payload.request_id,
+      ok: false, error: { code: "check_failed", message: "Check failed" } };
+  });
+  const outcome = await tool.execute("check", { limit: 5 });
+  assert.equal(outcome.isError, true);
+  assert.deepEqual(outcome.details.request_parameters, { limit: 5 });
 });
 
 test("validates required authority handoffs after injecting the trusted application receipt", async () => {

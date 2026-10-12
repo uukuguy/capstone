@@ -191,6 +191,13 @@ def test_application_observer_gets_native_event_without_publishing_raw_details()
     assert public[0]["payload"] == {"native_type": "provider_internal"}
 
 
+def test_normalizer_does_not_publish_native_executor_arguments() -> None:
+    event = normalize_runtime_event({"type": "tool_execution_start", "toolName": "bash",
+        "args": {"command": "private task command"}}, runtime_mode="capstone")
+    assert "args" not in event["payload"]
+    assert "request_parameters" not in event["payload"]
+
+
 def test_normalizer_preserves_nested_authority_refs_and_model_identity() -> None:
     result_ref = "result:sha256:" + "a" * 64
     context_ref = "context:sha256:" + "b" * 64
@@ -222,6 +229,7 @@ def test_canonical_rpc_result_keeps_authority_references_and_identity() -> None:
         "type": "tool_execution_end", "toolCallId": "call_1",
         "result": {"details": {
             "ok": True, "capability": "analysis.powerflow.ac.run",
+            "request_parameters": {"solver": "nr", "max_iteration": 20},
             "result": {"result_ref": result_ref, "context_ref": context_ref,
                        "revision_ref": revision_ref, "model": "case24_ieee_rts"},
             "evidence_refs": ["evidence:sha256:" + "d" * 64],
@@ -234,6 +242,7 @@ def test_canonical_rpc_result_keeps_authority_references_and_identity() -> None:
     assert payload["model_revision"] == revision_ref
     assert payload["model_id"] == "case24_ieee_rts"
     assert payload["evidence_refs"] == ["evidence:sha256:" + "d" * 64]
+    assert payload["request_parameters"] == {"solver": "nr", "max_iteration": 20}
 
 
 def test_canonical_authority_business_details_do_not_hide_pypsa_identity() -> None:

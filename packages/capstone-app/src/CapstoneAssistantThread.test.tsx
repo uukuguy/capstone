@@ -11,6 +11,21 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('binds semantic invocation receipts to their original task without copying native args', () => {
+    const messages = projectAssistantMessages([
+      event('attempt_started', 1, {}, 'calculation'),
+      event('tool_started', 2, { tool_name: 'bash', args: { command: 'private command' } }, 'calculation'),
+      event('tool_completed', 3, { tool_call_id: 'call-1', tool_name: 'grid_analysis_run', capability: 'analysis.run',
+        ok: false, request_parameters: { operation: 'powerflow.ac' } }, 'calculation'),
+      event('attempt_completed', 4, { answer: '计算未完成。' }, 'calculation'),
+      event('attempt_completed', 5, { answer: '其他回答。' }, 'other'),
+    ])
+    expect(messages.find(message => message.id === 'assistant-calculation')?.metadata?.custom?.toolExecutions)
+      .toEqual([{ id: 'call-1', tool: 'grid_analysis_run', capability: 'analysis.run', ok: false,
+        parameters: { operation: 'powerflow.ac' }, resultRefs: [], evidenceRefs: [], sequence: 3 }])
+    expect(messages.find(message => message.id === 'assistant-other')?.metadata?.custom?.toolExecutions).toEqual([])
+  })
+
   it('keeps committed research records scoped to the task and opens them without simulation evidence', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '比较场景', condition_refs: [],
       claims: [{ claim_id: 'claim-1', statement: '还需核验边界', status: 'pending', refs: [] }], notes: [], open_questions: [] }

@@ -596,7 +596,7 @@ def _canonical_tool_result_event(
         "result": result,
         "evidence_refs": [ref for ref in evidence_refs if isinstance(ref, str)],
     }
-    for field in ("capability_key", "projector_id", "result_kind"):
+    for field in ("capability_key", "projector_id", "result_kind", "request_parameters"):
         if field in details:
             canonical[field] = details[field]
     pair = _consume_tool_pair(event, pending_tool_calls)

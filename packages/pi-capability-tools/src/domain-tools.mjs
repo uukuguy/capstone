@@ -536,6 +536,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
           message: "Arguments do not match the selected capability contract" }, contract.capability, runtime, contract);
       }
       const payload = buildCapabilityRequest(runtime, contract.capability, validated);
+      const requestParameters = structuredClone(payload.arguments);
       const response = await executeRunner(payload);
       if (!isCorrelatedResponse(response, payload.request_id, runtime)) {
         return toolError(
@@ -551,7 +552,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
         );
       }
       if (response.ok !== true) {
-        const details = canonicalToolResult(runtime, contract, response);
+        const details = canonicalToolResult(runtime, contract, response, requestParameters);
         return {
           content: [{ type: "text", text: JSON.stringify(response) }],
           details,
@@ -560,7 +561,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
       }
       return {
         content: [{ type: "text", text: JSON.stringify(response) }],
-        details: canonicalToolResult(runtime, contract, response),
+        details: canonicalToolResult(runtime, contract, response, requestParameters),
       };
     },
   });
@@ -1642,7 +1643,7 @@ function isCredentialName(name) {
   return /(API_KEY|TOKEN|SECRET|AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY|SECRET_ENV_NAMES)$/i.test(name);
 }
 
-function canonicalToolResult(descriptor, contract, response) {
+function canonicalToolResult(descriptor, contract, response, requestParameters) {
   const routing = LEGACY_SELECTED_BINDING_RUNTIMES.has(descriptor)
     ? {}
     : {
@@ -1653,6 +1654,7 @@ function canonicalToolResult(descriptor, contract, response) {
         projector_id: contract.projector_id,
         result_kind: contract.result_kind ?? null,
       };
+  if (requestParameters !== undefined) routing.request_parameters = requestParameters;
   if (response.ok === true) {
     const result = response.result ?? {};
     return {

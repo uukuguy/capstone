@@ -21,6 +21,16 @@ const props = {
 afterEach(cleanup)
 
 describe('InferenceEvidencePanel', () => {
+  it('retains actual call parameters and failure status without treating them as successful evidence', () => {
+    render(<InferenceEvidencePanel {...props} executions={[{ id: 'call-1', tool: 'grid_analysis_run',
+      capability: 'short_circuit.iec60909', ok: false, parameters: { case: 'max' },
+      resultRefs: [], evidenceRefs: [], sequence: 7 }]} />)
+    fireEvent.click(screen.getByText('调用参数与返回状态 · 1 项'))
+    fireEvent.click(screen.getByText('短路电流 · 调用失败'))
+    expect(screen.getByText(/"case": "max"/)).toBeVisible()
+    expect(screen.getByText('call-1')).toBeVisible()
+  })
+
   it('shows checked and unchecked values without presenting partial checks as full success', () => {
     render(<InferenceEvidencePanel {...props} />)
     fireEvent.click(screen.getByText('约束核验'))

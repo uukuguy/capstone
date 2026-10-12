@@ -778,6 +778,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-research-records > summary:focus-visible { outline: 2px solid #20766a; outline-offset: 3px; }
 .capstone-research-records p { margin: 5px 0; }
 .capstone-research-records > section { padding: 6px 8px; margin: 6px 0; }
+.capstone-call-records pre { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-artifacts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; color: #76908a; font-size: 10px; line-height: 1.35; }
 .capstone-chat-artifacts > span { padding: 3px 7px; border: 1px solid #dce9e3; border-radius: 999px; background: #fbfdfc; }
 .capstone-chat-artifacts .capstone-chat-artifacts-label { display: inline-flex; align-items: center; gap: 4px; border-color: transparent; background: transparent; color: #4c7970; font-weight: 600; }

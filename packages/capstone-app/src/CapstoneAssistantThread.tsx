@@ -4,7 +4,7 @@ import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
-import InferenceEvidencePanel, { type FailureEvidence } from './InferenceEvidencePanel'
+import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import {
   AssistantRuntimeProvider,
@@ -384,12 +384,21 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         phase: typeof failure.phase === 'string' ? failure.phase : '',
         sequence: event.eventSeq }
       })
+    const toolExecutions: ToolExecutionRecord[] = events.filter(event => event.attemptId === attemptId &&
+      event.eventType === 'tool_completed' && typeof event.payload.ok === 'boolean' &&
+      typeof event.payload.capability === 'string' && event.payload.request_parameters &&
+      typeof event.payload.request_parameters === 'object' && !Array.isArray(event.payload.request_parameters))
+      .map(event => ({ id: typeof event.payload.tool_call_id === 'string' ? event.payload.tool_call_id : event.eventId,
+        tool: typeof event.payload.tool_name === 'string' ? event.payload.tool_name : '',
+        capability: event.payload.capability as string, ok: event.payload.ok as boolean,
+        parameters: event.payload.request_parameters as Record<string, unknown>,
+        resultRefs: stringRefs(event.payload.result_refs), evidenceRefs: stringRefs(event.payload.evidence_refs), sequence: event.eventSeq }))
     const research = events.filter(event => event.attemptId === attemptId && event.eventType === 'research_state_updated').at(-1)
     const researchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
     const parsedResearch = parseResearchSnapshot(research?.payload.research_snapshot)
     const researchSnapshot = parsedResearch && parsedResearch.research_id === research?.payload.research_id &&
       parsedResearch.revision === research.payload.research_revision && parsedResearch.goal === research.payload.goal ? parsedResearch : undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot, toolExecutions } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -469,10 +478,10 @@ function MoreAnswerActions() {
   </div>
 }
 
-function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], researchSnapshot, onSelectResult }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; researchSnapshot?: ResearchSnapshot; onSelectResult?: (resultId: string) => void }) {
+function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], executions = [], researchSnapshot, onSelectResult }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; executions?: readonly ToolExecutionRecord[]; researchSnapshot?: ResearchSnapshot; onSelectResult?: (resultId: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
-  const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot)
+  const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0
   const copy = async () => {
     if (await copyToClipboard(text)) {
       setCopied(true)
@@ -495,7 +504,7 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   {evidenceAvailable && showEvidence && <>
     <ResearchEvidence snapshot={researchSnapshot} />
     <InferenceEvidencePanel attemptId={attemptId} admitted={evidenceState === 'available'} resultRefs={resultRefs}
-      evidenceRefs={evidenceRefs} projections={projections} failures={failures} onSelectResult={onSelectResult} />
+      evidenceRefs={evidenceRefs} projections={projections} failures={failures} executions={executions} onSelectResult={onSelectResult} />
     {contextId && <details className="capstone-evidence-trace"><summary>任务身份</summary>
       <p>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</p></details>}
   </>}
@@ -718,7 +727,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     {role === 'assistant' && <div className="capstone-chat-footer">
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
       {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
-        attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)}
+        attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
         onSelectResult={(resultId) => { setResultOpen(true); setPendingResultId(resultId) }} />}
     </div>}
     {role === 'assistant' && hasResults && resultOpen && <div className="capstone-result-group" ref={resultGroupRef}>

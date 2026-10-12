@@ -246,6 +246,11 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         if isinstance(value, str) and value and target not in payload:
             payload[target] = value[:256]
     details = _tool_details(event)
+    # Parameters come from the validated semantic-tool receipt, not native args
+    # or model process messages. Do not expose general executor arguments.
+    parameters = details.get("request_parameters")
+    if isinstance(parameters, Mapping) and isinstance(details.get("capability"), str):
+        payload["request_parameters"] = dict(parameters)
     ok = event.get("ok", details.get("ok"))
     if isinstance(ok, bool):
         payload["ok"] = ok

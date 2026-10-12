@@ -3,10 +3,13 @@ import type { ResultProjection } from './threadProtocol'
 export type FailureEvidence = {
   id: string; kind: string; tool: string; message: string; code: string; phase: string; sequence: number
 }
+export type ToolExecutionRecord = { id: string; tool: string; capability: string; ok: boolean;
+  parameters: Record<string, unknown>; resultRefs: string[]; evidenceRefs: string[]; sequence: number }
 export type InferenceEvidenceProps = {
   attemptId: string; admitted: boolean; resultRefs: readonly string[]; evidenceRefs: readonly string[]
   projections: readonly ResultProjection[]; failures: readonly FailureEvidence[]
   onSelectResult?: (resultId: string) => void
+  executions?: readonly ToolExecutionRecord[]
 }
 
 const CAPABILITY_LABELS: Record<string, string> = {
@@ -27,7 +30,7 @@ function metricText(value: string | number | boolean | null): string {
 }
 
 export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs, evidenceRefs,
-  projections, failures, onSelectResult }: InferenceEvidenceProps) {
+  projections, failures, onSelectResult, executions = [] }: InferenceEvidenceProps) {
   const results = new Set(admitted ? resultRefs : [])
   const references = new Set(admitted ? evidenceRefs : [])
   const selected = projections.filter((item) => item.attemptId === attemptId &&
@@ -68,6 +71,16 @@ export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs
         </details>
       </section>)}
     </div>
+    {executions.length > 0 && <details className="capstone-evidence-trace capstone-call-records">
+      <summary>调用参数与返回状态 · {executions.length} 项</summary>
+      <p>参数来自已执行语义工具的回执。调用成功不等于业务结论已核验。</p>
+      {executions.map(item => <details key={item.id}><summary>{CAPABILITY_LABELS[item.capability] || item.capability} · {item.ok ? '调用完成' : '调用失败'}</summary>
+        <dl><div><dt>调用标识</dt><dd>{item.id}</dd></div><div><dt>工具</dt><dd>{item.tool}</dd></div>
+          <div><dt>事件序号</dt><dd>{item.sequence}</dd></div></dl>
+        <pre aria-label="实际调用参数">{JSON.stringify(item.parameters, null, 2)}</pre>
+        <details><summary>工具返回引用</summary><p>此处保留调用回执；是否准入正式结论以任务核验记录为准。</p>{[...item.resultRefs, ...item.evidenceRefs].map(ref => <code key={ref}>{ref}</code>)}</details>
+      </details>)}
+    </details>}
     {otherReferences.length > 0 && <details className="capstone-evidence-trace">
       <summary>其他已准入引用 · {otherReferences.length} 条</summary>
       <p>这些引用尚未关联到展示结果，保留原始标识供追溯。</p>
