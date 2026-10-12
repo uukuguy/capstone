@@ -9,6 +9,38 @@ from types import SimpleNamespace
 import pytest
 
 
+@pytest.mark.parametrize("wrong_revision", [False, True])
+def test_bound_admission_checks_derived_result_revision(wrong_revision):
+    from capstone_agent.kernel_pi_session import _verify_bound_attempt_references
+    checks = []
+    def descendant(reference, ancestor):
+        checks.append((reference, ancestor))
+        assert (reference, ancestor) == ("context:child", "context:root")
+        return SimpleNamespace(document={"model_id": "grid", "revision_ref": "child-revision"})
+    authority = SimpleNamespace(
+        verify_context_descendant=descendant,
+        verify_result=lambda _: SimpleNamespace(document={
+            "context_ref": "context:child", "model_id": "grid",
+            "revision_ref": "wrong" if wrong_revision else "child-revision"}),
+        audit_answer_references=lambda *_: (),
+    )
+    binding = SimpleNamespace(runtime=SimpleNamespace(authority=authority))
+    profile = SimpleNamespace(
+        model_binding=SimpleNamespace(model_id="grid", model_revision="root-revision", context_ref="context:root"),
+        prepared_application=SimpleNamespace(bindings={"grid": binding}),
+    )
+    def verify():
+        _verify_bound_attempt_references((profile,), {"grid": binding}, {"result:child": "grid"},
+            ("result:child",), (), ({"binding_id": "grid", "ok": True,
+                                    "context_ref": "context:child", "model_revision": "child-revision"},))
+    if wrong_revision:
+        with pytest.raises(ValueError, match="artifact does not match"):
+            verify()
+    else:
+        verify()
+    assert checks == [("context:child", "context:root")]
+
+
 def test_research_references_require_observed_success_and_bound_authority(monkeypatch):
     from capstone_agent import kernel_pi_session as module
     profile, _, _ = _research_admission_fixture()

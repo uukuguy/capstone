@@ -43,6 +43,52 @@ class _Session:
         return None
 
 
+def test_real_derived_powerflow_reaches_thread_result_projection(tmp_path):
+    from capstone_agent.kernel_pi_session import _verify_bound_attempt_references, _build_result_projections
+    from capstone_agent.thread_service import _terminal_result_projections
+    revision = ModelRegistry(Pandapower340Engine()).trusted_revision_ref("ieee39")
+    claim = _claim(revision)
+    def bind(prepared, context):
+        opened = prepared.bindings["grid"].runtime.executor.invoke("context.open", {"model_id": context.model_id})
+        return AuthorityModelBinding("grid", context.model_id, opened["revision_ref"],
+                                     context.implementation_family, opened["context_ref"])
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    register_pandapower_capability(catalog, owner, prepare_profile=KernelApplicationProfilePreparer(
+        workspace_root=tmp_path, model_binder=bind))
+    registry.seal()
+    owner.seal()
+    try:
+        prepared = owner.prepare(claim).contributions[0].prepared
+        bindings = prepared.prepared_application.bindings
+        executor = bindings["grid"].runtime.executor
+        child = executor.invoke("model.revision.derive", {
+            "context_ref": prepared.model_binding.context_ref,
+            "patches": [{"operation": "scale", "kind": "load", "selector": {"indices": [0]},
+                         "fields": ["p_mw", "q_mvar"], "factor": 1.1}],
+        })
+        calculation = executor.invoke("analysis.powerflow.ac.run", {"context_ref": child["context_ref"]})
+        results = (calculation["result_ref"],)
+        evidence = tuple(calculation["evidence_refs"])
+        events = ({"binding_id": "grid", "ok": True, "capability": "analysis.powerflow.ac.run",
+                   "context_ref": child["context_ref"], "model_revision": child["revision_ref"],
+                   "result_refs": results, "evidence_refs": evidence},)
+        _verify_bound_attempt_references((prepared,), bindings,
+            {ref: "grid" for ref in (*results, *evidence)}, results, evidence, events)
+        projections = _build_result_projections(claim, (prepared,), bindings, results, evidence, events)
+        assert len(projections) == 1
+        assert projections[0]["status"] != "unavailable"
+        stored = _terminal_result_projections({"result_refs": list(results), "evidence_refs": list(evidence),
+            "result_projections": list(projections),
+            "admission": {"mode": "authority_backed", "assurance": "lineage_verified"}},
+            claim=claim, phase="completed")
+        assert stored[0].model_revision == child["revision_ref"] != revision
+        assert stored[0].result_ref == results[0]
+    finally:
+        owner.close()
+
+
 def _claim(revision: str = "revision:sha256:" + "a" * 64) -> AttemptClaim:
     context = ModelContextSnapshot(
         "ctx_grid", "ieee39", revision,

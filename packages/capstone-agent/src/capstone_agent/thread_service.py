@@ -167,6 +167,21 @@ def _terminal_result_projections(
         if not isinstance(raw, Mapping):
             raise ThreadProtocolError("attempt.result_projections contains an invalid item")
         raw_document = dict(raw)
+        context_binding = raw_document.pop("_verified_context_binding", None)
+        expected_revision = claim.model_context.model_revision
+        if context_binding is not None:
+            if (
+                not isinstance(context_binding, Mapping)
+                or not isinstance(admission, Mapping)
+                or admission.get("mode") != "authority_backed"
+                or admission.get("assurance") != "lineage_verified"
+                or context_binding.get("base_model_revision") != claim.model_context.model_revision
+                or context_binding.get("result_ref") != raw_document.get("result_ref")
+                or context_binding.get("result_model_revision") != raw_document.get("model_revision")
+                or not isinstance(context_binding.get("result_model_revision"), str)
+            ):
+                raise ThreadProtocolError("result projection verified context binding is invalid")
+            expected_revision = context_binding["result_model_revision"]
         raw_diagram_ids = raw_document.pop("_diagram_element_ids", None)
         diagram_ids: tuple[str, ...] | None = None
         if raw_diagram_ids is not None:
@@ -180,7 +195,7 @@ def _terminal_result_projections(
             raw_document,
             admitted_refs=admitted_refs,
             diagram_ids=diagram_ids,
-            expected_model_revision=claim.model_context.model_revision,
+            expected_model_revision=expected_revision,
         )
         projection = ResultProjection.from_document(document)
         if diagram_ids is None and (projection.element_refs or any(

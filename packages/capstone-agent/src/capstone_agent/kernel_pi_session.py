@@ -708,6 +708,24 @@ def _verify_bound_attempt_references(
         for binding_id in prepared_bindings:
             runtime = getattr(bindings[binding_id], "runtime", None)
             authority = getattr(runtime, "authority", None)
+            context_revisions = {bound.context_ref: bound.model_revision}
+
+            def context_revision(reference: object) -> str:
+                if not isinstance(reference, str):
+                    raise ValueError("bound context reference is invalid")
+                if reference not in context_revisions:
+                    method = getattr(authority, "verify_context_descendant", None)
+                    if not callable(method):
+                        raise ValueError("authority cannot verify derived context")
+                    document = getattr(method(reference, bound.context_ref), "document", None)
+                    if not isinstance(document, Mapping) or document.get("model_id") != bound.model_id:
+                        raise ValueError("derived context does not match the bound model")
+                    revision = document.get("revision_ref")
+                    if not isinstance(revision, str):
+                        raise ValueError("derived context has no verified revision")
+                    context_revisions[reference] = revision
+                return context_revisions[reference]
+
             events = [event for event in tool_events if (
                 event.get("binding_id") == binding_id
                 or event.get("binding_id") is None and len(bindings) == 1
@@ -715,8 +733,9 @@ def _verify_bound_attempt_references(
             for event in events:
                 if event.get("ok") is not True:
                     continue
-                for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
-                                        ("context_ref", bound.context_ref)):
+                revision = context_revision(event.get("context_ref", bound.context_ref))
+                for field, expected in (("model_id", bound.model_id), ("model_revision", revision),
+                                        ("revision_ref", revision)):
                     if field in event and event[field] != expected:
                         raise ValueError("tool identity does not match the bound model context")
                 if "model_ref" in event:
@@ -737,8 +756,8 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                for field, expected in (("context_ref", bound.context_ref),
-                                        ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
+                revision = context_revision(document.get("context_ref", bound.context_ref))
+                for field, expected in (("revision_ref", revision), ("model_revision", revision),
                                         ("model_id", bound.model_id)):
                     if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
@@ -748,8 +767,8 @@ def _verify_bound_attempt_references(
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
-                    document.get("context_ref") == bound.context_ref
-                    and document.get("revision_ref") == bound.model_revision
+                    document.get("context_ref") in context_revisions
+                    and document.get("revision_ref") == revision
                 ) if bound.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
                 if not bound_identity and not linked_evidence:
@@ -997,17 +1016,40 @@ def _build_result_projections(
                         break
                     diagram_ids = list(raw_diagram_ids)
                 try:
+                    expected_revision = claim.model_context.model_revision
+                    verify_result = getattr(authority, "verify_result", None)
+                    if callable(verify_result):
+                        document = getattr(verify_result(raw_result_ref), "document", None)
+                        result_context = document.get("context_ref") if isinstance(document, Mapping) else None
+                        if isinstance(document, Mapping) and isinstance(result_context, str) and result_context != context_ref:
+                            verify_descendant = getattr(authority, "verify_context_descendant", None)
+                            if not callable(verify_descendant):
+                                raise ValueError("projection ancestry verification is unavailable")
+                            derived_context = getattr(verify_descendant(result_context, context_ref), "document", None)
+                            if not isinstance(derived_context, Mapping) or not isinstance(derived_context.get("revision_ref"), str):
+                                raise ValueError("projection derived context is invalid")
+                            expected_revision = derived_context["revision_ref"]
+                            if document.get("revision_ref") != expected_revision:
+                                raise ValueError("projection result revision does not match its context")
                     normalized = normalize_result_projection(
                         raw_document,
                         admitted_refs=tuple((*owned_results, *owned_evidence.get(raw_result_ref, ()))),
                         diagram_ids=diagram_ids,
-                        expected_model_revision=claim.model_context.model_revision,
+                        expected_model_revision=expected_revision,
                     )
                 except Exception:
                     projection_error = True
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
+                if expected_revision != claim.model_context.model_revision:
+                    # Host-only receipt: added after Authority verification and
+                    # projection normalization, never accepted from model text.
+                    normalized["_verified_context_binding"] = {
+                        "base_model_revision": claim.model_context.model_revision,
+                        "result_model_revision": expected_revision,
+                        "result_ref": raw_result_ref,
+                    }
                 projections.append(normalized)
             if projection_error or seen_results != set(owned_results):
                 projections = [item for item in projections if item.get("result_ref") not in owned_results]

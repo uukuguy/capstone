@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,34 @@ from pandapower_domain.result_projection import PandapowerResultProjector
 RESULT_REF = "result:sha256:" + "a" * 64
 EVIDENCE_REF = "evidence:sha256:" + "b" * 64
 REVISION_REF = "revision:sha256:" + "c" * 64
+
+
+def test_derived_result_uses_verified_child_diagram_and_revision() -> None:
+    child_context = context()
+    parent_ref = "context:sha256:" + "e" * 64
+    checked = []
+    def verify_descendant(reference, ancestor):
+        checked.append((reference, ancestor))
+        assert reference == child_context["context_ref"] and ancestor == parent_ref
+        return SimpleNamespace(document=child_context)
+    authority = SimpleNamespace(
+        verify_result=lambda _: SimpleNamespace(document=calculation()),
+        verify_context=lambda _: SimpleNamespace(document=child_context),
+        verify_context_descendant=verify_descendant,
+    )
+    def invoke(capability, arguments):
+        assert arguments == {"context_ref": child_context["context_ref"]}
+        return diagram()
+    payloads = PandapowerResultProjector().project_admitted(
+        authority=authority, invoke=invoke, context_ref=parent_ref,
+        model_revision="revision:sha256:" + "f" * 64,
+        model_context_id="context_1", model_id="ieee39", thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        result_refs=(RESULT_REF,), result_evidence={RESULT_REF: (EVIDENCE_REF,)},
+    )
+    assert len(checked) == 1
+    assert payloads[0]["model_revision"] == REVISION_REF
+    assert payloads[0]["overlay"]["values"][0]["value"] == 67.15
 
 
 def context() -> dict[str, object]:

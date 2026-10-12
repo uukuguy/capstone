@@ -510,6 +510,26 @@ class PandapowerArtifactAuthority:
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
 
+    def verify_context_descendant(self, reference: str, ancestor_ref: str) -> VerifiedArtifact:
+        """Verify each stored context and revision on a bounded ancestry path."""
+        ancestor = self.verify_context(ancestor_ref)
+        descendant = self.verify_context(reference)
+        current = descendant
+        visited: set[str] = set()
+        for _ in range(256):
+            if current.reference in visited:
+                raise SimulatorIntegrityError("context ancestry contains a cycle")
+            visited.add(current.reference)
+            if current.document.get("model_id") != ancestor.document.get("model_id"):
+                raise SimulatorIntegrityError("context ancestry crosses model identity")
+            if current.reference == ancestor_ref:
+                return descendant
+            parent = current.document.get("parent_context_ref")
+            if not isinstance(parent, str):
+                raise SimulatorIntegrityError("context is not derived from the bound ancestor")
+            current = self.verify_context(parent)
+        raise SimulatorIntegrityError("context ancestry exceeds verification limit")
+
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)
 
