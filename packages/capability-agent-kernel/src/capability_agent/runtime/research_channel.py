@@ -95,7 +95,15 @@ class ResearchRequestChannel:
             request = ResearchUpdate.model_validate_json(raw)
             if request.request_id != request_id:
                 return {"status": "rejected", "code": "request_identity_mismatch"}
-        except (ValueError, ValidationError):
+        except ValidationError as exc:
+            errors = exc.errors(include_input=False, include_context=False, include_url=False)
+            return {"status": "rejected", "code": "invalid_research_update",
+                    "validation_errors": [{"path": [part[:128] if isinstance(part, str) else part
+                        for part in error["loc"][:12]], "code": error["type"],
+                        "message": str(error["msg"])[:256] if error["type"] != "json_invalid"
+                        else "Request must be a valid JSON object"} for error in errors[:8]],
+                    "validation_errors_truncated": len(errors) > 8}
+        except ValueError:
             return {"status": "rejected", "code": "invalid_research_update"}
         try:
             document = request.model_dump(mode="json", exclude_unset=True)

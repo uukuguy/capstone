@@ -106,6 +106,28 @@ def test_channel_rejects_caller_selected_identity_and_path(channel):
     assert pump.controller.read() is None
 
 
+def test_invalid_update_returns_bounded_field_errors_without_echoing_input(channel):
+    pump, _ = channel
+    path = publish(pump)
+    request = json.loads(path.read_text())
+    request["changes"]["claims"] = [{"claim_id": "claim-1", "statement": "private-marker",
+                                    "status": "supported", "refs": []}]
+    path.write_text(json.dumps(request))
+    pump.drain()
+    ack = receipt(pump)
+    assert ack["code"] == "invalid_research_update"
+    assert ack["validation_errors"]
+    assert ack["validation_errors"][0]["path"] == ["changes", "claims", 0]
+    assert "private-marker" not in json.dumps(ack)
+    assert pump.controller.read() is None
+    corrected = json.loads(path.read_text())
+    corrected["request_id"] = "update-2"
+    corrected["changes"]["claims"][0]["status"] = "pending"
+    (pump.requests_path / "update-2.json").write_text(json.dumps(corrected))
+    pump.drain()
+    assert receipt(pump, "update-2")["status"] == "committed"
+
+
 def test_receipt_write_failure_does_not_undo_committed_research(channel, monkeypatch):
     pump, _ = channel
     module = importlib.import_module("capability_agent.runtime.research_channel")
