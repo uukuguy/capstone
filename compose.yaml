@@ -93,6 +93,8 @@ services:
 
   api:
     <<: *host-service
+    volumes:
+      - api-runs:/app/runs
     command: [api]
     depends_on:
       postgres:
@@ -113,6 +115,8 @@ services:
 
   worker:
     <<: *host-service
+    volumes:
+      - worker-runs:/app/runs
     environment:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pandapower
@@ -126,6 +130,8 @@ services:
 
   worker-pypsa:
     <<: *host-service
+    volumes:
+      - worker-pypsa-runs:/app/runs
     environment:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pypsa
@@ -141,3 +147,6 @@ services:
 volumes:
   postgres-data:
   object-data:
+  api-runs:
+  worker-runs:
+  worker-pypsa-runs:
