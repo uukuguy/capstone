@@ -304,17 +304,18 @@ def _compose_attempt_policy(
     generic_text = generic.read_text(encoding="utf-8") if include_generic else ""
     research = Path(__file__).parent / "resources" / "research-policy.md"
     research_text = research.read_text(encoding="utf-8") if include_research else ""
+    delivery_text = (Path(__file__).parent / "resources" / "answer-delivery-policy.md").read_text(encoding="utf-8")
     domain_text = ""
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) + len(research_text) > 128_000:
+    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text))) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
