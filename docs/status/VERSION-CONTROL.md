@@ -195,6 +195,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 13 | answers | fix/deployment-answer-acceptance | dev | CLOSED | 人工回归失败后按用户决定撤回；源码42a647b与旧补丁保留；不再作为验收通过候选 |
 | 14 | answers | fix/stable-route-recovery | dev | MERGED | 精确bc08169双平台CI38181053709通过；合并6ff7094；恢复分支已关闭；新基线及两实施分支适配，业务缺陷及Issues2/3保持开放 |
 | 15 | main | docs/dev-recovery-baseline-control | dev | 状态见GitHub | 全局基线台账、两实施分支适配报告及控制图；仅文档与图模板，产品来源仍为6ff7094；临时远端分支接受后关闭 |
+| 16 | main | docs/autonomous-agent-discussion | dev | 状态见GitHub | 自主智能体讨论全览、五个概念、任务级进展流及研究模型详细提案；仅文档与生成器，产品与部署来源不变 |
 
 ## 全部分支进展
 

@@ -2,6 +2,8 @@
 
 ## Active
 
+[PR #16](https://github.com/uukuguy/capstone/pull/16)交付自主智能体讨论文档；[详细设计讨论](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md)保留实现级提案，运行版本不变。
+
 [自主智能体演进讨论](VERSION-CONTROL.md#自主智能体演进讨论)：已确认方向、职责图、统一分支建议和待定细节；讨论完成前不改运行实现。
 
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
