@@ -259,13 +259,22 @@ def field_metadata(dataset: str, net: Any | None = None) -> list[dict[str, Any]]
             str(column),
             _dtype_name(table[column].dtype),
             _unit_for(str(column)),
-            f"Pandapower {table_name}.{column} field",
+            _field_meaning(table_name, str(column)),
             f"net.{table_name}.{column}",
             bool(table[column].isna().any()),
         )
         for column in table.columns
     )
     return [field.as_dict() for field in fields]
+
+
+def _field_meaning(table_name: str, column: str) -> str:
+    if table_name == "bus" and column == "type":
+        return (
+            "Physical bus construction: b=busbar, n=node, m=muff; "
+            "not the power-flow PQ/PV/reference classification"
+        )
+    return f"Pandapower {table_name}.{column} field"
 
 
 def _is_static_table(name: object, table: object) -> bool:

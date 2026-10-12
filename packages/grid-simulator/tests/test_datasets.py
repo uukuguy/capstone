@@ -55,6 +55,18 @@ def test_generic_dataset_describe_reports_typed_fields_and_units(grid, context_r
     assert isinstance(fields["vm_pu"]["nullable"], bool)
 
 
+def test_bus_type_metadata_describes_physical_construction(grid, context_ref: str) -> None:
+    response = grid.call("model.dataset.describe", {
+        "context_ref": context_ref, "dataset": "network.bus",
+    })
+    field = next(item for item in response["fields"] if item["name"] == "type")
+    assert "b=busbar" in field["meaning"]
+    assert "n=node" in field["meaning"]
+    assert "m=muff" in field["meaning"]
+    assert "not the power-flow PQ/PV/reference classification" in field["meaning"]
+    assert field["provenance"] == "net.bus.type"
+
+
 def test_overview_ignores_unrelated_objects_and_keeps_input_scaling_explicit():
     import pandas as pd
     import pandapower as pp
