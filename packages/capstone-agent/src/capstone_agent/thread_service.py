@@ -675,7 +675,7 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
     if event_type != "network_diagram":
-        maximum = MAX_REFERENCE_EVENT_BYTES if event_type in {"tool_completed", "validation_observation"} else _MAX_EVENT_BYTES
+        maximum = MAX_REFERENCE_EVENT_BYTES if event_type in {"tool_completed", "validation_observation", "research_state_updated"} else _MAX_EVENT_BYTES
         _validate_bounded_json(payload, name="event.payload", maximum=maximum)
         return
     _validate_bounded_json(payload, name="event.payload", maximum=MAX_DIAGRAM_BYTES + 1024)

@@ -208,6 +208,12 @@ def normalize_runtime_event(
             raise ValueError("invalid research projection")
         payload = {"research_id": identity, "research_revision": revision, "goal": goal,
                    "baseline_model_context": context.to_document()}
+        if "research_snapshot" in event:
+            from capability_agent.application.research_models import ResearchState
+            state = ResearchState.model_validate(event["research_snapshot"])
+            if state.research_id != identity or state.revision != revision or state.goal != goal:
+                raise ValueError("research snapshot identity does not match projection")
+            payload["research_snapshot"] = state.model_dump(mode="json")
     elif event_type == "assistant_process_delta":
         text = event.get("text")
         payload = {"text": text[:16_384]} if isinstance(text, str) else {}

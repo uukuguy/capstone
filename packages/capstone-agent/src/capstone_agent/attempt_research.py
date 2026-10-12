@@ -107,7 +107,8 @@ class AttemptResearch:
             return None
         return {"research_id": state.research_id, "research_revision": state.revision,
                 "goal": state.goal, "baseline_model_context": self.model_context.to_document(),
-                "claim_count": len(state.claims), "open_question_count": len(state.open_questions)}
+                "claim_count": len(state.claims), "open_question_count": len(state.open_questions),
+                "research_snapshot": state.model_dump(mode="json")}
 
     def close(self, *, failed: bool) -> None:
         if self._closed:

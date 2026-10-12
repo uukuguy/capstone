@@ -111,6 +111,41 @@ def test_ended_attempt_retains_research_and_rejects_new_updates(tmp_path):
     assert research.controller.read().revision == 1
 
 
+def test_committed_projection_preserves_claims_and_notes_as_of_revision(tmp_path):
+    from capstone_agent.harness import normalize_runtime_event
+    research = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+        attempt_id="attempt_one", model_context=MODEL, is_active=lambda: True,
+        admit_reference=lambda ref: ref == "evidence:one")
+    research.controller.update({"request_id": "save-1", "expected_revision": 0,
+        "changes": {"goal": "Assess selected model", "claims": [{"claim_id": "claim-1",
+            "statement": "Check remains open", "status": "pending", "refs": []}],
+            "notes": [{"note_id": "note-1", "text": "A calculation failed", "refs": ["evidence:one"]}]}})
+    projection = research.current_projection()
+    event = normalize_runtime_event({"type": "research_state", **projection}, runtime_mode="capstone")
+    snapshot = event["payload"]["research_snapshot"]
+    assert snapshot["claims"][0]["status"] == "pending"
+    assert snapshot["notes"][0]["refs"] == ["evidence:one"]
+    research.controller.update({"request_id": "save-2", "expected_revision": 1,
+        "changes": {"goal": "A later task"}})
+    assert snapshot["goal"] == "Assess selected model"
+    assert snapshot["revision"] == 1
+    with pytest.raises(ValueError, match="identity does not match"):
+        normalize_runtime_event({"type": "research_state", **projection,
+            "research_revision": 2}, runtime_mode="capstone")
+
+
+def test_research_snapshot_transport_preserves_large_committed_records(tmp_path):
+    from capstone_agent.thread_service import _validate_runtime_payload
+    research = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+        attempt_id="attempt_one", model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
+    research.controller.update({"request_id": "save-1", "expected_revision": 0,
+        "changes": {"goal": "Assess selected model", "notes": [
+            {"note_id": f"note-{index}", "text": "研究记录" * 400, "refs": []} for index in range(64)]}})
+    projection = research.current_projection()
+    assert len(json.dumps(projection, ensure_ascii=False).encode()) > 64 * 1024
+    _validate_runtime_payload("research_state_updated", projection, None)
+
+
 def test_pi_services_research_requests_and_closes_state_on_stop(tmp_path):
     from capstone_agent.kernel_pi_session import _KernelPiPromptSession
     from capstone_agent.harness import normalize_runtime_event

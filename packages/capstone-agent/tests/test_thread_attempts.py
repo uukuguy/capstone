@@ -282,6 +282,23 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     ]
 
 
+def test_large_research_snapshot_survives_task_completion_and_record_paging() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    notes = [{"note_id": f"note-{index}", "text": "研究记录" * 400, "refs": []} for index in range(64)]
+    payload = {"research_id": "research-one", "research_revision": 1, "goal": "Check model",
+        "research_snapshot": {"research_id": "research-one", "revision": 1, "goal": "Check model",
+            "claims": [], "notes": notes, "condition_refs": [], "open_questions": []}}
+    service.append_runtime_event(claim, event_type="research_state_updated", payload=payload)
+    service.finish_attempt(claim, phase="completed", payload={"answer": "本次检查结束，记录可追溯。"})
+    records = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id, limit=32)
+    saved = next(item for item in records["events"] if item["event_type"] == "research_state_updated")
+    assert saved["payload"]["research_snapshot"]["notes"] == notes
+    assert service.snapshot("thr_attempts").current_attempt is None
+
+
 def test_completed_attempt_admits_result_projection_into_thread_snapshot() -> None:
     service = _service()
     receipt = service.submit_command(_command())

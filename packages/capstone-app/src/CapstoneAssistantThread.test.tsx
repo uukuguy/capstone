@@ -11,6 +11,23 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps committed research records scoped to the task and opens them without simulation evidence', () => {
+    const snapshot = { research_id: 'research-1', revision: 1, goal: '比较场景', condition_refs: [],
+      claims: [{ claim_id: 'claim-1', statement: '还需核验边界', status: 'pending', refs: [] }], notes: [], open_questions: [] }
+    render(<CapstoneAssistantThread events={[
+      event('attempt_started', 1, {}, 'study'),
+      event('research_state_updated', 2, { research_id: 'research-1', research_revision: 1,
+        goal: '比较场景', research_snapshot: snapshot }, 'study'),
+      event('attempt_completed', 3, { answer: '检查尚未完成。' }, 'study'),
+      event('attempt_completed', 4, { answer: '另一个任务。' }, 'other'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const buttons = screen.getAllByRole('button', { name: '查看推演证据' }) as HTMLButtonElement[]
+    expect(buttons.map(button => button.disabled)).toEqual([false, true])
+    fireEvent.click(buttons[0])
+    fireEvent.click(screen.getByText('研究判断与工作记录 · 修订 1'))
+    expect(screen.getByText('还需核验边界')).toBeTruthy()
+  })
+
   it('keeps a committed research goal on its own task without adding a selector', () => {
     const events = [
       event('attempt_started', 1, {}, 'study'),
