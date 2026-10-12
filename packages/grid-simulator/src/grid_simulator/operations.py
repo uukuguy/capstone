@@ -350,13 +350,15 @@ def _analysis_run(
     except Exception as exc:
         raise _failure(
             "analysis_failed",
-            f"Analysis operation {operation!r} failed inside pandapower: {exc}",
+            f"Analysis operation {operation!r} failed inside pandapower: {exc}. "
+            "This exception does not establish a physical cause; inspect model inputs and diagnostics.",
             phase="execute",
             allowed_recovery_actions=("inspect_network_diagnostics", "report_failure"),
             details={
                 "operation": operation,
                 "exception_type": type(exc).__name__,
                 "exception_message": str(exc),
+                "cause_status": "not_diagnosed",
             },
         ) from exc
     try:

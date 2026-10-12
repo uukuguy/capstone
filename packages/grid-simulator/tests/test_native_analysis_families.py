@@ -231,10 +231,11 @@ def test_diagnostic_normalizes_findings_as_a_queryable_result_dataset(grid) -> N
 
 
 def test_analysis_failure_preserves_safe_pandapower_diagnostics(grid) -> None:
+    context = _open(grid, "case9")
     error = grid.call_error(
         "analysis.run",
         {
-            "context_ref": _open(grid, "case9"),
+            "context_ref": context,
             "operation": "short_circuit.iec60909",
             "options": {},
         },
@@ -245,3 +246,9 @@ def test_analysis_failure_preserves_safe_pandapower_diagnostics(grid) -> None:
     assert error.details["operation"] == "short_circuit.iec60909"
     assert error.details["exception_type"] == "ValueError"
     assert "s_sc_max_mva" in error.details["exception_message"]
+    assert error.details["cause_status"] == "not_diagnosed"
+    assert "does not establish a physical cause" in error.message
+    subsequent = _run(grid, context, "powerflow.ac")
+    assert subsequent["status"] == "succeeded"
+    assert subsequent["context_ref"] == context
+    assert subsequent["evidence_refs"]
