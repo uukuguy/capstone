@@ -193,6 +193,8 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         session_builder=PreparedKernelPiRpcSessionBuilder(
             runtime_host=host, resolved_llm=resolved,
             base_environment={"PATH": "/bin", "HOME": "/tmp"},
+            research_enabled=True,
+            research_is_active=lambda claim: True,
         ),
         default_selection=ModelCapabilitySelection(
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,)
@@ -208,7 +210,14 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         None,
     )
     assert descriptor is not None and descriptor.is_file()
+    import json
+    from pathlib import Path
+    document = json.loads(descriptor.read_text())
+    channel = Path(document["core"]["researchChannelPath"])
+    assert (channel / "binding.json").is_file()
+    assert session._research is not None
     runtime.stop()
+    assert not session._research.channel.is_active()
     assembly.capability_context_owner.close()
 
 

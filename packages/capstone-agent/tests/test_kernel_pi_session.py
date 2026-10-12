@@ -9,6 +9,28 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_research_references_require_observed_success_and_bound_authority(monkeypatch):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    checks = []
+    monkeypatch.setattr(module, "_verify_bound_attempt_references",
+        lambda *args: checks.append(args))
+    references = module._ResearchReferences((profile,))
+    assert not references.admit("result:unknown")
+    references.observe({"type": "tool_result", "tool_name": "grid_run",
+        "capability": "analysis.run", "ok": False, "result_refs": ["result:failed"]})
+    assert not references.admit("result:failed")
+    references.observe({"type": "tool_result", "tool_name": "grid_run",
+        "capability": "analysis.run", "ok": True,
+        "result_refs": ["result:good"], "evidence_refs": ["evidence:good"]})
+    assert references.admit("result:good")
+    assert checks[-1][3:5] == (("result:good",), ("evidence:good",))
+    def reject(*args):
+        raise ValueError("wrong model revision")
+    monkeypatch.setattr(module, "_verify_bound_attempt_references", reject)
+    assert not references.admit("result:good")
+
+
 def _research_admission_fixture():
     from capability_agent.domain.answer_admission import AnswerAdmissionDecision
     requests = []

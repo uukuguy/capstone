@@ -25,7 +25,7 @@ from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.tools.catalog import CoreToolCatalog
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession
+from .harness import AdmittedAttemptAnswer, PiPromptSession, normalize_runtime_event
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
@@ -33,6 +33,7 @@ from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
+from .attempt_research import AttemptResearch
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -82,6 +83,8 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
+        research_enabled: bool = False,
+        research_is_active: Callable[[AttemptClaim], bool] | None = None,
     ) -> None:
         if not isinstance(runtime_host, RuntimeHost):
             raise TypeError("runtime_host must be a RuntimeHost")
@@ -93,6 +96,10 @@ class PreparedKernelPiRpcSessionBuilder:
         ):
             raise TypeError("base_environment must contain text keys and values")
         self._runtime_host = runtime_host
+        if research_enabled and research_is_active is None:
+            raise ValueError("research requires an active-attempt check")
+        self._research_enabled = research_enabled
+        self._research_is_active = research_is_active
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
         environment = os.environ if base_environment is None else base_environment
@@ -125,6 +132,14 @@ class PreparedKernelPiRpcSessionBuilder:
                 correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds)
             return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
+        references = _ResearchReferences(profiles)
+        research = None
+        if self._research_enabled:
+            active = self._research_is_active
+            assert active is not None
+            research = AttemptResearch(workspace.core_path / "research-attempts", thread_id=claim.thread_id,
+                run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
+                is_active=lambda: active(claim), admit_reference=references.admit)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []
         for profile in profiles:
@@ -168,13 +183,15 @@ class PreparedKernelPiRpcSessionBuilder:
                     application_id=profile.profile.manifest.application_id,
                     run_id=claim.run_id,
                     reference_handoffs_path=handoffs.path,
+                    research_channel_path=research.channel.root if research is not None else None,
                 )
                 descriptors.append(descriptor)
                 binding_runtimes.append((binding_id, runtime, getattr(binding, "endpoint", None)))
         binding_ids = [binding_id for binding_id, _, _ in binding_runtimes]
         if len(binding_ids) != len(set(binding_ids)):
             raise ValueError("prepared Kernel profiles contain duplicate binding IDs")
-        descriptor_path = workspace.core_path / "pi" / "runtime-descriptor.json"
+        attempt_directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
+        descriptor_path = attempt_directory / "runtime-descriptor.json"
         descriptor_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor = descriptors[0] if len(descriptors) == 1 else CompositeRuntimeDescriptor(tuple(descriptors))
         write_runtime_descriptor(descriptor_path, descriptor)
@@ -214,7 +231,7 @@ class PreparedKernelPiRpcSessionBuilder:
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
         trace = JsonlTraceWriter(
-            workspace.core_path / "pi-events.jsonl",
+            attempt_directory / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}
             if self._resolved_llm.secret is not None else set(),
         )
@@ -228,8 +245,10 @@ class PreparedKernelPiRpcSessionBuilder:
             timeout_seconds=self._timeout_seconds,
         )
         return _KernelPiPromptSession(
-            client, trace, admission=_build_kernel_admission(profiles),
+            client, trace, admission=_build_kernel_admission(profiles,
+                core_catalog=CoreToolCatalog.default(include_research=research is not None)),
             reference_observer=handoffs.observe,
+            research=research, research_reference_observer=references.observe,
         )
 
 
@@ -374,15 +393,78 @@ class _RpcWorkspace:
         self.root_path = root_path
 
 
+class _ResearchReferences:
+    """Admit only current-attempt observations checked against bound authorities."""
+
+    def __init__(self, profiles: tuple[PreparedKernelApplicationProfile, ...]) -> None:
+        self.profiles = profiles
+        self.bindings = {}
+        for profile in profiles:
+            for key, binding in getattr(profile.prepared_application, "bindings", {}).items():
+                if key in self.bindings:
+                    raise ValueError("duplicate research binding")
+                self.bindings[key] = binding
+        self.events: dict[str, list[Mapping[str, object]]] = {}
+
+    def observe(self, event: Mapping[str, object]) -> None:
+        normalized = normalize_runtime_event(event, runtime_mode="capstone")
+        if normalized is None or normalized["event_type"] != "tool_completed":
+            return
+        payload = normalized["payload"]
+        if not isinstance(payload, Mapping):
+            return
+        if payload.get("ok") is not True:
+            return
+        binding = payload.get("binding_id")
+        if binding is None and len(self.bindings) == 1:
+            binding = next(iter(self.bindings))
+        if not isinstance(binding, str) or binding not in self.bindings:
+            return
+        if str(payload.get("tool_name", "")).startswith("agent_"):
+            return
+        record = {**payload, "binding_id": binding}
+        for field in ("result_refs", "evidence_refs"):
+            for ref in self._refs(payload, field):
+                self.events.setdefault(ref, []).append(record)
+
+    @staticmethod
+    def _refs(event: Mapping[str, object], field: str) -> tuple[str, ...]:
+        refs = event.get(field, ())
+        return tuple(ref for ref in refs if isinstance(ref, str)) if isinstance(refs, (list, tuple)) else ()
+
+    def admit(self, reference: str) -> bool:
+        events = self.events.get(reference, [])
+        if not events or len({event["binding_id"] for event in events}) != 1:
+            return False
+        event = events[-1]
+        results = self._refs(event, "result_refs")
+        evidence = self._refs(event, "evidence_refs")
+        binding = event["binding_id"]
+        if not isinstance(binding, str):
+            return False
+        owners = {ref: binding for ref in (*results, *evidence)}
+        try:
+            _verify_bound_attempt_references(self.profiles, self.bindings, owners,
+                                             results, evidence, (event,))
+        except (ValueError, LookupError):
+            return False
+        return True
+
+
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
-                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None,
+                 research: AttemptResearch | None = None,
+                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
         self._deadline: float | None = None
         self._ready_for_correction = False
+        self._research = research
+        self._research_reference_observer = research_reference_observer
+        self._answer_admitted = False
 
     @property
     def command(self) -> object:
@@ -413,6 +495,8 @@ class _KernelPiPromptSession:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,
                                "trace_correlation_id": correlation_id})
+            if self._research_reference_observer is not None:
+                self._research_reference_observer(event)
 
         answer = self._client.prompt_and_wait(
             question,
@@ -420,6 +504,7 @@ class _KernelPiPromptSession:
             correlation_id=correlation_id,
             on_heartbeat=on_heartbeat,
             timeout_seconds=remaining,
+            on_control_requests=self._drain_research if self._research is not None else None,
         )
         self._ready_for_correction = True
         return answer
@@ -438,13 +523,23 @@ class _KernelPiPromptSession:
         )
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
-        return self._admission(claim, answer, result_refs, evidence_refs, tool_events)
+        admitted = self._admission(claim, answer, result_refs, evidence_refs, tool_events)
+        self._answer_admitted = True
+        return admitted
+
+    def _drain_research(self) -> None:
+        if self._research is not None:
+            self._research.channel.drain()
 
     def stop(self) -> None:
         try:
             self._client.stop()
         finally:
-            self._trace.close()
+            try:
+                if self._research is not None:
+                    self._research.close(failed=not self._answer_admitted)
+            finally:
+                self._trace.close()
 
 
 def _build_kernel_admission(
