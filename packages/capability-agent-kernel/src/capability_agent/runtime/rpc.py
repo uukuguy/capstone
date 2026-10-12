@@ -34,6 +34,7 @@ TRACEABLE_RPC_TYPES = frozenset(
 CAPTURE_FATAL_EXIT_CODE = 86
 CAPTURE_FATAL_MARKER = "trajectory model request commit failed"
 _CAPTURE_POLL_SECONDS = 0.025
+_CONTROL_POLL_SECONDS = 0.025
 _STDERR_CAPTURE_LIMIT = 64 * 1024
 _SAFE_TOOL_CALL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 _DIAGNOSTIC_SECRET_ASSIGNMENT = re.compile(
@@ -135,6 +136,7 @@ class PiRpcClient:
         on_event: Callable[[dict[str, Any]], None] | None = None,
         on_semantic_event: SemanticEventCallback | None = None,
         on_heartbeat: Callable[[], None] | None = None,
+        on_control_requests: Callable[[], None] | None = None,
         heartbeat_seconds: float = 10.0,
         require_answer_text: bool = True,
         capture: CaptureAdapter | None = None,
@@ -190,6 +192,10 @@ class PiRpcClient:
                     if capture is not None:
                         capture.drain_model_requests()
                     raise PiProtocolError("Pi RPC timed out")
+            if on_control_requests is not None:
+                # Run while tools await host commits, even without trajectory capture.
+                on_control_requests()
+                wait_timeout = min(wait_timeout, _CONTROL_POLL_SECONDS)
             if capture is not None:
                 wait_timeout = min(
                     _CAPTURE_POLL_SECONDS,

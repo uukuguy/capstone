@@ -47,6 +47,53 @@ def test_rpc_keeps_only_last_assistant_message_after_tool_cycle(tmp_path, termin
     assert [event["text"] for event in final] == ["已完成分析。"]
 
 
+@pytest.mark.parametrize("emit_events", [False, True])
+def test_rpc_services_control_requests_while_tool_waits_without_capture(tmp_path, emit_events):
+    script = tmp_path / "control-provider.py"
+    script.write_text(
+        "import json, time\nfrom pathlib import Path\ninput()\n"
+        "print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)\n"
+        "Path('pending').write_text('update')\n"
+        "deadline=time.monotonic()+2\n"
+        "while not Path('committed').exists() and time.monotonic()<deadline:\n"
+        + (" print(json.dumps({'type':'text_delta','text':''}), flush=True)\n" if emit_events else "")
+        + " time.sleep(.005)\n"
+        "if not Path('committed').exists(): raise RuntimeError('host did not service request')\n"
+        "print(json.dumps({'type':'text_delta','text':'done'}), flush=True)\n"
+        "print(json.dumps({'type':'agent_end','messages':[]}), flush=True)\n",
+    )
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    serviced = []
+    def service():
+        if (tmp_path / "pending").exists() and not (tmp_path / "committed").exists():
+            (tmp_path / "committed").write_text("committed")
+            serviced.append(True)
+    client.start()
+    try:
+        assert client.prompt_and_wait("question", on_control_requests=service, timeout_seconds=1) == "done"
+    finally:
+        client.stop()
+        trace.close()
+    assert serviced == [True]
+
+
+def test_rpc_control_failure_does_not_return_a_formal_answer(tmp_path):
+    script = tmp_path / "control-failure.py"
+    script.write_text("import time\ninput()\ntime.sleep(2)\n")
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    def fail():
+        raise PiProtocolError("control commit failed")
+    client.start()
+    try:
+        with pytest.raises(PiProtocolError, match="control commit failed"):
+            client.prompt_and_wait("question", on_control_requests=fail, timeout_seconds=1)
+    finally:
+        client.stop()
+        trace.close()
+
+
 def test_rpc_terminal_snapshot_is_authoritative_without_deltas(tmp_path):
     script = tmp_path / "snapshot.py"
     events = [{"type": "prompt_ack", "ok": True}, {"type": "agent_end", "messages": [{"role": "assistant",
