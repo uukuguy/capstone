@@ -294,6 +294,7 @@ def _materialize_domain_runtime(
             guide_root_path=selected_guide_root,
             guide_index_path=guide_index_path,
             protocol=guide_protocol,
+            reuse_existing=True,
         )
     else:
         GuideIndex.load(

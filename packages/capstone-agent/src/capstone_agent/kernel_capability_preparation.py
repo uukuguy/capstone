@@ -1,8 +1,9 @@
 """Application-private preparation of legacy Kernel profiles for Thread Contexts.
 
 This bridge is the last place that knows the Kernel ``ApplicationProfile``
-shape.  It returns a process-local prepared resource; Thread snapshots carry
-only the model identity and opaque references.
+shape. It returns a process-local prepared resource. An application may retain
+the exact model-context workspace when those resources close; Thread snapshots
+carry only model identity and opaque references.
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 import re
+import json
+from hashlib import sha256
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -116,6 +119,7 @@ class KernelApplicationProfilePreparer:
         workspace_root: Path,
         model_binder: Callable[[object, ModelContextSnapshot], AuthorityModelBinding],
         credentials: CredentialBroker | None = None,
+        retain_context_workspace: bool = False,
     ) -> None:
         if not isinstance(workspace_root, Path):
             raise TypeError("workspace_root must be a Path")
@@ -123,6 +127,9 @@ class KernelApplicationProfilePreparer:
             raise TypeError("model_binder must be callable")
         self.workspace_root = workspace_root
         self.model_binder = model_binder
+        if not isinstance(retain_context_workspace, bool):
+            raise TypeError("retain_context_workspace must be boolean")
+        self.retain_context_workspace = retain_context_workspace
         self.credentials: CredentialBroker = (
             credentials if credentials is not None else EmptyCredentialBroker()
         )
@@ -137,10 +144,7 @@ class KernelApplicationProfilePreparer:
         if not isinstance(model_context, ModelContextSnapshot):
             raise TypeError("model_context must be a ModelContextSnapshot")
         binding_ids = tuple(binding.binding_id for binding in profile.domains)
-        workspace = ApplicationWorkspace.create(
-            self.workspace_root,
-            binding_ids=binding_ids,
-        )
+        workspace = self._workspace(profile, model_context, binding_ids)
         prepared = prepare_application(
             profile,
             registry=domain_registry(profile),
@@ -164,6 +168,21 @@ class KernelApplicationProfilePreparer:
                     [error, *cleanup],
                 ) from None
             raise
+
+    def _workspace(self, profile: ApplicationProfile, context: ModelContextSnapshot,
+                   binding_ids: tuple[str, ...]) -> ApplicationWorkspace:
+        if not self.retain_context_workspace:
+            return ApplicationWorkspace.create(self.workspace_root, binding_ids=binding_ids)
+        identity = {"context": context.to_document(),
+            "application": [profile.manifest.application_id, profile.manifest.version],
+            "bindings": [{"id": binding.binding_id, "namespace": binding.tool_namespace,
+                "domain": getattr(getattr(binding.profile, "manifest", None), "domain_id", None),
+                "version": getattr(getattr(binding.profile, "manifest", None), "version", None)}
+                for binding in profile.domains]}
+        run_id = "context-" + sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:48]
+        if (self.workspace_root / run_id).exists():
+            return ApplicationWorkspace.open_existing(self.workspace_root, run_id=run_id, binding_ids=binding_ids)
+        return ApplicationWorkspace.create(self.workspace_root, run_id=run_id, binding_ids=binding_ids)
 
     @staticmethod
     def _validate_binding(

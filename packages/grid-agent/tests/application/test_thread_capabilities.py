@@ -43,6 +43,34 @@ class _Session:
         return None
 
 
+def test_retained_model_workspace_reuses_real_results_after_resources_close(tmp_path):
+    from grid_agent.application.profile import build_pandapower_application_profile
+    revision = ModelRegistry(Pandapower340Engine()).trusted_revision_ref("ieee39")
+    context = _claim(revision).model_context
+    def bind(prepared, context):
+        opened = prepared.bindings["grid"].runtime.executor.invoke("context.open", {"model_id": context.model_id})
+        return AuthorityModelBinding("grid", context.model_id, opened["revision_ref"],
+                                     context.implementation_family, opened["context_ref"])
+    def prepare():
+        return KernelApplicationProfilePreparer(workspace_root=tmp_path,
+            model_binder=bind, retain_context_workspace=True)(build_pandapower_application_profile(), context)
+    first = prepare()
+    runtime = first.prepared_application.bindings["grid"].runtime
+    calculated = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": first.model_binding.context_ref})
+    original = runtime.authority.verify_result(calculated["result_ref"]).document
+    first.close()
+    second = prepare()
+    try:
+        assert second.workspace.root == first.workspace.root
+        reopened = second.prepared_application.bindings["grid"].runtime
+        assert reopened.authority.verify_result(calculated["result_ref"]).document == original
+        evidence = reopened.executor.invoke("evidence.get", {"evidence_ref": calculated["evidence_refs"][0]})
+        assert evidence["document"]["result_ref"] == calculated["result_ref"]
+        assert reopened.authority.verify_result(calculated["result_ref"]).document == original
+    finally:
+        second.close()
+
+
 def test_real_derived_powerflow_reaches_thread_result_projection(tmp_path):
     from capstone_agent.kernel_pi_session import _verify_bound_attempt_references, _build_result_projections
     from capstone_agent.thread_service import _terminal_result_projections

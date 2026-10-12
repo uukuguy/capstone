@@ -123,6 +123,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         default_model_id=catalog.default_model_id,
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         default_selection=ModelCapabilitySelection(

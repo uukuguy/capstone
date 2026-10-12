@@ -110,6 +110,7 @@ def build_registered_pandapower_thread_application():
         default_model_id="ieee39",
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         model_catalog=AuthorityThreadModelCatalog(
