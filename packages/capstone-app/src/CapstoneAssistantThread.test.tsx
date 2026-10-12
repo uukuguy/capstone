@@ -11,6 +11,24 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('renders an admitted limited answer and keeps prior answers and execution records', () => {
+    const answer = '已完成模型检查。当前没有可用的稳定性计算方法，因此尚不能判断稳定裕度。'
+    const events = [
+      event('attempt_completed', 1, { answer: '此前已完成的回答。' }, 'previous'),
+      event('command_accepted', 2, { kind: 'send_professional', text: '评估当前模型' }, 'limited'),
+      event('attempt_started', 3, {}, 'limited'),
+      event('tool_completed', 4, { tool_name: 'grid_model_describe', capability: 'model.describe', tool_call_id: 'inspect', ok: true }, 'limited'),
+      event('attempt_completed', 5, { answer, admission: { mode: 'limited', assurance: 'limited' }, result_refs: [], evidence_refs: [] }, 'limited'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText(answer)).toBeTruthy()
+    expect(screen.getByText('此前已完成的回答。')).toBeTruthy()
+    expect(screen.queryByText('执行失败')).toBeNull()
+    const message = projectAssistantMessages(events).find(item => item.id === 'assistant-limited')
+    expect(message?.metadata?.custom?.admission).toEqual({ mode: 'limited', assurance: 'limited' })
+    expect(message?.metadata?.custom?.toolCount).toBe(1)
+  })
+
   it('places offscreen instructions at the reading start and preserves visible instructions, draft and input focus', () => {
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '定位这条指令' }, 'first'), event('attempt_completed', 2, { answer: '回答。'.repeat(160) }, 'first')]
     const props = { events, disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {} }

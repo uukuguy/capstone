@@ -535,7 +535,7 @@ class HarnessAttemptRunner:
             )
             if plan is not None and plan.route == "professional" and (
                 candidate is None
-                or (candidate.mode != "authority_backed" and not observation_admitted)
+                or (candidate.mode not in {"authority_backed", "limited"} and not observation_admitted)
                 or (candidate.mode == "authority_backed" and not candidate.evidence_refs)
             ):
                 raise _AttemptAdmissionError("capability_required")

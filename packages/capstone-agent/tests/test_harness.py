@@ -711,7 +711,7 @@ def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
     assert result.status == "completed"
 
 
-def test_professional_route_rejects_limited_admission() -> None:
+def test_professional_route_delivers_admitted_limited_answer() -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_limited",
@@ -731,8 +731,12 @@ def test_professional_route_rejects_limited_admission() -> None:
         ),
         turn_router=DefaultTurnRouter(),
     ).run(claim)
-    assert result.status == "failed"
-    assert result.error_code == "capability_required"
+    assert result.status == "completed"
+    assert result.answer == "answer"
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["answer"] == "answer"
+    assert terminal.payload["admission"] == {"mode": "limited", "assurance": "limited"}
+    assert terminal.payload["result_refs"] == terminal.payload["evidence_refs"] == []
 
 
 def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> None:
@@ -755,5 +759,8 @@ def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> Non
         ),
         turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("ordinary")),
     ).run(claim)
-    assert result.status == "failed"
-    assert result.error_code == "capability_required"
+    assert result.status == "completed"
+    events = service.read_events("thr_harness", 0).events
+    selected = next(event for event in events if event.event_type == "turn_route_selected")
+    assert selected.payload["route"] == "professional"
+    assert events[-1].payload["admission"]["mode"] == "limited"
