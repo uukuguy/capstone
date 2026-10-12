@@ -30,6 +30,18 @@ def _summary(value: object, limit: int = 200) -> str:
     return compact if len(compact) <= limit else compact[:limit] + "…"
 
 
+def project_tool_failure(value: object) -> dict[str, str]:
+    """Expose bounded tool diagnostics, without nested provider payloads."""
+    if not isinstance(value, Mapping):
+        return {}
+    projected: dict[str, str] = {}
+    for field, limit in (("code", 128), ("phase", 64), ("message", 1000)):
+        text = value.get(field)
+        if isinstance(text, str) and text.strip():
+            projected[field] = _summary(text, limit)
+    return projected
+
+
 def summarize_answer(value: object, *, has_references: bool = False) -> str:
     """Return a compact reader-facing summary while retaining the full answer."""
 

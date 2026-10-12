@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from capstone_agent.harness import AdmittedAttemptAnswer, HarnessAttemptRunner, HarnessPiClient
+from capstone_agent.harness import normalize_runtime_event
 from test_harness import _thread_service
 import pytest
 
@@ -15,6 +16,20 @@ def claim_attempt(service):
     claim = service.claim_attempt("worker", lease_seconds=30)
     assert claim is not None
     return claim
+
+
+def test_tool_failure_keeps_bounded_reason_without_raw_error_details():
+    event = normalize_runtime_event({
+        "type": "tool_result", "event": "tool_result", "capability": "analysis.run",
+        "ok": False, "error": {"code": "invalid_arguments", "phase": "validate",
+            "message": "Missing required input; api_key=private-value",
+            "details": {"raw_response": "private raw object"}},
+    }, runtime_mode="capstone")
+    assert event["payload"]["failure"]["code"] == "invalid_arguments"
+    assert event["payload"]["failure"]["phase"] == "validate"
+    assert "Missing required input" in event["payload"]["failure"]["message"]
+    assert "private-value" not in str(event)
+    assert "raw_response" not in str(event)
 
 
 class Session:

@@ -372,11 +372,16 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const failureResults = events.filter((event) => event.attemptId === attemptId &&
       ((event.eventType === 'tool_completed' && event.payload.ok === false) ||
        (event.eventType === 'validation_observation' && event.payload.status === 'failed')))
-      .map((event) => ({ id: event.eventId, kind: event.eventType === 'tool_completed' ? 'execution' : 'validation',
+      .map((event) => {
+        const failure = event.payload.failure && typeof event.payload.failure === 'object'
+          ? event.payload.failure as Record<string, unknown> : event.payload
+        return { id: event.eventId, kind: event.eventType === 'tool_completed' ? 'execution' : 'validation',
         tool: typeof event.payload.tool_name === 'string' ? event.payload.tool_name : '',
-        message: typeof event.payload.message === 'string' ? event.payload.message : '',
-        code: typeof event.payload.code === 'string' ? event.payload.code : '',
-        sequence: event.eventSeq }))
+        message: typeof failure.message === 'string' ? failure.message : '',
+        code: typeof failure.code === 'string' ? failure.code : '',
+        phase: typeof failure.phase === 'string' ? failure.phase : '',
+        sequence: event.eventSeq }
+      })
     const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
@@ -628,7 +633,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const attemptId = id.replace(/^assistant-/, '')
   const attemptResultProjections = resultProjections?.filter((item) => item.attemptId === attemptId) ?? []
   const failureResults = (Array.isArray(custom?.failureResults) ? custom.failureResults : []) as {
-    id: string; kind: string; tool: string; message: string; code: string; sequence: number;
+    id: string; kind: string; tool: string; message: string; code: string; phase: string; sequence: number;
   }[]
   const hasResults = attemptResultProjections.length > 0 || failureResults.length > 0
   const evidenceRefs = stringRefs(custom?.evidenceRefs)
@@ -690,7 +695,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         <div className="capstone-result-heading"><strong>{item.kind === 'execution' ? '执行失败' : '核验未通过'}</strong><small>{item.tool || '回答核验'}</small></div>
         <p>{item.message || '该步骤未成功完成。具体原因尚未提供，执行记录已保留。'}</p>
         {item.kind === 'validation' && <p>未作为已验证结论使用。</p>}
-        <details><summary>技术追溯</summary><p>事件序号：{item.sequence}</p>{item.code && <p>诊断码：{item.code}</p>}</details>
+        <details><summary>技术追溯</summary><p>事件序号：{item.sequence}</p>{item.phase && <p>失败阶段：{item.phase}</p>}{item.code && <p>诊断码：{item.code}</p>}</details>
       </section>)}
     </div>}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}

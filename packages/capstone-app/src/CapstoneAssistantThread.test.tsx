@@ -14,7 +14,7 @@ describe('CapstoneAssistantThread', () => {
   it('includes failed execution and validation records in calculation results', () => {
     const events = [
       event('attempt_started', 1, {}, 'study'),
-      event('tool_completed', 2, { tool_name: 'grid_analysis_run', tool_call_id: 'run-1', ok: false }, 'study'),
+      event('tool_completed', 2, { tool_name: 'grid_analysis_run', tool_call_id: 'run-1', ok: false, failure: { code: 'invalid_arguments', phase: 'validate', message: '缺少所需输入。' } }, 'study'),
       event('validation_observation', 3, { status: 'failed', stage: 'answer_check', code: 'answer_admission_failed', message: '回答核验未通过，原始内容和执行记录已保留。' }, 'study'),
       event('attempt_completed', 4, { answer: '计算未完成；已记录失败步骤。', admission: { mode: 'limited', assurance: 'limited' } }, 'study'),
     ]
@@ -23,6 +23,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('执行失败')).toBeTruthy()
     expect(screen.getByText('核验未通过')).toBeTruthy()
     expect(screen.getByText('grid_analysis_run')).toBeTruthy()
+    expect(screen.getByText('缺少所需输入。')).toBeTruthy()
     expect(screen.getByText('未作为已验证结论使用。')).toBeTruthy()
   })
   it('shows the delivered partial outcome instead of replacing it with an error code', () => {

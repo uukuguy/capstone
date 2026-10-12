@@ -14,6 +14,7 @@ import json
 from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
+from .progress import project_tool_failure
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
     ThreadNetworkProjectionProvider,
@@ -222,6 +223,10 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     ok = event.get("ok", details.get("ok"))
     if isinstance(ok, bool):
         payload["ok"] = ok
+    if ok is False:
+        failure = project_tool_failure(event.get("error", details.get("error")))
+        if failure:
+            payload["failure"] = failure
     for source, target in (
         ("capability", "capability"),
         ("projector_id", "projector_id"),
