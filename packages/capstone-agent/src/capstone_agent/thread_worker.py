@@ -59,8 +59,7 @@ def _run_claimed_attempt(
             plan = router.plan(routing_input_for_claim(claim))
         except DecisionUnavailable as error:
             error_code = "llm_route_unavailable" if str(error) == "llm_route_unavailable" else "ordinary_conversation_disabled"
-            service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
-            return HarnessAttemptResult("failed", None, error_code)
+            return _preparation_failure(service, claim, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
         service.append_runtime_event(
             claim, event_type="turn_route_fallback" if plan.fallback else "turn_route_selected",
@@ -73,9 +72,10 @@ def _run_claimed_attempt(
         runtime = runtime_factory(claim)
     except HarnessRuntimeConfigurationError:
         error_code = "runtime_configuration_invalid"
-        service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
-        return HarnessAttemptResult("failed", None, error_code)
+        lease.check()
+        return _preparation_failure(service, claim, error_code)
     except Exception:
+        lease.check()
         error_code = "runtime_unavailable"
         if getattr(runtime_factory, "rollback_selection_on_failure", False):
             error_code = "capability_context_preparation_failed"
@@ -91,13 +91,19 @@ def _run_claimed_attempt(
                     )
             except Exception:
                 pass
-        service.finish_attempt(
-            claim, phase="failed", payload={"error_code": error_code},
-        )
-        return HarnessAttemptResult("failed", None, error_code)
+        return _preparation_failure(service, claim, error_code)
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
+
+
+def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str) -> HarnessAttemptResult:
+    answer = "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。"
+    service.finish_attempt(claim, phase="failed", payload={
+        "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
+        "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
+    })
+    return HarnessAttemptResult("failed", answer, code)
 
 
 def serve_thread_attempts(

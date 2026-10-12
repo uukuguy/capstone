@@ -145,7 +145,13 @@ def _terminal_result_projections(
         raise ThreadProtocolError("attempt.result_projections is invalid")
     if not raw_projections:
         return ()
-    if phase != "completed":
+    admission = payload.get("admission")
+    verified_partial = (
+        phase == "failed" and isinstance(admission, Mapping)
+        and admission.get("mode") == "authority_backed"
+        and admission.get("assurance") == "lineage_verified"
+    )
+    if phase != "completed" and not verified_partial:
         raise ThreadProtocolError("result projections require a completed attempt")
     raw_results = payload.get("result_refs", [])
     raw_evidence = payload.get("evidence_refs", [])

@@ -306,13 +306,15 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' || event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
       const key = event.attemptId || event.turnId
       let message = key ? assistantByAttempt.get(key) : undefined
-      const answer = event.eventType === 'attempt_completed' && typeof event.payload.answer === 'string'
+      const delivered = event.eventType === 'attempt_completed' ||
+        (event.eventType === 'attempt_failed' && typeof event.payload.outcome === 'object' && event.payload.outcome !== null)
+      const answer = delivered && typeof event.payload.answer === 'string'
         ? event.payload.answer
         : ''
-      const terminalAnswer = event.eventType === 'attempt_completed' ? answer : terminalContent(event)
+      const terminalAnswer = delivered ? answer : terminalContent(event)
       if (!message && key) message = ensureAssistant(key, key ? startedAtByAttempt.get(key) : undefined)
       const partialText = event.eventType !== 'attempt_completed' ? message?.content : undefined
-      if (message && terminalAnswer && (event.eventType === 'attempt_completed' || !message.content)) {
+      if (message && terminalAnswer && (delivered || !message.content)) {
         message.content = terminalAnswer
       } else if (message && event.eventType !== 'attempt_completed') {
         message.content += `\n\n${terminalAnswer}`
@@ -337,7 +339,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
             instruction: instruction?.text,
             instructionMessageId: instruction?.messageId,
             terminalPhase: event.eventType.replace(/^attempt_/, ''),
-            ...(event.eventType !== 'attempt_completed' ? { terminalNotice: terminalAnswer, partialText } : {}),
+            ...(!delivered ? { terminalNotice: terminalAnswer, partialText } : {}),
             errorCode: typeof event.payload.error_code === 'string' ? event.payload.error_code : undefined,
             startedAt: custom.startedAt || (key ? startedAtByAttempt.get(key) : undefined),
             finishedAt: event.occurredAt,

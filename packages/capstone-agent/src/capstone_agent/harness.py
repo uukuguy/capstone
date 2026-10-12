@@ -385,6 +385,29 @@ class HarnessPiClient:
     def start(self) -> None:
         self._session.start()
 
+    def recover_after_failure(
+        self, feedback: Mapping[str, object], *, on_event: RuntimeEventSink,
+        correlation_id: str, on_heartbeat: Callable[[], None],
+    ) -> str:
+        recover = getattr(self._session, "recover_after_failure", None)
+        if not callable(recover):
+            raise HarnessRuntimeUnavailable("runtime recovery is unavailable")
+
+        def emit(native: Mapping[str, object]) -> None:
+            if isinstance(self._network_projection_provider, ThreadNetworkRuntimeObserver):
+                self._network_projection_provider.observe_runtime_event(native)
+            on_event(normalize_runtime_event(native, runtime_mode=self.runtime_mode))
+
+        answer = recover(feedback, on_semantic_event=emit,
+                         correlation_id=correlation_id, on_heartbeat=on_heartbeat)
+        if not isinstance(answer, str):
+            raise TypeError("recovery answer is invalid")
+        return answer
+
+    @property
+    def recovery_available(self) -> bool:
+        return callable(getattr(self._session, "recover_after_failure", None))
+
     def prompt(
         self, question: str, *, on_event: RuntimeEventSink,
         correlation_id: str | None = None,
@@ -476,6 +499,8 @@ class HarnessAttemptRunner:
         self._evidence_refs.clear()
         self._tool_events.clear()
         plan: TurnPlan | None = claim.turn_plan
+        recovery_attempted = False
+        terminal_commit_started = False
 
         def persist(event: Mapping[str, object]) -> None:
             lease.check()
@@ -520,7 +545,29 @@ class HarnessAttemptRunner:
                         tuple(self._evidence_refs), tuple(self._tool_events),
                     )
                 except Exception:
-                    raise _AttemptAdmissionError("answer_admission_failed") from None
+                    recover = getattr(self._runtime, "recover_after_failure", None)
+                    if not callable(recover) or not getattr(self._runtime, "recovery_available", True):
+                        raise _AttemptAdmissionError("answer_admission_failed") from None
+                    heartbeat()
+                    recovery_attempted = True
+                    try:
+                        answer = recover(
+                            {"stage": "answer_check", "code": "answer_admission_failed"},
+                            on_event=persist,
+                            correlation_id=claim.attempt.attempt_id,
+                            on_heartbeat=heartbeat,
+                        )
+                        heartbeat()
+                        if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
+                            raise ValueError("recovery answer is invalid")
+                        candidate = admit(
+                            claim, answer, tuple(self._result_refs),
+                            tuple(self._evidence_refs), tuple(self._tool_events),
+                        )
+                    except _AttemptCancelled:
+                        raise
+                    except Exception:
+                        raise _AttemptAdmissionError("answer_admission_failed") from None
             if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
                 raise _AttemptAdmissionError("answer_admission_invalid")
             if candidate is not None and (
@@ -614,6 +661,7 @@ class HarnessAttemptRunner:
                         visibility="public",
                     )
             lease.check()
+            terminal_commit_started = True
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
             )
@@ -621,14 +669,18 @@ class HarnessAttemptRunner:
                 "completed", admitted_answer, None, result_refs, evidence_refs, admission,
             )
         except _AttemptAdmissionError as error:
-            self._finish_failed(claim, error.code)
-            return HarnessAttemptResult("failed", None, error.code)
+            lease.check()
+            return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted)
         except _AttemptCancelled:
             self._finish_cancelled(claim)
             return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
         except Exception:
-            self._finish_failed(claim, "runtime_failed")
-            return HarnessAttemptResult("failed", None, "runtime_failed")
+            if terminal_commit_started:
+                # The write may have committed. Never replace an uncertain
+                # successful terminal write with a second, failed outcome.
+                raise
+            lease.check()
+            return self._deliver_failure(claim, "runtime_failed", "execution", recovery_attempted)
         finally:
             try:
                 self._runtime.stop()
@@ -663,18 +715,18 @@ class HarnessAttemptRunner:
             raise ValueError("runtime event is invalid")
         if not isinstance(payload, Mapping):
             raise ValueError("runtime event payload is invalid")
-        if event_type in {"tool_started", "tool_completed"}:
-            self._tools_observed = True
-        _extend_refs(self._result_refs, payload.get("result_refs"))
-        _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
-        if event_type == "tool_completed":
-            self._tool_events.append(dict(payload))
         self._service.append_runtime_event(
             claim,
             event_type=event_type,
             payload={"runtime_mode": runtime_mode, **dict(payload)},
             visibility=visibility if isinstance(visibility, str) else "diagnostic",
         )
+        if event_type in {"tool_started", "tool_completed"}:
+            self._tools_observed = True
+        _extend_refs(self._result_refs, payload.get("result_refs"))
+        _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
+        if event_type == "tool_completed":
+            self._tool_events.append(dict(payload))
 
     def _renew_lease(self, claim: AttemptClaim) -> None:
         if not self._service.renew_attempt(claim, self._lease_seconds):
@@ -699,6 +751,53 @@ class HarnessAttemptRunner:
             # The durable service remains the source of truth. If its terminal
             # write failed, do not claim that the Attempt was safely finished.
             raise RuntimeError("attempt terminal persistence failed") from exc
+
+    def _deliver_failure(
+        self, claim: AttemptClaim, code: str, stage: str, recovery_attempted: bool,
+    ) -> HarnessAttemptResult:
+        # This text describes execution state only. Numerical findings still
+        # require the application's normal authority and evidence admission.
+        answer = (
+            "本次任务未能完成。正式回答未通过核验，尚不能据此作出结论。"
+            if stage == "answer_check" else
+            "本次任务未能完成。执行中断，尚不能给出完整结论。"
+        )
+        if recovery_attempted:
+            answer += "已尝试纠正回答，但未能形成通过核验的最终结论。"
+        answer += "已记录的执行过程仍保留。"
+        candidate = None
+        admit = getattr(self._runtime, "admit_attempt", None)
+        if self._result_refs and self._evidence_refs and callable(admit):
+            try:
+                checked = admit(claim, answer, tuple(self._result_refs),
+                                tuple(self._evidence_refs), tuple(self._tool_events))
+                if (isinstance(checked, AdmittedAttemptAnswer)
+                    and checked.mode == "authority_backed"
+                    and set(checked.result_refs).issubset(self._result_refs)
+                    and set(checked.evidence_refs).issubset(self._evidence_refs)):
+                    candidate = checked
+            except Exception:
+                pass
+        results = () if candidate is None else candidate.result_refs
+        evidence = () if candidate is None else candidate.evidence_refs
+        admission = None if candidate is None else {
+            "mode": candidate.mode, "assurance": candidate.assurance,
+        }
+        if candidate is not None:
+            answer += "已核验的计算结果和证据已保留；它们不代表整个任务已完成。"
+        payload: dict[str, object] = {
+            "answer": answer, "error_code": code,
+            "result_refs": list(results), "evidence_refs": list(evidence),
+            "outcome": {"status": "partial" if candidate else "blocked",
+                        "stage": stage,
+                        "recovery": "attempted" if recovery_attempted else "unavailable"},
+        }
+        if admission is not None:
+            payload["admission"] = admission
+        if candidate is not None and candidate.result_projections:
+            payload["result_projections"] = [dict(item) for item in candidate.result_projections]
+        self._service.finish_attempt(claim, phase="failed", payload=payload)
+        return HarnessAttemptResult("failed", answer, code, results, evidence, admission)
 
 
 class _AttemptAdmissionError(RuntimeError):

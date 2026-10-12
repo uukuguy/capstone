@@ -779,7 +779,7 @@ export class ThreadProjectionStore {
       document.active_model_context = activeContext
       delete document.pending_selection
     }
-    if (event.eventType === 'attempt_completed' && Array.isArray(payload.result_projections)) {
+    if (['attempt_completed', 'attempt_failed'].includes(event.eventType) && Array.isArray(payload.result_projections)) {
       const existing = Array.isArray(document.result_projections) ? document.result_projections : []
       document.result_projections = [...existing, ...payload.result_projections].slice(-64)
     }

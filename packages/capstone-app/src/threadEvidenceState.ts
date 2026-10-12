@@ -11,6 +11,10 @@ export const evidenceStateCopy: Record<AnswerEvidenceState, string> = {
 /** Read structured Attempt state and admission. Never inspect answer prose. */
 export function answerEvidenceState(phase: string | undefined, admission: unknown, refs: readonly string[], errorCode?: string): AnswerEvidenceState {
   if (['running', 'waiting', 'committing', 'accepted', 'created'].includes(phase || '')) return 'pending'
+  if (phase === 'failed' && typeof admission === 'object' && admission !== null) {
+    const partial = admission as Record<string, unknown>
+    if (partial.mode === 'authority_backed' && partial.assurance === 'lineage_verified' && refs.length) return 'available'
+  }
   if (phase !== 'completed') return errorCode === 'capability_required' ? 'missing' : 'unavailable'
   if (admission === undefined || admission === null) return refs.length ? 'unavailable' : 'not_applicable'
   if (typeof admission !== 'object' || Array.isArray(admission)) return 'unavailable'

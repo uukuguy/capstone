@@ -110,6 +110,22 @@ def test_result_projection_survives_public_snapshot_roundtrip_and_keeps_attempt_
     assert terminal.payload["result_projections"] == [projection]
 
 
+@pytest.mark.parametrize("verified", [False, True])
+def test_failed_attempt_retains_projection_only_with_verified_admission(verified) -> None:
+    service = _service()
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    payload = {"answer": "Partial outcome", "result_refs": [RESULT_ONE],
+               "evidence_refs": [EVIDENCE_ONE], "result_projections": [projection]}
+    if verified:
+        payload["admission"] = {"mode": "authority_backed", "assurance": "lineage_verified"}
+        service.finish_attempt(claim, phase="failed", payload=payload)
+        assert service.snapshot("thr_projection").result_projections[0].result_ref == RESULT_ONE
+        assert service.read_events("thr_projection", 0).events[-1].event_type == "attempt_failed"
+    else:
+        with pytest.raises(ThreadProtocolError):
+            service.finish_attempt(claim, phase="failed", payload=payload)
+
+
 def test_multiple_completed_attempts_keep_distinct_result_projection_ids() -> None:
     service = _service()
     first_claim, first = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)

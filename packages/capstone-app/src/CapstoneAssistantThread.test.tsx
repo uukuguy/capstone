@@ -11,6 +11,20 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows the delivered partial outcome instead of replacing it with an error code', () => {
+    const answer = '已保存潮流结果。后续检查中断，尚不能判断整个任务是否满足要求。'
+    const events = [
+      event('attempt_completed', 1, { answer: '此前回答仍保留。' }, 'previous'),
+      event('attempt_started', 2, {}, 'partial'),
+      event('tool_completed', 3, { tool_name: 'grid_powerflow_run', ok: true }, 'partial'),
+      event('attempt_failed', 4, { answer, error_code: 'runtime_failed', outcome: { status: 'partial' }, admission: { mode: 'authority_backed', assurance: 'lineage_verified' }, evidence_refs: ['evidence:1'] }, 'partial'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByText(answer)).toBeTruthy()
+    expect(screen.getByText('此前回答仍保留。')).toBeTruthy()
+    expect(screen.queryByText('执行失败')).toBeNull()
+    expect(projectAssistantMessages(events).find(item => item.id === 'assistant-partial')?.metadata?.custom?.toolCount).toBe(1)
+  })
   it('renders an admitted limited answer and keeps prior answers and execution records', () => {
     const answer = '已完成模型检查。当前没有可用的稳定性计算方法，因此尚不能判断稳定裕度。'
     const events = [

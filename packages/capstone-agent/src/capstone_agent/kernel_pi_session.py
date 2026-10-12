@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 import json
 import os
+import time
 from typing import cast
 
 from capability_agent.domain.answer_admission import (
@@ -380,6 +381,8 @@ class _KernelPiPromptSession:
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
+        self._deadline: float | None = None
+        self._ready_for_correction = False
 
     @property
     def command(self) -> object:
@@ -396,16 +399,38 @@ class _KernelPiPromptSession:
         correlation_id: str | None,
         on_heartbeat: Callable[[], None],
     ) -> str:
+        if self._deadline is None:
+            self._deadline = time.monotonic() + (self._client.timeout_seconds or 600)
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("attempt time budget exhausted")
+        self._ready_for_correction = False
         def observed(event, _sequence):
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event(event)
 
-        return self._client.prompt_and_wait(
+        answer = self._client.prompt_and_wait(
             question,
             on_semantic_event=observed,
             correlation_id=correlation_id,
             on_heartbeat=on_heartbeat,
+            timeout_seconds=remaining,
+        )
+        self._ready_for_correction = True
+        return answer
+
+    def recover_after_failure(self, feedback: Mapping[str, object], **kwargs) -> str:
+        if not self._ready_for_correction:
+            raise RuntimeError("session is not ready for correction")
+        # Continue the existing session; do not replay the original instruction
+        # or reset the attempt's deadline.
+        return self.prompt_and_wait(
+            "The application could not admit the previous answer. Review the existing "
+            "tool receipts and correct the answer. Do not repeat completed calculations "
+            "without a stated need. Use only verified evidence; explain any unresolved "
+            "part in the user's language. Validation feedback: "
+            + json.dumps(dict(feedback), ensure_ascii=False), **kwargs,
         )
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
